@@ -4,7 +4,6 @@ use anyhow::{Context, Ok};
 use reqwest::Method;
 use zksync_config::configs::prover_autoscaler::QueueReportFields;
 use zksync_prover_job_monitor::autoscaler_queue_reporter::{QueueReport, VersionedQueueReport};
-use zksync_types::prover_dal::JobCountStatistics;
 use zksync_utils::http_with_retries::send_request_with_retries;
 
 use crate::metrics::{AUTOSCALER_METRICS, DEFAULT_ERROR_CODE};
@@ -18,22 +17,17 @@ pub struct Queuer {
     pub prover_job_monitor_url: String,
 }
 
-fn sum_queue(jobs: JobCountStatistics) -> u64 {
-    (jobs.queued + jobs.in_progress) as u64
-}
-
 fn target_to_queue(target: QueueReportFields, report: &QueueReport) -> u64 {
-    match target {
-        QueueReportFields::basic_witness_jobs => sum_queue(report.basic_witness_jobs),
-        QueueReportFields::leaf_witness_jobs => sum_queue(report.leaf_witness_jobs),
-        QueueReportFields::node_witness_jobs => sum_queue(report.node_witness_jobs),
-        QueueReportFields::recursion_tip_witness_jobs => {
-            sum_queue(report.recursion_tip_witness_jobs)
-        }
-        QueueReportFields::scheduler_witness_jobs => sum_queue(report.scheduler_witness_jobs),
-        QueueReportFields::proof_compressor_jobs => sum_queue(report.proof_compressor_jobs),
-        QueueReportFields::prover_jobs => sum_queue(report.prover_jobs),
-    }
+    let res = match target {
+        QueueReportFields::basic_witness_jobs => report.basic_witness_jobs.sum(),
+        QueueReportFields::leaf_witness_jobs => report.leaf_witness_jobs.sum(),
+        QueueReportFields::node_witness_jobs => report.node_witness_jobs.sum(),
+        QueueReportFields::recursion_tip_witness_jobs => report.recursion_tip_witness_jobs.sum(),
+        QueueReportFields::scheduler_witness_jobs => report.scheduler_witness_jobs.sum(),
+        QueueReportFields::proof_compressor_jobs => report.proof_compressor_jobs.sum(),
+        QueueReportFields::prover_jobs => report.prover_jobs.sum(),
+    };
+    res as u64
 }
 
 impl Queuer {
