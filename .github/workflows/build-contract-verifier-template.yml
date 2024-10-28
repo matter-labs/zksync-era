@@ -49,139 +49,139 @@ jobs:
           echo $(pwd)/bin >> $GITHUB_PATH
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
-
-      - name: Download contracts
-        run: |
-          commit_sha=$(git submodule status contracts | awk '{print $1}' | tr -d '-')
-          page=1
-          filtered_tag=""
-          while [ true ]; do
-            echo "Page: $page"
-            tags=$(run_retried curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/matter-labs/era-contracts/tags?per_page=100&page=${page}" | jq .)
-            if [ $(jq length <<<"$tags") -eq 0 ]; then
-              echo "No tag found on all pages."
-              echo "BUILD_CONTRACTS=true" >> "$GITHUB_ENV"
-              exit 0
-            fi
-            filtered_tag=$(jq -r --arg commit_sha "$commit_sha" 'map(select(.commit.sha == $commit_sha)) | .[].name' <<<"$tags")
-            if [[ ! -z "$filtered_tag" ]]; then
-              echo "BUILD_CONTRACTS=false" >> "$GITHUB_ENV"
-              break
-            fi
-            ((page++))
-          done
-          echo "Contracts tag is: ${filtered_tag}"
-          mkdir -p ./contracts
-          run_retried curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/l1-contracts.tar.gz
-          run_retried curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/l2-contracts.tar.gz
-          run_retried curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/system-contracts.tar.gz
-          tar -C ./contracts -zxf l1-contracts.tar.gz
-          tar -C ./contracts -zxf l2-contracts.tar.gz
-          tar -C ./contracts -zxf system-contracts.tar.gz
-
-      - name: pre-download compilers
-        if: env.BUILD_CONTRACTS == 'true'
-        run: |
-          # Download needed versions of vyper compiler
-          # Not sanitized due to unconventional path and tags
-          mkdir -p ./hardhat-nodejs/compilers-v2/vyper/linux
-          wget -nv -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.linux
-          wget -nv -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.3 https://github.com/vyperlang/vyper/releases/download/v0.3.3/vyper.0.3.3+commit.48e326f0.linux
-          chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10
-          chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.3
-
-          COMPILERS_JSON='${{ inputs.compilers }}'
-          echo "$COMPILERS_JSON" | jq -r '.[] | to_entries[] | .key as $compiler | .value[] | "\(.),\($compiler)"' | while IFS=, read -r version compiler; do
-            mkdir -p "./hardhat-nodejs/compilers-v2/$compiler"
-            wget -nv -O "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}" "https://github.com/matter-labs/${compiler}-bin/releases/download/v${version}/${compiler}-linux-amd64-musl-v${version}"
-            chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
-          done
-
-      - name: start-services
-        run: |
-          echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
-          run_retried docker compose pull zk postgres
-          docker compose up -d zk postgres
-          ci_run pre_download_compilers.sh
-          ci_run sccache --start-server
-
-      - name: init
-        run: |
-          ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-          ci_run ./bin/zk || true
-          ci_run run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
-
-      - name: install zkstack
-        run: |
-          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
-          ci_run zkstackup -g --local
-
-      - name: build contracts
-        if: env.BUILD_CONTRACTS == 'true'
-        run: |
-          ci_run cp etc/tokens/{test,localhost}.json
-          ci_run zkstack dev contracts
-
-      - name: Login to Docker registries
-        if: ${{ inputs.action == 'push' }}
-        run: |
-          ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-          ci_run gcloud auth configure-docker us-docker.pkg.dev -q
-
-      - name: update-images
-        env:
-          DOCKER_ACTION: ${{ inputs.action }}
-          COMPONENT: ${{ matrix.components }}
-          PLATFORM: ${{ matrix.platforms }}
-        run: |
-          ci_run run_retried rustup default nightly-2024-05-07
-          platform=$(echo $PLATFORM | tr '/' '-')
-          ci_run zk docker $DOCKER_ACTION --custom-tag=${IMAGE_TAG_SUFFIX} --platform=${PLATFORM} $COMPONENT
-      - name: Show sccache stats
-        if: always()
-        run: |
-          ci_run sccache --show-stats || true
-          ci_run cat /tmp/sccache_log.txt || true
-
-  create_manifest:
-    name: Create release manifest
-    # TODO: After migraton switch to CI
-    runs-on: matterlabs-default-infra-runners
-    needs: build-images
-    if: ${{ inputs.action == 'push' }}
-    strategy:
-      matrix:
-        component:
-          - name: contract-verifier
-            platform: linux/amd64
-          - name: verified-sources-fetcher
-            platform: linux/amd64
-    env:
-      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
-    steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
-
-      - name: login to Docker registries
-        run: |
-          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-          gcloud auth configure-docker us-docker.pkg.dev -q
-
-      - name: Create Docker manifest
-        run: |
-          docker_repositories=("matterlabs/${{ matrix.component.name }}" "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component.name }}")
-          platforms=${{ matrix.component.platform }}
-          for repo in "${docker_repositories[@]}"; do
-            platform_tags=""
-            for platform in ${platforms//,/ }; do
-              platform=$(echo $platform | tr '/' '-')
-              platform_tags+=" --amend ${repo}:${IMAGE_TAG_SUFFIX}-${platform}"
-            done
-            for manifest in "${repo}:${IMAGE_TAG_SUFFIX}" "${repo}:2.0-${IMAGE_TAG_SUFFIX}" "${repo}:latest" "${repo}:latest2.0"; do
-              docker manifest create ${manifest} ${platform_tags}
-              docker manifest push ${manifest}
-            done
-          done
+#
+#      - name: Download contracts
+#        run: |
+#          commit_sha=$(git submodule status contracts | awk '{print $1}' | tr -d '-')
+#          page=1
+#          filtered_tag=""
+#          while [ true ]; do
+#            echo "Page: $page"
+#            tags=$(run_retried curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github+json" \
+#              "https://api.github.com/repos/matter-labs/era-contracts/tags?per_page=100&page=${page}" | jq .)
+#            if [ $(jq length <<<"$tags") -eq 0 ]; then
+#              echo "No tag found on all pages."
+#              echo "BUILD_CONTRACTS=true" >> "$GITHUB_ENV"
+#              exit 0
+#            fi
+#            filtered_tag=$(jq -r --arg commit_sha "$commit_sha" 'map(select(.commit.sha == $commit_sha)) | .[].name' <<<"$tags")
+#            if [[ ! -z "$filtered_tag" ]]; then
+#              echo "BUILD_CONTRACTS=false" >> "$GITHUB_ENV"
+#              break
+#            fi
+#            ((page++))
+#          done
+#          echo "Contracts tag is: ${filtered_tag}"
+#          mkdir -p ./contracts
+#          run_retried curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/l1-contracts.tar.gz
+#          run_retried curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/l2-contracts.tar.gz
+#          run_retried curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/system-contracts.tar.gz
+#          tar -C ./contracts -zxf l1-contracts.tar.gz
+#          tar -C ./contracts -zxf l2-contracts.tar.gz
+#          tar -C ./contracts -zxf system-contracts.tar.gz
+#
+#      - name: pre-download compilers
+#        if: env.BUILD_CONTRACTS == 'true'
+#        run: |
+#          # Download needed versions of vyper compiler
+#          # Not sanitized due to unconventional path and tags
+#          mkdir -p ./hardhat-nodejs/compilers-v2/vyper/linux
+#          wget -nv -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.linux
+#          wget -nv -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.3 https://github.com/vyperlang/vyper/releases/download/v0.3.3/vyper.0.3.3+commit.48e326f0.linux
+#          chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10
+#          chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.3
+#
+#          COMPILERS_JSON='${{ inputs.compilers }}'
+#          echo "$COMPILERS_JSON" | jq -r '.[] | to_entries[] | .key as $compiler | .value[] | "\(.),\($compiler)"' | while IFS=, read -r version compiler; do
+#            mkdir -p "./hardhat-nodejs/compilers-v2/$compiler"
+#            wget -nv -O "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}" "https://github.com/matter-labs/${compiler}-bin/releases/download/v${version}/${compiler}-linux-amd64-musl-v${version}"
+#            chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
+#          done
+#
+#      - name: start-services
+#        run: |
+#          echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
+#          run_retried docker compose pull zk postgres
+#          docker compose up -d zk postgres
+#          ci_run pre_download_compilers.sh
+#          ci_run sccache --start-server
+#
+#      - name: init
+#        run: |
+#          ci_run git config --global --add safe.directory /usr/src/zksync
+#          ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
+#          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
+#          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
+#          ci_run ./bin/zk || true
+#          ci_run run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+#
+#      - name: install zkstack
+#        run: |
+#          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
+#          ci_run zkstackup -g --local
+#
+#      - name: build contracts
+#        if: env.BUILD_CONTRACTS == 'true'
+#        run: |
+#          ci_run cp etc/tokens/{test,localhost}.json
+#          ci_run zkstack dev contracts
+#
+#      - name: Login to Docker registries
+#        if: ${{ inputs.action == 'push' }}
+#        run: |
+#          ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+#          ci_run gcloud auth configure-docker us-docker.pkg.dev -q
+#
+#      - name: update-images
+#        env:
+#          DOCKER_ACTION: ${{ inputs.action }}
+#          COMPONENT: ${{ matrix.components }}
+#          PLATFORM: ${{ matrix.platforms }}
+#        run: |
+#          ci_run run_retried rustup default nightly-2024-05-07
+#          platform=$(echo $PLATFORM | tr '/' '-')
+#          ci_run zk docker $DOCKER_ACTION --custom-tag=${IMAGE_TAG_SUFFIX} --platform=${PLATFORM} $COMPONENT
+#      - name: Show sccache stats
+#        if: always()
+#        run: |
+#          ci_run sccache --show-stats || true
+#          ci_run cat /tmp/sccache_log.txt || true
+#
+#  create_manifest:
+#    name: Create release manifest
+#    # TODO: After migraton switch to CI
+#    runs-on: matterlabs-default-infra-runners
+#    needs: build-images
+#    if: ${{ inputs.action == 'push' }}
+#    strategy:
+#      matrix:
+#        component:
+#          - name: contract-verifier
+#            platform: linux/amd64
+#          - name: verified-sources-fetcher
+#            platform: linux/amd64
+#    env:
+#      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+#    steps:
+#      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+#
+#      - name: login to Docker registries
+#        run: |
+#          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+#          gcloud auth configure-docker us-docker.pkg.dev -q
+#
+#      - name: Create Docker manifest
+#        run: |
+#          docker_repositories=("matterlabs/${{ matrix.component.name }}" "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component.name }}")
+#          platforms=${{ matrix.component.platform }}
+#          for repo in "${docker_repositories[@]}"; do
+#            platform_tags=""
+#            for platform in ${platforms//,/ }; do
+#              platform=$(echo $platform | tr '/' '-')
+#              platform_tags+=" --amend ${repo}:${IMAGE_TAG_SUFFIX}-${platform}"
+#            done
+#            for manifest in "${repo}:${IMAGE_TAG_SUFFIX}" "${repo}:2.0-${IMAGE_TAG_SUFFIX}" "${repo}:latest" "${repo}:latest2.0"; do
+#              docker manifest create ${manifest} ${platform_tags}
+#              docker manifest push ${manifest}
+#            done
+#          done
