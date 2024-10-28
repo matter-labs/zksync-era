@@ -180,7 +180,11 @@ where
         );
 
         let sandbox = VmSandbox {
-            fast_vm_mode: FastVmMode::New,
+            fast_vm_mode: if !is_supported_by_fast_vm(env.system.version) {
+                FastVmMode::Old // the fast VM doesn't support old protocol versions
+            } else {
+                self.fast_vm_mode
+            },
             panic_on_divergence: self.panic_on_divergence,
             storage,
             env,
