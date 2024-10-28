@@ -250,7 +250,7 @@ mod tests {
     use super::*;
     use crate::{
         types::{Node, NodeKey},
-        Database, Key, MerkleTree, PatchSet, TreeEntry, ValueHash,
+        Database, Key, MerkleTree, PatchSet, RocksDBWrapper, TreeEntry, ValueHash,
     };
 
     fn create_db() -> PatchSet {
@@ -507,9 +507,8 @@ mod tests {
         test_keys_are_removed_by_pruning_when_overwritten_in_multiple_batches(true);
     }
 
-    #[test]
-    fn pruning_with_truncation() {
-        let mut tree = MerkleTree::new(PatchSet::default()).unwrap();
+    fn test_pruning_with_truncation(db: impl PruneDatabase) {
+        let mut tree = MerkleTree::new(db).unwrap();
         let kvs: Vec<_> = (0_u64..100)
             .map(|i| TreeEntry::new(Key::from(i), i + 1, ValueHash::zero()))
             .collect();
@@ -560,5 +559,16 @@ mod tests {
 
         let tree = MerkleTree::new(pruner.db).unwrap();
         tree.verify_consistency(1, false).unwrap();
+    }
+
+    #[test]
+    fn pruning_with_truncation() {
+        test_pruning_with_truncation(PatchSet::default());
+    }
+
+    #[test]
+    fn pruning_with_truncation_on_rocksdb() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        test_pruning_with_truncation(RocksDBWrapper::new(temp_dir.path()).unwrap());
     }
 }

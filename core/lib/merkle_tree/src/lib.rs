@@ -46,7 +46,6 @@
     clippy::doc_markdown // frequent false positive: RocksDB
 )]
 
-use anyhow::Context as _;
 use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 
 pub use crate::{
@@ -252,18 +251,12 @@ impl<DB: PruneDatabase> MerkleTree<DB> {
     /// Proxies database I/O errors.
     pub fn truncate_recent_versions(&mut self, retained_version_count: u64) -> anyhow::Result<()> {
         let mut manifest = self.db.manifest().unwrap_or_default();
-        if manifest.version_count > retained_version_count {
-            // FIXME: atomic operation?
+        let current_version_count = manifest.version_count;
+        if current_version_count > retained_version_count {
             // It is necessary to remove "future" stale keys since otherwise they may be used in future pruning and lead
             // to non-obsolete tree nodes getting removed.
-            let patch = PrunePatchSet::new(vec![], retained_version_count..manifest.version_count);
-            self.db
-                .prune(patch)
-                .context("failed removing stale keys for pruned versions")?;
-
             manifest.version_count = retained_version_count;
-            let patch = PatchSet::from_manifest(manifest);
-            self.db.apply_patch(patch)?;
+            self.db.truncate(manifest, ..current_version_count)?;
         }
         Ok(())
     }
