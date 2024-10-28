@@ -39,9 +39,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 let eigenda_config = match config {
                     proto::eigen_da_config::Config::MemStore(conf) => {
                         EigenDAConfig::MemStore(MemStoreConfig {
-                            api_node_url: required(&conf.api_node_url)
-                                .context("api_node_url")?
-                                .clone(),
                             custom_quorum_numbers: Some(conf.custom_quorum_numbers.clone()),
                             account_id: conf.account_id.clone(),
                             max_blob_size_bytes: required(&conf.max_blob_size_bytes)
@@ -60,9 +57,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     }
                     proto::eigen_da_config::Config::Disperser(conf) => {
                         EigenDAConfig::Disperser(DisperserConfig {
-                            api_node_url: required(&conf.api_node_url)
-                                .context("api_node_url")?
-                                .clone(),
                             custom_quorum_numbers: Some(conf.custom_quorum_numbers.clone()),
                             account_id: conf.account_id.clone(),
                             disperser_rpc: required(&conf.disperser_rpc)
@@ -126,7 +120,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                         proto::EigenDaConfig {
                             config: Some(proto::eigen_da_config::Config::MemStore(
                                 proto::MemStoreConfig {
-                                    api_node_url: Some(config.api_node_url.clone()),
                                     custom_quorum_numbers: config
                                         .custom_quorum_numbers
                                         .clone()
@@ -146,7 +139,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                         proto::EigenDaConfig {
                             config: Some(proto::eigen_da_config::Config::Disperser(
                                 proto::DisperserConfig {
-                                    api_node_url: Some(config.api_node_url.clone()),
                                     custom_quorum_numbers: config
                                         .custom_quorum_numbers
                                         .clone()

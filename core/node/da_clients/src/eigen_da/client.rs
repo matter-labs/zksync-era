@@ -110,7 +110,6 @@ mod test {
     #[tokio::test]
     async fn test_eigenda_memory_disperser() {
         let config = EigenDAConfig::MemStore(MemStoreConfig {
-            api_node_url: "".to_string(),
             custom_quorum_numbers: Some(vec![]),
             account_id: Some("".to_string()),
             max_blob_size_bytes: 2 * 1024 * 1024, // 2MB,
@@ -140,7 +139,6 @@ mod test {
     #[tokio::test]
     async fn test_eigenda_remote_disperser_non_authenticated() {
         let config = EigenDAConfig::Disperser(DisperserConfig {
-            api_node_url: String::default(),
             custom_quorum_numbers: None,
             account_id: None,
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
@@ -175,7 +173,6 @@ mod test {
     #[tokio::test]
     async fn test_eigenda_remote_disperser_authenticated() {
         let config = EigenDAConfig::Disperser(DisperserConfig {
-            api_node_url: String::default(),
             custom_quorum_numbers: None,
             account_id: Some(
                 "3957dbf2beff0cc8163b8068164502da9d739f22e9922338b178b59406124600".to_string(),
