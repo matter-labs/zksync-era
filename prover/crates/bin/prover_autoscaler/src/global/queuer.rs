@@ -2,31 +2,58 @@ use std::collections::HashMap;
 
 use anyhow::{Context, Ok};
 use reqwest::Method;
-use zksync_prover_job_monitor::autoscaler_queue_reporter::VersionedQueueReport;
+use zksync_config::configs::prover_autoscaler::{QueueReportFields, ScalerTarget};
+use zksync_prover_job_monitor::autoscaler_queue_reporter::{QueueReport, VersionedQueueReport};
 use zksync_utils::http_with_retries::send_request_with_retries;
 
 use crate::metrics::{AUTOSCALER_METRICS, DEFAULT_ERROR_CODE};
 
 const MAX_RETRIES: usize = 5;
 
-#[derive(Debug)]
-pub struct Queue {
-    pub queue: HashMap<String, u64>,
-}
+pub type Queue = HashMap<(String, QueueReportFields), u64>;
 
 #[derive(Default)]
 pub struct Queuer {
     pub prover_job_monitor_url: String,
+    pub targets: Vec<ScalerTarget>,
+}
+
+fn target_to_queue(target: QueueReportFields, report: &QueueReport) -> u64 {
+    let q = match target {
+        QueueReportFields::basic_witness_jobs => {
+            report.basic_witness_jobs.queued + report.basic_witness_jobs.in_progress
+        }
+        QueueReportFields::leaf_witness_jobs => {
+            report.leaf_witness_jobs.queued + report.leaf_witness_jobs.in_progress
+        }
+        QueueReportFields::node_witness_jobs => {
+            report.node_witness_jobs.queued + report.node_witness_jobs.in_progress
+        }
+        QueueReportFields::recursion_tip_witness_jobs => {
+            report.recursion_tip_witness_jobs.queued + report.recursion_tip_witness_jobs.in_progress
+        }
+        QueueReportFields::scheduler_witness_jobs => {
+            report.scheduler_witness_jobs.queued + report.scheduler_witness_jobs.in_progress
+        }
+        QueueReportFields::proof_compressor_jobs => {
+            report.proof_compressor_jobs.queued + report.proof_compressor_jobs.in_progress
+        }
+        QueueReportFields::prover_jobs => {
+            report.prover_jobs.queued + report.prover_jobs.in_progress
+        }
+    };
+    q as u64
 }
 
 impl Queuer {
     pub fn new(pjm_url: String) -> Self {
         Self {
             prover_job_monitor_url: pjm_url,
+            targets: Vec::default(),
         }
     }
 
-    pub async fn get_queue(&self) -> anyhow::Result<Queue> {
+    pub async fn get_queue(&self, jobs: &[QueueReportFields]) -> anyhow::Result<Queue> {
         let url = &self.prover_job_monitor_url;
         let response = send_request_with_retries(url, MAX_RETRIES, Method::GET, None, None).await;
         let response = response.map_err(|err| {
@@ -39,11 +66,16 @@ impl Queuer {
             .json::<Vec<VersionedQueueReport>>()
             .await
             .context("Failed to read response as json")?;
-        Ok(Queue {
-            queue: response
-                .iter()
-                .map(|x| (x.version.to_string(), x.report.prover_jobs.queued as u64))
-                .collect::<HashMap<_, _>>(),
-        })
+        Ok(response
+            .iter()
+            .flat_map(|x| {
+                jobs.iter().map(move |j| {
+                    (
+                        (x.version.to_string(), j.clone()),
+                        target_to_queue(j.clone(), &x.report),
+                    )
+                })
+            })
+            .collect::<HashMap<_, _>>())
     }
 }

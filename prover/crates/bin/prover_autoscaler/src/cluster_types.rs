@@ -65,4 +65,5 @@ pub enum PodStatus {
     Pending,
     LongPending,
     NeedToMove,
+    Failed,
 }
