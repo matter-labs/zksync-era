@@ -16,7 +16,6 @@ pub type Queue = HashMap<(String, QueueReportFields), u64>;
 #[derive(Default)]
 pub struct Queuer {
     pub prover_job_monitor_url: String,
-    pub targets: Vec<ScalerTarget>,
 }
 
 fn sum_queue(jobs: JobCountStatistics) -> u64 {
@@ -41,7 +40,6 @@ impl Queuer {
     pub fn new(pjm_url: String) -> Self {
         Self {
             prover_job_monitor_url: pjm_url,
-            targets: Vec::default(),
         }
     }
 
