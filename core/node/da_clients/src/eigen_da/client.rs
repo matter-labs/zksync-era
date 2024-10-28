@@ -112,11 +112,50 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_eigenda_remote_disperser() {
+    async fn test_eigenda_remote_disperser_non_authenticated() {
         let config = EigenDAConfig::Disperser(DisperserConfig {
             api_node_url: String::default(),
             custom_quorum_numbers: None,
             account_id: None,
+            disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
+            eth_confirmation_depth: -1,
+            eigenda_eth_rpc: String::default(),
+            eigenda_svc_manager_addr: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
+            blob_size_limit: 2 * 1024 * 1024, // 2MB
+            status_query_timeout: 1800,       // 30 minutes
+            status_query_interval: 5,         // 5 seconds
+            wait_for_finalization: false,
+        });
+        let client = EigenDAClient::new(config).await.unwrap();
+        let data = vec![1u8; 100];
+        let result = client.dispatch_blob(0, data.clone()).await.unwrap();
+        loop {
+            let query_result = client.get_inclusion_data(&result.blob_id).await;
+            match query_result {
+                Err(err) => {
+                    if err.is_retriable {
+                        println!("Retriable error: {:?}", err.error);
+                        tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+                    } else {
+                        panic!("Error: {:?}", err.error);
+                    }
+                }
+                Ok(inclusion_data) => {
+                    assert!(inclusion_data.is_some());
+                    break;
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_eigenda_remote_disperser_authenticated() {
+        let config = EigenDAConfig::Disperser(DisperserConfig {
+            api_node_url: String::default(),
+            custom_quorum_numbers: None,
+            account_id: Some(
+                "3957dbf2beff0cc8163b8068164502da9d739f22e9922338b178b59406124600".to_string(),
+            ),
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
             eth_confirmation_depth: -1,
             eigenda_eth_rpc: String::default(),

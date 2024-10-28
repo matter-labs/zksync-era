@@ -135,24 +135,103 @@ impl RemoteClient {
                 .unwrap();
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
         let account_id = "0x".to_string() + &hex::encode(public_key.serialize_uncompressed());
+        let custom_quorum_numbers = self
+            .config
+            .custom_quorum_numbers
+            .clone()
+            .unwrap_or_default();
 
-        let request_id = self
-            .authentication(
-                blob_data,
-                self.config
-                    .custom_quorum_numbers
-                    .clone()
-                    .unwrap_or_default(),
-                account_id,
-                &secret_key,
-            )
+        let reply = self
+            .authentication(blob_data, custom_quorum_numbers, account_id, &secret_key)
             .await
-            .unwrap()
-            .request_id;
+            .unwrap();
 
-        Ok(types::DispatchResponse {
-            blob_id: hex::encode(request_id),
-        })
+        if self.result_to_status(reply.result) == disperser::BlobStatus::Failed {
+            return Err(DAError {
+                error: anyhow!("Failed to disperse blob"),
+                is_retriable: false,
+            });
+        }
+
+        let mut interval = interval(Duration::from_secs(self.config.status_query_interval));
+        let start_time = Instant::now();
+        while Instant::now() - start_time < Duration::from_secs(self.config.status_query_timeout) {
+            let blob_status_reply = self
+                .disperser
+                .lock()
+                .await
+                .get_blob_status(BlobStatusRequest {
+                    request_id: reply.request_id.clone(),
+                })
+                .await
+                .map_err(|e| DAError {
+                    error: anyhow!("Failed to get blob status: {}", e),
+                    is_retriable: true,
+                })?
+                .into_inner();
+
+            let blob_status = blob_status_reply.status();
+            match blob_status {
+                disperser::BlobStatus::Unknown => {
+                    interval.tick().await;
+                }
+                disperser::BlobStatus::Processing => {
+                    interval.tick().await;
+                }
+                disperser::BlobStatus::Confirmed => {
+                    if self.config.wait_for_finalization {
+                        interval.tick().await;
+                    } else {
+                        match blob_status_reply.info {
+                            Some(_info) => {
+                                return Ok(types::DispatchResponse {
+                                    blob_id: hex::encode(reply.request_id),
+                                });
+                            }
+                            None => {
+                                return Err(DAError {
+                                    error: anyhow!("Failed to get blob info"),
+                                    is_retriable: false,
+                                });
+                            }
+                        }
+                    }
+                }
+                disperser::BlobStatus::Failed => {
+                    return Err(DAError {
+                        error: anyhow!("Failed to disperse blob"),
+                        is_retriable: false,
+                    });
+                }
+                disperser::BlobStatus::InsufficientSignatures => {
+                    return Err(DAError {
+                        error: anyhow!("Insufficient signatures"),
+                        is_retriable: false,
+                    });
+                }
+                disperser::BlobStatus::Dispersing => {
+                    interval.tick().await;
+                }
+                disperser::BlobStatus::Finalized => match blob_status_reply.info {
+                    Some(_info) => {
+                        return Ok(types::DispatchResponse {
+                            blob_id: hex::encode(reply.request_id),
+                        });
+                    }
+                    None => {
+                        return Err(DAError {
+                            error: anyhow!("Failed to get blob info"),
+                            is_retriable: false,
+                        });
+                    }
+                },
+            }
+        }
+
+        return Err(DAError {
+            error: anyhow!("Failed to disperse blob (timeout)"),
+            is_retriable: false,
+        });
     }
 
     async fn disperse_non_authenticated(
