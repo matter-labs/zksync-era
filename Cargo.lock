@@ -11028,11 +11028,10 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_merkle_tree",
- "zksync_multivm",
- "zksync_node_genesis",
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_interface",
 ]
 
 [[package]]
