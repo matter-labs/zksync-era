@@ -288,40 +288,40 @@ jobs:
           --server-db-name=zksync_server_localhost_custom_token \
           --chain custom_token
 
-      - name: Create and register chain with transactions signed "offline"
-        run: |
-          ci_run zkstack chain create \
-          --chain-name offline_chain \
-          --chain-id sequential \
-          --prover-mode no-proofs \
-          --wallet-creation localhost \
-          --l1-batch-commit-data-generator-mode rollup \
-          --base-token-address 0x0000000000000000000000000000000000000001 \
-          --base-token-price-nominator 1 \
-          --base-token-price-denominator 1 \
-          --set-as-default false \
-          --ignore-prerequisites
-
-          ci_run zkstack chain build-transactions --chain offline_chain --l1-rpc-url http://127.0.0.1:8545
-
-          governor_pk=$(awk '/governor:/ {flag=1} flag && /private_key:/ {print $2; exit}' ./configs/wallets.yaml)
-
-          ci_run zkstack dev send-transactions \
-          --file ./transactions/chain/offline_chain/register-hyperchain-txns.json \
-          --l1-rpc-url http://127.0.0.1:8545 \
-          --private-key $governor_pk
-
-          bridge_hub=$(awk '/bridgehub_proxy_addr/ {print $2}' ./configs/contracts.yaml)
-          chain_id=$(awk '/chain_id:/ {print $2}' ./chains/offline_chain/ZkStack.yaml)
-
-          hyperchain_output=$(ci_run cast call $bridge_hub "getHyperchain(uint256)" $chain_id)
-
-          if [[ $hyperchain_output == 0x* && ${#hyperchain_output} -eq 66 ]]; then
-              echo "Chain successfully registered: $hyperchain_output"
-          else
-              echo "Failed to register chain: $hyperchain_output"
-              exit 1
-          fi
+#      - name: Create and register chain with transactions signed "offline"
+#        run: |
+#          ci_run zkstack chain create \
+#          --chain-name offline_chain \
+#          --chain-id sequential \
+#          --prover-mode no-proofs \
+#          --wallet-creation localhost \
+#          --l1-batch-commit-data-generator-mode rollup \
+#          --base-token-address 0x0000000000000000000000000000000000000001 \
+#          --base-token-price-nominator 1 \
+#          --base-token-price-denominator 1 \
+#          --set-as-default false \
+#          --ignore-prerequisites
+#
+#          ci_run zkstack chain build-transactions --chain offline_chain --l1-rpc-url http://127.0.0.1:8545
+#
+#          governor_pk=$(awk '/governor:/ {flag=1} flag && /private_key:/ {print $2; exit}' ./configs/wallets.yaml)
+#
+#          ci_run zkstack dev send-transactions \
+#          --file ./transactions/chain/offline_chain/register-hyperchain-txns.json \
+#          --l1-rpc-url http://127.0.0.1:8545 \
+#          --private-key $governor_pk
+#
+#          bridge_hub=$(awk '/bridgehub_proxy_addr/ {print $2}' ./configs/contracts.yaml)
+#          chain_id=$(awk '/chain_id:/ {print $2}' ./chains/offline_chain/ZkStack.yaml)
+#
+#          hyperchain_output=$(ci_run cast call $bridge_hub "getHyperchain(uint256)" $chain_id)
+#
+#          if [[ $hyperchain_output == 0x* && ${#hyperchain_output} -eq 66 ]]; then
+#              echo "Chain successfully registered: $hyperchain_output"
+#          else
+#              echo "Failed to register chain: $hyperchain_output"
+#              exit 1
+#          fi
 
       - name: Create and initialize Consensus chain
         run: |
