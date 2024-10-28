@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::{Context, Ok};
 use reqwest::Method;
-use zksync_config::configs::prover_autoscaler::{QueueReportFields, ScalerTarget};
+use zksync_config::configs::prover_autoscaler::QueueReportFields;
 use zksync_prover_job_monitor::autoscaler_queue_reporter::{QueueReport, VersionedQueueReport};
 use zksync_types::prover_dal::JobCountStatistics;
 use zksync_utils::http_with_retries::send_request_with_retries;
