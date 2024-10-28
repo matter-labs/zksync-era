@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -13,7 +14,7 @@ use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
     contract_verification_api::{
         CompilationArtifacts, CompilerType, DeployContractCalldata, SourceCodeData,
-        VerificationInfo, VerificationRequest,
+        VerificationIncomingRequest, VerificationInfo, VerificationRequest,
     },
     Address,
 };
@@ -21,7 +22,7 @@ use zksync_types::{
 use crate::{
     error::ContractVerifierError,
     metrics::API_CONTRACT_VERIFIER_METRICS,
-    paths::CompilerPaths,
+    paths::{CompilerResolver, EnvCompilerResolver},
     zksolc_utils::{Optimizer, Settings, Source, StandardJson, ZkSolc, ZkSolcInput},
     zkvyper_utils::{ZkVyper, ZkVyperInput},
 };
@@ -45,6 +46,7 @@ pub struct ContractVerifier {
     config: ContractVerifierConfig, // FIXME: replace with used fields
     contract_deployer: Contract,
     connection_pool: ConnectionPool<Core>,
+    compiler_resolver: Arc<dyn CompilerResolver>,
 }
 
 impl ContractVerifier {
@@ -53,6 +55,7 @@ impl ContractVerifier {
             config,
             contract_deployer: zksync_contracts::deployer_contract(),
             connection_pool,
+            compiler_resolver: Arc::<EnvCompilerResolver>::default(),
         }
     }
 
@@ -60,17 +63,17 @@ impl ContractVerifier {
         &self,
         mut request: VerificationRequest,
     ) -> Result<VerificationInfo, ContractVerifierError> {
-        let artifacts = Self::compile(request.clone(), &self.config).await?;
+        let artifacts = self.compile(request.req.clone()).await?;
 
         // Bytecode should be present because it is checked when accepting request.
         let mut storage = self
             .connection_pool
             .connection_tagged("contract_verifier")
             .await?;
-        let (deployed_bytecode, creation_tx_calldata) = storage
+        let (deployed_bytecode, creation_tx_calldata) = dbg!(storage
             .contract_verification_dal()
             .get_contract_info_for_verification(request.req.contract_address)
-            .await?
+            .await)?
             .with_context(|| {
                 format!(
                     "Contract is missing in DB for already accepted verification request. Contract address: {:#?}",
@@ -113,55 +116,66 @@ impl ContractVerifier {
     }
 
     async fn compile_zksolc(
-        request: VerificationRequest,
-        config: &ContractVerifierConfig,
+        &self,
+        req: VerificationIncomingRequest,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        let compiler_paths = CompilerPaths::for_solc(&request.req.compiler_versions).await?;
-        let input = Self::build_zksolc_input(request.clone())?;
-        let zksolc = ZkSolc::new(
-            compiler_paths,
-            request.req.compiler_versions.zk_compiler_version(),
-        );
+        let compiler_paths = self
+            .compiler_resolver
+            .resolve_solc(&req.compiler_versions)
+            .await?;
+        dbg!(&compiler_paths);
+        let zksolc_version = req.compiler_versions.zk_compiler_version();
+        let input = Self::build_zksolc_input(req)?;
+        let zksolc = ZkSolc::new(compiler_paths, zksolc_version);
 
-        time::timeout(config.compilation_timeout(), zksolc.async_compile(input))
-            .await
-            .map_err(|_| ContractVerifierError::CompilationTimeout)?
+        time::timeout(
+            self.config.compilation_timeout(),
+            zksolc.async_compile(input),
+        )
+        .await
+        .map_err(|_| ContractVerifierError::CompilationTimeout)?
     }
 
     async fn compile_zkvyper(
-        request: VerificationRequest,
-        config: &ContractVerifierConfig,
+        &self,
+        req: VerificationIncomingRequest,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        let compiler_paths = CompilerPaths::for_vyper(&request.req.compiler_versions).await?;
-        let input = Self::build_zkvyper_input(request.clone())?;
+        let compiler_paths = self
+            .compiler_resolver
+            .resolve_vyper(&req.compiler_versions)
+            .await?;
+        let input = Self::build_zkvyper_input(req)?;
         let zkvyper = ZkVyper::new(compiler_paths);
-        time::timeout(config.compilation_timeout(), zkvyper.async_compile(input))
-            .await
-            .map_err(|_| ContractVerifierError::CompilationTimeout)?
+        time::timeout(
+            self.config.compilation_timeout(),
+            zkvyper.async_compile(input),
+        )
+        .await
+        .map_err(|_| ContractVerifierError::CompilationTimeout)?
     }
 
     pub async fn compile(
-        request: VerificationRequest,
-        config: &ContractVerifierConfig,
+        &self,
+        req: VerificationIncomingRequest,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        match request.req.source_code_data.compiler_type() {
-            CompilerType::Solc => Self::compile_zksolc(request, config).await,
-            CompilerType::Vyper => Self::compile_zkvyper(request, config).await,
+        match req.source_code_data.compiler_type() {
+            CompilerType::Solc => dbg!(self.compile_zksolc(req).await),
+            CompilerType::Vyper => self.compile_zkvyper(req).await,
         }
     }
 
     fn build_zksolc_input(
-        request: VerificationRequest,
+        req: VerificationIncomingRequest,
     ) -> Result<ZkSolcInput, ContractVerifierError> {
         // Users may provide either just contract name or
         // source file name and contract name joined with ":".
         let (file_name, contract_name) =
-            if let Some((file_name, contract_name)) = request.req.contract_name.rsplit_once(':') {
+            if let Some((file_name, contract_name)) = req.contract_name.rsplit_once(':') {
                 (file_name.to_string(), contract_name.to_string())
             } else {
                 (
-                    format!("{}.sol", request.req.contract_name),
-                    request.req.contract_name.clone(),
+                    format!("{}.sol", req.contract_name),
+                    req.contract_name.clone(),
                 )
             };
         let default_output_selection = serde_json::json!({
@@ -171,22 +185,22 @@ impl ContractVerifier {
             }
         });
 
-        match request.req.source_code_data {
+        match req.source_code_data {
             SourceCodeData::SolSingleFile(source_code) => {
                 let source = Source {
                     content: source_code,
                 };
                 let sources = HashMap::from([(file_name.clone(), source)]);
                 let optimizer = Optimizer {
-                    enabled: request.req.optimization_used,
-                    mode: request.req.optimizer_mode.and_then(|s| s.chars().next()),
+                    enabled: req.optimization_used,
+                    mode: req.optimizer_mode.and_then(|s| s.chars().next()),
                 };
                 let optimizer_value = serde_json::to_value(optimizer).unwrap();
 
                 let settings = Settings {
                     output_selection: Some(default_output_selection),
-                    is_system: request.req.is_system,
-                    force_evmla: request.req.force_evmla,
+                    is_system: req.is_system,
+                    force_evmla: req.force_evmla,
                     other: serde_json::Value::Object(
                         vec![("optimizer".to_string(), optimizer_value)]
                             .into_iter()
@@ -218,32 +232,31 @@ impl ContractVerifier {
             }
             SourceCodeData::YulSingleFile(source_code) => Ok(ZkSolcInput::YulSingleFile {
                 source_code,
-                is_system: request.req.is_system,
+                is_system: req.is_system,
             }),
             other => unreachable!("Unexpected `SourceCodeData` variant: {other:?}"),
         }
     }
 
     fn build_zkvyper_input(
-        request: VerificationRequest,
+        req: VerificationIncomingRequest,
     ) -> Result<ZkVyperInput, ContractVerifierError> {
         // Users may provide either just contract name or
         // source file name and contract name joined with ":".
-        let contract_name =
-            if let Some((_, contract_name)) = request.req.contract_name.rsplit_once(':') {
-                contract_name.to_owned()
-            } else {
-                request.req.contract_name.clone()
-            };
+        let contract_name = if let Some((_, contract_name)) = req.contract_name.rsplit_once(':') {
+            contract_name.to_owned()
+        } else {
+            req.contract_name.clone()
+        };
 
-        let sources = match request.req.source_code_data {
+        let sources = match req.source_code_data {
             SourceCodeData::VyperMultiFile(s) => s,
             other => unreachable!("unexpected `SourceCodeData` variant: {other:?}"),
         };
         Ok(ZkVyperInput {
             contract_name,
             sources,
-            optimizer_mode: request.req.optimizer_mode,
+            optimizer_mode: req.optimizer_mode,
         })
     }
 

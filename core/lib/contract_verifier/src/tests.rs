@@ -4,19 +4,23 @@ use std::{os::unix::fs::PermissionsExt, path::Path};
 
 use tokio::{fs, sync::watch};
 use zksync_dal::Connection;
+use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_types::{
     contract_verification_api::{CompilerVersions, VerificationIncomingRequest},
     get_code_key, get_known_code_key,
+    l2::L2Tx,
     tx::IncludedTxLocation,
-    L1BatchNumber, L2BlockNumber, StorageLog, CONTRACT_DEPLOYER_ADDRESS, H256,
+    Execute, L1BatchNumber, L2BlockNumber, ProtocolVersion, StorageLog, CONTRACT_DEPLOYER_ADDRESS,
+    H256,
 };
 use zksync_utils::{
     address_to_h256,
     bytecode::{hash_bytecode, validate_bytecode},
 };
-use zksync_vm_interface::VmEvent;
+use zksync_vm_interface::{TransactionExecutionMetrics, VmEvent};
 
 use super::*;
+use crate::paths::CompilerPaths;
 
 const SOLC_VERSION: &str = "0.8.27";
 const ZKSOLC_VERSION: &str = "1.5.4";
@@ -36,14 +40,27 @@ async fn mock_deployment(storage: &mut Connection<'_, Core>, address: Address, b
         .factory_deps_dal()
         .insert_factory_deps(
             L2BlockNumber(0),
-            &HashMap::from([(bytecode_hash, bytecode)]),
+            &HashMap::from([(bytecode_hash, bytecode.clone())]),
         )
+        .await
+        .unwrap();
+
+    let mut deploy_tx = L2Tx {
+        execute: Execute::for_deploy(H256::zero(), bytecode, &[]),
+        common_data: Default::default(),
+        received_timestamp_ms: 0,
+        raw_bytes: Some(vec![0; 128].into()),
+    };
+    deploy_tx.set_input(vec![0; 128], H256::repeat_byte(0x23));
+    storage
+        .transactions_dal()
+        .insert_transaction_l2(&deploy_tx, TransactionExecutionMetrics::default())
         .await
         .unwrap();
 
     let deployer_address = Address::repeat_byte(0xff);
     let location = IncludedTxLocation {
-        tx_hash: H256::zero(),
+        tx_hash: deploy_tx.hash(),
         tx_index_in_l2_block: 0,
         tx_initiator_address: deployer_address,
     };
@@ -65,53 +82,88 @@ async fn mock_deployment(storage: &mut Connection<'_, Core>, address: Address, b
         .unwrap();
 }
 
-async fn install_zksolc(path: &Path) {
-    if fs::try_exists(path).await.unwrap() {
-        return;
+/// Test compiler resolver.
+#[derive(Debug)]
+struct TestCompilerResolver(CompilerPaths);
+
+impl TestCompilerResolver {
+    async fn install_zksolc(path: &Path) {
+        if fs::try_exists(path).await.unwrap() {
+            return;
+        }
+
+        // We may race from several test processes here; this is OK-ish for tests.
+        let version = ZKSOLC_VERSION;
+        let compiler_prefix = match svm::platform() {
+            svm::Platform::LinuxAmd64 => "zksolc-linux-amd64-musl-",
+            svm::Platform::LinuxAarch64 => "zksolc-linux-arm64-musl-",
+            svm::Platform::MacOsAmd64 => "zksolc-macosx-amd64-",
+            svm::Platform::MacOsAarch64 => "zksolc-macosx-arm64-",
+            other => panic!("Unsupported platform: {other:?}"),
+        };
+        let download_url = format!(
+            "https://github.com/matter-labs/zksolc-bin/releases/download/v{version}/{compiler_prefix}v{version}",
+        );
+        let response = reqwest::Client::new()
+            .get(&download_url)
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap();
+        let response_bytes = response.bytes().await.unwrap();
+
+        fs::create_dir_all(path.parent().unwrap()).await.unwrap();
+        fs::write(path, &response_bytes).await.unwrap();
+        // Set the executable flag for the file.
+        fs::set_permissions(path, PermissionsExt::from_mode(0o755))
+            .await
+            .unwrap();
     }
 
-    // We may race from several test processes here; this is OK-ish for tests.
-    let version = ZKSOLC_VERSION;
-    let compiler_prefix = match svm::platform() {
-        svm::Platform::LinuxAmd64 => "zksolc-linux-amd64-musl-",
-        svm::Platform::LinuxAarch64 => "zksolc-linux-arm64-musl-",
-        svm::Platform::MacOsAmd64 => "zksolc-macosx-amd64-",
-        svm::Platform::MacOsAarch64 => "zksolc-macosx-arm64-",
-        other => panic!("Unsupported platform: {other:?}"),
-    };
-    let download_url = format!(
-        "https://github.com/matter-labs/zksolc-bin/releases/download/v{version}/{compiler_prefix}v{version}",
-    );
-    let response = reqwest::Client::new()
-        .get(&download_url)
-        .send()
-        .await
-        .unwrap()
-        .error_for_status()
-        .unwrap();
-    let response_bytes = response.bytes().await.unwrap();
+    async fn new() -> Self {
+        let solc_version = SOLC_VERSION.parse().unwrap();
+        let solc_path = svm::install(&solc_version)
+            .await
+            .expect("failed installing solc");
+        let zksolc_path = svm::data_dir()
+            .join(format!("zksolc-{ZKSOLC_VERSION}"))
+            .join("zksolc");
+        Self::install_zksolc(&zksolc_path).await;
 
-    fs::create_dir_all(path.parent().unwrap()).await.unwrap();
-    fs::write(path, &response_bytes).await.unwrap();
-    // Set the executable flag for the file.
-    fs::set_permissions(path, PermissionsExt::from_mode(0o755))
-        .await
-        .unwrap();
+        Self(CompilerPaths {
+            base: solc_path,
+            zk: zksolc_path,
+        })
+    }
 }
 
-async fn prepare_compilers() -> CompilerPaths {
-    let solc_version = SOLC_VERSION.parse().unwrap();
-    let solc_path = svm::install(&solc_version)
-        .await
-        .expect("failed installing solc");
-    let zksolc_path = svm::data_dir()
-        .join(format!("zksolc-{ZKSOLC_VERSION}"))
-        .join("zksolc");
-    install_zksolc(&zksolc_path).await;
+#[async_trait]
+impl CompilerResolver for TestCompilerResolver {
+    async fn resolve_solc(
+        &self,
+        versions: &CompilerVersions,
+    ) -> Result<CompilerPaths, ContractVerifierError> {
+        if versions.compiler_version() != SOLC_VERSION {
+            return Err(ContractVerifierError::UnknownCompilerVersion(
+                "solc".to_owned(),
+                versions.compiler_version(),
+            ));
+        }
+        if versions.zk_compiler_version() != ZKSOLC_VERSION {
+            return Err(ContractVerifierError::UnknownCompilerVersion(
+                "zksolc".to_owned(),
+                versions.zk_compiler_version(),
+            ));
+        }
+        Ok(self.0.clone())
+    }
 
-    CompilerPaths {
-        base: solc_path,
-        zk: zksolc_path,
+    async fn resolve_vyper(
+        &self,
+        _versions: &CompilerVersions,
+    ) -> Result<CompilerPaths, ContractVerifierError> {
+        unreachable!("not tested")
     }
 }
 
@@ -141,11 +193,10 @@ fn test_request(address: Address) -> VerificationIncomingRequest {
     }
 }
 
-async fn compile_counter() -> CompilationArtifacts {
-    let compilers_path = prepare_compilers().await;
+async fn compile_counter(compiler_paths: CompilerPaths) -> CompilationArtifacts {
     let req = test_request(Address::repeat_byte(1));
-    let input = ContractVerifier::build_zksolc_input(VerificationRequest { id: 0, req }).unwrap();
-    ZkSolc::new(compilers_path, ZKSOLC_VERSION.to_owned())
+    let input = ContractVerifier::build_zksolc_input(req).unwrap();
+    ZkSolc::new(compiler_paths, ZKSOLC_VERSION.to_owned())
         .async_compile(input)
         .await
         .unwrap()
@@ -153,7 +204,8 @@ async fn compile_counter() -> CompilationArtifacts {
 
 #[tokio::test]
 async fn compiler_works() {
-    let output = compile_counter().await;
+    let compiler_paths = TestCompilerResolver::new().await.0;
+    let output = compile_counter(compiler_paths).await;
     validate_bytecode(&output.bytecode).unwrap();
     let items = output.abi.as_array().unwrap();
     assert_eq!(items.len(), 1);
@@ -162,16 +214,34 @@ async fn compiler_works() {
     assert_eq!(increment_function["name"], "increment");
 }
 
-// FIXME: needs customizing compiler resolution to work
 #[tokio::test]
 async fn contract_verifier_basics() {
-    let output = compile_counter().await;
+    let test_resolver = TestCompilerResolver::new().await;
+    let output = compile_counter(test_resolver.0.clone()).await;
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
+
+    // Storage must contain at least 1 block / batch for verifier-related queries to work correctly.
+    storage
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
+    storage
+        .blocks_dal()
+        .insert_l2_block(&create_l2_block(0))
+        .await
+        .unwrap();
+    storage
+        .blocks_dal()
+        .insert_mock_l1_batch(&create_l1_batch(0))
+        .await
+        .unwrap();
+
     let address = Address::repeat_byte(1);
     mock_deployment(&mut storage, address, output.bytecode.clone()).await;
     let req = test_request(address);
-    storage
+    let request_id = storage
         .contract_verification_dal()
         .add_contract_verification_request(req)
         .await
@@ -187,9 +257,20 @@ async fn contract_verifier_basics() {
         port: 0,
         url: "".to_string(),
     };
-    let verifier = ContractVerifier::new(config, pool.clone());
+    let mut verifier = ContractVerifier::new(config, pool.clone());
+    verifier.compiler_resolver = Arc::new(test_resolver);
     let (_stop_sender, stop_receiver) = watch::channel(false);
     verifier.run(stop_receiver, Some(1)).await.unwrap();
+
+    let status = storage
+        .contract_verification_dal()
+        .get_verification_request_status(request_id)
+        .await
+        .unwrap()
+        .expect("no status");
+    assert_eq!(status.error, None);
+    assert_eq!(status.compilation_errors, None);
+    assert_eq!(status.status, "successful");
 
     let verification_info = storage
         .contract_verification_dal()

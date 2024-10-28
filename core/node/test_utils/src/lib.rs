@@ -9,7 +9,7 @@ use zksync_multivm::{
     interface::{TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics},
     utils::get_max_gas_per_pubdata_byte,
 };
-use zksync_node_genesis::GenesisParams;
+use zksync_node_genesis::GenesisParams; // FIXME: not necessary
 use zksync_system_constants::{get_intrinsic_constants, ZKPORTER_IS_AVAILABLE};
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
