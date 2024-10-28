@@ -11,11 +11,11 @@ use zksync_types::{
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use super::{
-    get_complex_upgrade_abi, get_empty_storage, read_complex_upgrade,
+    default_pubdata_builder, get_complex_upgrade_abi, get_empty_storage, read_complex_upgrade,
     tester::{TestedVm, VmTesterBuilder},
 };
 use crate::{
-    interface::{L1BatchEnv, TxExecutionMode, VmExecutionMode, VmInterfaceExt},
+    interface::{InspectExecutionMode, L1BatchEnv, TxExecutionMode, VmInterfaceExt},
     versions::testonly::default_l1_batch,
     vm_latest::constants::{
         BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
@@ -156,7 +156,7 @@ fn execute_test<VM: TestedVm>(test_data: L1MessengerTestData) -> TestStatistics 
 
         vm.vm.push_transaction(tx);
 
-        let result = vm.vm.execute(VmExecutionMode::OneTx);
+        let result = vm.vm.execute(InspectExecutionMode::OneTx);
         assert!(
             !result.result.is_failed(),
             "Transaction {i} wasn't successful for input: {:#?}",
@@ -169,7 +169,7 @@ fn execute_test<VM: TestedVm>(test_data: L1MessengerTestData) -> TestStatistics 
     let gas_before = vm.vm.gas_remaining();
     let result = vm
         .vm
-        .execute_with_state_diffs(test_data.state_diffs.clone(), VmExecutionMode::Batch);
+        .finish_batch_with_state_diffs(test_data.state_diffs.clone(), default_pubdata_builder());
     assert!(
         !result.result.is_failed(),
         "Batch wasn't successful for input: {test_data:?}"

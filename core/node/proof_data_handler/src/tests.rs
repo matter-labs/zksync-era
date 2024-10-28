@@ -7,7 +7,7 @@ use axum::{
 use serde_json::json;
 use tower::ServiceExt;
 use zksync_basic_types::L2ChainId;
-use zksync_config::configs::ProofDataHandlerConfig;
+use zksync_config::configs::{ProofDataHandlerConfig, TeeConfig};
 use zksync_dal::{ConnectionPool, CoreDal};
 use zksync_object_store::MockObjectStore;
 use zksync_prover_interface::api::SubmitTeeProofRequest;
@@ -25,7 +25,11 @@ async fn request_tee_proof_inputs() {
         ProofDataHandlerConfig {
             http_port: 1337,
             proof_generation_timeout_in_secs: 10,
-            tee_support: true,
+            tee_config: TeeConfig {
+                tee_support: true,
+                first_tee_processed_batch: L1BatchNumber(0),
+                tee_proof_generation_timeout_in_secs: 600,
+            },
         },
         L1BatchCommitmentMode::Rollup,
         L2ChainId::default(),
@@ -80,7 +84,11 @@ async fn submit_tee_proof() {
         ProofDataHandlerConfig {
             http_port: 1337,
             proof_generation_timeout_in_secs: 10,
-            tee_support: true,
+            tee_config: TeeConfig {
+                tee_support: true,
+                first_tee_processed_batch: L1BatchNumber(0),
+                tee_proof_generation_timeout_in_secs: 600,
+            },
         },
         L1BatchCommitmentMode::Rollup,
         L2ChainId::default(),

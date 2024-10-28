@@ -35,7 +35,7 @@ use crate::{
 /// - `L2BlockSealerTask`
 #[derive(Debug)]
 pub struct OutputHandlerLayer {
-    l2_shared_bridge_addr: Address,
+    l2_legacy_shared_bridge_addr: Option<Address>,
     l2_block_seal_queue_capacity: usize,
     /// Whether transactions should be pre-inserted to DB.
     /// Should be set to `true` for EN's IO as EN doesn't store transactions in DB
@@ -63,9 +63,12 @@ pub struct Output {
 }
 
 impl OutputHandlerLayer {
-    pub fn new(l2_shared_bridge_addr: Address, l2_block_seal_queue_capacity: usize) -> Self {
+    pub fn new(
+        l2_legacy_shared_bridge_addr: Option<Address>,
+        l2_block_seal_queue_capacity: usize,
+    ) -> Self {
         Self {
-            l2_shared_bridge_addr,
+            l2_legacy_shared_bridge_addr,
             l2_block_seal_queue_capacity,
             pre_insert_txs: false,
             protective_reads_persistence_enabled: false,
@@ -103,11 +106,13 @@ impl WiringLayer for OutputHandlerLayer {
             .get_custom(L2BlockSealProcess::subtasks_len())
             .await
             .context("Get master pool")?;
+
         let (mut persistence, l2_block_sealer) = StateKeeperPersistence::new(
             persistence_pool.clone(),
-            self.l2_shared_bridge_addr,
+            self.l2_legacy_shared_bridge_addr,
             self.l2_block_seal_queue_capacity,
-        );
+        )
+        .await?;
         if self.pre_insert_txs {
             persistence = persistence.with_tx_insertion();
         }

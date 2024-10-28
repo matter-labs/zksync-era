@@ -17,8 +17,8 @@ use zksync_utils::{h256_to_u256, u256_to_h256};
 use super::{default_l1_batch, get_empty_storage, tester::VmTesterBuilder, TestedVm};
 use crate::{
     interface::{
-        storage::StorageView, ExecutionResult, Halt, L2BlockEnv, TxExecutionMode, VmExecutionMode,
-        VmInterfaceExt,
+        storage::StorageView, ExecutionResult, Halt, InspectExecutionMode, L2BlockEnv,
+        TxExecutionMode, VmInterfaceExt,
     },
     vm_latest::{
         constants::{TX_OPERATOR_L2_BLOCK_INFO_OFFSET, TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO},
@@ -66,7 +66,7 @@ pub(crate) fn test_l2_block_initialization_timestamp<VM: TestedVm>() {
     let l1_tx = get_l1_noop();
 
     vm.vm.push_transaction(l1_tx);
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
+    let res = vm.vm.execute(InspectExecutionMode::OneTx);
 
     assert_matches!(
         res.result,
@@ -100,7 +100,7 @@ pub(crate) fn test_l2_block_initialization_number_non_zero<VM: TestedVm>() {
 
     set_manual_l2_block_info(&mut vm.vm, 0, first_l2_block);
 
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
+    let res = vm.vm.execute(InspectExecutionMode::OneTx);
 
     assert_eq!(
         res.result,
@@ -128,7 +128,7 @@ fn test_same_l2_block<VM: TestedVm>(
 
     let l1_tx = get_l1_noop();
     vm.vm.push_transaction(l1_tx.clone());
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
+    let res = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!res.result.is_failed());
 
     let mut current_l2_block = vm.l1_batch_env.first_l2_block;
@@ -147,7 +147,7 @@ fn test_same_l2_block<VM: TestedVm>(
     vm.vm.push_transaction(l1_tx);
     set_manual_l2_block_info(&mut vm.vm, 1, current_l2_block);
 
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
 
     if let Some(err) = expected_error {
         assert_eq!(result.result, ExecutionResult::Halt { reason: err });
@@ -203,7 +203,7 @@ fn test_new_l2_block<VM: TestedVm>(
 
     // Firstly we execute the first transaction
     vm.vm.push_transaction(l1_tx.clone());
-    vm.vm.execute(VmExecutionMode::OneTx);
+    vm.vm.execute(InspectExecutionMode::OneTx);
 
     let mut second_l2_block = vm.l1_batch_env.first_l2_block;
     second_l2_block.number += 1;
@@ -223,7 +223,7 @@ fn test_new_l2_block<VM: TestedVm>(
     vm.vm.push_l2_block_unchecked(second_l2_block);
     vm.vm.push_transaction(l1_tx);
 
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     if let Some(err) = expected_error {
         assert_eq!(result.result, ExecutionResult::Halt { reason: err });
     } else {
@@ -350,7 +350,7 @@ fn test_first_in_batch<VM: TestedVm>(
     vm.vm.push_transaction(l1_tx);
     set_manual_l2_block_info(&mut vm.vm, 0, proposed_block);
 
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     if let Some(err) = expected_error {
         assert_eq!(result.result, ExecutionResult::Halt { reason: err });
     } else {

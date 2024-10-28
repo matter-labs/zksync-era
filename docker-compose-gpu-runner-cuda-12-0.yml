@@ -6,8 +6,8 @@ services:
     ports:
       - 127.0.0.1:8545:8545
     volumes:
-      - type: bind
-        source: ./volumes/reth/data
+      - type: volume
+        source: reth-data
         target: /rethdata
       - type: bind
         source: ./etc/reth/chaindata
@@ -69,3 +69,7 @@ services:
     environment:
       # We bind only to 127.0.0.1, so setting insecure password is acceptable here
       - POSTGRES_PASSWORD=notsecurepassword
+
+volumes:
+  postgres-data:
+  reth-data:

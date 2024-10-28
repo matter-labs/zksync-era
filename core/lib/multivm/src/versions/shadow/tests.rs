@@ -1,14 +1,15 @@
 //! Unit tests from the `testonly` test suite.
 
-use std::collections::HashSet;
+use std::{collections::HashSet, rc::Rc};
 
 use zksync_types::{writes::StateDiffRecord, StorageKey, Transaction, H256, U256};
+use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use super::ShadowedFastVm;
 use crate::{
     interface::{
         utils::{ShadowMut, ShadowRef},
-        CurrentExecutionState, L2BlockEnv, VmExecutionMode, VmExecutionResultAndLogs,
+        CurrentExecutionState, L2BlockEnv, VmExecutionResultAndLogs,
     },
     versions::testonly::TestedVm,
 };
@@ -41,14 +42,25 @@ impl TestedVm for ShadowedFastVm {
         })
     }
 
-    fn execute_with_state_diffs(
+    fn finish_batch_with_state_diffs(
         &mut self,
         diffs: Vec<StateDiffRecord>,
-        mode: VmExecutionMode,
+        pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> VmExecutionResultAndLogs {
-        self.get_custom_mut("execute_with_state_diffs", |r| match r {
-            ShadowMut::Main(vm) => vm.execute_with_state_diffs(diffs.clone(), mode),
-            ShadowMut::Shadow(vm) => vm.execute_with_state_diffs(diffs.clone(), mode),
+        self.get_custom_mut("finish_batch_with_state_diffs", |r| match r {
+            ShadowMut::Main(vm) => {
+                vm.finish_batch_with_state_diffs(diffs.clone(), pubdata_builder.clone())
+            }
+            ShadowMut::Shadow(vm) => {
+                vm.finish_batch_with_state_diffs(diffs.clone(), pubdata_builder.clone())
+            }
+        })
+    }
+
+    fn finish_batch_without_pubdata(&mut self) -> VmExecutionResultAndLogs {
+        self.get_custom_mut("finish_batch_without_pubdata", |r| match r {
+            ShadowMut::Main(vm) => vm.finish_batch_without_pubdata(),
+            ShadowMut::Shadow(vm) => vm.finish_batch_without_pubdata(),
         })
     }
 
