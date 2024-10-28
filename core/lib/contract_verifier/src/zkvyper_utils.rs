@@ -1,15 +1,9 @@
-use std::{
-    collections::HashMap,
-    fs::File,
-    io::Write,
-    path::{Path, PathBuf},
-    process::Stdio,
-};
+use std::{collections::HashMap, fs::File, io::Write, path::Path, process::Stdio};
 
 use anyhow::Context as _;
 use zksync_types::contract_verification_api::CompilationArtifacts;
 
-use crate::error::ContractVerifierError;
+use crate::{error::ContractVerifierError, paths::CompilerPaths};
 
 #[derive(Debug)]
 pub(crate) struct ZkVyperInput {
@@ -18,30 +12,27 @@ pub(crate) struct ZkVyperInput {
     pub optimizer_mode: Option<String>,
 }
 
-pub struct ZkVyper {
-    zkvyper_path: PathBuf,
-    vyper_path: PathBuf,
+#[derive(Debug)]
+pub(crate) struct ZkVyper {
+    paths: CompilerPaths,
 }
 
 impl ZkVyper {
-    pub fn new(zkvyper_path: impl Into<PathBuf>, vyper_path: impl Into<PathBuf>) -> Self {
-        ZkVyper {
-            zkvyper_path: zkvyper_path.into(),
-            vyper_path: vyper_path.into(),
-        }
+    pub fn new(paths: CompilerPaths) -> Self {
+        Self { paths }
     }
 
     pub async fn async_compile(
         &self,
         input: ZkVyperInput,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        let mut command = tokio::process::Command::new(&self.zkvyper_path);
+        let mut command = tokio::process::Command::new(&self.paths.zk);
         if let Some(o) = input.optimizer_mode.as_ref() {
             command.arg("-O").arg(o);
         }
         command
             .arg("--vyper")
-            .arg(self.vyper_path.to_str().unwrap())
+            .arg(&self.paths.base)
             .arg("-f")
             .arg("combined_json")
             .stdout(Stdio::piped())

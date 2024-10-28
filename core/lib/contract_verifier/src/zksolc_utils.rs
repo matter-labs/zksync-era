@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::Write, path::PathBuf, process::Stdio};
+use std::{collections::HashMap, io::Write, process::Stdio};
 
 use anyhow::Context as _;
 use regex::Regex;
@@ -6,7 +6,7 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use zksync_types::contract_verification_api::CompilationArtifacts;
 
-use crate::error::ContractVerifierError;
+use crate::{error::ContractVerifierError, paths::CompilerPaths};
 
 #[derive(Debug)]
 pub enum ZkSolcInput {
@@ -76,21 +76,16 @@ impl Default for Optimizer {
     }
 }
 
-pub struct ZkSolc {
-    zksolc_path: PathBuf,
-    solc_path: PathBuf,
+#[derive(Debug)]
+pub(crate) struct ZkSolc {
+    paths: CompilerPaths,
     zksolc_version: String,
 }
 
 impl ZkSolc {
-    pub fn new(
-        zksolc_path: impl Into<PathBuf>,
-        solc_path: impl Into<PathBuf>,
-        zksolc_version: String,
-    ) -> Self {
+    pub fn new(paths: CompilerPaths, zksolc_version: String) -> Self {
         ZkSolc {
-            zksolc_path: zksolc_path.into(),
-            solc_path: solc_path.into(),
+            paths,
             zksolc_version,
         }
     }
@@ -100,7 +95,7 @@ impl ZkSolc {
         input: ZkSolcInput,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         use tokio::io::AsyncWriteExt;
-        let mut command = tokio::process::Command::new(&self.zksolc_path);
+        let mut command = tokio::process::Command::new(&self.paths.zk);
         command.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         match &input {
@@ -114,20 +109,20 @@ impl ZkSolc {
                     }
                 }
 
-                command.arg("--solc").arg(self.solc_path.to_str().unwrap());
+                command.arg("--solc").arg(&self.paths.base);
             }
             ZkSolcInput::YulSingleFile { is_system, .. } => {
                 if self.is_post_1_5_0() {
                     if *is_system {
                         command.arg("--enable-eravm-extensions");
                     } else {
-                        command.arg("--solc").arg(self.solc_path.to_str().unwrap());
+                        command.arg("--solc").arg(&self.paths.base);
                     }
                 } else {
                     if *is_system {
                         command.arg("--system-mode");
                     }
-                    command.arg("--solc").arg(self.solc_path.to_str().unwrap());
+                    command.arg("--solc").arg(&self.paths.base);
                 }
             }
         }
@@ -275,12 +270,18 @@ impl ZkSolc {
 
 #[cfg(test)]
 mod tests {
-    use crate::zksolc_utils::ZkSolc;
+    use std::path::PathBuf;
+
+    use crate::{paths::CompilerPaths, zksolc_utils::ZkSolc};
 
     #[test]
     fn check_is_post_1_5_0() {
         // Special case.
-        let mut zksolc = ZkSolc::new(".", ".", "vm-1.5.0-a167aa3".to_string());
+        let compiler_paths = CompilerPaths {
+            base: PathBuf::default(),
+            zk: PathBuf::default(),
+        };
+        let mut zksolc = ZkSolc::new(compiler_paths, "vm-1.5.0-a167aa3".to_string());
         assert!(!zksolc.is_post_1_5_0(), "vm-1.5.0-a167aa3");
 
         zksolc.zksolc_version = "v1.5.0".to_string();

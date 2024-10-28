@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
     time::{Duration, Instant},
 };
 
@@ -18,23 +17,20 @@ use zksync_types::{
     },
     Address,
 };
-use zksync_utils::env::Workspace;
 
 use crate::{
     error::ContractVerifierError,
     metrics::API_CONTRACT_VERIFIER_METRICS,
+    paths::CompilerPaths,
     zksolc_utils::{Optimizer, Settings, Source, StandardJson, ZkSolc, ZkSolcInput},
     zkvyper_utils::{ZkVyper, ZkVyperInput},
 };
 
 pub mod error;
 mod metrics;
+mod paths;
 mod zksolc_utils;
 mod zkvyper_utils;
-
-fn home_path() -> PathBuf {
-    Workspace::locate().core()
-}
 
 #[derive(Debug)]
 enum ConstructorArgs {
@@ -118,35 +114,10 @@ impl ContractVerifier {
         request: VerificationRequest,
         config: &ContractVerifierConfig,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        let compiler_paths = CompilerPaths::for_solc(&request.req.compiler_versions).await?;
         let input = Self::build_zksolc_input(request.clone())?;
-
-        let zksolc_path = Path::new(&home_path())
-            .join("etc")
-            .join("zksolc-bin")
-            .join(request.req.compiler_versions.zk_compiler_version())
-            .join("zksolc");
-        if !zksolc_path.exists() {
-            return Err(ContractVerifierError::UnknownCompilerVersion(
-                "zksolc".to_string(),
-                request.req.compiler_versions.zk_compiler_version(),
-            ));
-        }
-
-        let solc_path = Path::new(&home_path())
-            .join("etc")
-            .join("solc-bin")
-            .join(request.req.compiler_versions.compiler_version())
-            .join("solc");
-        if !solc_path.exists() {
-            return Err(ContractVerifierError::UnknownCompilerVersion(
-                "solc".to_string(),
-                request.req.compiler_versions.compiler_version(),
-            ));
-        }
-
         let zksolc = ZkSolc::new(
-            zksolc_path,
-            solc_path,
+            compiler_paths,
             request.req.compiler_versions.zk_compiler_version(),
         );
 
@@ -159,33 +130,9 @@ impl ContractVerifier {
         request: VerificationRequest,
         config: &ContractVerifierConfig,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        let compiler_paths = CompilerPaths::for_vyper(&request.req.compiler_versions).await?;
         let input = Self::build_zkvyper_input(request.clone())?;
-
-        let zkvyper_path = Path::new(&home_path())
-            .join("etc")
-            .join("zkvyper-bin")
-            .join(request.req.compiler_versions.zk_compiler_version())
-            .join("zkvyper");
-        if !zkvyper_path.exists() {
-            return Err(ContractVerifierError::UnknownCompilerVersion(
-                "zkvyper".to_string(),
-                request.req.compiler_versions.zk_compiler_version(),
-            ));
-        }
-
-        let vyper_path = Path::new(&home_path())
-            .join("etc")
-            .join("vyper-bin")
-            .join(request.req.compiler_versions.compiler_version())
-            .join("vyper");
-        if !vyper_path.exists() {
-            return Err(ContractVerifierError::UnknownCompilerVersion(
-                "vyper".to_string(),
-                request.req.compiler_versions.compiler_version(),
-            ));
-        }
-
-        let zkvyper = ZkVyper::new(zkvyper_path, vyper_path);
+        let zkvyper = ZkVyper::new(compiler_paths);
         time::timeout(config.compilation_timeout(), zkvyper.async_compile(input))
             .await
             .map_err(|_| ContractVerifierError::CompilationTimeout)?
