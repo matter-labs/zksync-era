@@ -19,7 +19,6 @@ use super::{
         AuthenticatedRequest, AuthenticationData, BlobStatusRequest, DisperseBlobRequest,
     },
 };
-use crate::eigen_da::client::{to_non_retriable_error, to_retriable_error};
 
 #[derive(Clone, Debug)]
 pub struct RemoteClient {
