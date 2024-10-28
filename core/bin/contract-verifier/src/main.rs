@@ -162,7 +162,7 @@ async fn main() -> anyhow::Result<()> {
 
     update_compiler_versions(&pool).await;
 
-    let contract_verifier = ContractVerifier::new(verifier_config, pool);
+    let contract_verifier = ContractVerifier::new(verifier_config.compilation_timeout(), pool);
     let tasks = vec![
         // TODO PLA-335: Leftovers after the prover DB split.
         // The prover connection pool is not used by the contract verifier, but we need to pass it

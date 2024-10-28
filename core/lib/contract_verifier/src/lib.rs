@@ -8,7 +8,6 @@ use anyhow::Context as _;
 use chrono::Utc;
 use ethabi::{Contract, Token};
 use tokio::time;
-use zksync_config::ContractVerifierConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
@@ -43,16 +42,16 @@ enum ConstructorArgs {
 
 #[derive(Debug, Clone)]
 pub struct ContractVerifier {
-    config: ContractVerifierConfig, // FIXME: replace with used fields
+    compilation_timeout: Duration,
     contract_deployer: Contract,
     connection_pool: ConnectionPool<Core>,
     compiler_resolver: Arc<dyn CompilerResolver>,
 }
 
 impl ContractVerifier {
-    pub fn new(config: ContractVerifierConfig, connection_pool: ConnectionPool<Core>) -> Self {
+    pub fn new(compilation_timeout: Duration, connection_pool: ConnectionPool<Core>) -> Self {
         Self {
-            config,
+            compilation_timeout,
             contract_deployer: zksync_contracts::deployer_contract(),
             connection_pool,
             compiler_resolver: Arc::<EnvCompilerResolver>::default(),
@@ -128,12 +127,9 @@ impl ContractVerifier {
         let input = Self::build_zksolc_input(req)?;
         let zksolc = ZkSolc::new(compiler_paths, zksolc_version);
 
-        time::timeout(
-            self.config.compilation_timeout(),
-            zksolc.async_compile(input),
-        )
-        .await
-        .map_err(|_| ContractVerifierError::CompilationTimeout)?
+        time::timeout(self.compilation_timeout, zksolc.async_compile(input))
+            .await
+            .map_err(|_| ContractVerifierError::CompilationTimeout)?
     }
 
     async fn compile_zkvyper(
@@ -146,12 +142,9 @@ impl ContractVerifier {
             .await?;
         let input = Self::build_zkvyper_input(req)?;
         let zkvyper = ZkVyper::new(compiler_paths);
-        time::timeout(
-            self.config.compilation_timeout(),
-            zkvyper.async_compile(input),
-        )
-        .await
-        .map_err(|_| ContractVerifierError::CompilationTimeout)?
+        time::timeout(self.compilation_timeout, zkvyper.async_compile(input))
+            .await
+            .map_err(|_| ContractVerifierError::CompilationTimeout)?
     }
 
     pub async fn compile(
@@ -403,7 +396,7 @@ impl JobProcessor for ContractVerifier {
         // we re-pick up jobs that are being executed for a bit more than `compilation_timeout`.
         let job = connection
             .contract_verification_dal()
-            .get_next_queued_verification_request(self.config.compilation_timeout() + TIME_OVERHEAD)
+            .get_next_queued_verification_request(self.compilation_timeout + TIME_OVERHEAD)
             .await?;
         Ok(job.map(|job| (job.id, job)))
     }

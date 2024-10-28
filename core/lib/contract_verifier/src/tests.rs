@@ -246,18 +246,7 @@ async fn contract_verifier_basics() {
         .add_contract_verification_request(req)
         .await
         .unwrap();
-
-    let config = ContractVerifierConfig {
-        compilation_timeout: 86_400, // sec
-        polling_interval: Some(50),  // ms
-
-        // Fields below are unused
-        prometheus_port: 0,
-        threads_per_server: None,
-        port: 0,
-        url: "".to_string(),
-    };
-    let mut verifier = ContractVerifier::new(config, pool.clone());
+    let mut verifier = ContractVerifier::new(Duration::from_secs(60), pool.clone());
     verifier.compiler_resolver = Arc::new(test_resolver);
     let (_stop_sender, stop_receiver) = watch::channel(false);
     verifier.run(stop_receiver, Some(1)).await.unwrap();
