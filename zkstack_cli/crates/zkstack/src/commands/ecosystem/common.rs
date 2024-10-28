@@ -30,7 +30,6 @@ pub async fn deploy_l1(
     let default_genesis_config =
         GenesisConfig::read_with_base_path(shell, config.get_default_configs_path())
             .context("failed reading genesis config")?;
-    dbg!(2);
 
     let wallets_config = config.get_wallets()?;
     // For deploying ecosystem we only need genesis batch params

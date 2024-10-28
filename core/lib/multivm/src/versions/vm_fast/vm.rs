@@ -51,8 +51,8 @@ use crate::{
     },
     vm_latest::{
         constants::{
-            get_vm_hook_params_start_position, get_vm_hook_position, OPERATOR_REFUNDS_OFFSET,
-            TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
+            get_result_success_first_slot, get_vm_hook_params_start_position, get_vm_hook_position,
+            OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
         },
         MultiVMSubversion,
     },
@@ -213,7 +213,22 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
                 }
                 Hook::TxHasEnded => {
                     if let VmExecutionMode::OneTx = execution_mode {
-                        break (last_tx_result.take().unwrap(), false);
+                        // The bootloader may invoke `TxHasEnded` hook without posting a tx result previously. One case when this can happen
+                        // is estimating gas for L1 transactions, if a transaction runs out of gas during execution.
+                        let tx_result = last_tx_result.take().unwrap_or_else(|| {
+                            let tx_has_failed = self.get_tx_result().is_zero();
+                            if tx_has_failed {
+                                let output = VmRevertReason::General {
+                                    msg: "Transaction reverted with empty reason. Possibly out of gas"
+                                        .to_string(),
+                                    data: vec![],
+                                };
+                                ExecutionResult::Revert { output }
+                            } else {
+                                ExecutionResult::Success { output: vec![] }
+                            }
+                        });
+                        break (tx_result, false);
                     }
                 }
                 Hook::AskOperatorForRefund => {
@@ -359,6 +374,12 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
             .collect::<Vec<_>>()
             .try_into()
             .unwrap()
+    }
+
+    fn get_tx_result(&self) -> U256 {
+        let tx_idx = self.bootloader_state.current_tx();
+        let slot = get_result_success_first_slot(VM_VERSION) as usize + tx_idx;
+        self.read_word_from_bootloader_heap(slot)
     }
 
     fn get_debug_log(&self) -> (String, String) {
