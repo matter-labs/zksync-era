@@ -21,8 +21,7 @@ tokio.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true
-# FIXME: use workspace dep
-yab = { version = "0.1.0", git = "https://github.com/slowli/yab.git", rev = "46b5b14e952964cc931afdd66776a073afdd37d5" }
+yab.workspace = true
 
 [[bench]]
 name = "oneshot"

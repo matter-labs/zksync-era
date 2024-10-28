@@ -9247,7 +9247,8 @@ dependencies = [
 [[package]]
 name = "yab"
 version = "0.1.0"
-source = "git+https://github.com/slowli/yab.git?rev=46b5b14e952964cc931afdd66776a073afdd37d5#46b5b14e952964cc931afdd66776a073afdd37d5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4b06cc62d4cec617d3c259537be0fcaa8a5bcf72ddf2983823d9528605f36ed3"
 dependencies = [
  "anes",
  "clap 4.5.20",
