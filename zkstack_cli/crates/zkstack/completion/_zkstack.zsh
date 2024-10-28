@@ -81,6 +81,7 @@ in-file\:"Specify file with wallets"))' \
 '--base-token-price-nominator=[Base token nominator]:BASE_TOKEN_PRICE_NOMINATOR: ' \
 '--base-token-price-denominator=[Base token denominator]:BASE_TOKEN_PRICE_DENOMINATOR: ' \
 '--set-as-default=[Set as default chain]' \
+'--evm-emulator=[Enable EVM emulator]' \
 '--start-containers=[Start reth and postgres containers after creation]' \
 '--chain=[Chain to use]:CHAIN: ' \
 '--legacy-bridge[]' \
@@ -241,6 +242,7 @@ in-file\:"Specify file with wallets"))' \
 '--base-token-price-nominator=[Base token nominator]:BASE_TOKEN_PRICE_NOMINATOR: ' \
 '--base-token-price-denominator=[Base token denominator]:BASE_TOKEN_PRICE_DENOMINATOR: ' \
 '--set-as-default=[Set as default chain]' \
+'--evm-emulator=[Enable EVM emulator]' \
 '--chain=[Chain to use]:CHAIN: ' \
 '--legacy-bridge[]' \
 '-v[Verbose mode]' \

@@ -81,7 +81,7 @@ pub async fn init_configs(
 
     // Initialize genesis config
     let mut genesis_config = chain_config.get_genesis_config()?;
-    update_from_chain_config(&mut genesis_config, chain_config);
+    update_from_chain_config(&mut genesis_config, chain_config)?;
     genesis_config.save_with_base_path(shell, &chain_config.configs)?;
 
     // Initialize contracts config

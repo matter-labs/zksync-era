@@ -198,7 +198,6 @@ impl Harness {
         assert!(!exec_result.result.is_failed(), "{:#?}", exec_result);
 
         self.new_block(vm, &[deploy_tx.tx.hash(), load_test_tx.hash()]);
-        vm.finish_batch();
     }
 }
 

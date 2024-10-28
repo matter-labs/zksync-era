@@ -178,6 +178,7 @@ impl EcosystemConfig {
                 .artifacts_path
                 .unwrap_or_else(|| self.get_chain_artifacts_path(name)),
             legacy_bridge: config.legacy_bridge,
+            evm_emulator: config.evm_emulator,
         })
     }
 
@@ -232,7 +233,11 @@ impl EcosystemConfig {
     }
 
     pub fn get_default_configs_path(&self) -> PathBuf {
-        self.link_to_code.join(CONFIGS_PATH)
+        Self::default_configs_path(&self.link_to_code)
+    }
+
+    pub fn default_configs_path(link_to_code: &Path) -> PathBuf {
+        link_to_code.join(CONFIGS_PATH)
     }
 
     /// Path to the predefined ecosystem configs

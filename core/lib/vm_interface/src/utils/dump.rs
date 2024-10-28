@@ -1,13 +1,14 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use serde::{Deserialize, Serialize};
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2BlockNumber, Transaction, H256};
 
 use crate::{
+    pubdata::PubdataBuilder,
     storage::{ReadStorage, StoragePtr, StorageSnapshot, StorageView},
-    BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, PushTransactionResult,
-    SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
-    VmInterfaceHistoryEnabled, VmTrackingContracts,
+    BytecodeCompressionResult, FinishedL1Batch, InspectExecutionMode, L1BatchEnv, L2BlockEnv,
+    PushTransactionResult, SystemEnv, VmExecutionResultAndLogs, VmFactory, VmInterface,
+    VmInterfaceExt, VmInterfaceHistoryEnabled, VmTrackingContracts,
 };
 
 fn create_storage_snapshot<S: ReadStorage>(
@@ -48,6 +49,7 @@ fn create_storage_snapshot<S: ReadStorage>(
 }
 
 /// VM dump allowing to re-run the VM on the same inputs. Can be (de)serialized.
+/// Note, dump is not capable of finishing batch in terms of VM execution.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VmDump {
     pub l1_batch_env: L1BatchEnv,
@@ -98,7 +100,6 @@ impl VmDump {
                 }
             }
         }
-        vm.finish_batch();
         vm
     }
 }
@@ -162,7 +163,7 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
     fn inspect(
         &mut self,
         dispatcher: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
         self.inner.inspect(dispatcher, execution_mode)
     }
@@ -189,8 +190,8 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
             .inspect_transaction_with_bytecode_compression(tracer, tx, with_compression)
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        self.inner.finish_batch()
+    fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
+        self.inner.finish_batch(pubdata_builder)
     }
 }
 

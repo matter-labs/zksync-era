@@ -262,6 +262,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l2_erc20_bridge_addr: self.sample_opt(|| rng.gen()),
             l1_shared_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
             l2_shared_bridge_addr: self.sample_opt(|| rng.gen()),
+            l2_legacy_shared_bridge_addr: self.sample_opt(|| rng.gen()),
             l1_weth_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
             l2_weth_bridge_addr: self.sample_opt(|| rng.gen()),
             l2_testnet_paymaster_addr: self.sample_opt(|| rng.gen()),
@@ -269,6 +270,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             ecosystem_contracts: self.sample(rng),
             base_token_addr: self.sample_opt(|| rng.gen()),
             chain_admin_addr: self.sample_opt(|| rng.gen()),
+            l2_da_validator_addr: self.sample_opt(|| rng.gen()),
         }
     }
 }
@@ -334,6 +336,7 @@ impl Distribution<configs::ExperimentalVmConfig> for EncodeDist {
         configs::ExperimentalVmConfig {
             playground: self.sample(rng),
             state_keeper_fast_vm_mode: gen_fast_vm_mode(rng),
+            api_fast_vm_mode: gen_fast_vm_mode(rng),
         }
     }
 }
@@ -675,7 +678,11 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
         configs::ProofDataHandlerConfig {
             http_port: self.sample(rng),
             proof_generation_timeout_in_secs: self.sample(rng),
-            tee_support: self.sample(rng),
+            tee_config: configs::TeeConfig {
+                tee_support: self.sample(rng),
+                first_tee_processed_batch: L1BatchNumber(rng.gen()),
+                tee_proof_generation_timeout_in_secs: self.sample(rng),
+            },
         }
     }
 }

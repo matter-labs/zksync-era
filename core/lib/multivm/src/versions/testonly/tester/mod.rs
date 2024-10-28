@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt};
+use std::{collections::HashSet, fmt, rc::Rc};
 
 use zksync_contracts::BaseSystemContracts;
 use zksync_test_account::{Account, TxType};
@@ -8,7 +8,8 @@ use zksync_types::{
     Address, L1BatchNumber, StorageKey, Transaction, H256, U256,
 };
 use zksync_vm_interface::{
-    CurrentExecutionState, VmExecutionResultAndLogs, VmInterfaceHistoryEnabled,
+    pubdata::PubdataBuilder, CurrentExecutionState, InspectExecutionMode, VmExecutionResultAndLogs,
+    VmInterfaceHistoryEnabled,
 };
 
 pub(crate) use self::transaction_test_info::{ExpectedError, TransactionTestInfo, TxModifier};
@@ -16,8 +17,7 @@ use super::{get_empty_storage, read_test_contract};
 use crate::{
     interface::{
         storage::{InMemoryStorage, StoragePtr, StorageView},
-        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
-        VmInterfaceExt,
+        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmFactory, VmInterfaceExt,
     },
     versions::testonly::{
         default_l1_batch, default_system_env, make_address_rich, ContractToDeploy,
@@ -44,7 +44,7 @@ impl<VM: TestedVm> VmTester<VM> {
         let tx = account.get_deploy_tx(&contract, None, TxType::L2).tx;
         let nonce = tx.nonce().unwrap().0.into();
         self.vm.push_transaction(tx);
-        self.vm.execute(VmExecutionMode::OneTx);
+        self.vm.execute(InspectExecutionMode::OneTx);
         let deployed_address = deployed_address_create(account.address, nonce);
         self.test_contract = Some(deployed_address);
     }
@@ -187,11 +187,13 @@ pub(crate) trait TestedVm:
     /// Unlike [`Self::known_bytecode_hashes()`], the output should only include successfully decommitted bytecodes.
     fn decommitted_hashes(&self) -> HashSet<U256>;
 
-    fn execute_with_state_diffs(
+    fn finish_batch_with_state_diffs(
         &mut self,
         diffs: Vec<StateDiffRecord>,
-        mode: VmExecutionMode,
+        pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> VmExecutionResultAndLogs;
+
+    fn finish_batch_without_pubdata(&mut self) -> VmExecutionResultAndLogs;
 
     fn insert_bytecodes(&mut self, bytecodes: &[&[u8]]);
 

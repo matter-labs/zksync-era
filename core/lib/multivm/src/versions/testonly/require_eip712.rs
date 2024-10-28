@@ -8,7 +8,7 @@ use zksync_types::{
 use super::{
     read_many_owners_custom_account_contract, tester::VmTesterBuilder, ContractToDeploy, TestedVm,
 };
-use crate::interface::{TxExecutionMode, VmExecutionMode, VmInterfaceExt};
+use crate::interface::{InspectExecutionMode, TxExecutionMode, VmInterfaceExt};
 
 /// This test deploys 'buggy' account abstraction code, and then tries accessing it both with legacy
 /// and EIP712 transactions.
@@ -52,7 +52,7 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
     );
 
     vm.vm.push_transaction(tx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed());
 
     let private_account_balance = vm.get_eth_balance(private_account.address);
@@ -85,7 +85,7 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
     let transaction: Transaction = l2_tx.into();
 
     vm.vm.push_transaction(transaction);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed());
 
     assert_eq!(
@@ -133,7 +133,7 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
 
     let transaction: Transaction = l2_tx.into();
     vm.vm.push_transaction(transaction);
-    vm.vm.execute(VmExecutionMode::OneTx);
+    vm.vm.execute(InspectExecutionMode::OneTx);
 
     assert_eq!(
         vm.get_eth_balance(beneficiary_address),
