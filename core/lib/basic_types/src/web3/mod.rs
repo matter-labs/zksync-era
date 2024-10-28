@@ -21,6 +21,35 @@ mod tests;
 
 pub type Index = U64;
 
+/// Number that can be either hex-encoded or decimal.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum U64Number {
+    Hex(U64),
+    Number(u64),
+}
+
+impl From<U64Number> for u64 {
+    fn from(value: U64Number) -> Self {
+        match value {
+            U64Number::Hex(number) => number.as_u64(),
+            U64Number::Number(number) => number,
+        }
+    }
+}
+
+impl From<u64> for U64Number {
+    fn from(value: u64) -> Self {
+        Self::Number(value)
+    }
+}
+
+impl From<U64> for U64Number {
+    fn from(value: U64) -> Self {
+        Self::Hex(value)
+    }
+}
+
 // `Signature`, `keccak256`: from `web3::signing`
 
 /// A struct that represents the components of a secp256k1 signature.

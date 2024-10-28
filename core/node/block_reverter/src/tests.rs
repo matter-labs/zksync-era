@@ -59,7 +59,6 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             l1_tx_count: 0,
             l2_tx_count: 0,
             fee_account_address: Address::default(),
-            pubdata_params: Default::default(),
             base_fee_per_gas: 0,
             batch_fee_input: Default::default(),
             gas_per_pubdata_limit: 0,
@@ -68,6 +67,7 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             virtual_blocks: 1,
             gas_limit: 0,
             logs_bloom: Default::default(),
+            pubdata_params: Default::default(),
         };
         storage
             .blocks_dal()
@@ -88,6 +88,7 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             system_logs: vec![],
             protocol_version: Some(ProtocolVersionId::latest()),
             pubdata_input: None,
+            fee_address: Default::default(),
         };
         storage
             .blocks_dal()

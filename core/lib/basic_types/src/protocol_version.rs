@@ -69,15 +69,17 @@ pub enum ProtocolVersionId {
     Version24,
     Version25,
     Version26,
+    Version27,
+    Version28,
 }
 
 impl ProtocolVersionId {
     pub const fn latest() -> Self {
-        Self::Version25
+        Self::Version27
     }
 
     pub const fn next() -> Self {
-        Self::Version26
+        Self::Version28
     }
 
     pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
@@ -120,8 +122,10 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
             ProtocolVersionId::Version23 => VmVersion::Vm1_5_0SmallBootloaderMemory,
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
-            ProtocolVersionId::Version25 => VmVersion::VmGateway,
-            ProtocolVersionId::Version26 => VmVersion::VmGateway,
+            ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            ProtocolVersionId::Version26 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            ProtocolVersionId::Version27 => VmVersion::VmGateway,
+            ProtocolVersionId::Version28 => VmVersion::VmGateway,
         }
     }
 
@@ -140,7 +144,7 @@ impl ProtocolVersionId {
     }
 
     pub fn is_pre_gateway(&self) -> bool {
-        self <= &Self::Version24
+        self <= &Self::Version26
     }
 
     pub fn is_1_4_0(&self) -> bool {
@@ -280,8 +284,10 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
             ProtocolVersionId::Version23 => VmVersion::Vm1_5_0SmallBootloaderMemory,
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
-            ProtocolVersionId::Version25 => VmVersion::VmGateway,
-            ProtocolVersionId::Version26 => VmVersion::VmGateway,
+            ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            ProtocolVersionId::Version26 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            ProtocolVersionId::Version27 => VmVersion::VmGateway,
+            ProtocolVersionId::Version28 => VmVersion::VmGateway,
         }
     }
 }

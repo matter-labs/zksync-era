@@ -2,7 +2,7 @@ use ethabi::Token;
 use zksync_contracts::{
     deployer_contract, load_contract, test_contracts::LoadnextContractExecutionParams,
 };
-use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
+use zksync_eth_signer::{PrivateKeySigner, TransactionParameters};
 use zksync_system_constants::{
     CONTRACT_DEPLOYER_ADDRESS, DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE,
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
@@ -52,6 +52,12 @@ impl Account {
 
     pub fn random_using(rng: &mut impl rand::Rng) -> Self {
         Self::new(K256PrivateKey::random_using(rng))
+    }
+
+    /// Creates an account deterministically from the provided seed.
+    pub fn from_seed(seed: u32) -> Self {
+        let private_key_bytes = H256::from_low_u64_be(u64::from(seed) + 1);
+        Self::new(K256PrivateKey::from_bytes(private_key_bytes).unwrap())
     }
 
     pub fn get_l2_tx_for_execute(&mut self, execute: Execute, fee: Option<Fee>) -> Transaction {
@@ -154,7 +160,7 @@ impl Account {
         let max_fee_per_gas = U256::from(0u32);
         let gas_limit = U256::from(20_000_000);
         let factory_deps = execute.factory_deps;
-        abi::Transaction::L1 {
+        let tx = abi::Transaction::L1 {
             tx: abi::L2CanonicalTransaction {
                 tx_type: PRIORITY_OPERATION_L2_TX_TYPE.into(),
                 from: address_to_u256(&self.address),
@@ -186,9 +192,8 @@ impl Account {
             .into(),
             factory_deps,
             eth_block: 0,
-        }
-        .try_into()
-        .unwrap()
+        };
+        Transaction::from_abi(tx, false).unwrap()
     }
 
     pub fn get_test_contract_transaction(
@@ -255,8 +260,8 @@ impl Account {
         PrivateKeySigner::new(self.private_key.clone())
     }
 
-    pub async fn sign_legacy_tx(&self, tx: TransactionParameters) -> Vec<u8> {
+    pub fn sign_legacy_tx(&self, tx: TransactionParameters) -> Vec<u8> {
         let pk_signer = self.get_pk_signer();
-        pk_signer.sign_transaction(tx).await.unwrap()
+        pk_signer.sign_transaction(tx)
     }
 }

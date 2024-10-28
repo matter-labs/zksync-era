@@ -65,6 +65,28 @@ pub struct L1BatchHeader {
     /// Version of protocol used for the L1 batch.
     pub protocol_version: Option<ProtocolVersionId>,
     pub pubdata_input: Option<Vec<u8>>,
+    pub fee_address: Address,
+}
+
+impl L1BatchHeader {
+    pub fn to_unsealed_header(&self, fee_input: BatchFeeInput) -> UnsealedL1BatchHeader {
+        UnsealedL1BatchHeader {
+            number: self.number,
+            timestamp: self.timestamp,
+            protocol_version: self.protocol_version,
+            fee_address: self.fee_address,
+            fee_input,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct UnsealedL1BatchHeader {
+    pub number: L1BatchNumber,
+    pub timestamp: u64,
+    pub protocol_version: Option<ProtocolVersionId>,
+    pub fee_address: Address,
+    pub fee_input: BatchFeeInput,
 }
 
 /// Holder for the L2 block metadata that is not available from transactions themselves.
@@ -81,7 +103,6 @@ pub struct L2BlockHeader {
     pub batch_fee_input: BatchFeeInput,
     pub gas_per_pubdata_limit: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
-    pub pubdata_params: PubdataParams,
     pub protocol_version: Option<ProtocolVersionId>,
     /// The maximal number of virtual blocks to be created in the L2 block.
     pub virtual_blocks: u32,
@@ -92,6 +113,7 @@ pub struct L2BlockHeader {
     /// amount of gas can be spent on pubdata.
     pub gas_limit: u64,
     pub logs_bloom: Bloom,
+    pub pubdata_params: PubdataParams,
 }
 
 /// Structure that represents the data is returned by the storage oracle during batch execution.
@@ -133,6 +155,7 @@ impl L1BatchHeader {
             system_logs: vec![],
             protocol_version: Some(protocol_version),
             pubdata_input: Some(vec![]),
+            fee_address: Default::default(),
         }
     }
 

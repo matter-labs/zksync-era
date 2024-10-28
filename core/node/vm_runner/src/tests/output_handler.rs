@@ -66,12 +66,12 @@ impl OutputHandlerTester {
                     code: vec![],
                     hash: Default::default(),
                 },
+                evm_emulator: None,
             },
             bootloader_gas_limit: 0,
             execution_mode: TxExecutionMode::VerifyExecute,
             default_validation_computational_gas_limit: 0,
             chain_id: Default::default(),
-            pubdata_params: Default::default(),
         };
 
         let mut output_handler = self

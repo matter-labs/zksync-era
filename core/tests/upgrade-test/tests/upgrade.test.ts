@@ -64,9 +64,21 @@ describe('Upgrade test', function () {
         complexUpgraderAddress = '0x000000000000000000000000000000000000800f';
 
         if (fileConfig.loadFromFile) {
-            const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
-            const contractsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'contracts.yaml' });
-            const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
+            const generalConfig = loadConfig({
+                pathToHome,
+                chain: fileConfig.chain,
+                config: 'general.yaml'
+            });
+            const contractsConfig = loadConfig({
+                pathToHome,
+                chain: fileConfig.chain,
+                config: 'contracts.yaml'
+            });
+            const secretsConfig = loadConfig({
+                pathToHome,
+                chain: fileConfig.chain,
+                config: 'secrets.yaml'
+            });
 
             ethProviderAddress = secretsConfig.l1.l1_rpc_url;
             web3JsonRpc = generalConfig.api.web3_json_rpc.http_url;
@@ -89,7 +101,11 @@ describe('Upgrade test', function () {
         alice = tester.emptyWallet();
 
         if (fileConfig.loadFromFile) {
-            const chainWalletConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
+            const chainWalletConfig = loadConfig({
+                pathToHome,
+                chain: fileConfig.chain,
+                config: 'wallets.yaml'
+            });
 
             adminGovWallet = new ethers.Wallet(chainWalletConfig.governor.private_key, alice._providerL1());
 
@@ -144,7 +160,7 @@ describe('Upgrade test', function () {
             components: serverComponents,
             stdio: ['ignore', logs, logs],
             cwd: pathToHome,
-            useZkInception: fileConfig.loadFromFile,
+            useZkStack: fileConfig.loadFromFile,
             chain: fileConfig.chain
         });
         // Server may need some time to recompile if it's a cold run, so wait for it.
@@ -220,8 +236,15 @@ describe('Upgrade test', function () {
     });
 
     step('Send l1 tx for saving new bootloader', async () => {
-        const path = `${pathToHome}/contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin`;
-        const bootloaderCode = ethers.hexlify(fs.readFileSync(path));
+        const path = `${pathToHome}/contracts/system-contracts/zkout/playground_batch.yul/contracts-preprocessed/bootloader/playground_batch.yul.json`;
+        let bootloaderCode;
+        if (fs.existsSync(path)) {
+            bootloaderCode = '0x'.concat(require(path).bytecode.object);
+        } else {
+            const legacyPath = `${pathToHome}/contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin`;
+            bootloaderCode = ethers.hexlify(fs.readFileSync(legacyPath));
+        }
+
         bootloaderHash = ethers.hexlify(zksync.utils.hashBytecode(bootloaderCode));
         const txHandle = await tester.syncWallet.requestExecute({
             contractAddress: ethers.ZeroAddress,
@@ -354,7 +377,7 @@ describe('Upgrade test', function () {
             components: serverComponents,
             stdio: ['ignore', logs, logs],
             cwd: pathToHome,
-            useZkInception: fileConfig.loadFromFile,
+            useZkStack: fileConfig.loadFromFile,
             chain: fileConfig.chain
         });
         await utils.sleep(10);
