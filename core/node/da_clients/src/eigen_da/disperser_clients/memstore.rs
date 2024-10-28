@@ -183,6 +183,19 @@ impl MemStore {
         Ok(Some(InclusionData { data }))
     }
 
+    #[cfg(test)]
+    pub async fn get_blob_data(
+        self: Arc<Self>,
+        blob_id: &str,
+    ) -> anyhow::Result<Option<Vec<u8>>, DAError> {
+        let request_id = hex::decode(blob_id).unwrap();
+        let data = self
+            .get_blob(request_id)
+            .await
+            .map_err(|err| to_retriable_error(err.into()))?;
+        Ok(Some(data))
+    }
+
     async fn prune_expired(self: Arc<Self>) {
         let mut data = self.data.write().unwrap();
         let mut to_remove = vec![];

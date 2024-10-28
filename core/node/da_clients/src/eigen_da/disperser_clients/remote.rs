@@ -12,9 +12,12 @@ use tonic::transport::Channel;
 use zksync_config::configs::da_client::eigen_da::DisperserConfig;
 use zksync_da_client::types::{self, DAError, DispatchResponse};
 
-use super::disperser::{
-    self, authenticated_reply::Payload, disperser_client::DisperserClient, AuthenticatedReply,
-    AuthenticatedRequest, AuthenticationData, BlobStatus, BlobStatusRequest, DisperseBlobRequest,
+use super::{
+    blob_info::BlobInfo,
+    disperser::{
+        self, authenticated_reply::Payload, disperser_client::DisperserClient, AuthenticatedReply,
+        AuthenticatedRequest, AuthenticationData, BlobStatusRequest, DisperseBlobRequest,
+    },
 };
 use crate::eigen_da::client::{to_non_retriable_error, to_retriable_error};
 
@@ -183,10 +186,13 @@ impl RemoteClient {
                         interval.tick().await;
                     } else {
                         match blob_status_reply.info {
-                            Some(_info) => {
-                                return Ok(types::DispatchResponse {
-                                    blob_id: hex::encode(reply.request_id),
-                                });
+                            Some(info) => {
+                                let blob_info = BlobInfo::try_from(info).map_err(|e| DAError {
+                                    error: anyhow!(e),
+                                    is_retriable: false,
+                                })?;
+                                let blob_id = hex::encode(rlp::encode(&blob_info).to_vec());
+                                return Ok(DispatchResponse { blob_id });
                             }
                             None => {
                                 return Err(DAError {
@@ -213,10 +219,13 @@ impl RemoteClient {
                     interval.tick().await;
                 }
                 disperser::BlobStatus::Finalized => match blob_status_reply.info {
-                    Some(_info) => {
-                        return Ok(types::DispatchResponse {
-                            blob_id: hex::encode(reply.request_id),
-                        });
+                    Some(info) => {
+                        let blob_info = BlobInfo::try_from(info).map_err(|e| DAError {
+                            error: anyhow!(e),
+                            is_retriable: false,
+                        })?;
+                        let blob_id = hex::encode(rlp::encode(&blob_info).to_vec());
+                        return Ok(DispatchResponse { blob_id });
                     }
                     None => {
                         return Err(DAError {
@@ -302,8 +311,12 @@ impl RemoteClient {
                         interval.tick().await;
                     } else {
                         match blob_status_reply.info {
-                            Some(_) => {
-                                let blob_id = hex::encode(reply.request_id);
+                            Some(info) => {
+                                let blob_info = BlobInfo::try_from(info).map_err(|e| DAError {
+                                    error: anyhow!(e),
+                                    is_retriable: false,
+                                })?;
+                                let blob_id = hex::encode(rlp::encode(&blob_info).to_vec());
                                 return Ok(DispatchResponse { blob_id });
                             }
                             None => {
@@ -331,8 +344,12 @@ impl RemoteClient {
                     interval.tick().await;
                 }
                 disperser::BlobStatus::Finalized => match blob_status_reply.info {
-                    Some(_) => {
-                        let blob_id = hex::encode(reply.request_id);
+                    Some(info) => {
+                        let blob_info = BlobInfo::try_from(info).map_err(|e| DAError {
+                            error: anyhow!(e),
+                            is_retriable: false,
+                        })?;
+                        let blob_id = hex::encode(rlp::encode(&blob_info).to_vec());
                         return Ok(DispatchResponse { blob_id });
                     }
                     None => {
@@ -351,6 +368,8 @@ impl RemoteClient {
         });
     }
 
+    /// Returns a hex encoded string of the rlp encoded BlobInfo
+    /// resulting from the dispersal of the blob data.
     pub async fn disperse_blob(
         &self,
         blob_data: Vec<u8>,
@@ -361,58 +380,56 @@ impl RemoteClient {
         }
     }
 
+    /// Receives a hex encoded string of the rlp encoded BlobInfo
     pub async fn get_inclusion_data(
         &self,
         blob_id: &str,
     ) -> anyhow::Result<Option<types::InclusionData>, types::DAError> {
-        let request_id = hex::decode(blob_id).unwrap();
-        let blob_status_reply = self
+        let rlp_encoded_bytes = hex::decode(blob_id).unwrap();
+        let blob_info: BlobInfo = rlp::decode(&rlp_encoded_bytes).unwrap();
+        let inclusion_data = blob_info.blob_verification_proof.inclusion_proof;
+        Ok(Some(types::InclusionData {
+            data: inclusion_data,
+        }))
+    }
+
+    #[cfg(test)]
+    pub async fn get_blob_data(&self, blob_id: &str) -> anyhow::Result<Option<Vec<u8>>, DAError> {
+        let commit = hex::decode(blob_id).map_err(|_| DAError {
+            error: anyhow!("Failed to decode blob_id"),
+            is_retriable: false,
+        })?;
+        let blob_info: BlobInfo = rlp::decode(&commit).map_err(|_| DAError {
+            error: anyhow!("Failed to decode blob_info"),
+            is_retriable: false,
+        })?;
+        let blob_index = blob_info.blob_verification_proof.blob_index;
+        let batch_header_hash = blob_info
+            .blob_verification_proof
+            .batch_medatada
+            .batch_header_hash;
+        let get_response = self
             .disperser
             .lock()
             .await
-            .get_blob_status(BlobStatusRequest { request_id })
+            .retrieve_blob(disperser::RetrieveBlobRequest {
+                batch_header_hash,
+                blob_index,
+            })
             .await
-            .unwrap()
+            .map_err(|e| DAError {
+                error: anyhow!(e),
+                is_retriable: true,
+            })?
             .into_inner();
-        let blob_status = blob_status_reply.status();
-        match blob_status {
-            BlobStatus::Unknown => Err(to_retriable_error(anyhow::anyhow!(
-                "Blob status is unknown"
-            ))),
-            BlobStatus::Processing => Err(to_retriable_error(anyhow::anyhow!(
-                "Blob is being processed"
-            ))),
-            BlobStatus::Confirmed => {
-                if self.config.wait_for_finalization {
-                    Err(to_retriable_error(anyhow::anyhow!(
-                        "Blob is confirmed but not finalized"
-                    )))
-                } else {
-                    Ok(Some(types::InclusionData {
-                        data: blob_status_reply
-                            .info
-                            .unwrap()
-                            .blob_verification_proof
-                            .unwrap()
-                            .inclusion_proof,
-                    }))
-                }
-            }
-            BlobStatus::Failed => Err(to_non_retriable_error(anyhow::anyhow!("Blob has failed"))),
-            BlobStatus::InsufficientSignatures => Err(to_non_retriable_error(anyhow::anyhow!(
-                "Insufficient signatures for blob"
-            ))),
-            BlobStatus::Dispersing => Err(to_retriable_error(anyhow::anyhow!(
-                "Blob is being dispersed"
-            ))),
-            BlobStatus::Finalized => Ok(Some(types::InclusionData {
-                data: blob_status_reply
-                    .info
-                    .unwrap()
-                    .blob_verification_proof
-                    .unwrap()
-                    .inclusion_proof,
-            })),
+
+        if get_response.data.len() == 0 {
+            return Err(DAError {
+                error: anyhow!("Failed to get blob data"),
+                is_retriable: false,
+            });
         }
+
+        return Ok(Some(get_response.data));
     }
 }
