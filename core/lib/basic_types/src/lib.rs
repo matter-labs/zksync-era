@@ -24,6 +24,7 @@ use serde::{de, Deserialize, Deserializer, Serialize};
 
 #[macro_use]
 mod macros;
+pub mod api_key;
 pub mod basic_fri_types;
 pub mod commitment;
 pub mod network;

@@ -9,7 +9,7 @@ use zksync_multivm::{
     interface::{
         storage::{InMemoryStorage, StorageView, WriteStorage},
         tracer::VmExecutionStopReason,
-        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
+        InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmFactory,
         VmInterface, VmInterfaceExt,
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
@@ -271,8 +271,9 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
         output: tracer_result.clone(),
     }
     .into_tracer_pointer();
+
     let mut vm: Vm<_, HistoryEnabled> = Vm::new(l1_batch, system_env, storage_view.to_rc_ptr());
-    let result = vm.inspect(&mut tracer.into(), VmExecutionMode::Bootloader);
+    let result = vm.inspect(&mut tracer.into(), InspectExecutionMode::Bootloader);
 
     assert!(!result.result.is_failed(), "The internal call has reverted");
     tracer_result.take()
@@ -331,7 +332,7 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
     let mut total_gas_refunded = 0;
     for tx in txs {
         vm.push_transaction(tx);
-        let tx_execution_result = vm.execute(VmExecutionMode::OneTx);
+        let tx_execution_result = vm.execute(InspectExecutionMode::OneTx);
 
         total_gas_refunded += tx_execution_result.refunds.gas_refunded;
         if !accept_failure {
@@ -343,7 +344,7 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
         }
     }
 
-    let result = vm.execute(VmExecutionMode::Bootloader);
+    let result = vm.execute(InspectExecutionMode::Bootloader);
     let metrics = result.get_execution_metrics(None);
 
     VmSpentResourcesResult {

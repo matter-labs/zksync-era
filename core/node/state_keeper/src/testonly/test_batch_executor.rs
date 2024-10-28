@@ -27,8 +27,9 @@ use zksync_multivm::{
 use zksync_node_test_utils::create_l2_transaction;
 use zksync_state::{interface::StorageView, OwnedStorage, ReadStorageFactory};
 use zksync_types::{
-    fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log, protocol_upgrade::ProtocolUpgradeTx,
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
+    commitment::PubdataParams, fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log,
+    protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
+    ProtocolVersionId, Transaction, H256,
 };
 
 use crate::{
@@ -423,6 +424,7 @@ impl BatchExecutorFactory<OwnedStorage> for TestBatchExecutorBuilder {
         _storage: OwnedStorage,
         _l1_batch_env: L1BatchEnv,
         _system_env: SystemEnv,
+        _pubdata_params: PubdataParams,
     ) -> Box<dyn BatchExecutor<OwnedStorage>> {
         let executor =
             TestBatchExecutor::new(self.txs.pop_front().unwrap(), self.rollback_set.clone());
@@ -702,6 +704,7 @@ impl StateKeeperIO for TestIO {
                 timestamp: self.timestamp,
                 virtual_blocks: 1,
             },
+            pubdata_params: Default::default(),
         };
         self.l2_block_number += 1;
         self.timestamp += 1;

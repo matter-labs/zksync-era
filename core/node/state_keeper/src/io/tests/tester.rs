@@ -150,6 +150,8 @@ impl Tester {
             wallets.state_keeper.unwrap().fee_account.address(),
             Duration::from_secs(1),
             L2ChainId::from(270),
+            Some(Default::default()),
+            Default::default(),
         )
         .unwrap();
 

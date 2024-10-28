@@ -9,10 +9,11 @@ use crate::{
     consistency::ConsistencyError,
     storage::{PatchSet, Patched, RocksDBWrapper},
     types::{
-        Key, Root, TreeEntry, TreeEntryWithProof, TreeInstruction, TreeLogEntry, ValueHash,
-        TREE_DEPTH,
+        Key, NodeKey, RawNode, Root, TreeEntry, TreeEntryWithProof, TreeInstruction, TreeLogEntry,
+        ValueHash, TREE_DEPTH,
     },
     BlockOutput, HashTree, MerkleTree, MerkleTreePruner, MerkleTreePrunerHandle, NoVersionError,
+    PruneDatabase,
 };
 
 impl TreeInstruction<StorageKey> {
@@ -442,6 +443,28 @@ impl ZkSyncTreeReader {
     ) -> Result<Vec<TreeEntryWithProof>, NoVersionError> {
         let version = u64::from(l1_batch_number.0);
         self.0.entries_with_proofs(version, keys)
+    }
+
+    /// Returns raw nodes for the specified `keys`.
+    pub fn raw_nodes(&self, keys: &[NodeKey]) -> Vec<Option<RawNode>> {
+        let raw_nodes = self.0.db.raw_nodes(keys).into_iter();
+        raw_nodes
+            .zip(keys)
+            .map(|(slice, key)| {
+                let slice = slice?;
+                Some(if key.is_empty() {
+                    RawNode::deserialize_root(&slice)
+                } else {
+                    RawNode::deserialize(&slice)
+                })
+            })
+            .collect()
+    }
+
+    /// Returns raw stale keys obsoleted in the specified version of the tree.
+    pub fn raw_stale_keys(&self, l1_batch_number: L1BatchNumber) -> Vec<NodeKey> {
+        let version = u64::from(l1_batch_number.0);
+        self.0.db.stale_keys(version)
     }
 
     /// Verifies consistency of the tree at the specified L1 batch number.

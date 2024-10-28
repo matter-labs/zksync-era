@@ -8,7 +8,7 @@ use tokio::runtime::Handle;
 use zksync_dal::{Connection, Core};
 use zksync_multivm::interface::{
     executor::{OneshotExecutor, TransactionValidator},
-    storage::ReadStorage,
+    storage::{ReadStorage, StorageWithOverrides},
     tracer::{TimestampAsserterParams, ValidationError, ValidationParams, ValidationTraces},
     Call, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
     TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs,
@@ -20,11 +20,10 @@ use zksync_types::{
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 
 use super::{
-    storage::StorageWithOverrides,
     vm_metrics::{self, SandboxStage},
     BlockArgs, VmPermit, SANDBOX_METRICS,
 };
-use crate::tx_sender::SandboxExecutorOptions;
+use crate::{execution_sandbox::storage::apply_state_override, tx_sender::SandboxExecutorOptions};
 
 /// Action that can be executed by [`SandboxExecutor`].
 #[derive(Debug)]
@@ -111,6 +110,9 @@ impl SandboxExecutor {
         timestamp_asserter_params: Option<TimestampAsserterParams>,
     ) -> Self {
         let mut executor = MainOneshotExecutor::new(missed_storage_invocation_limit);
+        executor.set_fast_vm_mode(options.fast_vm_mode);
+        #[cfg(test)]
+        executor.panic_on_divergence();
         executor
             .set_execution_latency_histogram(&SANDBOX_METRICS.sandbox[&SandboxStage::Execution]);
         Self {
@@ -155,7 +157,7 @@ impl SandboxExecutor {
             .await?;
 
         let state_override = state_override.unwrap_or_default();
-        let storage = StorageWithOverrides::new(storage, &state_override);
+        let storage = apply_state_override(storage, &state_override);
         let (execution_args, tracing_params) = action.into_parts();
         let result = self
             .inspect_transaction_with_bytecode_compression(
@@ -250,13 +252,13 @@ impl SandboxExecutor {
 }
 
 #[async_trait]
-impl<S> OneshotExecutor<S> for SandboxExecutor
+impl<S> OneshotExecutor<StorageWithOverrides<S>> for SandboxExecutor
 where
     S: ReadStorage + Send + 'static,
 {
     async fn inspect_transaction_with_bytecode_compression(
         &self,
-        storage: S,
+        storage: StorageWithOverrides<S>,
         env: OneshotEnv,
         args: TxExecutionArgs,
         tracing_params: OneshotTracingParams,
@@ -287,13 +289,13 @@ where
 }
 
 #[async_trait]
-impl<S> TransactionValidator<S> for SandboxExecutor
+impl<S> TransactionValidator<StorageWithOverrides<S>> for SandboxExecutor
 where
     S: ReadStorage + Send + 'static,
 {
     async fn validate_transaction(
         &self,
-        storage: S,
+        storage: StorageWithOverrides<S>,
         env: OneshotEnv,
         tx: L2Tx,
         validation_params: ValidationParams,
