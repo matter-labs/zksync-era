@@ -355,8 +355,7 @@ impl RemoteClient {
         &self,
         blob_data: Vec<u8>,
     ) -> Result<types::DispatchResponse, types::DAError> {
-        let authenticated_dispersal = false; // config.authenticated_dispersal;
-        match authenticated_dispersal {
+        match self.config.authenticaded {
             true => self.disperse_authenticated(blob_data).await,
             false => self.disperse_non_authenticated(blob_data).await,
         }

@@ -125,6 +125,7 @@ mod test {
             status_query_timeout: 1800,       // 30 minutes
             status_query_interval: 5,         // 5 seconds
             wait_for_finalization: false,
+            authenticaded: false,
         });
         let client = EigenDAClient::new(config).await.unwrap();
         let data = vec![1u8; 100];
@@ -164,6 +165,7 @@ mod test {
             status_query_timeout: 1800,       // 30 minutes
             status_query_interval: 5,         // 5 seconds
             wait_for_finalization: false,
+            authenticaded: true,
         });
         let client = EigenDAClient::new(config).await.unwrap();
         let data = vec![1u8; 100];

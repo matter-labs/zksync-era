@@ -34,4 +34,5 @@ pub struct DisperserConfig {
     pub status_query_timeout: u64,
     pub status_query_interval: u64,
     pub wait_for_finalization: bool,
+    pub authenticaded: bool,
 }

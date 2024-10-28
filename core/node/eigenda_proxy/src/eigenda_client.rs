@@ -202,6 +202,7 @@ mod test {
             status_query_timeout: 1800,       // 30 minutes
             status_query_interval: 5,         // 5 seconds
             wait_for_finalization: false,
+            authenticaded: false,
         };
         let store = match EigenDAClient::new(config).await {
             Ok(store) => store,
@@ -228,6 +229,7 @@ mod test {
             status_query_timeout: 1800,       // 30 minutes
             status_query_interval: 5,         // 5 seconds
             wait_for_finalization: false,
+            authenticaded: false,
         };
         let store = match EigenDAClient::new(config).await {
             Ok(store) => store,
@@ -259,6 +261,7 @@ mod test {
             status_query_timeout: 1800, // 30 minutes
             status_query_interval: 5,   // 5 seconds
             wait_for_finalization: false,
+            authenticaded: false,
         };
         let store = match EigenDAClient::new(config).await {
             Ok(store) => store,
