@@ -2,11 +2,16 @@ use std::env;
 
 use zksync_config::configs::{
     da_client::{
-        avail::AvailSecrets, celestia::CelestiaSecrets, eigen::EigenSecrets, DAClientConfig,
-        AVAIL_CLIENT_CONFIG_NAME, CELESTIA_CLIENT_CONFIG_NAME, EIGEN_CLIENT_CONFIG_NAME,
+        avail::{
+            AvailClientConfig, AvailSecrets, AVAIL_FULL_CLIENT_NAME, AVAIL_GAS_RELAY_CLIENT_NAME,
+        },
+        celestia::CelestiaSecrets,
+        eigen::EigenSecrets,
+        DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, CELESTIA_CLIENT_CONFIG_NAME,
         OBJECT_STORE_CLIENT_CONFIG_NAME,
     },
     secrets::DataAvailabilitySecrets,
+    AvailConfig,
 };
 
 use crate::{envy_load, FromEnv};
@@ -15,7 +20,19 @@ impl FromEnv for DAClientConfig {
     fn from_env() -> anyhow::Result<Self> {
         let client_tag = env::var("DA_CLIENT")?;
         let config = match client_tag.as_str() {
-            AVAIL_CLIENT_CONFIG_NAME => Self::Avail(envy_load("da_avail_config", "DA_")?),
+            AVAIL_CLIENT_CONFIG_NAME => Self::Avail(AvailConfig {
+                bridge_api_url: env::var("DA_BRIDGE_API_URL").ok().unwrap(),
+                timeout: env::var("DA_TIMEOUT")?.parse()?,
+                config: match env::var("DA_AVAIL_CLIENT_TYPE")?.as_str() {
+                    AVAIL_FULL_CLIENT_NAME => {
+                        AvailClientConfig::FullClient(envy_load("da_avail_full_client", "DA_")?)
+                    }
+                    AVAIL_GAS_RELAY_CLIENT_NAME => {
+                        AvailClientConfig::GasRelay(envy_load("da_avail_gas_relay", "DA_")?)
+                    }
+                    _ => anyhow::bail!("Unknown Avail DA client type"),
+                },
+            }),
             CELESTIA_CLIENT_CONFIG_NAME => Self::Celestia(envy_load("da_celestia_config", "DA_")?),
             EIGEN_CLIENT_CONFIG_NAME => Self::Eigen(envy_load("da_eigen_config", "DA_")?),
             OBJECT_STORE_CLIENT_CONFIG_NAME => {
@@ -33,11 +50,21 @@ impl FromEnv for DataAvailabilitySecrets {
         let client_tag = std::env::var("DA_CLIENT")?;
         let secrets = match client_tag.as_str() {
             AVAIL_CLIENT_CONFIG_NAME => {
-                let seed_phrase = env::var("DA_SECRETS_SEED_PHRASE")
-                    .map_err(|e| anyhow::format_err!("seed phrase not found: {}", e))?
-                    .parse()
-                    .map_err(|e| anyhow::format_err!("failed to parse the seed phrase: {}", e))?;
-                Self::Avail(AvailSecrets { seed_phrase })
+                let seed_phrase: Option<zksync_basic_types::secrets::SeedPhrase> =
+                    env::var("DA_SECRETS_SEED_PHRASE")
+                        .ok()
+                        .map(|s| s.parse().unwrap());
+                let gas_relay_api_key: Option<zksync_basic_types::secrets::APIKey> =
+                    env::var("DA_SECRETS_GAS_RELAY_API_KEY")
+                        .ok()
+                        .map(|s| s.parse().unwrap());
+                if seed_phrase.is_none() && gas_relay_api_key.is_none() {
+                    anyhow::bail!("No secrets provided for Avail DA client");
+                }
+                Self::Avail(AvailSecrets {
+                    seed_phrase,
+                    gas_relay_api_key,
+                })
             }
             CELESTIA_CLIENT_CONFIG_NAME => {
                 let private_key = env::var("DA_SECRETS_PRIVATE_KEY")
@@ -65,7 +92,10 @@ impl FromEnv for DataAvailabilitySecrets {
 mod tests {
     use zksync_config::{
         configs::{
-            da_client::{DAClientConfig, DAClientConfig::ObjectStore},
+            da_client::{
+                avail::{AvailClientConfig, AvailDefaultConfig},
+                DAClientConfig::{self, ObjectStore},
+            },
             object_store::ObjectStoreMode::GCS,
         },
         AvailConfig, CelestiaConfig, EigenConfig, ObjectStoreConfig,
@@ -109,14 +139,14 @@ mod tests {
         bridge_api_url: &str,
         app_id: u32,
         timeout: usize,
-        max_retries: usize,
     ) -> DAClientConfig {
         DAClientConfig::Avail(AvailConfig {
-            api_node_url: api_node_url.to_string(),
             bridge_api_url: bridge_api_url.to_string(),
-            app_id,
             timeout,
-            max_retries,
+            config: AvailClientConfig::FullClient(AvailDefaultConfig {
+                api_node_url: api_node_url.to_string(),
+                app_id,
+            }),
         })
     }
 
@@ -125,13 +155,13 @@ mod tests {
         let mut lock = MUTEX.lock();
         let config = r#"
             DA_CLIENT="Avail"
-            DA_API_NODE_URL="localhost:12345"
-            DA_BRIDGE_API_URL="localhost:54321"
-            DA_APP_ID="1"
-            DA_TIMEOUT="2"
-            DA_MAX_RETRIES="3"
+            DA_AVAIL_CLIENT_TYPE="FullClient"
 
-            DA_SECRETS_SEED_PHRASE="bottom drive obey lake curtain smoke basket hold race lonely fit walk"
+            DA_BRIDGE_API_URL="localhost:54321"
+            DA_TIMEOUT="2"
+
+            DA_API_NODE_URL="localhost:12345"
+            DA_APP_ID="1"
         "#;
 
         lock.set_env(config);
@@ -144,7 +174,6 @@ mod tests {
                 "localhost:54321",
                 "1".parse::<u32>().unwrap(),
                 "2".parse::<usize>().unwrap(),
-                "3".parse::<usize>().unwrap(),
             )
         );
     }
@@ -159,15 +188,20 @@ mod tests {
 
         lock.set_env(config);
 
-        let DataAvailabilitySecrets::Avail(actual) = DataAvailabilitySecrets::from_env().unwrap()
-        else {
-            panic!("expected Avail config")
+        let (actual_seed, actual_key) = match DataAvailabilitySecrets::from_env().unwrap() {
+            DataAvailabilitySecrets::Avail(avail) => (avail.seed_phrase, avail.gas_relay_api_key),
+            _ => {
+                panic!("Avail config expected")
+            }
         };
         assert_eq!(
-            actual.seed_phrase,
-            "bottom drive obey lake curtain smoke basket hold race lonely fit walk"
-                .parse()
-                .unwrap()
+            (actual_seed.unwrap(), actual_key),
+            (
+                "bottom drive obey lake curtain smoke basket hold race lonely fit walk"
+                    .parse()
+                    .unwrap(),
+                None
+            )
         );
     }
 

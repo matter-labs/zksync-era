@@ -6,3 +6,10 @@ pub fn to_non_retriable_da_error(error: impl Into<anyhow::Error>) -> DAError {
         is_retriable: false,
     }
 }
+
+pub fn to_retriable_da_error(error: impl Into<anyhow::Error>) -> DAError {
+    DAError {
+        error: error.into(),
+        is_retriable: true,
+    }
+}

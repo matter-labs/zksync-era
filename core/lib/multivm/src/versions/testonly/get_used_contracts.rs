@@ -1,4 +1,4 @@
-use std::{collections::HashSet, iter};
+use std::iter;
 
 use assert_matches::assert_matches;
 use ethabi::Token;
@@ -11,11 +11,12 @@ use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 use super::{
     read_proxy_counter_contract, read_test_contract,
     tester::{VmTester, VmTesterBuilder},
-    TestedVm, BASE_SYSTEM_CONTRACTS,
+    TestedVm,
 };
 use crate::{
     interface::{
-        ExecutionResult, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterfaceExt,
+        ExecutionResult, InspectExecutionMode, TxExecutionMode, VmExecutionResultAndLogs,
+        VmInterfaceExt,
     },
     versions::testonly::ContractToDeploy,
 };
@@ -27,7 +28,7 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
         .with_rich_accounts(1)
         .build::<VM>();
 
-    assert!(known_bytecodes_without_base_system_contracts(&vm.vm).is_empty());
+    assert!(vm.vm.known_bytecode_hashes().is_empty());
 
     // create and push and execute some not-empty factory deps transaction with success status
     // to check that `get_decommitted_hashes()` updates
@@ -35,7 +36,7 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
     let account = &mut vm.rich_accounts[0];
     let tx = account.get_deploy_tx(&contract_code, None, TxType::L1 { serial_id: 0 });
     vm.vm.push_transaction(tx.tx.clone());
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed());
 
     assert!(vm
@@ -44,10 +45,7 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
         .contains(&h256_to_u256(tx.bytecode_hash)));
 
     // Note: `Default_AA` will be in the list of used contracts if L2 tx is used
-    assert_eq!(
-        vm.vm.decommitted_hashes(),
-        known_bytecodes_without_base_system_contracts(&vm.vm)
-    );
+    assert_eq!(vm.vm.decommitted_hashes(), vm.vm.known_bytecode_hashes());
 
     // create push and execute some non-empty factory deps transaction that fails
     // (`known_bytecodes` will be updated but we expect `get_decommitted_hashes()` to not be updated)
@@ -73,28 +71,16 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
 
     vm.vm.push_transaction(tx2.clone());
 
-    let res2 = vm.vm.execute(VmExecutionMode::OneTx);
+    let res2 = vm.vm.execute(InspectExecutionMode::OneTx);
 
     assert!(res2.result.is_failed());
 
     for factory_dep in tx2.execute.factory_deps {
         let hash = hash_bytecode(&factory_dep);
         let hash_to_u256 = h256_to_u256(hash);
-        assert!(known_bytecodes_without_base_system_contracts(&vm.vm).contains(&hash_to_u256));
+        assert!(vm.vm.known_bytecode_hashes().contains(&hash_to_u256));
         assert!(!vm.vm.decommitted_hashes().contains(&hash_to_u256));
     }
-}
-
-fn known_bytecodes_without_base_system_contracts(vm: &impl TestedVm) -> HashSet<U256> {
-    let mut known_bytecodes_without_base_system_contracts = vm.known_bytecode_hashes();
-    known_bytecodes_without_base_system_contracts
-        .remove(&h256_to_u256(BASE_SYSTEM_CONTRACTS.default_aa.hash));
-    if let Some(evm_emulator) = &BASE_SYSTEM_CONTRACTS.evm_emulator {
-        let was_removed =
-            known_bytecodes_without_base_system_contracts.remove(&h256_to_u256(evm_emulator.hash));
-        assert!(was_removed);
-    }
-    known_bytecodes_without_base_system_contracts
 }
 
 /// Counter test contract bytecode inflated by appending lots of `NOP` opcodes at the end. This leads to non-trivial

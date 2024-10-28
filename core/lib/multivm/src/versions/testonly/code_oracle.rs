@@ -9,7 +9,7 @@ use super::{
     tester::VmTesterBuilder, TestedVm,
 };
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterfaceExt},
+    interface::{InspectExecutionMode, TxExecutionMode, VmInterfaceExt},
     versions::testonly::ContractToDeploy,
 };
 
@@ -68,7 +68,7 @@ pub(crate) fn test_code_oracle<VM: TestedVm>() {
     );
 
     vm.vm.push_transaction(tx1);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         !result.result.is_failed(),
         "Transaction wasn't successful: {result:#?}"
@@ -91,7 +91,7 @@ pub(crate) fn test_code_oracle<VM: TestedVm>() {
         None,
     );
     vm.vm.push_transaction(tx2);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         !result.result.is_failed(),
         "Transaction wasn't successful: {result:#?}"
@@ -160,7 +160,7 @@ pub(crate) fn test_code_oracle_big_bytecode<VM: TestedVm>() {
     );
 
     vm.vm.push_transaction(tx1);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         !result.result.is_failed(),
         "Transaction wasn't successful: {result:#?}"
@@ -222,7 +222,7 @@ pub(crate) fn test_refunds_in_code_oracle<VM: TestedVm>() {
         );
 
         vm.vm.push_transaction(tx);
-        let result = vm.vm.execute(VmExecutionMode::OneTx);
+        let result = vm.vm.execute(InspectExecutionMode::OneTx);
         assert!(
             !result.result.is_failed(),
             "Transaction wasn't successful: {result:#?}"

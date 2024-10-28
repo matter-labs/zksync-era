@@ -5,7 +5,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::{
     interface::{
         storage::{InMemoryStorage, StorageView},
-        ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
+        ExecutionResult, InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
         VmInterfaceHistoryEnabled,
     },
@@ -113,7 +113,7 @@ impl<Tr: vm_fast::Tracer + Default + 'static> BenchmarkingVmFactory for Fast<Tr>
         }
         let mut tracer = InstructionCount(0);
 
-        vm.0.inspect(&mut tracer, VmExecutionMode::OneTx);
+        vm.0.inspect(&mut tracer, InspectExecutionMode::OneTx);
         tracer.0
     }
 }
@@ -144,7 +144,7 @@ impl BenchmarkingVmFactory for Legacy {
             &mut InstructionCounter::new(count.clone())
                 .into_tracer_pointer()
                 .into(),
-            VmExecutionMode::OneTx,
+            InspectExecutionMode::OneTx,
         );
         count.take()
     }
@@ -191,7 +191,7 @@ impl<VM: BenchmarkingVmFactory> Default for BenchmarkingVm<VM> {
 impl<VM: BenchmarkingVmFactory> BenchmarkingVm<VM> {
     pub fn run_transaction(&mut self, tx: &Transaction) -> VmExecutionResultAndLogs {
         self.0.push_transaction(tx.clone());
-        self.0.execute(VmExecutionMode::OneTx)
+        self.0.execute(InspectExecutionMode::OneTx)
     }
 
     pub fn run_transaction_full(&mut self, tx: &Transaction) -> VmExecutionResultAndLogs {

@@ -1,7 +1,7 @@
 use std::{fmt, ops};
 
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{Address, Bloom, BloomInput, H256, U256};
+use zksync_basic_types::{commitment::PubdataParams, Address, Bloom, BloomInput, H256, U256};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_system_constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
 use zksync_utils::concat_and_hash;
@@ -113,6 +113,7 @@ pub struct L2BlockHeader {
     /// amount of gas can be spent on pubdata.
     pub gas_limit: u64,
     pub logs_bloom: Bloom,
+    pub pubdata_params: PubdataParams,
 }
 
 /// Structure that represents the data is returned by the storage oracle during batch execution.

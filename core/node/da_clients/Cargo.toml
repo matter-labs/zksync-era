@@ -37,6 +37,9 @@ blake2b_simd.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive"] }
 subxt-signer = { workspace = true, features = ["sr25519", "native"] }
 jsonrpsee = { workspace = true, features = ["ws-client"] }
+reqwest = { workspace = true }
+bytes = { workspace = true }
+backon.workspace = true
 
 # Celestia dependencies
 http.workspace = true

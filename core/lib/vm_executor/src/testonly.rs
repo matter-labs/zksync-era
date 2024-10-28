@@ -2,11 +2,14 @@ use once_cell::sync::Lazy;
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode},
+    utils::derive_base_fee_and_gas_per_pubdata,
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
+    zk_evm_latest::ethereum_types::U256,
 };
 use zksync_types::{
-    block::L2BlockHasher, fee_model::BatchFeeInput, vm::FastVmMode, Address, L1BatchNumber,
-    L2BlockNumber, L2ChainId, ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
+    block::L2BlockHasher, fee::Fee, fee_model::BatchFeeInput, l2::L2Tx,
+    transaction_request::PaymasterParams, vm::FastVmMode, Address, K256PrivateKey, L1BatchNumber,
+    L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
 };
 
 static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
@@ -42,4 +45,29 @@ pub(crate) fn default_l1_batch_env(number: u32) -> L1BatchEnv {
         },
         fee_input: BatchFeeInput::sensible_l1_pegged_default(),
     }
+}
+
+pub(crate) fn create_l2_transaction(value: U256, nonce: Nonce) -> L2Tx {
+    let (max_fee_per_gas, gas_per_pubdata_limit) = derive_base_fee_and_gas_per_pubdata(
+        BatchFeeInput::sensible_l1_pegged_default(),
+        ProtocolVersionId::latest().into(),
+    );
+    let fee = Fee {
+        gas_limit: 10_000_000.into(),
+        max_fee_per_gas: max_fee_per_gas.into(),
+        max_priority_fee_per_gas: 0_u64.into(),
+        gas_per_pubdata_limit: gas_per_pubdata_limit.into(),
+    };
+    L2Tx::new_signed(
+        Some(Address::random()),
+        vec![],
+        nonce,
+        fee,
+        value,
+        L2ChainId::default(),
+        &K256PrivateKey::random(),
+        vec![],
+        PaymasterParams::default(),
+    )
+    .unwrap()
 }
