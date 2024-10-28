@@ -93,9 +93,8 @@ impl EvmDeployTracer {
 impl Tracer for EvmDeployTracer {
     #[inline(always)]
     fn after_instruction<OP: OpcodeType, S: GlobalStateInterface>(&mut self, state: &mut S) {
-        if !matches!(OP::VALUE, Opcode::FarCall(CallingMode::Normal)) {
-            return;
+        if matches!(OP::VALUE, Opcode::FarCall(CallingMode::Normal)) {
+            self.handle_far_call(state);
         }
-        self.handle_far_call(state);
     }
 }

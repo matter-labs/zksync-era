@@ -590,8 +590,8 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
             EvmDeployTracer::new(self.world.dynamic_bytecodes.clone()),
         );
         let result = self.run(execution_mode, &mut full_tracer, track_refunds);
-        let (full_tracer, _) = full_tracer;
-        *tracer = full_tracer.0; // place the tracer back
+        let ((external_tracer, circuits_tracer), _) = full_tracer;
+        *tracer = external_tracer; // place the tracer back
 
         let ignore_world_diff =
             matches!(execution_mode, VmExecutionMode::OneTx) && result.should_ignore_vm_logs();
@@ -662,7 +662,7 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
                 gas_remaining,
                 computational_gas_used: gas_used, // since 1.5.0, this always has the same value as `gas_used`
                 pubdata_published: result.pubdata_published,
-                circuit_statistic: full_tracer.1.circuit_statistic(),
+                circuit_statistic: circuits_tracer.circuit_statistic(),
                 contracts_used: 0,
                 cycles_used: 0,
                 total_log_queries: 0,
@@ -888,7 +888,6 @@ impl<S: ReadStorage, T: Tracer> zksync_vm2::StorageInterface for World<S, T> {
 /// - `decommit()` is called during far calls, which obtains address -> bytecode hash mapping beforehand.
 ///
 /// Thus, if storage is reverted correctly, additional EVM bytecodes occupy the cache, but are unreachable.
-// FIXME: can it be used for DoS?
 impl<S: ReadStorage, T: Tracer> zksync_vm2::World<T> for World<S, T> {
     fn decommit(&mut self, hash: U256) -> Program<T, Self> {
         self.program_cache
