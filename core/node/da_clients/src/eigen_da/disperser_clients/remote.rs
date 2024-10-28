@@ -253,18 +253,20 @@ impl RemoteClient {
             });
         }
 
+        let custom_quorum_numbers = self
+            .config
+            .custom_quorum_numbers
+            .clone()
+            .unwrap_or_default();
+        let account_id = self.config.account_id.clone().unwrap_or_default();
         let reply = self
             .disperser
             .lock()
             .await
             .disperse_blob(DisperseBlobRequest {
                 data: blob_data,
-                custom_quorum_numbers: self
-                    .config
-                    .custom_quorum_numbers
-                    .clone()
-                    .unwrap_or_default(),
-                account_id: self.config.account_id.clone().unwrap_or_default(),
+                custom_quorum_numbers,
+                account_id,
             })
             .await
             .map_err(|e| DAError {
@@ -373,6 +375,7 @@ impl RemoteClient {
         &self,
         blob_data: Vec<u8>,
     ) -> Result<types::DispatchResponse, types::DAError> {
+        let blob_data = kzgpad_rs::convert_by_padding_empty_byte(&blob_data);
         match self.config.authenticaded {
             true => self.disperse_authenticated(blob_data).await,
             false => self.disperse_non_authenticated(blob_data).await,
@@ -429,6 +432,7 @@ impl RemoteClient {
             });
         }
 
-        return Ok(Some(get_response.data));
+        let data = kzgpad_rs::remove_empty_byte_from_padded_bytes(&get_response.data);
+        return Ok(Some(data));
     }
 }

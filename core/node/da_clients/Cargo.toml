@@ -52,3 +52,4 @@ prost = "0.13.1"
 tonic = { version = "0.12.1", features = ["tls", "channel", "tls-native-roots"]}
 reqwest = { version = "0.12" }
 http = "1"
+kzgpad-rs = { git = "https://github.com/Layr-Labs/kzgpad-rs.git", tag = "v0.1.0" }
