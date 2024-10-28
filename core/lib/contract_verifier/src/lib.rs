@@ -29,6 +29,8 @@ use crate::{
 pub mod error;
 mod metrics;
 mod paths;
+#[cfg(test)]
+mod tests;
 mod zksolc_utils;
 mod zkvyper_utils;
 
@@ -40,7 +42,7 @@ enum ConstructorArgs {
 
 #[derive(Debug, Clone)]
 pub struct ContractVerifier {
-    config: ContractVerifierConfig,
+    config: ContractVerifierConfig, // FIXME: replace with used fields
     contract_deployer: Contract,
     connection_pool: ConnectionPool<Core>,
 }
@@ -252,6 +254,7 @@ impl ContractVerifier {
     ) -> ConstructorArgs {
         match calldata {
             DeployContractCalldata::Deploy(calldata) => {
+                // `unwrap`s below are safe as long as the contract deployer contract is correct.
                 let contract_deployer = &self.contract_deployer;
                 let create = contract_deployer.function("create").unwrap();
                 let create2 = contract_deployer.function("create2").unwrap();

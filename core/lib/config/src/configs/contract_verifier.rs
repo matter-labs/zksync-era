@@ -13,9 +13,9 @@ pub struct ContractVerifierConfig {
     pub polling_interval: Option<u64>,
     /// Port to which the Prometheus exporter server is listening.
     pub prometheus_port: u16,
-    pub threads_per_server: Option<u16>,
+    pub threads_per_server: Option<u16>, // FIXME: unused?
     pub port: u16,
-    pub url: String,
+    pub url: String, // FIXME: unused?
 }
 
 impl ContractVerifierConfig {

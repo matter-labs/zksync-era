@@ -31,3 +31,9 @@ tempfile.workspace = true
 regex.workspace = true
 tracing.workspace = true
 semver.workspace = true
+
+[dev-dependencies]
+zksync_vm_interface.workspace = true
+
+reqwest.workspace = true
+svm-rs = {  version = "0.5.8", default-features = false, features = ["solc"] } # FIXME: add to deps
