@@ -11167,9 +11167,9 @@ dependencies = [
  "serde_with",
  "strum",
  "tokio",
- "zksync_multivm",
  "zksync_object_store",
  "zksync_types",
+ "zksync_vm_interface",
 ]
 
 [[package]]
