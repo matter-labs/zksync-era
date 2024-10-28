@@ -7,7 +7,6 @@ use std::{
 use anyhow::Context as _;
 use chrono::Utc;
 use ethabi::{Contract, Token};
-use lazy_static::lazy_static;
 use tokio::time;
 use zksync_config::ContractVerifierConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
@@ -33,10 +32,6 @@ mod metrics;
 mod zksolc_utils;
 mod zkvyper_utils;
 
-lazy_static! {
-    static ref DEPLOYER_CONTRACT: Contract = zksync_contracts::deployer_contract();
-}
-
 fn home_path() -> PathBuf {
     Workspace::locate().core()
 }
@@ -50,6 +45,7 @@ enum ConstructorArgs {
 #[derive(Debug, Clone)]
 pub struct ContractVerifier {
     config: ContractVerifierConfig,
+    contract_deployer: Contract,
     connection_pool: ConnectionPool<Core>,
 }
 
@@ -57,6 +53,7 @@ impl ContractVerifier {
     pub fn new(config: ContractVerifierConfig, connection_pool: ConnectionPool<Core>) -> Self {
         Self {
             config,
+            contract_deployer: zksync_contracts::deployer_contract(),
             connection_pool,
         }
     }
@@ -84,7 +81,7 @@ impl ContractVerifier {
             })?;
         drop(storage);
 
-        let constructor_args = Self::decode_constructor_arguments_from_calldata(
+        let constructor_args = self.decode_constructor_arguments_from_calldata(
             creation_tx_calldata,
             request.req.contract_address,
         );
@@ -302,20 +299,21 @@ impl ContractVerifier {
     }
 
     fn decode_constructor_arguments_from_calldata(
+        &self,
         calldata: DeployContractCalldata,
         contract_address_to_verify: Address,
     ) -> ConstructorArgs {
         match calldata {
             DeployContractCalldata::Deploy(calldata) => {
-                let create = DEPLOYER_CONTRACT.function("create").unwrap();
-                let create2 = DEPLOYER_CONTRACT.function("create2").unwrap();
-
-                let create_acc = DEPLOYER_CONTRACT.function("createAccount").unwrap();
-                let create2_acc = DEPLOYER_CONTRACT.function("create2Account").unwrap();
-
-                let force_deploy = DEPLOYER_CONTRACT
+                let contract_deployer = &self.contract_deployer;
+                let create = contract_deployer.function("create").unwrap();
+                let create2 = contract_deployer.function("create2").unwrap();
+                let create_acc = contract_deployer.function("createAccount").unwrap();
+                let create2_acc = contract_deployer.function("create2Account").unwrap();
+                let force_deploy = contract_deployer
                     .function("forceDeployOnAddresses")
                     .unwrap();
+
                 // It's assumed that `create` and `create2` methods have the same parameters
                 // and the same for `createAccount` and `create2Account`.
                 match &calldata[0..4] {

@@ -9957,7 +9957,6 @@ dependencies = [
  "chrono",
  "ethabi",
  "hex",
- "lazy_static",
  "regex",
  "semver",
  "serde",
