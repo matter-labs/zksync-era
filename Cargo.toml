@@ -230,7 +230,7 @@ zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
 zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.7" }
 
 # New VM; pinned to a specific commit because of instability
-zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "df5bec3d04d64d434f9b0ccb285ba4681008f7b3" }
+zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "f71f0650cb84888d37d58e5deece42f69eae5200" }
 
 # Consensus dependencies.
 zksync_concurrency = "=0.5.0"
