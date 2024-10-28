@@ -189,7 +189,8 @@ describe('web3 API compatibility tests', () => {
         ['eth_getCompilers', [], []],
         ['eth_hashrate', [], '0x0'],
         ['eth_mining', [], false],
-        ['eth_getUncleCountByBlockNumber', ['0x0'], '0x0']
+        ['eth_getUncleCountByBlockNumber', ['0x0'], '0x0'],
+        ['eth_maxPriorityFeePerGas', [], '0x0']
     ])('Should test bogus web3 methods (%s)', async (method: string, input: string[], output: string) => {
         await expect(alice.provider.send(method, input)).resolves.toEqual(output);
     });
@@ -271,7 +272,8 @@ describe('web3 API compatibility tests', () => {
 
         const eip1559ApiReceipt = await alice.provider.getTransaction(eip1559Tx.hash);
         expect(eip1559ApiReceipt.maxFeePerGas).toEqual(eip1559Tx.maxFeePerGas!);
-        expect(eip1559ApiReceipt.maxPriorityFeePerGas).toEqual(eip1559Tx.maxPriorityFeePerGas!);
+        // `ethers` will use value provided by `eth_maxPriorityFeePerGas`, and we return 0 there.
+        expect(eip1559ApiReceipt.maxPriorityFeePerGas).toEqual(0n);
     });
 
     test('Should test getFilterChanges for pending transactions', async () => {

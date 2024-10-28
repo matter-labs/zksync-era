@@ -79,6 +79,7 @@ impl ContractsConfig {
         if let Some(spec) = &output.l2_shared_bridge_proxy {
             self.bridges.shared.l2_address = Some(spec.address);
             self.bridges.erc20.l2_address = Some(spec.address);
+            self.l2.legacy_shared_bridge_addr = Some(spec.address);
         }
         if let Some(spec) = &output.l2_consensus_registry_proxy {
             self.l2.consensus_registry = Some(spec.address);
@@ -141,4 +142,5 @@ pub struct L2Contracts {
     pub default_l2_upgrader: Address,
     pub consensus_registry: Option<Address>,
     pub multicall3: Option<Address>,
+    pub legacy_shared_bridge_addr: Option<Address>,
 }

@@ -110,6 +110,7 @@ backon = "0.4.4"
 bigdecimal = "0.4.5"
 bincode = "1"
 blake2 = "0.10"
+bytes = "1"
 chrono = "0.4"
 clap = "4.2.2"
 codegen = "0.2.0"
@@ -155,7 +156,7 @@ rayon = "1.3.1"
 regex = "1"
 reqwest = "0.12"
 rlp = "0.5"
-rocksdb = "0.21.0"
+rocksdb = "0.21"
 rustc_version = "0.4.0"
 rustls = "0.23"
 secp256k1 = { version = "0.27.0", features = ["recovery", "global-context"] }
@@ -218,15 +219,15 @@ circuit_sequencer_api_1_3_3 = { package = "circuit_sequencer_api", version = "0.
 circuit_sequencer_api_1_4_0 = { package = "circuit_sequencer_api", version = "0.140" }
 circuit_sequencer_api_1_4_1 = { package = "circuit_sequencer_api", version = "0.141" }
 circuit_sequencer_api_1_4_2 = { package = "circuit_sequencer_api", version = "0.142" }
-circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", version = "=0.150.6" }
+circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", version = "=0.150.7" }
 crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.30.1" }
-kzg = { package = "zksync_kzg", version = "=0.150.6" }
+kzg = { package = "zksync_kzg", version = "=0.150.7" }
 zk_evm = { version = "=0.133.0" }
 zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
 zk_evm_1_3_3 = { package = "zk_evm", version = "0.133" }
 zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
 zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
-zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.6" }
+zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.7" }
 
 # New VM; pinned to a specific commit because of instability
 zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "df5bec3d04d64d434f9b0ccb285ba4681008f7b3" }

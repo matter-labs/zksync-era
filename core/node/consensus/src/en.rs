@@ -100,7 +100,12 @@ impl EN {
                     let old = old;
                     loop {
                         if let Ok(new) = self.fetch_global_config(ctx).await {
-                            if new != old {
+                            // We verify the transition here to work around the situation
+                            // where `consenus_global_config()` RPC fails randomly and fallback
+                            // to `consensus_genesis()` RPC activates.
+                            if new != old
+                                && consensus_dal::verify_config_transition(&old, &new).is_ok()
+                            {
                                 return Err(anyhow::format_err!(
                                     "global config changed: old {old:?}, new {new:?}"
                                 )
@@ -217,7 +222,11 @@ impl EN {
         let mut next = attester::BatchNumber(0);
         loop {
             let status = loop {
-                match self.fetch_attestation_status(ctx).await {
+                match self
+                    .fetch_attestation_status(ctx)
+                    .await
+                    .wrap("fetch_attestation_status()")
+                {
                     Err(err) => tracing::warn!("{err:#}"),
                     Ok(status) => {
                         if status.genesis != cfg.genesis.hash() {
@@ -434,7 +443,7 @@ impl EN {
             });
             while end.map_or(true, |end| queue.next() < end) {
                 let block = recv.recv(ctx).await?.join(ctx).await?;
-                queue.send(block).await?;
+                queue.send(block).await.context("queue.send()")?;
             }
             Ok(())
         })
@@ -443,7 +452,8 @@ impl EN {
         if first < queue.next() {
             self.pool
                 .wait_for_payload(ctx, queue.next().prev().unwrap())
-                .await?;
+                .await
+                .wrap("wait_for_payload()")?;
         }
         Ok(())
     }
