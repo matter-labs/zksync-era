@@ -144,19 +144,3 @@ Ensure that the necessary containers have been started and are functioning corre
 ```bash
 zkstack containers
 ```
-
-### Failed To Remove Volumes
-
-#### Problem
-
-```bash
-failed to remove path `/home/<user>/workspace/current/zksync-era/volumes`: Permission denied (os error 13)
-```
-
-#### Description
-
-This issue may occur because the process doesn't have the necessary permissions to delete certain files or directories.
-
-#### Solution
-
-It is a common problem in Linux environments, and users will need to remove the path manually.
