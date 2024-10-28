@@ -241,11 +241,8 @@ impl Distribution<configs::ContractVerifierConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ContractVerifierConfig {
         configs::ContractVerifierConfig {
             compilation_timeout: self.sample(rng),
-            polling_interval: self.sample(rng),
             prometheus_port: self.sample(rng),
-            threads_per_server: self.sample(rng),
             port: self.sample(rng),
-            url: self.sample(rng),
         }
     }
 }
