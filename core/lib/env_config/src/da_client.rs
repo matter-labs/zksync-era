@@ -8,7 +8,7 @@ use zksync_config::configs::{
         celestia::CelestiaSecrets,
         eigen::EigenSecrets,
         DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, CELESTIA_CLIENT_CONFIG_NAME,
-        OBJECT_STORE_CLIENT_CONFIG_NAME,
+        EIGEN_CLIENT_CONFIG_NAME, OBJECT_STORE_CLIENT_CONFIG_NAME,
     },
     secrets::DataAvailabilitySecrets,
     AvailConfig,
