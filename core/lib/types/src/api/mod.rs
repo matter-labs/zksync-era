@@ -14,8 +14,9 @@ pub use crate::transaction_request::{
     Eip712Meta, SerializationTransactionError, TransactionRequest,
 };
 use crate::{
-    debug_flat_call::DebugCallFlat, protocol_version::L1VerifierConfig, Address, L2BlockNumber,
-    ProtocolVersionId,
+    debug_flat_call::{DebugCallFlat, ResultDebugCallFlat},
+    protocol_version::L1VerifierConfig,
+    Address, L2BlockNumber, ProtocolVersionId,
 };
 
 pub mod en;
@@ -205,6 +206,7 @@ pub struct BridgeAddresses {
     pub l2_erc20_default_bridge: Option<Address>,
     pub l1_weth_bridge: Option<Address>,
     pub l2_weth_bridge: Option<Address>,
+    pub l2_legacy_shared_bridge: Option<Address>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
@@ -643,7 +645,7 @@ pub struct ProtocolVersion {
     /// Verifier configuration
     #[deprecated]
     pub verification_keys_hashes: Option<L1VerifierConfig>,
-    /// Hashes of base system contracts (bootloader, default account and evm simulator)
+    /// Hashes of base system contracts (bootloader, default account and evm emulator)
     #[deprecated]
     pub base_system_contracts: Option<BaseSystemContractsHashes>,
     /// Bootloader code hash
@@ -763,11 +765,11 @@ pub enum BlockStatus {
 #[serde(untagged)]
 pub enum CallTracerBlockResult {
     CallTrace(Vec<ResultDebugCall>),
-    FlatCallTrace(Vec<DebugCallFlat>),
+    FlatCallTrace(Vec<ResultDebugCallFlat>),
 }
 
 impl CallTracerBlockResult {
-    pub fn unwrap_flat(self) -> Vec<DebugCallFlat> {
+    pub fn unwrap_flat(self) -> Vec<ResultDebugCallFlat> {
         match self {
             Self::CallTrace(_) => panic!("Result is a FlatCallTrace"),
             Self::FlatCallTrace(trace) => trace,

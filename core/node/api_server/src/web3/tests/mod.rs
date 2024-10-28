@@ -16,12 +16,12 @@ use zksync_config::{
     },
     GenesisConfig,
 };
+use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, CoreDal};
 use zksync_multivm::interface::{
     TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmEvent,
     VmExecutionMetrics,
 };
-use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch, create_l1_batch_metadata, create_l2_block, create_l2_transaction,
@@ -66,6 +66,7 @@ use zksync_web3_decl::{
 use super::*;
 use crate::{
     testonly::{PROCESSED_EVM_BYTECODE, RAW_EVM_BYTECODE},
+    tx_sender::SandboxExecutorOptions,
     web3::testonly::TestServerBuilder,
 };
 
@@ -143,11 +144,16 @@ async fn setting_response_size_limits() {
 trait HttpTest: Send + Sync {
     /// Prepares the storage before the server is started. The default implementation performs genesis.
     fn storage_initialization(&self) -> StorageInitialization {
-        StorageInitialization::Genesis
+        StorageInitialization::genesis()
     }
 
     fn transaction_executor(&self) -> MockOneshotExecutor {
         MockOneshotExecutor::default()
+    }
+
+    /// Allows to override sandbox executor options.
+    fn executor_options(&self) -> Option<SandboxExecutorOptions> {
+        None
     }
 
     fn method_tracer(&self) -> Arc<MethodTracer> {
@@ -166,7 +172,9 @@ trait HttpTest: Send + Sync {
 /// Storage initialization strategy.
 #[derive(Debug)]
 enum StorageInitialization {
-    Genesis,
+    Genesis {
+        evm_emulator: bool,
+    },
     Recovery {
         logs: Vec<StorageLog>,
         factory_deps: HashMap<H256, Vec<u8>>,
@@ -176,6 +184,16 @@ enum StorageInitialization {
 impl StorageInitialization {
     const SNAPSHOT_RECOVERY_BATCH: L1BatchNumber = L1BatchNumber(23);
     const SNAPSHOT_RECOVERY_BLOCK: L2BlockNumber = L2BlockNumber(23);
+
+    const fn genesis() -> Self {
+        Self::Genesis {
+            evm_emulator: false,
+        }
+    }
+
+    const fn genesis_with_evm() -> Self {
+        Self::Genesis { evm_emulator: true }
+    }
 
     fn empty_recovery() -> Self {
         Self::Recovery {
@@ -190,12 +208,29 @@ impl StorageInitialization {
         storage: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
         match self {
-            Self::Genesis => {
-                let params = GenesisParams::load_genesis_params(GenesisConfig {
+            Self::Genesis { evm_emulator } => {
+                let mut config = GenesisConfig {
                     l2_chain_id: network_config.zksync_network_id,
                     ..mock_genesis_config()
-                })
+                };
+                let mut base_system_contracts = BaseSystemContracts::load_from_disk();
+                if evm_emulator {
+                    config.evm_emulator_hash = Some(config.default_aa_hash.unwrap());
+                    base_system_contracts.evm_emulator =
+                        Some(base_system_contracts.default_aa.clone());
+                } else {
+                    assert!(config.evm_emulator_hash.is_none());
+                }
+
+                let params = GenesisParams::from_genesis_config(
+                    config,
+                    base_system_contracts,
+                    // We cannot load system contracts with EVM emulator yet because these contracts are missing.
+                    // This doesn't matter for tests because the EVM emulator won't be invoked.
+                    get_system_smart_contracts(false),
+                )
                 .unwrap();
+
                 if storage.blocks_dal().is_genesis_needed().await? {
                     insert_genesis_batch(storage, &params).await?;
                 }
@@ -254,11 +289,13 @@ async fn test_http_server(test: impl HttpTest) {
     let genesis = GenesisConfig::for_tests();
     let mut api_config = InternalApiConfig::new(&web3_config, &contracts_config, &genesis);
     api_config.filters_disabled = test.filters_disabled();
-    let mut server_handles = TestServerBuilder::new(pool.clone(), api_config)
+    let mut server_builder = TestServerBuilder::new(pool.clone(), api_config)
         .with_tx_executor(test.transaction_executor())
-        .with_method_tracer(test.method_tracer())
-        .build_http(stop_receiver)
-        .await;
+        .with_method_tracer(test.method_tracer());
+    if let Some(executor_options) = test.executor_options() {
+        server_builder = server_builder.with_executor_options(executor_options);
+    }
+    let mut server_handles = server_builder.build_http(stop_receiver).await;
 
     let local_addr = server_handles.wait_until_ready().await;
     let client = Client::http(format!("http://{local_addr}/").parse().unwrap())
@@ -438,11 +475,7 @@ async fn store_events(
 }
 
 fn scaled_sensible_fee_input(scale: f64) -> BatchFeeInput {
-    <dyn BatchFeeModelInputProvider>::default_batch_fee_input_scaled(
-        FeeParams::sensible_v1_default(),
-        scale,
-        scale,
-    )
+    FeeParams::sensible_v1_default().scale(scale, scale)
 }
 
 #[derive(Debug)]

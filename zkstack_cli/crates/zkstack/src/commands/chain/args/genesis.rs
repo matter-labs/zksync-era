@@ -21,7 +21,7 @@ pub struct GenesisArgs {
     #[clap(long, help = MSG_SERVER_DB_NAME_HELP)]
     pub server_db_name: Option<String>,
     #[clap(long, short, help = MSG_USE_DEFAULT_DATABASES_HELP)]
-    pub use_default: bool,
+    pub dev: bool,
     #[clap(long, short, action)]
     pub dont_drop: bool,
 }
@@ -30,7 +30,7 @@ impl GenesisArgs {
     pub fn fill_values_with_prompt(self, config: &ChainConfig) -> GenesisArgsFinal {
         let DBNames { server_name, .. } = generate_db_names(config);
         let chain_name = config.name.clone();
-        if self.use_default {
+        if self.dev {
             GenesisArgsFinal {
                 server_db: DatabaseConfig::new(DATABASE_SERVER_URL.clone(), server_name),
                 dont_drop: self.dont_drop,

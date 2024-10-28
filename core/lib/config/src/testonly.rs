@@ -3,10 +3,12 @@ use std::num::NonZeroUsize;
 use rand::{distributions::Distribution, Rng};
 use secrecy::Secret;
 use zksync_basic_types::{
+    api_key::APIKey,
     basic_fri_types::CircuitIdRoundTuple,
     commitment::L1BatchCommitmentMode,
     network::Network,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
+    pubdata_da::PubdataSendingMode,
     seed_phrase::SeedPhrase,
     vm::FastVmMode,
     L1BatchNumber, L1ChainId, L2ChainId,
@@ -16,7 +18,11 @@ use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::{
     configs::{
-        self, da_client::DAClientConfig::Avail, eth_sender::PubdataSendingMode,
+        self,
+        da_client::{
+            avail::{AvailClientConfig, AvailDefaultConfig},
+            DAClientConfig::Avail,
+        },
         external_price_api_client::ForcedPriceClientConfig,
     },
     AvailConfig,
@@ -86,6 +92,7 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             factory_deps_cache_size_mb: self.sample(rng),
             initial_writes_cache_size_mb: self.sample(rng),
             latest_values_cache_size_mb: self.sample(rng),
+            latest_values_max_block_lag: self.sample(rng),
             fee_history_limit: self.sample(rng),
             max_batch_request_size: self.sample(rng),
             max_response_body_size_mb: self.sample(rng),
@@ -255,6 +262,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l2_erc20_bridge_addr: self.sample_opt(|| rng.gen()),
             l1_shared_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
             l2_shared_bridge_addr: self.sample_opt(|| rng.gen()),
+            l2_legacy_shared_bridge_addr: self.sample_opt(|| rng.gen()),
             l1_weth_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
             l2_weth_bridge_addr: self.sample_opt(|| rng.gen()),
             l2_testnet_paymaster_addr: self.sample_opt(|| rng.gen()),
@@ -262,6 +270,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             ecosystem_contracts: self.sample(rng),
             base_token_addr: self.sample_opt(|| rng.gen()),
             chain_admin_addr: self.sample_opt(|| rng.gen()),
+            l2_da_validator_addr: self.sample_opt(|| rng.gen()),
         }
     }
 }
@@ -327,6 +336,7 @@ impl Distribution<configs::ExperimentalVmConfig> for EncodeDist {
         configs::ExperimentalVmConfig {
             playground: self.sample(rng),
             state_keeper_fast_vm_mode: gen_fast_vm_mode(rng),
+            api_fast_vm_mode: gen_fast_vm_mode(rng),
         }
     }
 }
@@ -383,17 +393,6 @@ impl Distribution<configs::eth_sender::ProofLoadingMode> for EncodeDist {
         match rng.gen_range(0..2) {
             0 => T::OldProofFromDb,
             _ => T::FriProofFromGcs,
-        }
-    }
-}
-
-impl Distribution<configs::eth_sender::PubdataSendingMode> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::eth_sender::PubdataSendingMode {
-        type T = configs::eth_sender::PubdataSendingMode;
-        match rng.gen_range(0..3) {
-            0 => T::Calldata,
-            1 => T::Blobs,
-            _ => T::Custom,
         }
     }
 }
@@ -679,7 +678,11 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
         configs::ProofDataHandlerConfig {
             http_port: self.sample(rng),
             proof_generation_timeout_in_secs: self.sample(rng),
-            tee_support: self.sample(rng),
+            tee_config: configs::TeeConfig {
+                tee_support: self.sample(rng),
+                first_tee_processed_batch: L1BatchNumber(rng.gen()),
+                tee_proof_generation_timeout_in_secs: self.sample(rng),
+            },
         }
     }
 }
@@ -945,11 +948,12 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
 impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::da_client::DAClientConfig {
         Avail(AvailConfig {
-            api_node_url: self.sample(rng),
             bridge_api_url: self.sample(rng),
-            app_id: self.sample(rng),
             timeout: self.sample(rng),
-            max_retries: self.sample(rng),
+            config: AvailClientConfig::FullClient(AvailDefaultConfig {
+                api_node_url: self.sample(rng),
+                app_id: self.sample(rng),
+            }),
         })
     }
 }
@@ -958,6 +962,7 @@ impl Distribution<configs::secrets::DataAvailabilitySecrets> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::DataAvailabilitySecrets {
         configs::secrets::DataAvailabilitySecrets::Avail(configs::da_client::avail::AvailSecrets {
             seed_phrase: Some(SeedPhrase(Secret::new(self.sample(rng)))),
+            gas_relay_api_key: Some(APIKey(Secret::new(self.sample(rng)))),
         })
     }
 }

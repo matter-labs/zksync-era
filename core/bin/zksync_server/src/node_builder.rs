@@ -4,8 +4,8 @@
 use anyhow::Context;
 use zksync_config::{
     configs::{
-        da_client::DAClientConfig, eth_sender::PubdataSendingMode,
-        secrets::DataAvailabilitySecrets, wallets::Wallets, GeneralConfig, Secrets,
+        da_client::DAClientConfig, secrets::DataAvailabilitySecrets, wallets::Wallets,
+        GeneralConfig, Secrets,
     },
     ContractsConfig, GenesisConfig,
 };
@@ -55,7 +55,6 @@ use zksync_node_framework::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
             output_handler::OutputHandlerLayer, RocksdbStorageOptions, StateKeeperLayer,
         },
-        tee_verifier_input_producer::TeeVerifierInputProducerLayer,
         vm_runner::{
             bwip::BasicWitnessInputProducerLayer, playground::VmPlaygroundLayer,
             protective_reads::ProtectiveReadsWriterLayer,
@@ -70,7 +69,9 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
-use zksync_types::{settlement::SettlementMode, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS};
+use zksync_types::{
+    pubdata_da::PubdataSendingMode, settlement::SettlementMode, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+};
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 /// Macro that looks into a path to fetch an optional config,
@@ -190,7 +191,7 @@ impl MainNodeBuilder {
                 .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
         }
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
-        let l1_gas_layer = L1GasLayer::new(state_keeper_config);
+        let l1_gas_layer = L1GasLayer::new(&state_keeper_config);
         self.node.add_layer(l1_gas_layer);
         Ok(self)
     }
@@ -237,9 +238,7 @@ impl MainNodeBuilder {
         let wallets = self.wallets.clone();
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let persistence_layer = OutputHandlerLayer::new(
-            self.contracts_config
-                .l2_shared_bridge_addr
-                .context("L2 shared bridge address")?,
+            self.contracts_config.l2_legacy_shared_bridge_addr,
             sk_config.l2_block_seal_queue_capacity,
         )
         .with_protective_reads_persistence_enabled(sk_config.protective_reads_persistence_enabled);
@@ -248,6 +247,8 @@ impl MainNodeBuilder {
             sk_config.clone(),
             try_load_config!(self.configs.mempool_config),
             try_load_config!(wallets.state_keeper),
+            self.contracts_config.l2_da_validator_addr,
+            self.genesis_config.l1_batch_commit_data_generator_mode,
         );
         let db_config = try_load_config!(self.configs.db_config);
         let experimental_vm_config = self
@@ -288,6 +289,7 @@ impl MainNodeBuilder {
         self.node.add_layer(ProofDataHandlerLayer::new(
             try_load_config!(self.configs.proof_data_handler_config),
             self.genesis_config.l1_batch_commit_data_generator_mode,
+            self.genesis_config.l2_chain_id,
         ));
         Ok(self)
     }
@@ -305,11 +307,14 @@ impl MainNodeBuilder {
             factory_deps_cache_size: rpc_config.factory_deps_cache_size() as u64,
             initial_writes_cache_size: rpc_config.initial_writes_cache_size() as u64,
             latest_values_cache_size: rpc_config.latest_values_cache_size() as u64,
+            latest_values_max_block_lag: rpc_config.latest_values_max_block_lag(),
         };
+        let vm_config = try_load_config!(self.configs.experimental_vm_config);
 
         // On main node we always use master pool sink.
         self.node.add_layer(MasterPoolSinkLayer);
-        self.node.add_layer(TxSenderLayer::new(
+
+        let layer = TxSenderLayer::new(
             TxSenderConfig::new(
                 &sk_config,
                 &rpc_config,
@@ -320,7 +325,9 @@ impl MainNodeBuilder {
             ),
             postgres_storage_caches_config,
             rpc_config.vm_concurrency_limit(),
-        ));
+        );
+        let layer = layer.with_vm_mode(vm_config.api_fast_vm_mode);
+        self.node.add_layer(layer);
         Ok(self)
     }
 
@@ -488,14 +495,6 @@ impl MainNodeBuilder {
                 .clone()
                 .context("Consensus secrets have to be provided")?,
         });
-
-        Ok(self)
-    }
-
-    fn add_tee_verifier_input_producer_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(TeeVerifierInputProducerLayer::new(
-            self.genesis_config.l2_chain_id,
-        ));
 
         Ok(self)
     }
@@ -725,9 +724,6 @@ impl MainNodeBuilder {
                 }
                 Component::EthTxManager => {
                     self = self.add_eth_tx_manager_layer()?;
-                }
-                Component::TeeVerifierInputProducer => {
-                    self = self.add_tee_verifier_input_producer_layer()?;
                 }
                 Component::Housekeeper => {
                     self = self

@@ -2,7 +2,9 @@ use std::collections::BTreeMap;
 
 use zksync_concurrency::net;
 use zksync_consensus_roles::{attester, node, validator};
-use zksync_types::{ethabi, Address, L1BatchNumber, ProtocolVersionId, Transaction, H256};
+use zksync_types::{
+    commitment::PubdataParams, ethabi, Address, L1BatchNumber, ProtocolVersionId, Transaction, H256,
+};
 
 mod conv;
 pub mod proto;
@@ -46,6 +48,7 @@ pub struct Payload {
     pub operator_address: Address,
     pub transactions: Vec<Transaction>,
     pub last_in_batch: bool,
+    pub pubdata_params: PubdataParams,
 }
 
 impl Payload {

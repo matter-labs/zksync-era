@@ -17,6 +17,7 @@ message ProverAutoscalerAgentConfig {
   optional uint32 http_port = 2; // required
   repeated string namespaces = 3; // optional
   optional string cluster_name = 4; // optional
+  optional bool dry_run = 5; // optional
 }
 
 message ProtocolVersion {
@@ -34,6 +35,16 @@ message ProverSpeed {
   optional uint32 speed = 2; // required
 }
 
+message MaxProver {
+  optional string cluster_and_gpu = 1; // required, format: <cluster>/<gpu>
+  optional uint32 max = 2; // required
+}
+
+message MinProver {
+  optional string namespace = 1; // required
+  optional uint32 min = 2; // required
+}
+
 message ProverAutoscalerScalerConfig {
   optional uint32 prometheus_port = 1; // required
   optional std.Duration scaler_run_interval = 2; // optional
@@ -43,4 +54,6 @@ message ProverAutoscalerScalerConfig {
   repeated ClusterPriority cluster_priorities = 6; // optional
   repeated ProverSpeed prover_speed = 7; // optional
   optional uint32 long_pending_duration_s = 8; // optional
+  repeated MaxProver max_provers = 9; // optional
+  repeated MinProver min_provers = 10; // optional
 }

@@ -57,6 +57,18 @@ pub async fn init_configs(
     }
 
     let mut general_config = chain_config.get_general_config()?;
+
+    if general_config.proof_data_handler_config.is_some() && general_config.prover_gateway.is_some()
+    {
+        let proof_data_handler_config = general_config.proof_data_handler_config.clone().unwrap();
+        let mut prover_gateway = general_config.prover_gateway.clone().unwrap();
+
+        prover_gateway.api_url =
+            format!("http://127.0.0.1:{}", proof_data_handler_config.http_port);
+
+        general_config.prover_gateway = Some(prover_gateway);
+    }
+
     let mut consensus_config = general_config
         .consensus_config
         .context(MSG_CONSENSUS_CONFIG_MISSING_ERR)?;
@@ -69,7 +81,7 @@ pub async fn init_configs(
 
     // Initialize genesis config
     let mut genesis_config = chain_config.get_genesis_config()?;
-    update_from_chain_config(&mut genesis_config, chain_config);
+    update_from_chain_config(&mut genesis_config, chain_config)?;
     genesis_config.save_with_base_path(shell, &chain_config.configs)?;
 
     // Initialize contracts config

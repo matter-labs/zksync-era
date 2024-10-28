@@ -442,7 +442,7 @@ pub fn get_bootloader_memory(
     let mut previous_compressed: usize = 0;
     let mut already_included_txs_size = 0;
     for (tx_index_in_block, tx) in txs.into_iter().enumerate() {
-        let compressed_bytecodes = predefined_compressed_bytecodes[tx_index_in_block].clone();
+        let compressed_bytecodes = &predefined_compressed_bytecodes[tx_index_in_block];
 
         let mut total_compressed_len_words = 0;
         for i in compressed_bytecodes.iter() {
@@ -475,7 +475,7 @@ pub fn push_transaction_to_bootloader_memory<H: HistoryMode, S: WriteStorage>(
     tx: &Transaction,
     execution_mode: TxExecutionMode,
     explicit_compressed_bytecodes: Option<Vec<CompressedBytecodeInfo>>,
-) {
+) -> Vec<CompressedBytecodeInfo> {
     let tx: TransactionData = tx.clone().into();
     let block_gas_per_pubdata_byte = vm.block_context.context.block_gas_price_per_pubdata();
     let overhead = tx.overhead_gas(block_gas_per_pubdata_byte as u32);
@@ -485,7 +485,7 @@ pub fn push_transaction_to_bootloader_memory<H: HistoryMode, S: WriteStorage>(
         execution_mode,
         overhead,
         explicit_compressed_bytecodes,
-    );
+    )
 }
 
 pub fn push_raw_transaction_to_bootloader_memory<H: HistoryMode, S: WriteStorage>(
@@ -494,7 +494,7 @@ pub fn push_raw_transaction_to_bootloader_memory<H: HistoryMode, S: WriteStorage
     execution_mode: TxExecutionMode,
     predefined_overhead: u32,
     explicit_compressed_bytecodes: Option<Vec<CompressedBytecodeInfo>>,
-) {
+) -> Vec<CompressedBytecodeInfo> {
     let tx_index_in_block = vm.bootloader_state.free_tx_index();
     let already_included_txs_size = vm.bootloader_state.free_tx_offset();
 
@@ -555,7 +555,7 @@ pub fn push_raw_transaction_to_bootloader_memory<H: HistoryMode, S: WriteStorage
         predefined_overhead,
         trusted_ergs_limit,
         previous_bytecodes,
-        compressed_bytecodes,
+        &compressed_bytecodes,
     );
 
     vm.state.memory.populate_page(
@@ -566,6 +566,7 @@ pub fn push_raw_transaction_to_bootloader_memory<H: HistoryMode, S: WriteStorage
     vm.bootloader_state.add_tx_data(encoded_tx_size);
     vm.bootloader_state
         .add_compressed_bytecode(compressed_bytecodes_encoding_len_words);
+    compressed_bytecodes
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -577,7 +578,7 @@ fn get_bootloader_memory_for_tx(
     predefined_refund: u32,
     block_gas_per_pubdata: u32,
     previous_compressed_bytecode_size: usize,
-    compressed_bytecodes: Vec<CompressedBytecodeInfo>,
+    compressed_bytecodes: &[CompressedBytecodeInfo],
 ) -> Vec<(usize, U256)> {
     let overhead_gas = tx.overhead_gas(block_gas_per_pubdata);
     let trusted_gas_limit = tx.trusted_gas_limit(block_gas_per_pubdata);
@@ -604,7 +605,7 @@ pub(crate) fn get_bootloader_memory_for_encoded_tx(
     predefined_overhead: u32,
     trusted_gas_limit: u32,
     previous_compressed_bytecode_size: usize,
-    compressed_bytecodes: Vec<CompressedBytecodeInfo>,
+    compressed_bytecodes: &[CompressedBytecodeInfo],
 ) -> Vec<(usize, U256)> {
     let mut memory: Vec<(usize, U256)> = Vec::default();
     let bootloader_description_offset =
@@ -640,8 +641,8 @@ pub(crate) fn get_bootloader_memory_for_encoded_tx(
         COMPRESSED_BYTECODES_OFFSET + 1 + previous_compressed_bytecode_size;
 
     let memory_addition: Vec<_> = compressed_bytecodes
-        .into_iter()
-        .flat_map(|x| bytecode::encode_call(&x))
+        .iter()
+        .flat_map(bytecode::encode_call)
         .collect();
 
     let memory_addition = bytes_to_be_words(memory_addition);

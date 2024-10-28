@@ -30,29 +30,30 @@ where
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct ScaleEvent {
+    pub name: String,
+    pub time: DateTime<Utc>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Namespace {
     #[serde(serialize_with = "ordered_map")]
     pub deployments: HashMap<String, Deployment>,
     pub pods: HashMap<String, Pod>,
+    pub scale_errors: Vec<ScaleEvent>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Cluster {
     pub name: String,
     pub namespaces: HashMap<String, Namespace>,
-}
-impl Default for Cluster {
-    fn default() -> Self {
-        Self {
-            name: "".to_string(),
-            namespaces: HashMap::new(),
-        }
-    }
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Clusters {
     pub clusters: HashMap<String, Cluster>,
+    /// Map from cluster to index in agent URLs Vec.
+    pub agent_ids: HashMap<String, usize>,
 }
 
 #[derive(Default, Debug, EnumString, Display, Hash, PartialEq, Eq, Clone, Copy)]

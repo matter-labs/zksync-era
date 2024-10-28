@@ -80,25 +80,22 @@ async fn main() -> anyhow::Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let client = kube::Client::try_default().await?;
 
-    tracing::info!("Starting ProverAutoscaler");
-
     let mut tasks = vec![];
 
     match opt.job {
         AutoscalerType::Agent => {
+            let cluster = opt
+                .cluster_name
+                .context("cluster_name is required for Agent")?;
+            tracing::info!("Starting ProverAutoscaler Agent for cluster {}", cluster);
             let agent_config = general_config.agent_config.context("agent_config")?;
             let exporter_config = PrometheusExporterConfig::pull(agent_config.prometheus_port);
             tasks.push(tokio::spawn(exporter_config.run(stop_receiver.clone())));
 
             // TODO: maybe get cluster name from curl -H "Metadata-Flavor: Google"
             // http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name
-            let watcher = Watcher::new(
-                client.clone(),
-                opt.cluster_name
-                    .context("cluster_name is required for Agent")?,
-                agent_config.namespaces,
-            );
-            let scaler = Scaler { client };
+            let watcher = Watcher::new(client.clone(), cluster, agent_config.namespaces);
+            let scaler = Scaler::new(client, agent_config.dry_run);
             tasks.push(tokio::spawn(watcher.clone().run()));
             tasks.push(tokio::spawn(agent::run_server(
                 agent_config.http_port,
@@ -108,6 +105,7 @@ async fn main() -> anyhow::Result<()> {
             )))
         }
         AutoscalerType::Scaler => {
+            tracing::info!("Starting ProverAutoscaler Scaler");
             let scaler_config = general_config.scaler_config.context("scaler_config")?;
             let interval = scaler_config.scaler_run_interval.unsigned_abs();
             let exporter_config = PrometheusExporterConfig::pull(scaler_config.prometheus_port);

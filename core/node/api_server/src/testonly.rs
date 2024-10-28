@@ -10,8 +10,7 @@ use zksync_contracts::{
 };
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
-use zksync_node_fee_model::BatchFeeModelInputProvider;
-use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
+use zksync_system_constants::{L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE};
 use zksync_types::{
     api::state_override::{Bytecode, OverrideAccount, OverrideState, StateOverride},
     ethabi,
@@ -19,11 +18,12 @@ use zksync_types::{
     fee::Fee,
     fee_model::FeeParams,
     get_code_key, get_known_code_key,
+    l1::L1Tx,
     l2::L2Tx,
-    transaction_request::{CallRequest, PaymasterParams},
+    transaction_request::{CallRequest, Eip712Meta, PaymasterParams},
     utils::storage_key_for_eth_balance,
     AccountTreeId, Address, K256PrivateKey, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId,
-    StorageKey, StorageLog, H256, U256,
+    StorageKey, StorageLog, EIP_712_TX_TYPE, H256, U256,
 };
 use zksync_utils::{address_to_u256, u256_to_h256};
 
@@ -72,11 +72,7 @@ fn inflate_bytecode(bytecode: &mut Vec<u8>, nop_count: usize) {
 }
 
 fn default_fee() -> Fee {
-    let fee_input = <dyn BatchFeeModelInputProvider>::default_batch_fee_input_scaled(
-        FeeParams::sensible_v1_default(),
-        1.0,
-        1.0,
-    );
+    let fee_input = FeeParams::sensible_v1_default().scale(1.0, 1.0);
     let (max_fee_per_gas, gas_per_pubdata_limit) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::default().into());
     Fee {
@@ -348,6 +344,8 @@ pub(crate) trait TestAccount {
 
     fn create_counter_tx(&self, increment: U256, revert: bool) -> L2Tx;
 
+    fn create_l1_counter_tx(&self, increment: U256, revert: bool) -> L1Tx;
+
     fn query_counter_value(&self) -> CallRequest;
 
     fn create_infinite_loop_tx(&self) -> L2Tx;
@@ -485,6 +483,26 @@ impl TestAccount for K256PrivateKey {
             PaymasterParams::default(),
         )
         .unwrap()
+    }
+
+    fn create_l1_counter_tx(&self, increment: U256, revert: bool) -> L1Tx {
+        let calldata = load_contract(COUNTER_CONTRACT_PATH)
+            .function("incrementWithRevert")
+            .expect("no `incrementWithRevert` function")
+            .encode_input(&[Token::Uint(increment), Token::Bool(revert)])
+            .expect("failed encoding `incrementWithRevert` input");
+        let request = CallRequest {
+            data: Some(calldata.into()),
+            from: Some(self.address()),
+            to: Some(StateBuilder::COUNTER_CONTRACT_ADDRESS),
+            transaction_type: Some(EIP_712_TX_TYPE.into()),
+            eip712_meta: Some(Eip712Meta {
+                gas_per_pubdata: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE.into(),
+                ..Eip712Meta::default()
+            }),
+            ..CallRequest::default()
+        };
+        L1Tx::from_request(request, false).unwrap()
     }
 
     fn query_counter_value(&self) -> CallRequest {

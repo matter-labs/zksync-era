@@ -33,6 +33,9 @@ use crate::{
 
 #[derive(Debug, Clone, Parser, Default)]
 pub struct ProverInitArgs {
+    #[clap(long)]
+    pub dev: bool,
+
     // Proof store object
     #[clap(long)]
     pub proof_store_dir: Option<String>,
@@ -58,7 +61,7 @@ pub struct ProverInitArgs {
     pub bellman_cuda: Option<bool>,
 
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
-    pub setup_compressor_keys: Option<bool>,
+    pub setup_compressor_key: Option<bool>,
     #[clap(flatten)]
     pub compressor_keys_args: CompressorKeysArgs,
 
@@ -228,6 +231,10 @@ impl ProverInitArgs {
     ) -> anyhow::Result<ProofStorageConfig> {
         logger::info(MSG_GETTING_PROOF_STORE_CONFIG);
 
+        if self.dev {
+            return Ok(self.handle_file_backed_config(Some(DEFAULT_PROOF_STORE_DIR.to_string())));
+        }
+
         if self.proof_store_dir.is_some() {
             return Ok(self.handle_file_backed_config(self.proof_store_dir.clone()));
         }
@@ -277,6 +284,11 @@ impl ProverInitArgs {
         shell: &Shell,
     ) -> anyhow::Result<Option<ProofStorageConfig>> {
         logger::info(MSG_GETTING_PUBLIC_STORE_CONFIG);
+
+        if self.dev {
+            return Ok(None);
+        }
+
         let shall_save_to_public_bucket = self
             .shall_save_to_public_bucket
             .unwrap_or_else(|| PromptConfirm::new(MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT).ask());
@@ -345,7 +357,13 @@ impl ProverInitArgs {
         &self,
         default_path: &str,
     ) -> Option<CompressorKeysArgs> {
-        let download_key = self.clone().setup_compressor_keys.unwrap_or_else(|| {
+        if self.dev {
+            return Some(CompressorKeysArgs {
+                path: Some(default_path.to_string()),
+            });
+        }
+
+        let download_key = self.clone().setup_compressor_key.unwrap_or_else(|| {
             PromptConfirm::new(MSG_DOWNLOAD_SETUP_COMPRESSOR_KEY_PROMPT)
                 .default(false)
                 .ask()
@@ -363,6 +381,9 @@ impl ProverInitArgs {
     }
 
     fn fill_setup_keys_values_with_prompt(&self) -> Option<SetupKeysArgs> {
+        if self.dev {
+            return None;
+        }
         let args = self.setup_keys_args.clone();
 
         if self.setup_keys.unwrap_or_else(|| {
@@ -475,6 +496,10 @@ impl ProverInitArgs {
     }
 
     fn fill_bellman_cuda_values_with_prompt(&self) -> Option<InitBellmanCudaArgs> {
+        if self.dev {
+            return None;
+        }
+
         let args = self.bellman_cuda_config.clone();
         if self.bellman_cuda.unwrap_or_else(|| {
             PromptConfirm::new(MSG_INITIALIZE_BELLMAN_CUDA_PROMPT)
@@ -488,6 +513,10 @@ impl ProverInitArgs {
     }
 
     fn get_cloud_type_with_prompt(&self) -> CloudConnectionMode {
+        if self.dev {
+            return CloudConnectionMode::Local;
+        }
+
         let cloud_type = self.cloud_type.clone().unwrap_or_else(|| {
             PromptSelect::new(
                 MSG_CLOUD_TYPE_PROMPT,
@@ -503,25 +532,32 @@ impl ProverInitArgs {
         &self,
         config: &ChainConfig,
     ) -> Option<ProverDatabaseConfig> {
-        let setup_database = self
-            .setup_database
-            .unwrap_or_else(|| PromptConfirm::new("Do you want to setup the database?").ask());
+        let setup_database = self.dev
+            || self
+                .setup_database
+                .unwrap_or_else(|| PromptConfirm::new("Do you want to setup the database?").ask());
 
         if setup_database {
             let DBNames { prover_name, .. } = generate_db_names(config);
             let chain_name = config.name.clone();
 
-            let dont_drop = self.dont_drop.unwrap_or_else(|| {
-                !PromptConfirm::new("Do you want to drop the database?")
-                    .default(true)
-                    .ask()
-            });
+            let dont_drop = if !self.dev {
+                self.dont_drop.unwrap_or_else(|| {
+                    !PromptConfirm::new("Do you want to drop the database?")
+                        .default(true)
+                        .ask()
+                })
+            } else {
+                false
+            };
 
-            if self.use_default.unwrap_or_else(|| {
-                PromptConfirm::new(MSG_USE_DEFAULT_DATABASES_HELP)
-                    .default(true)
-                    .ask()
-            }) {
+            if self.dev
+                || self.use_default.unwrap_or_else(|| {
+                    PromptConfirm::new(MSG_USE_DEFAULT_DATABASES_HELP)
+                        .default(true)
+                        .ask()
+                })
+            {
                 Some(ProverDatabaseConfig {
                     database_config: DatabaseConfig::new(DATABASE_PROVER_URL.clone(), prover_name),
                     dont_drop,

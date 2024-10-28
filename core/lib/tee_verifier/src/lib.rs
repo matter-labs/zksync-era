@@ -4,27 +4,29 @@
 //! executing the VM and verifying all the accessed memory slots by their
 //! merkle path.
 
-use std::{cell::RefCell, rc::Rc};
-
-use anyhow::Context;
+use anyhow::{bail, Context, Result};
 use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     BlockOutputWithProofs, TreeInstruction, TreeLogEntry, TreeLogEntryWithProof, ValueHash,
 };
 use zksync_multivm::{
     interface::{
-        storage::{InMemoryStorage, ReadStorage, StorageView},
+        storage::{ReadStorage, StorageSnapshot, StorageView},
         FinishedL1Batch, L2BlockEnv, VmFactory, VmInterface, VmInterfaceExt,
         VmInterfaceHistoryEnabled,
     },
+    pubdata_builders::pubdata_params_to_builder,
     vm_latest::HistoryEnabled,
     LegacyVmInstance,
 };
 use zksync_prover_interface::inputs::{
     StorageLogMetadata, V1TeeVerifierInput, WitnessInputMerklePaths,
 };
-use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, StorageLog, Transaction, H256};
-use zksync_utils::bytecode::hash_bytecode;
+use zksync_types::{
+    block::L2BlockExecutionData, commitment::PubdataParams, L1BatchNumber, StorageLog,
+    StorageValue, Transaction, H256,
+};
+use zksync_utils::u256_to_h256;
 
 /// A structure to hold the result of verification.
 pub struct VerificationResult {
@@ -50,29 +52,47 @@ impl Verify for V1TeeVerifierInput {
     /// not actionable.
     fn verify(self) -> anyhow::Result<VerificationResult> {
         let old_root_hash = self.l1_batch_env.previous_batch_hash.unwrap();
-        let l2_chain_id = self.system_env.chain_id;
-        let enumeration_index = self.witness_input_merkle_paths.next_enumeration_index();
-
-        let mut raw_storage = InMemoryStorage::with_custom_system_contracts_and_chain_id(
-            l2_chain_id,
-            hash_bytecode,
-            Vec::with_capacity(0),
-        );
-
-        for (hash, bytes) in self.used_contracts.into_iter() {
-            tracing::trace!("raw_storage.store_factory_dep({hash}, bytes)");
-            raw_storage.store_factory_dep(hash, bytes)
-        }
-
-        let block_output_with_proofs =
-            get_bowp_and_set_initial_values(self.witness_input_merkle_paths, &mut raw_storage);
-
-        let storage_view = Rc::new(RefCell::new(StorageView::new(&raw_storage)));
-
+        let enumeration_index = self.merkle_paths.next_enumeration_index();
         let batch_number = self.l1_batch_env.number;
-        let vm = LegacyVmInstance::new(self.l1_batch_env, self.system_env, storage_view);
 
-        let vm_out = execute_vm(self.l2_blocks_execution_data, vm)?;
+        let read_storage_ops = self
+            .vm_run_data
+            .witness_block_state
+            .read_storage_key
+            .into_iter();
+
+        let initial_writes_ops = self
+            .vm_run_data
+            .witness_block_state
+            .is_write_initial
+            .into_iter();
+
+        // We need to define storage slots read during batch execution, and their initial state;
+        // hence, the use of both read_storage_ops and initial_writes_ops.
+        // StorageSnapshot also requires providing enumeration indices,
+        // but they only matter at the end of execution when creating pubdata for the batch,
+        // which is irrelevant in this case. Thus, enumeration indices are set to dummy values.
+        let storage = read_storage_ops
+            .enumerate()
+            .map(|(i, (hash, bytes))| (hash.hashed_key(), Some((bytes, i as u64 + 1u64))))
+            .chain(initial_writes_ops.filter_map(|(key, initial_write)| {
+                initial_write.then_some((key.hashed_key(), None))
+            }))
+            .collect();
+
+        let factory_deps = self
+            .vm_run_data
+            .used_bytecodes
+            .into_iter()
+            .map(|(hash, bytes)| (u256_to_h256(hash), bytes.into_flattened()))
+            .collect();
+
+        let storage_snapshot = StorageSnapshot::new(storage, factory_deps);
+        let storage_view = StorageView::new(storage_snapshot).to_rc_ptr();
+        let vm = LegacyVmInstance::new(self.l1_batch_env, self.system_env, storage_view);
+        let vm_out = execute_vm(self.l2_blocks_execution_data, vm, self.pubdata_params)?;
+
+        let block_output_with_proofs = get_bowp(self.merkle_paths)?;
 
         let instructions: Vec<TreeInstruction> =
             generate_tree_instructions(enumeration_index, &block_output_with_proofs, vm_out)?;
@@ -89,11 +109,8 @@ impl Verify for V1TeeVerifierInput {
 }
 
 /// Sets the initial storage values and returns `BlockOutputWithProofs`
-fn get_bowp_and_set_initial_values(
-    witness_input_merkle_paths: WitnessInputMerklePaths,
-    raw_storage: &mut InMemoryStorage,
-) -> BlockOutputWithProofs {
-    let logs = witness_input_merkle_paths
+fn get_bowp(witness_input_merkle_paths: WitnessInputMerklePaths) -> Result<BlockOutputWithProofs> {
+    let logs_result: Result<_, _> = witness_input_merkle_paths
         .into_merkle_paths()
         .map(
             |StorageLogMetadata {
@@ -110,29 +127,31 @@ fn get_bowp_and_set_initial_values(
                 let merkle_path = merkle_paths.into_iter().map(|x| x.into()).collect();
                 let base: TreeLogEntry = match (is_write, first_write, leaf_enumeration_index) {
                     (false, _, 0) => TreeLogEntry::ReadMissingKey,
-                    (false, _, _) => {
+                    (false, false, _) => {
                         // This is a special U256 here, which needs `to_little_endian`
                         let mut hashed_key = [0_u8; 32];
                         leaf_storage_key.to_little_endian(&mut hashed_key);
-                        raw_storage.set_value_hashed_enum(
-                            hashed_key.into(),
-                            leaf_enumeration_index,
-                            value_read.into(),
+                        tracing::trace!(
+                            "TreeLogEntry::Read {leaf_storage_key:x} = {:x}",
+                            StorageValue::from(value_read)
                         );
                         TreeLogEntry::Read {
                             leaf_index: leaf_enumeration_index,
                             value: value_read.into(),
                         }
                     }
+                    (false, true, _) => {
+                        tracing::error!("get_bowp is_write = false, first_write = true");
+                        bail!("get_bowp is_write = false, first_write = true");
+                    }
                     (true, true, _) => TreeLogEntry::Inserted,
                     (true, false, _) => {
                         // This is a special U256 here, which needs `to_little_endian`
                         let mut hashed_key = [0_u8; 32];
                         leaf_storage_key.to_little_endian(&mut hashed_key);
-                        raw_storage.set_value_hashed_enum(
-                            hashed_key.into(),
-                            leaf_enumeration_index,
-                            value_read.into(),
+                        tracing::trace!(
+                            "TreeLogEntry::Updated {leaf_storage_key:x} = {:x}",
+                            StorageValue::from(value_read)
                         );
                         TreeLogEntry::Updated {
                             leaf_index: leaf_enumeration_index,
@@ -140,25 +159,28 @@ fn get_bowp_and_set_initial_values(
                         }
                     }
                 };
-                TreeLogEntryWithProof {
+                Ok(TreeLogEntryWithProof {
                     base,
                     merkle_path,
                     root_hash,
-                }
+                })
             },
         )
         .collect();
 
-    BlockOutputWithProofs {
+    let logs: Vec<TreeLogEntryWithProof> = logs_result?;
+
+    Ok(BlockOutputWithProofs {
         logs,
         leaf_count: 0,
-    }
+    })
 }
 
 /// Executes the VM and returns `FinishedL1Batch` on success.
 fn execute_vm<S: ReadStorage>(
     l2_blocks_execution_data: Vec<L2BlockExecutionData>,
     mut vm: LegacyVmInstance<S, HistoryEnabled>,
+    pubdata_params: PubdataParams,
 ) -> anyhow::Result<FinishedL1Batch> {
     let next_l2_blocks_data = l2_blocks_execution_data.iter().skip(1);
 
@@ -176,12 +198,18 @@ fn execute_vm<S: ReadStorage>(
                 .context("failed to execute transaction in TeeVerifierInputProducer")?;
             tracing::trace!("Finished execution of tx: {tx:?}");
         }
+
+        tracing::trace!("finished l2_block {l2_block_data:?}");
+        tracing::trace!("about to vm.start_new_l2_block {next_l2_block_data:?}");
+
         vm.start_new_l2_block(L2BlockEnv::from_l2_block_data(next_l2_block_data));
 
         tracing::trace!("Finished execution of l2_block: {:?}", l2_block_data.number);
     }
 
-    Ok(vm.finish_batch())
+    tracing::trace!("about to vm.finish_batch()");
+
+    Ok(vm.finish_batch(pubdata_params_to_builder(pubdata_params)))
 }
 
 /// Map `LogQuery` and `TreeLogEntry` to a `TreeInstruction`
@@ -191,7 +219,7 @@ fn map_log_tree(
     idx: &mut u64,
 ) -> anyhow::Result<TreeInstruction> {
     let key = storage_log.key.hashed_key_u256();
-    Ok(match (storage_log.is_write(), *tree_log_entry) {
+    let tree_instruction = match (storage_log.is_write(), *tree_log_entry) {
         (true, TreeLogEntry::Updated { leaf_index, .. }) => {
             TreeInstruction::write(key, leaf_index, H256(storage_log.value.into()))
         }
@@ -203,24 +231,31 @@ fn map_log_tree(
         (false, TreeLogEntry::Read { value, .. }) => {
             if storage_log.value != value {
                 tracing::error!(
-                    "Failed to map LogQuery to TreeInstruction: {:#?} != {:#?}",
+                    ?storage_log,
+                    ?tree_log_entry,
+                    "Failed to map LogQuery to TreeInstruction: read value {:#?} != {:#?}",
                     storage_log.value,
                     value
                 );
-                anyhow::bail!(
-                    "Failed to map LogQuery to TreeInstruction: {:#?} != {:#?}",
-                    storage_log.value,
-                    value
-                );
+                anyhow::bail!("Failed to map LogQuery to TreeInstruction");
             }
             TreeInstruction::Read(key)
         }
         (false, TreeLogEntry::ReadMissingKey { .. }) => TreeInstruction::Read(key),
-        _ => {
-            tracing::error!("Failed to map LogQuery to TreeInstruction");
+        (true, TreeLogEntry::Read { .. })
+        | (true, TreeLogEntry::ReadMissingKey)
+        | (false, TreeLogEntry::Inserted)
+        | (false, TreeLogEntry::Updated { .. }) => {
+            tracing::error!(
+                ?storage_log,
+                ?tree_log_entry,
+                "Failed to map LogQuery to TreeInstruction"
+            );
             anyhow::bail!("Failed to map LogQuery to TreeInstruction");
         }
-    })
+    };
+
+    Ok(tree_instruction)
 }
 
 /// Generates the `TreeInstruction`s from the VM executions.
@@ -269,8 +304,7 @@ fn execute_tx<S: ReadStorage>(
 mod tests {
     use zksync_contracts::{BaseSystemContracts, SystemContractCode};
     use zksync_multivm::interface::{L1BatchEnv, SystemEnv, TxExecutionMode};
-    use zksync_object_store::StoredObject;
-    use zksync_prover_interface::inputs::TeeVerifierInput;
+    use zksync_prover_interface::inputs::{TeeVerifierInput, VMRunWitnessInputData};
     use zksync_types::U256;
 
     use super::*;
@@ -278,6 +312,18 @@ mod tests {
     #[test]
     fn test_v1_serialization() {
         let tvi = V1TeeVerifierInput::new(
+            VMRunWitnessInputData {
+                l1_batch_number: Default::default(),
+                used_bytecodes: Default::default(),
+                initial_heap_content: vec![],
+                protocol_version: Default::default(),
+                bootloader_code: vec![],
+                default_account_code_hash: Default::default(),
+                evm_emulator_code_hash: Some(Default::default()),
+                storage_refunds: vec![],
+                pubdata_costs: vec![],
+                witness_block_state: Default::default(),
+            },
             WitnessInputMerklePaths::new(0),
             vec![],
             L1BatchEnv {
@@ -313,14 +359,12 @@ mod tests {
                 default_validation_computational_gas_limit: 0,
                 chain_id: Default::default(),
             },
-            vec![(H256([1; 32]), vec![0, 1, 2, 3, 4])],
+            Default::default(),
         );
         let tvi = TeeVerifierInput::new(tvi);
-        let serialized = <TeeVerifierInput as StoredObject>::serialize(&tvi)
-            .expect("Failed to serialize TeeVerifierInput.");
+        let serialized = bincode::serialize(&tvi).expect("Failed to serialize TeeVerifierInput.");
         let deserialized: TeeVerifierInput =
-            <TeeVerifierInput as StoredObject>::deserialize(serialized)
-                .expect("Failed to deserialize TeeVerifierInput.");
+            bincode::deserialize(&serialized).expect("Failed to deserialize TeeVerifierInput.");
 
         assert_eq!(tvi, deserialized);
     }
