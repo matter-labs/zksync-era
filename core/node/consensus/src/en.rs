@@ -127,7 +127,7 @@ impl EN {
             )
             .await
             .wrap("Store::new()")?;
-            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
+            s.spawn_bg(async { Ok(runner.run(ctx).await.context("Store::runner()")?) });
 
             // Run the temporary fetcher until the certificates are backfilled.
             // Temporary fetcher should be removed once json RPC syncing is fully deprecated.
@@ -146,14 +146,25 @@ impl EN {
             let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone()))
                 .await
                 .wrap("BlockStore::new()")?;
-            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
+            s.spawn_bg(async { Ok(runner.run(ctx).await.context("BlockStore::run()")?) });
 
             let attestation = Arc::new(attestation::Controller::new(attester));
-            s.spawn_bg(self.run_attestation_controller(
-                ctx,
-                global_config.clone(),
-                attestation.clone(),
-            ));
+            s.spawn_bg({
+                let global_config = global_config.clone();
+                let attestation = attestation.clone();
+                async {
+                    let res = self
+                        .run_attestation_controller(ctx, global_config, attestation)
+                        .await
+                        .wrap("run_attestation_controller()");
+                    // Attestation currently is not critical for the node to function.
+                    // If it fails, we just log the error and continue.
+                    if let Err(err) = res {
+                        tracing::error!("attestation controller failed: {err:#}");
+                    }
+                    Ok(())
+                }
+            });
 
             let executor = executor::Executor {
                 config: config::executor(&cfg, &secrets, &global_config, build_version)?,
