@@ -8,7 +8,7 @@ use zksync_basic_types::{
 };
 use zksync_config::configs::{
     consensus::{AttesterSecretKey, ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
-    da_client::{avail::AvailSecrets, celestia::CelestiaSecrets},
+    da_client::{avail::AvailSecrets, celestia::CelestiaSecrets, eigen::EigenSecrets},
     secrets::{DataAvailabilitySecrets, Secrets},
     DatabaseSecrets, L1Secrets,
 };
@@ -133,6 +133,11 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                     required(&celestia.private_key).context("private_key")?,
                 )?,
             }),
+            DaSecrets::Eigen(eigen) => DataAvailabilitySecrets::Eigen(EigenSecrets {
+                private_key: PrivateKey::from_str(
+                    required(&eigen.private_key).context("private_key")?,
+                )?,
+            }),
         };
 
         Ok(client)
@@ -179,6 +184,9 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                     private_key: Some(config.private_key.0.expose_secret().to_string()),
                 }))
             }
+            DataAvailabilitySecrets::Eigen(config) => Some(DaSecrets::Eigen(proto::EigenSecret {
+                private_key: Some(config.private_key.0.expose_secret().to_string()),
+            })),
         };
 
         Self {

@@ -23,6 +23,7 @@ zksync_types.workspace = true
 zksync_object_store.workspace = true
 zksync_da_client.workspace = true
 zksync_env_config.workspace = true
+zksync_basic_types.workspace = true
 futures.workspace = true
 
 # Avail dependencies
@@ -49,5 +50,8 @@ sha2.workspace = true
 prost.workspace = true
 bech32.workspace = true
 ripemd.workspace = true
-tonic.workspace = true
+tonic = { workspace = true, features = ["tls", "default"] }
 pbjson-types.workspace = true
+
+# Eigen dependencies
+tokio-stream.workspace = true

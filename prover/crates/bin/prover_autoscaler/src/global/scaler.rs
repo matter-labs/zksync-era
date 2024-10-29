@@ -4,7 +4,9 @@ use chrono::Utc;
 use debug_map_sorted::SortedOutputExt;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use zksync_config::configs::prover_autoscaler::{Gpu, ProverAutoscalerScalerConfig};
+use zksync_config::configs::prover_autoscaler::{
+    Gpu, ProverAutoscalerScalerConfig, QueueReportFields, ScalerTarget,
+};
 
 use super::{queuer, watcher};
 use crate::{
@@ -65,11 +67,27 @@ pub struct Scaler {
     watcher: watcher::Watcher,
     queuer: queuer::Queuer,
 
+    jobs: Vec<QueueReportFields>,
+    prover_scaler: GpuScaler,
+    simple_scalers: Vec<SimpleScaler>,
+}
+
+pub struct GpuScaler {
     /// Which cluster to use first.
     cluster_priorities: HashMap<String, u32>,
     min_provers: HashMap<String, u32>,
     max_provers: HashMap<String, HashMap<Gpu, u32>>,
     prover_speed: HashMap<Gpu, u32>,
+    long_pending_duration: chrono::Duration,
+}
+
+pub struct SimpleScaler {
+    queue_report_field: QueueReportFields,
+    pod_name_prefix: String,
+    /// Which cluster to use first.
+    cluster_priorities: HashMap<String, u32>,
+    max_replicas: HashMap<String, usize>,
+    speed: usize,
     long_pending_duration: chrono::Duration,
 }
 
@@ -102,10 +120,31 @@ impl Scaler {
                 AUTOSCALER_METRICS.prover_protocol_version[&(namespace.clone(), version.clone())]
                     .set(1);
             });
+
+        let mut simple_scalers = Vec::default();
+        let mut jobs = vec![QueueReportFields::prover_jobs];
+        for c in &config.scaler_targets {
+            jobs.push(c.queue_report_field.clone());
+            simple_scalers.push(SimpleScaler::new(
+                c,
+                config.cluster_priorities.clone(),
+                chrono::Duration::seconds(config.long_pending_duration.whole_seconds()),
+            ))
+        }
         Self {
-            namespaces: config.protocol_versions,
+            namespaces: config.protocol_versions.clone(),
             watcher,
             queuer,
+            jobs,
+            prover_scaler: GpuScaler::new(config),
+            simple_scalers,
+        }
+    }
+}
+
+impl GpuScaler {
+    pub fn new(config: ProverAutoscalerScalerConfig) -> Self {
+        Self {
             cluster_priorities: config.cluster_priorities,
             min_provers: config.min_provers,
             max_provers: config.max_provers,
@@ -116,6 +155,7 @@ impl Scaler {
         }
     }
 
+    /// Converts a single cluster into vec of GPUPools, one for each GPU.
     fn convert_to_gpu_pool(&self, namespace: &String, cluster: &Cluster) -> Vec<GPUPool> {
         let mut gp_map = HashMap::new(); // <Gpu, GPUPool>
         let Some(namespace_value) = &cluster.namespaces.get(namespace) else {
@@ -216,6 +256,10 @@ impl Scaler {
                         .cmp(self.cluster_priorities.get(&b.name).unwrap_or(&1000)),
                 ) // Sort by priority.
                 .then(b.max_pool_size.cmp(&a.max_pool_size)) // Reverse sort by cluster size.
+        });
+
+        gpu_pools.iter().for_each(|p| {
+            AUTOSCALER_METRICS.scale_errors[&p.name.clone()].set(p.scale_errors as u64);
         });
 
         gpu_pools
@@ -323,6 +367,192 @@ impl Scaler {
     }
 }
 
+#[derive(Default, Debug, PartialEq, Eq)]
+struct Pool {
+    name: String,
+    pods: HashMap<PodStatus, usize>,
+    scale_errors: usize,
+    max_pool_size: usize,
+}
+
+impl Pool {
+    fn sum_by_pod_status(&self, ps: PodStatus) -> usize {
+        self.pods.get(&ps).cloned().unwrap_or(0)
+    }
+}
+
+impl SimpleScaler {
+    pub fn new(
+        config: &ScalerTarget,
+        cluster_priorities: HashMap<String, u32>,
+        long_pending_duration: chrono::Duration,
+    ) -> Self {
+        Self {
+            queue_report_field: config.queue_report_field.clone(),
+            pod_name_prefix: config.pod_name_prefix.clone(),
+            cluster_priorities,
+            max_replicas: config.max_replicas.clone(),
+            speed: config.speed,
+            long_pending_duration,
+        }
+    }
+
+    fn convert_to_pool(&self, namespace: &String, cluster: &Cluster) -> Option<Pool> {
+        let Some(namespace_value) = &cluster.namespaces.get(namespace) else {
+            // No namespace in config, ignoring.
+            return None;
+        };
+
+        // TODO: Check if related deployment exists.
+        let mut pool = Pool {
+            name: cluster.name.clone(),
+            max_pool_size: self.max_replicas.get(&cluster.name).copied().unwrap_or(0),
+            scale_errors: namespace_value
+                .scale_errors
+                .iter()
+                .filter(|v| v.time < Utc::now() - chrono::Duration::hours(1)) // TODO Move the duration into config.
+                .count(),
+            ..Default::default()
+        };
+
+        // Initialize pool only if we have ready deployments.
+        pool.pods.insert(PodStatus::Running, 0);
+
+        let pod_re = Regex::new(&format!("^{}-", self.pod_name_prefix)).unwrap();
+        for (_, pod) in namespace_value
+            .pods
+            .iter()
+            .filter(|(name, _)| pod_re.is_match(name))
+        {
+            let mut status = PodStatus::from_str(&pod.status).unwrap_or_default();
+            if status == PodStatus::Pending && pod.changed < Utc::now() - self.long_pending_duration
+            {
+                status = PodStatus::LongPending;
+            }
+            pool.pods.entry(status).and_modify(|n| *n += 1).or_insert(1);
+        }
+
+        tracing::debug!("Pool pods {:?}", pool);
+
+        Some(pool)
+    }
+
+    fn sorted_clusters(&self, namespace: &String, clusters: &Clusters) -> Vec<Pool> {
+        let mut pools: Vec<Pool> = clusters
+            .clusters
+            .values()
+            .flat_map(|c| self.convert_to_pool(namespace, c))
+            .collect();
+
+        pools.sort_by(|a, b| {
+            a.sum_by_pod_status(PodStatus::NeedToMove)
+                .cmp(&b.sum_by_pod_status(PodStatus::NeedToMove)) // Sort by need to evict.
+                .then(
+                    a.sum_by_pod_status(PodStatus::LongPending)
+                        .cmp(&b.sum_by_pod_status(PodStatus::LongPending)),
+                ) // Sort by long Pending pods.
+                .then(a.scale_errors.cmp(&b.scale_errors)) // Sort by scale_errors in the cluster.
+                .then(
+                    self.cluster_priorities
+                        .get(&a.name)
+                        .unwrap_or(&1000)
+                        .cmp(self.cluster_priorities.get(&b.name).unwrap_or(&1000)),
+                ) // Sort by priority.
+                .then(b.max_pool_size.cmp(&a.max_pool_size)) // Reverse sort by cluster size.
+        });
+
+        pools
+    }
+
+    fn pods_to_speed(&self, n: usize) -> u64 {
+        (self.speed * n) as u64
+    }
+
+    fn normalize_queue(&self, queue: u64) -> u64 {
+        let speed = self.speed as u64;
+        // Divide and round up if there's any remainder.
+        (queue + speed - 1) / speed * speed
+    }
+
+    fn run(&self, namespace: &String, queue: u64, clusters: &Clusters) -> HashMap<String, usize> {
+        let sorted_clusters = self.sorted_clusters(namespace, clusters);
+        tracing::debug!(
+            "Sorted clusters for namespace {}: {:?}",
+            namespace,
+            &sorted_clusters
+        );
+
+        let mut total: i64 = 0;
+        let mut pods: HashMap<String, usize> = HashMap::new();
+        for cluster in &sorted_clusters {
+            for (status, replicas) in &cluster.pods {
+                match status {
+                    PodStatus::Running | PodStatus::Pending => {
+                        total += self.pods_to_speed(*replicas) as i64;
+                        pods.entry(cluster.name.clone())
+                            .and_modify(|x| *x += replicas)
+                            .or_insert(*replicas);
+                    }
+                    _ => (), // Ignore LongPending as not running here.
+                }
+            }
+        }
+
+        // Remove unneeded pods.
+        if (total as u64) > self.normalize_queue(queue) {
+            for cluster in sorted_clusters.iter().rev() {
+                let mut excess_queue = total as u64 - self.normalize_queue(queue);
+                let mut excess_pods = excess_queue as usize / self.speed;
+                let replicas = pods.entry(cluster.name.clone()).or_default();
+                if *replicas < excess_pods {
+                    excess_pods = *replicas;
+                    excess_queue = *replicas as u64 * self.speed as u64;
+                }
+                *replicas -= excess_pods;
+                total -= excess_queue as i64;
+                if total <= 0 {
+                    break;
+                };
+            }
+        }
+
+        // Reduce load in over capacity pools.
+        for cluster in &sorted_clusters {
+            let replicas = pods.entry(cluster.name.clone()).or_default();
+            if cluster.max_pool_size < *replicas {
+                let excess = *replicas - cluster.max_pool_size;
+                total -= (excess * self.speed) as i64;
+                *replicas -= excess;
+            }
+        }
+
+        tracing::debug!("Queue covered with provers: {}", total);
+        // Add required pods.
+        if (total as u64) < queue {
+            for cluster in &sorted_clusters {
+                let mut required_queue = queue - total as u64;
+                let mut required_pods = self.normalize_queue(required_queue) as usize / self.speed;
+                let replicas = pods.entry(cluster.name.clone()).or_default();
+                if *replicas + required_pods > cluster.max_pool_size {
+                    required_pods = cluster.max_pool_size - *replicas;
+                    required_queue = (required_pods * self.speed) as u64;
+                }
+                *replicas += required_pods;
+                total += required_queue as i64;
+            }
+        }
+
+        tracing::debug!(
+            "run result for namespace {}: provers {:?}, total: {}",
+            namespace,
+            &pods,
+            total
+        );
+
+        pods
+    }
+}
+
 fn diff(
     namespace: &str,
     provers: HashMap<GPUPoolKey, u32>,
@@ -383,7 +613,7 @@ fn is_namespace_running(namespace: &str, clusters: &Clusters) -> bool {
 #[async_trait::async_trait]
 impl Task for Scaler {
     async fn invoke(&self) -> anyhow::Result<()> {
-        let queue = self.queuer.get_queue().await.unwrap();
+        let queue = self.queuer.get_queue(&self.jobs).await.unwrap();
 
         let mut scale_requests: HashMap<String, ScaleRequest> = HashMap::new();
         {
@@ -396,15 +626,37 @@ impl Task for Scaler {
             }
 
             for (ns, ppv) in &self.namespaces {
-                let q = queue.queue.get(ppv).cloned().unwrap_or(0);
+                // Prover
+                let q = queue
+                    .get(&(ppv.to_string(), QueueReportFields::prover_jobs))
+                    .cloned()
+                    .unwrap_or(0);
                 tracing::debug!("Running eval for namespace {ns} and PPV {ppv} found queue {q}");
                 if q > 0 || is_namespace_running(ns, &guard.clusters) {
-                    let provers = self.run(ns, q, &guard.clusters);
+                    let provers = self.prover_scaler.run(ns, q, &guard.clusters);
                     for (k, num) in &provers {
                         AUTOSCALER_METRICS.provers[&(k.cluster.clone(), ns.clone(), k.gpu)]
                             .set(*num as u64);
                     }
                     diff(ns, provers, &guard.clusters, &mut scale_requests);
+                }
+
+                // Simple Scalers.
+                for scaler in &self.simple_scalers {
+                    let q = queue
+                        .get(&(ppv.to_string(), scaler.queue_report_field.clone()))
+                        .cloned()
+                        .unwrap_or(0);
+                    tracing::debug!("Running eval for namespace {ns}, PPV {ppv}, simple scaler {} found queue {q}", scaler.pod_name_prefix);
+                    if q > 0 || is_namespace_running(ns, &guard.clusters) {
+                        let pods = scaler.run(ns, q, &guard.clusters);
+                        for (k, num) in &pods {
+                            AUTOSCALER_METRICS.jobs
+                                [&(scaler.pod_name_prefix.clone(), k.clone(), ns.clone())]
+                                .set(*num as u64);
+                        }
+                        // TODO: diff and add into scale_requests.
+                    }
                 }
             }
         } // Unlock self.watcher.data.
@@ -420,28 +672,21 @@ impl Task for Scaler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        cluster_types::{Deployment, Namespace, Pod},
-        global::{queuer, watcher},
-    };
+    use crate::cluster_types::{Deployment, Namespace, Pod, ScaleEvent};
 
     #[tracing_test::traced_test]
     #[test]
     fn test_run() {
-        let scaler = Scaler::new(
-            watcher::Watcher::default(),
-            queuer::Queuer::default(),
-            ProverAutoscalerScalerConfig {
-                cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
-                min_provers: [("prover-other".into(), 2)].into(),
-                max_provers: [
-                    ("foo".into(), [(Gpu::L4, 100)].into()),
-                    ("bar".into(), [(Gpu::L4, 100)].into()),
-                ]
-                .into(),
-                ..Default::default()
-            },
-        );
+        let scaler = GpuScaler::new(ProverAutoscalerScalerConfig {
+            cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
+            min_provers: [("prover-other".into(), 2)].into(),
+            max_provers: [
+                ("foo".into(), [(Gpu::L4, 100)].into()),
+                ("bar".into(), [(Gpu::L4, 100)].into()),
+            ]
+            .into(),
+            ..Default::default()
+        });
 
         assert_eq!(
             scaler.run(
@@ -570,20 +815,16 @@ mod tests {
     #[tracing_test::traced_test]
     #[test]
     fn test_run_min_provers() {
-        let scaler = Scaler::new(
-            watcher::Watcher::default(),
-            queuer::Queuer::default(),
-            ProverAutoscalerScalerConfig {
-                cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
-                min_provers: [("prover".into(), 2)].into(),
-                max_provers: [
-                    ("foo".into(), [(Gpu::L4, 100)].into()),
-                    ("bar".into(), [(Gpu::L4, 100)].into()),
-                ]
-                .into(),
-                ..Default::default()
-            },
-        );
+        let scaler = GpuScaler::new(ProverAutoscalerScalerConfig {
+            cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
+            min_provers: [("prover".into(), 2)].into(),
+            max_provers: [
+                ("foo".into(), [(Gpu::L4, 100)].into()),
+                ("bar".into(), [(Gpu::L4, 100)].into()),
+            ]
+            .into(),
+            ..Default::default()
+        });
 
         assert_eq!(
             scaler.run(
@@ -763,6 +1004,123 @@ mod tests {
             ]
             .into(),
             "Min 2 provers, 5 running"
+        );
+    }
+
+    #[tracing_test::traced_test]
+    #[test]
+    fn test_run_need_move() {
+        let scaler = GpuScaler::new(ProverAutoscalerScalerConfig {
+            cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
+            min_provers: [("prover".into(), 2)].into(),
+            max_provers: [
+                ("foo".into(), [(Gpu::L4, 100)].into()),
+                ("bar".into(), [(Gpu::L4, 100)].into()),
+            ]
+            .into(),
+            long_pending_duration: ProverAutoscalerScalerConfig::default_long_pending_duration(),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            scaler.run(
+                &"prover".into(),
+                1400,
+                &Clusters {
+                    clusters: [
+                        (
+                            "foo".into(),
+                            Cluster {
+                                name: "foo".into(),
+                                namespaces: [(
+                                    "prover".into(),
+                                    Namespace {
+                                        deployments: [(
+                                            "circuit-prover-gpu".into(),
+                                            Deployment {
+                                                running: 3,
+                                                desired: 3,
+                                            },
+                                        )]
+                                        .into(),
+                                        pods: [
+                                            (
+                                                "circuit-prover-gpu-7c5f8fc747-gmtcr".into(),
+                                                Pod {
+                                                    status: "Running".into(),
+                                                    changed: Utc::now(),
+                                                    ..Default::default()
+                                                },
+                                            ),
+                                            (
+                                                "circuit-prover-gpu-7c5f8fc747-gmtc2".into(),
+                                                Pod {
+                                                    status: "Pending".into(),
+                                                    changed: Utc::now(),
+                                                    ..Default::default()
+                                                },
+                                            ),
+                                            (
+                                                "circuit-prover-gpu-7c5f8fc747-gmtc3".into(),
+                                                Pod {
+                                                    status: "Running".into(),
+                                                    changed: Utc::now(),
+                                                    ..Default::default()
+                                                },
+                                            )
+                                        ]
+                                        .into(),
+                                        scale_errors: vec![ScaleEvent {
+                                            name: "circuit-prover-gpu-7c5f8fc747-gmtc2.123456"
+                                                .into(),
+                                            time: Utc::now() - chrono::Duration::hours(1)
+                                        }],
+                                    },
+                                )]
+                                .into(),
+                            },
+                        ),
+                        (
+                            "bar".into(),
+                            Cluster {
+                                name: "bar".into(),
+                                namespaces: [(
+                                    "prover".into(),
+                                    Namespace {
+                                        deployments: [(
+                                            "circuit-prover-gpu".into(),
+                                            Deployment::default(),
+                                        )]
+                                        .into(),
+                                        ..Default::default()
+                                    },
+                                )]
+                                .into(),
+                            },
+                        )
+                    ]
+                    .into(),
+                    ..Default::default()
+                },
+            ),
+            [
+                (
+                    GPUPoolKey {
+                        cluster: "foo".into(),
+                        gpu: Gpu::L4,
+                    },
+                    2,
+                ),
+                (
+                    GPUPoolKey {
+                        cluster: "bar".into(),
+                        gpu: Gpu::L4,
+                    },
+                    1,
+                )
+            ]
+            .into(),
+            "Move 1 prover to bar"
         );
     }
 }

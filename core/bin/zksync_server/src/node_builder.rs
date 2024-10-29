@@ -26,8 +26,8 @@ use zksync_node_framework::{
         consensus::MainNodeConsensusLayer,
         contract_verification_api::ContractVerificationApiLayer,
         da_clients::{
-            avail::AvailWiringLayer, celestia::CelestiaWiringLayer, no_da::NoDAClientWiringLayer,
-            object_store::ObjectStorageClientWiringLayer,
+            avail::AvailWiringLayer, celestia::CelestiaWiringLayer, eigen::EigenWiringLayer,
+            no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
         },
         da_dispatcher::DataAvailabilityDispatcherLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
@@ -523,6 +523,10 @@ impl MainNodeBuilder {
             (DAClientConfig::Celestia(config), DataAvailabilitySecrets::Celestia(secret)) => {
                 self.node
                     .add_layer(CelestiaWiringLayer::new(config, secret));
+            }
+
+            (DAClientConfig::Eigen(config), DataAvailabilitySecrets::Eigen(secret)) => {
+                self.node.add_layer(EigenWiringLayer::new(config, secret));
             }
 
             (DAClientConfig::ObjectStore(config), _) => {
