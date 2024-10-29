@@ -69,4 +69,5 @@ message ProverAutoscalerScalerConfig {
   repeated MaxProver max_provers = 9; // optional
   repeated MinProver min_provers = 10; // optional
   repeated ScalerTarget scaler_targets = 11; // optional
+  optional bool dry_run = 12; // optional
 }

@@ -365,6 +365,47 @@ impl GpuScaler {
 
         provers
     }
+
+    fn diff(
+        namespace: &str,
+        provers: HashMap<GPUPoolKey, u32>,
+        clusters: &Clusters,
+        requests: &mut HashMap<String, ScaleRequest>,
+    ) {
+        provers
+            .into_iter()
+            .for_each(|(GPUPoolKey { cluster, gpu }, n)| {
+                let prover = gpu_to_prover(gpu);
+                clusters
+                    .clusters
+                    .get(&cluster)
+                    .and_then(|c| c.namespaces.get(namespace))
+                    .and_then(|ns| ns.deployments.get(&prover))
+                    .map_or_else(
+                        || {
+                            tracing::error!(
+                                "Wasn't able to find deployment {} in cluster {}, namespace {}",
+                                prover,
+                                cluster,
+                                namespace
+                            )
+                        },
+                        |d| {
+                            if d.desired != n as i32 {
+                                requests
+                                    .entry(cluster.clone())
+                                    .or_default()
+                                    .deployments
+                                    .push(ScaleDeploymentRequest {
+                                        namespace: namespace.into(),
+                                        name: prover.clone(),
+                                        size: n as i32,
+                                    });
+                            }
+                        },
+                    );
+            })
+    }
 }
 
 #[derive(Default, Debug, PartialEq, Eq)]
@@ -551,28 +592,26 @@ impl SimpleScaler {
 
         pods
     }
-}
 
-fn diff(
-    namespace: &str,
-    provers: HashMap<GPUPoolKey, u32>,
-    clusters: &Clusters,
-    requests: &mut HashMap<String, ScaleRequest>,
-) {
-    provers
-        .into_iter()
-        .for_each(|(GPUPoolKey { cluster, gpu }, n)| {
-            let prover = gpu_to_prover(gpu);
+    fn diff(
+        &self,
+        namespace: &str,
+        replicas: HashMap<String, usize>,
+        clusters: &Clusters,
+        requests: &mut HashMap<String, ScaleRequest>,
+    ) {
+        let deployment = self.pod_name_prefix.clone(); // TODO: rename pod_name_prefix into deployment.
+        replicas.into_iter().for_each(|(cluster, n)| {
             clusters
                 .clusters
                 .get(&cluster)
                 .and_then(|c| c.namespaces.get(namespace))
-                .and_then(|ns| ns.deployments.get(&prover))
+                .and_then(|ns| ns.deployments.get(&deployment))
                 .map_or_else(
                     || {
                         tracing::error!(
                             "Wasn't able to find deployment {} in cluster {}, namespace {}",
-                            prover,
+                            deployment,
                             cluster,
                             namespace
                         )
@@ -585,13 +624,14 @@ fn diff(
                                 .deployments
                                 .push(ScaleDeploymentRequest {
                                     namespace: namespace.into(),
-                                    name: prover.clone(),
+                                    name: deployment.clone(),
                                     size: n as i32,
                                 });
                         }
                     },
                 );
         })
+    }
 }
 
 /// is_namespace_running returns true if there are some pods running in it.
@@ -638,7 +678,7 @@ impl Task for Scaler {
                         AUTOSCALER_METRICS.provers[&(k.cluster.clone(), ns.clone(), k.gpu)]
                             .set(*num as u64);
                     }
-                    diff(ns, provers, &guard.clusters, &mut scale_requests);
+                    GpuScaler::diff(ns, provers, &guard.clusters, &mut scale_requests);
                 }
 
                 // Simple Scalers.
@@ -649,13 +689,13 @@ impl Task for Scaler {
                         .unwrap_or(0);
                     tracing::debug!("Running eval for namespace {ns}, PPV {ppv}, simple scaler {} found queue {q}", scaler.pod_name_prefix);
                     if q > 0 || is_namespace_running(ns, &guard.clusters) {
-                        let pods = scaler.run(ns, q, &guard.clusters);
-                        for (k, num) in &pods {
+                        let replicas = scaler.run(ns, q, &guard.clusters);
+                        for (k, num) in &replicas {
                             AUTOSCALER_METRICS.jobs
                                 [&(scaler.pod_name_prefix.clone(), k.clone(), ns.clone())]
                                 .set(*num as u64);
                         }
-                        // TODO: diff and add into scale_requests.
+                        scaler.diff(ns, replicas, &guard.clusters, &mut scale_requests);
                     }
                 }
             }

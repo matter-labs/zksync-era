@@ -118,6 +118,7 @@ impl ProtoRepr for proto::ProverAutoscalerScalerConfig {
                 .enumerate()
                 .map(|(i, x)| x.read().context(i).unwrap())
                 .collect::<Vec<_>>(),
+            dry_run: self.dry_run.unwrap_or_default(),
         })
     }
 
@@ -158,6 +159,7 @@ impl ProtoRepr for proto::ProverAutoscalerScalerConfig {
                 .map(|(k, v)| proto::MinProver::build(&(k.clone(), *v)))
                 .collect(),
             scaler_targets: this.scaler_targets.iter().map(ProtoRepr::build).collect(),
+            dry_run: Some(this.dry_run),
         }
     }
 }

@@ -63,6 +63,9 @@ pub struct ProverAutoscalerScalerConfig {
     pub long_pending_duration: Duration,
     /// List of simple autoscaler targets.
     pub scaler_targets: Vec<ScalerTarget>,
+    /// If dry-run enabled don't send any scale requests.
+    #[serde(default)]
+    pub dry_run: bool,
 }
 
 #[derive(
