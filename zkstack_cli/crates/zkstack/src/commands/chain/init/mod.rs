@@ -120,7 +120,7 @@ pub async fn init(
         let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
         set_token_multiplier_setter(
             shell,
-            ecosystem_config,
+            &chain_config.path_to_foundry(),
             &chain_config.get_wallets_config()?.governor,
             contracts_config.l1.chain_admin_addr,
             chain_config
