@@ -3,17 +3,13 @@ use std::{path::PathBuf, str::FromStr};
 use anyhow::{bail, Context};
 use clap::{Parser, ValueEnum, ValueHint};
 use common::{Prompt, PromptConfirm, PromptSelect};
-use config::{
-    forge_interface::deploy_ecosystem::output::Erc20Token, traits::ReadConfigWithBasePath,
-    EcosystemConfig,
-};
+use config::forge_interface::deploy_ecosystem::output::Erc20Token;
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use strum::{Display, EnumIter, IntoEnumIterator};
 use types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
 use zksync_basic_types::{L2ChainId, H160};
-use zksync_config::GenesisConfig;
 
 use crate::{
     defaults::L2_CHAIN_ID,
@@ -23,7 +19,7 @@ use crate::{
         MSG_BASE_TOKEN_PRICE_DENOMINATOR_PROMPT, MSG_BASE_TOKEN_PRICE_NOMINATOR_HELP,
         MSG_BASE_TOKEN_PRICE_NOMINATOR_PROMPT, MSG_BASE_TOKEN_SELECTION_PROMPT, MSG_CHAIN_ID_HELP,
         MSG_CHAIN_ID_PROMPT, MSG_CHAIN_ID_VALIDATOR_ERR, MSG_CHAIN_NAME_PROMPT,
-        MSG_EVM_EMULATOR_HASH_MISSING_ERR, MSG_EVM_EMULATOR_HELP, MSG_EVM_EMULATOR_PROMPT,
+        MSG_EVM_EMULATOR_HELP, MSG_EVM_EMULATOR_PROMPT,
         MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT, MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP,
         MSG_L1_NETWORK_HELP, MSG_L1_NETWORK_PROMPT, MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR,
         MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR, MSG_PROVER_MODE_HELP, MSG_PROVER_VERSION_PROMPT,
@@ -236,24 +232,11 @@ impl ChainCreateArgs {
             }
         };
 
-        let default_genesis_config = GenesisConfig::read_with_base_path(
-            shell,
-            EcosystemConfig::default_configs_path(&PathBuf::from(link_to_code.clone())),
-        )
-        .context("failed reading genesis config")?;
-        let has_evm_emulation_support = default_genesis_config.evm_emulator_hash.is_some();
         let evm_emulator = self.evm_emulator.unwrap_or_else(|| {
-            if !has_evm_emulation_support {
-                false
-            } else {
-                PromptConfirm::new(MSG_EVM_EMULATOR_PROMPT)
-                    .default(false)
-                    .ask()
-            }
+            PromptConfirm::new(MSG_EVM_EMULATOR_PROMPT)
+                .default(false)
+                .ask()
         });
-        if !has_evm_emulation_support && evm_emulator {
-            bail!(MSG_EVM_EMULATOR_HASH_MISSING_ERR);
-        }
 
         let set_as_default = self.set_as_default.unwrap_or_else(|| {
             if number_of_chains == 0 {

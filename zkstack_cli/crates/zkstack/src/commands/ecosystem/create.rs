@@ -21,8 +21,8 @@ use crate::{
     messages::{
         msg_created_ecosystem, MSG_ARGS_VALIDATOR_ERR, MSG_CREATING_DEFAULT_CHAIN_SPINNER,
         MSG_CREATING_ECOSYSTEM, MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER,
-        MSG_ECOSYSTEM_ALREADY_EXISTS_ERR, MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_SELECTED_CONFIG,
-        MSG_STARTING_CONTAINERS_SPINNER,
+        MSG_ECOSYSTEM_ALREADY_EXISTS_ERR, MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_LINK_TO_CODE_ERR,
+        MSG_SELECTED_CONFIG, MSG_STARTING_CONTAINERS_SPINNER,
     },
     utils::link_to_code::resolve_link_to_code,
 };
@@ -40,7 +40,7 @@ pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
 }
 
 fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
-    let args = args
+    let mut args = args
         .fill_values_with_prompt(shell)
         .context(MSG_ARGS_VALIDATOR_ERR)?;
 
@@ -54,6 +54,10 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     let configs_path = create_local_configs_dir(shell, ".")?;
 
     let link_to_code = resolve_link_to_code(shell, shell.current_dir(), args.link_to_code.clone())?;
+    args.chain_args.link_to_code = link_to_code
+        .to_str()
+        .context(MSG_LINK_TO_CODE_ERR)?
+        .to_string();
 
     let spinner = Spinner::new(MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER);
     let chain_config = args.chain_config();

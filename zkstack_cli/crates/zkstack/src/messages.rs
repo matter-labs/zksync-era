@@ -51,6 +51,7 @@ pub(super) const MSG_ECOSYSTEM_ALREADY_EXISTS_ERR: &str = "Ecosystem already exi
 pub(super) const MSG_ECOSYSTEM_CONFIG_INVALID_ERR: &str = "Invalid ecosystem configuration";
 pub(super) const MSG_LINK_TO_CODE_SELECTION_CLONE: &str = "Clone for me (recommended)";
 pub(super) const MSG_LINK_TO_CODE_SELECTION_PATH: &str = "I have the code already";
+pub(super) const MSG_LINK_TO_CODE_ERR: &str = "Failed to resolve link to code";
 pub(super) const MSG_NOT_MAIN_REPO_OR_FORK_ERR: &str =
     "It's not a ZKsync Era main repository or fork";
 pub(super) const MSG_CONFIRM_STILL_USE_FOLDER: &str = "Do you still want to use this folder?";
@@ -178,8 +179,6 @@ pub(super) const MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR: &str =
     "Number should be greater than zero";
 pub(super) const MSG_CREATING_CHAIN: &str = "Creating chain";
 pub(super) const MSG_CHAIN_CREATED: &str = "Chain created successfully";
-pub(super) const MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER: &str =
-    "Creating chain configurations...";
 pub(super) const MSG_CHAIN_ID_VALIDATOR_ERR: &str = "Invalid chain id";
 pub(super) const MSG_BASE_TOKEN_ADDRESS_VALIDATOR_ERR: &str = "Invalid base token address";
 pub(super) const MSG_WALLET_CREATION_VALIDATOR_ERR: &str =
