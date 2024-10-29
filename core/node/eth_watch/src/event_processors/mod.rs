@@ -5,13 +5,13 @@ use zksync_eth_client::{ContractCallError, EnrichedClientError};
 use zksync_types::{api::Log, H256};
 
 pub(crate) use self::{
-    appended_chain_batch_root_signature::BatchRootProcessor,
+    appended_chain_batch_root::BatchRootProcessor,
     decentralized_upgrades::DecentralizedUpgradesEventProcessor,
     priority_ops::PriorityOpsEventProcessor,
 };
 use crate::client::EthClient;
 
-mod appended_chain_batch_root_signature;
+mod appended_chain_batch_root;
 mod decentralized_upgrades;
 mod priority_ops;
 

@@ -20,7 +20,7 @@ use crate::{
 /// Responsible for `AppendedChainBatchRoot` events and saving `BatchAndChainMerklePath` for batches.
 #[derive(Debug)]
 pub struct BatchRootProcessor {
-    next_expected_batch_number: L1BatchNumber,
+    next_batch_number_lower_bound: L1BatchNumber,
     appended_chain_batch_root_signature: H256,
     merkle_tree: MiniMerkleTree<[u8; 96]>,
     l2_chain_id: L2ChainId,
@@ -28,12 +28,12 @@ pub struct BatchRootProcessor {
 
 impl BatchRootProcessor {
     pub fn new(
-        next_expected_batch_number: L1BatchNumber,
+        next_batch_number_lower_bound: L1BatchNumber,
         merkle_tree: MiniMerkleTree<[u8; 96]>,
         l2_chain_id: L2ChainId,
     ) -> Self {
         Self {
-            next_expected_batch_number,
+            next_batch_number_lower_bound,
             appended_chain_batch_root_signature: ethabi::long_signature(
                 "AppendedChainBatchRoot",
                 &[
@@ -89,16 +89,16 @@ impl EventProcessor for BatchRootProcessor {
             })
             .collect();
 
-        let next_expected_batch_number = self.next_expected_batch_number;
+        let next_batch_number_lower_bound = self.next_batch_number_lower_bound;
         let new_events = grouped_events
             .into_iter()
             .skip_while(|(_sl_l1_batch_number, events)| {
                 let first_event = events.first().unwrap();
-                let last_event = events.first().unwrap();
+                let last_event = events.last().unwrap();
 
                 match (
-                    first_event.0 < next_expected_batch_number,
-                    last_event.0 < next_expected_batch_number,
+                    first_event.0 < next_batch_number_lower_bound,
+                    last_event.0 < next_batch_number_lower_bound,
                 ) {
                     (true, true) => true,    // skip
                     (false, false) => false, // do not skip
@@ -128,7 +128,7 @@ impl EventProcessor for BatchRootProcessor {
 
                 self.merkle_tree
                     .push(Self::batch_leaf_preimage(*batch_root, *batch_number));
-                self.next_expected_batch_number = *batch_number + 1;
+                self.next_batch_number_lower_bound = *batch_number + 1;
             }
 
             let number_of_leaves = self.merkle_tree.length();
