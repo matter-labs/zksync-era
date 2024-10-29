@@ -33,13 +33,20 @@ jobs:
         run: |
           run_retried docker compose pull zk
           docker compose up -d zk
-          ci_run zkt
-          ci_run zk_supervisor contracts
+
+      - name: Install zkstack
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
+          ci_run zkstackup -g --local
+
+      - name: build contracts
+        run: |
+          ci_run zkstack dev contracts
 
       - name: run benchmarks
         run: |
           ci_run cargo bench --package vm-benchmark --bench oneshot
           # Run only benches with 1,000 transactions per batch to not spend too much time
           ci_run cargo bench --package vm-benchmark --bench batch '/1000$'
-          ci_run cargo bench --package vm-benchmark --bench iai | tee iai-result
-          ci_run cargo run --package vm-benchmark --bin iai_results_to_prometheus --release < iai-result
+          ci_run cargo bench --package vm-benchmark --bench instructions -- --verbose
+          ci_run cargo bench --package vm-benchmark --bench instructions -- --print

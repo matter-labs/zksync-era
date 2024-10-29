@@ -3,12 +3,10 @@ import { ForceDeployUpgraderFactory as ForceDeployUpgraderFactoryL2 } from 'l2-c
 import {
     DefaultUpgradeFactory as DefaultUpgradeFactoryL1,
     AdminFacetFactory,
-    GovernanceFactory,
     StateTransitionManagerFactory,
     ChainAdminFactory
 } from 'l1-contracts/typechain';
 import { FacetCut } from 'l1-contracts/src.ts/diamondCut';
-import { IZkSyncFactory } from '../pre-boojum/IZkSyncFactory';
 import { ComplexUpgraderFactory } from 'system-contracts/typechain';
 import {
     getCommonDataFileName,
@@ -29,10 +27,24 @@ import * as path from 'path';
 const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, `etc/test_config/constant`);
 const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
 
+export enum Action {
+    Add = 0,
+    Replace = 1,
+    Remove = 2
+}
+
 export interface DiamondCutData {
     facetCuts: FacetCut[];
     initAddress: string;
     initCalldata: string;
+}
+
+export interface ChainCreationParams {
+    genesisUpgrade: string;
+    genesisBatchHash: string;
+    genesisIndexRepeatedStorageChanges: number;
+    genesisBatchCommitment: string;
+    diamondCut: DiamondCutData;
 }
 
 export interface ForceDeployment {
@@ -89,7 +101,6 @@ export interface ProposedUpgrade {
     postUpgradeCalldata: BytesLike;
     upgradeTimestamp: ethers.BigNumber;
     newProtocolVersion: BigNumberish;
-    newAllowList: string;
 }
 
 function buildNoopL2UpgradeTx(): L2CanonicalTransaction {
@@ -123,10 +134,8 @@ export function buildProposeUpgrade(
     bootloaderHash?: BytesLike,
     defaultAccountHash?: BytesLike,
     verifier?: string,
-    newAllowList?: string,
     l2ProtocolUpgradeTx?: L2CanonicalTransaction
 ): ProposedUpgrade {
-    newAllowList = newAllowList ?? ethers.constants.AddressZero;
     bootloaderHash = bootloaderHash ?? ethers.constants.HashZero;
     defaultAccountHash = defaultAccountHash ?? ethers.constants.HashZero;
     l1ContractsUpgradeCalldata = l1ContractsUpgradeCalldata ?? '0x';
@@ -142,8 +151,7 @@ export function buildProposeUpgrade(
         postUpgradeCalldata,
         upgradeTimestamp,
         factoryDeps: [],
-        newProtocolVersion,
-        newAllowList
+        newProtocolVersion
     };
 }
 
@@ -171,43 +179,6 @@ export function prepareDefaultCalldataForL2upgrade(forcedDeployments: ForceDeplo
     return complexUpgraderCalldata;
 }
 
-interface GovernanceTx {
-    scheduleCalldata: string;
-    executeCalldata: string;
-    operation: any;
-}
-
-function prepareGovernanceTxs(target: string, data: BytesLike): GovernanceTx {
-    const govCall = {
-        target: target,
-        value: 0,
-        data: data
-    };
-
-    const operation = {
-        calls: [govCall],
-        predecessor: ethers.constants.HashZero,
-        salt: ethers.constants.HashZero
-    };
-
-    const governance = new GovernanceFactory();
-
-    // Get transaction data of the `scheduleTransparent`
-    const scheduleCalldata = governance.interface.encodeFunctionData('scheduleTransparent', [
-        operation,
-        0 // delay
-    ]);
-
-    // Get transaction data of the `execute`
-    const executeCalldata = governance.interface.encodeFunctionData('execute', [operation]);
-
-    return {
-        scheduleCalldata,
-        executeCalldata,
-        operation
-    };
-}
-
 function prepareChainAdminCalldata(target: string, data: BytesLike): string {
     const call = {
         target: target,
@@ -221,15 +192,18 @@ function prepareChainAdminCalldata(target: string, data: BytesLike): string {
     return calldata;
 }
 
-export function prepareTransparentUpgradeCalldataForNewGovernance(
+export function prepareUpgradeCalldata(
     oldProtocolVersion,
     oldProtocolVersionDeadline,
     newProtocolVersion,
     initCalldata,
     upgradeAddress: string,
     facetCuts: FacetCut[],
-    stmAddress: string,
     zksyncAddress: string,
+    genesisUpgradeAddress: string,
+    genesisBatchHash: string,
+    genesisIndexRepeatedStorageChanges: number,
+    genesisBatchCommitment: string,
     prepareDirectOperation?: boolean,
     chainId?: string
 ) {
@@ -238,6 +212,21 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
         initAddress: upgradeAddress,
         initCalldata
     };
+
+    let chainCreationDiamondCut: DiamondCutData = {
+        facetCuts: facetCuts.filter((cut) => cut.action == Action.Add),
+        initAddress: genesisUpgradeAddress,
+        initCalldata: '0x'
+    };
+
+    let chainCreationParams: ChainCreationParams = {
+        genesisUpgrade: genesisUpgradeAddress,
+        genesisBatchHash,
+        genesisIndexRepeatedStorageChanges,
+        genesisBatchCommitment,
+        diamondCut: chainCreationDiamondCut
+    };
+
     // Prepare calldata for STM
     let stm = new StateTransitionManagerFactory();
     const stmUpgradeCalldata = stm.interface.encodeFunctionData('setNewVersionUpgrade', [
@@ -247,8 +236,9 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
         newProtocolVersion
     ]);
 
-    const { scheduleCalldata: stmScheduleTransparentOperation, executeCalldata: stmExecuteOperation } =
-        prepareGovernanceTxs(stmAddress, stmUpgradeCalldata);
+    const stmSetChainCreationCalldata = stm.interface.encodeFunctionData('setChainCreationParams', [
+        chainCreationParams
+    ]);
 
     // Prepare calldata for upgrading diamond proxy
     let adminFacet = new AdminFacetFactory();
@@ -257,30 +247,13 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
         diamondCut
     ]);
 
-    const {
-        scheduleCalldata: scheduleTransparentOperation,
-        executeCalldata: executeOperation,
-        operation: governanceOperation
-    } = prepareGovernanceTxs(zksyncAddress, diamondProxyUpgradeCalldata);
-
-    const newExecuteChainUpgradeCalldata = prepareChainAdminCalldata(zksyncAddress, diamondProxyUpgradeCalldata);
-
-    const legacyScheduleTransparentOperation = adminFacet.interface.encodeFunctionData('executeUpgrade', [diamondCut]);
-    const { scheduleCalldata: legacyScheduleOperation, executeCalldata: legacyExecuteOperation } = prepareGovernanceTxs(
-        zksyncAddress,
-        legacyScheduleTransparentOperation
-    );
+    const chainAdminUpgradeCalldata = prepareChainAdminCalldata(zksyncAddress, diamondProxyUpgradeCalldata);
 
     let result: any = {
-        stmScheduleTransparentOperation,
-        stmExecuteOperation,
-        scheduleTransparentOperation,
-        executeOperation,
-        newExecuteChainUpgradeCalldata,
+        stmUpgradeCalldata,
+        chainAdminUpgradeCalldata,
         diamondCut,
-        governanceOperation,
-        legacyScheduleOperation,
-        legacyExecuteOperation
+        stmSetChainCreationCalldata
     };
 
     if (prepareDirectOperation) {
@@ -290,13 +263,9 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
 
         const stmDirecUpgradeCalldata = stm.interface.encodeFunctionData('executeUpgrade', [chainId, diamondCut]);
 
-        const { scheduleCalldata: stmScheduleOperationDirect, executeCalldata: stmExecuteOperationDirect } =
-            prepareGovernanceTxs(stmAddress, stmDirecUpgradeCalldata);
-
         result = {
             ...result,
-            stmScheduleOperationDirect,
-            stmExecuteOperationDirect
+            stmDirecUpgradeCalldata
         };
     }
 
@@ -305,16 +274,16 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
 
 export function buildDefaultUpgradeTx(
     environment,
-    diamondUpgradeProposalId,
     upgradeAddress,
-    l2UpgraderAddress,
     oldProtocolVersion,
     oldProtocolVersionDeadline,
     upgradeTimestamp,
-    newAllowList,
-    stmAddress,
     zksyncAddress,
     postUpgradeCalldataFlag,
+    genesisUpgradeAddress,
+    genesisBatchHash,
+    genesisIndexRepeatedStorageChanges,
+    genesisBatchCommitment,
     prepareDirectOperation?,
     chainId?
 ) {
@@ -389,21 +358,23 @@ export function buildDefaultUpgradeTx(
         bootloaderHash,
         defaultAAHash,
         cryptoVerifierAddress,
-        newAllowList,
         l2UpgradeTx
     );
 
     let l1upgradeCalldata = prepareDefaultCalldataForL1upgrade(proposeUpgradeTx);
 
-    let upgradeData = prepareTransparentUpgradeCalldataForNewGovernance(
+    let upgradeData = prepareUpgradeCalldata(
         oldProtocolVersion,
         oldProtocolVersionDeadline,
         packedNewProtocolVersion,
         l1upgradeCalldata,
         upgradeAddress,
         facetCuts,
-        stmAddress,
         zksyncAddress,
+        genesisUpgradeAddress,
+        genesisBatchHash,
+        genesisIndexRepeatedStorageChanges,
+        genesisBatchCommitment,
         prepareDirectOperation,
         chainId
     );
@@ -414,38 +385,12 @@ export function buildDefaultUpgradeTx(
         upgradeAddress,
         protocolVersionSemVer: newProtocolVersionSemVer,
         packedProtocolVersion: packedNewProtocolVersion,
-        diamondUpgradeProposalId,
         upgradeTimestamp,
         ...upgradeData
     };
 
     fs.writeFileSync(getL2TransactionsFileName(environment), JSON.stringify(transactions, null, 2));
     console.log('Default upgrade transactions are generated');
-}
-
-async function sendTransaction(
-    calldata: BytesLike,
-    privateKey: string,
-    l1rpc: string,
-    to: string,
-    environment: string,
-    gasPrice: ethers.BigNumber,
-    nonce: number
-) {
-    const wallet = getWallet(l1rpc, privateKey);
-    gasPrice = gasPrice ?? (await wallet.provider.getGasPrice());
-    nonce = nonce ?? (await wallet.getTransactionCount());
-    const tx = await wallet.sendTransaction({
-        to,
-        data: calldata,
-        value: 0,
-        gasLimit: 10_000_000,
-        gasPrice,
-        nonce
-    });
-    console.log('Transaction hash: ', tx.hash);
-    await tx.wait();
-    console.log('Transaction is executed');
 }
 
 export function getWallet(l1rpc, privateKey) {
@@ -462,99 +407,6 @@ export function getWallet(l1rpc, privateKey) {
           ).connect(provider);
 }
 
-async function sendPreparedTx(
-    privateKey: string,
-    l1rpc: string,
-    environment: string,
-    gasPrice: ethers.BigNumber,
-    nonce: number,
-    governanceAddr: string,
-    transactionsJsonField: string,
-    logText: string
-) {
-    const transactions = JSON.parse(fs.readFileSync(getL2TransactionsFileName(environment)).toString());
-    const calldata = transactions[transactionsJsonField];
-
-    console.log(`${logText} for protocolVersion ${transactions.protocolVersion}`);
-    await sendTransaction(calldata, privateKey, l1rpc, governanceAddr, environment, gasPrice, nonce);
-}
-
-async function cancelUpgrade(
-    privateKey: string,
-    l1rpc: string,
-    zksyncAddress: string,
-    environment: string,
-    gasPrice: ethers.BigNumber,
-    nonce: number,
-    execute: boolean,
-    newGovernanceAddress: string
-) {
-    if (newGovernanceAddress != null) {
-        let wallet = getWallet(l1rpc, privateKey);
-        const transactions = JSON.parse(fs.readFileSync(getL2TransactionsFileName(environment)).toString());
-
-        let governance = GovernanceFactory.connect(newGovernanceAddress, wallet);
-        const operation = transactions.governanceOperation;
-
-        const operationId = await governance.hashOperation(operation);
-
-        console.log(`Cancel upgrade operation with id: ${operationId}`);
-        if (execute) {
-            const tx = await governance.cancel(operationId);
-            await tx.wait();
-            console.log('Operation canceled');
-        } else {
-            const calldata = governance.interface.encodeFunctionData('cancel', [operationId]);
-            console.log(`Cancel upgrade calldata: ${calldata}`);
-        }
-    } else {
-        zksyncAddress = zksyncAddress ?? process.env.CONTRACTS_DIAMOND_PROXY_ADDR;
-        let wallet = getWallet(l1rpc, privateKey);
-        let zkSync = IZkSyncFactory.connect(zksyncAddress, wallet);
-        const transactions = JSON.parse(fs.readFileSync(getL2TransactionsFileName(environment)).toString());
-
-        const transparentUpgrade = transactions.transparentUpgrade;
-        const diamondUpgradeProposalId = transactions.diamondUpgradeProposalId;
-
-        const proposalHash = await zkSync.upgradeProposalHash(
-            transparentUpgrade,
-            diamondUpgradeProposalId,
-            ethers.constants.HashZero
-        );
-
-        console.log(`Cancel upgrade with hash: ${proposalHash}`);
-        let cancelUpgradeCalldata = zkSync.interface.encodeFunctionData('cancelUpgradeProposal', [proposalHash]);
-        if (execute) {
-            await sendTransaction(
-                cancelUpgradeCalldata,
-                privateKey,
-                l1rpc,
-                zksyncAddress,
-                environment,
-                gasPrice,
-                nonce
-            );
-        } else {
-            console.log(`Cancel upgrade calldata: ${cancelUpgradeCalldata}`);
-        }
-    }
-}
-
-async function getNewDiamondUpgradeProposalId(l1rpc: string, zksyncAddress: string) {
-    zksyncAddress = zksyncAddress ?? process.env.CONTRACTS_DIAMOND_PROXY_ADDR;
-    // We don't care about the wallet here, we just need to make a get call.
-    let wallet = getWallet(l1rpc, undefined);
-    let zkSync = IZkSyncFactory.connect(zksyncAddress, wallet);
-    let proposalId = await zkSync.getCurrentProposalId();
-    proposalId = proposalId.add(1);
-    console.log(
-        `New proposal id: ${proposalId} for ${zksyncAddress} network: ${JSON.stringify(
-            await wallet.provider.getNetwork()
-        )}`
-    );
-    return proposalId;
-}
-
 export const command = new Command('transactions').description(
     'prepare the transactions and their calldata for the upgrade'
 );
@@ -564,223 +416,31 @@ command
     .requiredOption('--upgrade-timestamp <upgradeTimestamp>')
     .option('--upgrade-address <upgradeAddress>')
     .option('--environment <env>')
-    .option('--new-allow-list <newAllowList>')
-    .option('--l2-upgrader-address <l2UpgraderAddress>')
-    .option('--diamond-upgrade-proposal-id <diamondUpgradeProposalId>')
     .option('--old-protocol-version <oldProtocolVersion>')
     .option('--old-protocol-version-deadline <oldProtocolVersionDeadline>')
     .option('--l1rpc <l1prc>')
     .option('--zksync-address <zksyncAddress>')
-    .option('--state-transition-manager-address <stateTransitionManagerAddress>')
     .option('--chain-id <chainId>')
     .option('--prepare-direct-operation <prepareDirectOperation>')
-    .option('--use-new-governance')
-    .option('--post-upgrade-calldata')
+    .option('--post-upgrade-calldata <postUpgradeCalldata>')
+    .option('--genesis-upgrade-address <genesisUpgradeAddress>')
+    .option('--genesis-batch-hash <genesisBatchHash>')
+    .option('--genesis-index-repeated-storage-changes <genesisIndexRepeatedStorageChanges>')
+    .option('--genesis-batch-commitment <genesisBatchCommitment>')
     .action(async (options) => {
-        if (!options.useNewGovernance) {
-            // TODO(X): remove old governance functionality from the protocol upgrade tool
-            throw new Error('Old governance is not supported anymore');
-        }
-
-        let diamondUpgradeProposalId = options.diamondUpgradeProposalId;
-        if (!diamondUpgradeProposalId && !options.useNewGovernance) {
-            diamondUpgradeProposalId = await getNewDiamondUpgradeProposalId(options.l1rpc, options.zksyncAddress);
-        }
-
         buildDefaultUpgradeTx(
             options.environment,
-            diamondUpgradeProposalId,
             options.upgradeAddress,
-            options.l2UpgraderAddress,
             options.oldProtocolVersion,
             options.oldProtocolVersionDeadline,
             options.upgradeTimestamp,
-            options.newAllowList,
-            options.stateTransitionManagerAddress,
             options.zksyncAddress,
             options.postUpgradeCalldata,
+            options.genesisUpgradeAddress,
+            options.genesisBatchHash,
+            options.genesisIndexRepeatedStorageChanges,
+            options.genesisBatchCommitment,
             options.prepareDirectOperation,
             options.chainId
-        );
-    });
-
-command
-    .command('propose-upgrade-stm')
-    .option('--environment <env>')
-    .option('--private-key <privateKey>')
-    .option('--gas-price <gasPrice>')
-    .option('--nonce <nonce>')
-    .option('--l1rpc <l1prc>')
-    .option('--governance-addr <governanceAddr>')
-    .action(async (options) => {
-        if (!options.governanceAddr) {
-            throw new Error('Governance address must be provided');
-        }
-
-        await sendPreparedTx(
-            options.privateKey,
-            options.l1rpc,
-            options.environment,
-            options.gasPrice,
-            options.nonce,
-            options.governanceAddr,
-            'stmScheduleTransparentOperation',
-            'Proposing upgrade for STM'
-        );
-    });
-
-command
-    .command('execute-upgrade-stm')
-    .option('--environment <env>')
-    .option('--private-key <privateKey>')
-    .option('--gas-price <gasPrice>')
-    .option('--nonce <nonce>')
-    .option('--l1rpc <l1prc>')
-    .option('--governance-addr <governanceAddr>')
-    .action(async (options) => {
-        if (!options.governanceAddr) {
-            throw new Error('Governance address must be provided');
-        }
-
-        await sendPreparedTx(
-            options.privateKey,
-            options.l1rpc,
-            options.environment,
-            options.gasPrice,
-            options.nonce,
-            options.governanceAddr,
-            'stmExecuteOperation',
-            'Executing upgrade for STM'
-        );
-    });
-
-command
-    .command('propose-upgrade')
-    .option('--environment <env>')
-    .option('--private-key <privateKey>')
-    .option('--zksync-address <zksyncAddress>')
-    .option('--gas-price <gasPrice>')
-    .option('--nonce <nonce>')
-    .option('--l1rpc <l1prc>')
-    .option('--governance-addr <governanceAddr>')
-    .action(async (options) => {
-        if (!options.governanceAddr) {
-            throw new Error('Governance address must be provided');
-        }
-
-        await sendPreparedTx(
-            options.privateKey,
-            options.l1rpc,
-            options.environment,
-            options.gasPrice,
-            options.nonce,
-            options.governanceAddr,
-            'scheduleTransparentOperation',
-            'Proposing "upgradeChainFromVersion" upgrade'
-        );
-    });
-
-command
-    .command('execute-upgrade')
-    .option('--environment <env>')
-    .option('--private-key <privateKey>')
-    .option('--zksync-address <zksyncAddress>')
-    .option('--gas-price <gasPrice>')
-    .option('--nonce <nonce>')
-    .option('--l1rpc <l1prc>')
-    .option('--governance-addr <governanceAddr>')
-    .action(async (options) => {
-        if (!options.governanceAddr) {
-            throw new Error('Governance address must be provided');
-        }
-
-        await sendPreparedTx(
-            options.privateKey,
-            options.l1rpc,
-            options.environment,
-            options.gasPrice,
-            options.nonce,
-            options.governanceAddr,
-            'executeOperation',
-            'Executing "upgradeChainFromVersion" upgrade'
-        );
-    });
-
-command
-    .command('propose-upgrade-direct')
-    .option('--environment <env>')
-    .option('--private-key <privateKey>')
-    .option('--zksync-address <zksyncAddress>')
-    .option('--gas-price <gasPrice>')
-    .option('--nonce <nonce>')
-    .option('--l1rpc <l1prc>')
-    .option('--governance-addr <governanceAddr>')
-    .action(async (options) => {
-        if (!options.governanceAddr) {
-            throw new Error('Governance address must be provided');
-        }
-
-        await sendPreparedTx(
-            options.privateKey,
-            options.l1rpc,
-            options.environment,
-            options.gasPrice,
-            options.nonce,
-            options.governanceAddr,
-            'stmScheduleOperationDirect',
-            'Executing direct upgrade via STM'
-        );
-    });
-
-command
-    .command('execute-upgrade-direct')
-    .option('--environment <env>')
-    .option('--private-key <privateKey>')
-    .option('--zksync-address <zksyncAddress>')
-    .option('--gas-price <gasPrice>')
-    .option('--nonce <nonce>')
-    .option('--l1rpc <l1prc>')
-    .option('--governance-addr <governanceAddr>')
-    .action(async (options) => {
-        if (!options.governanceAddr) {
-            throw new Error('Governance address must be provided');
-        }
-
-        await sendPreparedTx(
-            options.privateKey,
-            options.l1rpc,
-            options.environment,
-            options.gasPrice,
-            options.nonce,
-            options.governanceAddr,
-            'stmExecuteOperationDirect',
-            'Executing direct upgrade via STM'
-        );
-    });
-
-command
-    .command('cancel-upgrade')
-    .option('--environment <env>')
-    .option('--private-key <privateKey>')
-    .option('--zksync-address <zksyncAddress>')
-    .option('--gas-price <gasPrice>')
-    .option('--nonce <nonce>')
-    .option('--l1rpc <l1prc>')
-    .option('--execute')
-    .option('--governance-addr <governanceAddr>')
-    .action(async (options) => {
-        if (!options.governanceAddr) {
-            throw new Error('Governance address must be provided');
-        }
-
-        await cancelUpgrade(
-            options.privateKey,
-            options.l1rpc,
-            options.zksyncAddress,
-            options.environment,
-            options.gasPrice,
-            options.nonce,
-            options.execute,
-            options.newGovernance
         );
     });

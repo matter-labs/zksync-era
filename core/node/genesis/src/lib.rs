@@ -392,6 +392,7 @@ pub async fn create_genesis_l1_batch(
         base_system_contracts.hashes(),
         protocol_version.minor,
     );
+    let batch_fee_input = BatchFeeInput::pubdata_independent(0, 0, 0);
 
     let genesis_l2_block_header = L2BlockHeader {
         number: L2BlockNumber(0),
@@ -402,12 +403,13 @@ pub async fn create_genesis_l1_batch(
         fee_account_address: Default::default(),
         base_fee_per_gas: 0,
         gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(protocol_version.minor.into()),
-        batch_fee_input: BatchFeeInput::l1_pegged(0, 0),
+        batch_fee_input,
         base_system_contracts_hashes: base_system_contracts.hashes(),
         protocol_version: Some(protocol_version.minor),
         virtual_blocks: 0,
         gas_limit: 0,
         logs_bloom: Bloom::zero(),
+        pubdata_params: Default::default(),
     };
 
     let mut transaction = storage.start_transaction().await?;
@@ -418,7 +420,11 @@ pub async fn create_genesis_l1_batch(
         .await?;
     transaction
         .blocks_dal()
-        .insert_l1_batch(
+        .insert_l1_batch(genesis_l1_batch_header.to_unsealed_header(batch_fee_input))
+        .await?;
+    transaction
+        .blocks_dal()
+        .mark_l1_batch_as_sealed(
             &genesis_l1_batch_header,
             &[],
             BlockGasCount::default(),

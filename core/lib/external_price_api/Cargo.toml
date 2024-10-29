@@ -20,8 +20,12 @@ serde.workspace = true
 reqwest = { workspace = true, features = ["json"] }
 fraction.workspace = true
 rand.workspace = true
+tracing.workspace = true
 
 zksync_config.workspace = true
 zksync_types.workspace = true
 tokio.workspace = true
+
+[dev-dependencies]
 httpmock.workspace = true
+serde_json.workspace = true

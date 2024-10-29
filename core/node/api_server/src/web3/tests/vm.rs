@@ -9,20 +9,21 @@ use std::{
 };
 
 use api::state_override::{OverrideAccount, StateOverride};
+use test_casing::test_casing;
+use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_multivm::interface::{
-    ExecutionResult, VmExecutionLogs, VmExecutionResultAndLogs, VmRevertReason,
+    ExecutionResult, OneshotEnv, VmExecutionLogs, VmExecutionResultAndLogs, VmRevertReason,
 };
-use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
-    api::ApiStorageLog,
-    fee_model::{BatchFeeInput, FeeParams},
-    get_intrinsic_constants,
-    transaction_request::CallRequest,
-    K256PrivateKey, L2ChainId, PackedEthSignature, StorageLogKind, StorageLogWithPreviousValue,
-    U256,
+    api::ApiStorageLog, fee_model::BatchFeeInput, get_intrinsic_constants,
+    transaction_request::CallRequest, vm::FastVmMode, K256PrivateKey, L2ChainId,
+    PackedEthSignature, StorageLogKind, StorageLogWithPreviousValue, Transaction, U256,
 };
 use zksync_utils::u256_to_h256;
-use zksync_vm_executor::oneshot::MockOneshotExecutor;
+use zksync_vm_executor::oneshot::{
+    BaseSystemContractsProvider, ContractsKind, MockOneshotExecutor, OneshotEnvParameters,
+    ResolvedBlockInfo,
+};
 use zksync_web3_decl::namespaces::DebugNamespaceClient;
 
 use super::*;
@@ -42,11 +43,7 @@ impl ExpectedFeeInput {
     fn expect_for_block(&self, number: api::BlockNumber, scale: f64) {
         *self.0.lock().unwrap() = match number {
             api::BlockNumber::Number(number) => create_l2_block(number.as_u32()).batch_fee_input,
-            _ => <dyn BatchFeeModelInputProvider>::default_batch_fee_input_scaled(
-                FeeParams::sensible_v1_default(),
-                scale,
-                scale,
-            ),
+            _ => scaled_sensible_fee_input(scale),
         };
     }
 
@@ -67,6 +64,60 @@ impl ExpectedFeeInput {
             expected.into_pubdata_independent()
         );
     }
+}
+
+/// Mock base contracts provider. Necessary to use with EVM emulator because bytecode of the real emulator is not available yet.
+#[derive(Debug)]
+struct BaseContractsWithMockEvmEmulator(BaseSystemContracts);
+
+impl Default for BaseContractsWithMockEvmEmulator {
+    fn default() -> Self {
+        let mut contracts = BaseSystemContracts::load_from_disk();
+        contracts.evm_emulator = Some(contracts.default_aa.clone());
+        Self(contracts)
+    }
+}
+
+#[async_trait]
+impl<C: ContractsKind> BaseSystemContractsProvider<C> for BaseContractsWithMockEvmEmulator {
+    async fn base_system_contracts(
+        &self,
+        block_info: &ResolvedBlockInfo,
+    ) -> anyhow::Result<BaseSystemContracts> {
+        assert!(block_info.use_evm_emulator());
+        Ok(self.0.clone())
+    }
+}
+
+fn executor_options_with_evm_emulator() -> SandboxExecutorOptions {
+    let base_contracts = Arc::<BaseContractsWithMockEvmEmulator>::default();
+    SandboxExecutorOptions {
+        fast_vm_mode: FastVmMode::Old,
+        estimate_gas: OneshotEnvParameters::new(
+            base_contracts.clone(),
+            L2ChainId::default(),
+            AccountTreeId::default(),
+            u32::MAX,
+        ),
+        eth_call: OneshotEnvParameters::new(
+            base_contracts,
+            L2ChainId::default(),
+            AccountTreeId::default(),
+            u32::MAX,
+        ),
+    }
+}
+
+/// Fetches base contract hashes from the genesis block.
+async fn genesis_contract_hashes(
+    connection: &mut Connection<'_, Core>,
+) -> anyhow::Result<BaseSystemContractsHashes> {
+    Ok(connection
+        .blocks_dal()
+        .get_l2_block_header(L2BlockNumber(0))
+        .await?
+        .context("no genesis block")?
+        .base_system_contracts_hashes)
 }
 
 #[derive(Debug, Default)]
@@ -165,26 +216,106 @@ impl HttpTest for CallTest {
         // Check that the method handler fetches fee inputs for recent blocks. To do that, we create a new block
         // with a large fee input; it should be loaded by `ApiFeeInputProvider` and override the input provided by the wrapped mock provider.
         let mut block_header = create_l2_block(2);
-        block_header.batch_fee_input =
-            <dyn BatchFeeModelInputProvider>::default_batch_fee_input_scaled(
-                FeeParams::sensible_v1_default(),
-                2.5,
-                2.5,
-            );
+        block_header.batch_fee_input = scaled_sensible_fee_input(2.5);
         store_custom_l2_block(&mut connection, &block_header, &[]).await?;
         // Fee input is not scaled further as per `ApiFeeInputProvider` implementation
         self.fee_input.expect_custom(block_header.batch_fee_input);
-        let call_request = CallTest::call_request(b"block=3");
-        let call_result = client.call(call_request.clone(), None, None).await?;
+        let call_request = Self::call_request(b"block=3");
+        let call_result = client.call(call_request, None, None).await?;
         assert_eq!(call_result.0, b"output");
 
+        let call_request_without_target = CallRequest {
+            to: None,
+            ..Self::call_request(b"block=3")
+        };
+        let err = client
+            .call(call_request_without_target, None, None)
+            .await
+            .unwrap_err();
+        assert_null_to_address_error(&err);
+
         Ok(())
+    }
+}
+
+fn assert_null_to_address_error(error: &ClientError) {
+    if let ClientError::Call(error) = error {
+        assert_eq!(error.code(), 3);
+        assert!(error.message().contains("toAddressIsNull"), "{error:?}");
+        assert!(error.data().is_none(), "{error:?}");
+    } else {
+        panic!("Unexpected error: {error:?}");
     }
 }
 
 #[tokio::test]
 async fn call_method_basics() {
     test_http_server(CallTest::default()).await;
+}
+
+fn evm_emulator_responses(tx: &Transaction, env: &OneshotEnv) -> ExecutionResult {
+    assert!(env
+        .system
+        .base_system_smart_contracts
+        .evm_emulator
+        .is_some());
+    match tx.execute.calldata.as_slice() {
+        b"no_target" => assert_eq!(tx.recipient_account(), None),
+        _ => assert!(tx.recipient_account().is_some()),
+    }
+    ExecutionResult::Success {
+        output: b"output".to_vec(),
+    }
+}
+
+#[derive(Debug)]
+struct CallTestWithEvmEmulator;
+
+#[async_trait]
+impl HttpTest for CallTestWithEvmEmulator {
+    fn storage_initialization(&self) -> StorageInitialization {
+        StorageInitialization::genesis_with_evm()
+    }
+
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        let mut executor = MockOneshotExecutor::default();
+        executor.set_call_responses(evm_emulator_responses);
+        executor
+    }
+
+    fn executor_options(&self) -> Option<SandboxExecutorOptions> {
+        Some(executor_options_with_evm_emulator())
+    }
+
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        // Store an additional L2 block because L2 block #0 has some special processing making it work incorrectly.
+        let mut connection = pool.connection().await?;
+        let block_header = L2BlockHeader {
+            base_system_contracts_hashes: genesis_contract_hashes(&mut connection).await?,
+            ..create_l2_block(1)
+        };
+        store_custom_l2_block(&mut connection, &block_header, &[]).await?;
+
+        let call_result = client.call(CallTest::call_request(&[]), None, None).await?;
+        assert_eq!(call_result.0, b"output");
+
+        let call_request_without_target = CallRequest {
+            to: None,
+            ..CallTest::call_request(b"no_target")
+        };
+        let call_result = client.call(call_request_without_target, None, None).await?;
+        assert_eq!(call_result.0, b"output");
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn call_method_with_evm_emulator() {
+    test_http_server(CallTestWithEvmEmulator).await;
 }
 
 #[derive(Debug, Default)]
@@ -266,7 +397,11 @@ impl SendRawTransactionTest {
             value: 123_456.into(),
             gas: (get_intrinsic_constants().l2_tx_intrinsic_gas * 2).into(),
             gas_price: StateKeeperConfig::for_tests().minimal_l2_gas_price.into(),
-            input: vec![1, 2, 3, 4].into(),
+            input: if include_to {
+                vec![1, 2, 3, 4].into()
+            } else {
+                b"no_target".to_vec().into()
+            },
             ..api::TransactionRequest::default()
         };
         let data = tx_request.get_rlp().unwrap();
@@ -301,7 +436,7 @@ impl HttpTest for SendRawTransactionTest {
                 factory_deps: HashMap::default(),
             }
         } else {
-            StorageInitialization::Genesis
+            StorageInitialization::genesis()
         }
     }
 
@@ -357,16 +492,6 @@ async fn send_raw_transaction_after_snapshot_recovery() {
     .await;
 }
 
-fn assert_null_to_address_error(error: &ClientError) {
-    if let ClientError::Call(error) = error {
-        assert_eq!(error.code(), 3);
-        assert!(error.message().contains("toAddressIsNull"), "{error:?}");
-        assert!(error.data().is_none(), "{error:?}");
-    } else {
-        panic!("Unexpected error: {error:?}");
-    }
-}
-
 #[derive(Debug)]
 struct SendRawTransactionWithoutToAddressTest;
 
@@ -399,6 +524,56 @@ impl HttpTest for SendRawTransactionWithoutToAddressTest {
 #[tokio::test]
 async fn send_raw_transaction_fails_without_to_address() {
     test_http_server(SendRawTransactionWithoutToAddressTest).await;
+}
+
+#[derive(Debug)]
+struct SendRawTransactionTestWithEvmEmulator;
+
+#[async_trait]
+impl HttpTest for SendRawTransactionTestWithEvmEmulator {
+    fn storage_initialization(&self) -> StorageInitialization {
+        StorageInitialization::genesis_with_evm()
+    }
+
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        let mut executor = MockOneshotExecutor::default();
+        executor.set_tx_responses(evm_emulator_responses);
+        executor
+    }
+
+    fn executor_options(&self) -> Option<SandboxExecutorOptions> {
+        Some(executor_options_with_evm_emulator())
+    }
+
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        // Manually set sufficient balance for the transaction account.
+        let mut storage = pool.connection().await?;
+        storage
+            .storage_logs_dal()
+            .append_storage_logs(
+                L2BlockNumber(0),
+                &[SendRawTransactionTest::balance_storage_log()],
+            )
+            .await?;
+
+        let (tx_bytes, tx_hash) = SendRawTransactionTest::transaction_bytes_and_hash(true);
+        let send_result = client.send_raw_transaction(tx_bytes.into()).await?;
+        assert_eq!(send_result, tx_hash);
+
+        let (tx_bytes, tx_hash) = SendRawTransactionTest::transaction_bytes_and_hash(false);
+        let send_result = client.send_raw_transaction(tx_bytes.into()).await?;
+        assert_eq!(send_result, tx_hash);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn send_raw_transaction_with_evm_emulator() {
+    test_http_server(SendRawTransactionTestWithEvmEmulator).await;
 }
 
 #[derive(Debug)]
@@ -607,18 +782,23 @@ impl HttpTest for TraceCallTest {
         // Check that the method handler fetches fee inputs for recent blocks. To do that, we create a new block
         // with a large fee input; it should be loaded by `ApiFeeInputProvider` and override the input provided by the wrapped mock provider.
         let mut block_header = create_l2_block(2);
-        block_header.batch_fee_input =
-            <dyn BatchFeeModelInputProvider>::default_batch_fee_input_scaled(
-                FeeParams::sensible_v1_default(),
-                3.0,
-                3.0,
-            );
+        block_header.batch_fee_input = scaled_sensible_fee_input(3.0);
         store_custom_l2_block(&mut connection, &block_header, &[]).await?;
         // Fee input is not scaled further as per `ApiFeeInputProvider` implementation
         self.fee_input.expect_custom(block_header.batch_fee_input);
         let call_request = CallTest::call_request(b"block=3");
         let call_result = client.trace_call(call_request.clone(), None, None).await?;
         Self::assert_debug_call(&call_request, &call_result.unwrap_default());
+
+        let call_request_without_target = CallRequest {
+            to: None,
+            ..CallTest::call_request(b"block=3")
+        };
+        let err = client
+            .call(call_request_without_target, None, None)
+            .await
+            .unwrap_err();
+        assert_null_to_address_error(&err);
 
         Ok(())
     }
@@ -697,15 +877,95 @@ async fn trace_call_after_snapshot_recovery() {
 }
 
 #[derive(Debug)]
+struct TraceCallTestWithEvmEmulator;
+
+#[async_trait]
+impl HttpTest for TraceCallTestWithEvmEmulator {
+    fn storage_initialization(&self) -> StorageInitialization {
+        StorageInitialization::genesis_with_evm()
+    }
+
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        let mut executor = MockOneshotExecutor::default();
+        executor.set_call_responses(evm_emulator_responses);
+        executor
+    }
+
+    fn executor_options(&self) -> Option<SandboxExecutorOptions> {
+        Some(executor_options_with_evm_emulator())
+    }
+
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        // Store an additional L2 block because L2 block #0 has some special processing making it work incorrectly.
+        let mut connection = pool.connection().await?;
+        let block_header = L2BlockHeader {
+            base_system_contracts_hashes: genesis_contract_hashes(&mut connection).await?,
+            ..create_l2_block(1)
+        };
+        store_custom_l2_block(&mut connection, &block_header, &[]).await?;
+
+        client
+            .trace_call(CallTest::call_request(&[]), None, None)
+            .await?;
+
+        let call_request_without_target = CallRequest {
+            to: None,
+            ..CallTest::call_request(b"no_target")
+        };
+        client
+            .trace_call(call_request_without_target, None, None)
+            .await?;
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn trace_call_method_with_evm_emulator() {
+    test_http_server(TraceCallTestWithEvmEmulator).await;
+}
+
+#[derive(Debug, Clone, Copy)]
+enum EstimateMethod {
+    EthEstimateGas,
+    ZksEstimateFee,
+    ZksEstimateGasL1ToL2,
+}
+
+impl EstimateMethod {
+    const ALL: [Self; 3] = [
+        Self::EthEstimateGas,
+        Self::ZksEstimateFee,
+        Self::ZksEstimateGasL1ToL2,
+    ];
+
+    async fn query(self, client: &DynClient<L2>, req: CallRequest) -> Result<U256, ClientError> {
+        match self {
+            Self::EthEstimateGas => client.estimate_gas(req, None, None).await,
+            Self::ZksEstimateFee => client
+                .estimate_fee(req, None)
+                .await
+                .map(|fee| fee.gas_limit),
+            Self::ZksEstimateGasL1ToL2 => client.estimate_gas_l1_to_l2(req, None).await,
+        }
+    }
+}
+
+#[derive(Debug)]
 struct EstimateGasTest {
     gas_limit_threshold: Arc<AtomicU32>,
+    method: EstimateMethod,
     snapshot_recovery: bool,
 }
 
 impl EstimateGasTest {
-    fn new(snapshot_recovery: bool) -> Self {
+    fn new(method: EstimateMethod, snapshot_recovery: bool) -> Self {
         Self {
             gas_limit_threshold: Arc::default(),
+            method,
             snapshot_recovery,
         }
     }
@@ -726,9 +986,12 @@ impl HttpTest for EstimateGasTest {
             L2BlockNumber(1)
         };
         let gas_limit_threshold = self.gas_limit_threshold.clone();
+        let should_set_nonce = !matches!(self.method, EstimateMethod::ZksEstimateGasL1ToL2);
         tx_executor.set_tx_responses(move |tx, env| {
             assert_eq!(tx.execute.calldata(), [] as [u8; 0]);
-            assert_eq!(tx.nonce(), Some(Nonce(0)));
+            if should_set_nonce {
+                assert_eq!(tx.nonce(), Some(Nonce(0)));
+            }
             assert_eq!(env.l1_batch.first_l2_block.number, pending_block_number.0);
 
             let gas_limit_threshold = gas_limit_threshold.load(Ordering::SeqCst);
@@ -751,8 +1014,9 @@ impl HttpTest for EstimateGasTest {
         let l2_transaction = create_l2_transaction(10, 100);
         for threshold in [10_000, 50_000, 100_000, 1_000_000] {
             self.gas_limit_threshold.store(threshold, Ordering::Relaxed);
-            let output = client
-                .estimate_gas(l2_transaction.clone().into(), None, None)
+            let output = self
+                .method
+                .query(client, l2_transaction.clone().into())
                 .await?;
             assert!(
                 output >= U256::from(threshold),
@@ -777,19 +1041,17 @@ impl HttpTest for EstimateGasTest {
         let mut call_request = CallRequest::from(l2_transaction);
         call_request.from = Some(SendRawTransactionTest::private_key().address());
         call_request.value = Some(1_000_000.into());
-        client
-            .estimate_gas(call_request.clone(), None, None)
-            .await?;
+
+        self.method.query(client, call_request.clone()).await?;
 
         call_request.value = Some(U256::max_value());
-        let error = client
-            .estimate_gas(call_request, None, None)
-            .await
-            .unwrap_err();
+        let error = self.method.query(client, call_request).await.unwrap_err();
         if let ClientError::Call(error) = error {
             let error_msg = error.message();
+            // L1 and L2 transactions have differing error messages in this case.
             assert!(
-                error_msg.to_lowercase().contains("insufficient"),
+                error_msg.to_lowercase().contains("insufficient")
+                    || error_msg.to_lowercase().contains("overflow"),
                 "{error_msg}"
             );
         } else {
@@ -799,14 +1061,16 @@ impl HttpTest for EstimateGasTest {
     }
 }
 
+#[test_casing(3, EstimateMethod::ALL)]
 #[tokio::test]
-async fn estimate_gas_basics() {
-    test_http_server(EstimateGasTest::new(false)).await;
+async fn estimate_gas_basics(method: EstimateMethod) {
+    test_http_server(EstimateGasTest::new(method, false)).await;
 }
 
+#[test_casing(3, EstimateMethod::ALL)]
 #[tokio::test]
-async fn estimate_gas_after_snapshot_recovery() {
-    test_http_server(EstimateGasTest::new(true)).await;
+async fn estimate_gas_after_snapshot_recovery(method: EstimateMethod) {
+    test_http_server(EstimateGasTest::new(method, true)).await;
 }
 
 #[derive(Debug)]
@@ -863,9 +1127,7 @@ impl HttpTest for EstimateGasWithStateOverrideTest {
         if let ClientError::Call(error) = error {
             let error_msg = error.message();
             assert!(
-                error_msg
-                    .to_lowercase()
-                    .contains("insufficient balance for transfer"),
+                error_msg.to_lowercase().contains("insufficient funds"),
                 "{error_msg}"
             );
         } else {
@@ -877,15 +1139,17 @@ impl HttpTest for EstimateGasWithStateOverrideTest {
 
 #[tokio::test]
 async fn estimate_gas_with_state_override() {
-    let inner = EstimateGasTest::new(false);
+    let inner = EstimateGasTest::new(EstimateMethod::EthEstimateGas, false);
     test_http_server(EstimateGasWithStateOverrideTest { inner }).await;
 }
 
 #[derive(Debug)]
-struct EstimateGasWithoutToAddessTest;
+struct EstimateGasWithoutToAddressTest {
+    method: EstimateMethod,
+}
 
 #[async_trait]
-impl HttpTest for EstimateGasWithoutToAddessTest {
+impl HttpTest for EstimateGasWithoutToAddressTest {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -894,8 +1158,9 @@ impl HttpTest for EstimateGasWithoutToAddessTest {
         let mut l2_transaction = create_l2_transaction(10, 100);
         l2_transaction.execute.contract_address = None;
         l2_transaction.common_data.signature = vec![]; // Remove invalidated signature so that it doesn't trip estimation logic
-        let err = client
-            .estimate_gas(l2_transaction.clone().into(), None, None)
+        let err = self
+            .method
+            .query(client, l2_transaction.into())
             .await
             .unwrap_err();
         assert_null_to_address_error(&err);
@@ -903,7 +1168,58 @@ impl HttpTest for EstimateGasWithoutToAddessTest {
     }
 }
 
+#[test_casing(3, EstimateMethod::ALL)]
 #[tokio::test]
-async fn estimate_gas_fails_without_to_address() {
-    test_http_server(EstimateGasWithoutToAddessTest).await;
+async fn estimate_gas_fails_without_to_address(method: EstimateMethod) {
+    test_http_server(EstimateGasWithoutToAddressTest { method }).await;
+}
+
+#[derive(Debug)]
+struct EstimateGasTestWithEvmEmulator {
+    method: EstimateMethod,
+}
+
+#[async_trait]
+impl HttpTest for EstimateGasTestWithEvmEmulator {
+    fn storage_initialization(&self) -> StorageInitialization {
+        StorageInitialization::genesis_with_evm()
+    }
+
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        let mut executor = MockOneshotExecutor::default();
+        executor.set_tx_responses(evm_emulator_responses);
+        executor
+    }
+
+    fn executor_options(&self) -> Option<SandboxExecutorOptions> {
+        Some(executor_options_with_evm_emulator())
+    }
+
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        _pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let call_request = CallRequest {
+            from: Some(Address::repeat_byte(1)),
+            to: Some(Address::repeat_byte(2)),
+            ..CallRequest::default()
+        };
+        self.method.query(client, call_request).await?;
+
+        let call_request = CallRequest {
+            from: Some(Address::repeat_byte(1)),
+            to: None,
+            data: Some(b"no_target".to_vec().into()),
+            ..CallRequest::default()
+        };
+        self.method.query(client, call_request).await?;
+        Ok(())
+    }
+}
+
+#[test_casing(3, EstimateMethod::ALL)]
+#[tokio::test]
+async fn estimate_gas_with_evm_emulator(method: EstimateMethod) {
+    test_http_server(EstimateGasTestWithEvmEmulator { method }).await;
 }

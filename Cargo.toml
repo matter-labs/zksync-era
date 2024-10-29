@@ -1,85 +1,84 @@
 [workspace]
 members = [
-    # Binaries
-    "core/bin/block_reverter",
-    "core/bin/contract-verifier",
-    "core/bin/external_node",
-    "core/bin/merkle_tree_consistency_checker",
-    "core/bin/snapshots_creator",
-    "core/bin/selector_generator",
-    "core/bin/system-constants-generator",
-    "core/bin/verified_sources_fetcher",
-    "core/bin/zksync_server",
-    "core/bin/genesis_generator",
-    "core/bin/zksync_tee_prover",
-    # Node services
-    "core/node/node_framework",
-    "core/node/proof_data_handler",
-    "core/node/block_reverter",
-    "core/node/commitment_generator",
-    "core/node/house_keeper",
-    "core/node/genesis",
-    "core/node/shared_metrics",
-    "core/node/db_pruner",
-    "core/node/fee_model",
-    "core/node/da_dispatcher",
-    "core/node/eth_sender",
-    "core/node/vm_runner",
-    "core/node/test_utils",
-    "core/node/state_keeper",
-    "core/node/reorg_detector",
-    "core/node/consistency_checker",
-    "core/node/metadata_calculator",
-    "core/node/node_sync",
-    "core/node/node_storage_init",
-    "core/node/consensus",
-    "core/node/contract_verification_server",
-    "core/node/api_server",
-    "core/node/tee_verifier_input_producer",
-    "core/node/base_token_adjuster",
-    "core/node/external_proof_integration_api",
-    "core/node/logs_bloom_backfill",
-    "core/node/da_clients",
-    # Libraries
-    "core/lib/db_connection",
-    "core/lib/zksync_core_leftovers",
-    "core/lib/basic_types",
-    "core/lib/config",
-    "core/lib/constants",
-    "core/lib/contract_verifier",
-    "core/lib/contracts",
-    "core/lib/circuit_breaker",
-    "core/lib/dal",
-    "core/lib/env_config",
-    "core/lib/da_client",
-    "core/lib/eth_client",
-    "core/lib/eth_signer",
-    "core/lib/l1_contract_interface",
-    "core/lib/mempool",
-    "core/lib/merkle_tree",
-    "core/lib/mini_merkle_tree",
-    "core/lib/node_framework_derive",
-    "core/lib/object_store",
-    "core/lib/prover_interface",
-    "core/lib/queued_job_processor",
-    "core/lib/state",
-    "core/lib/storage",
-    "core/lib/tee_verifier",
-    "core/lib/types",
-    "core/lib/protobuf_config",
-    "core/lib/utils",
-    "core/lib/vlog",
-    "core/lib/multivm",
-    "core/lib/vm_interface",
-    "core/lib/vm_executor",
-    "core/lib/web3_decl",
-    "core/lib/snapshots_applier",
-    "core/lib/crypto_primitives",
-    "core/lib/external_price_api",
-    # Test infrastructure
-    "core/tests/test_account",
-    "core/tests/loadnext",
-    "core/tests/vm-benchmark",
+  # Binaries
+  "core/bin/block_reverter",
+  "core/bin/contract-verifier",
+  "core/bin/external_node",
+  "core/bin/merkle_tree_consistency_checker",
+  "core/bin/snapshots_creator",
+  "core/bin/selector_generator",
+  "core/bin/system-constants-generator",
+  "core/bin/verified_sources_fetcher",
+  "core/bin/zksync_server",
+  "core/bin/genesis_generator",
+  "core/bin/zksync_tee_prover",
+  # Node services
+  "core/node/node_framework",
+  "core/node/proof_data_handler",
+  "core/node/block_reverter",
+  "core/node/commitment_generator",
+  "core/node/house_keeper",
+  "core/node/genesis",
+  "core/node/shared_metrics",
+  "core/node/db_pruner",
+  "core/node/fee_model",
+  "core/node/da_dispatcher",
+  "core/node/eth_sender",
+  "core/node/vm_runner",
+  "core/node/test_utils",
+  "core/node/state_keeper",
+  "core/node/reorg_detector",
+  "core/node/consistency_checker",
+  "core/node/metadata_calculator",
+  "core/node/node_sync",
+  "core/node/node_storage_init",
+  "core/node/consensus",
+  "core/node/contract_verification_server",
+  "core/node/api_server",
+  "core/node/base_token_adjuster",
+  "core/node/external_proof_integration_api",
+  "core/node/logs_bloom_backfill",
+  "core/node/da_clients",
+  # Libraries
+  "core/lib/db_connection",
+  "core/lib/zksync_core_leftovers",
+  "core/lib/basic_types",
+  "core/lib/config",
+  "core/lib/constants",
+  "core/lib/contract_verifier",
+  "core/lib/contracts",
+  "core/lib/circuit_breaker",
+  "core/lib/dal",
+  "core/lib/env_config",
+  "core/lib/da_client",
+  "core/lib/eth_client",
+  "core/lib/eth_signer",
+  "core/lib/l1_contract_interface",
+  "core/lib/mempool",
+  "core/lib/merkle_tree",
+  "core/lib/mini_merkle_tree",
+  "core/lib/node_framework_derive",
+  "core/lib/object_store",
+  "core/lib/prover_interface",
+  "core/lib/queued_job_processor",
+  "core/lib/state",
+  "core/lib/storage",
+  "core/lib/tee_verifier",
+  "core/lib/types",
+  "core/lib/protobuf_config",
+  "core/lib/utils",
+  "core/lib/vlog",
+  "core/lib/multivm",
+  "core/lib/vm_interface",
+  "core/lib/vm_executor",
+  "core/lib/web3_decl",
+  "core/lib/snapshots_applier",
+  "core/lib/crypto_primitives",
+  "core/lib/external_price_api",
+  # Test infrastructure
+  "core/tests/test_account",
+  "core/tests/loadnext",
+  "core/tests/vm-benchmark",
 ]
 resolver = "2"
 
@@ -111,9 +110,11 @@ backon = "0.4.4"
 bigdecimal = "0.4.5"
 bincode = "1"
 blake2 = "0.10"
+bytes = "1"
 chrono = "0.4"
 clap = "4.2.2"
 codegen = "0.2.0"
+const-decoder = "0.4.0"
 criterion = "0.4.0"
 ctrlc = "3.1"
 dashmap = "5.5.3"
@@ -121,6 +122,7 @@ derive_more = "1.0.0"
 envy = "0.4"
 ethabi = "18.0.0"
 flate2 = "1.0.28"
+fraction = "0.15.3"
 futures = "0.3"
 glob = "0.3"
 google-cloud-auth = "0.16.0"
@@ -130,7 +132,6 @@ hex = "0.4"
 http = "1.1"
 httpmock = "0.7.0"
 hyper = "1.3"
-iai = "0.1"
 insta = "1.29.0"
 itertools = "0.10"
 jsonrpsee = { version = "0.23", default-features = false }
@@ -149,13 +150,13 @@ opentelemetry-semantic-conventions = "0.16.0"
 opentelemetry-appender-tracing = "0.5"
 pin-project-lite = "0.2.13"
 pretty_assertions = "1"
-prost = "0.12.1"
+prost = "0.12.6"
 rand = "0.8"
 rayon = "1.3.1"
 regex = "1"
 reqwest = "0.12"
 rlp = "0.5"
-rocksdb = "0.21.0"
+rocksdb = "0.21"
 rustc_version = "0.4.0"
 rustls = "0.23"
 secp256k1 = { version = "0.27.0", features = ["recovery", "global-context"] }
@@ -172,6 +173,7 @@ sqlx = "0.8.1"
 static_assertions = "1.1"
 structopt = "0.3.20"
 strum = "0.26"
+strum_macros = "0.26.4"
 tempfile = "3.0.2"
 test-casing = "0.1.2"
 test-log = "0.2.15"
@@ -185,10 +187,10 @@ tower-http = "0.5.2"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 tracing-opentelemetry = "0.25.0"
-time = "0.3.36" # Has to be same as used by `tracing-subscriber`
+time = "0.3.36"                                                               # Has to be same as used by `tracing-subscriber`
 url = "2"
 web3 = "0.19.0"
-fraction = "0.15.3"
+yab = "0.1.0"
 
 # Proc-macro
 syn = "2.0"
@@ -209,6 +211,16 @@ subxt-metadata = "0.34.0"
 parity-scale-codec = { version = "3.6.9", default-features = false }
 subxt-signer = { version = "0.34", default-features = false }
 
+# Celestia
+celestia-types = "0.6.1"
+bech32 = "0.11.0"
+ripemd = "0.1.3"
+tonic = { version = "0.11.0", default-features = false }
+pbjson-types = "0.6.0"
+
+# Eigen
+tokio-stream = "0.1.16"
+
 # Here and below:
 # We *always* pin the latest version of protocol to disallow accidental changes in the execution logic.
 # However, for the historical version of protocol crates, we have lax requirements. Otherwise,
@@ -217,30 +229,30 @@ circuit_sequencer_api_1_3_3 = { package = "circuit_sequencer_api", version = "0.
 circuit_sequencer_api_1_4_0 = { package = "circuit_sequencer_api", version = "0.140" }
 circuit_sequencer_api_1_4_1 = { package = "circuit_sequencer_api", version = "0.141" }
 circuit_sequencer_api_1_4_2 = { package = "circuit_sequencer_api", version = "0.142" }
-circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", version = "=0.150.5" }
+circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", version = "=0.150.7" }
 crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.30.1" }
-kzg = { package = "zksync_kzg", version = "=0.150.5" }
+kzg = { package = "zksync_kzg", version = "=0.150.7" }
 zk_evm = { version = "=0.133.0" }
 zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
 zk_evm_1_3_3 = { package = "zk_evm", version = "0.133" }
 zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
 zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
-zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.5" }
+zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.7" }
 
 # New VM; pinned to a specific commit because of instability
-zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "a233d44bbe61dc6a758a754c3b78fe4f83e56699" }
+zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "df5bec3d04d64d434f9b0ccb285ba4681008f7b3" }
 
 # Consensus dependencies.
-zksync_concurrency = "=0.3.0"
-zksync_consensus_bft = "=0.3.0"
-zksync_consensus_crypto = "=0.3.0"
-zksync_consensus_executor = "=0.3.0"
-zksync_consensus_network = "=0.3.0"
-zksync_consensus_roles = "=0.3.0"
-zksync_consensus_storage = "=0.3.0"
-zksync_consensus_utils = "=0.3.0"
-zksync_protobuf = "=0.3.0"
-zksync_protobuf_build = "=0.3.0"
+zksync_concurrency = "=0.5.0"
+zksync_consensus_bft = "=0.5.0"
+zksync_consensus_crypto = "=0.5.0"
+zksync_consensus_executor = "=0.5.0"
+zksync_consensus_network = "=0.5.0"
+zksync_consensus_roles = "=0.5.0"
+zksync_consensus_storage = "=0.5.0"
+zksync_consensus_utils = "=0.5.0"
+zksync_protobuf = "=0.5.0"
+zksync_protobuf_build = "=0.5.0"
 
 # "Local" dependencies
 zksync_multivm = { version = "0.1.0", path = "core/lib/multivm" }
@@ -307,6 +319,5 @@ zksync_node_storage_init = { version = "0.1.0", path = "core/node/node_storage_i
 zksync_node_consensus = { version = "0.1.0", path = "core/node/consensus" }
 zksync_contract_verification_server = { version = "0.1.0", path = "core/node/contract_verification_server" }
 zksync_node_api_server = { version = "0.1.0", path = "core/node/api_server" }
-zksync_tee_verifier_input_producer = { version = "0.1.0", path = "core/node/tee_verifier_input_producer" }
 zksync_base_token_adjuster = { version = "0.1.0", path = "core/node/base_token_adjuster" }
 zksync_logs_bloom_backfill = { version = "0.1.0", path = "core/node/logs_bloom_backfill" }

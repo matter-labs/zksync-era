@@ -1,8 +1,5 @@
 [workspace]
-members = [
-    "crates/bin/*",
-    "crates/lib/*",
-]
+members = ["crates/bin/*", "crates/lib/*"]
 
 resolver = "2"
 
@@ -19,20 +16,23 @@ categories = ["cryptography"]
 [workspace.dependencies]
 # Common dependencies
 anyhow = "1.0"
-axum = "0.7.5"
 async-trait = "0.1"
+axum = "0.7.5"
 bincode = "1"
 chrono = "0.4.38"
 clap = "4.4.6"
 colored = "2.0"
 const-decoder = "0.3.0"
 ctrlc = "3.1"
+debug-map-sorted = "0.1.1"
 dialoguer = "0.11"
 futures = "0.3"
 hex = "0.4"
-itertools = "0.10.5"
 indicatif = "0.16"
+itertools = "0.10.5"
 jemallocator = "0.5"
+k8s-openapi = { version = "0.23.0", features = ["v1_30"] }
+kube = { version = "0.96.0", features = ["runtime", "derive"] }
 local-ip-address = "0.5.0"
 log = "0.4.20"
 md5 = "0.7.0"
@@ -42,6 +42,8 @@ queues = "1.1.0"
 rand = "0.8"
 regex = "1.10.4"
 reqwest = "0.12"
+ring = "0.17.8"
+rustls = { version = "0.23.12", features = ["ring"] }
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
@@ -50,21 +52,24 @@ sqlx = { version = "0.8.1", default-features = false }
 structopt = "0.3.26"
 strum = { version = "0.26" }
 tempfile = "3"
+time = "0.3.36"
 tokio = "1"
 tokio-util = "0.7.11"
 toml_edit = "0.14.4"
 tracing = "0.1"
 tracing-subscriber = "0.3"
+tracing-test = "0.2.5"
+url = "2.5.2"
 vise = "0.2.0"
 
 # Proving dependencies
-circuit_definitions = "=0.150.5"
-circuit_sequencer_api = "=0.150.5"
-zkevm_test_harness = "=0.150.5"
+circuit_definitions = "=0.150.7"
+circuit_sequencer_api = "=0.150.7"
+zkevm_test_harness = "=0.150.7"
 
 # GPU proving dependencies
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.150.9" }
-shivini = "=0.150.9"
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.151.1" }
+shivini = "=0.151.1"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }
@@ -84,6 +89,7 @@ zksync_eth_client = { path = "../core/lib/eth_client" }
 zksync_contracts = { path = "../core/lib/contracts" }
 zksync_core_leftovers = { path = "../core/lib/zksync_core_leftovers" }
 zksync_periodic_job = { path = "../core/lib/periodic_job" }
+zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
 
 # Prover workspace dependencies
 zksync_prover_dal = { path = "crates/lib/prover_dal" }
@@ -91,6 +97,7 @@ zksync_prover_fri_types = { path = "crates/lib/prover_fri_types" }
 zksync_prover_fri_utils = { path = "crates/lib/prover_fri_utils" }
 zksync_prover_keystore = { path = "crates/lib/keystore" }
 zksync_vk_setup_data_generator_server_fri = { path = "crates/bin/vk_setup_data_generator_server_fri" }
+zksync_prover_job_monitor = { path = "crates/bin/prover_job_monitor" }
 
 # for `perf` profiling
 [profile.perf]

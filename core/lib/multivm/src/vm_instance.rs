@@ -1,16 +1,17 @@
-use std::mem;
+use std::{mem, rc::Rc};
 
-use zksync_types::{vm::VmVersion, Transaction};
+use zksync_types::{vm::VmVersion, ProtocolVersionId, Transaction};
 use zksync_vm2::interface::Tracer;
+use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{
     glue::history_mode::HistoryMode,
     interface::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
         utils::ShadowVm,
-        BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
-        VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
-        VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, PushTransactionResult,
+        SystemEnv, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+        VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
     vm_latest::HistoryEnabled,
@@ -55,8 +56,7 @@ macro_rules! dispatch_legacy_vm {
 impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
     type TracerDispatcher = TracerDispatcher<StorageView<S>, H>;
 
-    /// Push tx into memory for the future execution
-    fn push_transaction(&mut self, tx: Transaction) {
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
         dispatch_legacy_vm!(self.push_transaction(tx))
     }
 
@@ -64,7 +64,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
     fn inspect(
         &mut self,
         dispatcher: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
         dispatch_legacy_vm!(self.inspect(&mut mem::take(dispatcher).into(), execution_mode))
     }
@@ -88,8 +88,8 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
     }
 
     /// Return the results of execution of all batch
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        dispatch_legacy_vm!(self.finish_batch())
+    fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
+        dispatch_legacy_vm!(self.finish_batch(pubdata_builder))
     }
 }
 
@@ -207,6 +207,15 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                 );
                 Self::Vm1_5_0(vm)
             }
+            VmVersion::VmGateway => {
+                let vm = crate::vm_latest::Vm::new_with_subversion(
+                    l1_batch_env,
+                    system_env,
+                    storage_view,
+                    crate::vm_latest::MultiVMSubversion::Gateway,
+                );
+                Self::Vm1_5_0(vm)
+            }
         }
     }
 
@@ -225,7 +234,7 @@ pub type ShadowedFastVm<S, Tr = ()> = ShadowVm<
 
 /// Fast VM variants.
 #[derive(Debug)]
-pub enum FastVmInstance<S: ReadStorage, Tr> {
+pub enum FastVmInstance<S: ReadStorage, Tr = ()> {
     /// Fast VM running in isolation.
     Fast(crate::vm_fast::Vm<ImmutableStorageView<S>, Tr>),
     /// Fast VM shadowed by the latest legacy VM.
@@ -247,14 +256,14 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for FastVmInsta
         Tr,
     );
 
-    fn push_transaction(&mut self, tx: Transaction) {
-        dispatch_fast_vm!(self.push_transaction(tx));
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
+        dispatch_fast_vm!(self.push_transaction(tx))
     }
 
     fn inspect(
         &mut self,
         tracer: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
         match self {
             Self::Fast(vm) => vm.inspect(&mut tracer.1, execution_mode),
@@ -284,8 +293,8 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for FastVmInsta
         }
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        dispatch_fast_vm!(self.finish_batch())
+    fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
+        dispatch_fast_vm!(self.finish_batch(pubdata_builder))
     }
 }
 
@@ -327,4 +336,12 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> FastVmInstance<S, Tr> {
     ) -> Self {
         Self::Shadowed(ShadowedFastVm::new(l1_batch_env, system_env, storage_view))
     }
+}
+
+/// Checks whether the protocol version is supported by the fast VM.
+pub fn is_supported_by_fast_vm(protocol_version: ProtocolVersionId) -> bool {
+    matches!(
+        protocol_version.into(),
+        VmVersion::Vm1_5_0IncreasedBootloaderMemory
+    )
 }

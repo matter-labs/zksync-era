@@ -4,7 +4,7 @@ use zksync_types::{
         L1BatchWithMetadata,
     },
     ethabi::Token,
-    pubdata_da::PubdataDA,
+    pubdata_da::PubdataSendingMode,
     web3::contract::Error as ContractError,
     ProtocolVersionId, U256,
 };
@@ -24,14 +24,14 @@ const PUBDATA_SOURCE_CUSTOM: u8 = 2;
 pub struct CommitBatchInfo<'a> {
     mode: L1BatchCommitmentMode,
     l1_batch_with_metadata: &'a L1BatchWithMetadata,
-    pubdata_da: PubdataDA,
+    pubdata_da: PubdataSendingMode,
 }
 
 impl<'a> CommitBatchInfo<'a> {
     pub fn new(
         mode: L1BatchCommitmentMode,
         l1_batch_with_metadata: &'a L1BatchWithMetadata,
-        pubdata_da: PubdataDA,
+        pubdata_da: PubdataSendingMode,
     ) -> Self {
         Self {
             mode,
@@ -204,18 +204,18 @@ impl Tokenizable for CommitBatchInfo<'_> {
                 // Here we're not pushing any pubdata on purpose; no pubdata is sent in Validium mode.
                 (
                     L1BatchCommitmentMode::Validium,
-                    PubdataDA::Calldata | PubdataDA::RelayedL2Calldata,
+                    PubdataSendingMode::Calldata | PubdataSendingMode::RelayedL2Calldata,
                 ) => {
                     vec![PUBDATA_SOURCE_CALLDATA]
                 }
-                (L1BatchCommitmentMode::Validium, PubdataDA::Blobs) => {
+                (L1BatchCommitmentMode::Validium, PubdataSendingMode::Blobs) => {
                     vec![PUBDATA_SOURCE_BLOBS]
                 }
 
-                (L1BatchCommitmentMode::Rollup, PubdataDA::Custom) => {
+                (L1BatchCommitmentMode::Rollup, PubdataSendingMode::Custom) => {
                     panic!("Custom pubdata DA is incompatible with Rollup mode")
                 }
-                (L1BatchCommitmentMode::Validium, PubdataDA::Custom) => {
+                (L1BatchCommitmentMode::Validium, PubdataSendingMode::Custom) => {
                     let mut operator_da_input = vec![PUBDATA_SOURCE_CUSTOM];
                     operator_da_input.extend(
                         &self
@@ -230,7 +230,7 @@ impl Tokenizable for CommitBatchInfo<'_> {
 
                 (
                     L1BatchCommitmentMode::Rollup,
-                    PubdataDA::Calldata | PubdataDA::RelayedL2Calldata,
+                    PubdataSendingMode::Calldata | PubdataSendingMode::RelayedL2Calldata,
                 ) => {
                     // We compute and add the blob commitment to the pubdata payload so that we can verify the proof
                     // even if we are not using blobs.
@@ -241,7 +241,7 @@ impl Tokenizable for CommitBatchInfo<'_> {
                         .chain(blob_commitment)
                         .collect()
                 }
-                (L1BatchCommitmentMode::Rollup, PubdataDA::Blobs) => {
+                (L1BatchCommitmentMode::Rollup, PubdataSendingMode::Blobs) => {
                     let pubdata = self.pubdata_input();
                     let pubdata_commitments =
                         pubdata.chunks(ZK_SYNC_BYTES_PER_BLOB).flat_map(|blob| {

@@ -35,6 +35,8 @@ impl SyncDal<'_, '_> {
                             (MAX(number) + 1)
                         FROM
                             l1_batches
+                        WHERE
+                            is_sealed
                     ),
                     (
                         SELECT
@@ -54,7 +56,9 @@ impl SyncDal<'_, '_> {
                 miniblocks.virtual_blocks,
                 miniblocks.hash,
                 miniblocks.protocol_version AS "protocol_version!",
-                miniblocks.fee_account_address AS "fee_account_address!"
+                miniblocks.fee_account_address AS "fee_account_address!",
+                miniblocks.l2_da_validator_address AS "l2_da_validator_address!",
+                miniblocks.pubdata_type AS "pubdata_type!"
             FROM
                 miniblocks
             WHERE

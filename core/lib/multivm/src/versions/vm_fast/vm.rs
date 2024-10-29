@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, mem};
+use std::{collections::HashMap, fmt, mem, rc::Rc};
 
 use zk_evm_1_5_0::{
     aux_structures::LogQuery, zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION,
@@ -13,7 +13,7 @@ use zksync_types::{
         BYTES_PER_ENUMERATION_INDEX,
     },
     AccountTreeId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
-    BOOTLOADER_ADDRESS, H160, H256, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
+    Transaction, BOOTLOADER_ADDRESS, H160, H256, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
     L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
@@ -21,6 +21,7 @@ use zksync_vm2::{
     interface::{CallframeInterface, HeapId, StateInterface, Tracer},
     ExecutionEnd, FatPointer, Program, Settings, StorageSlot, VirtualMachine,
 };
+use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use super::{
     bootloader_state::{BootloaderState, BootloaderStateSnapshot},
@@ -35,11 +36,12 @@ use crate::{
     interface::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
         BytecodeCompressionError, BytecodeCompressionResult, CurrentExecutionState,
-        ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv,
-        TxRevertReason, VmEvent, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs,
-        VmExecutionStatistics, VmFactory, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
-        VmTrackingContracts,
+        ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, PushTransactionResult,
+        Refunds, SystemEnv, TxRevertReason, VmEvent, VmExecutionLogs, VmExecutionMode,
+        VmExecutionResultAndLogs, VmExecutionStatistics, VmFactory, VmInterface,
+        VmInterfaceHistoryEnabled, VmRevertReason, VmTrackingContracts,
     },
+    is_supported_by_fast_vm,
     utils::events::extract_l2tol1logs_from_l1_messenger,
     vm_fast::{
         bootloader_state::utils::{apply_l2_block, apply_pubdata_to_memory},
@@ -49,8 +51,8 @@ use crate::{
     },
     vm_latest::{
         constants::{
-            get_vm_hook_params_start_position, get_vm_hook_position, OPERATOR_REFUNDS_OFFSET,
-            TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
+            get_result_success_first_slot, get_vm_hook_params_start_position, get_vm_hook_position,
+            OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
         },
         MultiVMSubversion,
     },
@@ -102,8 +104,14 @@ pub struct Vm<S, Tr = ()> {
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
 }
 
-impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
+impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
     pub fn custom(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
+        assert!(
+            is_supported_by_fast_vm(system_env.version),
+            "Protocol version {:?} is not supported by fast VM",
+            system_env.version
+        );
+
         let default_aa_code_hash = system_env
             .base_system_smart_contracts
             .default_aa
@@ -205,7 +213,22 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
                 }
                 Hook::TxHasEnded => {
                     if let VmExecutionMode::OneTx = execution_mode {
-                        break (last_tx_result.take().unwrap(), false);
+                        // The bootloader may invoke `TxHasEnded` hook without posting a tx result previously. One case when this can happen
+                        // is estimating gas for L1 transactions, if a transaction runs out of gas during execution.
+                        let tx_result = last_tx_result.take().unwrap_or_else(|| {
+                            let tx_has_failed = self.get_tx_result().is_zero();
+                            if tx_has_failed {
+                                let output = VmRevertReason::General {
+                                    msg: "Transaction reverted with empty reason. Possibly out of gas"
+                                        .to_string(),
+                                    data: vec![],
+                                };
+                                ExecutionResult::Revert { output }
+                            } else {
+                                ExecutionResult::Success { output: vec![] }
+                            }
+                        });
+                        break (tx_result, false);
                     }
                 }
                 Hook::AskOperatorForRefund => {
@@ -351,6 +374,12 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
             .collect::<Vec<_>>()
             .try_into()
             .unwrap()
+    }
+
+    fn get_tx_result(&self) -> U256 {
+        let tx_idx = self.bootloader_state.current_tx();
+        let slot = get_result_success_first_slot(VM_VERSION) as usize + tx_idx;
+        self.read_word_from_bootloader_heap(slot)
     }
 
     fn get_debug_log(&self) -> (String, String) {
@@ -526,33 +555,10 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
             pubdata_costs: world_diff.pubdata_costs().to_vec(),
         }
     }
-}
 
-impl<S, Tr> VmFactory<StorageView<S>> for Vm<ImmutableStorageView<S>, Tr>
-where
-    S: ReadStorage,
-    Tr: Tracer + Default + 'static,
-{
-    fn new(
-        batch_env: L1BatchEnv,
-        system_env: SystemEnv,
-        storage: StoragePtr<StorageView<S>>,
-    ) -> Self {
-        let storage = ImmutableStorageView::new(storage);
-        Self::custom(batch_env, system_env, storage)
-    }
-}
-
-impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
-    type TracerDispatcher = Tr;
-
-    fn push_transaction(&mut self, tx: zksync_types::Transaction) {
-        self.push_transaction_inner(tx, 0, true);
-    }
-
-    fn inspect(
+    pub(crate) fn inspect_inner(
         &mut self,
-        tracer: &mut Self::TracerDispatcher,
+        tracer: &mut Tr,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         let mut track_refunds = false;
@@ -642,6 +648,43 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
             new_known_factory_deps: None,
         }
     }
+}
+
+impl<S, Tr> VmFactory<StorageView<S>> for Vm<ImmutableStorageView<S>, Tr>
+where
+    S: ReadStorage,
+    Tr: Tracer + Default + 'static,
+{
+    fn new(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: StoragePtr<StorageView<S>>,
+    ) -> Self {
+        let storage = ImmutableStorageView::new(storage);
+        Self::custom(batch_env, system_env, storage)
+    }
+}
+
+impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
+    type TracerDispatcher = Tr;
+
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
+        self.push_transaction_inner(tx, 0, true);
+        PushTransactionResult {
+            compressed_bytecodes: self
+                .bootloader_state
+                .get_last_tx_compressed_bytecodes()
+                .into(),
+        }
+    }
+
+    fn inspect(
+        &mut self,
+        tracer: &mut Self::TracerDispatcher,
+        execution_mode: InspectExecutionMode,
+    ) -> VmExecutionResultAndLogs {
+        self.inspect_inner(tracer, execution_mode.into())
+    }
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
@@ -650,7 +693,7 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         self.push_transaction_inner(tx, 0, with_compression);
-        let result = self.inspect(tracer, VmExecutionMode::OneTx);
+        let result = self.inspect(tracer, InspectExecutionMode::OneTx);
 
         let compression_result = if self.has_unpublished_bytecodes() {
             Err(BytecodeCompressionError::BytecodeCompressionFailed)
@@ -667,8 +710,8 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
         self.bootloader_state.start_new_l2_block(l2_block_env)
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        let result = self.inspect(&mut Tr::default(), VmExecutionMode::Batch);
+    fn finish_batch(&mut self, _pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
+        let result = self.inspect_inner(&mut Tr::default(), VmExecutionMode::Batch);
         let execution_state = self.get_current_execution_state();
         let bootloader_memory = self.bootloader_state.bootloader_memory();
         FinishedL1Batch {

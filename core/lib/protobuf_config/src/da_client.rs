@@ -1,13 +1,13 @@
 use anyhow::Context;
-use zksync_config::{
-    configs::{
-        self,
-        da_client::{
-            eigen_da::{DisperserConfig, EigenDAConfig, MemStoreConfig},
-            DAClientConfig::{Avail, EigenDA, ObjectStore},
-        },
+use zksync_config::configs::{
+    self,
+    da_client::{
+        avail::{AvailClientConfig, AvailConfig, AvailDefaultConfig, AvailGasRelayConfig},
+        celestia::CelestiaConfig,
+        eigen::EigenConfig,
+        eigen_da::{DisperserConfig, EigenDAConfig, MemStoreConfig},
+        DAClientConfig::{Avail, Celestia, Eigen, EigenDA, ObjectStore},
     },
-    AvailConfig,
 };
 use zksync_protobuf::{required, ProtoRepr};
 
@@ -21,15 +21,44 @@ impl ProtoRepr for proto::DataAvailabilityClient {
 
         let client = match config {
             proto::data_availability_client::Config::Avail(conf) => Avail(AvailConfig {
-                api_node_url: required(&conf.api_node_url)
-                    .context("api_node_url")?
-                    .clone(),
                 bridge_api_url: required(&conf.bridge_api_url)
                     .context("bridge_api_url")?
                     .clone(),
-                app_id: *required(&conf.app_id).context("app_id")?,
-                timeout: *required(&conf.timeout).context("timeout")? as usize,
-                max_retries: *required(&conf.max_retries).context("max_retries")? as usize,
+                timeout_ms: *required(&conf.timeout_ms).context("timeout_ms")? as usize,
+                config: match conf.config.as_ref() {
+                    Some(proto::avail_config::Config::FullClient(full_client_conf)) => {
+                        AvailClientConfig::FullClient(AvailDefaultConfig {
+                            api_node_url: required(&full_client_conf.api_node_url)
+                                .context("api_node_url")?
+                                .clone(),
+                            app_id: *required(&full_client_conf.app_id).context("app_id")?,
+                        })
+                    }
+                    Some(proto::avail_config::Config::GasRelay(gas_relay_conf)) => {
+                        AvailClientConfig::GasRelay(AvailGasRelayConfig {
+                            gas_relay_api_url: required(&gas_relay_conf.gas_relay_api_url)
+                                .context("gas_relay_api_url")?
+                                .clone(),
+                            max_retries: *required(&gas_relay_conf.max_retries)
+                                .context("max_retries")?
+                                as usize,
+                        })
+                    }
+                    None => return Err(anyhow::anyhow!("Invalid Avail DA configuration")),
+                },
+            }),
+            proto::data_availability_client::Config::Celestia(conf) => Celestia(CelestiaConfig {
+                api_node_url: required(&conf.api_node_url).context("namespace")?.clone(),
+                namespace: required(&conf.namespace).context("namespace")?.clone(),
+                chain_id: required(&conf.chain_id).context("chain_id")?.clone(),
+                timeout_ms: *required(&conf.timeout_ms).context("timeout_ms")?,
+            }),
+            proto::data_availability_client::Config::Eigen(conf) => Eigen(EigenConfig {
+                rpc_node_url: required(&conf.rpc_node_url)
+                    .context("rpc_node_url")?
+                    .clone(),
+                inclusion_polling_interval_ms: *required(&conf.inclusion_polling_interval_ms)
+                    .context("inclusion_polling_interval_ms")?,
             }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
@@ -95,65 +124,82 @@ impl ProtoRepr for proto::DataAvailabilityClient {
     }
 
     fn build(this: &Self::Type) -> Self {
-        match &this {
-            Avail(config) => Self {
-                config: Some(proto::data_availability_client::Config::Avail(
-                    proto::AvailConfig {
-                        api_node_url: Some(config.api_node_url.clone()),
-                        bridge_api_url: Some(config.bridge_api_url.clone()),
-                        app_id: Some(config.app_id),
-                        timeout: Some(config.timeout as u64),
-                        max_retries: Some(config.max_retries as u64),
-                    },
-                )),
-            },
-            ObjectStore(config) => Self {
-                config: Some(proto::data_availability_client::Config::ObjectStore(
-                    object_store_proto::ObjectStore::build(config),
-                )),
-            },
+        let config = match &this {
+            Avail(config) => proto::data_availability_client::Config::Avail(proto::AvailConfig {
+                bridge_api_url: Some(config.bridge_api_url.clone()),
+                timeout_ms: Some(config.timeout_ms as u64),
+                config: match &config.config {
+                    AvailClientConfig::FullClient(conf) => Some(
+                        proto::avail_config::Config::FullClient(proto::AvailClientConfig {
+                            api_node_url: Some(conf.api_node_url.clone()),
+                            app_id: Some(conf.app_id),
+                        }),
+                    ),
+                    AvailClientConfig::GasRelay(conf) => Some(
+                        proto::avail_config::Config::GasRelay(proto::AvailGasRelayConfig {
+                            gas_relay_api_url: Some(conf.gas_relay_api_url.clone()),
+                            max_retries: Some(conf.max_retries as u64),
+                        }),
+                    ),
+                },
+            }),
+            Celestia(config) => {
+                proto::data_availability_client::Config::Celestia(proto::CelestiaConfig {
+                    api_node_url: Some(config.api_node_url.clone()),
+                    namespace: Some(config.namespace.clone()),
+                    chain_id: Some(config.chain_id.clone()),
+                    timeout_ms: Some(config.timeout_ms),
+                })
+            }
+            Eigen(config) => proto::data_availability_client::Config::Eigen(proto::EigenConfig {
+                rpc_node_url: Some(config.rpc_node_url.clone()),
+                inclusion_polling_interval_ms: Some(config.inclusion_polling_interval_ms),
+            }),
+            ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
+                object_store_proto::ObjectStore::build(config),
+            ),
             EigenDA(config) => match config {
-                EigenDAConfig::MemStore(config) => Self {
-                    config: Some(proto::data_availability_client::Config::EigenDa(
-                        proto::EigenDaConfig {
-                            config: Some(proto::eigen_da_config::Config::MemStore(
-                                proto::MemStoreConfig {
-                                    max_blob_size_bytes: Some(config.max_blob_size_bytes),
-                                    blob_expiration: Some(config.blob_expiration),
-                                    get_latency: Some(config.get_latency),
-                                    put_latency: Some(config.put_latency),
-                                },
-                            )),
-                        },
-                    )),
-                },
-                EigenDAConfig::Disperser(config) => Self {
-                    config: Some(proto::data_availability_client::Config::EigenDa(
-                        proto::EigenDaConfig {
-                            config: Some(proto::eigen_da_config::Config::Disperser(
-                                proto::DisperserConfig {
-                                    custom_quorum_numbers: config
-                                        .custom_quorum_numbers
-                                        .clone()
-                                        .unwrap_or_default(),
-                                    account_id: config.account_id.clone(),
-                                    disperser_rpc: Some(config.disperser_rpc.clone()),
-                                    eth_confirmation_depth: Some(config.eth_confirmation_depth),
-                                    eigenda_eth_rpc: Some(config.eigenda_eth_rpc.clone()),
-                                    eigenda_svc_manager_addr: Some(
-                                        config.eigenda_svc_manager_addr.clone(),
-                                    ),
-                                    blob_size_limit: Some(config.blob_size_limit),
-                                    status_query_timeout: Some(config.status_query_timeout),
-                                    status_query_interval: Some(config.status_query_interval),
-                                    wait_for_finalization: Some(config.wait_for_finalization),
-                                    authenticated: Some(config.authenticaded),
-                                },
-                            )),
-                        },
-                    )),
-                },
+                EigenDAConfig::MemStore(config) => {
+                    proto::data_availability_client::Config::EigenDa(proto::EigenDaConfig {
+                        config: Some(proto::eigen_da_config::Config::MemStore(
+                            proto::MemStoreConfig {
+                                max_blob_size_bytes: Some(config.max_blob_size_bytes),
+                                blob_expiration: Some(config.blob_expiration),
+                                get_latency: Some(config.get_latency),
+                                put_latency: Some(config.put_latency),
+                            },
+                        )),
+                    })
+                }
+                EigenDAConfig::Disperser(config) => {
+                    proto::data_availability_client::Config::EigenDa(proto::EigenDaConfig {
+                        config: Some(proto::eigen_da_config::Config::Disperser(
+                            proto::DisperserConfig {
+                                custom_quorum_numbers: config
+                                    .custom_quorum_numbers
+                                    .clone()
+                                    .unwrap_or_default(),
+                                account_id: config.account_id.clone(),
+                                disperser_rpc: Some(config.disperser_rpc.clone()),
+                                eth_confirmation_depth: Some(config.eth_confirmation_depth),
+                                eigenda_eth_rpc: Some(config.eigenda_eth_rpc.clone()),
+                                eigenda_svc_manager_addr: Some(
+                                    config.eigenda_svc_manager_addr.clone(),
+                                ),
+                                blob_size_limit: Some(config.blob_size_limit),
+                                status_query_timeout: Some(config.status_query_timeout),
+                                status_query_interval: Some(config.status_query_interval),
+                                wait_for_finalization: Some(config.wait_for_finalization),
+                                authenticated: Some(config.authenticaded),
+                            },
+                        )),
+                    })
+                }
             },
+        };
+
+        Self {
+            config: Some(config),
         }
     }
 }

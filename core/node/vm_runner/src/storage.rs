@@ -13,7 +13,9 @@ use zksync_state::{
     AsyncCatchupTask, BatchDiff, OwnedStorage, RocksdbCell, RocksdbStorage, RocksdbStorageBuilder,
     RocksdbWithMemory,
 };
-use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2ChainId};
+use zksync_types::{
+    block::L2BlockExecutionData, commitment::PubdataParams, L1BatchNumber, L2ChainId,
+};
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 use zksync_vm_interface::{L1BatchEnv, SystemEnv};
 
@@ -106,6 +108,8 @@ pub struct BatchExecuteData {
     pub l1_batch_env: L1BatchEnv,
     /// Execution process parameters.
     pub system_env: SystemEnv,
+    /// Pubdata building parameters.
+    pub pubdata_params: PubdataParams,
     /// List of L2 blocks and corresponding transactions that were executed within batch.
     pub l2_blocks: Vec<L2BlockExecutionData>,
 }
@@ -394,7 +398,7 @@ pub(crate) async fn load_batch_execute_data(
     l1_batch_params_provider: &L1BatchParamsProvider,
     chain_id: L2ChainId,
 ) -> anyhow::Result<Option<BatchExecuteData>> {
-    let Some((system_env, l1_batch_env)) = l1_batch_params_provider
+    let Some((system_env, l1_batch_env, pubdata_params)) = l1_batch_params_provider
         .load_l1_batch_env(
             conn,
             l1_batch_number,
@@ -415,6 +419,7 @@ pub(crate) async fn load_batch_execute_data(
     Ok(Some(BatchExecuteData {
         l1_batch_env,
         system_env,
+        pubdata_params,
         l2_blocks,
     }))
 }

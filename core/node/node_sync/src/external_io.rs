@@ -15,6 +15,7 @@ use zksync_state_keeper::{
     updates::UpdatesManager,
 };
 use zksync_types::{
+    block::UnsealedL1BatchHeader,
     protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
     L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
@@ -103,6 +104,63 @@ impl ExternalIO {
             }
         })
     }
+
+    async fn ensure_protocol_version_is_saved(
+        &self,
+        protocol_version: ProtocolVersionId,
+    ) -> anyhow::Result<()> {
+        let base_system_contract_hashes = self
+            .pool
+            .connection_tagged("sync_layer")
+            .await?
+            .protocol_versions_dal()
+            .get_base_system_contract_hashes_by_version_id(protocol_version as u16)
+            .await?;
+        if base_system_contract_hashes.is_some() {
+            return Ok(());
+        }
+        tracing::info!("Fetching protocol version {protocol_version:?} from the main node");
+
+        let protocol_version = self
+            .main_node_client
+            .fetch_protocol_version(protocol_version)
+            .await
+            .context("failed to fetch protocol version from the main node")?
+            .context("protocol version is missing on the main node")?;
+        let minor = protocol_version
+            .minor_version()
+            .context("Missing minor protocol version")?;
+        let bootloader_code_hash = protocol_version
+            .bootloader_code_hash()
+            .context("Missing bootloader code hash")?;
+        let default_account_code_hash = protocol_version
+            .default_account_code_hash()
+            .context("Missing default account code hash")?;
+        let evm_emulator_code_hash = protocol_version.evm_emulator_code_hash();
+        let l2_system_upgrade_tx_hash = protocol_version.l2_system_upgrade_tx_hash();
+        self.pool
+            .connection_tagged("sync_layer")
+            .await?
+            .protocol_versions_dal()
+            .save_protocol_version(
+                ProtocolSemanticVersion {
+                    minor: minor
+                        .try_into()
+                        .context("cannot convert protocol version")?,
+                    patch: VersionPatch(0),
+                },
+                protocol_version.timestamp,
+                Default::default(), // verification keys are unused for EN
+                BaseSystemContractsHashes {
+                    bootloader: bootloader_code_hash,
+                    default_aa: default_account_code_hash,
+                    evm_emulator: evm_emulator_code_hash,
+                },
+                l2_system_upgrade_tx_hash,
+            )
+            .await?;
+        Ok(())
+    }
 }
 
 impl IoSealCriteria for ExternalIO {
@@ -154,6 +212,14 @@ impl StateKeeperIO for ExternalIO {
                 )
             })?;
         let Some(mut pending_l2_block_header) = pending_l2_block_header else {
+            tracing::info!(
+                l1_batch_number = %cursor.l1_batch,
+                "No pending L2 blocks found; pruning unsealed batch if exists as we need at least one L2 block to initialize"
+            );
+            storage
+                .blocks_dal()
+                .delete_unsealed_l1_batch(cursor.l1_batch - 1)
+                .await?;
             return Ok((cursor, None));
         };
 
@@ -185,7 +251,7 @@ impl StateKeeperIO for ExternalIO {
             pending_l2_block_header.set_protocol_version(protocol_version);
         }
 
-        let (system_env, l1_batch_env) = self
+        let (system_env, l1_batch_env, pubdata_params) = self
             .l1_batch_params_provider
             .load_l1_batch_params(
                 &mut storage,
@@ -200,7 +266,15 @@ impl StateKeeperIO for ExternalIO {
                     cursor.l1_batch
                 )
             })?;
-        let data = load_pending_batch(&mut storage, system_env, l1_batch_env)
+        storage
+            .blocks_dal()
+            .ensure_unsealed_l1_batch_exists(
+                l1_batch_env
+                    .clone()
+                    .into_unsealed_header(Some(system_env.version)),
+            )
+            .await?;
+        let data = load_pending_batch(&mut storage, system_env, l1_batch_env, pubdata_params)
             .await
             .with_context(|| {
                 format!(
@@ -236,6 +310,21 @@ impl StateKeeperIO for ExternalIO {
                     "L2 block number mismatch: expected {}, got {first_l2_block_number}",
                     cursor.next_l2_block
                 );
+
+                self.ensure_protocol_version_is_saved(params.protocol_version)
+                    .await?;
+                self.pool
+                    .connection_tagged("sync_layer")
+                    .await?
+                    .blocks_dal()
+                    .insert_l1_batch(UnsealedL1BatchHeader {
+                        number: cursor.l1_batch,
+                        timestamp: params.first_l2_block.timestamp,
+                        protocol_version: Some(params.protocol_version),
+                        fee_address: params.operator_address,
+                        fee_input: params.fee_input,
+                    })
+                    .await?;
                 return Ok(Some(params));
             }
             other => {
@@ -321,63 +410,21 @@ impl StateKeeperIO for ExternalIO {
             .connection_tagged("sync_layer")
             .await?
             .protocol_versions_dal()
-            .load_base_system_contracts_by_version_id(protocol_version as u16)
-            .await
-            .context("failed loading base system contracts")?;
-
-        if let Some(contracts) = base_system_contracts {
-            return Ok(contracts);
-        }
-        tracing::info!("Fetching protocol version {protocol_version:?} from the main node");
-
-        let protocol_version = self
-            .main_node_client
-            .fetch_protocol_version(protocol_version)
-            .await
-            .context("failed to fetch protocol version from the main node")?
-            .context("protocol version is missing on the main node")?;
-        let minor = protocol_version
-            .minor_version()
-            .context("Missing minor protocol version")?;
-        let bootloader_code_hash = protocol_version
-            .bootloader_code_hash()
-            .context("Missing bootloader code hash")?;
-        let default_account_code_hash = protocol_version
-            .default_account_code_hash()
-            .context("Missing default account code hash")?;
-        let evm_emulator_code_hash = protocol_version.evm_emulator_code_hash();
-        let l2_system_upgrade_tx_hash = protocol_version.l2_system_upgrade_tx_hash();
-        self.pool
-            .connection_tagged("sync_layer")
+            .get_base_system_contract_hashes_by_version_id(protocol_version as u16)
             .await?
-            .protocol_versions_dal()
-            .save_protocol_version(
-                ProtocolSemanticVersion {
-                    minor: minor
-                        .try_into()
-                        .context("cannot convert protocol version")?,
-                    patch: VersionPatch(0),
-                },
-                protocol_version.timestamp,
-                Default::default(), // verification keys are unused for EN
-                BaseSystemContractsHashes {
-                    bootloader: bootloader_code_hash,
-                    default_aa: default_account_code_hash,
-                    evm_emulator: evm_emulator_code_hash,
-                },
-                l2_system_upgrade_tx_hash,
-            )
-            .await?;
+            .with_context(|| {
+                format!("Cannot load base system contracts' hashes for {protocol_version:?}. They should already be present")
+            })?;
 
         let bootloader = self
-            .get_base_system_contract(bootloader_code_hash, cursor.next_l2_block)
+            .get_base_system_contract(base_system_contracts.bootloader, cursor.next_l2_block)
             .await
             .with_context(|| format!("cannot fetch bootloader code for {protocol_version:?}"))?;
         let default_aa = self
-            .get_base_system_contract(default_account_code_hash, cursor.next_l2_block)
+            .get_base_system_contract(base_system_contracts.default_aa, cursor.next_l2_block)
             .await
             .with_context(|| format!("cannot fetch default AA code for {protocol_version:?}"))?;
-        let evm_emulator = if let Some(hash) = evm_emulator_code_hash {
+        let evm_emulator = if let Some(hash) = base_system_contracts.evm_emulator {
             Some(
                 self.get_base_system_contract(hash, cursor.next_l2_block)
                     .await
@@ -427,5 +474,100 @@ impl StateKeeperIO for ExternalIO {
             .with_context(|| format!("error waiting for params for L1 batch #{l1_batch_number}"))?;
         wait_latency.observe();
         Ok(hash)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use zksync_dal::{ConnectionPool, CoreDal};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_state_keeper::{io::L1BatchParams, L2BlockParams, StateKeeperIO};
+    use zksync_types::{
+        api, fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
+        H256,
+    };
+
+    use crate::{sync_action::SyncAction, testonly::MockMainNodeClient, ActionQueue, ExternalIO};
+
+    #[tokio::test]
+    async fn insert_batch_with_protocol_version() {
+        // Whenever ExternalIO inserts an unsealed batch into DB it should populate it with protocol
+        // version and make sure that it is present in the DB (i.e. fetch it from main node if not).
+        let pool = ConnectionPool::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+        insert_genesis_batch(&mut conn, &GenesisParams::mock())
+            .await
+            .unwrap();
+        let (actions_sender, action_queue) = ActionQueue::new();
+        let mut client = MockMainNodeClient::default();
+        let next_protocol_version = api::ProtocolVersion {
+            minor_version: Some(ProtocolVersionId::next() as u16),
+            timestamp: 1,
+            bootloader_code_hash: Some(H256::repeat_byte(1)),
+            default_account_code_hash: Some(H256::repeat_byte(1)),
+            evm_emulator_code_hash: Some(H256::repeat_byte(1)),
+            ..api::ProtocolVersion::default()
+        };
+        client.insert_protocol_version(next_protocol_version.clone());
+        let mut external_io = ExternalIO::new(
+            pool.clone(),
+            action_queue,
+            Box::new(client),
+            L2ChainId::default(),
+        )
+        .unwrap();
+
+        let (cursor, _) = external_io.initialize().await.unwrap();
+        let params = L1BatchParams {
+            protocol_version: ProtocolVersionId::next(),
+            validation_computational_gas_limit: u32::MAX,
+            operator_address: Default::default(),
+            fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
+            first_l2_block: L2BlockParams {
+                timestamp: 1,
+                virtual_blocks: 1,
+            },
+            pubdata_params: Default::default(),
+        };
+        actions_sender
+            .push_action_unchecked(SyncAction::OpenBatch {
+                params: params.clone(),
+                number: L1BatchNumber(1),
+                first_l2_block_number: L2BlockNumber(1),
+            })
+            .await
+            .unwrap();
+        let fetched_params = external_io
+            .wait_for_new_batch_params(&cursor, Duration::from_secs(10))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(fetched_params, params);
+
+        // Verify that the next protocol version is in DB
+        let fetched_protocol_version = conn
+            .protocol_versions_dal()
+            .get_protocol_version_with_latest_patch(ProtocolVersionId::next())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            fetched_protocol_version.version.minor as u16,
+            next_protocol_version.minor_version.unwrap()
+        );
+
+        // Verify that the unsealed batch has protocol version
+        let unsealed_batch = conn
+            .blocks_dal()
+            .get_unsealed_l1_batch()
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            unsealed_batch.protocol_version,
+            Some(fetched_protocol_version.version.minor)
+        );
     }
 }
