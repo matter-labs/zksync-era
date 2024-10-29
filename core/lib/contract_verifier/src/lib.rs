@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fmt,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -34,10 +35,18 @@ mod tests;
 mod zksolc_utils;
 mod zkvyper_utils;
 
-#[derive(Debug)]
 enum ConstructorArgs {
     Check(Vec<u8>),
     Ignore,
+}
+
+impl fmt::Debug for ConstructorArgs {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Check(args) => write!(formatter, "0x{}", hex::encode(args)),
+            Self::Ignore => formatter.write_str("(ignored)"),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -58,6 +67,12 @@ impl ContractVerifier {
         }
     }
 
+    #[tracing::instrument(
+        level = "debug",
+        skip_all,
+        err,
+        fields(id = request.id, addr = ?request.req.contract_address)
+    )]
     async fn verify(
         &self,
         mut request: VerificationRequest,
@@ -69,10 +84,10 @@ impl ContractVerifier {
             .connection_pool
             .connection_tagged("contract_verifier")
             .await?;
-        let (deployed_bytecode, creation_tx_calldata) = dbg!(storage
+        let (deployed_bytecode, creation_tx_calldata) = storage
             .contract_verification_dal()
             .get_contract_info_for_verification(request.req.contract_address)
-            .await)?
+            .await?
             .with_context(|| {
                 format!(
                     "Contract is missing in DB for already accepted verification request. Contract address: {:#?}",
@@ -81,14 +96,12 @@ impl ContractVerifier {
             })?;
         drop(storage);
 
-        let constructor_args = self.decode_constructor_arguments_from_calldata(
-            creation_tx_calldata,
-            request.req.contract_address,
-        );
+        let constructor_args =
+            self.decode_constructor_args(creation_tx_calldata, request.req.contract_address)?;
 
         if artifacts.bytecode != deployed_bytecode {
             tracing::info!(
-                "Bytecode mismatch req {}, deployed: 0x{}, compiled 0x{}",
+                "Bytecode mismatch req {}, deployed: 0x{}, compiled: 0x{}",
                 request.id,
                 hex::encode(deployed_bytecode),
                 hex::encode(artifacts.bytecode)
@@ -98,7 +111,13 @@ impl ContractVerifier {
 
         match constructor_args {
             ConstructorArgs::Check(args) => {
-                if request.req.constructor_arguments.0 != args {
+                let provided_constructor_args = &request.req.constructor_arguments.0;
+                if *provided_constructor_args != args {
+                    tracing::trace!(
+                        "Constructor args mismatch, deployed: 0x{}, provided in request: 0x{}",
+                        hex::encode(&args),
+                        hex::encode(provided_constructor_args)
+                    );
                     return Err(ContractVerifierError::IncorrectConstructorArguments);
                 }
             }
@@ -107,10 +126,12 @@ impl ContractVerifier {
             }
         }
 
+        let verified_at = Utc::now();
+        tracing::trace!(%verified_at, "verified request");
         Ok(VerificationInfo {
             request,
             artifacts,
-            verified_at: Utc::now(),
+            verified_at,
         })
     }
 
@@ -122,7 +143,7 @@ impl ContractVerifier {
             .compiler_resolver
             .resolve_solc(&req.compiler_versions)
             .await?;
-        dbg!(&compiler_paths);
+        tracing::debug!(?compiler_paths, ?req.compiler_versions, "resolved compiler paths");
         let zksolc_version = req.compiler_versions.zk_compiler_version();
         let input = Self::build_zksolc_input(req)?;
         let zksolc = ZkSolc::new(compiler_paths, zksolc_version);
@@ -147,12 +168,13 @@ impl ContractVerifier {
             .map_err(|_| ContractVerifierError::CompilationTimeout)?
     }
 
-    pub async fn compile(
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn compile(
         &self,
         req: VerificationIncomingRequest,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         match req.source_code_data.compiler_type() {
-            CompilerType::Solc => dbg!(self.compile_zksolc(req).await),
+            CompilerType::Solc => self.compile_zksolc(req).await,
             CompilerType::Vyper => self.compile_zkvyper(req).await,
         }
     }
@@ -253,84 +275,122 @@ impl ContractVerifier {
         })
     }
 
-    fn decode_constructor_arguments_from_calldata(
+    /// All returned errors are internal.
+    #[tracing::instrument(level = "trace", skip_all, ret, err)]
+    fn decode_constructor_args(
         &self,
         calldata: DeployContractCalldata,
         contract_address_to_verify: Address,
-    ) -> ConstructorArgs {
+    ) -> anyhow::Result<ConstructorArgs> {
         match calldata {
             DeployContractCalldata::Deploy(calldata) => {
-                // `unwrap`s below are safe as long as the contract deployer contract is correct.
+                anyhow::ensure!(
+                    calldata.len() >= 4,
+                    "calldata doesn't include Solidity function selector"
+                );
+
                 let contract_deployer = &self.contract_deployer;
-                let create = contract_deployer.function("create").unwrap();
-                let create2 = contract_deployer.function("create2").unwrap();
-                let create_acc = contract_deployer.function("createAccount").unwrap();
-                let create2_acc = contract_deployer.function("create2Account").unwrap();
+                let create = contract_deployer
+                    .function("create")
+                    .context("no `create` in contract deployer ABI")?;
+                let create2 = contract_deployer
+                    .function("create2")
+                    .context("no `create2` in contract deployer ABI")?;
+                let create_acc = contract_deployer
+                    .function("createAccount")
+                    .context("no `createAccount` in contract deployer ABI")?;
+                let create2_acc = contract_deployer
+                    .function("create2Account")
+                    .context("no `create2Account` in contract deployer ABI")?;
                 let force_deploy = contract_deployer
                     .function("forceDeployOnAddresses")
-                    .unwrap();
+                    .context("no `forceDeployOnAddresses` in contract deployer ABI")?;
 
+                let (selector, token_data) = calldata.split_at(4);
                 // It's assumed that `create` and `create2` methods have the same parameters
                 // and the same for `createAccount` and `create2Account`.
-                match &calldata[0..4] {
+                Ok(match selector {
                     selector
                         if selector == create.short_signature()
                             || selector == create2.short_signature() =>
                     {
                         let tokens = create
-                            .decode_input(&calldata[4..])
-                            .expect("Failed to decode input");
+                            .decode_input(token_data)
+                            .context("failed to decode `create` / `create2` input")?;
                         // Constructor arguments are in the third parameter.
-                        ConstructorArgs::Check(tokens[2].clone().into_bytes().expect(
-                            "The third parameter of `create/create2` should be of type `bytes`",
-                        ))
+                        ConstructorArgs::Check(tokens[2].clone().into_bytes().context(
+                            "third parameter of `create/create2` should be of type `bytes`",
+                        )?)
                     }
                     selector
                         if selector == create_acc.short_signature()
                             || selector == create2_acc.short_signature() =>
                     {
                         let tokens = create
-                            .decode_input(&calldata[4..])
-                            .expect("Failed to decode input");
+                            .decode_input(token_data)
+                            .context("failed to decode `createAccount` / `create2Account` input")?;
                         // Constructor arguments are in the third parameter.
-                        ConstructorArgs::Check(
-                            tokens[2].clone().into_bytes().expect(
-                                "The third parameter of `createAccount/create2Account` should be of type `bytes`",
-                            ),
-                        )
+                        ConstructorArgs::Check(tokens[2].clone().into_bytes().context(
+                            "third parameter of `createAccount/create2Account` should be of type `bytes`",
+                        )?)
                     }
                     selector if selector == force_deploy.short_signature() => {
-                        let tokens = force_deploy
-                            .decode_input(&calldata[4..])
-                            .expect("Failed to decode input");
-                        let deployments = tokens[0].clone().into_array().unwrap();
-                        for deployment in deployments {
-                            match deployment {
-                                Token::Tuple(tokens) => {
-                                    let address = tokens[1].clone().into_address().unwrap();
-                                    if address == contract_address_to_verify {
-                                        let call_constructor =
-                                            tokens[2].clone().into_bool().unwrap();
-                                        return if call_constructor {
-                                            let input = tokens[4].clone().into_bytes().unwrap();
-                                            ConstructorArgs::Check(input)
-                                        } else {
-                                            ConstructorArgs::Ignore
-                                        };
-                                    }
-                                }
-                                _ => panic!("Expected `deployment` to be a tuple"),
-                            }
-                        }
-                        panic!("Couldn't find force deployment for given address");
+                        Self::decode_force_deployment(
+                            token_data,
+                            force_deploy,
+                            contract_address_to_verify,
+                        )
+                        .context("failed decoding force deployment")?
                     }
                     _ => ConstructorArgs::Ignore,
-                }
+                })
             }
-            DeployContractCalldata::Ignore => ConstructorArgs::Ignore,
+            DeployContractCalldata::Ignore => Ok(ConstructorArgs::Ignore),
         }
     }
 
+    fn decode_force_deployment(
+        token_data: &[u8],
+        force_deploy: &ethabi::Function,
+        contract_address_to_verify: Address,
+    ) -> anyhow::Result<ConstructorArgs> {
+        let tokens = force_deploy
+            .decode_input(token_data)
+            .context("failed to decode `forceDeployOnAddresses` input")?;
+        let deployments = tokens[0]
+            .clone()
+            .into_array()
+            .context("first parameter of `forceDeployOnAddresses` is not an array")?;
+        for deployment in deployments {
+            match deployment {
+                Token::Tuple(tokens) => {
+                    let address = tokens[1]
+                        .clone()
+                        .into_address()
+                        .context("unexpected `address`")?;
+                    if address == contract_address_to_verify {
+                        let call_constructor = tokens[2]
+                            .clone()
+                            .into_bool()
+                            .context("unexpected `call_constructor`")?;
+                        return Ok(if call_constructor {
+                            let input = tokens[4]
+                                .clone()
+                                .into_bytes()
+                                .context("unexpected constructor input")?;
+                            ConstructorArgs::Check(input)
+                        } else {
+                            ConstructorArgs::Ignore
+                        });
+                    }
+                }
+                _ => anyhow::bail!("expected `deployment` to be a tuple"),
+            }
+        }
+        anyhow::bail!("couldn't find force deployment for address {contract_address_to_verify:?}");
+    }
+
+    #[tracing::instrument(level = "debug", skip_all, err, fields(id = request_id))]
     async fn process_result(
         &self,
         request_id: usize,
