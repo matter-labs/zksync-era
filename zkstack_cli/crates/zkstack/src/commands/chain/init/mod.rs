@@ -105,7 +105,7 @@ pub async fn init(
     let spinner = Spinner::new(MSG_ACCEPTING_ADMIN_SPINNER);
     accept_admin(
         shell,
-        ecosystem_config,
+        &chain_config.path_to_foundry(),
         contracts_config.l1.chain_admin_addr,
         &chain_config.get_wallets_config()?.governor,
         contracts_config.l1.diamond_proxy_addr,

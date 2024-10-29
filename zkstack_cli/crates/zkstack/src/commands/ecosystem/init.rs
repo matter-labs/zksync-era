@@ -267,7 +267,7 @@ async fn deploy_ecosystem_inner(
 
     accept_admin(
         shell,
-        config,
+        &config.path_to_foundry(),
         contracts_config.l1.chain_admin_addr,
         &config.get_wallets()?.governor,
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
@@ -289,7 +289,7 @@ async fn deploy_ecosystem_inner(
 
     accept_admin(
         shell,
-        config,
+        &config.path_to_foundry(),
         contracts_config.l1.chain_admin_addr,
         &config.get_wallets()?.governor,
         contracts_config.bridges.shared.l1_address,
@@ -313,7 +313,7 @@ async fn deploy_ecosystem_inner(
 
     accept_admin(
         shell,
-        config,
+        &config.path_to_foundry(),
         contracts_config.l1.chain_admin_addr,
         &config.get_wallets()?.governor,
         contracts_config
