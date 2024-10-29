@@ -59,14 +59,8 @@ pub async fn run_external_node(
                 is_validator = secrets.validator_key.is_some(),
                 "running external node"
             );
-            en.run(
-                ctx,
-                actions,
-                cfg,
-                secrets,
-                Some(build_version),
-            )
-            .await
+            en.run(ctx, actions, cfg, secrets, Some(build_version))
+                .await
         }
         None => {
             tracing::info!("running fetcher");
