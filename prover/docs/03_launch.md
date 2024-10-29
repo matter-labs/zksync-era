@@ -88,7 +88,8 @@ zkstack prover run --component=prover-job-monitor
 
 ### Insert protocol version in prover database
 
-Before running the prover, you can insert the protocol version in the prover database by executing the following command:
+Before running the prover, you can insert the protocol version in the prover database by executing the following
+command:
 
 ```bash
 zkstack dev prover insert-version --version <VERSION> --snark-wrapper=<SNARK_WRAPPER>
@@ -99,7 +100,6 @@ To query this information, use the following command:
 ```bash
 zkstack dev prover info
 ```
-
 
 ### Proof compressor
 
