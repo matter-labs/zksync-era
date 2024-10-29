@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use anyhow::Context;
 use common::{
     forge::{Forge, ForgeScript, ForgeScriptArgs},
@@ -52,7 +54,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
     set_token_multiplier_setter(
         shell,
-        &ecosystem_config,
+        &chain_config.path_to_foundry(),
         &chain_config.get_wallets_config()?.governor,
         contracts_config.l1.chain_admin_addr,
         token_multiplier_setter_address,
@@ -72,7 +74,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 
 pub async fn set_token_multiplier_setter(
     shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
+    foundry_contracts_path: &Path,
     governor: &Wallet,
     chain_admin_address: Address,
     target_address: Address,
@@ -91,7 +93,6 @@ pub async fn set_token_multiplier_setter(
             (chain_admin_address, target_address),
         )
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_foundry();
     let forge = Forge::new(&foundry_contracts_path)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
