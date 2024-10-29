@@ -21,12 +21,14 @@ mod tests {
         interval: u32,
         rows_limit: u32,
         max_retries: u16,
+        max_concurrent_requests: u32,
     ) -> DADispatcherConfig {
         DADispatcherConfig {
             polling_interval_ms: Some(interval),
             max_rows_to_dispatch: Some(rows_limit),
             max_retries: Some(max_retries),
             use_dummy_inclusion_data: Some(true),
+            max_concurrent_requests: Some(max_concurrent_requests),
         }
     }
 
@@ -38,9 +40,10 @@ mod tests {
             DA_DISPATCHER_MAX_ROWS_TO_DISPATCH=60
             DA_DISPATCHER_MAX_RETRIES=7
             DA_DISPATCHER_USE_DUMMY_INCLUSION_DATA="true"
+            DA_DISPATCHER_MAX_CONCURRENT_REQUESTS=10
         "#;
         lock.set_env(config);
         let actual = DADispatcherConfig::from_env().unwrap();
-        assert_eq!(actual, expected_da_layer_config(5000, 60, 7));
+        assert_eq!(actual, expected_da_layer_config(5000, 60, 7, 10));
     }
 }

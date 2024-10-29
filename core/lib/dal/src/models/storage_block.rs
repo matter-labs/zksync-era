@@ -154,6 +154,7 @@ pub(crate) struct StorageL1Batch {
     pub events_queue_commitment: Option<Vec<u8>>,
     pub bootloader_initial_content_commitment: Option<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
+    pub blob_id: Option<String>,
     pub fee_address: Vec<u8>,
     pub aggregation_root: Option<Vec<u8>>,
     pub local_root: Option<Vec<u8>>,
@@ -267,6 +268,7 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
             bootloader_initial_content_commitment: batch
                 .bootloader_initial_content_commitment
                 .map(|v| H256::from_slice(&v)),
+            da_blob_id: batch.blob_id.map(|s| s.into_bytes()),
             state_diff_hash: batch.state_diff_hash.map(|v| H256::from_slice(&v)),
             local_root: batch.local_root.map(|v| H256::from_slice(&v)),
             aggregation_root: batch.aggregation_root.map(|v| H256::from_slice(&v)),

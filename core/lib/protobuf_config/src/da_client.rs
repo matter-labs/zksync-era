@@ -5,7 +5,8 @@ use zksync_config::configs::{
         avail::{AvailClientConfig, AvailConfig, AvailDefaultConfig, AvailGasRelayConfig},
         celestia::CelestiaConfig,
         eigen::EigenConfig,
-        DAClientConfig::{Avail, Celestia, Eigen, ObjectStore},
+        eigen_da::{DisperserConfig, EigenDAConfig, MemStoreConfig},
+        DAClientConfig::{Avail, Celestia, Eigen, EigenDA, ObjectStore},
     },
 };
 use zksync_protobuf::{required, ProtoRepr};
@@ -62,6 +63,61 @@ impl ProtoRepr for proto::DataAvailabilityClient {
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
             }
+            proto::data_availability_client::Config::EigenDa(conf) => {
+                let config = required(&conf.config).context("config")?;
+                let eigenda_config = match config {
+                    proto::eigen_da_config::Config::MemStore(conf) => {
+                        EigenDAConfig::MemStore(MemStoreConfig {
+                            max_blob_size_bytes: required(&conf.max_blob_size_bytes)
+                                .context("max_blob_size_bytes")?
+                                .clone(),
+                            blob_expiration: required(&conf.blob_expiration)
+                                .context("blob_expiration")?
+                                .clone(),
+                            get_latency: required(&conf.get_latency)
+                                .context("get_latency")?
+                                .clone(),
+                            put_latency: required(&conf.put_latency)
+                                .context("put_latency")?
+                                .clone(),
+                        })
+                    }
+                    proto::eigen_da_config::Config::Disperser(conf) => {
+                        EigenDAConfig::Disperser(DisperserConfig {
+                            custom_quorum_numbers: Some(conf.custom_quorum_numbers.clone()),
+                            account_id: conf.account_id.clone(),
+                            disperser_rpc: required(&conf.disperser_rpc)
+                                .context("disperser_rpc")?
+                                .clone(),
+                            eth_confirmation_depth: required(&conf.eth_confirmation_depth)
+                                .context("eth_confirmation_depth")?
+                                .clone(),
+                            eigenda_eth_rpc: required(&conf.eigenda_eth_rpc)
+                                .context("eigenda_eth_rpc")?
+                                .clone(),
+                            eigenda_svc_manager_addr: required(&conf.eigenda_svc_manager_addr)
+                                .context("eigenda_svc_manager_addr")?
+                                .clone(),
+                            blob_size_limit: required(&conf.blob_size_limit)
+                                .context("blob_size_limit")?
+                                .clone(),
+                            status_query_timeout: required(&conf.status_query_timeout)
+                                .context("status_query_timeout")?
+                                .clone(),
+                            status_query_interval: required(&conf.status_query_interval)
+                                .context("status_query_interval")?
+                                .clone(),
+                            wait_for_finalization: required(&conf.wait_for_finalization)
+                                .context("wait_for_finalization")?
+                                .clone(),
+                            authenticaded: required(&conf.authenticated)
+                                .context("authenticaded")?
+                                .clone(),
+                        })
+                    }
+                };
+                EigenDA(eigenda_config)
+            }
         };
 
         Ok(client)
@@ -102,6 +158,44 @@ impl ProtoRepr for proto::DataAvailabilityClient {
             ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
                 object_store_proto::ObjectStore::build(config),
             ),
+            EigenDA(config) => match config {
+                EigenDAConfig::MemStore(config) => {
+                    proto::data_availability_client::Config::EigenDa(proto::EigenDaConfig {
+                        config: Some(proto::eigen_da_config::Config::MemStore(
+                            proto::MemStoreConfig {
+                                max_blob_size_bytes: Some(config.max_blob_size_bytes),
+                                blob_expiration: Some(config.blob_expiration),
+                                get_latency: Some(config.get_latency),
+                                put_latency: Some(config.put_latency),
+                            },
+                        )),
+                    })
+                }
+                EigenDAConfig::Disperser(config) => {
+                    proto::data_availability_client::Config::EigenDa(proto::EigenDaConfig {
+                        config: Some(proto::eigen_da_config::Config::Disperser(
+                            proto::DisperserConfig {
+                                custom_quorum_numbers: config
+                                    .custom_quorum_numbers
+                                    .clone()
+                                    .unwrap_or_default(),
+                                account_id: config.account_id.clone(),
+                                disperser_rpc: Some(config.disperser_rpc.clone()),
+                                eth_confirmation_depth: Some(config.eth_confirmation_depth),
+                                eigenda_eth_rpc: Some(config.eigenda_eth_rpc.clone()),
+                                eigenda_svc_manager_addr: Some(
+                                    config.eigenda_svc_manager_addr.clone(),
+                                ),
+                                blob_size_limit: Some(config.blob_size_limit),
+                                status_query_timeout: Some(config.status_query_timeout),
+                                status_query_interval: Some(config.status_query_interval),
+                                wait_for_finalization: Some(config.wait_for_finalization),
+                                authenticated: Some(config.authenticaded),
+                            },
+                        )),
+                    })
+                }
+            },
         };
 
         Self {

@@ -6,6 +6,7 @@ pub const DEFAULT_POLLING_INTERVAL_MS: u32 = 5000;
 pub const DEFAULT_MAX_ROWS_TO_DISPATCH: u32 = 100;
 pub const DEFAULT_MAX_RETRIES: u16 = 5;
 pub const DEFAULT_USE_DUMMY_INCLUSION_DATA: bool = false;
+pub const DEFAULT_MAX_CONCURRENT_REQUESTS: u32 = 100;
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct DADispatcherConfig {
@@ -19,6 +20,8 @@ pub struct DADispatcherConfig {
     // TODO: run a verification task to check if the L1 contract expects the inclusion proofs to
     // avoid the scenario where contracts expect real proofs, and server is using dummy proofs.
     pub use_dummy_inclusion_data: Option<bool>,
+    /// The maximun number of concurrent request to send to the DA server.
+    pub max_concurrent_requests: Option<u32>,
 }
 
 impl DADispatcherConfig {
@@ -28,6 +31,7 @@ impl DADispatcherConfig {
             max_rows_to_dispatch: Some(DEFAULT_MAX_ROWS_TO_DISPATCH),
             max_retries: Some(DEFAULT_MAX_RETRIES),
             use_dummy_inclusion_data: Some(DEFAULT_USE_DUMMY_INCLUSION_DATA),
+            max_concurrent_requests: Some(DEFAULT_MAX_CONCURRENT_REQUESTS),
         }
     }
 
