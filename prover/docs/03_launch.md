@@ -68,6 +68,8 @@ WVG prepares inputs for prover, and it's a single-threaded time-consuming operat
 changing the `threads` parameter. The exact amount of WVGs needed to "feed" one prover depends on CPU/GPU specs, but a
 ballpark estimate (useful for local development) is 10 WVGs per prover.
 
+> NOTE: The WVG thread typically uses approximately 10GB of RAM.
+
 ### Prover
 
 ```bash
