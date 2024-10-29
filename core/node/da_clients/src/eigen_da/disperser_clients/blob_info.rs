@@ -60,13 +60,12 @@ impl Encodable for G1Commitment {
     }
 }
 
-impl TryFrom<DisperserG1Commitment> for G1Commitment {
-    type Error = ConversionError;
-    fn try_from(value: DisperserG1Commitment) -> Result<Self, Self::Error> {
-        Ok(Self {
+impl From<DisperserG1Commitment> for G1Commitment {
+    fn from(value: DisperserG1Commitment) -> Self {
+        Self {
             x: value.x,
             y: value.y,
-        })
+        }
     }
 }
 
@@ -111,15 +110,14 @@ impl Encodable for BlobQuorumParam {
     }
 }
 
-impl TryFrom<DisperserBlobQuorumParam> for BlobQuorumParam {
-    type Error = ConversionError;
-    fn try_from(value: DisperserBlobQuorumParam) -> Result<Self, Self::Error> {
-        Ok(Self {
+impl From<DisperserBlobQuorumParam> for BlobQuorumParam {
+    fn from(value: DisperserBlobQuorumParam) -> Self {
+        Self {
             quorum_number: value.quorum_number,
             adversary_threshold_percentage: value.adversary_threshold_percentage,
             confirmation_threshold_percentage: value.confirmation_threshold_percentage,
             chunk_length: value.chunk_length,
-        })
+        }
     }
 }
 
@@ -174,14 +172,14 @@ impl TryFrom<DisperserBlobHeader> for BlobHeader {
         if value.commitment.is_none() {
             return Err(ConversionError::NotPresentError);
         }
-        let blob_quorum_params: Result<Vec<BlobQuorumParam>, Self::Error> = value
+        let blob_quorum_params: Vec<BlobQuorumParam> = value
             .blob_quorum_params
             .iter()
-            .map(|param| BlobQuorumParam::try_from(param.clone()))
+            .map(|param| BlobQuorumParam::from(param.clone()))
             .collect();
-        let blob_quorum_params = blob_quorum_params?;
+        let blob_quorum_params = blob_quorum_params;
         Ok(Self {
-            commitment: G1Commitment::try_from(value.commitment.unwrap())?,
+            commitment: G1Commitment::from(value.commitment.unwrap()),
             data_length: value.data_length,
             blob_quorum_params,
         })
@@ -232,15 +230,14 @@ impl Encodable for BatchHeader {
     }
 }
 
-impl TryFrom<DisperserBatchHeader> for BatchHeader {
-    type Error = ConversionError;
-    fn try_from(value: DisperserBatchHeader) -> Result<Self, Self::Error> {
-        Ok(Self {
+impl From<DisperserBatchHeader> for BatchHeader {
+    fn from(value: DisperserBatchHeader) -> Self {
+        Self {
             batch_root: value.batch_root,
             quorum_numbers: value.quorum_numbers,
             quorum_signed_percentages: value.quorum_signed_percentages,
             reference_block_number: value.reference_block_number,
-        })
+        }
     }
 }
 
@@ -296,7 +293,7 @@ impl TryFrom<DisperserBatchMetadata> for BatchMetadata {
             return Err(ConversionError::NotPresentError);
         }
         Ok(Self {
-            batch_header: BatchHeader::try_from(value.batch_header.unwrap())?,
+            batch_header: BatchHeader::from(value.batch_header.unwrap()),
             signatory_record_hash: value.signatory_record_hash,
             fee: value.fee,
             confirmation_block_number: value.confirmation_block_number,
