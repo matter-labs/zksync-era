@@ -18,7 +18,7 @@ use subxt_signer::{
 };
 use zksync_types::H256;
 
-use crate::avail::client::to_non_retriable_da_error;
+use crate::utils::to_non_retriable_da_error;
 
 const PROTOCOL_VERSION: u8 = 4;
 
