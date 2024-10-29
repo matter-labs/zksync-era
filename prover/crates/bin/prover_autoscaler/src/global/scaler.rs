@@ -419,12 +419,11 @@ impl SimpleScaler {
         pool.pods.insert(PodStatus::Running, 0);
 
         let pod_re = Regex::new(&format!("^{}-", self.pod_name_prefix)).unwrap();
-        for pod in namespace_value.pods.iter().filter_map(|(pod_name, pod)| {
-            if pod_re.is_match(pod_name) {
-                return Some(pod);
-            }
-            None
-        }) {
+        for (_, pod) in namespace_value
+            .pods
+            .iter()
+            .filter(|(name, _)| pod_re.is_match(name))
+        {
             let mut status = PodStatus::from_str(&pod.status).unwrap_or_default();
             if status == PodStatus::Pending && pod.changed < Utc::now() - self.long_pending_duration
             {
