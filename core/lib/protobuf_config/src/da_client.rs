@@ -22,7 +22,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 bridge_api_url: required(&conf.bridge_api_url)
                     .context("bridge_api_url")?
                     .clone(),
-                timeout: *required(&conf.timeout).context("timeout")? as usize,
+                timeout_ms: *required(&conf.timeout_ms).context("timeout_ms")? as usize,
                 config: match conf.config.as_ref() {
                     Some(proto::avail_config::Config::FullClient(full_client_conf)) => {
                         AvailClientConfig::FullClient(AvailDefaultConfig {
@@ -63,7 +63,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
         let config = match &this {
             Avail(config) => proto::data_availability_client::Config::Avail(proto::AvailConfig {
                 bridge_api_url: Some(config.bridge_api_url.clone()),
-                timeout: Some(config.timeout as u64),
+                timeout_ms: Some(config.timeout_ms as u64),
                 config: match &config.config {
                     AvailClientConfig::FullClient(conf) => Some(
                         proto::avail_config::Config::FullClient(proto::AvailClientConfig {

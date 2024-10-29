@@ -948,7 +948,7 @@ impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::da_client::DAClientConfig {
         Avail(AvailConfig {
             bridge_api_url: self.sample(rng),
-            timeout: self.sample(rng),
+            timeout_ms: self.sample(rng),
             config: AvailClientConfig::FullClient(AvailDefaultConfig {
                 api_node_url: self.sample(rng),
                 app_id: self.sample(rng),

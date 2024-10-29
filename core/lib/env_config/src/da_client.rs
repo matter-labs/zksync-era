@@ -21,7 +21,7 @@ impl FromEnv for DAClientConfig {
         let config = match client_tag.as_str() {
             AVAIL_CLIENT_CONFIG_NAME => Self::Avail(AvailConfig {
                 bridge_api_url: env::var("DA_BRIDGE_API_URL").ok().unwrap(),
-                timeout: env::var("DA_TIMEOUT")?.parse()?,
+                timeout_ms: env::var("DA_TIMEOUT_MS")?.parse()?,
                 config: match env::var("DA_AVAIL_CLIENT_TYPE")?.as_str() {
                     AVAIL_FULL_CLIENT_NAME => {
                         AvailClientConfig::FullClient(envy_load("da_avail_full_client", "DA_")?)
@@ -129,11 +129,11 @@ mod tests {
         api_node_url: &str,
         bridge_api_url: &str,
         app_id: u32,
-        timeout: usize,
+        timeout_ms: usize,
     ) -> DAClientConfig {
         DAClientConfig::Avail(AvailConfig {
             bridge_api_url: bridge_api_url.to_string(),
-            timeout,
+            timeout_ms,
             config: AvailClientConfig::FullClient(AvailDefaultConfig {
                 api_node_url: api_node_url.to_string(),
                 app_id,
@@ -164,7 +164,7 @@ mod tests {
                 "localhost:12345",
                 "localhost:54321",
                 "1".parse::<u32>().unwrap(),
-                "2".parse::<usize>().unwrap(),
+                "2000".parse::<usize>().unwrap(),
             )
         );
     }
