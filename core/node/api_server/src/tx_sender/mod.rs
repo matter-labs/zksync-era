@@ -272,7 +272,7 @@ impl TxSenderConfig {
                 .validation_computational_gas_limit,
             chain_id,
             whitelisted_tokens_for_aa: web3_json_config.whitelisted_tokens_for_aa.clone(),
-            timestamp_asserter_params: timestamp_asserter_params,
+            timestamp_asserter_params,
         }
     }
 }

@@ -1,5 +1,3 @@
-use std::u64;
-
 use zk_evm_1_5_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode},
@@ -111,17 +109,14 @@ impl<H: HistoryMode> ValidationTracer<H> {
                             let params = self.timestamp_asserter_params.as_ref().unwrap();
 
                             // end is guaranteed to be greater than the start as
-                            let difference = (end - start)
-                                .try_into()
-                                .unwrap_or(U256::from(u32::MAX))
-                                .as_u32();
+                            let difference = (end - start).try_into().unwrap_or(u32::MAX);
                             if difference < params.min_range_sec {
                                 return Err(ViolatedValidationRule::TimestampAssertionShortRange);
                             }
 
                             // using self.l1_batch_env.timestamp is ok here because the tracer is always
                             // used in a oneshot execution mode
-                            if end.try_into().unwrap_or(U256::from(u64::MAX)).as_u64()
+                            if end.try_into().unwrap_or(u64::MAX)
                                 < self.l1_batch_env.timestamp + params.min_time_till_end_sec as u64
                             {
                                 return Err(
