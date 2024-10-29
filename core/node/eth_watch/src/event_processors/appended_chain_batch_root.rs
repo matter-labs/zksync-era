@@ -131,6 +131,10 @@ impl EventProcessor for BatchRootProcessor {
                 self.next_batch_number_lower_bound = *batch_number + 1;
             }
 
+            let chain_root_local = self.merkle_tree.merkle_root();
+            let chain_root_remote = sl_client.get_chain_root(sl_l1_batch_number, self.l2_chain_id).await?;
+            assert_eq!(chain_root_local, chain_root_remote, "Chain root mismatch");
+
             let number_of_leaves = self.merkle_tree.length();
             let batch_proofs = (0..chain_batches.len()).map(|i| {
                 let leaf_position = number_of_leaves - chain_batches.len() + i;

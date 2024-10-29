@@ -20,6 +20,7 @@ zksync_eth_client.workspace = true
 zksync_shared_metrics.workspace = true
 zksync_mini_merkle_tree.workspace = true
 zksync_utils.workspace = true
+zksync_web3_decl.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true

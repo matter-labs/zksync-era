@@ -1,21 +1,14 @@
 use std::fmt;
 
 use anyhow::Context;
-use zksync_contracts::{
-    getters_facet_contract, state_transition_manager_contract, verifier_contract,
-};
+use zksync_contracts::{getters_facet_contract, l2_message_root, state_transition_manager_contract, verifier_contract};
 use zksync_eth_client::{
     clients::{DynClient, L1},
     CallFunctionArgs, ClientError, ContractCallError, EnrichedClientError, EnrichedClientResult,
     EthInterface,
 };
 use zksync_system_constants::L2_MESSAGE_ROOT_ADDRESS;
-use zksync_types::{
-    api::{ChainAggProof, Log},
-    ethabi::Contract,
-    web3::{BlockId, BlockNumber, FilterBuilder},
-    Address, L1BatchNumber, L2ChainId, SLChainId, H256, U256,
-};
+use zksync_types::{api::{ChainAggProof, Log}, ethabi::Contract, web3::{BlockId, BlockNumber, FilterBuilder}, Address, L1BatchNumber, L2BlockNumber, L2ChainId, SLChainId, H256, U256, U64};
 
 /// L1 client functionality used by [`EthWatch`](crate::EthWatch) and constituent event processors.
 #[async_trait::async_trait]
@@ -53,6 +46,12 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         l1_batch_number: L1BatchNumber,
         chain_id: L2ChainId,
     ) -> EnrichedClientResult<Option<ChainAggProof>>;
+
+    async fn get_chain_root(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        l2_chain_id: L2ChainId,
+    ) -> Result<H256, ContractCallError>;
 }
 
 pub const RETRY_LIMIT: usize = 5;
@@ -74,6 +73,7 @@ pub struct EthHttpQueryClient {
     chain_admin_address: Option<Address>,
     verifier_contract_abi: Contract,
     getters_facet_contract_abi: Contract,
+    message_root_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
 }
 
@@ -104,6 +104,7 @@ impl EthHttpQueryClient {
                 .signature(),
             verifier_contract_abi: verifier_contract(),
             getters_facet_contract_abi: getters_facet_contract(),
+            message_root_abi: l2_message_root(),
             confirmations_for_eth_event,
         }
     }
@@ -321,7 +322,7 @@ impl EthClient for EthHttpQueryClient {
     }
 
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId> {
-        Ok(self.client.fetch_chain_id().await?)
+        self.client.fetch_chain_id().await
     }
 
     async fn get_chain_log_proof(
@@ -329,9 +330,18 @@ impl EthClient for EthHttpQueryClient {
         l1_batch_number: L1BatchNumber,
         chain_id: L2ChainId,
     ) -> EnrichedClientResult<Option<ChainAggProof>> {
-        Ok(self
+        self
             .client
             .get_chain_log_proof(l1_batch_number, chain_id)
-            .await?)
+            .await
+    }
+
+    async fn get_chain_root(&self, l1_batch_number: L1BatchNumber, l2_chain_id: L2ChainId) -> Result<H256, ContractCallError> {
+        let last_l2_block = L2BlockNumber(l1_batch_number.0); // FIXME
+        CallFunctionArgs::new("getChainRoot", U256::from(l2_chain_id.0))
+            .with_block(BlockId::Number(U64::from(last_l2_block.0).into()))
+            .for_contract(L2_MESSAGE_ROOT_ADDRESS, &self.message_root_abi)
+            .call(&self.client)
+            .await
     }
 }
