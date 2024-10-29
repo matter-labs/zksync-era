@@ -64,7 +64,7 @@ pub async fn register_chain(
     sender: Option<String>,
     broadcast: bool,
 ) -> anyhow::Result<()> {
-    let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&config.link_to_code);
+    let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&chain_config.link_to_code);
 
     let deploy_config = RegisterChainL1Config::new(chain_config, contracts)?;
     deploy_config.save(shell, deploy_config_path)?;
