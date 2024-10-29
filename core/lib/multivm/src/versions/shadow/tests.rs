@@ -3,7 +3,7 @@
 use std::{collections::HashSet, rc::Rc};
 
 use zksync_types::{writes::StateDiffRecord, StorageKey, Transaction, H256, U256};
-use zksync_vm_interface::pubdata::PubdataBuilder;
+use zksync_vm_interface::pubdata::{PubdataBuilder, PubdataInput};
 
 use super::ShadowedFastVm;
 use crate::{
@@ -120,11 +120,30 @@ impl TestedVm for ShadowedFastVm {
         });
     }
 
-    fn push_transaction_with_refund(&mut self, tx: Transaction, refund: u64) {
-        self.get_mut("push_transaction_with_refund", |r| match r {
-            ShadowMut::Main(vm) => vm.push_transaction_with_refund(tx.clone(), refund),
-            ShadowMut::Shadow(vm) => vm.push_transaction_with_refund(tx.clone(), refund),
-        });
+    fn push_transaction_with_refund_and_compression(
+        &mut self,
+        tx: Transaction,
+        refund: u64,
+        compression: bool,
+    ) {
+        self.get_mut(
+            "push_transaction_with_refund_and_compression",
+            |r| match r {
+                ShadowMut::Main(vm) => {
+                    vm.push_transaction_with_refund_and_compression(tx.clone(), refund, compression)
+                }
+                ShadowMut::Shadow(vm) => {
+                    vm.push_transaction_with_refund_and_compression(tx.clone(), refund, compression)
+                }
+            },
+        );
+    }
+
+    fn pubdata_input(&self) -> PubdataInput {
+        self.get("pubdata_input", |r| match r {
+            ShadowRef::Main(vm) => vm.pubdata_input(),
+            ShadowRef::Shadow(vm) => vm.pubdata_input(),
+        })
     }
 }
 
@@ -231,6 +250,15 @@ impl TestedVm for ShadowedFastVm {
 //     #[test]
 //     fn is_write_initial_behaviour() {
 //         test_is_write_initial_behaviour::<super::ShadowedFastVm>();
+//     }
+// }
+//
+// mod l1_messenger {
+//     use crate::versions::testonly::l1_messenger::*;
+//
+//     #[test]
+//     fn rollup_da_output_hash_match() {
+//         test_rollup_da_output_hash_match::<super::ShadowedFastVm>();
 //     }
 // }
 //
