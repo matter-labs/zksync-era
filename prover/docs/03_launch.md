@@ -86,6 +86,21 @@ You can start the prover job monitor by specifying its component as follows.
 zkstack prover run --component=prover-job-monitor
 ```
 
+### Insert protocol version in prover database
+
+Before running the prover, you can insert the protocol version in the prover database by executing the following command:
+
+```bash
+zkstack dev prover insert-version --version <VERSION> --snark-wrapper=<SNARK_WRAPPER>
+```
+
+To query this information, use the following command:
+
+```bash
+zkstack dev prover info
+```
+
+
 ### Proof compressor
 
 ⚠️ Both prover and proof compressor require 24GB of VRAM, and currently it's not possible to make them use different
