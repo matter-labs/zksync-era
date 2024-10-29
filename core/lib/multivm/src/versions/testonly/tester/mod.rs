@@ -8,7 +8,8 @@ use zksync_types::{
     Address, L1BatchNumber, StorageKey, Transaction, H256, U256,
 };
 use zksync_vm_interface::{
-    pubdata::PubdataBuilder, CurrentExecutionState, InspectExecutionMode, VmExecutionResultAndLogs,
+    pubdata::{PubdataBuilder, PubdataInput},
+    CurrentExecutionState, InspectExecutionMode, VmExecutionResultAndLogs,
     VmInterfaceHistoryEnabled,
 };
 
@@ -226,6 +227,14 @@ pub(crate) trait TestedVm:
     /// Same as `start_new_l2_block`, but should skip consistency checks (to verify they are performed by the bootloader).
     fn push_l2_block_unchecked(&mut self, block: L2BlockEnv);
 
-    /// Pushes a transaction with predefined refund value.
-    fn push_transaction_with_refund(&mut self, tx: Transaction, refund: u64);
+    /// Pushes a transaction with predefined refund value and compression.
+    fn push_transaction_with_refund_and_compression(
+        &mut self,
+        tx: Transaction,
+        refund: u64,
+        compression: bool,
+    );
+
+    /// Returns pubdata input.
+    fn pubdata_input(&self) -> PubdataInput;
 }
