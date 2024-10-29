@@ -31,7 +31,7 @@ impl EigenDAClient {
                 };
 
                 let inner = Channel::builder(config.disperser_rpc.parse()?)
-                    .tls_config(ClientTlsConfig::new().with_native_roots())?;
+                    .tls_config(ClientTlsConfig::new())?;
                 let disperser = Arc::new(Mutex::new(DisperserClient::connect(inner).await?));
                 Disperser::Remote(RemoteClient { disperser, config })
             }

@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor::{self as executor, attestation};
 use zksync_consensus_roles::{attester, validator};
-use zksync_consensus_storage::{BatchStore, BlockStore};
+use zksync_consensus_storage::{BlockStore, PersistentBlockStore as _};
 use zksync_dal::consensus_dal;
 use zksync_node_sync::{fetcher::FetchedBlock, sync_action::ActionQueueSender, SyncState};
 use zksync_types::L2BlockNumber;
@@ -21,6 +21,10 @@ use crate::{
     storage::{self, ConnectionPool},
 };
 
+/// If less than TEMPORARY_FETCHER_THRESHOLD certificates are missing,
+/// the temporary fetcher will stop fetching blocks.
+pub(crate) const TEMPORARY_FETCHER_THRESHOLD: u64 = 10;
+
 /// External node.
 pub(super) struct EN {
     pub(super) pool: ConnectionPool,
@@ -31,9 +35,6 @@ pub(super) struct EN {
 impl EN {
     /// Task running a consensus node for the external node.
     /// It may be a validator, but it cannot be a leader (cannot propose blocks).
-    ///
-    /// NOTE: Before starting the consensus node it fetches all the blocks
-    /// older than consensus genesis from the main node using json RPC.
     pub async fn run(
         self,
         ctx: &ctx::Ctx,
@@ -64,21 +65,12 @@ impl EN {
                 .await
                 .wrap("try_update_global_config()")?;
 
-            let mut payload_queue = conn
+            let payload_queue = conn
                 .new_payload_queue(ctx, actions, self.sync_state.clone())
                 .await
                 .wrap("new_payload_queue()")?;
 
             drop(conn);
-
-            // Fetch blocks before the genesis.
-            self.fetch_blocks(
-                ctx,
-                &mut payload_queue,
-                Some(global_config.genesis.first_block),
-            )
-            .await
-            .wrap("fetch_blocks()")?;
 
             // Monitor the genesis of the main node.
             // If it changes, it means that a hard fork occurred and we need to reset the consensus state.
@@ -88,7 +80,12 @@ impl EN {
                     let old = old;
                     loop {
                         if let Ok(new) = self.fetch_global_config(ctx).await {
-                            if new != old {
+                            // We verify the transition here to work around the situation
+                            // where `consenus_global_config()` RPC fails randomly and fallback
+                            // to `consensus_genesis()` RPC activates.
+                            if new != old
+                                && consensus_dal::verify_config_transition(&old, &new).is_ok()
+                            {
                                 return Err(anyhow::format_err!(
                                     "global config changed: old {old:?}, new {new:?}"
                                 )
@@ -102,32 +99,56 @@ impl EN {
 
             // Run consensus component.
             // External nodes have a payload queue which they use to fetch data from the main node.
-            let (store, runner) = Store::new(ctx, self.pool.clone(), Some(payload_queue))
-                .await
-                .wrap("Store::new()")?;
-            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
+            let (store, runner) = Store::new(
+                ctx,
+                self.pool.clone(),
+                Some(payload_queue),
+                Some(self.client.clone()),
+            )
+            .await
+            .wrap("Store::new()")?;
+            s.spawn_bg(async { Ok(runner.run(ctx).await.context("Store::runner()")?) });
+
+            // Run the temporary fetcher until the certificates are backfilled.
+            // Temporary fetcher should be removed once json RPC syncing is fully deprecated.
+            s.spawn_bg({
+                let store = store.clone();
+                async {
+                    let store = store;
+                    self.temporary_block_fetcher(ctx, &store).await?;
+                    tracing::info!(
+                        "temporary block fetcher finished, switching to p2p fetching only"
+                    );
+                    Ok(())
+                }
+            });
 
             let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone()))
                 .await
                 .wrap("BlockStore::new()")?;
-            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
-
-            let (batch_store, runner) = BatchStore::new(ctx, Box::new(store.clone()))
-                .await
-                .wrap("BatchStore::new()")?;
-            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
+            s.spawn_bg(async { Ok(runner.run(ctx).await.context("BlockStore::run()")?) });
 
             let attestation = Arc::new(attestation::Controller::new(attester));
-            s.spawn_bg(self.run_attestation_controller(
-                ctx,
-                global_config.clone(),
-                attestation.clone(),
-            ));
+            s.spawn_bg({
+                let global_config = global_config.clone();
+                let attestation = attestation.clone();
+                async {
+                    let res = self
+                        .run_attestation_controller(ctx, global_config, attestation)
+                        .await
+                        .wrap("run_attestation_controller()");
+                    // Attestation currently is not critical for the node to function.
+                    // If it fails, we just log the error and continue.
+                    if let Err(err) = res {
+                        tracing::error!("attestation controller failed: {err:#}");
+                    }
+                    Ok(())
+                }
+            });
 
             let executor = executor::Executor {
                 config: config::executor(&cfg, &secrets, &global_config, build_version)?,
                 block_store,
-                batch_store,
                 validator: config::validator_key(&secrets)
                     .context("validator_key")?
                     .map(|key| executor::Validator {
@@ -192,7 +213,11 @@ impl EN {
         let mut next = attester::BatchNumber(0);
         loop {
             let status = loop {
-                match self.fetch_attestation_status(ctx).await {
+                match self
+                    .fetch_attestation_status(ctx)
+                    .await
+                    .wrap("fetch_attestation_status()")
+                {
                     Err(err) => tracing::warn!("{err:#}"),
                     Ok(status) => {
                         if status.genesis != cfg.genesis.hash() {
@@ -210,10 +235,13 @@ impl EN {
                 "waiting for hash of batch {:?}",
                 status.next_batch_to_attest
             );
-            let hash = self
-                .pool
-                .wait_for_batch_hash(ctx, status.next_batch_to_attest)
-                .await?;
+            let hash = consensus_dal::batch_hash(
+                &self
+                    .pool
+                    .wait_for_batch_info(ctx, status.next_batch_to_attest, POLL_INTERVAL)
+                    .await
+                    .wrap("wait_for_batch_info()")?,
+            );
             let Some(committee) = registry
                 .attester_committee_for(
                     ctx,
@@ -348,8 +376,42 @@ impl EN {
         }
     }
 
+    /// Fetches blocks from the main node directly, until the certificates
+    /// are backfilled. This allows for smooth transition from json RPC to p2p block syncing.
+    pub(crate) async fn temporary_block_fetcher(
+        &self,
+        ctx: &ctx::Ctx,
+        store: &Store,
+    ) -> ctx::Result<()> {
+        const MAX_CONCURRENT_REQUESTS: usize = 30;
+        scope::run!(ctx, |ctx, s| async {
+            let (send, mut recv) = ctx::channel::bounded(MAX_CONCURRENT_REQUESTS);
+            s.spawn(async {
+                let Some(mut next) = store.next_block(ctx).await? else {
+                    return Ok(());
+                };
+                while store.persisted().borrow().next().0 + TEMPORARY_FETCHER_THRESHOLD < next.0 {
+                    let n = L2BlockNumber(next.0.try_into().context("overflow")?);
+                    self.sync_state.wait_for_main_node_block(ctx, n).await?;
+                    send.send(ctx, s.spawn(self.fetch_block(ctx, n))).await?;
+                    next = next.next();
+                }
+                drop(send);
+                Ok(())
+            });
+            while let Ok(block) = recv.recv_or_disconnected(ctx).await? {
+                store
+                    .queue_next_fetched_block(ctx, block.join(ctx).await?)
+                    .await
+                    .wrap("queue_next_fetched_block()")?;
+            }
+            Ok(())
+        })
+        .await
+    }
+
     /// Fetches blocks from the main node in range `[cursor.next()..end)`.
-    pub(super) async fn fetch_blocks(
+    async fn fetch_blocks(
         &self,
         ctx: &ctx::Ctx,
         queue: &mut storage::PayloadQueue,
@@ -363,7 +425,7 @@ impl EN {
             s.spawn(async {
                 let send = send;
                 while end.map_or(true, |end| next < end) {
-                    let n = L2BlockNumber(next.0.try_into().unwrap());
+                    let n = L2BlockNumber(next.0.try_into().context("overflow")?);
                     self.sync_state.wait_for_main_node_block(ctx, n).await?;
                     send.send(ctx, s.spawn(self.fetch_block(ctx, n))).await?;
                     next = next.next();
@@ -372,7 +434,7 @@ impl EN {
             });
             while end.map_or(true, |end| queue.next() < end) {
                 let block = recv.recv(ctx).await?.join(ctx).await?;
-                queue.send(block).await?;
+                queue.send(block).await.context("queue.send()")?;
             }
             Ok(())
         })
@@ -381,7 +443,8 @@ impl EN {
         if first < queue.next() {
             self.pool
                 .wait_for_payload(ctx, queue.next().prev().unwrap())
-                .await?;
+                .await
+                .wrap("wait_for_payload()")?;
         }
         Ok(())
     }

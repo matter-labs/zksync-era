@@ -33,6 +33,18 @@ impl ActionQueueSender {
         Ok(())
     }
 
+    /// Pushes a single action into the queue without checking validity of the sequence.
+    ///
+    /// Useful to simulate situations where only a part of the sequence was executed on the node.
+    #[cfg(test)]
+    pub async fn push_action_unchecked(&self, action: SyncAction) -> anyhow::Result<()> {
+        self.0
+            .send(action)
+            .await
+            .map_err(|_| anyhow::anyhow!("node action processor stopped"))?;
+        Ok(())
+    }
+
     /// Checks whether the action sequence is valid.
     /// Returned error is meant to be used as a panic message, since an invalid sequence represents an unrecoverable
     /// error. This function itself does not panic for the ease of testing.
@@ -186,6 +198,7 @@ mod tests {
                     timestamp: 1,
                     virtual_blocks: 1,
                 },
+                pubdata_params: Default::default(),
             },
             number: L1BatchNumber(1),
             first_l2_block_number: L2BlockNumber(1),

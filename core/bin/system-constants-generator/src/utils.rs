@@ -3,13 +3,13 @@ use std::{cell::RefCell, rc::Rc};
 use once_cell::sync::Lazy;
 use zksync_contracts::{
     load_sys_contract, read_bootloader_code, read_bytecode_from_path, read_sys_contract_bytecode,
-    BaseSystemContracts, ContractLanguage, SystemContractCode,
+    read_yul_bytecode, BaseSystemContracts, ContractLanguage, SystemContractCode,
 };
 use zksync_multivm::{
     interface::{
         storage::{InMemoryStorage, StorageView, WriteStorage},
         tracer::VmExecutionStopReason,
-        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
+        InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmFactory,
         VmInterface, VmInterfaceExt,
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
@@ -171,9 +171,16 @@ pub(super) fn get_l1_txs(number_of_txs: usize) -> (Vec<Transaction>, Vec<Transac
 }
 
 fn read_bootloader_test_code(test: &str) -> Vec<u8> {
-    read_bytecode_from_path(format!(
+    if let Some(contract) = read_bytecode_from_path(format!(
         "contracts/system-contracts/zkout/{test}.yul/contracts-preprocessed/bootloader/{test}.yul.json",
-    ))
+    )){
+        contract
+    } else  {
+        read_yul_bytecode(
+            "contracts/system-contracts/bootloader/tests/artifacts",
+            test
+        )
+    }
 }
 
 fn default_l1_batch() -> L1BatchEnv {
@@ -264,8 +271,9 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
         output: tracer_result.clone(),
     }
     .into_tracer_pointer();
+
     let mut vm: Vm<_, HistoryEnabled> = Vm::new(l1_batch, system_env, storage_view.to_rc_ptr());
-    let result = vm.inspect(&mut tracer.into(), VmExecutionMode::Bootloader);
+    let result = vm.inspect(&mut tracer.into(), InspectExecutionMode::Bootloader);
 
     assert!(!result.result.is_failed(), "The internal call has reverted");
     tracer_result.take()
@@ -324,7 +332,7 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
     let mut total_gas_refunded = 0;
     for tx in txs {
         vm.push_transaction(tx);
-        let tx_execution_result = vm.execute(VmExecutionMode::OneTx);
+        let tx_execution_result = vm.execute(InspectExecutionMode::OneTx);
 
         total_gas_refunded += tx_execution_result.refunds.gas_refunded;
         if !accept_failure {
@@ -336,7 +344,7 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
         }
     }
 
-    let result = vm.execute(VmExecutionMode::Bootloader);
+    let result = vm.execute(InspectExecutionMode::Bootloader);
     let metrics = result.get_execution_metrics(None);
 
     VmSpentResourcesResult {

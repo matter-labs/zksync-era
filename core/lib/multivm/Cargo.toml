@@ -29,6 +29,7 @@ zksync_contracts.workspace = true
 zksync_utils.workspace = true
 zksync_system_constants.workspace = true
 zksync_vm_interface.workspace = true
+zksync_mini_merkle_tree.workspace = true
 
 anyhow.workspace = true
 hex.workspace = true
@@ -42,5 +43,6 @@ ethabi.workspace = true
 [dev-dependencies]
 assert_matches.workspace = true
 pretty_assertions.workspace = true
+test-casing.workspace = true
 zksync_test_account.workspace = true
 zksync_eth_signer.workspace = true

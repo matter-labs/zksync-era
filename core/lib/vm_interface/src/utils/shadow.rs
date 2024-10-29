@@ -1,7 +1,9 @@
 use std::{
+    any,
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     fmt,
+    rc::Rc,
     sync::Arc,
 };
 
@@ -9,10 +11,11 @@ use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transact
 
 use super::dump::{DumpingVm, VmDump};
 use crate::{
+    pubdata::PubdataBuilder,
     storage::{ReadStorage, StoragePtr, StorageView},
-    BytecodeCompressionResult, CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-    SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
-    VmInterfaceHistoryEnabled, VmTrackingContracts,
+    BytecodeCompressionResult, CurrentExecutionState, FinishedL1Batch, InspectExecutionMode,
+    L1BatchEnv, L2BlockEnv, PushTransactionResult, SystemEnv, VmExecutionResultAndLogs, VmFactory,
+    VmInterface, VmInterfaceHistoryEnabled, VmTrackingContracts,
 };
 
 /// Handler for VM divergences.
@@ -65,6 +68,154 @@ impl<Shadow: VmInterface> VmWithReporting<Shadow> {
     }
 }
 
+/// Reference to either the main or shadow VM.
+#[derive(Debug)]
+pub enum ShadowRef<'a, Main, Shadow> {
+    /// Reference to the main VM.
+    Main(&'a Main),
+    /// Reference to the shadow VM.
+    Shadow(&'a Shadow),
+}
+
+/// Mutable reference to either the main or shadow VM.
+#[derive(Debug)]
+pub enum ShadowMut<'a, Main, Shadow> {
+    /// Reference to the main VM.
+    Main(&'a mut Main),
+    /// Reference to the shadow VM.
+    Shadow(&'a mut Shadow),
+}
+
+/// Type that can check divergence between its instances.
+pub trait CheckDivergence {
+    /// Checks divergences and returns a list of divergence errors, if any.
+    fn check_divergence(&self, other: &Self) -> DivergenceErrors;
+}
+
+#[derive(Debug)]
+struct DivergingEq<T>(T);
+
+impl<T: fmt::Debug + PartialEq + 'static> CheckDivergence for DivergingEq<T> {
+    fn check_divergence(&self, other: &Self) -> DivergenceErrors {
+        let mut errors = DivergenceErrors::new();
+        errors.check_match(any::type_name::<T>(), &self.0, &other.0);
+        errors
+    }
+}
+
+impl CheckDivergence for CurrentExecutionState {
+    fn check_divergence(&self, other: &Self) -> DivergenceErrors {
+        let mut errors = DivergenceErrors::new();
+        errors.check_match("final_state.events", &self.events, &other.events);
+        errors.check_match(
+            "final_state.user_l2_to_l1_logs",
+            &self.user_l2_to_l1_logs,
+            &other.user_l2_to_l1_logs,
+        );
+        errors.check_match(
+            "final_state.system_logs",
+            &self.system_logs,
+            &other.system_logs,
+        );
+        errors.check_match(
+            "final_state.storage_refunds",
+            &self.storage_refunds,
+            &other.storage_refunds,
+        );
+        errors.check_match(
+            "final_state.pubdata_costs",
+            &self.pubdata_costs,
+            &other.pubdata_costs,
+        );
+        errors.check_match(
+            "final_state.used_contract_hashes",
+            &self.used_contract_hashes.iter().collect::<BTreeSet<_>>(),
+            &other.used_contract_hashes.iter().collect::<BTreeSet<_>>(),
+        );
+
+        let main_deduplicated_logs = DivergenceErrors::gather_logs(&self.deduplicated_storage_logs);
+        let shadow_deduplicated_logs =
+            DivergenceErrors::gather_logs(&other.deduplicated_storage_logs);
+        errors.check_match(
+            "deduplicated_storage_logs",
+            &main_deduplicated_logs,
+            &shadow_deduplicated_logs,
+        );
+        errors
+    }
+}
+
+impl CheckDivergence for VmExecutionResultAndLogs {
+    fn check_divergence(&self, other: &Self) -> DivergenceErrors {
+        let mut errors = DivergenceErrors::new();
+        errors.check_match("result", &self.result, &other.result);
+        errors.check_match("logs.events", &self.logs.events, &other.logs.events);
+        errors.check_match(
+            "logs.system_l2_to_l1_logs",
+            &self.logs.system_l2_to_l1_logs,
+            &other.logs.system_l2_to_l1_logs,
+        );
+        errors.check_match(
+            "logs.user_l2_to_l1_logs",
+            &self.logs.user_l2_to_l1_logs,
+            &other.logs.user_l2_to_l1_logs,
+        );
+        let main_logs = UniqueStorageLogs::new(&self.logs.storage_logs);
+        let shadow_logs = UniqueStorageLogs::new(&other.logs.storage_logs);
+        errors.check_match("logs.storage_logs", &main_logs, &shadow_logs);
+        errors.check_match("refunds", &self.refunds, &other.refunds);
+        errors.check_match(
+            "statistics.circuit_statistic",
+            &self.statistics.circuit_statistic,
+            &other.statistics.circuit_statistic,
+        );
+        errors.check_match(
+            "statistics.pubdata_published",
+            &self.statistics.pubdata_published,
+            &other.statistics.pubdata_published,
+        );
+        errors.check_match(
+            "statistics.gas_remaining",
+            &self.statistics.gas_remaining,
+            &other.statistics.gas_remaining,
+        );
+        errors.check_match(
+            "statistics.gas_used",
+            &self.statistics.gas_used,
+            &other.statistics.gas_used,
+        );
+        errors.check_match(
+            "statistics.computational_gas_used",
+            &self.statistics.computational_gas_used,
+            &other.statistics.computational_gas_used,
+        );
+        errors
+    }
+}
+
+impl CheckDivergence for FinishedL1Batch {
+    fn check_divergence(&self, other: &Self) -> DivergenceErrors {
+        let mut errors = DivergenceErrors::new();
+        errors.extend(
+            self.block_tip_execution_result
+                .check_divergence(&other.block_tip_execution_result),
+        );
+        errors.extend(
+            self.final_execution_state
+                .check_divergence(&other.final_execution_state),
+        );
+
+        errors.check_match(
+            "final_bootloader_memory",
+            &self.final_bootloader_memory,
+            &other.final_bootloader_memory,
+        );
+        errors.check_match("pubdata_input", &self.pubdata_input, &other.pubdata_input);
+        errors.check_match("state_diffs", &self.state_diffs, &other.state_diffs);
+        errors
+    }
+}
+
 /// Shadowed VM that executes 2 VMs for each operation and compares their outputs.
 ///
 /// If a divergence is detected, the VM state is dumped using [a pluggable handler](Self::set_dump_handler()),
@@ -105,6 +256,66 @@ where
     pub fn dump_state(&self) -> VmDump {
         self.main.dump_state()
     }
+
+    /// Gets the specified value from both the main and shadow VM, checking whether it matches on both.
+    pub fn get<R>(&self, name: &str, mut action: impl FnMut(ShadowRef<'_, Main, Shadow>) -> R) -> R
+    where
+        R: PartialEq + fmt::Debug + 'static,
+    {
+        self.get_custom(name, |r| DivergingEq(action(r))).0
+    }
+
+    /// Same as [`Self::get()`], but uses custom divergence checks for the type encapsulated in the [`CheckDivergence`] trait.
+    pub fn get_custom<R: CheckDivergence>(
+        &self,
+        name: &str,
+        mut action: impl FnMut(ShadowRef<'_, Main, Shadow>) -> R,
+    ) -> R {
+        let main_output = action(ShadowRef::Main(self.main.as_ref()));
+        let borrow = self.shadow.borrow();
+        if let Some(shadow) = &*borrow {
+            let shadow_output = action(ShadowRef::Shadow(&shadow.vm));
+            let errors = main_output.check_divergence(&shadow_output);
+            if let Err(err) = errors.into_result() {
+                drop(borrow);
+                self.report_shared(err.context(format!("get({name})")));
+            }
+        }
+        main_output
+    }
+
+    /// Gets the specified value from both the main and shadow VM, potentially changing their state
+    /// and checking whether the returned value matches.
+    pub fn get_mut<R>(
+        &mut self,
+        name: &str,
+        mut action: impl FnMut(ShadowMut<'_, Main, Shadow>) -> R,
+    ) -> R
+    where
+        R: PartialEq + fmt::Debug + 'static,
+    {
+        self.get_custom_mut(name, |r| DivergingEq(action(r))).0
+    }
+
+    /// Same as [`Self::get_mut()`], but uses custom divergence checks for the type encapsulated in the [`CheckDivergence`] trait.
+    pub fn get_custom_mut<R>(
+        &mut self,
+        name: &str,
+        mut action: impl FnMut(ShadowMut<'_, Main, Shadow>) -> R,
+    ) -> R
+    where
+        R: CheckDivergence,
+    {
+        let main_output = action(ShadowMut::Main(self.main.as_mut()));
+        if let Some(shadow) = self.shadow.get_mut() {
+            let shadow_output = action(ShadowMut::Shadow(&mut shadow.vm));
+            let errors = main_output.check_divergence(&shadow_output);
+            if let Err(err) = errors.into_result() {
+                self.report_shared(err.context(format!("get_mut({name})")));
+            }
+        }
+        main_output
+    }
 }
 
 impl<S, Main, Shadow> ShadowVm<S, Main, Shadow>
@@ -123,7 +334,7 @@ where
     where
         Shadow: VmFactory<ShadowS>,
     {
-        let main = DumpingVm::new(batch_env.clone(), system_env.clone(), storage.clone());
+        let main = DumpingVm::new(batch_env.clone(), system_env.clone(), storage);
         let shadow = Shadow::new(batch_env.clone(), system_env.clone(), shadow_storage);
         let shadow = VmWithReporting {
             vm: shadow,
@@ -151,7 +362,6 @@ where
     }
 }
 
-/// **Important.** This doesn't properly handle tracers; they are not passed to the shadow VM!
 impl<S, Main, Shadow> VmInterface for ShadowVm<S, Main, Shadow>
 where
     S: ReadStorage,
@@ -163,24 +373,41 @@ where
         <Shadow as VmInterface>::TracerDispatcher,
     );
 
-    fn push_transaction(&mut self, tx: Transaction) {
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
+        let main_result = self.main.push_transaction(tx.clone());
+        // Extend lifetime to `'static` so that the result isn't mutably borrowed from the main VM.
+        // Unfortunately, there's no way to express that this borrow is actually immutable, which would allow not extending the lifetime unless there's a divergence.
+        let main_result: PushTransactionResult<'static> = PushTransactionResult {
+            compressed_bytecodes: main_result.compressed_bytecodes.into_owned().into(),
+        };
+
         if let Some(shadow) = self.shadow.get_mut() {
-            shadow.vm.push_transaction(tx.clone());
+            let tx_repr = format!("{tx:?}"); // includes little data, so is OK to call proactively
+            let shadow_result = shadow.vm.push_transaction(tx);
+
+            let mut errors = DivergenceErrors::new();
+            errors.check_match(
+                "bytecodes",
+                &main_result.compressed_bytecodes,
+                &shadow_result.compressed_bytecodes,
+            );
+            if let Err(err) = errors.into_result() {
+                let ctx = format!("pushing transaction {tx_repr}");
+                self.report(err.context(ctx));
+            }
         }
-        self.main.push_transaction(tx);
+        main_result
     }
 
     fn inspect(
         &mut self,
         (main_tracer, shadow_tracer): &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
         let main_result = self.main.inspect(main_tracer, execution_mode);
         if let Some(shadow) = self.shadow.get_mut() {
             let shadow_result = shadow.vm.inspect(shadow_tracer, execution_mode);
-            let mut errors = DivergenceErrors::new();
-            errors.check_results_match(&main_result, &shadow_result);
-
+            let errors = main_result.check_divergence(&shadow_result);
             if let Err(err) = errors.into_result() {
                 let ctx = format!("executing VM with mode {execution_mode:?}");
                 self.report(err.context(ctx));
@@ -221,8 +448,7 @@ where
                 tx,
                 with_compression,
             );
-            let mut errors = DivergenceErrors::new();
-            errors.check_results_match(&main_tx_result, &shadow_result.1);
+            let errors = main_tx_result.check_divergence(&shadow_result.1);
             if let Err(err) = errors.into_result() {
                 let ctx = format!(
                     "inspecting transaction {tx_repr}, with_compression={with_compression:?}"
@@ -233,35 +459,11 @@ where
         (main_bytecodes_result, main_tx_result)
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        let main_batch = self.main.finish_batch();
+    fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
+        let main_batch = self.main.finish_batch(pubdata_builder.clone());
         if let Some(shadow) = self.shadow.get_mut() {
-            let shadow_batch = shadow.vm.finish_batch();
-            let mut errors = DivergenceErrors::new();
-            errors.check_results_match(
-                &main_batch.block_tip_execution_result,
-                &shadow_batch.block_tip_execution_result,
-            );
-            errors.check_final_states_match(
-                &main_batch.final_execution_state,
-                &shadow_batch.final_execution_state,
-            );
-            errors.check_match(
-                "final_bootloader_memory",
-                &main_batch.final_bootloader_memory,
-                &shadow_batch.final_bootloader_memory,
-            );
-            errors.check_match(
-                "pubdata_input",
-                &main_batch.pubdata_input,
-                &shadow_batch.pubdata_input,
-            );
-            errors.check_match(
-                "state_diffs",
-                &main_batch.state_diffs,
-                &shadow_batch.state_diffs,
-            );
-
+            let shadow_batch = shadow.vm.finish_batch(pubdata_builder);
+            let errors = main_batch.check_divergence(&shadow_batch);
             if let Err(err) = errors.into_result() {
                 self.report(err);
             }
@@ -302,61 +504,13 @@ impl DivergenceErrors {
         }
     }
 
+    fn extend(&mut self, from: Self) {
+        self.divergences.extend(from.divergences);
+    }
+
     fn context(mut self, context: String) -> Self {
         self.context = Some(context);
         self
-    }
-
-    fn check_results_match(
-        &mut self,
-        main_result: &VmExecutionResultAndLogs,
-        shadow_result: &VmExecutionResultAndLogs,
-    ) {
-        self.check_match("result", &main_result.result, &shadow_result.result);
-        self.check_match(
-            "logs.events",
-            &main_result.logs.events,
-            &shadow_result.logs.events,
-        );
-        self.check_match(
-            "logs.system_l2_to_l1_logs",
-            &main_result.logs.system_l2_to_l1_logs,
-            &shadow_result.logs.system_l2_to_l1_logs,
-        );
-        self.check_match(
-            "logs.user_l2_to_l1_logs",
-            &main_result.logs.user_l2_to_l1_logs,
-            &shadow_result.logs.user_l2_to_l1_logs,
-        );
-        let main_logs = UniqueStorageLogs::new(&main_result.logs.storage_logs);
-        let shadow_logs = UniqueStorageLogs::new(&shadow_result.logs.storage_logs);
-        self.check_match("logs.storage_logs", &main_logs, &shadow_logs);
-        self.check_match("refunds", &main_result.refunds, &shadow_result.refunds);
-        self.check_match(
-            "statistics.circuit_statistic",
-            &main_result.statistics.circuit_statistic,
-            &shadow_result.statistics.circuit_statistic,
-        );
-        self.check_match(
-            "statistics.pubdata_published",
-            &main_result.statistics.pubdata_published,
-            &shadow_result.statistics.pubdata_published,
-        );
-        self.check_match(
-            "statistics.gas_remaining",
-            &main_result.statistics.gas_remaining,
-            &shadow_result.statistics.gas_remaining,
-        );
-        self.check_match(
-            "statistics.gas_used",
-            &main_result.statistics.gas_used,
-            &shadow_result.statistics.gas_used,
-        );
-        self.check_match(
-            "statistics.computational_gas_used",
-            &main_result.statistics.computational_gas_used,
-            &shadow_result.statistics.computational_gas_used,
-        );
     }
 
     fn check_match<T: fmt::Debug + PartialEq>(&mut self, context: &str, main: &T, shadow: &T) {
@@ -365,47 +519,6 @@ impl DivergenceErrors {
             let err = format!("`{context}` mismatch: {comparison}");
             self.divergences.push(err);
         }
-    }
-
-    fn check_final_states_match(
-        &mut self,
-        main: &CurrentExecutionState,
-        shadow: &CurrentExecutionState,
-    ) {
-        self.check_match("final_state.events", &main.events, &shadow.events);
-        self.check_match(
-            "final_state.user_l2_to_l1_logs",
-            &main.user_l2_to_l1_logs,
-            &shadow.user_l2_to_l1_logs,
-        );
-        self.check_match(
-            "final_state.system_logs",
-            &main.system_logs,
-            &shadow.system_logs,
-        );
-        self.check_match(
-            "final_state.storage_refunds",
-            &main.storage_refunds,
-            &shadow.storage_refunds,
-        );
-        self.check_match(
-            "final_state.pubdata_costs",
-            &main.pubdata_costs,
-            &shadow.pubdata_costs,
-        );
-        self.check_match(
-            "final_state.used_contract_hashes",
-            &main.used_contract_hashes.iter().collect::<BTreeSet<_>>(),
-            &shadow.used_contract_hashes.iter().collect::<BTreeSet<_>>(),
-        );
-
-        let main_deduplicated_logs = Self::gather_logs(&main.deduplicated_storage_logs);
-        let shadow_deduplicated_logs = Self::gather_logs(&shadow.deduplicated_storage_logs);
-        self.check_match(
-            "deduplicated_storage_logs",
-            &main_deduplicated_logs,
-            &shadow_deduplicated_logs,
-        );
     }
 
     fn gather_logs(logs: &[StorageLog]) -> BTreeMap<StorageKey, &StorageLog> {

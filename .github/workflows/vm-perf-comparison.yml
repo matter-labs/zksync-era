@@ -35,23 +35,26 @@ jobs:
           touch .env
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
+          echo $(pwd)/zkstack_cli/zkstackup >> $GITHUB_PATH
           echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
           echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
           echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
           echo "RUSTC_WRAPPER=sccache" >> .env
+          # Set the minimum reported instruction count difference to reduce noise
+          echo "BENCHMARK_DIFF_THRESHOLD_PERCENT=2" >> .env
 
       - name: init
         run: |
           run_retried docker compose pull zk
           docker compose up -d zk
-
+  
       - name: run benchmarks on base branch
         shell: bash
         run: |
-          ci_run zkt
-          ci_run zk_supervisor contracts --system-contracts
-          ci_run cargo bench --package vm-benchmark --bench iai | tee base-iai
-          ci_run cargo run --package vm-benchmark --release --bin instruction_counts | tee base-opcodes || touch base-opcodes
+          ci_run zkstackup -g --local
+          ci_run zkstack dev contracts --system-contracts
+          ci_run cargo bench --package vm-benchmark --bench instructions -- --verbose || echo "Instructions benchmark is missing"
+          ci_run cargo run --package vm-benchmark --release --bin instruction_counts | tee base-opcodes
 
       - name: checkout PR
         run: |
@@ -59,24 +62,39 @@ jobs:
 
       - name: run benchmarks on PR
         shell: bash
+        id: comparison
         run: |
-          ci_run zkt
-          ci_run zk_supervisor contracts --system-contracts
-          ci_run cargo bench --package vm-benchmark --bench iai | tee pr-iai
-          ci_run cargo run --package vm-benchmark --release --bin instruction_counts | tee pr-opcodes || touch pr-opcodes
+          ci_run zkstackup -g --local
+          ci_run zkstack dev contracts --system-contracts
+          ci_run cargo bench --package vm-benchmark --bench instructions -- --verbose
 
+          ci_run cargo bench --package vm-benchmark --bench instructions -- --print > instructions.log 2>/dev/null
+          # Output all lines from the benchmark result starting from the "## ..." comparison header.
+          # Since the output spans multiple lines, we use a heredoc declaration.
           EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
           echo "speedup<<$EOF" >> $GITHUB_OUTPUT
-          ci_run cargo run --package vm-benchmark --release --bin compare_iai_results base-iai pr-iai base-opcodes pr-opcodes >> $GITHUB_OUTPUT
+          sed -n '/^## /,$p' instructions.log >> $GITHUB_OUTPUT
           echo "$EOF" >> $GITHUB_OUTPUT
-        id: comparison
+          
+          ci_run cargo run --package vm-benchmark --release --bin instruction_counts -- --diff base-opcodes > opcodes.log
+          echo "opcodes<<$EOF" >> $GITHUB_OUTPUT
+          sed -n '/^## /,$p' opcodes.log >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
 
       - name: Comment on PR
         uses: thollander/actions-comment-pull-request@fabd468d3a1a0b97feee5f6b9e499eab0dd903f6 # v2.5.0
+        if: steps.comparison.outputs.speedup != '' || steps.comparison.outputs.opcodes != ''
         with:
           message: |
-            ${{ steps.comparison.outputs.speedup == '' && '## No performance difference detected (anymore)' || '## Detected VM performance changes' }}
             ${{ steps.comparison.outputs.speedup }}
+            ${{ steps.comparison.outputs.opcodes }}
           comment_tag: vm-performance-changes
           mode: recreate
-          create_if_not_exists: ${{ steps.comparison.outputs.speedup != '' }}
+          create_if_not_exists: true
+      - name: Remove PR comment
+        uses: thollander/actions-comment-pull-request@fabd468d3a1a0b97feee5f6b9e499eab0dd903f6 # v2.5.0
+        if: steps.comparison.outputs.speedup == '' && steps.comparison.outputs.opcodes == ''
+        with:
+          comment_tag: vm-performance-changes
+          message: 'No performance difference detected (anymore)'
+          mode: delete

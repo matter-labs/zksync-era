@@ -1,7 +1,7 @@
 //! API types related to the External Node specific methods.
 
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{Address, L1BatchNumber, L2BlockNumber, H256};
+use zksync_basic_types::{commitment::PubdataParams, Address, L1BatchNumber, L2BlockNumber, H256};
 use zksync_contracts::BaseSystemContractsHashes;
 
 use crate::ProtocolVersionId;
@@ -42,6 +42,8 @@ pub struct SyncBlock {
     pub hash: Option<H256>,
     /// Version of the protocol used for this block.
     pub protocol_version: ProtocolVersionId,
+    /// Pubdata params used for this batch
+    pub pubdata_params: Option<PubdataParams>,
 }
 
 /// Global configuration of the consensus served by the main node to the external nodes.
@@ -64,3 +66,9 @@ pub struct ConsensusGenesis(pub serde_json::Value);
 /// The wrapped JSON value corresponds to `zksync_dal::consensus::AttestationStatus`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttestationStatus(pub serde_json::Value);
+
+/// Block metadata that should have been committed to on L1, but it is not.
+///
+/// The wrapped JSON value corresponds to `zksync_dal::consensus::BlockMetadata`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BlockMetadata(pub serde_json::Value);

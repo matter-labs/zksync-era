@@ -286,8 +286,9 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         base_fee_per_gas: 10,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
-        l2_shared_bridge_addr: Address::default(),
+        l2_legacy_shared_bridge_addr: Some(Address::default()),
         pre_insert_txs: false,
+        pubdata_params: Default::default(),
     };
     connection_pool
         .connection()
@@ -376,8 +377,9 @@ async fn processing_events_when_sealing_l2_block() {
         base_fee_per_gas: 10,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
-        l2_shared_bridge_addr: Address::default(),
+        l2_legacy_shared_bridge_addr: Some(Address::default()),
         pre_insert_txs: false,
+        pubdata_params: Default::default(),
     };
     pool.connection()
         .await
@@ -447,13 +449,13 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         .await
         .unwrap()
         .expect("no batch params generated");
-    let (system_env, l1_batch_env) = l1_batch_params.into_env(
+    let (system_env, l1_batch_env, pubdata_params) = l1_batch_params.into_env(
         L2ChainId::default(),
         BASE_SYSTEM_CONTRACTS.clone(),
         &cursor,
         previous_batch_hash,
     );
-    let mut updates = UpdatesManager::new(&l1_batch_env, &system_env);
+    let mut updates = UpdatesManager::new(&l1_batch_env, &system_env, pubdata_params);
 
     let tx_hash = tx.hash();
     updates.extend_from_executed_transaction(
@@ -467,7 +469,9 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
     );
 
     let (mut persistence, l2_block_sealer) =
-        StateKeeperPersistence::new(connection_pool.clone(), Address::default(), 0);
+        StateKeeperPersistence::new(connection_pool.clone(), Some(Address::default()), 0)
+            .await
+            .unwrap();
     tokio::spawn(l2_block_sealer.run());
     persistence.handle_l2_block(&updates).await.unwrap();
 
@@ -555,4 +559,88 @@ async fn different_timestamp_for_l2_blocks_in_same_batch(commitment_mode: L1Batc
         .unwrap()
         .expect("no new L2 block params");
     assert!(l2_block_params.timestamp > current_timestamp);
+}
+
+#[test_casing(2, COMMITMENT_MODES)]
+#[tokio::test]
+async fn continue_unsealed_batch_on_restart(commitment_mode: L1BatchCommitmentMode) {
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    let tester = Tester::new(commitment_mode);
+    tester.genesis(&connection_pool).await;
+    let mut storage = connection_pool.connection().await.unwrap();
+
+    let (mut mempool, mut mempool_guard) =
+        tester.create_test_mempool_io(connection_pool.clone()).await;
+    let (cursor, _) = mempool.initialize().await.unwrap();
+
+    // Insert a transaction into the mempool in order to open a new batch.
+    let tx_filter = l2_tx_filter(
+        &tester.create_batch_fee_input_provider().await,
+        ProtocolVersionId::latest().into(),
+    )
+    .await
+    .unwrap();
+    let tx = tester.insert_tx(
+        &mut mempool_guard,
+        tx_filter.fee_per_gas,
+        tx_filter.gas_per_pubdata,
+    );
+    storage
+        .transactions_dal()
+        .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+        .await
+        .unwrap();
+
+    let old_l1_batch_params = mempool
+        .wait_for_new_batch_params(&cursor, Duration::from_secs(10))
+        .await
+        .unwrap()
+        .expect("no batch params generated");
+
+    // Restart
+    drop((mempool, mempool_guard, cursor));
+    let (mut mempool, _) = tester.create_test_mempool_io(connection_pool.clone()).await;
+    let (cursor, _) = mempool.initialize().await.unwrap();
+
+    let new_l1_batch_params = mempool
+        .wait_for_new_batch_params(&cursor, Duration::from_secs(10))
+        .await
+        .unwrap()
+        .expect("no batch params generated");
+
+    assert_eq!(old_l1_batch_params, new_l1_batch_params);
+}
+
+#[test_casing(2, COMMITMENT_MODES)]
+#[tokio::test]
+async fn insert_unsealed_batch_on_init(commitment_mode: L1BatchCommitmentMode) {
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    let mut tester = Tester::new(commitment_mode);
+    tester.genesis(&connection_pool).await;
+    let fee_input = BatchFeeInput::pubdata_independent(55, 555, 5555);
+    let tx_result = tester
+        .insert_l2_block(&connection_pool, 1, 5, fee_input)
+        .await;
+    tester
+        .insert_sealed_batch(&connection_pool, 1, &[tx_result])
+        .await;
+    // Pre-insert L2 block without its unsealed L1 batch counterpart
+    tester.set_timestamp(2);
+    tester
+        .insert_l2_block(&connection_pool, 2, 5, fee_input)
+        .await;
+
+    let (mut mempool, _) = tester.create_test_mempool_io(connection_pool.clone()).await;
+    // Initialization is supposed to recognize that the current L1 batch is not present in the DB and
+    // insert it itself.
+    let (cursor, _) = mempool.initialize().await.unwrap();
+
+    // Make sure we are able to fetch the newly inserted batch's params
+    let l1_batch_params = mempool
+        .wait_for_new_batch_params(&cursor, Duration::from_secs(10))
+        .await
+        .unwrap()
+        .expect("no batch params generated");
+    assert_eq!(l1_batch_params.fee_input, fee_input);
+    assert_eq!(l1_batch_params.first_l2_block.timestamp, 2);
 }

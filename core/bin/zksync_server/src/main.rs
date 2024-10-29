@@ -11,12 +11,11 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        secrets::DataAvailabilitySecrets,
-        BasicWitnessInputProducerConfig, ContractsConfig, DatabaseSecrets, ExperimentalVmConfig,
-        ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
-        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
-        L1Secrets, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
-        ProtectiveReadsWriterConfig, Secrets,
+        BasicWitnessInputProducerConfig, ContractsConfig, DataAvailabilitySecrets, DatabaseSecrets,
+        ExperimentalVmConfig, ExternalPriceApiClientConfig, FriProofCompressorConfig,
+        FriProverConfig, FriProverGatewayConfig, FriWitnessGeneratorConfig,
+        FriWitnessVectorGeneratorConfig, L1Secrets, ObservabilityConfig, PrometheusConfig,
+        ProofDataHandlerConfig, ProtectiveReadsWriterConfig, Secrets,
     },
     ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DAClientConfig, DADispatcherConfig,
     DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
@@ -45,7 +44,7 @@ struct Cli {
     /// Comma-separated list of components to launch.
     #[arg(
         long,
-        default_value = "api,tree,eth,state_keeper,housekeeper,tee_verifier_input_producer,commitment_generator,da_dispatcher,vm_runner_protective_reads"
+        default_value = "api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,vm_runner_protective_reads"
     )]
     components: ComponentsToRun,
     /// Path to the yaml config. If set, it will be used instead of env vars.

@@ -82,6 +82,7 @@ impl VmRunner {
             storage,
             batch_data.l1_batch_env.clone(),
             batch_data.system_env.clone(),
+            batch_data.pubdata_params,
         );
         let mut output_handler = self
             .output_handler_factory

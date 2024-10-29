@@ -139,32 +139,27 @@ impl HttpTest for TraceBlockFlatTest {
                     .await?
                     .unwrap_flat();
 
-                // A transaction with 2 nested calls will convert into 3 Flattened calls.
-                // Also in this test, all tx have the same # of nested calls
-                assert_eq!(
-                    block_traces.len(),
-                    tx_results.len() * (tx_results[0].call_traces.len() + 1)
-                );
+                assert_eq!(block_traces.len(), tx_results.len());
+
+                let tx_traces = &block_traces.first().unwrap().result;
 
                 // First tx has 2 nested calls, thus 2 sub-traces
-                assert_eq!(block_traces[0].subtraces, 2);
-                assert_eq!(block_traces[0].trace_address, [0]);
+                assert_eq!(tx_traces[0].subtraces, 2);
+                assert_eq!(tx_traces[0].trace_address, [0]);
                 // Second flat-call (fist nested call) do not have nested calls
-                assert_eq!(block_traces[1].subtraces, 0);
-                assert_eq!(block_traces[1].trace_address, [0, 0]);
+                assert_eq!(tx_traces[1].subtraces, 0);
+                assert_eq!(tx_traces[1].trace_address, [0, 0]);
 
-                let top_level_call_indexes = [0, 3, 6];
+                let top_level_call_indexes = [0, 1, 2];
                 let top_level_traces = top_level_call_indexes
                     .iter()
                     .map(|&i| block_traces[i].clone());
 
                 for (top_level_trace, tx_result) in top_level_traces.zip(&tx_results) {
-                    assert_eq!(top_level_trace.action.from, Address::zero());
-                    assert_eq!(top_level_trace.action.to, BOOTLOADER_ADDRESS);
-                    assert_eq!(
-                        top_level_trace.action.gas,
-                        tx_result.transaction.gas_limit()
-                    );
+                    let trace = top_level_trace.result.first().unwrap();
+                    assert_eq!(trace.action.from, Address::zero());
+                    assert_eq!(trace.action.to, BOOTLOADER_ADDRESS);
+                    assert_eq!(trace.action.gas, tx_result.transaction.gas_limit());
                 }
                 // TODO: test inner calls
             }

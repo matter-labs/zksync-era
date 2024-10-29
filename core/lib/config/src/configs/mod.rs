@@ -5,7 +5,7 @@ pub use self::{
     commitment_generator::CommitmentGeneratorConfig,
     contract_verifier::ContractVerifierConfig,
     contracts::{ContractsConfig, EcosystemContracts},
-    da_client::{avail::AvailConfig, DAClientConfig},
+    da_client::{avail::AvailConfig, celestia::CelestiaConfig, eigen::EigenConfig, DAClientConfig},
     da_dispatcher::DADispatcherConfig,
     database::{DBConfig, PostgresConfig},
     eth_sender::{EthConfig, GasAdjusterConfig},
@@ -22,10 +22,10 @@ pub use self::{
     genesis::GenesisConfig,
     object_store::ObjectStoreConfig,
     observability::{ObservabilityConfig, OpentelemetryConfig},
-    proof_data_handler::ProofDataHandlerConfig,
+    proof_data_handler::{ProofDataHandlerConfig, TeeConfig},
     prover_job_monitor::ProverJobMonitorConfig,
     pruning::PruningConfig,
-    secrets::{DatabaseSecrets, L1Secrets, Secrets},
+    secrets::{DataAvailabilitySecrets, DatabaseSecrets, L1Secrets, Secrets},
     snapshot_recovery::SnapshotRecoveryConfig,
     snapshots_creator::SnapshotsCreatorConfig,
     utils::PrometheusConfig,
@@ -60,6 +60,7 @@ pub mod house_keeper;
 pub mod object_store;
 pub mod observability;
 pub mod proof_data_handler;
+pub mod prover_autoscaler;
 pub mod prover_job_monitor;
 pub mod pruning;
 pub mod secrets;

@@ -1,9 +1,52 @@
+use std::{fmt, marker::PhantomData};
+
+use async_trait::async_trait;
 use zksync_contracts::BaseSystemContracts;
 use zksync_types::ProtocolVersionId;
 
+use super::ResolvedBlockInfo;
+use crate::shared::Sealed;
+
+/// Kind of base system contracts used as a marker in the [`BaseSystemContractsProvider`] trait.
+pub trait ContractsKind: fmt::Debug + Sealed {}
+
+/// Marker for [`BaseSystemContracts`] used for gas estimation.
+#[derive(Debug)]
+pub struct EstimateGas(());
+
+impl Sealed for EstimateGas {}
+impl ContractsKind for EstimateGas {}
+
+/// Marker for [`BaseSystemContracts`] used for calls and transaction execution.
+#[derive(Debug)]
+pub struct CallOrExecute(());
+
+impl Sealed for CallOrExecute {}
+impl ContractsKind for CallOrExecute {}
+
+/// Provider of [`BaseSystemContracts`] for oneshot execution.
+///
+/// The main implementation of this trait is [`MultiVMBaseSystemContracts`], which selects contracts
+/// based on [`ProtocolVersionId`].
+#[async_trait]
+pub trait BaseSystemContractsProvider<C: ContractsKind>: fmt::Debug + Send + Sync {
+    /// Returns base system contracts for executing a transaction on top of the provided block.
+    ///
+    /// Implementations are encouraged to cache returned contracts for performance; caching is **not** performed
+    /// by the caller.
+    ///
+    /// # Errors
+    ///
+    /// Returned errors are treated as unrecoverable for a particular execution, but further executions are not affected.
+    async fn base_system_contracts(
+        &self,
+        block_info: &ResolvedBlockInfo,
+    ) -> anyhow::Result<BaseSystemContracts>;
+}
+
 /// System contracts (bootloader and default account abstraction) for all supported VM versions.
-#[derive(Debug, Clone)]
-pub(super) struct MultiVMBaseSystemContracts {
+#[derive(Debug)]
+pub struct MultiVMBaseSystemContracts<C> {
     /// Contracts to be used for pre-virtual-blocks protocol versions.
     pre_virtual_blocks: BaseSystemContracts,
     /// Contracts to be used for post-virtual-blocks protocol versions.
@@ -22,11 +65,16 @@ pub(super) struct MultiVMBaseSystemContracts {
     vm_1_5_0_small_memory: BaseSystemContracts,
     /// Contracts to be used after the 1.5.0 upgrade
     vm_1_5_0_increased_memory: BaseSystemContracts,
+    /// Contracts to be used after the protocol defense upgrade
+    vm_protocol_defense: BaseSystemContracts,
+    /// Contracts to be used after the gateway upgrade
+    gateway: BaseSystemContracts,
+    // We use `fn() -> C` marker so that the `MultiVMBaseSystemContracts` unconditionally implements `Send + Sync`.
+    _contracts_kind: PhantomData<fn() -> C>,
 }
 
-impl MultiVMBaseSystemContracts {
-    /// Gets contracts for a certain version.
-    pub fn get_by_protocol_version(
+impl<C: ContractsKind> MultiVMBaseSystemContracts<C> {
+    fn get_by_protocol_version(
         &self,
         version: ProtocolVersionId,
         use_evm_emulator: bool,
@@ -55,9 +103,11 @@ impl MultiVMBaseSystemContracts {
             ProtocolVersionId::Version20 => &self.post_1_4_1,
             ProtocolVersionId::Version21 | ProtocolVersionId::Version22 => &self.post_1_4_2,
             ProtocolVersionId::Version23 => &self.vm_1_5_0_small_memory,
-            ProtocolVersionId::Version24 | ProtocolVersionId::Version25 => {
-                &self.vm_1_5_0_increased_memory
+            ProtocolVersionId::Version24 => &self.vm_1_5_0_increased_memory,
+            ProtocolVersionId::Version25 | ProtocolVersionId::Version26 => {
+                &self.vm_protocol_defense
             }
+            ProtocolVersionId::Version27 => &self.gateway,
         };
         let base = base.clone();
 
@@ -68,8 +118,11 @@ impl MultiVMBaseSystemContracts {
             base
         }
     }
+}
 
-    pub(super) fn load_estimate_gas_blocking() -> Self {
+impl MultiVMBaseSystemContracts<EstimateGas> {
+    /// Returned system contracts (mainly the bootloader) are tuned to provide accurate execution metrics.
+    pub fn load_estimate_gas_blocking() -> Self {
         Self {
             pre_virtual_blocks: BaseSystemContracts::estimate_gas_pre_virtual_blocks(),
             post_virtual_blocks: BaseSystemContracts::estimate_gas_post_virtual_blocks(),
@@ -82,10 +135,16 @@ impl MultiVMBaseSystemContracts {
             vm_1_5_0_small_memory: BaseSystemContracts::estimate_gas_1_5_0_small_memory(),
             vm_1_5_0_increased_memory:
                 BaseSystemContracts::estimate_gas_post_1_5_0_increased_memory(),
+            vm_protocol_defense: BaseSystemContracts::estimate_gas_post_protocol_defense(),
+            gateway: BaseSystemContracts::estimate_gas_gateway(),
+            _contracts_kind: PhantomData,
         }
     }
+}
 
-    pub(super) fn load_eth_call_blocking() -> Self {
+impl MultiVMBaseSystemContracts<CallOrExecute> {
+    /// Returned system contracts (mainly the bootloader) are tuned to provide better UX (e.g. revert messages).
+    pub fn load_eth_call_blocking() -> Self {
         Self {
             pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
             post_virtual_blocks: BaseSystemContracts::playground_post_virtual_blocks(),
@@ -98,6 +157,20 @@ impl MultiVMBaseSystemContracts {
             vm_1_5_0_small_memory: BaseSystemContracts::playground_1_5_0_small_memory(),
             vm_1_5_0_increased_memory: BaseSystemContracts::playground_post_1_5_0_increased_memory(
             ),
+            vm_protocol_defense: BaseSystemContracts::playground_post_protocol_defense(),
+            gateway: BaseSystemContracts::playground_gateway(),
+            _contracts_kind: PhantomData,
         }
+    }
+}
+
+#[async_trait]
+impl<C: ContractsKind> BaseSystemContractsProvider<C> for MultiVMBaseSystemContracts<C> {
+    async fn base_system_contracts(
+        &self,
+        block_info: &ResolvedBlockInfo,
+    ) -> anyhow::Result<BaseSystemContracts> {
+        Ok(self
+            .get_by_protocol_version(block_info.protocol_version(), block_info.use_evm_emulator()))
     }
 }

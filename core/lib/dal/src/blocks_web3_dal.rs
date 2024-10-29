@@ -5,6 +5,7 @@ use zksync_db_connection::{
 use zksync_system_constants::EMPTY_UNCLES_HASH;
 use zksync_types::{
     api,
+    debug_flat_call::CallTraceMeta,
     fee_model::BatchFeeInput,
     l2_to_l1_log::L2ToL1Log,
     web3::{BlockHeader, Bytes},
@@ -531,11 +532,12 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_traces_for_l2_block(
         &mut self,
         block_number: L2BlockNumber,
-    ) -> DalResult<Vec<(Call, H256, usize)>> {
-        let protocol_version = sqlx::query!(
+    ) -> DalResult<Vec<(Call, CallTraceMeta)>> {
+        let row = sqlx::query!(
             r#"
             SELECT
-                protocol_version
+                protocol_version,
+                hash
             FROM
                 miniblocks
             WHERE
@@ -543,14 +545,20 @@ impl BlocksWeb3Dal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .try_map(|row| row.protocol_version.map(parse_protocol_version).transpose())
+        .try_map(|row| {
+            row.protocol_version
+                .map(parse_protocol_version)
+                .transpose()
+                .map(|val| (val, H256::from_slice(&row.hash)))
+        })
         .instrument("get_traces_for_l2_block#get_l2_block_protocol_version_id")
         .with_arg("l2_block_number", &block_number)
         .fetch_optional(self.storage)
         .await?;
-        let Some(protocol_version) = protocol_version else {
+        let Some((protocol_version, block_hash)) = row else {
             return Ok(Vec::new());
         };
+
         let protocol_version =
             protocol_version.unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
@@ -577,9 +585,15 @@ impl BlocksWeb3Dal<'_, '_> {
         .await?
         .into_iter()
         .map(|call_trace| {
-            let hash = H256::from_slice(&call_trace.tx_hash);
+            let tx_hash = H256::from_slice(&call_trace.tx_hash);
             let index = call_trace.tx_index_in_block.unwrap_or_default() as usize;
-            (call_trace.into_call(protocol_version), hash, index)
+            let meta = CallTraceMeta {
+                index_in_block: index,
+                tx_hash,
+                block_number: block_number.0,
+                block_hash,
+            };
+            (call_trace.into_call(protocol_version), meta)
         })
         .collect())
     }
@@ -656,6 +670,8 @@ impl BlocksWeb3Dal<'_, '_> {
                             (MAX(number) + 1)
                         FROM
                             l1_batches
+                        WHERE
+                            is_sealed
                     )
                 ) AS "l1_batch_number!",
                 miniblocks.timestamp,
@@ -1103,9 +1119,9 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(traces.len(), 2);
-        for ((trace, hash, _index), tx_result) in traces.iter().zip(&tx_results) {
+        for ((trace, meta), tx_result) in traces.iter().zip(&tx_results) {
             let expected_trace = tx_result.call_trace().unwrap();
-            assert_eq!(&tx_result.hash, hash);
+            assert_eq!(tx_result.hash, meta.tx_hash);
             assert_eq!(*trace, expected_trace);
         }
     }

@@ -9,8 +9,8 @@ use zksync_multivm::{
     utils::{get_batch_base_fee, StorageWritesDeduplicator},
 };
 use zksync_types::{
-    block::BlockGasCount, fee_model::BatchFeeInput, Address, L1BatchNumber, L2BlockNumber,
-    ProtocolVersionId, Transaction, H256,
+    block::BlockGasCount, commitment::PubdataParams, fee_model::BatchFeeInput, Address,
+    L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256,
 };
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, l2_block_updates::L2BlockUpdates};
@@ -32,7 +32,7 @@ pub mod l2_block_updates;
 #[derive(Debug)]
 pub struct UpdatesManager {
     batch_timestamp: u64,
-    fee_account_address: Address,
+    pub fee_account_address: Address,
     batch_fee_input: BatchFeeInput,
     base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,
@@ -41,10 +41,15 @@ pub struct UpdatesManager {
     pub l1_batch: L1BatchUpdates,
     pub l2_block: L2BlockUpdates,
     pub storage_writes_deduplicator: StorageWritesDeduplicator,
+    pubdata_params: PubdataParams,
 }
 
 impl UpdatesManager {
-    pub fn new(l1_batch_env: &L1BatchEnv, system_env: &SystemEnv) -> Self {
+    pub fn new(
+        l1_batch_env: &L1BatchEnv,
+        system_env: &SystemEnv,
+        pubdata_params: PubdataParams,
+    ) -> Self {
         let protocol_version = system_env.version;
         Self {
             batch_timestamp: l1_batch_env.timestamp,
@@ -63,6 +68,7 @@ impl UpdatesManager {
             ),
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
             storage_view_cache: None,
+            pubdata_params,
         }
     }
 
@@ -85,7 +91,7 @@ impl UpdatesManager {
 
     pub(crate) fn seal_l2_block_command(
         &self,
-        l2_shared_bridge_addr: Address,
+        l2_legacy_shared_bridge_addr: Option<Address>,
         pre_insert_txs: bool,
     ) -> L2BlockSealCommand {
         L2BlockSealCommand {
@@ -97,8 +103,9 @@ impl UpdatesManager {
             base_fee_per_gas: self.base_fee_per_gas,
             base_system_contracts_hashes: self.base_system_contract_hashes,
             protocol_version: Some(self.protocol_version),
-            l2_shared_bridge_addr,
+            l2_legacy_shared_bridge_addr,
             pre_insert_txs,
+            pubdata_params: self.pubdata_params,
         }
     }
 
@@ -211,11 +218,12 @@ pub struct L2BlockSealCommand {
     pub base_fee_per_gas: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub protocol_version: Option<ProtocolVersionId>,
-    pub l2_shared_bridge_addr: Address,
+    pub l2_legacy_shared_bridge_addr: Option<Address>,
     /// Whether transactions should be pre-inserted to DB.
     /// Should be set to `true` for EN's IO as EN doesn't store transactions in DB
     /// before they are included into L2 blocks.
     pub pre_insert_txs: bool,
+    pub pubdata_params: PubdataParams,
 }
 
 #[cfg(test)]

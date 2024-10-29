@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package zksync.config.prover_autoscaler;
+
+import "zksync/std.proto";
+import "zksync/config/observability.proto";
+
+message ProverAutoscalerConfig {
+  optional std.Duration graceful_shutdown_timeout = 1; // optional
+  optional ProverAutoscalerAgentConfig agent_config = 2; // optional
+  optional ProverAutoscalerScalerConfig scaler_config = 3; // optional
+  optional observability.Observability observability = 4; // optional
+}
+
+message ProverAutoscalerAgentConfig {
+  optional uint32 prometheus_port = 1; // required
+  optional uint32 http_port = 2; // required
+  repeated string namespaces = 3; // optional
+  optional string cluster_name = 4; // optional
+  optional bool dry_run = 5; // optional
+}
+
+message ProtocolVersion {
+  optional string namespace = 1; // required
+  optional string protocol_version = 2; // required
+}
+
+message ClusterPriority {
+  optional string cluster = 1; // required
+  optional uint32 priority = 2; // required
+}
+
+message ProverSpeed {
+  optional string gpu = 1; // required
+  optional uint32 speed = 2; // required
+}
+
+message MaxProver {
+  optional string cluster_and_gpu = 1; // required, format: <cluster>/<gpu>
+  optional uint32 max = 2; // required
+}
+
+message MinProver {
+  optional string namespace = 1; // required
+  optional uint32 min = 2; // required
+}
+
+message MaxReplica {
+  optional string cluster = 1; // required
+  optional uint64 max = 2; // required
+}
+
+message ScalerTarget {
+  optional string queue_report_field = 1; // required
+  optional string pod_name_prefix = 2; // required
+  repeated MaxReplica max_replicas = 3; // required at least one
+  optional uint64 speed = 4; // optional
+}
+
+message ProverAutoscalerScalerConfig {
+  optional uint32 prometheus_port = 1; // required
+  optional std.Duration scaler_run_interval = 2; // optional
+  optional string prover_job_monitor_url = 3; // required
+  repeated string agents = 4; // required at least one
+  repeated ProtocolVersion protocol_versions = 5; // required at least one
+  repeated ClusterPriority cluster_priorities = 6; // optional
+  repeated ProverSpeed prover_speed = 7; // optional
+  optional uint32 long_pending_duration_s = 8; // optional
+  repeated MaxProver max_provers = 9; // optional
+  repeated MinProver min_provers = 10; // optional
+  repeated ScalerTarget scaler_targets = 11; // optional
+}

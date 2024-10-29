@@ -114,7 +114,6 @@ jobs:
       - name: start-services
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
-          mkdir -p ./volumes/postgres
           run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
           ci_run pre_download_compilers.sh
@@ -127,14 +126,19 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run ./bin/zk || true
-          ci_run ./bin/zkt || true
           ci_run run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+
+      - name: Install zkstack
+        if: env.BUILD_CONTRACTS == 'true'
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
+          ci_run zkstackup -g --local
 
       - name: build contracts
         if: env.BUILD_CONTRACTS == 'true'
         run: |
           ci_run cp etc/tokens/{test,localhost}.json
-          ci_run zk_supervisor contracts
+          ci_run zkstack dev contracts --system-contracts --l1-contracts --l2-contracts 
 
       - name: Login to Docker registries
         if: ${{ inputs.action == 'push' }}

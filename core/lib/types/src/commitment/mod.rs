@@ -9,11 +9,12 @@
 use std::{collections::HashMap, convert::TryFrom};
 
 use serde::{Deserialize, Serialize};
-pub use zksync_basic_types::commitment::L1BatchCommitmentMode;
+pub use zksync_basic_types::commitment::{L1BatchCommitmentMode, PubdataParams};
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::{
-    KNOWN_CODES_STORAGE_ADDRESS, L2_TO_L1_LOGS_TREE_ROOT_KEY, STATE_DIFF_HASH_KEY,
+    KNOWN_CODES_STORAGE_ADDRESS, L2_TO_L1_LOGS_TREE_ROOT_KEY, STATE_DIFF_HASH_KEY_PRE_GATEWAY,
     ZKPORTER_IS_AVAILABLE,
 };
 use zksync_utils::u256_to_h256;
@@ -22,8 +23,8 @@ use crate::{
     blob::num_blobs_required,
     block::{L1BatchHeader, L1BatchTreeData},
     l2_to_l1_log::{
-        l2_to_l1_logs_tree_size, parse_system_logs_for_blob_hashes, L2ToL1Log, SystemL2ToL1Log,
-        UserL2ToL1Log,
+        l2_to_l1_logs_tree_size, parse_system_logs_for_blob_hashes_pre_gateway, L2ToL1Log,
+        SystemL2ToL1Log, UserL2ToL1Log,
     },
     web3::keccak256,
     writes::{
@@ -93,6 +94,16 @@ pub struct L1BatchMetadata {
     pub bootloader_initial_content_commitment: Option<H256>,
     pub state_diffs_compressed: Vec<u8>,
     pub da_blob_id: Option<Vec<u8>>,
+    /// Hash of packed state diffs. It's present only for post-gateway batches.
+    pub state_diff_hash: Option<H256>,
+    /// Root hash of the local logs tree. Tree contains logs that were produced on this chain.
+    /// It's present only for post-gateway batches.
+    pub local_root: Option<H256>,
+    /// Root hash of the aggregated logs tree. Tree aggregates `local_root`s of chains that settle on this chain.
+    /// It's present only for post-gateway batches.
+    pub aggregation_root: Option<H256>,
+    /// Data Availability inclusion proof, that has to be verified on the settlement layer.
+    pub da_inclusion_data: Option<Vec<u8>>,
 }
 
 impl L1BatchMetadata {
@@ -266,6 +277,13 @@ pub struct L1BatchAuxiliaryCommonOutput {
     protocol_version: ProtocolVersionId,
 }
 
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq)]
+#[cfg_attr(test, derive(Serialize, Deserialize))]
+pub struct BlobHash {
+    pub commitment: H256,
+    pub linear_hash: H256,
+}
+
 /// Block Output produced by Virtual Machine
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(test, derive(Serialize, Deserialize))]
@@ -284,8 +302,9 @@ pub enum L1BatchAuxiliaryOutput {
         state_diffs_compressed: Vec<u8>,
         state_diffs_hash: H256,
         aux_commitments: AuxCommitments,
-        blob_linear_hashes: Vec<H256>,
-        blob_commitments: Vec<H256>,
+        blob_hashes: Vec<BlobHash>,
+        aggregation_root: H256,
+        local_root: H256,
     },
 }
 
@@ -334,17 +353,23 @@ impl L1BatchAuxiliaryOutput {
                 system_logs,
                 state_diffs,
                 aux_commitments,
-                blob_commitments,
+                blob_hashes,
+                aggregation_root,
             } => {
                 let l2_l1_logs_compressed = serialize_commitments(&common_input.l2_to_l1_logs);
                 let merkle_tree_leaves = l2_l1_logs_compressed
                     .chunks(UserL2ToL1Log::SERIALIZED_SIZE)
                     .map(|chunk| <[u8; UserL2ToL1Log::SERIALIZED_SIZE]>::try_from(chunk).unwrap());
-                let l2_l1_logs_merkle_root = MiniMerkleTree::new(
+                let local_root = MiniMerkleTree::new(
                     merkle_tree_leaves,
                     Some(l2_to_l1_logs_tree_size(common_input.protocol_version)),
                 )
                 .merkle_root();
+                let l2_l1_logs_merkle_root = if common_input.protocol_version.is_pre_gateway() {
+                    local_root
+                } else {
+                    KeccakHasher.compress(&local_root, &aggregation_root)
+                };
 
                 let common_output = L1BatchAuxiliaryCommonOutput {
                     l2_l1_logs_merkle_root,
@@ -358,22 +383,33 @@ impl L1BatchAuxiliaryOutput {
                 let state_diffs_hash = H256::from(keccak256(&(state_diffs_packed)));
                 let state_diffs_compressed = compress_state_diffs(state_diffs);
 
-                let blob_linear_hashes =
-                    parse_system_logs_for_blob_hashes(&common_input.protocol_version, &system_logs);
-
                 // Sanity checks. System logs are empty for the genesis batch, so we can't do checks for it.
                 if !system_logs.is_empty() {
-                    let state_diff_hash_from_logs = system_logs
-                        .iter()
-                        .find_map(|log| {
-                            (log.0.key == u256_to_h256(STATE_DIFF_HASH_KEY.into()))
-                                .then_some(log.0.value)
-                        })
-                        .expect("Failed to find state diff hash in system logs");
-                    assert_eq!(
-                        state_diffs_hash, state_diff_hash_from_logs,
-                        "State diff hash mismatch"
-                    );
+                    if common_input.protocol_version.is_pre_gateway() {
+                        let state_diff_hash_from_logs = system_logs
+                            .iter()
+                            .find_map(|log| {
+                                (log.0.key == u256_to_h256(STATE_DIFF_HASH_KEY_PRE_GATEWAY.into()))
+                                    .then_some(log.0.value)
+                            })
+                            .expect("Failed to find state diff hash in system logs");
+                        assert_eq!(
+                            state_diffs_hash, state_diff_hash_from_logs,
+                            "State diff hash mismatch"
+                        );
+
+                        let blob_linear_hashes_from_logs =
+                            parse_system_logs_for_blob_hashes_pre_gateway(
+                                &common_input.protocol_version,
+                                &system_logs,
+                            );
+                        let blob_linear_hashes: Vec<_> =
+                            blob_hashes.iter().map(|b| b.linear_hash).collect();
+                        assert_eq!(
+                            blob_linear_hashes, blob_linear_hashes_from_logs,
+                            "Blob linear hashes mismatch"
+                        );
+                    }
 
                     let l2_to_l1_logs_tree_root_from_logs = system_logs
                         .iter()
@@ -388,22 +424,42 @@ impl L1BatchAuxiliaryOutput {
                     );
                 }
 
-                assert_eq!(
-                    blob_linear_hashes.len(),
-                    blob_commitments.len(),
-                    "Blob linear hashes and commitments have different lengths"
-                );
-
                 Self::PostBoojum {
                     common: common_output,
                     system_logs_linear_hash,
                     state_diffs_compressed,
                     state_diffs_hash,
                     aux_commitments,
-                    blob_linear_hashes,
-                    blob_commitments,
+                    blob_hashes,
+                    local_root,
+                    aggregation_root,
                 }
             }
+        }
+    }
+
+    pub fn local_root(&self) -> H256 {
+        match self {
+            Self::PreBoojum { common, .. } => common.l2_l1_logs_merkle_root,
+            Self::PostBoojum { local_root, .. } => *local_root,
+        }
+    }
+
+    pub fn aggregation_root(&self) -> H256 {
+        match self {
+            Self::PreBoojum { .. } => H256::zero(),
+            Self::PostBoojum {
+                aggregation_root, ..
+            } => *aggregation_root,
+        }
+    }
+
+    pub fn state_diff_hash(&self) -> H256 {
+        match self {
+            Self::PreBoojum { .. } => H256::zero(),
+            Self::PostBoojum {
+                state_diffs_hash, ..
+            } => *state_diffs_hash,
         }
     }
 
@@ -427,8 +483,7 @@ impl L1BatchAuxiliaryOutput {
                 system_logs_linear_hash,
                 state_diffs_hash,
                 aux_commitments,
-                blob_linear_hashes,
-                blob_commitments,
+                blob_hashes,
                 ..
             } => {
                 result.extend(system_logs_linear_hash.as_bytes());
@@ -440,9 +495,9 @@ impl L1BatchAuxiliaryOutput {
                 );
                 result.extend(aux_commitments.events_queue_commitment.as_bytes());
 
-                for i in 0..blob_commitments.len() {
-                    result.extend(blob_linear_hashes[i].as_bytes());
-                    result.extend(blob_commitments[i].as_bytes());
+                for b in blob_hashes {
+                    result.extend(b.linear_hash.as_bytes());
+                    result.extend(b.commitment.as_bytes());
                 }
             }
         }
@@ -638,6 +693,9 @@ impl L1BatchCommitment {
             aux_commitments: self.aux_commitments(),
             compressed_initial_writes,
             compressed_repeated_writes,
+            local_root: self.auxiliary_output.local_root(),
+            aggregation_root: self.auxiliary_output.aggregation_root(),
+            state_diff_hash: self.auxiliary_output.state_diff_hash(),
         }
     }
 }
@@ -674,7 +732,8 @@ pub enum CommitmentInput {
         system_logs: Vec<SystemL2ToL1Log>,
         state_diffs: Vec<StateDiffRecord>,
         aux_commitments: AuxCommitments,
-        blob_commitments: Vec<H256>,
+        blob_hashes: Vec<BlobHash>,
+        aggregation_root: H256,
     },
 }
 
@@ -716,11 +775,11 @@ impl CommitmentInput {
                     events_queue_commitment: H256::zero(),
                     bootloader_initial_content_commitment: H256::zero(),
                 },
-                blob_commitments: {
+                blob_hashes: {
                     let num_blobs = num_blobs_required(&protocol_version);
-
-                    vec![H256::zero(); num_blobs]
+                    vec![Default::default(); num_blobs]
                 },
+                aggregation_root: H256::zero(),
             }
         }
     }
@@ -735,4 +794,7 @@ pub struct L1BatchCommitmentArtifacts {
     pub compressed_repeated_writes: Option<Vec<u8>>,
     pub zkporter_is_available: bool,
     pub aux_commitments: Option<AuxCommitments>,
+    pub aggregation_root: H256,
+    pub local_root: H256,
+    pub state_diff_hash: H256,
 }

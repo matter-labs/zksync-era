@@ -147,7 +147,7 @@ async fn notifiers_start_after_snapshot_recovery() {
 trait WsTest: Send + Sync {
     /// Prepares the storage before the server is started. The default implementation performs genesis.
     fn storage_initialization(&self) -> StorageInitialization {
-        StorageInitialization::Genesis
+        StorageInitialization::genesis()
     }
 
     async fn test(
@@ -234,7 +234,7 @@ impl WsTest for BasicSubscriptionsTest {
         if self.snapshot_recovery {
             StorageInitialization::empty_recovery()
         } else {
-            StorageInitialization::Genesis
+            StorageInitialization::genesis()
         }
     }
 
@@ -403,7 +403,7 @@ impl WsTest for LogSubscriptionsTest {
         if self.snapshot_recovery {
             StorageInitialization::empty_recovery()
         } else {
-            StorageInitialization::Genesis
+            StorageInitialization::genesis()
         }
     }
 
