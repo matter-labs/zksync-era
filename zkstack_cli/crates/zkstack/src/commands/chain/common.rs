@@ -49,7 +49,7 @@ pub async fn mint_base_token(
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
     if chain_config.wallet_creation == WalletCreation::Localhost
-        && ecosystem_config.l1_network == L1Network::Localhost
+        && chain_config.l1_network == L1Network::Localhost
         && chain_config.base_token != BaseToken::eth()
     {
         let spinner = Spinner::new(MSG_MINT_BASE_TOKEN_SPINNER);
@@ -64,7 +64,7 @@ pub async fn mint_base_token(
             base_token.address,
             addresses,
             l1_rpc_url,
-            ecosystem_config.l1_network.chain_id(),
+            chain_config.l1_network.chain_id(),
             amount,
         )
         .await?;
