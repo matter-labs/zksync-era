@@ -6,8 +6,6 @@ impl ProtoRepr for crate::proto::config::timestamp_asserter::TimestampAsserter {
     type Type = TimestampAsserterConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            min_range_sec: *required(&self.min_range_sec)
-                .context("timestamp_asserter_min_range_sec")?,
             min_time_till_end_sec: *required(&self.min_time_till_end_sec)
                 .context("timestamp_asserter_min_time_till_end_sec")?,
         })
@@ -15,7 +13,6 @@ impl ProtoRepr for crate::proto::config::timestamp_asserter::TimestampAsserter {
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            min_range_sec: Some(this.min_range_sec),
             min_time_till_end_sec: Some(this.min_time_till_end_sec),
         }
     }

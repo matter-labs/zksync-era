@@ -211,7 +211,6 @@ impl TxSenderBuilder {
             self.config.timestamp_asserter_params.clone().map(|params| {
                 TracerTimestampAsserterParams {
                     address: params.address,
-                    min_range_sec: params.min_range_sec,
                     min_time_till_end_sec: params.min_time_till_end_sec,
                 }
             }),
@@ -250,7 +249,6 @@ pub struct TxSenderConfig {
 #[derive(Debug, Clone)]
 pub struct TimestampAsserterParams {
     pub address: Address,
-    pub min_range_sec: u32,
     pub min_time_till_end_sec: u32,
 }
 

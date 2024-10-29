@@ -95,7 +95,6 @@ export interface TestEnvironment {
     baseToken: Token;
     healthcheckPort: string;
     timestampAsserterAddress: string;
-    timestampAsserterMinRangeSec: number;
     timestampAsserterMinTimeTillEndSec: number;
 }
 

@@ -105,14 +105,7 @@ impl<H: HistoryMode> ValidationTracer<H> {
                                 &calldata[calldata.len() - 64..calldata.len() - 32],
                             );
                             let end = U256::from_big_endian(&calldata[calldata.len() - 32..]);
-
                             let params = self.timestamp_asserter_params.as_ref().unwrap();
-
-                            // end is guaranteed to be greater than the start as
-                            let difference = (end - start).try_into().unwrap_or(u32::MAX);
-                            if difference < params.min_range_sec {
-                                return Err(ViolatedValidationRule::TimestampAssertionShortRange);
-                            }
 
                             // using self.l1_batch_env.timestamp is ok here because the tracer is always
                             // used in a oneshot execution mode

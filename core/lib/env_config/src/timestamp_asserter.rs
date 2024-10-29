@@ -19,7 +19,6 @@ mod tests {
     fn from_env_timestamp_asserter() {
         let mut lock = MUTEX.lock();
         let config = r#"
-            TIMESTAMP_ASSERTER_MIN_RANGE_SEC=1
             TIMESTAMP_ASSERTER_MIN_TIME_TILL_END_SEC=2
         "#;
         lock.set_env(config);
@@ -28,7 +27,6 @@ mod tests {
         assert_eq!(
             actual,
             TimestampAsserterConfig {
-                min_range_sec: 1,
                 min_time_till_end_sec: 2,
             }
         );

@@ -461,9 +461,6 @@ pub(crate) struct OptionalENConfig {
     pub gateway_url: Option<SensitiveUrl>,
     /// Interval for bridge addresses refreshing in seconds.
     bridge_addresses_refresh_interval_sec: Option<NonZeroU64>,
-    /// Minimum difference in seconds between the range start and range end for TimestampAsserter
-    #[serde(default = "OptionalENConfig::default_timestamp_asserter_min_range_sec")]
-    pub timestamp_asserter_min_range_sec: u32,
     /// Minimum time between current block.timestamp and the end of the asserted range for TimestampAsserter
     #[serde(default = "OptionalENConfig::default_timestamp_asserter_min_time_till_end_sec")]
     pub timestamp_asserter_min_time_till_end_sec: u32,
@@ -698,16 +695,11 @@ impl OptionalENConfig {
             contracts_diamond_proxy_addr: None,
             gateway_url: enconfig.gateway_url.clone(),
             bridge_addresses_refresh_interval_sec: enconfig.bridge_addresses_refresh_interval_sec,
-            timestamp_asserter_min_range_sec: general_config
-                .timestamp_asserter_config
-                .as_ref()
-                .map(|x| x.min_range_sec)
-                .unwrap_or(0),
             timestamp_asserter_min_time_till_end_sec: general_config
                 .timestamp_asserter_config
                 .as_ref()
                 .map(|x| x.min_time_till_end_sec)
-                .unwrap_or(0),
+                .unwrap_or_else(Self::default_timestamp_asserter_min_time_till_end_sec),
         })
     }
 
@@ -842,12 +834,8 @@ impl OptionalENConfig {
         3_600 * 24 * 7 // 7 days
     }
 
-    const fn default_timestamp_asserter_min_range_sec() -> u32 {
-        10 * 60
-    }
-
     const fn default_timestamp_asserter_min_time_till_end_sec() -> u32 {
-        2 * 60
+        60
     }
 
     fn from_env() -> anyhow::Result<Self> {
@@ -1482,7 +1470,6 @@ impl From<&ExternalNodeConfig> for TxSenderConfig {
             timestamp_asserter_params: config.remote.l2_timestamp_asserter_addr.map(|address| {
                 TimestampAsserterParams {
                     address,
-                    min_range_sec: config.optional.timestamp_asserter_min_range_sec,
                     min_time_till_end_sec: config.optional.timestamp_asserter_min_time_till_end_sec,
                 }
             }),

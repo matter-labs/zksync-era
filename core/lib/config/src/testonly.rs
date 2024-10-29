@@ -1190,7 +1190,6 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
 impl Distribution<TimestampAsserterConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> TimestampAsserterConfig {
         TimestampAsserterConfig {
-            min_range_sec: self.sample(rng),
             min_time_till_end_sec: self.sample(rng),
         }
     }

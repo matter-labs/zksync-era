@@ -112,38 +112,10 @@ describe('Tests for the custom account behavior', () => {
         ).toBeAccepted([erc20BalanceChange, feeCheck]);
     });
 
-    test('Should fail transaction validation due to timestamp assertion in the validation tracer - short time window', async () => {
-        const now = Math.floor(Date.now() / 1000);
-        const minRange = testMaster.environment().timestampAsserterMinRangeSec;
-        const rangeStart = now - minRange / 4;
-        const rangeEnd = now + minRange / 4;
-
-        const customAccount = await deployAndFundCustomAccount(
-            alice,
-            erc20Address,
-            timestampAsserterAddress,
-            rangeStart,
-            rangeEnd
-        );
-
-        const tx = await erc20.transfer.populateTransaction(alice.address, TRANSFER_AMOUNT);
-        await expect(
-            sendCustomAccountTransaction(
-                tx as zksync.types.Transaction,
-                alice.provider,
-                await customAccount.getAddress(),
-                testMaster.environment().l2ChainId
-            )
-        ).toBeRejected(
-            'failed to validate the transaction. reason: Violated validation rules: block.timestamp range is too short'
-        );
-    });
-
     test('Should fail transaction validation due to timestamp assertion in the validation tracer - close to the range end', async () => {
         const now = Math.floor(Date.now() / 1000);
-        const minRange = testMaster.environment().timestampAsserterMinRangeSec;
         const minTimeTillEnd = testMaster.environment().timestampAsserterMinTimeTillEndSec;
-        const rangeStart = now - minRange;
+        const rangeStart = now - 10;
         const rangeEnd = now + minTimeTillEnd / 2;
 
         const customAccount = await deployAndFundCustomAccount(

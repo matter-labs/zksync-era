@@ -247,8 +247,6 @@ impl MempoolConfig {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct TimestampAsserterConfig {
-    /// Minimum difference in seconds between the range start and range end
-    pub min_range_sec: u32,
     /// Minimum time between current block.timestamp and the end of the asserted range
     pub min_time_till_end_sec: u32,
 }

@@ -66,8 +66,6 @@ pub struct TimestampAsserterParams {
     /// Address of the timestamp asserter. This contract is allowed to touch block.timestamp regardless
     /// of the calling context.
     pub address: Address,
-    /// Minimum difference in seconds between the range start and range end
-    pub min_range_sec: u32,
     /// Minimum time between current block.timestamp and the end of the asserted range
     pub min_time_till_end_sec: u32,
 }
@@ -83,8 +81,6 @@ pub enum ViolatedValidationRule {
     TouchedDisallowedContext,
     /// The transaction used too much gas during validation.
     TookTooManyComputationalGas(u32),
-    /// The transaction failed block.timestamp assertion because the range is too short
-    TimestampAssertionShortRange,
     /// The transaction failed block.timestamp assertion because the block.timestamp is too close to the range end
     TimestampAssertionCloseToRangeEnd,
 }
@@ -107,9 +103,6 @@ impl fmt::Display for ViolatedValidationRule {
                     f,
                     "Took too many computational gas, allowed limit: {gas_limit}"
                 )
-            }
-            ViolatedValidationRule::TimestampAssertionShortRange => {
-                write!(f, "block.timestamp range is too short")
             }
             ViolatedValidationRule::TimestampAssertionCloseToRangeEnd => {
                 write!(f, "block.timestamp is too close to the range end")

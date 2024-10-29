@@ -166,7 +166,6 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
 
     const healthcheckPort = generalConfig.api.healthcheck.port;
     const timestampAsserterAddress = contracts.l2.timestamp_asserter_addr;
-    const timestampAsserterMinRangeSec = parseInt(generalConfig.timestamp_asserter.min_range_sec);
     const timestampAsserterMinTimeTillEndSec = parseInt(generalConfig.timestamp_asserter.min_time_till_end_sec);
     return {
         maxLogsLimit,
@@ -200,7 +199,6 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
             l2Address: baseTokenAddressL2
         },
         timestampAsserterAddress,
-        timestampAsserterMinRangeSec,
         timestampAsserterMinTimeTillEndSec
     };
 }
@@ -293,8 +291,6 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     }
     const timestampAsserterAddress = process.env.CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR.toString();
 
-    const timestampAsserterMinRangeSec = parseInt(process.env.TIMESTAMP_ASSERTER_MIN_RANGE_SEC!);
-
     const timestampAsserterMinTimeTillEndSec = parseInt(process.env.TIMESTAMP_ASSERTER_MIN_TIME_TILL_END_SEC!);
 
     return {
@@ -329,7 +325,6 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
             l2Address: baseTokenAddressL2
         },
         timestampAsserterAddress,
-        timestampAsserterMinRangeSec,
         timestampAsserterMinTimeTillEndSec
     };
 }

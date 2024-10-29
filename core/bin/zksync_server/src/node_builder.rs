@@ -327,7 +327,6 @@ impl MainNodeBuilder {
                     .l2_timestamp_asserter_addr
                     .map(|address| TimestampAsserterParams {
                         address,
-                        min_range_sec: timestamp_asserter_config.min_range_sec,
                         min_time_till_end_sec: timestamp_asserter_config.min_time_till_end_sec,
                     }),
             ),
