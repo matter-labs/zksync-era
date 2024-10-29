@@ -6,9 +6,12 @@ use zksync_types::{
     KECCAK256_PRECOMPILE_ADDRESS, L2_BASE_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS,
     SYSTEM_CONTEXT_ADDRESS, U256,
 };
-use zksync_vm2::interface::{
-    CallframeInterface, ExecutionStatus, GlobalStateInterface, Opcode::*, OpcodeType,
-    ReturnType::*, Tracer,
+use zksync_vm2::{
+    interface::{
+        CallframeInterface, ExecutionStatus, GlobalStateInterface, Opcode::*, OpcodeType,
+        ReturnType::*, Tracer,
+    },
+    ExecutionEnd,
 };
 use zksync_vm_interface::tracer::{ValidationParams, ViolatedValidationRule};
 
@@ -136,6 +139,10 @@ impl Tracer for ValidationTracer {
             return ExecutionStatus::Running;
         }
 
+        if self.validation_error.is_some() {
+            return ExecutionStatus::Stopped(ExecutionEnd::Panicked);
+        }
+
         match OP::VALUE {
             FarCall(_) => {
                 // Intercept calls to keccak, whitelist storage slots corresponding to the hash
@@ -163,7 +170,8 @@ impl Tracer for ValidationTracer {
                 {
                     self.set_error(ViolatedValidationRule::CalledContractWithNoCode(
                         code_address,
-                    ))
+                    ));
+                    return ExecutionStatus::Stopped(ExecutionEnd::Panicked);
                 }
             }
             Ret(kind) => {
