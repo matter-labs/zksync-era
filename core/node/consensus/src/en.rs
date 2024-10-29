@@ -35,9 +35,6 @@ pub(super) struct EN {
 impl EN {
     /// Task running a consensus node for the external node.
     /// It may be a validator, but it cannot be a leader (cannot propose blocks).
-    ///
-    /// before starting the consensus node it fetches all the blocks
-    /// older than consensus genesis from the main node using json RPC.
     pub async fn run(
         self,
         ctx: &ctx::Ctx,
