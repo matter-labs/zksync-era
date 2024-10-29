@@ -72,19 +72,21 @@ pub trait BenchmarkingVmFactory {
         system_env: SystemEnv,
         storage: &'static InMemoryStorage,
     ) -> Self::Instance;
+}
 
+pub trait CountInstructions {
     /// Counts instructions executed by the VM while processing the transaction.
     fn count_instructions(tx: &Transaction) -> usize;
 }
 
 /// Factory for the new / fast VM.
 #[derive(Debug)]
-pub struct Fast<Tr = ()>(Tr);
+pub struct Fast;
 
-impl<Tr: vm_fast::Tracer + Default + 'static> BenchmarkingVmFactory for Fast<Tr> {
+impl BenchmarkingVmFactory for Fast {
     const LABEL: VmLabel = VmLabel::Fast;
 
-    type Instance = vm_fast::Vm<&'static InMemoryStorage, Tr>;
+    type Instance = vm_fast::Vm<&'static InMemoryStorage>;
 
     fn create(
         batch_env: L1BatchEnv,
@@ -93,27 +95,30 @@ impl<Tr: vm_fast::Tracer + Default + 'static> BenchmarkingVmFactory for Fast<Tr>
     ) -> Self::Instance {
         vm_fast::Vm::custom(batch_env, system_env, storage)
     }
+}
 
+impl CountInstructions for Fast {
     fn count_instructions(tx: &Transaction) -> usize {
-        let mut vm = BenchmarkingVm::<Fast<InstructionCount>>::default();
-        vm.0.push_transaction(tx.clone());
+        use vm_fast::interface as vm2;
 
         #[derive(Default)]
         struct InstructionCount(usize);
-        impl vm_fast::Tracer for InstructionCount {
-            fn before_instruction<
-                OP: zksync_vm2::interface::OpcodeType,
-                S: zksync_vm2::interface::GlobalStateInterface,
-            >(
+
+        impl vm2::Tracer for InstructionCount {
+            fn before_instruction<OP: vm2::OpcodeType, S: vm2::GlobalStateInterface>(
                 &mut self,
                 _: &mut S,
             ) {
                 self.0 += 1;
             }
         }
-        let mut tracer = InstructionCount(0);
 
-        vm.0.inspect(&mut tracer, InspectExecutionMode::OneTx);
+        let (system_env, l1_batch_env) = test_env();
+        let mut vm =
+            vm_fast::Vm::<_, InstructionCount>::custom(l1_batch_env, system_env, &*STORAGE);
+        vm.push_transaction(tx.clone());
+        let mut tracer = InstructionCount(0);
+        vm.inspect(&mut tracer, InspectExecutionMode::OneTx);
         tracer.0
     }
 }
@@ -135,7 +140,9 @@ impl BenchmarkingVmFactory for Legacy {
         let storage = StorageView::new(storage).to_rc_ptr();
         vm_latest::Vm::new(batch_env, system_env, storage)
     }
+}
 
+impl CountInstructions for Legacy {
     fn count_instructions(tx: &Transaction) -> usize {
         let mut vm = BenchmarkingVm::<Self>::default();
         vm.0.push_transaction(tx.clone());
@@ -150,41 +157,44 @@ impl BenchmarkingVmFactory for Legacy {
     }
 }
 
+fn test_env() -> (SystemEnv, L1BatchEnv) {
+    let timestamp = unix_timestamp_ms();
+    let system_env = SystemEnv {
+        zk_porter_available: false,
+        version: ProtocolVersionId::latest(),
+        base_system_smart_contracts: SYSTEM_CONTRACTS.clone(),
+        bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
+        execution_mode: TxExecutionMode::VerifyExecute,
+        default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
+        chain_id: L2ChainId::from(270),
+    };
+    let l1_batch_env = L1BatchEnv {
+        previous_batch_hash: None,
+        number: L1BatchNumber(1),
+        timestamp,
+        fee_input: BatchFeeInput::l1_pegged(
+            50_000_000_000, // 50 gwei
+            250_000_000,    // 0.25 gwei
+        ),
+        fee_account: Address::random(),
+        enforced_base_fee: None,
+        first_l2_block: L2BlockEnv {
+            number: 1,
+            timestamp,
+            prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
+            max_virtual_blocks_to_create: 100,
+        },
+    };
+    (system_env, l1_batch_env)
+}
+
 #[derive(Debug)]
 pub struct BenchmarkingVm<VM: BenchmarkingVmFactory>(VM::Instance);
 
 impl<VM: BenchmarkingVmFactory> Default for BenchmarkingVm<VM> {
     fn default() -> Self {
-        let timestamp = unix_timestamp_ms();
-        Self(VM::create(
-            L1BatchEnv {
-                previous_batch_hash: None,
-                number: L1BatchNumber(1),
-                timestamp,
-                fee_input: BatchFeeInput::l1_pegged(
-                    50_000_000_000, // 50 gwei
-                    250_000_000,    // 0.25 gwei
-                ),
-                fee_account: Address::random(),
-                enforced_base_fee: None,
-                first_l2_block: L2BlockEnv {
-                    number: 1,
-                    timestamp,
-                    prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
-                    max_virtual_blocks_to_create: 100,
-                },
-            },
-            SystemEnv {
-                zk_porter_available: false,
-                version: ProtocolVersionId::latest(),
-                base_system_smart_contracts: SYSTEM_CONTRACTS.clone(),
-                bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
-                execution_mode: TxExecutionMode::VerifyExecute,
-                default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
-                chain_id: L2ChainId::from(270),
-            },
-            &STORAGE,
-        ))
+        let (system_env, l1_batch_env) = test_env();
+        Self(VM::create(l1_batch_env, system_env, &STORAGE))
     }
 }
 
@@ -231,7 +241,7 @@ mod tests {
     use super::*;
     use crate::{
         get_deploy_tx, get_heavy_load_test_tx, get_load_test_deploy_tx, get_load_test_tx,
-        get_realistic_load_test_tx, get_transfer_tx, LoadTestParams,
+        get_realistic_load_test_tx, get_transfer_tx, LoadTestParams, BYTECODES,
     };
 
     #[test]
@@ -281,5 +291,23 @@ mod tests {
 
         let res = vm.run_transaction(&get_heavy_load_test_tx(1));
         assert_matches!(res.result, ExecutionResult::Success { .. });
+    }
+
+    #[test]
+    fn instruction_count_matches_on_both_vms_for_transfer() {
+        let tx = get_transfer_tx(0);
+        let legacy_count = Legacy::count_instructions(&tx);
+        let fast_count = Fast::count_instructions(&tx);
+        assert_eq!(legacy_count, fast_count);
+    }
+
+    #[test]
+    fn instruction_count_matches_on_both_vms_for_benchmark_bytecodes() {
+        for bytecode in BYTECODES {
+            let tx = bytecode.deploy_tx();
+            let legacy_count = Legacy::count_instructions(&tx);
+            let fast_count = Fast::count_instructions(&tx);
+            assert_eq!(legacy_count, fast_count, "bytecode: {}", bytecode.name);
+        }
     }
 }

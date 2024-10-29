@@ -37,7 +37,7 @@ pub trait BatchTracer: fmt::Debug + 'static + Send + Sealed {
     const TRACE_CALLS: bool;
     /// Tracer for the fast VM.
     #[doc(hidden)]
-    type Fast: vm_fast::Tracer + Default + 'static;
+    type Fast: vm_fast::interface::Tracer + Default + 'static;
 }
 
 impl Sealed for () {}
