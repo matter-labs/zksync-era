@@ -188,26 +188,23 @@ describe('Tests for the custom account behavior', () => {
             rangeStart,
             rangeEnd
         );
+        const customAccountAddress = await customAccount.getAddress();
 
-        const promise = alice.provider.estimateGas({
-            ...(await erc20.transfer.populateTransaction(alice.address, TRANSFER_AMOUNT)),
-            from: await customAccount.getAddress()
-        });
+        const tx = await erc20.transfer.populateTransaction(alice.address, TRANSFER_AMOUNT);
 
-        // requires custom assertion because the transaction would fail in "estimateFee" that is not handled correctly by zksync ethers
-        promise
-            .then((_) => {
-                expect(null).fail('The transaction was expected to fail due to timestamp assertion');
-            })
-            .catch((error) => {
-                if (error.info && error.info.error && error.info.error.message) {
-                    expect(error.info.error.message).toEqual(
-                        'failed to validate the transaction. reason: Timestamp is out of range'
-                    );
-                } else {
-                    expect(null).fail('The transaction was expected to fail with a different message');
-                }
-            });
+        await expect(
+            sendCustomAccountTransaction(
+                tx as zksync.types.Transaction,
+                alice.provider,
+                customAccountAddress,
+                testMaster.environment().l2ChainId,
+                undefined,
+                undefined,
+                false
+            )
+        ).toBeRejected(
+            'failed to validate the transaction. reason: Validation revert: Account validation error: Timestamp is out of range'
+        );
     });
 
     test('Should fail the validation with incorrect signature', async () => {
@@ -461,12 +458,11 @@ async function sendCustomAccountTransaction(
     accountAddress: string,
     chainId: bigint,
     customSignature?: Uint8Array,
-    nonce?: number
+    nonce?: number,
+    estimateGas: boolean = true
 ) {
-    const gasLimit = await browserProvider.estimateGas({
-        ...tx,
-        from: accountAddress
-    });
+    const gasLimit = estimateGas ? await browserProvider.estimateGas({ ...tx, from: accountAddress }) : BigInt(100_000); // Enough gas to invoke AA contract
+
     const gasPrice = await browserProvider.getGasPrice();
 
     tx.gasLimit = gasLimit;
