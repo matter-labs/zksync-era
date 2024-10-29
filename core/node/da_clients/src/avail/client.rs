@@ -195,7 +195,7 @@ impl DataAvailabilityClient for AvailClient {
         let response = self
             .api_client
             .get(&url)
-            .timeout(Duration::from_secs(self.config.timeout as u64))
+            .timeout(Duration::from_millis(self.config.timeout_ms as u64))
             .send()
             .await
             .map_err(to_retriable_da_error)?;
