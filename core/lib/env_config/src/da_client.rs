@@ -6,8 +6,9 @@ use zksync_config::configs::{
             AvailClientConfig, AvailSecrets, AVAIL_FULL_CLIENT_NAME, AVAIL_GAS_RELAY_CLIENT_NAME,
         },
         celestia::CelestiaSecrets,
+        eigen::EigenSecrets,
         DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, CELESTIA_CLIENT_CONFIG_NAME,
-        OBJECT_STORE_CLIENT_CONFIG_NAME,
+        EIGEN_CLIENT_CONFIG_NAME, OBJECT_STORE_CLIENT_CONFIG_NAME,
     },
     secrets::DataAvailabilitySecrets,
     AvailConfig,
@@ -33,6 +34,7 @@ impl FromEnv for DAClientConfig {
                 },
             }),
             CELESTIA_CLIENT_CONFIG_NAME => Self::Celestia(envy_load("da_celestia_config", "DA_")?),
+            EIGEN_CLIENT_CONFIG_NAME => Self::Eigen(envy_load("da_eigen_config", "DA_")?),
             OBJECT_STORE_CLIENT_CONFIG_NAME => {
                 Self::ObjectStore(envy_load("da_object_store", "DA_")?)
             }
@@ -66,10 +68,17 @@ impl FromEnv for DataAvailabilitySecrets {
             }
             CELESTIA_CLIENT_CONFIG_NAME => {
                 let private_key = env::var("DA_SECRETS_PRIVATE_KEY")
-                    .map_err(|e| anyhow::format_err!("private key not found: {}", e))?
+                    .map_err(|e| anyhow::format_err!("Celestia private key not found: {}", e))?
                     .parse()
-                    .map_err(|e| anyhow::format_err!("failed to parse the auth token: {}", e))?;
+                    .map_err(|e| anyhow::format_err!("failed to parse the private key: {}", e))?;
                 Self::Celestia(CelestiaSecrets { private_key })
+            }
+            EIGEN_CLIENT_CONFIG_NAME => {
+                let private_key = env::var("DA_SECRETS_PRIVATE_KEY")
+                    .map_err(|e| anyhow::format_err!("Eigen private key not found: {}", e))?
+                    .parse()
+                    .map_err(|e| anyhow::format_err!("failed to parse the private key: {}", e))?;
+                Self::Eigen(EigenSecrets { private_key })
             }
 
             _ => anyhow::bail!("Unknown DA client name: {}", client_tag),
@@ -89,7 +98,7 @@ mod tests {
             },
             object_store::ObjectStoreMode::GCS,
         },
-        AvailConfig, CelestiaConfig, ObjectStoreConfig,
+        AvailConfig, CelestiaConfig, EigenConfig, ObjectStoreConfig,
     };
 
     use super::*;
@@ -231,6 +240,26 @@ mod tests {
                 "mocha-4",
                 7000
             )
+        );
+    }
+
+    #[test]
+    fn from_env_eigen_client() {
+        let mut lock = MUTEX.lock();
+        let config = r#"
+            DA_CLIENT="Eigen"
+            DA_RPC_NODE_URL="localhost:12345"
+            DA_INCLUSION_POLLING_INTERVAL_MS="1000"
+        "#;
+        lock.set_env(config);
+
+        let actual = DAClientConfig::from_env().unwrap();
+        assert_eq!(
+            actual,
+            DAClientConfig::Eigen(EigenConfig {
+                rpc_node_url: "localhost:12345".to_string(),
+                inclusion_polling_interval_ms: 1000,
+            })
         );
     }
 

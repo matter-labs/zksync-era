@@ -4,7 +4,8 @@ use zksync_config::configs::{
     da_client::{
         avail::{AvailClientConfig, AvailConfig, AvailDefaultConfig, AvailGasRelayConfig},
         celestia::CelestiaConfig,
-        DAClientConfig::{Avail, Celestia, ObjectStore},
+        eigen::EigenConfig,
+        DAClientConfig::{Avail, Celestia, Eigen, ObjectStore},
     },
 };
 use zksync_protobuf::{required, ProtoRepr};
@@ -51,6 +52,13 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 chain_id: required(&conf.chain_id).context("chain_id")?.clone(),
                 timeout_ms: *required(&conf.timeout_ms).context("timeout_ms")?,
             }),
+            proto::data_availability_client::Config::Eigen(conf) => Eigen(EigenConfig {
+                rpc_node_url: required(&conf.rpc_node_url)
+                    .context("rpc_node_url")?
+                    .clone(),
+                inclusion_polling_interval_ms: *required(&conf.inclusion_polling_interval_ms)
+                    .context("inclusion_polling_interval_ms")?,
+            }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
             }
@@ -79,7 +87,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     ),
                 },
             }),
-
             Celestia(config) => {
                 proto::data_availability_client::Config::Celestia(proto::CelestiaConfig {
                     api_node_url: Some(config.api_node_url.clone()),
@@ -88,6 +95,10 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     timeout_ms: Some(config.timeout_ms),
                 })
             }
+            Eigen(config) => proto::data_availability_client::Config::Eigen(proto::EigenConfig {
+                rpc_node_url: Some(config.rpc_node_url.clone()),
+                inclusion_polling_interval_ms: Some(config.inclusion_polling_interval_ms),
+            }),
             ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
                 object_store_proto::ObjectStore::build(config),
             ),
