@@ -149,7 +149,7 @@ mod tests {
             DA_AVAIL_CLIENT_TYPE="FullClient"
 
             DA_BRIDGE_API_URL="localhost:54321"
-            DA_TIMEOUT="2000"
+            DA_TIMEOUT_MS="2000"
 
             DA_API_NODE_URL="localhost:12345"
             DA_APP_ID="1"
