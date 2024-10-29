@@ -36,11 +36,17 @@ message CelestiaConfig {
   optional uint64 timeout_ms = 4;
 }
 
+message EigenConfig {
+  optional string rpc_node_url = 1;
+  optional uint64 inclusion_polling_interval_ms = 2;
+}
+
 message DataAvailabilityClient {
   // oneof in protobuf allows for None
   oneof config {
     AvailConfig avail = 1;
     object_store.ObjectStore object_store = 2;
     CelestiaConfig celestia = 3;
+    EigenConfig eigen = 4;
   }
 }
