@@ -36,7 +36,7 @@ impl InMemoryStorage {
         Self::with_custom_system_contracts_and_chain_id(
             chain_id,
             bytecode_hasher,
-            get_system_smart_contracts(),
+            get_system_smart_contracts(false),
         )
     }
 

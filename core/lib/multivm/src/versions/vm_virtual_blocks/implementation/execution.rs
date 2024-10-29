@@ -88,6 +88,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
                 .refund_tracer
                 .map(|r| r.get_refunds())
                 .unwrap_or_default(),
+            new_known_factory_deps: None,
         };
 
         tx_tracer.dispatcher.save_results(&mut result);

@@ -400,6 +400,7 @@ where
             .into_iter()
             .take(chunk_size)
             .zip(fee_history.base_fee_per_blob_gas)
+            .take(chunk_size)
         {
             let fees = BaseFees {
                 base_fee_per_gas: cast_to_u64(base, "base_fee_per_gas")?,
@@ -456,16 +457,12 @@ where
         let chunk_end = (chunk_start + FEE_HISTORY_MAX_REQUEST_CHUNK).min(upto_block);
         let chunk_size = chunk_end - chunk_start + 1;
 
-        let fee_history = EthNamespaceClient::fee_history(
-            client,
-            U64::from(chunk_size),
-            zksync_types::api::BlockNumber::from(chunk_end),
-            None,
-        )
-        .rpc_context("fee_history")
-        .with_arg("chunk_size", &chunk_size)
-        .with_arg("block", &chunk_end)
-        .await?;
+        let fee_history = client
+            .fee_history(U64::from(chunk_size).into(), chunk_end.into(), None)
+            .rpc_context("fee_history")
+            .with_arg("chunk_size", &chunk_size)
+            .with_arg("block", &chunk_end)
+            .await?;
 
         if fee_history.inner.oldest_block != web3::BlockNumber::Number(chunk_start.into()) {
             let oldest_block = match fee_history.inner.oldest_block {

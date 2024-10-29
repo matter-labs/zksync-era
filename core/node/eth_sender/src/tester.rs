@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use zksync_config::{
-    configs::eth_sender::{ProofSendingMode, PubdataSendingMode, SenderConfig},
+    configs::eth_sender::{ProofSendingMode, SenderConfig},
     ContractsConfig, EthConfig, GasAdjusterConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -12,7 +12,7 @@ use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_ar
 use zksync_object_store::MockObjectStore;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, block::L1BatchHeader,
-    commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataDA,
+    commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataSendingMode,
     settlement::SettlementMode, Address, L1BatchNumber, ProtocolVersion, H256,
 };
 
@@ -22,6 +22,8 @@ use crate::{
     tests::{default_l1_batch_metadata, l1_batch_with_metadata},
     Aggregator, EthTxAggregator, EthTxManager,
 };
+
+pub(super) const STATE_TRANSITION_CONTRACT_ADDRESS: Address = Address::repeat_byte(0xa0);
 
 // Alias to conveniently call static methods of `ETHSender`.
 type MockEthTxManager = EthTxManager;
@@ -172,7 +174,7 @@ impl EthSenderTester {
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
                 assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
-                crate::tests::mock_multicall_response()
+                crate::tests::mock_multicall_response(call)
             })
             .build();
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
@@ -192,7 +194,7 @@ impl EthSenderTester {
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
                 assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
-                crate::tests::mock_multicall_response()
+                crate::tests::mock_multicall_response(call)
             })
             .build();
         l2_gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
@@ -212,7 +214,7 @@ impl EthSenderTester {
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
                 assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
-                crate::tests::mock_multicall_response()
+                crate::tests::mock_multicall_response(call)
             })
             .build();
         gateway_blobs.advance_block_number(Self::WAIT_CONFIRMATIONS);
@@ -267,7 +269,7 @@ impl EthSenderTester {
             // ZKsync contract address
             Address::random(),
             contracts_config.l1_multicall3_addr,
-            Address::random(),
+            STATE_TRANSITION_CONTRACT_ADDRESS,
             Default::default(),
             custom_commit_sender_addr,
             SettlementMode::SettlesToL1,
@@ -494,9 +496,9 @@ impl EthSenderTester {
     pub async fn save_commit_tx(&mut self, l1_batch_number: L1BatchNumber) -> EthTx {
         assert_eq!(l1_batch_number, self.next_l1_batch_number_to_commit);
         let pubdata_mode = if self.pubdata_sending_mode == PubdataSendingMode::Blobs {
-            PubdataDA::Blobs
+            PubdataSendingMode::Blobs
         } else {
-            PubdataDA::Calldata
+            PubdataSendingMode::Calldata
         };
         let operation = AggregatedOperation::Commit(
             l1_batch_with_metadata(

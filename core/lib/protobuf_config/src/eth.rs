@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use zksync_config::configs::{self};
 use zksync_protobuf::{required, ProtoRepr};
-use zksync_types::settlement::SettlementMode;
+use zksync_types::{pubdata_da::PubdataSendingMode, settlement::SettlementMode};
 
 use crate::{proto::eth as proto, read_optional_repr};
 
@@ -26,23 +26,21 @@ impl proto::ProofSendingMode {
 }
 
 impl proto::PubdataSendingMode {
-    fn new(x: &configs::eth_sender::PubdataSendingMode) -> Self {
-        use configs::eth_sender::PubdataSendingMode as From;
+    fn new(x: &PubdataSendingMode) -> Self {
         match x {
-            From::Calldata => Self::Calldata,
-            From::Blobs => Self::Blobs,
-            From::Custom => Self::Custom,
-            From::RelayedL2Calldata => Self::RelayedL2Calldata,
+            PubdataSendingMode::Calldata => Self::Calldata,
+            PubdataSendingMode::Blobs => Self::Blobs,
+            PubdataSendingMode::Custom => Self::Custom,
+            PubdataSendingMode::RelayedL2Calldata => Self::RelayedL2Calldata,
         }
     }
 
-    fn parse(&self) -> configs::eth_sender::PubdataSendingMode {
-        use configs::eth_sender::PubdataSendingMode as To;
+    fn parse(&self) -> PubdataSendingMode {
         match self {
-            Self::Calldata => To::Calldata,
-            Self::Blobs => To::Blobs,
-            Self::Custom => To::Custom,
-            Self::RelayedL2Calldata => To::RelayedL2Calldata,
+            Self::Calldata => PubdataSendingMode::Calldata,
+            Self::Blobs => PubdataSendingMode::Blobs,
+            Self::Custom => PubdataSendingMode::Custom,
+            Self::RelayedL2Calldata => PubdataSendingMode::RelayedL2Calldata,
         }
     }
 }
@@ -136,6 +134,9 @@ impl ProtoRepr for proto::Sender {
             tx_aggregation_paused: self.tx_aggregation_only_prove_and_execute.unwrap_or(false),
             ignore_db_nonce: None,
             priority_tree_start_index: self.priority_op_start_index.map(|x| x as usize),
+            time_in_mempool_in_l1_blocks_cap: self
+                .time_in_mempool_in_l1_blocks_cap
+                .unwrap_or(Self::Type::default_time_in_mempool_in_l1_blocks_cap()),
         })
     }
 
@@ -169,6 +170,7 @@ impl ProtoRepr for proto::Sender {
             tx_aggregation_only_prove_and_execute: Some(this.tx_aggregation_only_prove_and_execute),
             tx_aggregation_paused: Some(this.tx_aggregation_paused),
             priority_op_start_index: this.priority_tree_start_index.map(|x| x as u64),
+            time_in_mempool_in_l1_blocks_cap: Some(this.time_in_mempool_in_l1_blocks_cap),
         }
     }
 }
@@ -183,9 +185,9 @@ impl ProtoRepr for proto::GasAdjuster {
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("max_base_fee_samples")?,
             pricing_formula_parameter_a: *required(&self.pricing_formula_parameter_a)
-                .context("pricing_formula_parameter_a")?,
+                .unwrap_or(&Self::Type::default_pricing_formula_parameter_a()),
             pricing_formula_parameter_b: *required(&self.pricing_formula_parameter_b)
-                .context("pricing_formula_parameter_b")?,
+                .unwrap_or(&Self::Type::default_pricing_formula_parameter_b()),
             internal_l1_pricing_multiplier: *required(&self.internal_l1_pricing_multiplier)
                 .context("internal_l1_pricing_multiplier")?,
             internal_enforced_l1_gas_price: self.internal_enforced_l1_gas_price,

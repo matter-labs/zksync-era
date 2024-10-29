@@ -54,7 +54,6 @@ pub fn l1_batch_params(
     protocol_version: ProtocolVersionId,
     virtual_blocks: u32,
     chain_id: L2ChainId,
-    pubdata_params: PubdataParams,
 ) -> (SystemEnv, L1BatchEnv) {
     (
         SystemEnv {
@@ -65,7 +64,6 @@ pub fn l1_batch_params(
             execution_mode: TxExecutionMode::VerifyExecute,
             default_validation_computational_gas_limit: validation_computational_gas_limit,
             chain_id,
-            pubdata_params,
         },
         L1BatchEnv {
             previous_batch_hash: Some(previous_batch_hash),
@@ -266,7 +264,7 @@ impl L1BatchParamsProvider {
         first_l2_block_in_batch: &FirstL2BlockInBatch,
         validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
-    ) -> anyhow::Result<(SystemEnv, L1BatchEnv)> {
+    ) -> anyhow::Result<(SystemEnv, L1BatchEnv, PubdataParams)> {
         anyhow::ensure!(
             first_l2_block_in_batch.l1_batch_number > L1BatchNumber(0),
             "Loading params for genesis L1 batch not supported"
@@ -312,11 +310,15 @@ impl L1BatchParamsProvider {
         let contract_hashes = first_l2_block_in_batch.header.base_system_contracts_hashes;
         let base_system_contracts = storage
             .factory_deps_dal()
-            .get_base_system_contracts(contract_hashes.bootloader, contract_hashes.default_aa)
+            .get_base_system_contracts(
+                contract_hashes.bootloader,
+                contract_hashes.default_aa,
+                contract_hashes.evm_emulator,
+            )
             .await
             .context("failed getting base system contracts")?;
 
-        Ok(l1_batch_params(
+        let (system_env, l1_batch_env) = l1_batch_params(
             first_l2_block_in_batch.l1_batch_number,
             first_l2_block_in_batch.header.fee_account_address,
             l1_batch_timestamp,
@@ -332,13 +334,12 @@ impl L1BatchParamsProvider {
                 .context("`protocol_version` must be set for L2 block")?,
             first_l2_block_in_batch.header.virtual_blocks,
             chain_id,
-            PubdataParams {
-                l2_da_validator_address: first_l2_block_in_batch
-                    .header
-                    .pubdata_params
-                    .l2_da_validator_address,
-                pubdata_type: first_l2_block_in_batch.header.pubdata_params.pubdata_type,
-            },
+        );
+
+        Ok((
+            system_env,
+            l1_batch_env,
+            first_l2_block_in_batch.header.pubdata_params,
         ))
     }
 
@@ -352,7 +353,7 @@ impl L1BatchParamsProvider {
         number: L1BatchNumber,
         validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
-    ) -> anyhow::Result<Option<(SystemEnv, L1BatchEnv)>> {
+    ) -> anyhow::Result<Option<(SystemEnv, L1BatchEnv, PubdataParams)>> {
         let first_l2_block = self
             .load_first_l2_block_in_batch(storage, number)
             .await

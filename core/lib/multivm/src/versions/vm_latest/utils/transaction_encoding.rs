@@ -10,7 +10,9 @@ pub trait TransactionVmExt {
 
 impl TransactionVmExt for Transaction {
     fn bootloader_encoding_size(&self) -> usize {
-        let transaction_data: TransactionData = self.clone().into();
+        // Since we want to just measure the encoding size, `use_evm_emulator` arg doesn't matter here,
+        // so we use a more lenient option.
+        let transaction_data = TransactionData::new(self.clone(), true);
         transaction_data.into_tokens().len()
     }
 }

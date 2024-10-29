@@ -216,7 +216,9 @@ impl L2Tx {
         let raw = req.get_signed_bytes(&sig).context("get_signed_bytes")?;
         let (req, hash) =
             TransactionRequest::from_bytes_unverified(&raw).context("from_bytes_unverified()")?;
-        let mut tx = L2Tx::from_request_unverified(req).context("from_request_unverified()")?;
+        // Since we allow users to specify `None` recipient, EVM emulation is implicitly enabled.
+        let mut tx =
+            L2Tx::from_request_unverified(req, true).context("from_request_unverified()")?;
         tx.set_input(raw, hash);
         Ok(tx)
     }

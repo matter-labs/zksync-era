@@ -17,9 +17,12 @@ zksync_dal.workspace = true
 zksync_object_store.workspace = true
 zksync_prover_interface.workspace = true
 zksync_types.workspace = true
+zksync_vm_executor.workspace = true
+zksync_utils.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 tokio.workspace = true
+tower-http = { workspace = true, features = ["compression-zstd", "decompression-zstd"] }
 tracing.workspace = true
 
 [dev-dependencies]

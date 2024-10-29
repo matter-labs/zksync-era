@@ -22,6 +22,8 @@ pub enum DeserializeErrorKind {
     /// Bit mask specifying a child kind in an internal tree node is invalid.
     #[error("invalid bit mask specifying a child kind in an internal tree node")]
     InvalidChildKind,
+    #[error("data left after deserialization")]
+    Leftovers,
 
     /// Missing required tag in the tree manifest.
     #[error("missing required tag `{0}` in tree manifest")]

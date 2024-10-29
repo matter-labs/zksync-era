@@ -1,13 +1,10 @@
 use anyhow::Context as _;
-use zksync_config::{
-    configs::{
-        chain::{MempoolConfig, StateKeeperConfig},
-        wallets,
-    },
-    ContractsConfig, GenesisConfig,
+use zksync_config::configs::{
+    chain::{MempoolConfig, StateKeeperConfig},
+    wallets,
 };
 use zksync_state_keeper::{MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer};
-use zksync_types::L2ChainId;
+use zksync_types::{commitment::L1BatchCommitmentMode, Address, L2ChainId};
 
 use crate::{
     implementations::resources::{
@@ -41,9 +38,9 @@ pub struct MempoolIOLayer {
     zksync_network_id: L2ChainId,
     state_keeper_config: StateKeeperConfig,
     mempool_config: MempoolConfig,
-    contracts_config: ContractsConfig,
-    genesis_config: GenesisConfig,
     wallets: wallets::StateKeeper,
+    l2_da_validator_addr: Option<Address>,
+    l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
 }
 
 #[derive(Debug, FromContext)]
@@ -67,17 +64,17 @@ impl MempoolIOLayer {
         zksync_network_id: L2ChainId,
         state_keeper_config: StateKeeperConfig,
         mempool_config: MempoolConfig,
-        contracts_config: ContractsConfig,
-        genesis_config: GenesisConfig,
         wallets: wallets::StateKeeper,
+        l2_da_validator_addr: Option<Address>,
+        l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
             zksync_network_id,
             state_keeper_config,
             mempool_config,
-            contracts_config,
-            genesis_config,
             wallets,
+            l2_da_validator_addr,
+            l1_batch_commit_data_generator_mode,
         }
     }
 
@@ -136,10 +133,10 @@ impl WiringLayer for MempoolIOLayer {
             mempool_db_pool,
             &self.state_keeper_config,
             self.wallets.fee_account.address(),
-            self.contracts_config.l2_da_validator_addr,
-            self.genesis_config.l1_batch_commit_data_generator_mode,
             self.mempool_config.delay_interval(),
             self.zksync_network_id,
+            self.l2_da_validator_addr,
+            self.l1_batch_commit_data_generator_mode,
         )?;
 
         // Create sealer.
