@@ -91,7 +91,7 @@ zkstack prover init --bucket-base-url={url} --credentials-file={path/to/service_
 Running on a machine with GPU
 
 ```bash
-zkstack prover run
+zkstack prover run --component=prover
 ```
 
 > NOTE: Running on machine without GPU is currently not supported by `zkstack`.
