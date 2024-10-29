@@ -375,6 +375,9 @@ impl TxSender {
             .await;
         stage_latency.observe();
 
+        if let Err(err) = validation_result {
+            return Err(err.into());
+        }
         if !execution_output.are_published_bytecodes_ok {
             return Err(SubmitTxError::FailedToPublishCompressedBytecodes);
         }
