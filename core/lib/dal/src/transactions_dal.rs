@@ -319,11 +319,12 @@ impl TransactionsDal<'_, '_> {
         #[allow(deprecated)]
         let timestamp_asserter_range_start = validation_traces
             .timestamp_asserter_range
-            .map(|x| NaiveDateTime::from_timestamp_opt(x.0, 0).unwrap());
+            .clone()
+            .map(|x| NaiveDateTime::from_timestamp_opt(x.start as i64, 0).unwrap());
         #[allow(deprecated)]
         let timestamp_asserter_range_end = validation_traces
             .timestamp_asserter_range
-            .map(|x| NaiveDateTime::from_timestamp_opt(x.1, 0).unwrap());
+            .map(|x| NaiveDateTime::from_timestamp_opt(x.end as i64, 0).unwrap());
         // Besides just adding or updating(on conflict) the record, we want to extract some info
         // from the query below, to indicate what actually happened:
         // 1) transaction is added
@@ -1840,7 +1841,7 @@ impl TransactionsDal<'_, '_> {
         let transactions_with_constraints = transactions
             .into_iter()
             .map(|tx| {
-                let constraint: TransactionTimeRangeConstraint = (&tx).into();
+                let constraint = TransactionTimeRangeConstraint::from(&tx);
                 (tx.into(), constraint)
             })
             .collect();

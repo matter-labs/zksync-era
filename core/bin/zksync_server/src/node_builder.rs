@@ -12,7 +12,7 @@ use zksync_config::{
 use zksync_core_leftovers::Component;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
-    tx_sender::TxSenderConfig,
+    tx_sender::{TimestampAsserterParams, TxSenderConfig},
     web3::{state::InternalApiConfig, Namespace},
 };
 use zksync_node_framework::{
@@ -323,8 +323,13 @@ impl MainNodeBuilder {
                     .fee_account
                     .address(),
                 self.genesis_config.l2_chain_id,
-                self.contracts_config.l2_timestamp_asserter_addr,
-                timestamp_asserter_config,
+                self.contracts_config
+                    .l2_timestamp_asserter_addr
+                    .map(|address| TimestampAsserterParams {
+                        address,
+                        min_range_sec: timestamp_asserter_config.min_range_sec,
+                        min_time_till_end_sec: timestamp_asserter_config.min_time_till_end_sec,
+                    }),
             ),
             postgres_storage_caches_config,
             rpc_config.vm_concurrency_limit(),

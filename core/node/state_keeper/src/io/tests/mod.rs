@@ -701,35 +701,32 @@ async fn test_mempool_with_timestamp_assertion(commitment_mode: L1BatchCommitmen
     let system_time = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards")
-        .as_secs() as i64;
+        .as_secs();
 
     // inserting 3 transactions - a good one, sandwiched in between two bad ones. The good one should
     // be returned by wait_for_next_tx, while two bad ones should be rejected.
-    #[allow(deprecated)]
     let rejected_tx_1 = tester.insert_tx(
         &mut guard,
         want_filter.fee_per_gas,
         want_filter.gas_per_pubdata,
         TransactionTimeRangeConstraint {
-            timestamp_asserter_range: Some((system_time - 20000, system_time - 10000)),
+            timestamp_asserter_range: Some(system_time - 20000..system_time - 10000),
         },
     );
-    #[allow(deprecated)]
     let expected_tx = tester.insert_tx(
         &mut guard,
         want_filter.fee_per_gas,
         want_filter.gas_per_pubdata,
         TransactionTimeRangeConstraint {
-            timestamp_asserter_range: Some((system_time - 1000, system_time + 1000)),
+            timestamp_asserter_range: Some(system_time - 1000..system_time + 1000),
         },
     );
-    #[allow(deprecated)]
     let rejected_tx_2 = tester.insert_tx(
         &mut guard,
         want_filter.fee_per_gas,
         want_filter.gas_per_pubdata,
         TransactionTimeRangeConstraint {
-            timestamp_asserter_range: Some((system_time + 10000, system_time + 20000)),
+            timestamp_asserter_range: Some(system_time + 10000..system_time + 20000),
         },
     );
     insert_l2_transaction(&mut storage, &rejected_tx_1).await;
@@ -739,8 +736,8 @@ async fn test_mempool_with_timestamp_assertion(commitment_mode: L1BatchCommitmen
     let tx = mempool
         .wait_for_next_tx(Duration::from_secs(2), system_time as u64)
         .await
-        .expect("No expected transaction in the mempool")
-        .unwrap();
+        .unwrap()
+        .expect("No expected transaction in the mempool");
     assert_eq!(expected_tx.hash(), tx.hash());
 
     let next_tx = mempool
@@ -754,8 +751,8 @@ async fn test_mempool_with_timestamp_assertion(commitment_mode: L1BatchCommitmen
         .transactions_dal()
         .get_storage_tx_by_hash(rejected_tx_1.hash())
         .await
-        .expect("Failed to find transaction")
-        .unwrap();
+        .unwrap()
+        .expect("Failed to find transaction");
     assert_eq!(
         "rejected: Transaction failed block.timestamp assertion",
         rejected_storage_tx_1.error.unwrap()
@@ -765,8 +762,8 @@ async fn test_mempool_with_timestamp_assertion(commitment_mode: L1BatchCommitmen
         .transactions_dal()
         .get_storage_tx_by_hash(rejected_tx_2.hash())
         .await
-        .expect("Failed to find transaction")
-        .unwrap();
+        .unwrap()
+        .expect("Failed to find transaction");
     assert_eq!(
         "rejected: Transaction failed block.timestamp assertion",
         rejected_storage_tx_2.error.unwrap()

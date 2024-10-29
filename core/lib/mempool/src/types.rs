@@ -76,7 +76,7 @@ impl AccountTransactions {
         self.nonce = self.nonce.min(tx_nonce);
         self.transactions
             .get(&(tx_nonce + 1))
-            .map(|(tx, c)| (Self::score_for_transaction(tx), *c))
+            .map(|(tx, c)| (Self::score_for_transaction(tx), c.clone()))
     }
 
     pub fn len(&self) -> usize {

@@ -3,11 +3,7 @@
 use std::{pin::Pin, time::Instant};
 
 use tokio::sync::watch;
-use zksync_config::configs::{
-    api::Web3JsonRpcConfig,
-    chain::{StateKeeperConfig, TimestampAsserterConfig},
-    wallets::Wallets,
-};
+use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig, wallets::Wallets};
 use zksync_dal::ConnectionPool;
 use zksync_health_check::CheckHealth;
 use zksync_node_fee_model::MockBatchFeeParamsProvider;
@@ -39,7 +35,6 @@ pub(crate) async fn create_test_tx_sender(
         wallets.state_keeper.unwrap().fee_account.address(),
         l2_chain_id,
         None,
-        TimestampAsserterConfig::default(),
     );
 
     let storage_caches = PostgresStorageCaches::new(1, 1);

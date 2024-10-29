@@ -1,4 +1,4 @@
-use std::{cmp, collections::HashSet, fmt};
+use std::{collections::HashSet, fmt, ops::Range};
 
 use zksync_types::{Address, U256};
 
@@ -133,17 +133,18 @@ pub enum ValidationError {
 /// be excluded from the mempool.
 #[derive(Debug, Clone, Default)]
 pub struct ValidationTraces {
-    /// Represents a range from-to. Each field is a number of seconds since the epoch.
-    pub timestamp_asserter_range: Option<(i64, i64)>,
+    pub timestamp_asserter_range: Option<Range<u64>>,
 }
 
 impl ValidationTraces {
-    /// Merges two ranges together by taking the maximum of the starts and the minimum of the ends
-    /// resulting into the narrowest possible time window
-    pub fn apply_range(&mut self, new_range: (i64, i64)) {
-        if let Some(mut range) = self.timestamp_asserter_range {
-            range.0 = cmp::max(range.0, new_range.0);
-            range.1 = cmp::min(range.1, new_range.1);
+    /// Merges two ranges by selecting the maximum of the start values and the minimum of the end values,
+    /// producing the narrowest possible time window. Note that overlapping ranges are essential;
+    /// a lack of overlap would have triggered an assertion failure in the `TimestampAsserter` contract,
+    /// as `block.timestamp` cannot satisfy two non-overlapping ranges.
+    pub fn apply_range(&mut self, new_range: Range<u64>) {
+        if let Some(ref mut range) = self.timestamp_asserter_range.as_mut() {
+            range.start = range.start.max(new_range.start);
+            range.end = range.end.min(new_range.end);
         } else {
             self.timestamp_asserter_range = Some(new_range);
         }
@@ -160,5 +161,47 @@ impl fmt::Display for ValidationError {
                 write!(f, "Violated validation rules: {}", rule)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ops::Range;
+
+    use super::*;
+
+    #[test]
+    fn test_apply_range_when_none() {
+        let mut validation_traces = ValidationTraces {
+            timestamp_asserter_range: None,
+        };
+        let new_range = Range { start: 10, end: 20 };
+        validation_traces.apply_range(new_range.clone());
+        assert_eq!(validation_traces.timestamp_asserter_range, Some(new_range));
+    }
+
+    #[test]
+    fn test_apply_range_with_overlap_narrower_result() {
+        let mut validation_traces = ValidationTraces {
+            timestamp_asserter_range: Some(Range { start: 5, end: 25 }),
+        };
+        validation_traces.apply_range(Range { start: 10, end: 20 });
+        assert_eq!(
+            validation_traces.timestamp_asserter_range,
+            Some(Range { start: 10, end: 20 })
+        );
+    }
+
+    #[test]
+    fn test_apply_range_with_partial_overlap() {
+        let mut validation_traces = ValidationTraces {
+            timestamp_asserter_range: Some(Range { start: 10, end: 30 }),
+            ..Default::default()
+        };
+        validation_traces.apply_range(Range { start: 20, end: 40 });
+        assert_eq!(
+            validation_traces.timestamp_asserter_range,
+            Some(Range { start: 20, end: 30 })
+        );
     }
 }

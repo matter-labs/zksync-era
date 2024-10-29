@@ -303,9 +303,9 @@ impl StateKeeperIO for MempoolIO {
                 // Reject transactions that violate block.timestamp constraints. Such transactions should be
                 // rejected at the API level, but we need to protect ourselves in case if a transaction
                 // goes outside of the allowed range while being in the mempool
-                let matches_range = constraint.timestamp_asserter_range.map_or(true, |x| {
-                    x.0 < l2_block_timestamp as i64 && x.1 > l2_block_timestamp as i64
-                });
+                let matches_range = constraint
+                    .timestamp_asserter_range
+                    .map_or(true, |x| x.contains(&l2_block_timestamp));
 
                 if !matches_range {
                     self.reject(

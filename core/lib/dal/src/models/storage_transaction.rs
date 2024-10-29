@@ -329,16 +329,16 @@ impl From<&StorageTransaction> for TransactionTimeRangeConstraint {
         if tx.timestamp_asserter_range_start.is_some() && tx.timestamp_asserter_range_end.is_some()
         {
             Self {
-                timestamp_asserter_range: Some((
+                timestamp_asserter_range: Some(
                     tx.timestamp_asserter_range_start
                         .unwrap()
                         .and_utc()
-                        .timestamp(),
-                    tx.timestamp_asserter_range_end
-                        .unwrap()
-                        .and_utc()
-                        .timestamp(),
-                )),
+                        .timestamp() as u64
+                        ..tx.timestamp_asserter_range_end
+                            .unwrap()
+                            .and_utc()
+                            .timestamp() as u64,
+                ),
             }
         } else {
             Self {

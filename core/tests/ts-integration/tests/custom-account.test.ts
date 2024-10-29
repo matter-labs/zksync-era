@@ -20,6 +20,7 @@ const contracts = {
 const ETH_PER_CUSTOM_ACCOUNT = L2_DEFAULT_ETH_PER_ACCOUNT / 8n;
 const TRANSFER_AMOUNT = 1n;
 const DEFAULT_TIMESTAMP_ASSERTER_RANGE_START = 0;
+// 2555971200 is a number of seconds up to 30/12/2050
 const DEFAULT_TIMESTAMP_ASSERTER_RANGE_END = 2555971200;
 
 describe('Tests for the custom account behavior', () => {
@@ -48,7 +49,6 @@ describe('Tests for the custom account behavior', () => {
         customAccount = await deployContract(
             alice,
             contracts.customAccount,
-            // 2555971200 is a number of seconds up to 30/12/2050
             [
                 violateRules,
                 timestampAsserterAddress,
@@ -115,8 +115,9 @@ describe('Tests for the custom account behavior', () => {
 
     test('Should fail transaction validation due to timestamp assertion in the validation tracer - short time window', async () => {
         const now = Math.floor(Date.now() / 1000);
-        const rangeStart = now - 60;
-        const rangeEnd = now + 60;
+        const minRange = testMaster.environment().timestampAsserterMinRangeSec;
+        const rangeStart = now - minRange / 4;
+        const rangeEnd = now + minRange / 4;
 
         const customAccount = await deployAndFundCustomAccount(
             alice,
@@ -141,8 +142,10 @@ describe('Tests for the custom account behavior', () => {
 
     test('Should fail transaction validation due to timestamp assertion in the validation tracer - close to the range end', async () => {
         const now = Math.floor(Date.now() / 1000);
-        const rangeStart = now - 600;
-        const rangeEnd = now + 30;
+        const minRange = testMaster.environment().timestampAsserterMinRangeSec;
+        const minTimeTillEnd = testMaster.environment().timestampAsserterMinTimeTillEndSec;
+        const rangeStart = now - minRange;
+        const rangeEnd = now + minTimeTillEnd / 2;
 
         const customAccount = await deployAndFundCustomAccount(
             alice,
@@ -187,16 +190,15 @@ describe('Tests for the custom account behavior', () => {
         // requires custom assertion because the transaction would fail in "estimateFee" that is not handled correctly by zksync ethers
         promise
             .then((_) => {
-                fail('The transaction was expected to fail due to timestamp assertion');
+                expect(null).fail('The transaction was expected to fail due to timestamp assertion');
             })
             .catch((error) => {
-                // If it's an error object with the structure you're mentioning, check its properties
                 if (error.info && error.info.error && error.info.error.message) {
                     expect(error.info.error.message).toEqual(
                         'failed to validate the transaction. reason: Timestamp is out of range'
                     );
                 } else {
-                    fail('The transaction was expected to fail with a different message');
+                    expect(null).fail('The transaction was expected to fail with a different message');
                 }
             });
     });

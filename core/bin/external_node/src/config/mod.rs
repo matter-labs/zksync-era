@@ -24,7 +24,7 @@ use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_metadata_calculator::MetadataCalculatorRecoveryConfig;
 use zksync_node_api_server::{
-    tx_sender::TxSenderConfig,
+    tx_sender::{TimestampAsserterParams, TxSenderConfig},
     web3::{state::InternalApiConfig, Namespace},
 };
 use zksync_protobuf_config::proto;
@@ -1479,11 +1479,13 @@ impl From<&ExternalNodeConfig> for TxSenderConfig {
             chain_id: config.required.l2_chain_id,
             // Does not matter for EN.
             whitelisted_tokens_for_aa: Default::default(),
-            timestamp_asserter_address: config.remote.l2_timestamp_asserter_addr,
-            timestamp_asserter_min_range_sec: config.optional.timestamp_asserter_min_range_sec,
-            timestamp_asserter_min_time_till_end_sec: config
-                .optional
-                .timestamp_asserter_min_time_till_end_sec,
+            timestamp_asserter_params: config.remote.l2_timestamp_asserter_addr.map(|address| {
+                TimestampAsserterParams {
+                    address,
+                    min_range_sec: config.optional.timestamp_asserter_min_range_sec,
+                    min_time_till_end_sec: config.optional.timestamp_asserter_min_time_till_end_sec,
+                }
+            }),
         }
     }
 }

@@ -172,7 +172,7 @@ impl<H> ValidationTracer<H> {
         }
 
         // Allow to read any storage slot from the timesttamp asserter contract
-        if self.timestamp_asserter_params.as_ref().map(|x| x.address) == Some(msg_sender) {
+        if self.timestamp_asserter_params.as_ref().map(|x| x.address) == Some(address) {
             return true;
         }
 

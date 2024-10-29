@@ -166,6 +166,8 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
 
     const healthcheckPort = generalConfig.api.healthcheck.port;
     const timestampAsserterAddress = contracts.l2.timestamp_asserter_addr;
+    const timestampAsserterMinRangeSec = generalConfig.timestampAsserterMinRangeSec;
+    const timestampAsserterMinTimeTillEndSec = generalConfig.timestampAsserterMinTimeTillEndSec;
     return {
         maxLogsLimit,
         pathToHome,
@@ -197,7 +199,9 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
             l1Address: baseToken?.address || token.address,
             l2Address: baseTokenAddressL2
         },
-        timestampAsserterAddress
+        timestampAsserterAddress,
+        timestampAsserterMinRangeSec,
+        timestampAsserterMinTimeTillEndSec
     };
 }
 
@@ -288,6 +292,11 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
         throw new Error('CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR is not defined');
     }
     const timestampAsserterAddress = process.env.CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR.toString();
+
+    const timestampAsserterMinRangeSec = parseInt(process.env.TIMESTAMP_ASSERTER_MIN_RANGE_SEC!);
+
+    const timestampAsserterMinTimeTillEndSec = parseInt(process.env.TIMESTAMP_ASSERTER_MIN_TIME_TILL_END_SEC!);
+
     return {
         maxLogsLimit,
         pathToHome,
@@ -319,7 +328,9 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
             l1Address: baseToken?.address || token.address,
             l2Address: baseTokenAddressL2
         },
-        timestampAsserterAddress
+        timestampAsserterAddress,
+        timestampAsserterMinRangeSec,
+        timestampAsserterMinTimeTillEndSec
     };
 }
 

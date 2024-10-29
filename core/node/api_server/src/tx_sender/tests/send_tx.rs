@@ -344,7 +344,7 @@ async fn submitting_tx_with_validation_traces() {
     tx_executor.set_tx_validation_traces_responses(move |tx, _| {
         assert_eq!(tx.hash(), tx_hash);
         ValidationTraces {
-            timestamp_asserter_range: Some((10, 20)),
+            timestamp_asserter_range: Some(10..20),
         }
     });
 
