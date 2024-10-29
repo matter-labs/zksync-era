@@ -5,7 +5,9 @@ use zksync_config::configs::{
         avail::{
             AvailClientConfig, AvailSecrets, AVAIL_FULL_CLIENT_NAME, AVAIL_GAS_RELAY_CLIENT_NAME,
         },
-        DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, OBJECT_STORE_CLIENT_CONFIG_NAME,
+        celestia::CelestiaSecrets,
+        DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, CELESTIA_CLIENT_CONFIG_NAME,
+        OBJECT_STORE_CLIENT_CONFIG_NAME,
     },
     secrets::DataAvailabilitySecrets,
     AvailConfig,
@@ -19,7 +21,7 @@ impl FromEnv for DAClientConfig {
         let config = match client_tag.as_str() {
             AVAIL_CLIENT_CONFIG_NAME => Self::Avail(AvailConfig {
                 bridge_api_url: env::var("DA_BRIDGE_API_URL").ok().unwrap(),
-                timeout: env::var("DA_TIMEOUT")?.parse()?,
+                timeout_ms: env::var("DA_TIMEOUT_MS")?.parse()?,
                 config: match env::var("DA_AVAIL_CLIENT_TYPE")?.as_str() {
                     AVAIL_FULL_CLIENT_NAME => {
                         AvailClientConfig::FullClient(envy_load("da_avail_full_client", "DA_")?)
@@ -30,6 +32,7 @@ impl FromEnv for DAClientConfig {
                     _ => anyhow::bail!("Unknown Avail DA client type"),
                 },
             }),
+            CELESTIA_CLIENT_CONFIG_NAME => Self::Celestia(envy_load("da_celestia_config", "DA_")?),
             OBJECT_STORE_CLIENT_CONFIG_NAME => {
                 Self::ObjectStore(envy_load("da_object_store", "DA_")?)
             }
@@ -45,11 +48,11 @@ impl FromEnv for DataAvailabilitySecrets {
         let client_tag = std::env::var("DA_CLIENT")?;
         let secrets = match client_tag.as_str() {
             AVAIL_CLIENT_CONFIG_NAME => {
-                let seed_phrase: Option<zksync_basic_types::seed_phrase::SeedPhrase> =
+                let seed_phrase: Option<zksync_basic_types::secrets::SeedPhrase> =
                     env::var("DA_SECRETS_SEED_PHRASE")
                         .ok()
                         .map(|s| s.parse().unwrap());
-                let gas_relay_api_key: Option<zksync_basic_types::api_key::APIKey> =
+                let gas_relay_api_key: Option<zksync_basic_types::secrets::APIKey> =
                     env::var("DA_SECRETS_GAS_RELAY_API_KEY")
                         .ok()
                         .map(|s| s.parse().unwrap());
@@ -61,6 +64,14 @@ impl FromEnv for DataAvailabilitySecrets {
                     gas_relay_api_key,
                 })
             }
+            CELESTIA_CLIENT_CONFIG_NAME => {
+                let private_key = env::var("DA_SECRETS_PRIVATE_KEY")
+                    .map_err(|e| anyhow::format_err!("private key not found: {}", e))?
+                    .parse()
+                    .map_err(|e| anyhow::format_err!("failed to parse the auth token: {}", e))?;
+                Self::Celestia(CelestiaSecrets { private_key })
+            }
+
             _ => anyhow::bail!("Unknown DA client name: {}", client_tag),
         };
 
@@ -78,7 +89,7 @@ mod tests {
             },
             object_store::ObjectStoreMode::GCS,
         },
-        AvailConfig, ObjectStoreConfig,
+        AvailConfig, CelestiaConfig, ObjectStoreConfig,
     };
 
     use super::*;
@@ -118,11 +129,11 @@ mod tests {
         api_node_url: &str,
         bridge_api_url: &str,
         app_id: u32,
-        timeout: usize,
+        timeout_ms: usize,
     ) -> DAClientConfig {
         DAClientConfig::Avail(AvailConfig {
             bridge_api_url: bridge_api_url.to_string(),
-            timeout,
+            timeout_ms,
             config: AvailClientConfig::FullClient(AvailDefaultConfig {
                 api_node_url: api_node_url.to_string(),
                 app_id,
@@ -138,7 +149,7 @@ mod tests {
             DA_AVAIL_CLIENT_TYPE="FullClient"
 
             DA_BRIDGE_API_URL="localhost:54321"
-            DA_TIMEOUT="2"
+            DA_TIMEOUT_MS="2000"
 
             DA_API_NODE_URL="localhost:12345"
             DA_APP_ID="1"
@@ -153,7 +164,7 @@ mod tests {
                 "localhost:12345",
                 "localhost:54321",
                 "1".parse::<u32>().unwrap(),
-                "2".parse::<usize>().unwrap(),
+                "2000".parse::<usize>().unwrap(),
             )
         );
     }
@@ -170,8 +181,10 @@ mod tests {
 
         let (actual_seed, actual_key) = match DataAvailabilitySecrets::from_env().unwrap() {
             DataAvailabilitySecrets::Avail(avail) => (avail.seed_phrase, avail.gas_relay_api_key),
+            _ => {
+                panic!("Avail config expected")
+            }
         };
-
         assert_eq!(
             (actual_seed.unwrap(), actual_key),
             (
@@ -180,6 +193,67 @@ mod tests {
                     .unwrap(),
                 None
             )
+        );
+    }
+
+    fn expected_celestia_da_layer_config(
+        api_node_url: &str,
+        namespace: &str,
+        chain_id: &str,
+        timeout_ms: u64,
+    ) -> DAClientConfig {
+        DAClientConfig::Celestia(CelestiaConfig {
+            api_node_url: api_node_url.to_string(),
+            namespace: namespace.to_string(),
+            chain_id: chain_id.to_string(),
+            timeout_ms,
+        })
+    }
+
+    #[test]
+    fn from_env_celestia_client() {
+        let mut lock = MUTEX.lock();
+        let config = r#"
+            DA_CLIENT="Celestia"
+            DA_API_NODE_URL="localhost:12345"
+            DA_NAMESPACE="0x1234567890abcdef"
+            DA_CHAIN_ID="mocha-4"
+            DA_TIMEOUT_MS="7000"
+        "#;
+        lock.set_env(config);
+
+        let actual = DAClientConfig::from_env().unwrap();
+        assert_eq!(
+            actual,
+            expected_celestia_da_layer_config(
+                "localhost:12345",
+                "0x1234567890abcdef",
+                "mocha-4",
+                7000
+            )
+        );
+    }
+
+    #[test]
+    fn from_env_celestia_secrets() {
+        let mut lock = MUTEX.lock();
+        let config = r#"
+            DA_CLIENT="Celestia"
+            DA_SECRETS_PRIVATE_KEY="f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
+        "#;
+
+        lock.set_env(config);
+
+        let DataAvailabilitySecrets::Celestia(actual) =
+            DataAvailabilitySecrets::from_env().unwrap()
+        else {
+            panic!("expected Celestia config")
+        };
+        assert_eq!(
+            actual.private_key,
+            "f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
+                .parse()
+                .unwrap()
         );
     }
 }

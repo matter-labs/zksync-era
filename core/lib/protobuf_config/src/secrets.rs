@@ -2,20 +2,20 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use secrecy::ExposeSecret;
-use zksync_basic_types::{api_key::APIKey, seed_phrase::SeedPhrase, url::SensitiveUrl};
+use zksync_basic_types::{
+    secrets::{APIKey, PrivateKey, SeedPhrase},
+    url::SensitiveUrl,
+};
 use zksync_config::configs::{
     consensus::{AttesterSecretKey, ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
-    da_client::avail::AvailSecrets,
+    da_client::{avail::AvailSecrets, celestia::CelestiaSecrets},
     secrets::{DataAvailabilitySecrets, Secrets},
     DatabaseSecrets, L1Secrets,
 };
 use zksync_protobuf::{required, ProtoRepr};
 
 use crate::{
-    proto::{
-        secrets as proto,
-        secrets::{data_availability_secrets::DaSecrets, AvailSecret},
-    },
+    proto::{secrets as proto, secrets::data_availability_secrets::DaSecrets},
     read_optional_repr,
 };
 
@@ -128,6 +128,11 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                     gas_relay_api_key,
                 })
             }
+            DaSecrets::Celestia(celestia) => DataAvailabilitySecrets::Celestia(CelestiaSecrets {
+                private_key: PrivateKey::from_str(
+                    required(&celestia.private_key).context("private_key")?,
+                )?,
+            }),
         };
 
         Ok(client)
@@ -164,9 +169,14 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                     None
                 };
 
-                Some(DaSecrets::Avail(AvailSecret {
+                Some(DaSecrets::Avail(proto::AvailSecret {
                     seed_phrase,
                     gas_relay_api_key,
+                }))
+            }
+            DataAvailabilitySecrets::Celestia(config) => {
+                Some(DaSecrets::Celestia(proto::CelestiaSecret {
+                    private_key: Some(config.private_key.0.expose_secret().to_string()),
                 }))
             }
         };

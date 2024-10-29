@@ -6,14 +6,16 @@ import "zksync/config/object_store.proto";
 
 message AvailConfig {
   optional string bridge_api_url = 2;
-  optional uint64 timeout = 5;
   oneof config {
     AvailClientConfig full_client = 7;
     AvailGasRelayConfig gas_relay = 8;
   }
+  optional uint64 timeout_ms = 9;
+
   reserved 1; reserved "api_node_url";
   reserved 3; reserved "seed";
   reserved 4; reserved "app_id";
+  reserved 5; reserved "timeout";
   reserved 6; reserved "max_retries";
 }
 
@@ -27,10 +29,18 @@ message AvailGasRelayConfig {
   optional uint64 max_retries = 2;
 }
 
+message CelestiaConfig {
+  optional string api_node_url = 1;
+  optional string namespace = 2;
+  optional string chain_id = 3;
+  optional uint64 timeout_ms = 4;
+}
+
 message DataAvailabilityClient {
   // oneof in protobuf allows for None
   oneof config {
     AvailConfig avail = 1;
     object_store.ObjectStore object_store = 2;
+    CelestiaConfig celestia = 3;
   }
 }
