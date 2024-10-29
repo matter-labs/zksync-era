@@ -4,9 +4,14 @@ use anyhow::Context as _;
 use regex::Regex;
 use semver::Version;
 use serde::{Deserialize, Serialize};
+use tokio::io::AsyncWriteExt;
+use zksync_queued_job_processor::async_trait;
 use zksync_types::contract_verification_api::CompilationArtifacts;
 
-use crate::{error::ContractVerifierError, resolver::CompilerPaths};
+use crate::{
+    error::ContractVerifierError,
+    resolver::{Compiler, CompilerPaths},
+};
 
 #[derive(Debug)]
 pub enum ZkSolcInput {
@@ -90,11 +95,87 @@ impl ZkSolc {
         }
     }
 
-    pub async fn async_compile(
-        &self,
+    fn parse_standard_json_output(
+        output: &serde_json::Value,
+        contract_name: String,
+        file_name: String,
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        if let Some(errors) = output.get("errors") {
+            let errors = errors.as_array().unwrap().clone();
+            if errors
+                .iter()
+                .any(|err| err["severity"].as_str().unwrap() == "error")
+            {
+                let error_messages = errors
+                    .into_iter()
+                    .map(|err| err["formattedMessage"].clone())
+                    .collect();
+                return Err(ContractVerifierError::CompilationError(
+                    serde_json::Value::Array(error_messages),
+                ));
+            }
+        }
+
+        let contracts = output["contracts"]
+            .get(&file_name)
+            .ok_or(ContractVerifierError::MissingSource(file_name))?;
+        let Some(contract) = contracts.get(&contract_name) else {
+            return Err(ContractVerifierError::MissingContract(contract_name));
+        };
+        let bytecode_str = contract["evm"]["bytecode"]["object"]
+            .as_str()
+            .ok_or(ContractVerifierError::AbstractContract(contract_name))?;
+        let bytecode = hex::decode(bytecode_str).unwrap();
+        let abi = contract["abi"].clone();
+        if !abi.is_array() {
+            let err = anyhow::anyhow!(
+                "zksolc returned unexpected value for ABI: {}",
+                serde_json::to_string_pretty(&abi).unwrap()
+            );
+            return Err(err.into());
+        }
+
+        Ok(CompilationArtifacts { bytecode, abi })
+    }
+
+    fn parse_single_file_yul_output(
+        output: &str,
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        let re = Regex::new(r"Contract `.*` bytecode: 0x([\da-f]+)").unwrap();
+        let cap = re
+            .captures(output)
+            .context("Yul output doesn't match regex")?;
+        let bytecode_str = cap.get(1).context("no matches in Yul output")?.as_str();
+        let bytecode = hex::decode(bytecode_str).context("invalid Yul output bytecode")?;
+        Ok(CompilationArtifacts {
+            bytecode,
+            abi: serde_json::Value::Array(Vec::new()),
+        })
+    }
+
+    fn is_post_1_5_0(&self) -> bool {
+        // Special case
+        if &self.zksolc_version == "vm-1.5.0-a167aa3" {
+            false
+        } else if let Some(version) = self.zksolc_version.strip_prefix("v") {
+            if let Ok(semver) = Version::parse(version) {
+                let target = Version::new(1, 5, 0);
+                semver >= target
+            } else {
+                true
+            }
+        } else {
+            true
+        }
+    }
+}
+
+#[async_trait]
+impl Compiler<ZkSolcInput> for ZkSolc {
+    async fn compile(
+        self: Box<Self>,
         input: ZkSolcInput,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        use tokio::io::AsyncWriteExt;
         let mut command = tokio::process::Command::new(&self.paths.zk);
         command.stdout(Stdio::piped()).stderr(Stdio::piped());
 
@@ -190,80 +271,6 @@ impl ZkSolc {
                     ))
                 }
             }
-        }
-    }
-
-    fn parse_standard_json_output(
-        output: &serde_json::Value,
-        contract_name: String,
-        file_name: String,
-    ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        if let Some(errors) = output.get("errors") {
-            let errors = errors.as_array().unwrap().clone();
-            if errors
-                .iter()
-                .any(|err| err["severity"].as_str().unwrap() == "error")
-            {
-                let error_messages = errors
-                    .into_iter()
-                    .map(|err| err["formattedMessage"].clone())
-                    .collect();
-                return Err(ContractVerifierError::CompilationError(
-                    serde_json::Value::Array(error_messages),
-                ));
-            }
-        }
-
-        let contracts = output["contracts"]
-            .get(&file_name)
-            .ok_or(ContractVerifierError::MissingSource(file_name))?;
-        let Some(contract) = contracts.get(&contract_name) else {
-            return Err(ContractVerifierError::MissingContract(contract_name));
-        };
-        let bytecode_str = contract["evm"]["bytecode"]["object"]
-            .as_str()
-            .ok_or(ContractVerifierError::AbstractContract(contract_name))?;
-        let bytecode = hex::decode(bytecode_str).unwrap();
-        let abi = contract["abi"].clone();
-        if !abi.is_array() {
-            let err = anyhow::anyhow!(
-                "zksolc returned unexpected value for ABI: {}",
-                serde_json::to_string_pretty(&abi).unwrap()
-            );
-            return Err(err.into());
-        }
-
-        Ok(CompilationArtifacts { bytecode, abi })
-    }
-
-    fn parse_single_file_yul_output(
-        output: &str,
-    ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        let re = Regex::new(r"Contract `.*` bytecode: 0x([\da-f]+)").unwrap();
-        let cap = re
-            .captures(output)
-            .context("Yul output doesn't match regex")?;
-        let bytecode_str = cap.get(1).context("no matches in Yul output")?.as_str();
-        let bytecode = hex::decode(bytecode_str).context("invalid Yul output bytecode")?;
-        Ok(CompilationArtifacts {
-            bytecode,
-            abi: serde_json::Value::Array(Vec::new()),
-        })
-    }
-
-    pub fn is_post_1_5_0(&self) -> bool {
-        // Special case
-        if &self.zksolc_version == "vm-1.5.0-a167aa3" {
-            false
-        } else if let Some(version) = self.zksolc_version.strip_prefix("v") {
-            if let Ok(semver) = Version::parse(version) {
-                let target = Version::new(1, 5, 0);
-                semver >= target
-            } else {
-                true
-            }
-        } else {
-            true
         }
     }
 }

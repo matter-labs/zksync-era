@@ -23,8 +23,8 @@ use crate::{
     error::ContractVerifierError,
     metrics::API_CONTRACT_VERIFIER_METRICS,
     resolver::{CompilerResolver, EnvCompilerResolver},
-    zksolc_utils::{Optimizer, Settings, Source, StandardJson, ZkSolc, ZkSolcInput},
-    zkvyper_utils::{ZkVyper, ZkVyperInput},
+    zksolc_utils::{Optimizer, Settings, Source, StandardJson, ZkSolcInput},
+    zkvyper_utils::ZkVyperInput,
 };
 
 pub mod error;
@@ -201,16 +201,14 @@ impl ContractVerifier {
         &self,
         req: VerificationIncomingRequest,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        let compiler_paths = self
+        let zksolc = self
             .compiler_resolver
             .resolve_solc(&req.compiler_versions)
             .await?;
-        tracing::debug!(?compiler_paths, ?req.compiler_versions, "resolved compiler paths");
-        let zksolc_version = req.compiler_versions.zk_compiler_version();
+        tracing::debug!(?zksolc, ?req.compiler_versions, "resolved compiler");
         let input = Self::build_zksolc_input(req)?;
-        let zksolc = ZkSolc::new(compiler_paths, zksolc_version);
 
-        time::timeout(self.compilation_timeout, zksolc.async_compile(input))
+        time::timeout(self.compilation_timeout, zksolc.compile(input))
             .await
             .map_err(|_| ContractVerifierError::CompilationTimeout)?
     }
@@ -219,13 +217,13 @@ impl ContractVerifier {
         &self,
         req: VerificationIncomingRequest,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        let compiler_paths = self
+        let zkvyper = self
             .compiler_resolver
             .resolve_vyper(&req.compiler_versions)
             .await?;
+        tracing::debug!(?zkvyper, ?req.compiler_versions, "resolved compiler");
         let input = Self::build_zkvyper_input(req)?;
-        let zkvyper = ZkVyper::new(compiler_paths);
-        time::timeout(self.compilation_timeout, zkvyper.async_compile(input))
+        time::timeout(self.compilation_timeout, zkvyper.compile(input))
             .await
             .map_err(|_| ContractVerifierError::CompilationTimeout)?
     }

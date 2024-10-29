@@ -1,9 +1,13 @@
 use std::{collections::HashMap, fs::File, io::Write, path::Path, process::Stdio};
 
 use anyhow::Context as _;
+use zksync_queued_job_processor::async_trait;
 use zksync_types::contract_verification_api::CompilationArtifacts;
 
-use crate::{error::ContractVerifierError, resolver::CompilerPaths};
+use crate::{
+    error::ContractVerifierError,
+    resolver::{Compiler, CompilerPaths},
+};
 
 #[derive(Debug)]
 pub(crate) struct ZkVyperInput {
@@ -22,8 +26,38 @@ impl ZkVyper {
         Self { paths }
     }
 
-    pub async fn async_compile(
-        &self,
+    fn parse_output(
+        output: &serde_json::Value,
+        contract_name: String,
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        let file_name = format!("{contract_name}.vy");
+        let object = output
+            .as_object()
+            .context("Vyper output is not an object")?;
+        for (path, artifact) in object {
+            let path = Path::new(&path);
+            if path.file_name().unwrap().to_str().unwrap() == file_name {
+                let bytecode_str = artifact["bytecode"]
+                    .as_str()
+                    .context("bytecode is not a string")?;
+                let bytecode_without_prefix =
+                    bytecode_str.strip_prefix("0x").unwrap_or(bytecode_str);
+                let bytecode =
+                    hex::decode(bytecode_without_prefix).context("failed decoding bytecode")?;
+                return Ok(CompilationArtifacts {
+                    abi: artifact["abi"].clone(),
+                    bytecode,
+                });
+            }
+        }
+        Err(ContractVerifierError::MissingContract(contract_name))
+    }
+}
+
+#[async_trait]
+impl Compiler<ZkVyperInput> for ZkVyper {
+    async fn compile(
+        self: Box<Self>,
         input: ZkVyperInput,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let mut command = tokio::process::Command::new(&self.paths.zk);
@@ -67,32 +101,5 @@ impl ZkVyper {
                 String::from_utf8_lossy(&output.stderr).to_string(),
             ))
         }
-    }
-
-    fn parse_output(
-        output: &serde_json::Value,
-        contract_name: String,
-    ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        let file_name = format!("{contract_name}.vy");
-        let object = output
-            .as_object()
-            .context("Vyper output is not an object")?;
-        for (path, artifact) in object {
-            let path = Path::new(&path);
-            if path.file_name().unwrap().to_str().unwrap() == file_name {
-                let bytecode_str = artifact["bytecode"]
-                    .as_str()
-                    .context("bytecode is not a string")?;
-                let bytecode_without_prefix =
-                    bytecode_str.strip_prefix("0x").unwrap_or(bytecode_str);
-                let bytecode =
-                    hex::decode(bytecode_without_prefix).context("failed decoding bytecode")?;
-                return Ok(CompilationArtifacts {
-                    abi: artifact["abi"].clone(),
-                    bytecode,
-                });
-            }
-        }
-        Err(ContractVerifierError::MissingContract(contract_name))
     }
 }

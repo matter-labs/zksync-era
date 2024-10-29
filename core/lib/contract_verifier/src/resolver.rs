@@ -3,10 +3,14 @@ use std::{fmt, path::PathBuf};
 use anyhow::Context as _;
 use tokio::fs;
 use zksync_queued_job_processor::async_trait;
-use zksync_types::contract_verification_api::CompilerVersions;
+use zksync_types::contract_verification_api::{CompilationArtifacts, CompilerVersions};
 use zksync_utils::env::Workspace;
 
-use crate::error::ContractVerifierError;
+use crate::{
+    error::ContractVerifierError,
+    zksolc_utils::{ZkSolc, ZkSolcInput},
+    zkvyper_utils::{ZkVyper, ZkVyperInput},
+};
 
 #[derive(Debug)]
 pub(crate) struct SupportedCompilerVersions {
@@ -43,13 +47,21 @@ pub(crate) trait CompilerResolver: fmt::Debug + Send + Sync {
     async fn resolve_solc(
         &self,
         versions: &CompilerVersions,
-    ) -> Result<CompilerPaths, ContractVerifierError>;
+    ) -> Result<Box<dyn Compiler<ZkSolcInput>>, ContractVerifierError>;
 
     /// Resolves paths to `vyper` / `zkvyper`.
     async fn resolve_vyper(
         &self,
         versions: &CompilerVersions,
-    ) -> Result<CompilerPaths, ContractVerifierError>;
+    ) -> Result<Box<dyn Compiler<ZkVyperInput>>, ContractVerifierError>;
+}
+
+#[async_trait]
+pub(crate) trait Compiler<In>: Send + fmt::Debug {
+    async fn compile(
+        self: Box<Self>,
+        input: In,
+    ) -> Result<CompilationArtifacts, ContractVerifierError>;
 }
 
 /// Default [`CompilerResolver`] using pre-downloaded compilers.
@@ -112,7 +124,7 @@ impl CompilerResolver for EnvCompilerResolver {
     async fn resolve_solc(
         &self,
         versions: &CompilerVersions,
-    ) -> Result<CompilerPaths, ContractVerifierError> {
+    ) -> Result<Box<dyn Compiler<ZkSolcInput>>, ContractVerifierError> {
         let zksolc_version = versions.zk_compiler_version();
         let zksolc_path = self
             .home_dir
@@ -146,16 +158,18 @@ impl CompilerResolver for EnvCompilerResolver {
                 solc_version,
             ));
         }
-        Ok(CompilerPaths {
+
+        let compiler_paths = CompilerPaths {
             base: solc_path,
             zk: zksolc_path,
-        })
+        };
+        Ok(Box::new(ZkSolc::new(compiler_paths, zksolc_version)))
     }
 
     async fn resolve_vyper(
         &self,
         versions: &CompilerVersions,
-    ) -> Result<CompilerPaths, ContractVerifierError> {
+    ) -> Result<Box<dyn Compiler<ZkVyperInput>>, ContractVerifierError> {
         let zkvyper_version = versions.zk_compiler_version();
         let zkvyper_path = self
             .home_dir
@@ -189,9 +203,11 @@ impl CompilerResolver for EnvCompilerResolver {
                 vyper_version,
             ));
         }
-        Ok(CompilerPaths {
+
+        let compiler_paths = CompilerPaths {
             base: vyper_path,
             zk: zkvyper_path,
-        })
+        };
+        Ok(Box::new(ZkVyper::new(compiler_paths)))
     }
 }
