@@ -61,6 +61,8 @@ pub struct ProverAutoscalerScalerConfig {
     /// Duration after which pending pod considered long pending.
     #[serde(default = "ProverAutoscalerScalerConfig::default_long_pending_duration")]
     pub long_pending_duration: Duration,
+    /// List of simple autoscaler targets.
+    pub scaler_targets: Vec<ScalerTarget>,
 }
 
 #[derive(
@@ -91,6 +93,41 @@ pub enum Gpu {
     P100,
     #[strum(ascii_case_insensitive)]
     A100,
+}
+
+// TODO: generate this enum by QueueReport from https://github.com/matter-labs/zksync-era/blob/main/prover/crates/bin/prover_job_monitor/src/autoscaler_queue_reporter.rs#L23
+// and remove allowing of non_camel_case_types by generating field name parser.
+#[derive(Debug, Display, PartialEq, Eq, Hash, Clone, Deserialize, EnumString, Default)]
+#[allow(non_camel_case_types)]
+pub enum QueueReportFields {
+    #[strum(ascii_case_insensitive)]
+    basic_witness_jobs,
+    #[strum(ascii_case_insensitive)]
+    leaf_witness_jobs,
+    #[strum(ascii_case_insensitive)]
+    node_witness_jobs,
+    #[strum(ascii_case_insensitive)]
+    recursion_tip_witness_jobs,
+    #[strum(ascii_case_insensitive)]
+    scheduler_witness_jobs,
+    #[strum(ascii_case_insensitive)]
+    proof_compressor_jobs,
+    #[default]
+    #[strum(ascii_case_insensitive)]
+    prover_jobs,
+}
+
+/// ScalerTarget can be configured to autoscale any of services for which queue is reported by
+/// prover-job-monitor, except of provers. Provers need special treatment due to GPU requirement.
+#[derive(Debug, Clone, PartialEq, Deserialize, Default)]
+pub struct ScalerTarget {
+    pub queue_report_field: QueueReportFields,
+    pub pod_name_prefix: String,
+    /// Max replicas per cluster.
+    pub max_replicas: HashMap<String, usize>,
+    /// The queue will be divided by the speed and rounded up to get number of replicas.
+    #[serde(default = "ScalerTarget::default_speed")]
+    pub speed: usize,
 }
 
 impl ProverAutoscalerConfig {
@@ -124,5 +161,11 @@ impl ProverAutoscalerScalerConfig {
     /// Default long_pending_duration -- 10m
     pub fn default_long_pending_duration() -> Duration {
         Duration::minutes(10)
+    }
+}
+
+impl ScalerTarget {
+    pub fn default_speed() -> usize {
+        1
     }
 }
