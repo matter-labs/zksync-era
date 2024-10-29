@@ -174,7 +174,10 @@ impl MemStore {
         blob_id: &str,
     ) -> anyhow::Result<Option<Vec<u8>>, DAError> {
         tokio::time::sleep(Duration::from_millis(self.config.get_latency)).await;
-        let request_id = hex::decode(blob_id).unwrap();
+        let request_id = hex::decode(blob_id).map_err(|_| DAError {
+            error: MemStoreError::IncorrectCommitment.into(),
+            is_retriable: false,
+        })?;
         let blob_info: BlobInfo = rlp::decode(&request_id).map_err(|_| DAError {
             error: MemStoreError::IncorrectCommitment.into(),
             is_retriable: false,
