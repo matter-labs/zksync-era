@@ -78,6 +78,14 @@ zkstack prover run --component=prover
 
 Prover can prove any kinds of circuits, so you only need a single instance.
 
+### Prover job monitor
+
+You can start the prover job monitor by specifying its component as follows.
+
+```bash
+zkstack prover run --component=prover-job-monitor
+```
+
 ### Proof compressor
 
 ⚠️ Both prover and proof compressor require 24GB of VRAM, and currently it's not possible to make them use different
