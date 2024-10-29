@@ -2,7 +2,7 @@ use std::fmt;
 
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 
-use crate::{
+use super::{
     common::G1Commitment as DisperserG1Commitment,
     disperser::{
         BatchHeader as DisperserBatchHeader, BatchMetadata as DisperserBatchMetadata,
@@ -120,6 +120,7 @@ impl From<DisperserBlobQuorumParam> for BlobQuorumParam {
         }
     }
 }
+
 #[derive(Debug)]
 pub struct BlobHeader {
     pub commitment: G1Commitment,

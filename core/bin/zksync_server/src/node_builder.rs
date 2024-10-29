@@ -32,7 +32,6 @@ use zksync_node_framework::{
             object_store::ObjectStorageClientWiringLayer,
         },
         da_dispatcher::DataAvailabilityDispatcherLayer,
-        eigenda_proxy::EigenDAProxyLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
         eth_watch::EthWatchLayer,
         external_proof_integration_api::ExternalProofIntegrationApiLayer,
@@ -292,17 +291,6 @@ impl MainNodeBuilder {
             try_load_config!(self.configs.proof_data_handler_config),
             self.genesis_config.l1_batch_commit_data_generator_mode,
         ));
-        Ok(self)
-    }
-
-    fn add_eigenda_proxy_layer(mut self) -> anyhow::Result<Self> {
-        let da_config = try_load_config!(self.configs.da_client_config);
-        match da_config {
-            DAClientConfig::EigenDA(config) => {
-                self.node.add_layer(EigenDAProxyLayer::new(config));
-            }
-            _ => {}
-        }
         Ok(self)
     }
 
@@ -772,9 +760,6 @@ impl MainNodeBuilder {
                 }
                 Component::ProofDataHandler => {
                     self = self.add_proof_data_handler_layer()?;
-                }
-                Component::EigenDAProxy => {
-                    self = self.add_eigenda_proxy_layer()?;
                 }
                 Component::Consensus => {
                     self = self.add_consensus_layer()?;

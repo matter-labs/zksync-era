@@ -14,27 +14,24 @@ message AvailConfig {
 }
 
 message MemStoreConfig {
-  optional string api_node_url = 1; // TODO: This should be removed once eigenda proxy is no longer used
-  repeated uint32 custom_quorum_numbers = 2; // TODO: This should be removed once eigenda proxy is no longer used
-  optional string account_id = 3; // TODO: This should be removed once eigenda proxy is no longer used
-  optional uint64 max_blob_size_bytes = 5;
-  optional uint64 blob_expiration = 6; 
-  optional uint64 get_latency = 7;
-  optional uint64 put_latency = 8;
+  optional uint64 max_blob_size_bytes = 3;
+  optional uint64 blob_expiration = 4;
+  optional uint64 get_latency = 5;
+  optional uint64 put_latency = 6;
 }
 
 message DisperserConfig {
-  optional string api_node_url = 1; // TODO: This should be removed once eigenda proxy is no longer used
-  repeated uint32 custom_quorum_numbers = 2; 
-  optional string account_id = 3; 
-  optional string disperser_rpc = 4;
-  optional int32 eth_confirmation_depth = 5;
-  optional string eigenda_eth_rpc = 6;
-  optional string eigenda_svc_manager_addr = 7;
-  optional uint64 blob_size_limit = 8;
-  optional uint64 status_query_timeout = 9;
-  optional uint64 status_query_interval = 10;
-  optional bool wait_for_finalization = 11;
+  repeated uint32 custom_quorum_numbers = 1;
+  optional string account_id = 2;
+  optional string disperser_rpc = 3;
+  optional int32 eth_confirmation_depth = 4;
+  optional string eigenda_eth_rpc = 5;
+  optional string eigenda_svc_manager_addr = 6;
+  optional uint64 blob_size_limit = 7;
+  optional uint64 status_query_timeout = 8;
+  optional uint64 status_query_interval = 9;
+  optional bool wait_for_finalization = 10;
+  optional bool authenticated = 11;
 }
 
 message EigenDaConfig {

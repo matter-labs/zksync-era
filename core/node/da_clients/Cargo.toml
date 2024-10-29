@@ -39,5 +39,17 @@ parity-scale-codec = { workspace = true, features = ["derive"] }
 subxt-signer = { workspace = true, features = ["sr25519", "native"] }
 
 # EigenDA dependencies
+rlp.workspace = true
+rustls.workspace = true
+rand.workspace = true
+sha3.workspace = true
+#hex.workspace = true
+secp256k1.workspace = true
+tiny-keccak.workspace = true
+tokio-stream = "0.1.16"
+byteorder = "1.5.0"
+prost = "0.13.1"
+tonic = { version = "0.12.1", features = ["tls", "channel", "tls-native-roots"]}
 reqwest = { version = "0.12" }
 http = "1"
+kzgpad-rs = { git = "https://github.com/Layr-Labs/kzgpad-rs.git", tag = "v0.1.0" }

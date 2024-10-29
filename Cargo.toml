@@ -40,7 +40,6 @@ members = [
     "core/node/external_proof_integration_api",
     "core/node/logs_bloom_backfill",
     "core/node/da_clients",
-    "core/node/eigenda_proxy",
     # Libraries
     "core/lib/db_connection",
     "core/lib/zksync_core_leftovers",
@@ -293,7 +292,6 @@ zksync_house_keeper = { version = "0.1.0", path = "core/node/house_keeper" }
 zksync_node_genesis = { version = "0.1.0", path = "core/node/genesis" }
 zksync_da_dispatcher = { version = "0.1.0", path = "core/node/da_dispatcher" }
 zksync_da_clients = { version = "0.1.0", path = "core/node/da_clients" }
-zksync_eigenda_proxy = { version = "0.1.0", path = "core/node/eigenda_proxy" }
 zksync_eth_sender = { version = "0.1.0", path = "core/node/eth_sender" }
 zksync_node_db_pruner = { version = "0.1.0", path = "core/node/db_pruner" }
 zksync_node_fee_model = { version = "0.1.0", path = "core/node/fee_model" }

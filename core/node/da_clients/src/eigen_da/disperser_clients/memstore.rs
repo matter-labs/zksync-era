@@ -4,35 +4,51 @@ use std::{
     time::{Duration, Instant},
 };
 
+use anyhow::Error;
 use rand::{rngs::OsRng, Rng, RngCore};
-use rlp::decode;
 use sha3::{Digest, Keccak256};
 use tokio::time::interval;
+use zksync_config::configs::da_client::eigen_da::MemStoreConfig;
+use zksync_da_client::types::{DAError, DispatchResponse, InclusionData};
 
-use crate::{
-    blob_info::{self, BlobInfo},
-    errors::MemStoreError,
-};
+use super::blob_info::BlobInfo;
+use crate::eigen_da::{client::to_retriable_error, disperser_clients::blob_info};
 
-struct MemStoreConfig {
-    max_blob_size_bytes: u64,
-    blob_expiration: Duration,
-    put_latency: Duration,
-    get_latency: Duration,
+#[derive(Debug, PartialEq)]
+pub enum MemStoreError {
+    BlobToLarge,
+    BlobAlreadyExists,
+    IncorrectCommitment,
+    #[cfg(test)]
+    BlobNotFound,
 }
 
+impl Into<Error> for MemStoreError {
+    fn into(self) -> Error {
+        match self {
+            MemStoreError::BlobToLarge => Error::msg("Blob too large"),
+            MemStoreError::BlobAlreadyExists => Error::msg("Blob already exists"),
+            MemStoreError::IncorrectCommitment => Error::msg("Incorrect commitment"),
+            #[cfg(test)]
+            MemStoreError::BlobNotFound => Error::msg("Blob not found"),
+        }
+    }
+}
+
+#[derive(Debug)]
 struct MemStoreData {
     store: HashMap<String, Vec<u8>>,
     key_starts: HashMap<String, Instant>,
 }
 
-struct MemStore {
+#[derive(Clone, Debug)]
+pub struct MemStore {
     config: MemStoreConfig,
     data: Arc<RwLock<MemStoreData>>,
 }
 
 impl MemStore {
-    fn new(config: MemStoreConfig) -> Arc<Self> {
+    pub fn new(config: MemStoreConfig) -> Arc<Self> {
         let memstore = Arc::new(Self {
             config,
             data: Arc::new(RwLock::new(MemStoreData {
@@ -47,8 +63,8 @@ impl MemStore {
         memstore
     }
 
-    async fn put(self: Arc<Self>, value: Vec<u8>) -> Result<Vec<u8>, MemStoreError> {
-        tokio::time::sleep(self.config.put_latency).await;
+    async fn put_blob(self: Arc<Self>, value: Vec<u8>) -> Result<Vec<u8>, MemStoreError> {
+        tokio::time::sleep(Duration::from_millis(self.config.put_latency)).await;
         if value.len() as u64 > self.config.max_blob_size_bytes {
             return Err(MemStoreError::BlobToLarge.into());
         }
@@ -121,10 +137,51 @@ impl MemStore {
         Ok(cert_bytes)
     }
 
-    async fn get(self: Arc<Self>, commit: Vec<u8>) -> Result<Vec<u8>, MemStoreError> {
-        tokio::time::sleep(self.config.get_latency).await;
-        let blob_info: BlobInfo =
-            decode(&commit).map_err(|_| MemStoreError::IncorrectCommitment)?;
+    pub async fn store_blob(
+        self: Arc<Self>,
+        blob_data: Vec<u8>,
+    ) -> Result<DispatchResponse, DAError> {
+        let request_id = self
+            .put_blob(blob_data)
+            .await
+            .map_err(|err| to_retriable_error(err.into()))?;
+        Ok(DispatchResponse {
+            blob_id: hex::encode(request_id),
+        })
+    }
+
+    pub async fn get_inclusion_data(
+        self: Arc<Self>,
+        blob_id: &str,
+    ) -> anyhow::Result<Option<InclusionData>, DAError> {
+        let rlp_encoded_bytes = hex::decode(blob_id).map_err(|_| DAError {
+            error: MemStoreError::IncorrectCommitment.into(),
+            is_retriable: false,
+        })?;
+        let blob_info: BlobInfo = rlp::decode(&rlp_encoded_bytes).map_err(|_| DAError {
+            error: MemStoreError::IncorrectCommitment.into(),
+            is_retriable: false,
+        })?;
+        let inclusion_data = blob_info.blob_verification_proof.inclusion_proof;
+        Ok(Some(InclusionData {
+            data: inclusion_data,
+        }))
+    }
+
+    #[cfg(test)]
+    pub async fn get_blob_data(
+        self: Arc<Self>,
+        blob_id: &str,
+    ) -> anyhow::Result<Option<Vec<u8>>, DAError> {
+        tokio::time::sleep(Duration::from_millis(self.config.get_latency)).await;
+        let request_id = hex::decode(blob_id).map_err(|_| DAError {
+            error: MemStoreError::IncorrectCommitment.into(),
+            is_retriable: false,
+        })?;
+        let blob_info: BlobInfo = rlp::decode(&request_id).map_err(|_| DAError {
+            error: MemStoreError::IncorrectCommitment.into(),
+            is_retriable: false,
+        })?;
         let key = String::from_utf8_lossy(
             blob_info
                 .blob_verification_proof
@@ -134,20 +191,24 @@ impl MemStore {
         )
         .to_string();
 
-        let data = self.data.read().unwrap();
+        let data = self.data.read().map_err(|_| DAError {
+            error: MemStoreError::BlobNotFound.into(),
+            is_retriable: false,
+        })?;
         match data.store.get(&key) {
-            Some(value) => Ok(value.clone()),
-            None => Err(MemStoreError::BlobNotFound),
+            Some(value) => Ok(Some(value.clone())),
+            None => Err(DAError {
+                error: MemStoreError::BlobNotFound.into(),
+                is_retriable: false,
+            }),
         }
-        // TODO: verify commitment?
-        // TODO: decode blob?
     }
 
     async fn prune_expired(self: Arc<Self>) {
         let mut data = self.data.write().unwrap();
         let mut to_remove = vec![];
         for (key, start) in data.key_starts.iter() {
-            if start.elapsed() > self.config.blob_expiration {
+            if start.elapsed() > Duration::from_secs(self.config.blob_expiration) {
                 to_remove.push(key.clone());
             }
         }
@@ -158,95 +219,12 @@ impl MemStore {
     }
 
     async fn pruning_loop(self: Arc<Self>) {
-        let mut interval = interval(self.config.blob_expiration);
+        let mut interval = interval(Duration::from_secs(self.config.blob_expiration));
 
         loop {
             interval.tick().await;
             let self_clone = Arc::clone(&self);
             self_clone.prune_expired().await;
         }
-    }
-}
-
-mod test {
-    use std::time::Duration;
-
-    use super::*;
-
-    #[tokio::test]
-    async fn test_memstore() {
-        let config = MemStoreConfig {
-            max_blob_size_bytes: 1024,
-            blob_expiration: Duration::from_secs(60),
-            put_latency: Duration::from_millis(100),
-            get_latency: Duration::from_millis(100),
-        };
-        let store = MemStore::new(config);
-
-        let blob = vec![0u8; 100];
-        let cert = store.clone().put(blob.clone()).await.unwrap();
-        let blob2 = store.get(cert).await.unwrap();
-        assert_eq!(blob, blob2);
-    }
-
-    #[tokio::test]
-    async fn test_memstore_multiple() {
-        let config = MemStoreConfig {
-            max_blob_size_bytes: 1024,
-            blob_expiration: Duration::from_secs(60),
-            put_latency: Duration::from_millis(100),
-            get_latency: Duration::from_millis(100),
-        };
-        let store = MemStore::new(config);
-
-        let blob = vec![0u8; 100];
-        let blob2 = vec![1u8; 100];
-        let cert = store.clone().put(blob.clone()).await.unwrap();
-        let cert2 = store.clone().put(blob2.clone()).await.unwrap();
-        let blob_result = store.clone().get(cert).await.unwrap();
-        let blob_result2 = store.get(cert2).await.unwrap();
-        assert_eq!(blob, blob_result);
-        assert_eq!(blob2, blob_result2);
-    }
-
-    #[tokio::test]
-    async fn test_memstore_latency() {
-        let put_latency = Duration::from_millis(1000);
-        let get_latency = Duration::from_millis(1000);
-        let config = MemStoreConfig {
-            max_blob_size_bytes: 1024,
-            blob_expiration: Duration::from_secs(60),
-            put_latency,
-            get_latency,
-        };
-        let store = MemStore::new(config);
-
-        let blob = vec![0u8; 100];
-        let time_before_put = Instant::now();
-        let cert = store.clone().put(blob.clone()).await.unwrap();
-        assert!(time_before_put.elapsed() >= put_latency);
-        let time_before_get = Instant::now();
-        let blob2 = store.get(cert).await.unwrap();
-        assert!(time_before_get.elapsed() >= get_latency);
-        assert_eq!(blob, blob2);
-    }
-
-    #[tokio::test]
-    async fn test_memstore_expiration() {
-        let blob_expiration = Duration::from_millis(100);
-        let config = MemStoreConfig {
-            max_blob_size_bytes: 1024,
-            blob_expiration,
-            put_latency: Duration::from_millis(1),
-            get_latency: Duration::from_millis(1),
-        };
-        let store = MemStore::new(config);
-
-        let blob = vec![0u8; 100];
-        let cert = store.clone().put(blob.clone()).await.unwrap();
-        tokio::time::sleep(blob_expiration * 2).await;
-        let result = store.get(cert).await;
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), MemStoreError::BlobNotFound);
     }
 }

@@ -39,11 +39,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 let eigenda_config = match config {
                     proto::eigen_da_config::Config::MemStore(conf) => {
                         EigenDAConfig::MemStore(MemStoreConfig {
-                            api_node_url: required(&conf.api_node_url)
-                                .context("api_node_url")?
-                                .clone(),
-                            custom_quorum_numbers: Some(conf.custom_quorum_numbers.clone()),
-                            account_id: conf.account_id.clone(),
                             max_blob_size_bytes: required(&conf.max_blob_size_bytes)
                                 .context("max_blob_size_bytes")?
                                 .clone(),
@@ -60,9 +55,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     }
                     proto::eigen_da_config::Config::Disperser(conf) => {
                         EigenDAConfig::Disperser(DisperserConfig {
-                            api_node_url: required(&conf.api_node_url)
-                                .context("api_node_url")?
-                                .clone(),
                             custom_quorum_numbers: Some(conf.custom_quorum_numbers.clone()),
                             account_id: conf.account_id.clone(),
                             disperser_rpc: required(&conf.disperser_rpc)
@@ -88,6 +80,9 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                                 .clone(),
                             wait_for_finalization: required(&conf.wait_for_finalization)
                                 .context("wait_for_finalization")?
+                                .clone(),
+                            authenticaded: required(&conf.authenticated)
+                                .context("authenticaded")?
                                 .clone(),
                         })
                     }
@@ -123,12 +118,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                         proto::EigenDaConfig {
                             config: Some(proto::eigen_da_config::Config::MemStore(
                                 proto::MemStoreConfig {
-                                    api_node_url: Some(config.api_node_url.clone()),
-                                    custom_quorum_numbers: config
-                                        .custom_quorum_numbers
-                                        .clone()
-                                        .unwrap_or_default(),
-                                    account_id: config.account_id.clone(),
                                     max_blob_size_bytes: Some(config.max_blob_size_bytes),
                                     blob_expiration: Some(config.blob_expiration),
                                     get_latency: Some(config.get_latency),
@@ -143,7 +132,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                         proto::EigenDaConfig {
                             config: Some(proto::eigen_da_config::Config::Disperser(
                                 proto::DisperserConfig {
-                                    api_node_url: Some(config.api_node_url.clone()),
                                     custom_quorum_numbers: config
                                         .custom_quorum_numbers
                                         .clone()
@@ -159,6 +147,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                                     status_query_timeout: Some(config.status_query_timeout),
                                     status_query_interval: Some(config.status_query_interval),
                                     wait_for_finalization: Some(config.wait_for_finalization),
+                                    authenticated: Some(config.authenticaded),
                                 },
                             )),
                         },
