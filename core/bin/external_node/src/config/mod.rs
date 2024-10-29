@@ -1470,7 +1470,9 @@ impl From<&ExternalNodeConfig> for TxSenderConfig {
             timestamp_asserter_params: config.remote.l2_timestamp_asserter_addr.map(|address| {
                 TimestampAsserterParams {
                     address,
-                    min_time_till_end_sec: config.optional.timestamp_asserter_min_time_till_end_sec,
+                    min_time_till_end: Duration::from_secs(
+                        config.optional.timestamp_asserter_min_time_till_end_sec as u64,
+                    ),
                 }
             }),
         }

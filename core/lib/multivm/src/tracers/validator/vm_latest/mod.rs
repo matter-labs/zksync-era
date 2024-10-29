@@ -86,40 +86,46 @@ impl<H: HistoryMode> ValidationTracer<H> {
                     // If this is a call to the timestamp asserter, extract the function arguments and store them in ValidationTraces.
                     // These arguments are used by the mempool for transaction filtering. The call data length should be 68 bytes:
                     // a 4-byte function selector followed by two U256 values.
-                    let address = self.timestamp_asserter_params.as_ref().map(|x| x.address);
-                    if Some(called_address) == address
-                        && far_call_abi.memory_quasi_fat_pointer.length == 68
-                    {
-                        let calldata_page = get_calldata_page_via_abi(
-                            &far_call_abi,
-                            state.vm_local_state.callstack.current.base_memory_page,
-                        );
-                        let calldata = memory.read_unaligned_bytes(
-                            calldata_page as usize,
-                            far_call_abi.memory_quasi_fat_pointer.start as usize,
-                            68,
-                        );
-
-                        if calldata[..4] == TIMESTAMP_ASSERTER_FUNCTION_SELECTOR {
-                            let start = U256::from_big_endian(
-                                &calldata[calldata.len() - 64..calldata.len() - 32],
+                    if let Some(params) = &self.timestamp_asserter_params {
+                        if called_address == params.address
+                            && far_call_abi.memory_quasi_fat_pointer.length == 68
+                        {
+                            let calldata_page = get_calldata_page_via_abi(
+                                &far_call_abi,
+                                state.vm_local_state.callstack.current.base_memory_page,
                             );
-                            let end = U256::from_big_endian(&calldata[calldata.len() - 32..]);
-                            let params = self.timestamp_asserter_params.as_ref().unwrap();
+                            let calldata = memory.read_unaligned_bytes(
+                                calldata_page as usize,
+                                far_call_abi.memory_quasi_fat_pointer.start as usize,
+                                68,
+                            );
 
-                            // using self.l1_batch_env.timestamp is ok here because the tracer is always
-                            // used in a oneshot execution mode
-                            if end.try_into().unwrap_or(u64::MAX)
-                                < self.l1_batch_env.timestamp + params.min_time_till_end_sec as u64
-                            {
-                                return Err(
-                                    ViolatedValidationRule::TimestampAssertionCloseToRangeEnd,
-                                );
-                            }
+                            if calldata[..4] == TIMESTAMP_ASSERTER_FUNCTION_SELECTOR {
+                                // start and end need to be capped to u64::MAX to avoid overflow
+                                let start = U256::from_big_endian(
+                                    &calldata[calldata.len() - 64..calldata.len() - 32],
+                                )
+                                .try_into()
+                                .unwrap_or(u64::MAX);
+                                let end = U256::from_big_endian(&calldata[calldata.len() - 32..])
+                                    .try_into()
+                                    .unwrap_or(u64::MAX);
 
-                            {
-                                let mut traces_mut = self.traces.lock().unwrap();
-                                traces_mut.apply_range(start.as_u64()..end.as_u64());
+                                // using self.l1_batch_env.timestamp is ok here because the tracer is always
+                                // used in a oneshot execution mode
+                                if end
+                                    < self.l1_batch_env.timestamp
+                                        + params.min_time_till_end.as_secs()
+                                {
+                                    return Err(
+                                        ViolatedValidationRule::TimestampAssertionCloseToRangeEnd,
+                                    );
+                                }
+
+                                {
+                                    let mut traces_mut = self.traces.lock().unwrap();
+                                    traces_mut.apply_range(start..end);
+                                }
                             }
                         }
                     }

@@ -140,6 +140,42 @@ describe('Tests for the custom account behavior', () => {
         );
     });
 
+    test('Should execute contract by custom account when timestamp asserter range end overflows', async () => {
+        // This test ensures that a custom account transaction completes successfully
+        // even when the timestamp asserter's range end exceeds `u64::MAX`. In such cases,
+        // the range is capped at `u64::MAX` and processed as expected.
+        const customAccount = await deployAndFundCustomAccount(
+            alice,
+            erc20Address,
+            timestampAsserterAddress,
+            0,
+            BigInt('3402823669209384634633746074317682') // u128::MAX
+        );
+
+        const tx = await erc20.transfer.populateTransaction(alice.address, TRANSFER_AMOUNT);
+        const customAccountAddress = await customAccount.getAddress();
+        const erc20BalanceChange = await shouldChangeTokenBalances(erc20Address, [
+            {
+                addressToCheck: customAccountAddress,
+                wallet: alice,
+                change: -TRANSFER_AMOUNT
+            },
+            { wallet: alice, change: TRANSFER_AMOUNT }
+        ]);
+        const feeCheck = await shouldChangeETHBalances([
+            { addressToCheck: customAccountAddress, wallet: alice, change: 0n }
+        ]);
+
+        await expect(
+            sendCustomAccountTransaction(
+                tx as zksync.types.Transaction,
+                alice.provider,
+                await customAccount.getAddress(),
+                testMaster.environment().l2ChainId
+            )
+        ).toBeAccepted([erc20BalanceChange, feeCheck]);
+    });
+
     test('Should fail to estimate fee due to block.timestamp assertion in the smart contract', async () => {
         const now = Math.floor(Date.now() / 1000);
         const rangeStart = now + 300;
@@ -459,8 +495,8 @@ async function deployAndFundCustomAccount(
     richAccount: zksync.Wallet,
     erc20Address: string,
     timestampAsserterAddress: string,
-    rangeStart: number,
-    rangeEnd: number
+    rangeStart: any,
+    rangeEnd: any
 ): Promise<zksync.Contract> {
     const customAccount = await deployContract(
         richAccount,

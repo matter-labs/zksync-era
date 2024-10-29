@@ -734,14 +734,14 @@ async fn test_mempool_with_timestamp_assertion() {
     insert_l2_transaction(&mut storage, &rejected_tx_2).await;
 
     let tx = mempool
-        .wait_for_next_tx(Duration::from_secs(2), system_time as u64)
+        .wait_for_next_tx(Duration::from_secs(2), system_time)
         .await
         .unwrap()
         .expect("No expected transaction in the mempool");
     assert_eq!(expected_tx.hash(), tx.hash());
 
     let next_tx = mempool
-        .wait_for_next_tx(Duration::from_secs(2), system_time as u64)
+        .wait_for_next_tx(Duration::from_secs(2), system_time)
         .await
         .expect("Should be no more transactions in the mempool");
     assert!(next_tx.is_none());
@@ -774,7 +774,7 @@ async fn insert_l2_transaction(storage: &mut Connection<'_, Core>, tx: &L2Tx) {
     storage
         .transactions_dal()
         .insert_transaction_l2(
-            &tx,
+            tx,
             TransactionExecutionMetrics::default(),
             ValidationTraces::default(),
         )

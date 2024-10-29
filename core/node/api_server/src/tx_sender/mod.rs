@@ -1,6 +1,6 @@
 //! Helper module to submit transactions into the ZKsync Network.
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::sync::RwLock;
@@ -211,7 +211,7 @@ impl TxSenderBuilder {
             self.config.timestamp_asserter_params.clone().map(|params| {
                 TracerTimestampAsserterParams {
                     address: params.address,
-                    min_time_till_end_sec: params.min_time_till_end_sec,
+                    min_time_till_end: params.min_time_till_end,
                 }
             }),
         );
@@ -249,7 +249,7 @@ pub struct TxSenderConfig {
 #[derive(Debug, Clone)]
 pub struct TimestampAsserterParams {
     pub address: Address,
-    pub min_time_till_end_sec: u32,
+    pub min_time_till_end: Duration,
 }
 
 impl TxSenderConfig {

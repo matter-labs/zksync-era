@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt, ops::Range};
+use std::{collections::HashSet, fmt, ops::Range, time};
 
 use zksync_types::{Address, U256};
 
@@ -67,7 +67,7 @@ pub struct TimestampAsserterParams {
     /// of the calling context.
     pub address: Address,
     /// Minimum time between current block.timestamp and the end of the asserted range
-    pub min_time_till_end_sec: u32,
+    pub min_time_till_end: time::Duration,
 }
 
 /// Rules that can be violated when validating a transaction.
@@ -184,7 +184,6 @@ mod tests {
     fn test_apply_range_with_partial_overlap() {
         let mut validation_traces = ValidationTraces {
             timestamp_asserter_range: Some(10..30),
-            ..Default::default()
         };
         validation_traces.apply_range(20..40);
         assert_eq!(validation_traces.timestamp_asserter_range, Some(20..30));

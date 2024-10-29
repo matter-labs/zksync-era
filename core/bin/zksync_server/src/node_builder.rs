@@ -1,6 +1,8 @@
 //! This module provides a "builder" for the main node,
 //! as well as an interface to run the node with the specified components.
 
+use std::time::Duration;
+
 use anyhow::{bail, Context};
 use zksync_config::{
     configs::{
@@ -327,7 +329,9 @@ impl MainNodeBuilder {
                     .l2_timestamp_asserter_addr
                     .map(|address| TimestampAsserterParams {
                         address,
-                        min_time_till_end_sec: timestamp_asserter_config.min_time_till_end_sec,
+                        min_time_till_end: Duration::from_secs(
+                            timestamp_asserter_config.min_time_till_end_sec as u64,
+                        ),
                     }),
             ),
             postgres_storage_caches_config,
