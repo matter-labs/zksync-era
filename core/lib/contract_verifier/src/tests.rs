@@ -1,8 +1,8 @@
 //! Tests for the contract verifier.
 
-use std::{os::unix::fs::PermissionsExt, path::Path};
+use std::env;
 
-use tokio::{fs, sync::watch};
+use tokio::sync::watch;
 use zksync_dal::Connection;
 use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_types::{
@@ -20,7 +20,7 @@ use zksync_utils::{
 use zksync_vm_interface::{TransactionExecutionMetrics, VmEvent};
 
 use super::*;
-use crate::resolver::{CompilerPaths, SupportedCompilerVersions};
+use crate::resolver::{Compiler, SupportedCompilerVersions};
 
 const SOLC_VERSION: &str = "0.8.27";
 const ZKSOLC_VERSION: &str = "1.5.4";
@@ -82,64 +82,41 @@ async fn mock_deployment(storage: &mut Connection<'_, Core>, address: Address, b
         .unwrap();
 }
 
-/// Test compiler resolver.
-#[derive(Debug)]
-struct TestCompilerResolver(CompilerPaths);
+#[derive(Clone)]
+struct MockCompilerResolver {
+    zksolc: Arc<
+        dyn Fn(ZkSolcInput) -> Result<CompilationArtifacts, ContractVerifierError> + Send + Sync,
+    >,
+}
 
-impl TestCompilerResolver {
-    async fn install_zksolc(path: &Path) {
-        if fs::try_exists(path).await.unwrap() {
-            return;
-        }
-
-        // We may race from several test processes here; this is OK-ish for tests.
-        let version = ZKSOLC_VERSION;
-        let compiler_prefix = match svm::platform() {
-            svm::Platform::LinuxAmd64 => "zksolc-linux-amd64-musl-",
-            svm::Platform::LinuxAarch64 => "zksolc-linux-arm64-musl-",
-            svm::Platform::MacOsAmd64 => "zksolc-macosx-amd64-",
-            svm::Platform::MacOsAarch64 => "zksolc-macosx-arm64-",
-            other => panic!("Unsupported platform: {other:?}"),
-        };
-        let download_url = format!(
-            "https://github.com/matter-labs/zksolc-bin/releases/download/v{version}/{compiler_prefix}v{version}",
-        );
-        let response = reqwest::Client::new()
-            .get(&download_url)
-            .send()
-            .await
-            .unwrap()
-            .error_for_status()
-            .unwrap();
-        let response_bytes = response.bytes().await.unwrap();
-
-        fs::create_dir_all(path.parent().unwrap()).await.unwrap();
-        fs::write(path, &response_bytes).await.unwrap();
-        // Set the executable flag for the file.
-        fs::set_permissions(path, PermissionsExt::from_mode(0o755))
-            .await
-            .unwrap();
+impl fmt::Debug for MockCompilerResolver {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("MockCompilerResolver")
+            .finish_non_exhaustive()
     }
+}
 
-    async fn new() -> Self {
-        let solc_version = SOLC_VERSION.parse().unwrap();
-        let solc_path = svm::install(&solc_version)
-            .await
-            .expect("failed installing solc");
-        let zksolc_path = svm::data_dir()
-            .join(format!("zksolc-{ZKSOLC_VERSION}"))
-            .join("zksolc");
-        Self::install_zksolc(&zksolc_path).await;
-
-        Self(CompilerPaths {
-            base: solc_path,
-            zk: zksolc_path,
-        })
+impl MockCompilerResolver {
+    fn new(zksolc: impl Fn(ZkSolcInput) -> CompilationArtifacts + 'static + Send + Sync) -> Self {
+        Self {
+            zksolc: Arc::new(move |input| Ok(zksolc(input))),
+        }
     }
 }
 
 #[async_trait]
-impl CompilerResolver for TestCompilerResolver {
+impl Compiler<ZkSolcInput> for MockCompilerResolver {
+    async fn compile(
+        self: Box<Self>,
+        input: ZkSolcInput,
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        (self.zksolc)(input)
+    }
+}
+
+#[async_trait]
+impl CompilerResolver for MockCompilerResolver {
     async fn supported_versions(&self) -> anyhow::Result<SupportedCompilerVersions> {
         Ok(SupportedCompilerVersions {
             solc: vec![SOLC_VERSION.to_owned()],
@@ -152,7 +129,7 @@ impl CompilerResolver for TestCompilerResolver {
     async fn resolve_solc(
         &self,
         versions: &CompilerVersions,
-    ) -> Result<CompilerPaths, ContractVerifierError> {
+    ) -> Result<Box<dyn Compiler<ZkSolcInput>>, ContractVerifierError> {
         if versions.compiler_version() != SOLC_VERSION {
             return Err(ContractVerifierError::UnknownCompilerVersion(
                 "solc".to_owned(),
@@ -165,13 +142,13 @@ impl CompilerResolver for TestCompilerResolver {
                 versions.zk_compiler_version(),
             ));
         }
-        Ok(self.0.clone())
+        Ok(Box::new(self.clone()))
     }
 
     async fn resolve_vyper(
         &self,
         _versions: &CompilerVersions,
-    ) -> Result<CompilerPaths, ContractVerifierError> {
+    ) -> Result<Box<dyn Compiler<ZkVyperInput>>, ContractVerifierError> {
         unreachable!("not tested")
     }
 }
@@ -202,34 +179,21 @@ fn test_request(address: Address) -> VerificationIncomingRequest {
     }
 }
 
-async fn compile_counter(compiler_paths: CompilerPaths) -> CompilationArtifacts {
-    let req = test_request(Address::repeat_byte(1));
-    let input = ContractVerifier::build_zksolc_input(req).unwrap();
-    ZkSolc::new(compiler_paths, ZKSOLC_VERSION.to_owned())
-        .async_compile(input)
-        .await
-        .unwrap()
+fn counter_contract_abi() -> serde_json::Value {
+    serde_json::json!([{
+        "inputs": [{
+            "internalType": "uint256",
+            "name": "x",
+            "type": "uint256",
+        }],
+        "name": "increment",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    }])
 }
 
-#[tokio::test]
-async fn compiler_works() {
-    let compiler_paths = TestCompilerResolver::new().await.0;
-    let output = compile_counter(compiler_paths).await;
-    validate_bytecode(&output.bytecode).unwrap();
-    let items = output.abi.as_array().unwrap();
-    assert_eq!(items.len(), 1);
-    let increment_function = items[0].as_object().unwrap();
-    assert_eq!(increment_function["type"], "function");
-    assert_eq!(increment_function["name"], "increment");
-}
-
-#[tokio::test]
-async fn contract_verifier_basics() {
-    let test_resolver = TestCompilerResolver::new().await;
-    let output = compile_counter(test_resolver.0.clone()).await;
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.connection().await.unwrap();
-
+async fn prepare_storage(storage: &mut Connection<'_, Core>) {
     // Storage must contain at least 1 block / batch for verifier-related queries to work correctly.
     storage
         .protocol_versions_dal()
@@ -246,19 +210,42 @@ async fn contract_verifier_basics() {
         .insert_mock_l1_batch(&create_l1_batch(0))
         .await
         .unwrap();
+}
 
+#[tokio::test]
+async fn contract_verifier_basics() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    let expected_bytecode = vec![0_u8; 32];
+
+    prepare_storage(&mut storage).await;
     let address = Address::repeat_byte(1);
-    mock_deployment(&mut storage, address, output.bytecode.clone()).await;
+    mock_deployment(&mut storage, address, expected_bytecode.clone()).await;
     let req = test_request(address);
     let request_id = storage
         .contract_verification_dal()
         .add_contract_verification_request(req)
         .await
         .unwrap();
+
+    let mock_resolver = MockCompilerResolver::new(|input| {
+        let ZkSolcInput::StandardJson { input, .. } = &input else {
+            panic!("unexpected input");
+        };
+        assert_eq!(input.language, "Solidity");
+        assert_eq!(input.sources.len(), 1);
+        let source = input.sources.values().next().unwrap();
+        assert!(source.content.contains("contract Counter"), "{source:?}");
+
+        CompilationArtifacts {
+            bytecode: vec![0; 32],
+            abi: counter_contract_abi(),
+        }
+    });
     let verifier = ContractVerifier::with_resolver(
         Duration::from_secs(60),
         pool.clone(),
-        Arc::new(test_resolver),
+        Arc::new(mock_resolver),
     )
     .await
     .unwrap();
@@ -280,6 +267,15 @@ async fn contract_verifier_basics() {
     let (_stop_sender, stop_receiver) = watch::channel(false);
     verifier.run(stop_receiver, Some(1)).await.unwrap();
 
+    assert_request_success(&mut storage, request_id, address, &expected_bytecode).await;
+}
+
+async fn assert_request_success(
+    storage: &mut Connection<'_, Core>,
+    request_id: usize,
+    address: Address,
+    expected_bytecode: &[u8],
+) {
     let status = storage
         .contract_verification_dal()
         .get_verification_request_status(request_id)
@@ -296,6 +292,92 @@ async fn contract_verifier_basics() {
         .await
         .unwrap()
         .expect("no verification info");
-    assert_eq!(verification_info.artifacts.bytecode, output.bytecode);
-    assert_eq!(verification_info.artifacts.abi, output.abi);
+    assert_eq!(verification_info.artifacts.bytecode, *expected_bytecode);
+    assert_eq!(verification_info.artifacts.abi, counter_contract_abi());
+}
+
+async fn checked_env_resolver() -> Option<(EnvCompilerResolver, SupportedCompilerVersions)> {
+    let compiler_resolver = EnvCompilerResolver::default();
+    let supported_compilers = compiler_resolver.supported_versions().await.ok()?;
+    if supported_compilers.zksolc.is_empty() || supported_compilers.solc.is_empty() {
+        return None;
+    }
+    Some((compiler_resolver, supported_compilers))
+}
+
+fn assert_no_compilers_expected() {
+    assert_ne!(
+        env::var("RUN_CONTRACT_VERIFICATION_TEST").ok().as_deref(),
+        Some("true"),
+        "Expected pre-installed compilers since `RUN_CONTRACT_VERIFICATION_TEST=true`, but they are not installed. \
+         Use `zkstack contract-verifier init` to install compilers"
+    );
+    println!("No compilers found, skipping the test");
+}
+
+#[tokio::test]
+async fn using_real_compiler() {
+    let Some((compiler_resolver, supported_compilers)) = checked_env_resolver().await else {
+        assert_no_compilers_expected();
+        return;
+    };
+
+    let versions = CompilerVersions::Solc {
+        compiler_zksolc_version: supported_compilers.zksolc[0].clone(),
+        compiler_solc_version: supported_compilers.solc[0].clone(),
+    };
+    let compiler = compiler_resolver.resolve_solc(&versions).await.unwrap();
+    let req = VerificationIncomingRequest {
+        compiler_versions: versions,
+        ..test_request(Address::repeat_byte(1))
+    };
+    let input = ContractVerifier::build_zksolc_input(req).unwrap();
+    let output = compiler.compile(input).await.unwrap();
+
+    validate_bytecode(&output.bytecode).unwrap();
+    assert_eq!(output.abi, counter_contract_abi());
+}
+
+#[tokio::test]
+async fn using_real_compiler_in_verifier() {
+    let Some((compiler_resolver, supported_compilers)) = checked_env_resolver().await else {
+        assert_no_compilers_expected();
+        return;
+    };
+
+    let versions = CompilerVersions::Solc {
+        compiler_zksolc_version: supported_compilers.zksolc[0].clone(),
+        compiler_solc_version: supported_compilers.solc[0].clone(),
+    };
+    let address = Address::repeat_byte(1);
+    let compiler = compiler_resolver.resolve_solc(&versions).await.unwrap();
+    let req = VerificationIncomingRequest {
+        compiler_versions: versions,
+        ..test_request(Address::repeat_byte(1))
+    };
+    let input = ContractVerifier::build_zksolc_input(req.clone()).unwrap();
+    let output = compiler.compile(input).await.unwrap();
+
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    prepare_storage(&mut storage).await;
+    mock_deployment(&mut storage, address, output.bytecode.clone()).await;
+    let request_id = storage
+        .contract_verification_dal()
+        .add_contract_verification_request(req)
+        .await
+        .unwrap();
+
+    let verifier = ContractVerifier::with_resolver(
+        Duration::from_secs(60),
+        pool.clone(),
+        Arc::new(compiler_resolver),
+    )
+    .await
+    .unwrap();
+
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    verifier.run(stop_receiver, Some(1)).await.unwrap();
+
+    assert_request_success(&mut storage, request_id, address, &output.bytecode).await;
 }
