@@ -12,6 +12,7 @@ use crate::{
     zkvyper_utils::{ZkVyper, ZkVyperInput},
 };
 
+/// Compiler versions supported by a [`CompilerResolver`].
 #[derive(Debug)]
 pub(crate) struct SupportedCompilerVersions {
     pub solc: Vec<String>,
@@ -40,31 +41,37 @@ pub(crate) struct CompilerPaths {
 /// Encapsulates compiler paths resolution.
 #[async_trait]
 pub(crate) trait CompilerResolver: fmt::Debug + Send + Sync {
+    /// Returns compiler versions supported by this resolver.
+    ///
+    /// # Errors
+    ///
     /// Returned errors are assumed to be fatal.
     async fn supported_versions(&self) -> anyhow::Result<SupportedCompilerVersions>;
 
-    /// Resolves paths to `solc` / `zksolc`.
+    /// Resolves a `zksolc` compiler.
     async fn resolve_solc(
         &self,
         versions: &CompilerVersions,
     ) -> Result<Box<dyn Compiler<ZkSolcInput>>, ContractVerifierError>;
 
-    /// Resolves paths to `vyper` / `zkvyper`.
+    /// Resolves a `zkvyper` compiler.
     async fn resolve_vyper(
         &self,
         versions: &CompilerVersions,
     ) -> Result<Box<dyn Compiler<ZkVyperInput>>, ContractVerifierError>;
 }
 
+/// Encapsulates a one-off compilation process.
 #[async_trait]
 pub(crate) trait Compiler<In>: Send + fmt::Debug {
+    /// Performs compilation.
     async fn compile(
         self: Box<Self>,
         input: In,
     ) -> Result<CompilationArtifacts, ContractVerifierError>;
 }
 
-/// Default [`CompilerResolver`] using pre-downloaded compilers.
+/// Default [`CompilerResolver`] using pre-downloaded compilers in the `/etc` subdirectories (relative to the workspace).
 #[derive(Debug)]
 pub(crate) struct EnvCompilerResolver {
     home_dir: PathBuf,

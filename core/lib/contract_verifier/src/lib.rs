@@ -1,3 +1,5 @@
+//! Contract verifier able to verify contracts created with `zksolc` or `zkvyper` toolchains.
+
 use std::{
     collections::HashMap,
     fmt,
@@ -58,6 +60,7 @@ pub struct ContractVerifier {
 }
 
 impl ContractVerifier {
+    /// Creates a new verifier instance.
     pub async fn new(
         compilation_timeout: Duration,
         connection_pool: ConnectionPool<Core>,
