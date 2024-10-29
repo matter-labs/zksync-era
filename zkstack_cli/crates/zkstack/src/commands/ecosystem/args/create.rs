@@ -1,5 +1,4 @@
-use clap::Parser;
-use clap::ValueHint;
+use clap::{Parser, ValueHint};
 use common::{Prompt, PromptConfirm, PromptSelect};
 use config::get_default_era_chain_id;
 use serde::{Deserialize, Serialize};
