@@ -55,7 +55,7 @@ message ScalerTarget {
   optional string deployment = 5; // required
   repeated MaxReplica max_replicas = 3; // required at least one
   optional uint64 speed = 4; // optional
-  reserved 2;
+  reserved 2; reserved pod_name_prefix;
 }
 
 message ProverAutoscalerScalerConfig {
