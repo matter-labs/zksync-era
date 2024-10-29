@@ -3,7 +3,7 @@ use std::{collections::HashMap, fs::File, io::Write, path::Path, process::Stdio}
 use anyhow::Context as _;
 use zksync_types::contract_verification_api::CompilationArtifacts;
 
-use crate::{error::ContractVerifierError, paths::CompilerPaths};
+use crate::{error::ContractVerifierError, resolver::CompilerPaths};
 
 #[derive(Debug)]
 pub(crate) struct ZkVyperInput {

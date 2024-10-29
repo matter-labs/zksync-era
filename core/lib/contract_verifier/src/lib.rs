@@ -22,14 +22,14 @@ use zksync_types::{
 use crate::{
     error::ContractVerifierError,
     metrics::API_CONTRACT_VERIFIER_METRICS,
-    paths::{CompilerResolver, EnvCompilerResolver},
+    resolver::{CompilerResolver, EnvCompilerResolver},
     zksolc_utils::{Optimizer, Settings, Source, StandardJson, ZkSolc, ZkSolcInput},
     zkvyper_utils::{ZkVyper, ZkVyperInput},
 };
 
 pub mod error;
 mod metrics;
-mod paths;
+mod resolver;
 #[cfg(test)]
 mod tests;
 mod zksolc_utils;
@@ -58,13 +58,75 @@ pub struct ContractVerifier {
 }
 
 impl ContractVerifier {
-    pub fn new(compilation_timeout: Duration, connection_pool: ConnectionPool<Core>) -> Self {
-        Self {
+    pub async fn new(
+        compilation_timeout: Duration,
+        connection_pool: ConnectionPool<Core>,
+    ) -> anyhow::Result<Self> {
+        Self::with_resolver(
+            compilation_timeout,
+            connection_pool,
+            Arc::<EnvCompilerResolver>::default(),
+        )
+        .await
+    }
+
+    async fn with_resolver(
+        compilation_timeout: Duration,
+        connection_pool: ConnectionPool<Core>,
+        compiler_resolver: Arc<dyn CompilerResolver>,
+    ) -> anyhow::Result<Self> {
+        let this = Self {
             compilation_timeout,
             contract_deployer: zksync_contracts::deployer_contract(),
             connection_pool,
-            compiler_resolver: Arc::<EnvCompilerResolver>::default(),
+            compiler_resolver,
+        };
+        this.sync_compiler_versions().await?;
+        Ok(this)
+    }
+
+    /// Synchronizes compiler versions.
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn sync_compiler_versions(&self) -> anyhow::Result<()> {
+        let supported_versions = self
+            .compiler_resolver
+            .supported_versions()
+            .await
+            .context("cannot get supported compilers")?;
+        if supported_versions.lacks_any_compiler() {
+            tracing::warn!(
+                ?supported_versions,
+                "contract verifier lacks support of at least one compiler entirely; it may be incorrectly set up"
+            );
         }
+        tracing::info!(
+            ?supported_versions,
+            "persisting supported compiler versions"
+        );
+
+        let mut storage = self
+            .connection_pool
+            .connection_tagged("contract_verifier")
+            .await?;
+        let mut transaction = storage.start_transaction().await?;
+        transaction
+            .contract_verification_dal()
+            .set_zksolc_versions(supported_versions.zksolc)
+            .await?;
+        transaction
+            .contract_verification_dal()
+            .set_solc_versions(supported_versions.solc)
+            .await?;
+        transaction
+            .contract_verification_dal()
+            .set_zkvyper_versions(supported_versions.zkvyper)
+            .await?;
+        transaction
+            .contract_verification_dal()
+            .set_vyper_versions(supported_versions.vyper)
+            .await?;
+        transaction.commit().await?;
+        Ok(())
     }
 
     #[tracing::instrument(

@@ -6,7 +6,7 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use zksync_types::contract_verification_api::CompilationArtifacts;
 
-use crate::{error::ContractVerifierError, paths::CompilerPaths};
+use crate::{error::ContractVerifierError, resolver::CompilerPaths};
 
 #[derive(Debug)]
 pub enum ZkSolcInput {
@@ -272,7 +272,7 @@ impl ZkSolc {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::{paths::CompilerPaths, zksolc_utils::ZkSolc};
+    use crate::{resolver::CompilerPaths, zksolc_utils::ZkSolc};
 
     #[test]
     fn check_is_post_1_5_0() {

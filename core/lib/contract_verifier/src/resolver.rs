@@ -8,6 +8,23 @@ use zksync_utils::env::Workspace;
 
 use crate::error::ContractVerifierError;
 
+#[derive(Debug)]
+pub(crate) struct SupportedCompilerVersions {
+    pub solc: Vec<String>,
+    pub zksolc: Vec<String>,
+    pub vyper: Vec<String>,
+    pub zkvyper: Vec<String>,
+}
+
+impl SupportedCompilerVersions {
+    pub fn lacks_any_compiler(&self) -> bool {
+        self.solc.is_empty()
+            || self.zksolc.is_empty()
+            || self.vyper.is_empty()
+            || self.zkvyper.is_empty()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct CompilerPaths {
     /// Path to the base (non-zk) compiler.
@@ -19,6 +36,9 @@ pub(crate) struct CompilerPaths {
 /// Encapsulates compiler paths resolution.
 #[async_trait]
 pub(crate) trait CompilerResolver: fmt::Debug + Send + Sync {
+    /// Returned errors are assumed to be fatal.
+    async fn supported_versions(&self) -> anyhow::Result<SupportedCompilerVersions>;
+
     /// Resolves paths to `solc` / `zksolc`.
     async fn resolve_solc(
         &self,
@@ -46,8 +66,49 @@ impl Default for EnvCompilerResolver {
     }
 }
 
+impl EnvCompilerResolver {
+    async fn read_dir(&self, dir: &str) -> anyhow::Result<Vec<String>> {
+        let mut dir_entries = fs::read_dir(self.home_dir.join(dir))
+            .await
+            .context("failed reading dir")?;
+        let mut versions = vec![];
+        while let Some(entry) = dir_entries.next_entry().await? {
+            let Ok(file_type) = entry.file_type().await else {
+                continue;
+            };
+            if file_type.is_dir() {
+                if let Ok(name) = entry.file_name().into_string() {
+                    versions.push(name);
+                }
+            }
+        }
+        Ok(versions)
+    }
+}
+
 #[async_trait]
 impl CompilerResolver for EnvCompilerResolver {
+    async fn supported_versions(&self) -> anyhow::Result<SupportedCompilerVersions> {
+        Ok(SupportedCompilerVersions {
+            solc: self
+                .read_dir("etc/solc-bin")
+                .await
+                .context("failed reading solc dir")?,
+            zksolc: self
+                .read_dir("etc/zksolc-bin")
+                .await
+                .context("failed reading zksolc dir")?,
+            vyper: self
+                .read_dir("etc/vyper-bin")
+                .await
+                .context("failed reading vyper dir")?,
+            zkvyper: self
+                .read_dir("etc/zkvyper-bin")
+                .await
+                .context("failed reading zkvyper dir")?,
+        })
+    }
+
     async fn resolve_solc(
         &self,
         versions: &CompilerVersions,

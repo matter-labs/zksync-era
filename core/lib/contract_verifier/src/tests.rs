@@ -20,7 +20,7 @@ use zksync_utils::{
 use zksync_vm_interface::{TransactionExecutionMetrics, VmEvent};
 
 use super::*;
-use crate::paths::CompilerPaths;
+use crate::resolver::{CompilerPaths, SupportedCompilerVersions};
 
 const SOLC_VERSION: &str = "0.8.27";
 const ZKSOLC_VERSION: &str = "1.5.4";
@@ -140,6 +140,15 @@ impl TestCompilerResolver {
 
 #[async_trait]
 impl CompilerResolver for TestCompilerResolver {
+    async fn supported_versions(&self) -> anyhow::Result<SupportedCompilerVersions> {
+        Ok(SupportedCompilerVersions {
+            solc: vec![SOLC_VERSION.to_owned()],
+            zksolc: vec![ZKSOLC_VERSION.to_owned()],
+            vyper: vec![],
+            zkvyper: vec![],
+        })
+    }
+
     async fn resolve_solc(
         &self,
         versions: &CompilerVersions,
@@ -246,8 +255,28 @@ async fn contract_verifier_basics() {
         .add_contract_verification_request(req)
         .await
         .unwrap();
-    let mut verifier = ContractVerifier::new(Duration::from_secs(60), pool.clone());
-    verifier.compiler_resolver = Arc::new(test_resolver);
+    let verifier = ContractVerifier::with_resolver(
+        Duration::from_secs(60),
+        pool.clone(),
+        Arc::new(test_resolver),
+    )
+    .await
+    .unwrap();
+
+    // Check that the compiler versions are synced.
+    let solc_versions = storage
+        .contract_verification_dal()
+        .get_solc_versions()
+        .await
+        .unwrap();
+    assert_eq!(solc_versions, [SOLC_VERSION]);
+    let zksolc_versions = storage
+        .contract_verification_dal()
+        .get_zksolc_versions()
+        .await
+        .unwrap();
+    assert_eq!(zksolc_versions, [ZKSOLC_VERSION]);
+
     let (_stop_sender, stop_receiver) = watch::channel(false);
     verifier.run(stop_receiver, Some(1)).await.unwrap();
 
