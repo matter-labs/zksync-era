@@ -48,7 +48,8 @@ pub struct JobCountStatistics {
 }
 
 impl JobCountStatistics {
-    pub fn sum(&self) -> usize {
+    /// all returns sum of queued and in_progress.
+    pub fn all(&self) -> usize {
         self.queued + self.in_progress
     }
 }
