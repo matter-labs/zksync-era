@@ -166,8 +166,8 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
 
     const healthcheckPort = generalConfig.api.healthcheck.port;
     const timestampAsserterAddress = contracts.l2.timestamp_asserter_addr;
-    const timestampAsserterMinRangeSec = generalConfig.timestampAsserterMinRangeSec;
-    const timestampAsserterMinTimeTillEndSec = generalConfig.timestampAsserterMinTimeTillEndSec;
+    const timestampAsserterMinRangeSec = parseInt(generalConfig.timestampAsserterMinRangeSec);
+    const timestampAsserterMinTimeTillEndSec = parseInt(generalConfig.timestampAsserterMinTimeTillEndSec);
     return {
         maxLogsLimit,
         pathToHome,
