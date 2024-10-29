@@ -20,6 +20,18 @@ pub struct FriProverJobMetadata {
     pub is_node_final_proof: bool,
 }
 
+impl FriProverJobMetadata {
+    pub fn is_scheduler_proof(&self) -> bool {
+        if self.aggregation_round == AggregationRound::Scheduler {
+            if self.circuit_id != 1 {
+                panic!("Invalid circuit id {} for Scheduler proof", self.circuit_id);
+            }
+            return true;
+        }
+        false
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ExtendedJobCountStatistics {
     pub queued: usize,

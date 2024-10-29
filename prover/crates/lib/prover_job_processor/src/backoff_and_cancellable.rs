@@ -1,5 +1,21 @@
 use std::{ops::Mul, time::Duration};
 
+use tokio_util::sync::CancellationToken;
+
+pub struct BackoffAndCancellable {
+    pub(crate) backoff: Backoff,
+    pub(crate) cancellation_token: CancellationToken,
+}
+
+impl BackoffAndCancellable {
+    pub fn new(backoff: Backoff, cancellation_token: CancellationToken) -> Self {
+        Self {
+            backoff,
+            cancellation_token,
+        }
+    }
+}
+
 /// Backoff - convenience structure that takes care of backoff timings.
 #[derive(Debug, Clone)]
 pub struct Backoff {

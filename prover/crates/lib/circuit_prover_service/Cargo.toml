@@ -20,7 +20,8 @@ zksync_object_store.workspace = true
 async-trait.workspace = true
 anyhow.workspace = true
 tokio = { workspace = true, features = ["macros", "time"] }
-
+tokio-util.workspace = true
+tracing.workspace = true
 
 shivini = { workspace = true, features = [
     "circuit_definitions",

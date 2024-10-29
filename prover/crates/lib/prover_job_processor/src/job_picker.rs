@@ -6,7 +6,7 @@ use crate::Executor;
 pub trait JobPicker: Send + Sync + 'static {
     type ExecutorType: Executor;
     async fn pick_job(
-        &self,
+        &mut self,
     ) -> anyhow::Result<
         Option<(
             <Self::ExecutorType as Executor>::Input,

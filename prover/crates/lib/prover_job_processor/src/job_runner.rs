@@ -1,11 +1,6 @@
-use std::sync::Arc;
-
 use tokio::task::JoinHandle;
 
-use crate::{
-    task_wiring::{JobPickerTask, JobSaverTask, Task, WorkerPool},
-    Executor, JobPicker, JobSaver,
-};
+use crate::{BackoffAndCancellable, Executor, JobPicker, JobSaver, task_wiring::{JobPickerTask, JobSaverTask, Task, WorkerPool}};
 
 pub struct JobRunner<E, P, S>
 where
@@ -13,45 +8,40 @@ where
     P: JobPicker,
     S: JobSaver,
 {
-    executor: Arc<E>,
-    picker: Arc<P>,
-    saver: Arc<S>,
+    executor: E,
+    picker: P,
+    saver: S,
     num_workers: usize,
+    picker_backoff_and_cancellable: Option<BackoffAndCancellable>,
 }
 
 impl<E, P, S> JobRunner<E, P, S>
 where
     E: Executor,
-    P: JobPicker<ExecutorType = E>,
-    S: JobSaver<ExecutorType = E>,
+    P: JobPicker<ExecutorType=E>,
+    S: JobSaver<ExecutorType=E>,
 {
-    pub fn new(executor: E, picker: P, saver: S, num_workers: usize) -> Self {
+    pub fn new(executor: E, picker: P, saver: S, num_workers: usize, picker_backoff_and_cancellable: Option<BackoffAndCancellable>) -> Self {
         Self {
-            executor: Arc::new(executor),
-            picker: Arc::new(picker),
-            saver: Arc::new(saver),
+            executor,
+            picker,
+            saver,
             num_workers,
+            picker_backoff_and_cancellable,
         }
     }
 
-    pub fn run(&self) -> Vec<JoinHandle<anyhow::Result<()>>> {
+    pub fn run(self) -> Vec<JoinHandle<anyhow::Result<()>>> {
         // TODO: make these 1s a constant all across the codebase
         let (input_tx, input_rx) = tokio::sync::mpsc::channel::<(E::Input, E::Metadata)>(1);
         let (result_tx, result_rx) =
             tokio::sync::mpsc::channel::<(anyhow::Result<E::Output>, E::Metadata)>(1);
 
         // Create tasks
-        let picker_task = JobPickerTask::new(self.picker.clone(), input_tx);
-        // TODO: Get rid of worker_pool_task
+        let picker_task = JobPickerTask::new(self.picker, input_tx, self.picker_backoff_and_cancellable);
         let worker_pool =
-            WorkerPool::new(self.executor.clone(), self.num_workers, input_rx, result_tx);
-        // let worker_pool_task = WorkerPoolTask::new(
-        //     self.executor.clone(),
-        //     self.num_workers,
-        //     input_rx,
-        //     result_tx,
-        // );
-        let saver_task = JobSaverTask::new(self.saver.clone(), result_rx);
+            WorkerPool::new(self.executor, self.num_workers, input_rx, result_tx);
+        let saver_task = JobSaverTask::new(self.saver, result_rx);
 
         vec![
             tokio::spawn(picker_task.run()),

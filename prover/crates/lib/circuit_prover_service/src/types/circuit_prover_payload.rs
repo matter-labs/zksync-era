@@ -8,9 +8,9 @@ use zksync_prover_keystore::GoldilocksGpuProverSetupData;
 use crate::types::circuit::Circuit;
 
 pub struct GpuCircuitProverPayload {
-    circuit: Circuit,
-    witness_vector: WitnessVec<GoldilocksField>,
-    setup_data: Arc<GoldilocksGpuProverSetupData>,
+    pub circuit: Circuit,
+    pub witness_vector: WitnessVec<GoldilocksField>,
+    pub setup_data: Arc<GoldilocksGpuProverSetupData>,
 }
 
 impl GpuCircuitProverPayload {

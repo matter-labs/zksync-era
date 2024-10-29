@@ -1,52 +1,74 @@
-use std::sync::Arc;
+use std::time::Duration;
 
+use anyhow::Context;
 use async_trait::async_trait;
+use tokio_util::sync::CancellationToken;
 
-use crate::{task_wiring::task::Task, Executor, JobPicker};
+use crate::{BackoffAndCancellable, Executor, JobPicker, task_wiring::task::Task};
 
 pub struct JobPickerTask<P: JobPicker> {
-    picker: Arc<P>,
+    picker: P,
     input_tx: tokio::sync::mpsc::Sender<(
         <P::ExecutorType as Executor>::Input,
         <P::ExecutorType as Executor>::Metadata,
     )>,
+    backoff_and_cancellable: Option<BackoffAndCancellable>,
 }
 
 impl<P: JobPicker> JobPickerTask<P> {
     pub fn new(
-        picker: Arc<P>,
+        picker: P,
         input_tx: tokio::sync::mpsc::Sender<(
             <P::ExecutorType as Executor>::Input,
             <P::ExecutorType as Executor>::Metadata,
         )>,
+        backoff_and_cancellable: Option<BackoffAndCancellable>,
     ) -> Self {
-        Self { picker, input_tx }
+        Self { picker, input_tx, backoff_and_cancellable }
+    }
+
+    async fn backoff(&mut self) {
+        if let Some(backoff_and_cancellable) = &mut self.backoff_and_cancellable {
+            let backoff_duration = backoff_and_cancellable.backoff.delay();
+            tracing::info!("Backing off for {:?}...", backoff_duration);
+            // Error here corresponds to a timeout w/o receiving task_wiring cancel; we're OK with this.
+            tokio::time::timeout(backoff_duration, backoff_and_cancellable.cancellation_token.cancelled())
+                .await
+                .ok();
+        }
+    }
+
+    fn reset_backoff(&mut self) {
+        if let Some(backoff_and_cancellable) = &mut self.backoff_and_cancellable {
+            backoff_and_cancellable.backoff.reset();
+        }
+    }
+
+    fn is_cancelled(&self) -> bool {
+        if let Some(backoff_and_cancellable) = &self.backoff_and_cancellable {
+            return backoff_and_cancellable.cancellation_token.is_cancelled();
+        }
+        false
     }
 }
 
 #[async_trait]
 impl<P: JobPicker> Task for JobPickerTask<P> {
     async fn run(mut self) -> anyhow::Result<()> {
-        loop {
-            match self.picker.pick_job().await {
-                Ok(Some((input, metadata))) => {
+        while !self.is_cancelled() {
+            match self.picker.pick_job().await.context("failed to pick job")? {
+                Some((input, metadata)) => {
+                    self.reset_backoff();
                     if self.input_tx.send((input, metadata)).await.is_err() {
-                        // Worker pool has been dropped
-                        break;
+                        return Ok(());
                     }
                 }
-                Ok(None) => {
-                    // No job available, sleep and retry
-                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                }
-                Err(e) => {
-                    // Sleep and retry
-                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                None => {
+                    self.backoff().await;
                 }
             }
         }
-        // Close the input channel when done
-        drop(self.input_tx.clone());
+        tracing::info!("Stop signal received, shutting down {} JobPickerTask...", "type");
         Ok(())
     }
 }

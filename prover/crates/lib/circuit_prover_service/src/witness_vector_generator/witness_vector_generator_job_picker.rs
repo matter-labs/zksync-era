@@ -3,7 +3,11 @@ use std::{collections::HashMap, sync::Arc};
 use anyhow::Context;
 use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
+use zksync_types::{
+    L1BatchNumber, prover_dal::FriProverJobMetadata,
+};
+
+use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{
@@ -12,51 +16,37 @@ use zksync_prover_fri_types::{
         },
         circuit_definitions::base_layer::ZkSyncBaseLayerCircuit,
     },
-    keys::RamPermutationQueueWitnessKey,
-    CircuitAuxData, CircuitWrapper, ProverServiceDataKey, RamPermutationQueueWitness,
+    CircuitAuxData,
+    CircuitWrapper, keys::RamPermutationQueueWitnessKey, ProverServiceDataKey, RamPermutationQueueWitness,
 };
 use zksync_prover_job_processor::JobPicker;
-use zksync_types::{
-    protocol_version::ProtocolSemanticVersion, prover_dal::FriProverJobMetadata, L1BatchNumber,
-};
 
 use crate::{
     types::{circuit::Circuit, witness_vector_generator_payload::WitnessVectorGeneratorPayload},
     witness_vector_generator::WitnessVectorGeneratorExecutor,
 };
+use crate::witness_vector_generator::witness_vector_generator_metadata_loader::WitnessVectorMetadataLoader;
 
 #[derive(Debug)]
-pub enum WvgJobType {
-    Light,
-    Heavy,
-}
-
-#[derive(Debug)]
-pub struct WitnessVectorGeneratorJobPicker {
+pub struct WitnessVectorGeneratorJobPicker<ML: WitnessVectorMetadataLoader> {
     connection_pool: ConnectionPool<Prover>,
     object_store: Arc<dyn ObjectStore>,
-    pod_name: String,
-    protocol_version: ProtocolSemanticVersion,
     finalization_hints_cache: HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>,
-    wvg_job_type: WvgJobType,
+    metadata_loader: ML,
 }
 
-impl WitnessVectorGeneratorJobPicker {
+impl<ML: WitnessVectorMetadataLoader> WitnessVectorGeneratorJobPicker<ML> {
     pub fn new(
         connection_pool: ConnectionPool<Prover>,
         object_store: Arc<dyn ObjectStore>,
-        pod_name: String,
-        protocol_version: ProtocolSemanticVersion,
         finalization_hints_cache: HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>,
-        wvg_job_type: WvgJobType,
+        metadata_loader: ML,
     ) -> Self {
         Self {
             connection_pool,
             object_store,
-            pod_name,
-            protocol_version,
             finalization_hints_cache,
-            wvg_job_type,
+            metadata_loader,
         }
     }
 
@@ -107,42 +97,20 @@ impl WitnessVectorGeneratorJobPicker {
             circuit.short_description()
         ))
     }
-
-    async fn get_metadata(
-        &self,
-        mut connection: Connection<'_, Prover>,
-    ) -> Option<FriProverJobMetadata> {
-        if let WvgJobType::Heavy = self.wvg_job_type {
-            let metadata = connection
-                .fri_prover_jobs_dal()
-                .get_heavy_job(self.protocol_version, &self.pod_name)
-                .await;
-            if metadata.is_some() {
-                return metadata;
-            }
-            // if let Some(metadata) = connection.fri_prover_jobs_dal().get_heavy_task(self.protocol_version, &self.pod_name).await {
-            //     return Some(metadata);
-            // }
-        }
-        connection
-            .fri_prover_jobs_dal()
-            .get_light_job(self.protocol_version, &self.pod_name)
-            .await
-    }
 }
 
 #[async_trait]
-impl JobPicker for WitnessVectorGeneratorJobPicker {
+impl<ML: WitnessVectorMetadataLoader> JobPicker for WitnessVectorGeneratorJobPicker<ML> {
     type ExecutorType = WitnessVectorGeneratorExecutor;
     async fn pick_job(
-        &self,
+        &mut self,
     ) -> anyhow::Result<Option<(WitnessVectorGeneratorPayload, FriProverJobMetadata)>> {
-        let mut connection = self
+        let connection = self
             .connection_pool
             .connection()
             .await
             .context("failed to get db connection")?;
-        let metadata = match self.get_metadata(connection).await {
+        let metadata = match self.metadata_loader.load_metadata(connection).await {
             None => return Ok(None),
             Some(metadata) => metadata,
         };
@@ -165,7 +133,7 @@ impl JobPicker for WitnessVectorGeneratorJobPicker {
             circuit_id: metadata.circuit_id,
             round: metadata.aggregation_round,
         }
-        .crypto_setup_key();
+            .crypto_setup_key();
         let finalization_hints = self
             .finalization_hints_cache
             .get(&key)

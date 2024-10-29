@@ -6,28 +6,31 @@ use std::{
 
 use anyhow::Context as _;
 use clap::Parser;
+use shivini::{ProverContext, ProverContextConfig};
 use tokio_util::sync::CancellationToken;
-use zksync_circuit_prover::{
-    Backoff,
-    CircuitProver,
-    FinalizationHintsCache,
-    SetupDataCache,
-    // WitnessVectorGenerator,
-    PROVER_BINARY_METRICS,
-};
-use zksync_circuit_prover_service::{
-    job_runner::light_wvg_runner, witness_vector_generator::WitnessVectorGeneratorJobPicker,
-};
 use zksync_config::{
     configs::{FriProverConfig, ObservabilityConfig},
     ObjectStoreConfig,
 };
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_utils::wait_for_tasks::ManagedTasks;
+
+use zksync_circuit_prover::{
+    // Backoff,
+    // CircuitProver,
+    FinalizationHintsCache,
+    // WitnessVectorGenerator,
+    PROVER_BINARY_METRICS,
+    SetupDataCache,
+};
+use zksync_circuit_prover_service::{
+    job_runner::{circuit_prover_runner, light_wvg_runner},
+    witness_vector_generator::WitnessVectorGeneratorJobPicker,
+};
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::{get_current_pod_name, PROVER_PROTOCOL_SEMANTIC_VERSION};
 use zksync_prover_keystore::keystore::Keystore;
-use zksync_utils::wait_for_tasks::ManagedTasks;
 
 // #[command(name = "circuit_prover")]
 // #[command(about = "CLI for running circuit provers")]
@@ -89,13 +92,12 @@ async fn main() -> anyhow::Result<()> {
         prover_config.setup_data_path.into(),
         wvg_count,
     )
-    .await
-    .context("failed to load configs")?;
+        .await
+        .context("failed to load configs")?;
 
     PROVER_BINARY_METRICS.start_up.observe(time.elapsed());
 
     let cancellation_token = CancellationToken::new();
-    let backoff = Backoff::new(Duration::from_secs(5), Duration::from_secs(30));
 
     let mut tasks = vec![];
 
@@ -115,6 +117,7 @@ async fn main() -> anyhow::Result<()> {
         hints.clone(),
         opt.light_wvg_count,
         witness_vector_sender.clone(),
+        cancellation_token.clone(),
     );
 
     tasks.extend(light_wvg_runner.run());
@@ -127,23 +130,43 @@ async fn main() -> anyhow::Result<()> {
         hints,
         opt.heavy_wvg_count,
         witness_vector_sender,
+        cancellation_token.clone(),
     );
 
     tasks.extend(heavy_wvg_runner.run());
 
-    // NOTE: Prover Context is the way VRAM is allocated. If it is dropped, the claim on VRAM allocation is dropped as well.
-    // It has to be kept until prover dies. Whilst it may be kept in prover struct, during cancellation, prover can `drop`, but the thread doing the processing can still be alive.
-    // This setup prevents segmentation faults and other nasty behavior during shutdown.
-    let (prover, _prover_context) = CircuitProver::new(
+    // // NOTE: Prover Context is the way VRAM is allocated. If it is dropped, the claim on VRAM allocation is dropped as well.
+    // // It has to be kept until prover dies. Whilst it may be kept in prover struct, during cancellation, prover can `drop`, but the thread doing the processing can still be alive.
+    // // This setup prevents segmentation faults and other nasty behavior during shutdown.
+    // let (prover, _prover_context) = CircuitProver::new(
+    //     connection_pool.clone(),
+    //     object_store.clone(),
+    //     PROVER_PROTOCOL_SEMANTIC_VERSION,
+    //     witness_vector_receiver,
+    //     opt.max_allocation,
+    //     setup_data_cache,
+    // )
+    // .context("failed to create circuit prover")?;
+    // tasks.push(tokio::spawn(prover.run(cancellation_token.clone())));
+
+    let prover_context = match opt.max_allocation {
+        Some(max_allocation) => ProverContext::create_with_config(
+            ProverContextConfig::default().with_maximum_device_allocation(max_allocation),
+        )
+            .context("failed initializing fixed gpu prover context")?,
+        None => ProverContext::create().context("failed initializing gpu prover context")?,
+    };
+
+    let circuit_prover_runner = circuit_prover_runner(
         connection_pool,
         object_store,
         PROVER_PROTOCOL_SEMANTIC_VERSION,
-        witness_vector_receiver,
-        opt.max_allocation,
         setup_data_cache,
-    )
-    .context("failed to create circuit prover")?;
-    tasks.push(tokio::spawn(prover.run(cancellation_token.clone())));
+        witness_vector_receiver,
+        prover_context,
+    );
+
+    tasks.extend(circuit_prover_runner.run());
 
     let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {
@@ -161,8 +184,10 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     PROVER_BINARY_METRICS.run_time.observe(time.elapsed());
-    tasks.complete(Duration::from_secs(5)).await;
-
+    println!("hello");
+    tasks.complete(Duration::from_secs(25)).await;
+    tokio::time::sleep(Duration::from_secs(10)).await;
+    println!("bye!");
     Ok(())
 }
 

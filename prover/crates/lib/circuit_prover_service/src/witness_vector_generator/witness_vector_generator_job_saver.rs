@@ -1,8 +1,9 @@
 use anyhow::Context;
 use async_trait::async_trait;
-use zksync_prover_dal::{ConnectionPool, Prover};
-use zksync_prover_job_processor::JobSaver;
 use zksync_types::prover_dal::FriProverJobMetadata;
+
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_prover_job_processor::JobSaver;
 
 use crate::{
     types::witness_vector_generator_execution_output::WitnessVectorGeneratorExecutionOutput,
@@ -51,12 +52,23 @@ impl JobSaver for WitnessVectorGeneratorJobSaver {
                 //     prover_job,
                 //     Instant::now(),
                 // );
-                self.sender
+                if self.sender
                     .send((payload, metadata))
-                    .await
-                    .context("failed to send witness vector to prover")?;
+                    .await.is_err() {
+                    tracing::info!("circuit prover is shut down");
+                    return Ok(());
+                }
             }
-            Err(err) => {}
+            Err(err) => {
+                println!("errored: {err:?}");
+                self.connection_pool
+                    .connection()
+                    .await
+                    .context("failed to get db connection")?
+                    .fri_prover_jobs_dal()
+                    .save_proof_error(metadata.id, err.to_string())
+                    .await;
+            }
         }
         Ok(())
     }
