@@ -1,9 +1,10 @@
+use std::path::PathBuf;
+
 use clap::{Parser, ValueHint};
 use common::{Prompt, PromptConfirm, PromptSelect};
 use config::get_default_era_chain_id;
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
-use std::path::PathBuf;
 use strum::IntoEnumIterator;
 use types::{L1Network, WalletCreation};
 use xshell::Shell;
