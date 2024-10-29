@@ -1,7 +1,5 @@
 //! Tests for the contract verifier.
 
-use std::env;
-
 use tokio::sync::watch;
 use zksync_dal::Connection;
 use zksync_node_test_utils::{create_l1_batch, create_l2_block};
@@ -13,14 +11,13 @@ use zksync_types::{
     Execute, L1BatchNumber, L2BlockNumber, ProtocolVersion, StorageLog, CONTRACT_DEPLOYER_ADDRESS,
     H256,
 };
-use zksync_utils::{
-    address_to_h256,
-    bytecode::{hash_bytecode, validate_bytecode},
-};
+use zksync_utils::{address_to_h256, bytecode::hash_bytecode};
 use zksync_vm_interface::{TransactionExecutionMetrics, VmEvent};
 
 use super::*;
 use crate::resolver::{Compiler, SupportedCompilerVersions};
+
+mod real;
 
 const SOLC_VERSION: &str = "0.8.27";
 const ZKSOLC_VERSION: &str = "1.5.4";
@@ -305,73 +302,29 @@ async fn checked_env_resolver() -> Option<(EnvCompilerResolver, SupportedCompile
     Some((compiler_resolver, supported_compilers))
 }
 
-fn assert_no_compilers_expected() {
-    assert_ne!(
-        env::var("RUN_CONTRACT_VERIFICATION_TEST").ok().as_deref(),
-        Some("true"),
-        "Expected pre-installed compilers since `RUN_CONTRACT_VERIFICATION_TEST=true`, but they are not installed. \
-         Use `zkstack contract-verifier init` to install compilers"
-    );
-    println!("No compilers found, skipping the test");
-}
-
 #[tokio::test]
-async fn using_real_compiler() {
-    let Some((compiler_resolver, supported_compilers)) = checked_env_resolver().await else {
-        assert_no_compilers_expected();
-        return;
-    };
-
-    let versions = CompilerVersions::Solc {
-        compiler_zksolc_version: supported_compilers.zksolc[0].clone(),
-        compiler_solc_version: supported_compilers.solc[0].clone(),
-    };
-    let compiler = compiler_resolver.resolve_solc(&versions).await.unwrap();
-    let req = VerificationIncomingRequest {
-        compiler_versions: versions,
-        ..test_request(Address::repeat_byte(1))
-    };
-    let input = ContractVerifier::build_zksolc_input(req).unwrap();
-    let output = compiler.compile(input).await.unwrap();
-
-    validate_bytecode(&output.bytecode).unwrap();
-    assert_eq!(output.abi, counter_contract_abi());
-}
-
-#[tokio::test]
-async fn using_real_compiler_in_verifier() {
-    let Some((compiler_resolver, supported_compilers)) = checked_env_resolver().await else {
-        assert_no_compilers_expected();
-        return;
-    };
-
-    let versions = CompilerVersions::Solc {
-        compiler_zksolc_version: supported_compilers.zksolc[0].clone(),
-        compiler_solc_version: supported_compilers.solc[0].clone(),
-    };
-    let address = Address::repeat_byte(1);
-    let compiler = compiler_resolver.resolve_solc(&versions).await.unwrap();
-    let req = VerificationIncomingRequest {
-        compiler_versions: versions,
-        ..test_request(Address::repeat_byte(1))
-    };
-    let input = ContractVerifier::build_zksolc_input(req.clone()).unwrap();
-    let output = compiler.compile(input).await.unwrap();
-
+async fn bytecode_mismatch_error() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
     prepare_storage(&mut storage).await;
-    mock_deployment(&mut storage, address, output.bytecode.clone()).await;
+
+    let address = Address::repeat_byte(1);
+    mock_deployment(&mut storage, address, vec![0xff; 32]).await;
+    let req = test_request(address);
     let request_id = storage
         .contract_verification_dal()
         .add_contract_verification_request(req)
         .await
         .unwrap();
 
+    let mock_resolver = MockCompilerResolver::new(|_| CompilationArtifacts {
+        bytecode: vec![0; 32],
+        abi: counter_contract_abi(),
+    });
     let verifier = ContractVerifier::with_resolver(
         Duration::from_secs(60),
         pool.clone(),
-        Arc::new(compiler_resolver),
+        Arc::new(mock_resolver),
     )
     .await
     .unwrap();
@@ -379,5 +332,60 @@ async fn using_real_compiler_in_verifier() {
     let (_stop_sender, stop_receiver) = watch::channel(false);
     verifier.run(stop_receiver, Some(1)).await.unwrap();
 
-    assert_request_success(&mut storage, request_id, address, &output.bytecode).await;
+    let status = storage
+        .contract_verification_dal()
+        .get_verification_request_status(request_id)
+        .await
+        .unwrap()
+        .expect("no status");
+    assert_eq!(status.status, "failed");
+    assert!(status.compilation_errors.is_none(), "{status:?}");
+    let error = status.error.unwrap();
+    assert!(error.contains("bytecode"), "{error}");
+}
+
+#[tokio::test]
+async fn no_compiler_version() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    prepare_storage(&mut storage).await;
+
+    let address = Address::repeat_byte(1);
+    mock_deployment(&mut storage, address, vec![0xff; 32]).await;
+    let req = VerificationIncomingRequest {
+        compiler_versions: CompilerVersions::Solc {
+            compiler_zksolc_version: ZKSOLC_VERSION.to_owned(),
+            compiler_solc_version: "1.0.0".to_owned(), // a man can dream
+        },
+        ..test_request(address)
+    };
+    let request_id = storage
+        .contract_verification_dal()
+        .add_contract_verification_request(req)
+        .await
+        .unwrap();
+
+    let mock_resolver =
+        MockCompilerResolver::new(|_| unreachable!("should reject unknown solc version"));
+    let verifier = ContractVerifier::with_resolver(
+        Duration::from_secs(60),
+        pool.clone(),
+        Arc::new(mock_resolver),
+    )
+    .await
+    .unwrap();
+
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    verifier.run(stop_receiver, Some(1)).await.unwrap();
+
+    let status = storage
+        .contract_verification_dal()
+        .get_verification_request_status(request_id)
+        .await
+        .unwrap()
+        .expect("no status");
+    assert_eq!(status.status, "failed");
+    assert!(status.compilation_errors.is_none(), "{status:?}");
+    let error = status.error.unwrap();
+    assert!(error.contains("solc version"), "{error}");
 }
