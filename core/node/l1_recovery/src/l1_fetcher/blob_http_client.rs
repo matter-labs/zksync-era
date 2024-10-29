@@ -1,5 +1,10 @@
+use std::str::FromStr;
+
 use serde::Deserialize;
 use tokio::time::{sleep, Duration};
+use zksync_basic_types::url::SensitiveUrl;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_types::eth_sender::EthTxBlobSidecar;
 
 use crate::l1_fetcher::types::ParseError;
 
@@ -34,7 +39,42 @@ impl BlobHttpClient {
         })
     }
 
+    async fn get_blob_from_db(&self, kzg_commitment: &[u8]) -> Result<Vec<u8>, ParseError> {
+        let pool = ConnectionPool::<Core>::singleton(
+            SensitiveUrl::from_str(
+                "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era",
+            )
+            .expect("Failed to parse the database URL"),
+        )
+        .build()
+        .await
+        .unwrap();
+        let mut storage = pool.connection().await.unwrap();
+        let mut id = 1;
+        loop {
+            let tx = storage.eth_sender_dal().get_eth_tx(id).await.unwrap();
+            id += 1;
+            if tx.is_none() {
+                panic!("No tx found");
+            }
+
+            if let Some(blob_sidecar) = tx.unwrap().blob_sidecar {
+                match blob_sidecar {
+                    EthTxBlobSidecar::EthTxBlobSidecarV1(sidecar) => {
+                        for blob in sidecar.blobs {
+                            if blob.commitment == kzg_commitment {
+                                return Ok(blob.blob);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     pub async fn get_blob(&self, kzg_commitment: &[u8]) -> Result<Vec<u8>, ParseError> {
+        if self.url_base == "LOCAL_BLOBS_ONLY!" {
+            return self.get_blob_from_db(kzg_commitment).await;
+        }
         let url = self.format_url(kzg_commitment);
         for attempt in 1..=MAX_RETRIES {
             match self.client.get(&url).send().await {

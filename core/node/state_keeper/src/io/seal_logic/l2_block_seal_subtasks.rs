@@ -294,6 +294,11 @@ impl L2BlockSealSubtask for InsertFactoryDepsSubtask {
         );
 
         if !command.l2_block.new_factory_deps.is_empty() {
+            tracing::warn!(
+                "Inserting {} factory deps for block {}",
+                command.l2_block.new_factory_deps.len(),
+                command.l2_block.number
+            );
             connection
                 .factory_deps_dal()
                 .insert_factory_deps(command.l2_block.number, &command.l2_block.new_factory_deps)

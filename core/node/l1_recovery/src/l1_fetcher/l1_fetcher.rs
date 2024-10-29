@@ -1,38 +1,26 @@
-use std::{cmp, fs::File, future::Future, num::NonZero, str::FromStr, sync::Arc};
+use std::{cmp, collections::HashMap, fs::File, future::Future};
 
 use anyhow::{anyhow, Result};
 use ethabi::{Contract, Event, Function};
 use rand::random;
 use thiserror::Error;
-use tokio::{
-    sync::Mutex,
-    time::{sleep, Duration},
-};
-use tracing::log::__private_api::log;
+use tokio::time::{sleep, Duration};
 use zksync_basic_types::{
-    url::SensitiveUrl,
     web3::{BlockId, BlockNumber, FilterBuilder, Transaction},
     Address, H256, U64,
 };
 use zksync_eth_client::EthInterface;
-use zksync_utils::env::Workspace;
-use zksync_web3_decl::client::{Client, DynClient, L1};
+use zksync_types::l1::L1Tx;
+use zksync_utils::{bytecode::hash_bytecode, env::Workspace};
+use zksync_web3_decl::client::{DynClient, L1};
 
-use crate::{
-    l1_fetcher::{
-        blob_http_client::BlobHttpClient,
-        constants::ethereum::{BLOB_BLOCK, BOOJUM_BLOCK, ZK_SYNC_ADDR},
-        types::{v1::V1, v2::V2, CommitBlock, ParseError},
-    },
-    storage::reconstruction::ReconstructionDatabase,
+use crate::l1_fetcher::{
+    blob_http_client::BlobHttpClient,
+    types::{v1::V1, v2::V2, CommitBlock, ParseError},
 };
 
 /// `MAX_RETRIES` is the maximum number of retries on failed L1 call.
 const MAX_RETRIES: u8 = 5;
-/// The interval in seconds to wait before retrying to fetch a previously failed transaction.
-const FAILED_FETCH_RETRY_INTERVAL_S: u64 = 10;
-/// The interval in seconds in which to print metrics.
-const METRICS_PRINT_INTERVAL_S: u64 = 10;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Error, Debug)]
@@ -48,52 +36,35 @@ pub enum L1FetchError {
 }
 
 #[derive(Debug, Clone)]
+pub enum ProtocolVersioning {
+    OnlyV3,
+    AllVersions {
+        v2_start_batch_number: u64,
+        v3_start_batch_number: u64,
+    },
+}
+
+#[derive(Debug, Clone)]
 pub struct L1FetcherConfig {
-    /// The Ethereum JSON-RPC HTTP URL to use.
-    pub http_url: String,
     /// The Ethereum blob storage URL base.
     pub blobs_url: String,
     /// The amount of blocks to step over on each log iterration.
     pub block_step: u64,
-}
 
-#[derive(Debug, Clone)]
-struct Contracts {
-    v1: Contract,
-    v2: Contract,
+    pub diamond_proxy_addr: Address,
+
+    pub versioning: ProtocolVersioning,
 }
 
 #[derive(Debug)]
 pub struct L1Fetcher {
     eth_client: Box<DynClient<L1>>,
-    contracts: Contracts,
     config: L1FetcherConfig,
-    inner_db: Option<Arc<Mutex<ReconstructionDatabase>>>,
 }
 
 impl L1Fetcher {
-    pub fn new(
-        config: L1FetcherConfig,
-        inner_db: Option<Arc<Mutex<ReconstructionDatabase>>>,
-    ) -> Result<Self> {
-        let url = SensitiveUrl::from_str(&config.http_url).unwrap();
-        let eth_client = Client::http(url)
-            .unwrap()
-            .with_allowed_requests_per_second(NonZero::new(10).unwrap())
-            .build();
-
-        let eth_client = Box::new(eth_client) as Box<DynClient<L1>>;
-
-        let v1 = Self::v1_contract()?;
-        let v2 = Self::v2_contract()?;
-        let contracts = Contracts { v1, v2 };
-
-        Ok(L1Fetcher {
-            eth_client,
-            contracts,
-            config,
-            inner_db,
-        })
+    pub fn new(config: L1FetcherConfig, eth_client: Box<DynClient<L1>>) -> Result<Self> {
+        Ok(L1Fetcher { eth_client, config })
     }
 
     fn v1_contract() -> Result<Contract> {
@@ -124,51 +95,43 @@ impl L1Fetcher {
         Ok(L1Fetcher::v1_contract()?.events_by_name("BlockCommit")?[0].clone())
     }
 
+    fn priority_tx_event() -> Result<Event> {
+        Ok(L1Fetcher::v1_contract()?.events_by_name("NewPriorityRequest")?[0].clone())
+    }
+
     pub async fn get_all_blocks_to_process(&self) -> Vec<CommitBlock> {
         let start_block = self.get_first_commit_batch_block_number().await;
         let end_block = L1Fetcher::get_last_l1_block_number(&self.eth_client)
             .await
             .unwrap();
-
         self.get_blocks_to_process(start_block, end_block).await
     }
 
     pub async fn get_first_commit_batch_block_number(&self) -> U64 {
-        let mut current = U64::zero();
-        let mut step = U64::from(1 << 30);
-        let end_block = L1Fetcher::get_last_l1_block_number(&self.eth_client)
-            .await
-            .unwrap();
+        // TODO Binary search for the first block with a commitBatch event.
+        return U64::zero();
+    }
 
-        let event = L1Fetcher::block_commit_event().unwrap();
+    async fn fetch_priority_txs(&self, start_block: U64, end_block: U64) -> Vec<L1Tx> {
+        assert!(end_block - start_block <= U64::from(self.config.block_step));
+        let event = L1Fetcher::priority_tx_event().unwrap();
+        let filter = FilterBuilder::default()
+            .address(vec![self.config.diamond_proxy_addr])
+            .topics(Some(vec![event.signature()]), None, None, None)
+            .from_block(BlockNumber::Number(start_block))
+            .to_block(BlockNumber::Number(end_block))
+            .build();
 
-        while step != U64::zero() {
-            while current + step >= end_block {
-                step /= 2;
-                continue;
-            }
-
-            let filter_from_block = current + step;
-            // 7 days of blocks, there should be at least one commit batch there
-            let filter_to_block = cmp::min(filter_from_block + 50000, end_block);
-            let filter = FilterBuilder::default()
-                .address(vec![ZK_SYNC_ADDR.parse::<Address>().unwrap()])
-                .topics(Some(vec![event.signature()]), None, None, None)
-                .from_block(BlockNumber::Number(filter_to_block))
-                .to_block(BlockNumber::Number(filter_to_block))
-                .build();
-
-            // Grab all relevant logs.
-            let logs = L1Fetcher::retry_call(
-                || L1Fetcher::query_client(&self.eth_client).logs(&filter),
-                L1FetchError::GetLogs,
-            )
-            .await
-            .unwrap();
-            if logs.len() == 0 {}
-        }
-
-        U64::zero()
+        // Grab all relevant logs.
+        let logs = L1Fetcher::retry_call(
+            || L1Fetcher::query_client(&self.eth_client).logs(&filter),
+            L1FetchError::GetLogs,
+        )
+        .await
+        .unwrap();
+        logs.iter()
+            .map(|log| L1Tx::try_from(log.clone()).unwrap())
+            .collect()
     }
 
     pub async fn get_blocks_to_process(
@@ -185,11 +148,25 @@ impl L1Fetcher {
 
         let mut current_block = start_block;
         let mut result = vec![];
+        let mut priority_txs = vec![];
+        let mut priority_txs_so_far = 0;
+        let mut last_processed_priority_tx = 0;
+        let mut factory_deps_hashes = HashMap::new();
 
         loop {
             let filter_to_block = cmp::min(current_block + block_step - 1, end_block);
+            priority_txs.extend(
+                self.fetch_priority_txs(current_block, filter_to_block)
+                    .await,
+            );
+            tracing::info!(
+                "Found {} priority txs for blocks: {current_block}-{filter_to_block}",
+                priority_txs.len() - priority_txs_so_far
+            );
+            priority_txs_so_far += priority_txs.len();
+
             let filter = FilterBuilder::default()
-                .address(vec![ZK_SYNC_ADDR.parse::<Address>().unwrap()])
+                .address(vec![self.config.diamond_proxy_addr])
                 .topics(Some(vec![event.signature()]), None, None, None)
                 .from_block(BlockNumber::Number(current_block))
                 .to_block(BlockNumber::Number(filter_to_block))
@@ -215,10 +192,33 @@ impl L1Fetcher {
                 )
                 .await
                 .unwrap();
-                let mut blocks = L1Fetcher::process_tx_data(&functions, &client, tx)
-                    .await
-                    .unwrap();
-                result.append(&mut blocks);
+                let blocks =
+                    L1Fetcher::process_tx_data(&functions, &client, tx, &self.config.versioning)
+                        .await
+                        .unwrap();
+
+                for mut block in blocks {
+                    for _ in 0..block.priority_operations_count {
+                        let priority_tx = priority_txs[last_processed_priority_tx].clone();
+                        tracing::info!(
+                            "Processing priority tx: {} with {} factory deps",
+                            priority_tx.serial_id(),
+                            priority_tx.execute.factory_deps.len()
+                        );
+                        for factory_dep in &priority_tx.execute.factory_deps {
+                            let hashed = hash_bytecode(factory_dep);
+                            if factory_deps_hashes.contains_key(&hashed) {
+                                continue;
+                            } else {
+                                tracing::info!("Factory dep: {:?}", hashed);
+                                factory_deps_hashes.insert(hashed, ());
+                                block.factory_deps.push(factory_dep.clone());
+                            }
+                        }
+                        last_processed_priority_tx += 1;
+                    }
+                    result.push(block)
+                }
             }
 
             if filter_to_block == end_block {
@@ -234,6 +234,7 @@ impl L1Fetcher {
         commit_functions: &[Function],
         blob_client: &BlobHttpClient,
         tx: Transaction,
+        protocol_versioning: &ProtocolVersioning,
     ) -> Result<Vec<CommitBlock>, ParseError> {
         tracing::info!(
             "Processing commit transactions from ethereum block: {:?}, tx_hash: {:?}",
@@ -243,7 +244,15 @@ impl L1Fetcher {
 
         let block_number = tx.block_number.unwrap().as_u64();
         loop {
-            match parse_calldata(block_number, &commit_functions, &tx.input.0, &blob_client).await {
+            match parse_calldata(
+                protocol_versioning,
+                block_number,
+                &commit_functions,
+                &tx.input.0,
+                &blob_client,
+            )
+            .await
+            {
                 Ok(blks) => break Ok(blks),
                 Err(e) => {
                     match e.clone() {
@@ -315,6 +324,7 @@ impl L1Fetcher {
     }
 }
 pub async fn parse_calldata(
+    protocol_versioning: &ProtocolVersioning,
     l1_block_number: u64,
     commit_candidates: &[Function],
     calldata: &[u8],
@@ -366,11 +376,18 @@ pub async fn parse_calldata(
     };
 
     // Parse blocks using [`CommitBlockInfoV1`] or [`CommitBlockInfoV2`]
-    let block_infos = parse_commit_block_info(&new_blocks_data, l1_block_number, client).await?;
+    let block_infos = parse_commit_block_info(
+        protocol_versioning,
+        &new_blocks_data,
+        l1_block_number,
+        client,
+    )
+    .await?;
     Ok(block_infos)
 }
 
 async fn parse_commit_block_info(
+    protocol_versioning: &ProtocolVersioning,
     data: &ethabi::Token,
     l1_block_number: u64,
     client: &BlobHttpClient,
@@ -383,10 +400,18 @@ async fn parse_commit_block_info(
 
     let mut result = vec![];
     for d in data {
+        let (boojum_block, blob_block) = match protocol_versioning {
+            ProtocolVersioning::OnlyV3 => (&0u64, &0u64),
+            ProtocolVersioning::AllVersions {
+                v2_start_batch_number,
+                v3_start_batch_number,
+                ..
+            } => (v2_start_batch_number, v3_start_batch_number),
+        };
         let commit_block = {
-            if l1_block_number >= BLOB_BLOCK {
+            if l1_block_number >= *blob_block {
                 CommitBlock::try_from_token_resolve(d, client).await?
-            } else if l1_block_number >= BOOJUM_BLOCK {
+            } else if l1_block_number >= *boojum_block {
                 CommitBlock::try_from_token::<V2>(d)?
             } else {
                 CommitBlock::try_from_token::<V1>(d)?
@@ -401,9 +426,7 @@ async fn parse_commit_block_info(
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        collections::HashMap, env::temp_dir, num::NonZero, os::linux::raw::stat, str::FromStr,
-    };
+    use std::{collections::HashMap, num::NonZero, str::FromStr};
 
     use tempfile::TempDir;
     use zksync_basic_types::{url::SensitiveUrl, L1BatchNumber, L2BlockNumber, H256, U64};
@@ -415,13 +438,19 @@ mod tests {
     use crate::{
         l1_fetcher::{
             blob_http_client::BlobHttpClient,
-            constants::sepolia_initial_state_path,
-            l1_fetcher::{L1Fetcher, L1FetcherConfig},
+            constants::{
+                sepolia_diamond_proxy_addr, sepolia_initial_state_path, sepolia_versioning,
+            },
+            l1_fetcher::{L1Fetcher, L1FetcherConfig, ProtocolVersioning::OnlyV3},
         },
-        processor::{snapshot::StateCompressor, tree::TreeProcessor, Processor},
+        processor::{
+            genesis::{get_genesis_factory_deps, get_genesis_state},
+            snapshot::StateCompressor,
+            tree::TreeProcessor,
+        },
     };
 
-    fn sepolia_client() -> Box<DynClient<L1>> {
+    fn sepolia_l1_client() -> Box<DynClient<L1>> {
         let url = SensitiveUrl::from_str(&"https://ethereum-sepolia-rpc.publicnode.com").unwrap();
         let eth_client = Client::http(url)
             .unwrap()
@@ -430,17 +459,23 @@ mod tests {
         Box::new(eth_client)
     }
 
+    fn local_l1_client() -> Box<DynClient<L1>> {
+        let url = SensitiveUrl::from_str(&"http://127.0.0.1:8545").unwrap();
+        let eth_client = Client::http(url).unwrap().build();
+        Box::new(eth_client)
+    }
     fn sepolia_l1_fetcher() -> L1Fetcher {
         let config = L1FetcherConfig {
-            http_url: "https://ethereum-sepolia-rpc.publicnode.com".to_string(),
             blobs_url: "https://api.sepolia.blobscan.com/blobs/".to_string(),
-            block_step: 1000,
+            block_step: 10000,
+            diamond_proxy_addr: sepolia_diamond_proxy_addr().parse().unwrap(),
+            versioning: sepolia_versioning(),
         };
-        L1Fetcher::new(config, None).unwrap()
+        L1Fetcher::new(config, sepolia_l1_client()).unwrap()
     }
     #[test_log::test(tokio::test)]
     async fn uncompressing_factory_deps_from_l2_to_l1_messages() {
-        let eth_client = sepolia_client();
+        let eth_client = sepolia_l1_client();
         // commitBatch no. 403 from boojnet
         let tx = L1Fetcher::get_transaction_by_hash(
             &eth_client,
@@ -452,9 +487,10 @@ mod tests {
         let blob_provider =
             BlobHttpClient::new("https://api.sepolia.blobscan.com/blobs/".to_string()).unwrap();
         let functions = L1Fetcher::commit_functions().unwrap();
-        let blocks = L1Fetcher::process_tx_data(&functions, &blob_provider, tx)
-            .await
-            .unwrap();
+        let blocks =
+            L1Fetcher::process_tx_data(&functions, &blob_provider, tx, &sepolia_versioning())
+                .await
+                .unwrap();
         assert_eq!(1, blocks.len());
         let block = &blocks[0];
         assert_eq!(9, block.factory_deps.len());
@@ -469,7 +505,7 @@ mod tests {
     async fn uncompressing_factory_deps_from_l2_to_l1_messages_for_blob_batch() {
         tracing::info!("{:?}", Workspace::locate().core());
 
-        let eth_client = sepolia_client();
+        let eth_client = sepolia_l1_client();
         // commitBatch no. 11944 from boojnet, pubdata submitted using blobs
         let tx = L1Fetcher::get_transaction_by_hash(
             &eth_client,
@@ -481,9 +517,10 @@ mod tests {
         let blob_provider =
             BlobHttpClient::new("https://api.sepolia.blobscan.com/blobs/".to_string()).unwrap();
         let functions = L1Fetcher::commit_functions().unwrap();
-        let blocks = L1Fetcher::process_tx_data(&functions, &blob_provider, tx)
-            .await
-            .unwrap();
+        let blocks =
+            L1Fetcher::process_tx_data(&functions, &blob_provider, tx, &sepolia_versioning())
+                .await
+                .unwrap();
         assert_eq!(1, blocks.len());
         let block = &blocks[0];
         assert_eq!(6, block.factory_deps.len());
@@ -508,6 +545,43 @@ mod tests {
     }
 
     #[test_log::test(tokio::test)]
+    async fn test_local_recovery() {
+        let config = L1FetcherConfig {
+            blobs_url: "LOCAL_BLOBS_ONLY!".to_string(),
+            block_step: 100000,
+            diamond_proxy_addr: "0x461993b882e2e6a5dea726db44d98c958a67365b"
+                .parse()
+                .unwrap(),
+            versioning: OnlyV3,
+        };
+        let fetcher = L1Fetcher::new(config, local_l1_client()).unwrap();
+
+        let blocks = fetcher.get_all_blocks_to_process().await;
+        let temp_dir = TempDir::new().unwrap().into_path().join("db");
+        let mut processor = StateCompressor::new(temp_dir).await;
+        processor.process_genesis_state(None).await;
+        processor.process_blocks(blocks.clone()).await;
+        for block in &blocks {
+            if block.factory_deps.len() != 0 || block.priority_operations_count != 0 {
+                tracing::info!(
+                    "block {} with {} factory deps and {} priority txs",
+                    block.l1_batch_number,
+                    block.factory_deps.len(),
+                    block.priority_operations_count
+                );
+            }
+        }
+        //panic!("blocks_len: {:?}", blocks.len());
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_recovery_without_initial_state_file() {
+        get_genesis_factory_deps();
+        get_genesis_state();
+        //panic![""];
+    }
+
+    #[test_log::test(tokio::test)]
     async fn test_process_blocks() {
         let temp_dir = TempDir::new().unwrap().into_path().join("db");
 
@@ -519,11 +593,11 @@ mod tests {
 
         let mut processor = StateCompressor::new(temp_dir).await;
         processor
-            .process_genesis_state(sepolia_initial_state_path())
+            .process_genesis_state(Some(sepolia_initial_state_path()))
             .await;
         processor.process_blocks(blocks).await;
 
-        assert_eq!(2, processor.export_factory_deps().await.len());
+        assert_eq!(8, processor.export_factory_deps().await.len());
 
         let temp_dir2 = TempDir::new().unwrap().into_path().join("db2");
         let mut reconstructed = TreeProcessor::new(temp_dir2).await.unwrap();

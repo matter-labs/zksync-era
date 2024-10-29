@@ -1,17 +1,13 @@
-use std::{ops::Deref, path::PathBuf};
+use std::path::PathBuf;
 
 use zksync_basic_types::{web3::Bytes, L1BatchNumber, H256, U256};
 use zksync_types::snapshots::{SnapshotFactoryDependency, SnapshotStorageLog};
 
 use crate::{
-    l1_fetcher::{constants::sepolia_initial_state_path, types::CommitBlock},
+    l1_fetcher::types::CommitBlock,
     processor::tree::TreeProcessor,
     storage::{snapshot::SnapshotDatabase, snapshot_columns, INDEX_TO_KEY_MAP},
 };
-
-pub const DEFAULT_DB_PATH: &str = "snapshot_db";
-pub const SNAPSHOT_HEADER_FILE_NAME: &str = "snapshot_header.json";
-pub const SNAPSHOT_FACTORY_DEPS_FILE_NAME_SUFFIX: &str = "factory_deps.proto.gzip";
 
 pub struct StateCompressor {
     database: SnapshotDatabase,
@@ -20,9 +16,9 @@ pub struct StateCompressor {
 
 impl StateCompressor {
     pub async fn new(db_path: PathBuf) -> Self {
-        let mut database = SnapshotDatabase::new(db_path.clone()).unwrap();
+        let database = SnapshotDatabase::new(db_path.clone()).unwrap();
 
-        let mut tree_processor = TreeProcessor::new(db_path.join("_tree").clone())
+        let tree_processor = TreeProcessor::new(db_path.join("_tree").clone())
             .await
             .unwrap();
 
@@ -50,8 +46,6 @@ impl StateCompressor {
     }
 
     pub async fn export_storage_logs(&self) -> Vec<SnapshotStorageLog> {
-        let num_logs = self.database.get_last_repeated_key_index().unwrap();
-
         let index_to_key_map = self.database.cf_handle(INDEX_TO_KEY_MAP).unwrap();
         let mut iterator = self
             .database
@@ -71,7 +65,7 @@ impl StateCompressor {
         self.tree_processor.get_root_hash()
     }
 
-    pub async fn process_genesis_state(&mut self, path_buf: PathBuf) {
+    pub async fn process_genesis_state(&mut self, path_buf: Option<PathBuf>) {
         let initial_entries = self
             .tree_processor
             .process_genesis_state(path_buf)

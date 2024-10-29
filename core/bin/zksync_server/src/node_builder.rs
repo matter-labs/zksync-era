@@ -659,7 +659,7 @@ impl MainNodeBuilder {
     fn add_storage_initialization_layer(mut self, kind: LayerKind) -> anyhow::Result<Self> {
         self.node.add_layer(MainNodeInitStrategyLayer {
             genesis: self.genesis_config.clone(),
-            l1_recovery_enabled: true,
+            l1_recovery_enabled: false,
             contracts: self.contracts_config.clone(),
         });
         let mut layer = NodeStorageInitializerLayer::new();

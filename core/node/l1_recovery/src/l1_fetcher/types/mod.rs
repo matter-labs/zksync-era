@@ -92,6 +92,8 @@ pub struct CommitBlock {
     pub repeated_storage_changes: IndexMap<u64, PackingType>,
     /// (contract bytecodes) array of L2 bytecodes that were deployed.
     pub factory_deps: Vec<Vec<u8>>,
+
+    pub priority_operations_count: u64,
 }
 
 impl CommitBlock {
@@ -182,6 +184,7 @@ impl CommitBlock {
                     .map(|(k, v)| (k, PackingType::NoCompression(v.into())))
                     .collect(),
                 factory_deps: block.factory_deps,
+                priority_operations_count: block.number_of_l1_txs.as_u64(),
             },
             CommitBlockInfo::V2(block) => {
                 let mut initial_storage_changes = IndexMap::new();
@@ -213,6 +216,7 @@ impl CommitBlock {
                     initial_storage_changes,
                     repeated_storage_changes,
                     factory_deps,
+                    priority_operations_count: block.number_of_l1_txs.as_u64(),
                 }
             }
         }
@@ -251,6 +255,7 @@ impl CommitBlock {
             initial_storage_changes,
             repeated_storage_changes,
             factory_deps,
+            priority_operations_count: block.number_of_l1_txs.as_u64(),
         })
     }
 }

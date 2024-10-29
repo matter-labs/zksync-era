@@ -15,7 +15,7 @@ use zksync_types::snapshots::SnapshotStorageLog;
 use super::RootHash;
 use crate::{
     l1_fetcher::types::CommitBlock,
-    processor::genesis::reconstruct_genesis_state,
+    processor::genesis::{get_genesis_state, reconstruct_genesis_state},
     storage::{reconstruction::ReconstructionDatabase, PackingType},
 };
 
@@ -66,7 +66,7 @@ impl TreeWrapper {
 
     pub async fn insert_genesis_state(
         &mut self,
-        initial_state_path: PathBuf,
+        initial_state_path: Option<PathBuf>,
     ) -> Result<Vec<TreeEntry>> {
         let mut snapshot = self.inner_db.lock().await;
         load_genesis_state(&mut self.tree, &mut snapshot, initial_state_path)
@@ -135,8 +135,8 @@ impl TreeWrapper {
 
             self.tree.extend(rollback_entries).unwrap();
             panic!(
-                "Root hash mismatch, expected {:?}, got {:?}",
-                root_hash_bytes, block.new_state_root
+                "Root hash mismatch for block {}, expected {:?}, got {:?}",
+                block.l1_batch_number, root_hash_bytes, block.new_state_root
             );
         }
     }
@@ -192,15 +192,22 @@ impl TreeWrapper {
 fn load_genesis_state<D: Database>(
     tree: &mut MerkleTree<D>,
     snapshot: &mut ReconstructionDatabase,
-    path: PathBuf,
+    path: Option<PathBuf>,
 ) -> Result<Vec<TreeEntry>> {
-    let tree_entries = reconstruct_genesis_state(path)?;
+    let tree_entries = if let Some(path) = path {
+        reconstruct_genesis_state(path)
+    } else {
+        get_genesis_state()
+    };
     for entry in &tree_entries {
         snapshot
             .add_key(&entry.key)
             .expect("cannot add genesis key");
     }
-
+    tracing::info!(
+        "Inserted {} genesis storage logs into tree",
+        tree_entries.len()
+    );
     let output = tree.extend(tree_entries.clone()).unwrap();
     tracing::trace!("Initial state root = {}", hex::encode(output.root_hash));
 
@@ -221,7 +228,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap().into_path().join("db");
         let mut processor = TreeProcessor::new(temp_dir).await.unwrap();
         processor
-            .process_genesis_state(mainnet_initial_state_path())
+            .process_genesis_state(Some(mainnet_initial_state_path()))
             .await
             .unwrap();
 
@@ -237,7 +244,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap().into_path().join("db");
         let mut processor = TreeProcessor::new(temp_dir).await.unwrap();
         processor
-            .process_genesis_state(sepolia_initial_state_path())
+            .process_genesis_state(Some(sepolia_initial_state_path()))
             .await
             .unwrap();
 

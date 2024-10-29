@@ -3,14 +3,18 @@ use std::{num::NonZeroUsize, sync::Arc};
 // Re-export to initialize the layer without having to depend on the crate directly.
 pub use zksync_node_storage_init::SnapshotRecoveryConfig;
 use zksync_node_storage_init::{
-    external_node::{ExternalNodeGenesis, ExternalNodeReverter, ExternalNodeSnapshotRecovery},
+    external_node::{
+        ExternalNodeGenesis, ExternalNodeL1Recovery, ExternalNodeReverter,
+        ExternalNodeSnapshotRecovery,
+    },
     InitializeStorage, NodeInitializationStrategy, RevertStorage,
 };
-use zksync_types::L2ChainId;
+use zksync_types::{Address, L2ChainId};
 
 use super::NodeInitializationStrategyResource;
 use crate::{
     implementations::resources::{
+        eth_interface::EthInterfaceResource,
         healthcheck::AppHealthCheckResource,
         main_node_client::MainNodeClientResource,
         pools::{MasterPool, PoolResource},
@@ -26,11 +30,13 @@ pub struct ExternalNodeInitStrategyLayer {
     pub l2_chain_id: L2ChainId,
     pub max_postgres_concurrency: NonZeroUsize,
     pub snapshot_recovery_config: Option<SnapshotRecoveryConfig>,
+    pub diamond_proxy_addr: Address,
 }
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
+    pub l1_client: EthInterfaceResource,
     pub master_pool: PoolResource<MasterPool>,
     pub main_node_client: MainNodeClientResource,
     pub block_reverter: Option<BlockReverterResource>,
@@ -98,10 +104,16 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
             pool: pool.clone(),
             reverter: block_reverter,
         }) as Arc<dyn RevertStorage>);
+        let l1_recovery: Option<Arc<dyn InitializeStorage>> =
+            Some(Arc::new(ExternalNodeL1Recovery {
+                l1_client: input.l1_client.0,
+                pool: pool.clone(),
+                diamond_proxy_address: self.diamond_proxy_addr,
+            }));
         let strategy = NodeInitializationStrategy {
             genesis,
             snapshot_recovery,
-            l1_recovery: None,
+            l1_recovery,
             block_reverter,
         };
 

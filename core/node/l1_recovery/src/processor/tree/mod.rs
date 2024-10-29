@@ -3,14 +3,12 @@ pub mod tree_wrapper;
 use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Result;
-use async_trait::async_trait;
 use tokio::sync::Mutex;
 use zksync_basic_types::H256;
 use zksync_merkle_tree::TreeEntry;
 use zksync_types::snapshots::SnapshotStorageLog;
 
 use self::tree_wrapper::TreeWrapper;
-use super::Processor;
 use crate::{
     l1_fetcher::{constants::storage::INNER_DB_NAME, types::CommitBlock},
     storage::reconstruction::ReconstructionDatabase,
@@ -45,7 +43,7 @@ impl TreeProcessor {
     }
     pub async fn process_genesis_state(
         &mut self,
-        initial_state_path: PathBuf,
+        initial_state_path: Option<PathBuf>,
     ) -> Result<Vec<TreeEntry>> {
         self.tree.insert_genesis_state(initial_state_path).await
     }
@@ -83,14 +81,5 @@ impl TreeProcessor {
             .expect("db failed");
 
         return entries;
-    }
-}
-
-#[async_trait]
-impl Processor for TreeProcessor {
-    async fn process_blocks(&mut self, blocks: Vec<CommitBlock>) {
-        for block in blocks {
-            self.process_one_block(block).await;
-        }
     }
 }

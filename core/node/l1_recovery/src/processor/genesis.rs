@@ -1,45 +1,17 @@
-use std::{fs, path::PathBuf, str::FromStr};
+use std::{collections::HashSet, fs, path::PathBuf, str::FromStr};
 
-use zksync_basic_types::{Address, H256, U256};
+use zksync_basic_types::{Address, H160, H256, U256};
+use zksync_contracts::BaseSystemContracts;
 use zksync_merkle_tree::TreeEntry;
+use zksync_node_genesis::get_storage_logs;
+use zksync_types::system_contracts::get_system_smart_contracts;
+use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode};
 
 use crate::utils::derive_final_address_for_params;
 
-pub fn reconstruct_genesis_state(path: PathBuf) -> anyhow::Result<Vec<TreeEntry>> {
-    fn cleanup_encoding(input: &'_ str) -> &'_ str {
-        input
-            .strip_prefix("E'\\\\x")
-            .unwrap()
-            .strip_suffix('\'')
-            .unwrap()
-    }
-
-    let mut block_batched_accesses = vec![];
-
-    let input = fs::read_to_string(path)?;
-    for line in input.lines() {
-        let mut separated = line.split(',');
-        let _derived_key = separated.next().unwrap();
-        let address = separated.next().unwrap();
-        let key = separated.next().unwrap();
-        let value = separated.next().unwrap();
-        let op_number: u32 = separated.next().unwrap().parse()?;
-        let _ = separated.next().unwrap();
-        let miniblock_number: u32 = separated.next().unwrap().parse()?;
-
-        if miniblock_number != 0 {
-            break;
-        }
-
-        let address = Address::from_str(cleanup_encoding(address))?;
-        let key = U256::from_str_radix(cleanup_encoding(key), 16)?;
-        let value = U256::from_str_radix(cleanup_encoding(value), 16)?;
-
-        let record = (address, key, value, op_number);
-        block_batched_accesses.push(record);
-    }
-
+pub fn process_raw_entries(block_batched_accesses: Vec<(H160, U256, U256, u32)>) -> Vec<TreeEntry> {
     // Sort in block block.
+    let mut block_batched_accesses = block_batched_accesses.clone();
     block_batched_accesses.sort_by(|a, b| match a.0.cmp(&b.0) {
         std::cmp::Ordering::Equal => match a.1.cmp(&b.1) {
             std::cmp::Ordering::Equal => match a.3.cmp(&b.3) {
@@ -90,5 +62,78 @@ pub fn reconstruct_genesis_state(path: PathBuf) -> anyhow::Result<Vec<TreeEntry>
         index += 1;
     }
 
-    Ok(tree_entries)
+    tree_entries
+}
+pub fn reconstruct_genesis_state(path: PathBuf) -> Vec<TreeEntry> {
+    fn cleanup_encoding(input: &'_ str) -> &'_ str {
+        input
+            .strip_prefix("E'\\\\x")
+            .unwrap()
+            .strip_suffix('\'')
+            .unwrap()
+    }
+
+    let mut block_batched_accesses = vec![];
+
+    let input = fs::read_to_string(path).unwrap();
+    for line in input.lines() {
+        let mut separated = line.split(',');
+        let _derived_key = separated.next().unwrap();
+        let address = separated.next().unwrap();
+        let key = separated.next().unwrap();
+        let value = separated.next().unwrap();
+        let op_number: u32 = separated.next().unwrap().parse().unwrap();
+        let miniblock_number: u32 = separated.next().unwrap().parse().unwrap();
+
+        if miniblock_number != 0 {
+            break;
+        }
+
+        let address = Address::from_str(cleanup_encoding(address)).unwrap();
+        let key = U256::from_str_radix(cleanup_encoding(key), 16).unwrap();
+        let value = U256::from_str_radix(cleanup_encoding(value), 16).unwrap();
+
+        let record = (address, key, value, op_number);
+        block_batched_accesses.push(record);
+    }
+
+    process_raw_entries(block_batched_accesses)
+}
+
+pub fn get_genesis_factory_deps() -> Vec<Vec<u8>> {
+    let contracts = get_system_smart_contracts(false);
+    let mut hashes: HashSet<H256> = HashSet::new();
+    let mut bytecodes: Vec<Vec<u8>> = vec![];
+    for contract in &contracts {
+        if hashes.contains(&hash_bytecode(&contract.bytecode)) {
+            continue;
+        }
+        bytecodes.push(contract.bytecode.clone());
+        hashes.insert(hash_bytecode(&contract.bytecode));
+    }
+    let base_contracts = BaseSystemContracts::load_from_disk();
+    bytecodes.push(be_words_to_bytes(&base_contracts.bootloader.code.clone()));
+    bytecodes.push(be_words_to_bytes(&base_contracts.default_aa.code.clone()));
+    tracing::info!("Found {} system contracts", bytecodes.len());
+
+    bytecodes
+}
+
+pub fn get_genesis_state() -> Vec<TreeEntry> {
+    let contracts = get_system_smart_contracts(false);
+    let storage_logs = get_storage_logs(&contracts);
+    tracing::info!("Found {} storage logs", storage_logs.len());
+    let raw_storage_logs = storage_logs
+        .iter()
+        .enumerate()
+        .map(|(index, log)| {
+            (
+                log.key.account().address().clone(),
+                U256::from_big_endian(log.key.key().as_bytes()),
+                U256::from_big_endian(log.value.as_bytes()),
+                index as u32,
+            )
+        })
+        .collect();
+    process_raw_entries(raw_storage_logs)
 }

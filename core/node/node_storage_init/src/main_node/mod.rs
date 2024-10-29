@@ -1,5 +1,3 @@
-pub use self::{genesis::MainNodeGenesis, l1_recovery::L1Recovery};
+pub use self::genesis::MainNodeGenesis;
 
 mod genesis;
-
-mod l1_recovery;

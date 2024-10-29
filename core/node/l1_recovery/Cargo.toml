@@ -40,6 +40,9 @@ zksync_basic_types.workspace = true
 zksync_web3_decl.workspace = true
 zksync_eth_client.workspace = true
 zksync_dal.workspace = true
+zksync_node_genesis.workspace = true
+zksync_contracts.workspace = true
+bytes = "1.7.2"
 
 [dev-dependencies]
 test-log.workspace = true
