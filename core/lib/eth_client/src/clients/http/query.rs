@@ -315,11 +315,11 @@ where
         let latency = LATENCIES.direct[&Method::GetChainLogProof].start();
         let result = self
             .request(
-                "zks_getChainLogProof",
+                "unstable_getChainLogProof",
                 rpc_params!(l1_batch_number, chain_id),
             )
             .await
-            .map_err(|err| EnrichedClientError::new(err, "zks_getChainLogProof"))?;
+            .map_err(|err| EnrichedClientError::new(err, "unstable_getChainLogProof"))?;
         latency.observe();
         Ok(result)
     }
