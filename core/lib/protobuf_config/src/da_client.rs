@@ -3,7 +3,8 @@ use zksync_config::configs::{
     self,
     da_client::{
         avail::{AvailClientConfig, AvailConfig, AvailDefaultConfig, AvailGasRelayConfig},
-        DAClientConfig::{Avail, ObjectStore},
+        celestia::CelestiaConfig,
+        DAClientConfig::{Avail, Celestia, ObjectStore},
     },
 };
 use zksync_protobuf::{required, ProtoRepr};
@@ -21,7 +22,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 bridge_api_url: required(&conf.bridge_api_url)
                     .context("bridge_api_url")?
                     .clone(),
-                timeout: *required(&conf.timeout).context("timeout")? as usize,
+                timeout_ms: *required(&conf.timeout_ms).context("timeout_ms")? as usize,
                 config: match conf.config.as_ref() {
                     Some(proto::avail_config::Config::FullClient(full_client_conf)) => {
                         AvailClientConfig::FullClient(AvailDefaultConfig {
@@ -44,6 +45,12 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     None => return Err(anyhow::anyhow!("Invalid Avail DA configuration")),
                 },
             }),
+            proto::data_availability_client::Config::Celestia(conf) => Celestia(CelestiaConfig {
+                api_node_url: required(&conf.api_node_url).context("namespace")?.clone(),
+                namespace: required(&conf.namespace).context("namespace")?.clone(),
+                chain_id: required(&conf.chain_id).context("chain_id")?.clone(),
+                timeout_ms: *required(&conf.timeout_ms).context("timeout_ms")?,
+            }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
             }
@@ -53,34 +60,41 @@ impl ProtoRepr for proto::DataAvailabilityClient {
     }
 
     fn build(this: &Self::Type) -> Self {
-        match &this {
-            Avail(config) => Self {
-                config: Some(proto::data_availability_client::Config::Avail(
-                    proto::AvailConfig {
-                        bridge_api_url: Some(config.bridge_api_url.clone()),
-                        timeout: Some(config.timeout as u64),
-                        config: match &config.config {
-                            AvailClientConfig::FullClient(conf) => Some(
-                                proto::avail_config::Config::FullClient(proto::AvailClientConfig {
-                                    api_node_url: Some(conf.api_node_url.clone()),
-                                    app_id: Some(conf.app_id),
-                                }),
-                            ),
-                            AvailClientConfig::GasRelay(conf) => Some(
-                                proto::avail_config::Config::GasRelay(proto::AvailGasRelayConfig {
-                                    gas_relay_api_url: Some(conf.gas_relay_api_url.clone()),
-                                    max_retries: Some(conf.max_retries as u64),
-                                }),
-                            ),
-                        },
-                    },
-                )),
-            },
-            ObjectStore(config) => Self {
-                config: Some(proto::data_availability_client::Config::ObjectStore(
-                    object_store_proto::ObjectStore::build(config),
-                )),
-            },
+        let config = match &this {
+            Avail(config) => proto::data_availability_client::Config::Avail(proto::AvailConfig {
+                bridge_api_url: Some(config.bridge_api_url.clone()),
+                timeout_ms: Some(config.timeout_ms as u64),
+                config: match &config.config {
+                    AvailClientConfig::FullClient(conf) => Some(
+                        proto::avail_config::Config::FullClient(proto::AvailClientConfig {
+                            api_node_url: Some(conf.api_node_url.clone()),
+                            app_id: Some(conf.app_id),
+                        }),
+                    ),
+                    AvailClientConfig::GasRelay(conf) => Some(
+                        proto::avail_config::Config::GasRelay(proto::AvailGasRelayConfig {
+                            gas_relay_api_url: Some(conf.gas_relay_api_url.clone()),
+                            max_retries: Some(conf.max_retries as u64),
+                        }),
+                    ),
+                },
+            }),
+
+            Celestia(config) => {
+                proto::data_availability_client::Config::Celestia(proto::CelestiaConfig {
+                    api_node_url: Some(config.api_node_url.clone()),
+                    namespace: Some(config.namespace.clone()),
+                    chain_id: Some(config.chain_id.clone()),
+                    timeout_ms: Some(config.timeout_ms),
+                })
+            }
+            ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
+                object_store_proto::ObjectStore::build(config),
+            ),
+        };
+
+        Self {
+            config: Some(config),
         }
     }
 }
