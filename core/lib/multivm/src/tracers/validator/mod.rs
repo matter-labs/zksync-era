@@ -64,40 +64,34 @@ type ValidationRoundResult = Result<NewTrustedValidationItems, ViolatedValidatio
 impl<H> ValidationTracer<H> {
     const MAX_ALLOWED_SLOT_OFFSET: u32 = 127;
 
-    pub fn new(
-        params: ValidationParams,
-        vm_version: VmVersion,
-        l1_batch_env: L1BatchEnv,
-    ) -> (
-        Self,
-        Arc<OnceCell<ViolatedValidationRule>>,
-        Arc<Mutex<ValidationTraces>>,
-    ) {
-        let result = Arc::new(OnceCell::new());
-        let traces = Arc::new(Mutex::new(ValidationTraces::default()));
-        (
-            Self {
-                validation_mode: ValidationTracerMode::NoValidation,
-                auxilary_allowed_slots: Default::default(),
+    pub fn new(params: ValidationParams, vm_version: VmVersion, l1_batch_env: L1BatchEnv) -> Self {
+        Self {
+            validation_mode: ValidationTracerMode::NoValidation,
+            auxilary_allowed_slots: Default::default(),
 
-                should_stop_execution: false,
-                user_address: params.user_address,
-                paymaster_address: params.paymaster_address,
-                trusted_slots: params.trusted_slots,
-                trusted_addresses: params.trusted_addresses,
-                trusted_address_slots: params.trusted_address_slots,
-                computational_gas_used: 0,
-                computational_gas_limit: params.computational_gas_limit,
-                timestamp_asserter_params: params.timestamp_asserter_params.clone(),
-                vm_version,
-                result: result.clone(),
-                traces: traces.clone(),
-                _marker: Default::default(),
-                l1_batch_env,
-            },
-            result,
-            traces,
-        )
+            should_stop_execution: false,
+            user_address: params.user_address,
+            paymaster_address: params.paymaster_address,
+            trusted_slots: params.trusted_slots,
+            trusted_addresses: params.trusted_addresses,
+            trusted_address_slots: params.trusted_address_slots,
+            computational_gas_used: 0,
+            computational_gas_limit: params.computational_gas_limit,
+            timestamp_asserter_params: params.timestamp_asserter_params.clone(),
+            vm_version,
+            result: Arc::new(OnceCell::new()),
+            traces: Arc::new(Mutex::new(ValidationTraces::default())),
+            _marker: Default::default(),
+            l1_batch_env,
+        }
+    }
+
+    pub fn get_result(&self) -> Arc<OnceCell<ViolatedValidationRule>> {
+        self.result.clone()
+    }
+
+    pub fn get_traces(&self) -> Arc<Mutex<ValidationTraces>> {
+        self.traces.clone()
     }
 
     fn process_validation_round_result(&mut self, result: ValidationRoundResult) {

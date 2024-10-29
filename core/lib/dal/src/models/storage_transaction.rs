@@ -1,4 +1,4 @@
-use std::{convert::TryInto, str::FromStr};
+use std::{convert::TryInto, ops::Range, str::FromStr};
 
 use bigdecimal::Zero;
 use serde_json::Value;
@@ -326,24 +326,12 @@ impl From<StorageTransaction> for Transaction {
 
 impl From<&StorageTransaction> for TransactionTimeRangeConstraint {
     fn from(tx: &StorageTransaction) -> Self {
-        if tx.timestamp_asserter_range_start.is_some() && tx.timestamp_asserter_range_end.is_some()
-        {
-            Self {
-                timestamp_asserter_range: Some(
-                    tx.timestamp_asserter_range_start
-                        .unwrap()
-                        .and_utc()
-                        .timestamp() as u64
-                        ..tx.timestamp_asserter_range_end
-                            .unwrap()
-                            .and_utc()
-                            .timestamp() as u64,
-                ),
-            }
-        } else {
-            Self {
-                timestamp_asserter_range: None,
-            }
+        Self {
+            timestamp_asserter_range: tx.timestamp_asserter_range_start.and_then(|start| {
+                tx.timestamp_asserter_range_end.map(|end| {
+                    (start.and_utc().timestamp() as u64)..(end.and_utc().timestamp() as u64)
+                })
+            }),
         }
     }
 }

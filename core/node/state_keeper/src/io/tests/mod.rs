@@ -667,11 +667,11 @@ async fn insert_unsealed_batch_on_init(commitment_mode: L1BatchCommitmentMode) {
     assert_eq!(l1_batch_params.first_l2_block.timestamp, 2);
 }
 
-#[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
-async fn test_mempool_with_timestamp_assertion(commitment_mode: L1BatchCommitmentMode) {
+async fn test_mempool_with_timestamp_assertion() {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(2).await;
-    let tester = Tester::new(commitment_mode);
+    // what commitment mode to use is irrelevant here
+    let tester = Tester::new(L1BatchCommitmentMode::Rollup);
     let mut storage = connection_pool.connection().await.unwrap();
 
     tester.genesis(&connection_pool).await;

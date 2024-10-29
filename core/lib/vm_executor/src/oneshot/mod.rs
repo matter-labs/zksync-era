@@ -189,12 +189,13 @@ where
         };
 
         tokio::task::spawn_blocking(move || {
-            let (validation_tracer, mut validation_result, validation_traces) =
-                ValidationTracer::<HistoryDisabled>::new(
-                    validation_params,
-                    sandbox.env.system.version.into(),
-                    l1_batch_env,
-                );
+            let validation_tracer = ValidationTracer::<HistoryDisabled>::new(
+                validation_params,
+                sandbox.env.system.version.into(),
+                l1_batch_env,
+            );
+            let mut validation_result = validation_tracer.get_result();
+            let validation_traces = validation_tracer.get_traces();
             let tracers = vec![validation_tracer.into_tracer_pointer()];
 
             let exec_result = sandbox.execute_in_vm(|vm, transaction| {

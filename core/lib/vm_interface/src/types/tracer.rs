@@ -135,7 +135,7 @@ impl ValidationTraces {
     /// a lack of overlap would have triggered an assertion failure in the `TimestampAsserter` contract,
     /// as `block.timestamp` cannot satisfy two non-overlapping ranges.
     pub fn apply_range(&mut self, new_range: Range<u64>) {
-        if let Some(ref mut range) = self.timestamp_asserter_range.as_mut() {
+        if let Some(range) = &mut self.timestamp_asserter_range {
             range.start = range.start.max(new_range.start);
             range.end = range.end.min(new_range.end);
         } else {
@@ -159,8 +159,6 @@ impl fmt::Display for ValidationError {
 
 #[cfg(test)]
 mod tests {
-    use std::ops::Range;
-
     use super::*;
 
     #[test]
@@ -168,7 +166,7 @@ mod tests {
         let mut validation_traces = ValidationTraces {
             timestamp_asserter_range: None,
         };
-        let new_range = Range { start: 10, end: 20 };
+        let new_range = 10..20;
         validation_traces.apply_range(new_range.clone());
         assert_eq!(validation_traces.timestamp_asserter_range, Some(new_range));
     }
@@ -176,25 +174,19 @@ mod tests {
     #[test]
     fn test_apply_range_with_overlap_narrower_result() {
         let mut validation_traces = ValidationTraces {
-            timestamp_asserter_range: Some(Range { start: 5, end: 25 }),
+            timestamp_asserter_range: Some(5..25),
         };
-        validation_traces.apply_range(Range { start: 10, end: 20 });
-        assert_eq!(
-            validation_traces.timestamp_asserter_range,
-            Some(Range { start: 10, end: 20 })
-        );
+        validation_traces.apply_range(10..20);
+        assert_eq!(validation_traces.timestamp_asserter_range, Some(10..20));
     }
 
     #[test]
     fn test_apply_range_with_partial_overlap() {
         let mut validation_traces = ValidationTraces {
-            timestamp_asserter_range: Some(Range { start: 10, end: 30 }),
+            timestamp_asserter_range: Some(10..30),
             ..Default::default()
         };
-        validation_traces.apply_range(Range { start: 20, end: 40 });
-        assert_eq!(
-            validation_traces.timestamp_asserter_range,
-            Some(Range { start: 20, end: 30 })
-        );
+        validation_traces.apply_range(20..40);
+        assert_eq!(validation_traces.timestamp_asserter_range, Some(20..30));
     }
 }

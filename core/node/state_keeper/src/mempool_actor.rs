@@ -1,7 +1,6 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
-use itertools::Itertools;
 #[cfg(test)]
 use tokio::sync::mpsc;
 use tokio::sync::watch;
@@ -124,10 +123,10 @@ impl MempoolFetcher {
                 .await
                 .context("failed syncing mempool")?;
 
-            let transactions = transactions_with_constraints
+            let transactions: Vec<_> = transactions_with_constraints
                 .iter()
                 .map(|(t, _c)| t)
-                .collect_vec();
+                .collect();
 
             let nonces = get_transaction_nonces(&mut storage, &transactions).await?;
             drop(storage);
