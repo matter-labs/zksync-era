@@ -52,7 +52,7 @@ message MaxReplica {
 
 message ScalerTarget {
   optional string queue_report_field = 1; // required
-  optional string pod_name_prefix = 2; // required
+  optional string deployment = 2; // required
   repeated MaxReplica max_replicas = 3; // required at least one
   optional uint64 speed = 4; // optional
 }
