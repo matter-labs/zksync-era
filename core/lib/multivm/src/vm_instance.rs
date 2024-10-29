@@ -13,7 +13,10 @@ use crate::{
         VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
-    vm_fast::TracerExt,
+    vm_fast::{
+        validation_tracer::{ValidationGasLimitOnly, ValidationMode},
+        WithBuiltinTracers,
+    },
     vm_latest::HistoryEnabled,
 };
 
@@ -226,19 +229,19 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
 }
 
 /// Fast VM shadowed by the latest legacy VM.
-pub type ShadowedFastVm<S, Tr = ()> = ShadowVm<
+pub type ShadowedFastVm<S, Tr = (), Validation = ValidationGasLimitOnly> = ShadowVm<
     S,
     crate::vm_latest::Vm<StorageView<S>, HistoryEnabled>,
-    crate::vm_fast::Vm<ImmutableStorageView<S>, Tr>,
+    crate::vm_fast::Vm<ImmutableStorageView<S>, Tr, Validation>,
 >;
 
 /// Fast VM variants.
 #[derive(Debug)]
-pub enum FastVmInstance<S: ReadStorage, Tr = ()> {
+pub enum FastVmInstance<S: ReadStorage, Tr = (), Validation = ValidationGasLimitOnly> {
     /// Fast VM running in isolation.
-    Fast(crate::vm_fast::Vm<ImmutableStorageView<S>, Tr>),
+    Fast(crate::vm_fast::Vm<ImmutableStorageView<S>, Tr, Validation>),
     /// Fast VM shadowed by the latest legacy VM.
-    Shadowed(ShadowedFastVm<S, Tr>),
+    Shadowed(ShadowedFastVm<S, Tr, Validation>),
 }
 
 macro_rules! dispatch_fast_vm {
@@ -250,12 +253,12 @@ macro_rules! dispatch_fast_vm {
     };
 }
 
-impl<S: ReadStorage, Tr: crate::vm_fast::TracerExt + Default + 'static> VmInterface
-    for FastVmInstance<S, Tr>
+impl<S: ReadStorage, Tr: zksync_vm2::interface::Tracer + Default, Validation: ValidationMode>
+    VmInterface for FastVmInstance<S, Tr, Validation>
 {
     type TracerDispatcher = (
         crate::vm_latest::TracerDispatcher<StorageView<S>, HistoryEnabled>,
-        Tr,
+        WithBuiltinTracers<Tr, Validation>,
     );
 
     fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
@@ -300,7 +303,7 @@ impl<S: ReadStorage, Tr: crate::vm_fast::TracerExt + Default + 'static> VmInterf
     }
 }
 
-impl<S: ReadStorage, Tr: TracerExt + Default + 'static> VmInterfaceHistoryEnabled
+impl<S: ReadStorage, Tr: zksync_vm2::interface::Tracer + Default> VmInterfaceHistoryEnabled
     for FastVmInstance<S, Tr>
 {
     fn make_snapshot(&mut self) {
@@ -316,7 +319,9 @@ impl<S: ReadStorage, Tr: TracerExt + Default + 'static> VmInterfaceHistoryEnable
     }
 }
 
-impl<S: ReadStorage, Tr: TracerExt + Default + 'static> FastVmInstance<S, Tr> {
+impl<S: ReadStorage, Tr: zksync_vm2::interface::Tracer + Default, Validation: ValidationMode>
+    FastVmInstance<S, Tr, Validation>
+{
     /// Creates an isolated fast VM.
     pub fn fast(
         l1_batch_env: L1BatchEnv,

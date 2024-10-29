@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, mem, rc::Rc};
+use std::{collections::HashMap, fmt, rc::Rc};
 
 use zk_evm_1_5_0::{
     aux_structures::LogQuery, zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION,
@@ -26,10 +26,11 @@ use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 use super::{
     bootloader_state::{BootloaderState, BootloaderStateSnapshot},
     bytecode::compress_bytecodes,
-    circuits_tracer::CircuitsTracer,
     hook::Hook,
     initial_bootloader_memory::bootloader_initial_memory,
     transaction_data::TransactionData,
+    validation_tracer::{ValidationGasLimitOnly, ValidationMode},
+    WithBuiltinTracers,
 };
 use crate::{
     glue::GlueInto,
@@ -60,8 +61,6 @@ use crate::{
 
 const VM_VERSION: MultiVMSubversion = MultiVMSubversion::IncreasedBootloaderMemory;
 
-type FullTracer<Tr> = (Tr, CircuitsTracer);
-
 #[derive(Debug)]
 struct VmRunResult {
     execution_result: ExecutionResult,
@@ -87,36 +86,26 @@ impl VmRunResult {
     }
 }
 
-pub trait TracerExt: Tracer {
-    fn on_bootloader_hook(&mut self, #[allow(unused_variables)] hook: Hook) {}
-}
-
-impl TracerExt for () {}
-impl<A: TracerExt, B: TracerExt> TracerExt for (A, B) {
-    fn on_bootloader_hook(&mut self, hook: Hook) {
-        self.0.on_bootloader_hook(hook);
-        self.1.on_bootloader_hook(hook);
-    }
-}
-
 /// Fast VM wrapper.
 ///
-/// The wrapper is parametric by the storage and tracer types. Besides the [`Tracer`] trait, a tracer must have `'static` lifetime
-/// and implement [`Default`] (the latter is necessary to complete batches). [`CircuitsTracer`] is currently always enabled;
+/// The wrapper is parametric by the storage and tracer types. Besides the [`Tracer`] trait and implement [`Default`]
+/// (the latter is necessary to complete batches). [`CircuitsTracer`] is currently always enabled;
 /// you don't need to specify it explicitly.
-pub struct Vm<S, Tr = ()> {
-    pub(crate) world: World<S, FullTracer<Tr>>,
-    pub(crate) inner: VirtualMachine<FullTracer<Tr>, World<S, FullTracer<Tr>>>,
+pub struct Vm<S, Tr = (), Validation = ValidationGasLimitOnly> {
+    pub(crate) world: World<S, WithBuiltinTracers<Tr, Validation>>,
+    pub(crate) inner: VirtualMachine<
+        WithBuiltinTracers<Tr, Validation>,
+        World<S, WithBuiltinTracers<Tr, Validation>>,
+    >,
     pub(crate) bootloader_state: BootloaderState,
     pub(crate) batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
     snapshot: Option<VmSnapshot>,
-    stop_after_validation: bool,
     #[cfg(test)]
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
 }
 
-impl<S: ReadStorage, Tr: TracerExt + Default> Vm<S, Tr> {
+impl<S: ReadStorage, Tr: Tracer + Default, Validation: ValidationMode> Vm<S, Tr, Validation> {
     pub fn custom(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
         assert!(
             is_supported_by_fast_vm(system_env.version),
@@ -174,7 +163,6 @@ impl<S: ReadStorage, Tr: TracerExt + Default> Vm<S, Tr> {
             system_env,
             batch_env,
             snapshot: None,
-            stop_after_validation: false,
             #[cfg(test)]
             enforced_state_diffs: None,
         };
@@ -185,7 +173,7 @@ impl<S: ReadStorage, Tr: TracerExt + Default> Vm<S, Tr> {
     fn run(
         &mut self,
         execution_mode: VmExecutionMode,
-        tracer: &mut (Tr, CircuitsTracer),
+        tracer: &mut WithBuiltinTracers<Tr, Validation>,
         track_refunds: bool,
     ) -> VmRunResult {
         struct AccountValidationGasSplit {
@@ -228,13 +216,14 @@ impl<S: ReadStorage, Tr: TracerExt + Default> Vm<S, Tr> {
             };
 
             let hook = Hook::from_u32(hook);
-            tracer.on_bootloader_hook(hook);
             match hook {
                 Hook::AccountValidationEntered => {
                     assert!(
                         account_validation_gas_split.is_none(),
                         "Account validation can't be nested"
                     );
+                    tracer.validation().account_validation_entered();
+
                     let gas = self.gas_remaining();
                     let gas_given = gas.min(gas_left_for_account_validation);
                     account_validation_gas_split = Some(AccountValidationGasSplit {
@@ -248,6 +237,8 @@ impl<S: ReadStorage, Tr: TracerExt + Default> Vm<S, Tr> {
                 }
 
                 Hook::ValidationExited => {
+                    tracer.validation().validation_exited();
+
                     if let Some(AccountValidationGasSplit {
                         gas_given,
                         gas_hidden,
@@ -258,11 +249,13 @@ impl<S: ReadStorage, Tr: TracerExt + Default> Vm<S, Tr> {
                         self.inner.current_frame().set_gas(gas_left + gas_hidden);
                     }
                 }
+
                 Hook::ValidationStepEnded => {
-                    if self.stop_after_validation {
-                        break (ExecutionResult::Success { output: vec![] }, false);
+                    if Validation::STOP_AFTER_VALIDATION {
+                        break (ExecutionResult::Success { output: vec![] }, true);
                     }
                 }
+
                 Hook::TxHasEnded => {
                     if let VmExecutionMode::OneTx = execution_mode {
                         // The bootloader may invoke `TxHasEnded` hook without posting a tx result previously. One case when this can happen
@@ -417,10 +410,6 @@ impl<S: ReadStorage, Tr: TracerExt + Default> Vm<S, Tr> {
             refunds,
             pubdata_published,
         }
-    }
-
-    pub fn stop_after_validation(&mut self) {
-        self.stop_after_validation = true;
     }
 
     fn get_hook_params(&self) -> [U256; 3] {
@@ -614,7 +603,7 @@ impl<S: ReadStorage, Tr: TracerExt + Default> Vm<S, Tr> {
 
     pub(crate) fn inspect_inner(
         &mut self,
-        tracer: &mut Tr,
+        tracer: &mut WithBuiltinTracers<Tr, Validation>,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         let mut track_refunds = false;
@@ -627,9 +616,7 @@ impl<S: ReadStorage, Tr: TracerExt + Default> Vm<S, Tr> {
         let start = self.inner.world_diff().snapshot();
         let gas_before = self.gas_remaining();
 
-        let mut full_tracer = (mem::take(tracer), CircuitsTracer::default());
-        let result = self.run(execution_mode, &mut full_tracer, track_refunds);
-        *tracer = full_tracer.0; // place the tracer back
+        let result = self.run(execution_mode, tracer, track_refunds);
 
         let ignore_world_diff =
             matches!(execution_mode, VmExecutionMode::OneTx) && result.should_ignore_vm_logs();
@@ -695,7 +682,7 @@ impl<S: ReadStorage, Tr: TracerExt + Default> Vm<S, Tr> {
                 gas_remaining,
                 computational_gas_used: gas_used, // since 1.5.0, this always has the same value as `gas_used`
                 pubdata_published: result.pubdata_published,
-                circuit_statistic: full_tracer.1.circuit_statistic(),
+                circuit_statistic: tracer.circuit().circuit_statistic(),
                 contracts_used: 0,
                 cycles_used: 0,
                 total_log_queries: 0,
@@ -706,10 +693,11 @@ impl<S: ReadStorage, Tr: TracerExt + Default> Vm<S, Tr> {
     }
 }
 
-impl<S, Tr: TracerExt> VmFactory<StorageView<S>> for Vm<ImmutableStorageView<S>, Tr>
+impl<S, Tr: Tracer, Validation: ValidationMode> VmFactory<StorageView<S>>
+    for Vm<ImmutableStorageView<S>, Tr, Validation>
 where
     S: ReadStorage,
-    Tr: Tracer + Default + 'static,
+    Tr: Tracer + Default,
 {
     fn new(
         batch_env: L1BatchEnv,
@@ -721,8 +709,10 @@ where
     }
 }
 
-impl<S: ReadStorage, Tr: TracerExt + Default + 'static> VmInterface for Vm<S, Tr> {
-    type TracerDispatcher = Tr;
+impl<S: ReadStorage, Tr: Tracer + Default, Validation: ValidationMode> VmInterface
+    for Vm<S, Tr, Validation>
+{
+    type TracerDispatcher = WithBuiltinTracers<Tr, Validation>;
 
     fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
         self.push_transaction_inner(tx, 0, true);
@@ -767,7 +757,7 @@ impl<S: ReadStorage, Tr: TracerExt + Default + 'static> VmInterface for Vm<S, Tr
     }
 
     fn finish_batch(&mut self, _pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
-        let result = self.inspect_inner(&mut Tr::default(), VmExecutionMode::Batch);
+        let result = self.inspect_inner(&mut Default::default(), VmExecutionMode::Batch);
         let execution_state = self.get_current_execution_state();
         let bootloader_memory = self.bootloader_state.bootloader_memory();
         FinishedL1Batch {
@@ -795,7 +785,9 @@ struct VmSnapshot {
     bootloader_snapshot: BootloaderStateSnapshot,
 }
 
-impl<S: ReadStorage, Tr: TracerExt + Default + 'static> VmInterfaceHistoryEnabled for Vm<S, Tr> {
+impl<S: ReadStorage, Tr: Tracer + Default, V: ValidationMode> VmInterfaceHistoryEnabled
+    for Vm<S, Tr, V>
+{
     fn make_snapshot(&mut self) {
         assert!(
             self.snapshot.is_none(),
@@ -829,7 +821,7 @@ impl<S: ReadStorage> VmTrackingContracts for Vm<S> {
     }
 }
 
-impl<S: fmt::Debug, Tr: fmt::Debug> fmt::Debug for Vm<S, Tr> {
+impl<S: fmt::Debug, Tr: fmt::Debug, Validation> fmt::Debug for Vm<S, Tr, Validation> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Vm")
             .field("bootloader_state", &self.bootloader_state)

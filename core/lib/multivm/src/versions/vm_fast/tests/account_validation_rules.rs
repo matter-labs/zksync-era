@@ -5,5 +5,5 @@ use crate::{
 
 #[test]
 fn test_account_validation_rules_fast() {
-    test_account_validation_rules::<Vm<_, ValidationTracer>>();
+    test_account_validation_rules::<Vm<_, (), ValidationTracer>>();
 }

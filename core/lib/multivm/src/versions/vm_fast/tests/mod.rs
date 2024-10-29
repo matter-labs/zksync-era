@@ -2,14 +2,17 @@ use std::{any::Any, collections::HashSet, fmt, rc::Rc};
 
 use zksync_types::{l2::L2Tx, writes::StateDiffRecord, StorageKey, Transaction, H160, H256, U256};
 use zksync_utils::h256_to_u256;
-use zksync_vm2::interface::{Event, HeapId, StateInterface};
+use zksync_vm2::interface::{Event, HeapId, StateInterface, Tracer};
 use zksync_vm_interface::{
     pubdata::PubdataBuilder, storage::ReadStorage, tracer::ViolatedValidationRule,
     CurrentExecutionState, InspectExecutionMode, L2BlockEnv, VmExecutionMode,
     VmExecutionResultAndLogs, VmInterface,
 };
 
-use super::{validation_tracer::ValidationTracer, TracerExt, Vm};
+use super::{
+    validation_tracer::{ValidationMode, ValidationTracer},
+    Vm, WithBuiltinTracers,
+};
 use crate::{
     interface::storage::{ImmutableStorageView, InMemoryStorage},
     versions::testonly::{validation_params, TestedVm, TestedVmForValidation},
@@ -77,8 +80,10 @@ impl PartialEq for VmStateDump {
     }
 }
 
-impl<T: TracerExt + Default + std::fmt::Debug + 'static> TestedVm
-    for Vm<ImmutableStorageView<InMemoryStorage>, T>
+impl<
+        T: Tracer + Default + std::fmt::Debug + 'static,
+        V: ValidationMode + std::fmt::Debug + 'static,
+    > TestedVm for Vm<ImmutableStorageView<InMemoryStorage>, T, V>
 {
     type StateDump = VmStateDump;
 
@@ -166,13 +171,12 @@ impl<T: TracerExt + Default + std::fmt::Debug + 'static> TestedVm
     }
 }
 
-impl TestedVmForValidation for Vm<ImmutableStorageView<InMemoryStorage>, ValidationTracer> {
+impl TestedVmForValidation for Vm<ImmutableStorageView<InMemoryStorage>, (), ValidationTracer> {
     fn run_validation(&mut self, tx: L2Tx) -> Option<ViolatedValidationRule> {
         let validation_params = validation_params(&tx, &self.system_env);
         self.push_transaction(tx.into());
 
-        let mut tracer = ValidationTracer::new(validation_params);
-        self.stop_after_validation();
+        let mut tracer = WithBuiltinTracers::for_validation((), validation_params);
         self.inspect(&mut tracer, InspectExecutionMode::OneTx);
 
         tracer.validation_error()

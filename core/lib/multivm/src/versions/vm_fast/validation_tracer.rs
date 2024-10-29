@@ -7,11 +7,27 @@ use zksync_types::{
     SYSTEM_CONTEXT_ADDRESS, U256,
 };
 use zksync_vm2::interface::{
-    CallframeInterface, GlobalStateInterface, Opcode::*, OpcodeType, ReturnType::*, Tracer,
+    CallframeInterface, ExecutionStatus, GlobalStateInterface, Opcode::*, OpcodeType,
+    ReturnType::*, Tracer,
 };
 use zksync_vm_interface::tracer::{ValidationParams, ViolatedValidationRule};
 
-use super::{utils::read_fat_pointer, vm::TracerExt};
+use super::utils::read_fat_pointer;
+
+pub trait ValidationMode: Tracer + Default {
+    const STOP_AFTER_VALIDATION: bool;
+    fn account_validation_entered(&mut self);
+    fn validation_exited(&mut self);
+}
+
+#[derive(Debug, Default)]
+pub struct ValidationGasLimitOnly;
+impl Tracer for ValidationGasLimitOnly {}
+impl ValidationMode for ValidationGasLimitOnly {
+    const STOP_AFTER_VALIDATION: bool = false;
+    fn account_validation_entered(&mut self) {}
+    fn validation_exited(&mut self) {}
+}
 
 /// Account abstraction exposes a chain to denial of service attacks because someone who fails to
 /// authenticate does not pay for the failed transaction. Otherwise people could empty other's
@@ -51,6 +67,18 @@ pub struct ValidationTracer {
     storage_containing_trusted_addresses: HashSet<(Address, U256)>,
 
     validation_error: Option<ViolatedValidationRule>,
+}
+
+impl ValidationMode for ValidationTracer {
+    const STOP_AFTER_VALIDATION: bool = true;
+
+    fn account_validation_entered(&mut self) {
+        self.in_validation = true;
+    }
+
+    fn validation_exited(&mut self) {
+        self.in_validation = false;
+    }
 }
 
 impl Tracer for ValidationTracer {
@@ -100,9 +128,12 @@ impl Tracer for ValidationTracer {
         }
     }
 
-    fn after_instruction<OP: OpcodeType, S: GlobalStateInterface>(&mut self, state: &mut S) {
+    fn after_instruction<OP: OpcodeType, S: GlobalStateInterface>(
+        &mut self,
+        state: &mut S,
+    ) -> ExecutionStatus {
         if !self.in_validation {
-            return;
+            return ExecutionStatus::Running;
         }
 
         match OP::VALUE {
@@ -112,7 +143,7 @@ impl Tracer for ValidationTracer {
                 if code_address == KECCAK256_PRECOMPILE_ADDRESS {
                     let calldata = read_fat_pointer(state, state.read_register(1).0);
                     if calldata.len() != 64 {
-                        return;
+                        return ExecutionStatus::Running;
                     }
 
                     // Solidity mappings store values at the keccak256 hash of `key ++ slot_of_mapping`
@@ -145,16 +176,8 @@ impl Tracer for ValidationTracer {
             }
             _ => {}
         }
-    }
-}
 
-impl TracerExt for ValidationTracer {
-    fn on_bootloader_hook(&mut self, hook: super::hook::Hook) {
-        match hook {
-            super::hook::Hook::AccountValidationEntered => self.in_validation = true,
-            super::hook::Hook::ValidationExited => self.in_validation = false,
-            _ => {}
-        }
+        ExecutionStatus::Running
     }
 }
 

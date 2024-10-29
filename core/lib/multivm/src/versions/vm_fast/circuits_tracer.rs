@@ -4,7 +4,6 @@ use zksync_vm2::interface::{
 };
 use zksync_vm_interface::CircuitStatistic;
 
-use super::TracerExt;
 use crate::vm_latest::tracers::circuits_capacity::*;
 
 /// VM tracer tracking [`CircuitStatistic`]s. Statistics generally depend on the number of time some opcodes were invoked,
@@ -132,8 +131,6 @@ impl Tracer for CircuitsTracer {
         }
     }
 }
-
-impl TracerExt for CircuitsTracer {}
 
 impl CircuitsTracer {
     /// Obtains the current circuit stats from this tracer.
