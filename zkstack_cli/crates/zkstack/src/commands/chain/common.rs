@@ -14,7 +14,7 @@ pub async fn distribute_eth(
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
     if chain_config.wallet_creation == WalletCreation::Localhost
-        && ecosystem_config.l1_network == L1Network::Localhost
+        && chain_config.l1_network == L1Network::Localhost
     {
         let spinner = Spinner::new(MSG_DISTRIBUTING_ETH_SPINNER);
         let wallets = ecosystem_config.get_wallets()?;
@@ -31,7 +31,7 @@ pub async fn distribute_eth(
             wallets.operator,
             addresses,
             l1_rpc_url,
-            ecosystem_config.l1_network.chain_id(),
+            chain_config.l1_network.chain_id(),
             AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
         )
         .await?;
