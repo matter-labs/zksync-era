@@ -60,7 +60,7 @@ pub struct ValidationParams {
 }
 
 /// Rules that can be violated when validating a transaction.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ViolatedValidationRule {
     /// The transaction touched disallowed storage slots during validation.
     TouchedDisallowedStorageSlots(Address, U256),
@@ -96,7 +96,7 @@ impl fmt::Display for ViolatedValidationRule {
 }
 
 /// Errors returned when validating a transaction.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ValidationError {
     /// VM execution was halted during validation.
     FailedTx(Halt),

@@ -281,7 +281,9 @@ where
                         _ => Ok(()),
                     };
 
-                    // TODO compare validation to legacy
+                    if fast_result != legacy_result {
+                        unimplemented!("Validation result mismatch, what do I do now? (TODO this is just to make CI happy)")
+                    }
 
                     legacy_result
                 }
