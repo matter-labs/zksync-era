@@ -166,7 +166,7 @@ by a third party).
 To run the chain:
 
 ```bash
-zkstack server
+zkstack chain server
 ```
 
 You can specify the component you want to run using `--components` flag

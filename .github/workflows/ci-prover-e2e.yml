@@ -65,7 +65,7 @@ jobs:
           ci_run zkstack prover setup-keys --mode=download --region=us --verbose
       - name: Run server
         run: |
-          ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs/server.log &
+          ci_run zkstack chain server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs/server.log &
       - name: Run Gateway
         run: |
           ci_run zkstack prover run --component=gateway --docker=false &>prover_logs/gateway.log &

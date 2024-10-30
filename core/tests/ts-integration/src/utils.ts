@@ -34,7 +34,7 @@ export function runServerInBackground({
 }): ChildProcessWithoutNullStreams {
     let command = '';
     if (useZkStack) {
-        command = 'zkstack server';
+        command = 'zkstack chain server';
         if (chain) {
             command += ` --chain ${chain}`;
         }
@@ -62,7 +62,7 @@ export enum NodeType {
 }
 
 export class Node<TYPE extends NodeType> {
-    constructor(public proc: ChildProcessWithoutNullStreams, public l2NodeUrl: string, private readonly type: TYPE) {}
+    constructor(public proc: ChildProcessWithoutNullStreams, public l2NodeUrl: string, private readonly type: TYPE) { }
 
     public async terminate() {
         try {
@@ -112,7 +112,7 @@ export class NodeSpawner {
         private readonly fileConfig: FileConfig,
         private readonly options: MainNodeSpawnOptions,
         private env?: ProcessEnvOptions['env']
-    ) {}
+    ) { }
 
     public async spawnMainNode(newL1GasPrice?: string, newPubdataPrice?: string): Promise<Node<NodeType.MAIN>> {
         const env = this.env ?? process.env;
