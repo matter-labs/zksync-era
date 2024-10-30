@@ -1,6 +1,6 @@
 // FIXME: move to basic_types?
 
-use zk_evm::k256::sha2::{Digest, Sha256};
+use sha2::{Digest, Sha256};
 use zksync_basic_types::H256;
 
 use crate::bytes_to_chunks;

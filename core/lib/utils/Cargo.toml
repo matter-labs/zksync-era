@@ -27,6 +27,7 @@ hex.workspace = true
 reqwest = { workspace = true, features = ["blocking"] }
 serde_json.workspace = true
 once_cell.workspace = true
+sha2.workspace = true
 
 [dev-dependencies]
 rand.workspace = true
