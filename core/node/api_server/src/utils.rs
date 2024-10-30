@@ -8,7 +8,7 @@ use std::{
 
 use anyhow::Context;
 use zksync_dal::{Connection, Core, DalError};
-use zksync_multivm::circuit_sequencer_api_latest::boojum::ethereum_types::U256;
+use zksync_types::U256;
 use zksync_web3_decl::error::Web3Error;
 
 pub(crate) fn prepare_evm_bytecode(raw: &[u8]) -> anyhow::Result<Vec<u8>> {

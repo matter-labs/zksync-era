@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use circuit_sequencer_api_1_4_2::sort_storage_access::sort_storage_access_queries;
+use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
 use zk_evm_1_4_1::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
@@ -16,9 +16,12 @@ use crate::{
         L1BatchEnv, VmEvent, VmExecutionMode,
     },
     tracers::dynamic::vm_1_4_1::DynTracer,
-    utils::events::{
-        extract_bytecode_publication_requests_from_l1_messenger,
-        extract_l2tol1logs_from_l1_messenger,
+    utils::{
+        events::{
+            extract_bytecode_publication_requests_from_l1_messenger,
+            extract_l2tol1logs_from_l1_messenger,
+        },
+        glue_log_query,
     },
     vm_1_4_2::{
         bootloader_state::{utils::apply_pubdata_to_memory, BootloaderState},
@@ -147,7 +150,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
             storage
                 .storage_log_queries_after_timestamp(Timestamp(0))
                 .iter()
-                .map(|log| &log.log_query),
+                .map(|log| glue_log_query(log.log_query)),
         )
         .1
         .into_iter()

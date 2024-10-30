@@ -98,7 +98,7 @@ pub(super) fn get_deduped_log_queries(storage_logs: &[StorageLog]) -> Vec<LogQue
         })
         .collect();
 
-    let deduped_log_queries: Vec<LogQuery> = sort_storage_access_queries(&log_queries)
+    let deduped_log_queries: Vec<LogQuery> = sort_storage_access_queries(log_queries)
         .1
         .into_iter()
         .map(|log_query| LogQuery {
