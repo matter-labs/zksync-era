@@ -14,7 +14,7 @@ use zksync_types::{
 };
 use zksync_utils::{h256_to_u256, time::seconds_since_epoch};
 
-use super::{env::OneshotEnvParameters, ContractsKind};
+use super::env::OneshotEnvParameters;
 
 /// Block information necessary to execute a transaction / call. Unlike [`ResolvedBlockInfo`], this information is *partially* resolved,
 /// which is beneficial for some data workflows.
@@ -178,7 +178,7 @@ impl ResolvedBlockInfo {
     }
 }
 
-impl<C: ContractsKind> OneshotEnvParameters<C> {
+impl<T> OneshotEnvParameters<T> {
     pub(super) async fn to_env_inner(
         &self,
         connection: &mut Connection<'_, Core>,
@@ -194,16 +194,13 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
         )
         .await?;
 
-        let (system, l1_batch) = self
-            .prepare_env(
-                execution_mode,
-                resolved_block_info,
-                next_block,
-                fee_input,
-                enforced_base_fee,
-            )
-            .await?;
-
+        let (system, l1_batch) = self.prepare_env(
+            execution_mode,
+            resolved_block_info,
+            next_block,
+            fee_input,
+            enforced_base_fee,
+        );
         Ok(OneshotEnv {
             system,
             l1_batch,
@@ -211,14 +208,14 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
         })
     }
 
-    async fn prepare_env(
+    fn prepare_env(
         &self,
         execution_mode: TxExecutionMode,
         resolved_block_info: &ResolvedBlockInfo,
         next_block: L2BlockEnv,
         fee_input: BatchFeeInput,
         enforced_base_fee: Option<u64>,
-    ) -> anyhow::Result<(SystemEnv, L1BatchEnv)> {
+    ) -> (SystemEnv, L1BatchEnv) {
         let &Self {
             operator_account,
             validation_computational_gas_limit,
@@ -231,9 +228,11 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
             version: resolved_block_info.protocol_version,
             base_system_smart_contracts: self
                 .base_system_contracts
-                .base_system_contracts(resolved_block_info)
-                .await
-                .context("failed getting base system contracts")?,
+                .get_by_protocol_version(
+                    resolved_block_info.protocol_version,
+                    resolved_block_info.use_evm_emulator,
+                )
+                .clone(),
             bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             execution_mode,
             default_validation_computational_gas_limit: validation_computational_gas_limit,
@@ -248,7 +247,7 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
             enforced_base_fee,
             first_l2_block: next_block,
         };
-        Ok((system_env, l1_batch_env))
+        (system_env, l1_batch_env)
     }
 }
 

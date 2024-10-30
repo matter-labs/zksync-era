@@ -25,14 +25,11 @@ use zksync_types::{
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
-    vm::FastVmMode,
     AccountTreeId, Address, L2ChainId, Nonce, ProtocolVersionId, Transaction, H160, H256,
     MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
-use zksync_vm_executor::oneshot::{
-    CallOrExecute, EstimateGas, MultiVMBaseSystemContracts, OneshotEnvParameters,
-};
+use zksync_vm_executor::oneshot::{CallOrExecute, EstimateGas, OneshotEnvParameters};
 
 pub(super) use self::{gas_estimation::BinarySearchKind, result::SubmitTxError};
 use self::{master_pool_sink::MasterPoolSink, result::ApiCallResult, tx_sink::TxSink};
@@ -90,7 +87,6 @@ pub async fn build_tx_sender(
 /// Oneshot executor options used by the API server sandbox.
 #[derive(Debug)]
 pub struct SandboxExecutorOptions {
-    pub(crate) fast_vm_mode: FastVmMode,
     /// Env parameters to be used when estimating gas.
     pub(crate) estimate_gas: OneshotEnvParameters<EstimateGas>,
     /// Env parameters to be used when performing `eth_call` requests.
@@ -106,35 +102,16 @@ impl SandboxExecutorOptions {
         operator_account: AccountTreeId,
         validation_computational_gas_limit: u32,
     ) -> anyhow::Result<Self> {
-        let estimate_gas_contracts =
-            tokio::task::spawn_blocking(MultiVMBaseSystemContracts::load_estimate_gas_blocking)
-                .await
-                .context("failed loading base contracts for gas estimation")?;
-        let call_contracts =
-            tokio::task::spawn_blocking(MultiVMBaseSystemContracts::load_eth_call_blocking)
-                .await
-                .context("failed loading base contracts for calls / tx execution")?;
-
         Ok(Self {
-            fast_vm_mode: FastVmMode::Old,
-            estimate_gas: OneshotEnvParameters::new(
-                Arc::new(estimate_gas_contracts),
-                chain_id,
-                operator_account,
-                u32::MAX,
-            ),
-            eth_call: OneshotEnvParameters::new(
-                Arc::new(call_contracts),
+            estimate_gas: OneshotEnvParameters::for_gas_estimation(chain_id, operator_account)
+                .await?,
+            eth_call: OneshotEnvParameters::for_execution(
                 chain_id,
                 operator_account,
                 validation_computational_gas_limit,
-            ),
+            )
+            .await?,
         })
-    }
-
-    /// Sets the fast VM mode used by this executor.
-    pub fn set_fast_vm_mode(&mut self, fast_vm_mode: FastVmMode) {
-        self.fast_vm_mode = fast_vm_mode;
     }
 
     pub(crate) async fn mock() -> Self {

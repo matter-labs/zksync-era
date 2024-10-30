@@ -171,7 +171,7 @@ impl ZkStackService {
         if self.errors.is_empty() {
             Ok(())
         } else {
-            Err(ZkStackServiceError::Task(self.errors.into()))
+            Err(ZkStackServiceError::Task(self.errors))
         }
     }
 

@@ -2,4 +2,4 @@
 
 - [Overview](./overview.md)
 - [Shared Bridge](./shared_bridge.md)
-- [Interop](./interop.md)
+- [Hyperbridges](./hyperbridges.md)

@@ -3,7 +3,7 @@ use zksync_types::{
 };
 
 pub use self::{
-    execution_mode::{InspectExecutionMode, VmExecutionMode},
+    execution_mode::VmExecutionMode,
     l1_batch_env::L1BatchEnv,
     l2_block::{L2BlockEnv, StoredL2BlockEnv},
     system_env::{SystemEnv, TxExecutionMode},
@@ -15,7 +15,7 @@ mod l2_block;
 mod system_env;
 
 /// Full environment for oneshot transaction / call execution.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct OneshotEnv {
     /// System environment.
     pub system: SystemEnv,

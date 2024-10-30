@@ -1,3 +1,4 @@
+version: '3.2'
 services:
   zk:
     image: ghcr.io/matter-labs/zk-environment:latest2.0-lightweight-nightly
@@ -14,7 +15,3 @@ services:
     extends:
       file: docker-compose.yml
       service: reth
-
-volumes:
-  postgres-data:
-  reth-data:

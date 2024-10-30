@@ -38,12 +38,12 @@ async function proverClippy() {
     await utils.spawn('cargo clippy --tests --locked -- -D warnings');
 }
 
-async function zkstackClippy() {
-    process.chdir(`${process.env.ZKSYNC_HOME}/zkstack_cli`);
+async function toolboxClippy() {
+    process.chdir(`${process.env.ZKSYNC_HOME}/zk_toolbox`);
     await utils.spawn('cargo clippy --tests --locked -- -D warnings');
 }
 
-const ARGS = [...EXTENSIONS, 'rust', 'prover', 'contracts', 'zkstack_cli'] as const;
+const ARGS = [...EXTENSIONS, 'rust', 'prover', 'contracts', 'toolbox'] as const;
 
 export const command = new Command('lint')
     .description('lint code')
@@ -61,8 +61,8 @@ export const command = new Command('lint')
                 case 'contracts':
                     await lintContracts(cmd.check);
                     break;
-                case 'zkstack_cli':
-                    await zkstackClippy();
+                case 'toolbox':
+                    await toolboxClippy();
                     break;
                 default:
                     await lint(extension, cmd.check);
@@ -72,7 +72,7 @@ export const command = new Command('lint')
             promises.push(lintContracts(cmd.check));
             promises.push(clippy());
             promises.push(proverClippy());
-            promises.push(zkstackClippy());
+            promises.push(toolboxClippy());
             await Promise.all(promises);
         }
     });

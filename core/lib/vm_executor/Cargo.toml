@@ -23,7 +23,3 @@ tokio.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 vise.workspace = true
-
-[dev-dependencies]
-assert_matches.workspace = true
-test-casing.workspace = true

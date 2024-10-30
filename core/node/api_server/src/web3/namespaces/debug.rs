@@ -7,7 +7,7 @@ use zksync_types::{
         BlockId, BlockNumber, CallTracerBlockResult, CallTracerResult, DebugCall, DebugCallType,
         ResultDebugCall, SupportedTracers, TracerConfig,
     },
-    debug_flat_call::{Action, CallResult, CallTraceMeta, DebugCallFlat, ResultDebugCallFlat},
+    debug_flat_call::{Action, CallResult, DebugCallFlat},
     l2::L2Tx,
     transaction_request::CallRequest,
     web3, H256, U256,
@@ -31,7 +31,8 @@ impl DebugNamespace {
 
     pub(crate) fn map_call(
         call: Call,
-        meta: CallTraceMeta,
+        index: usize,
+        transaction_hash: H256,
         tracer_option: TracerConfig,
     ) -> CallTracerResult {
         match tracer_option.tracer {
@@ -41,13 +42,14 @@ impl DebugNamespace {
             )),
             SupportedTracers::FlatCallTracer => {
                 let mut calls = vec![];
-                let mut traces = vec![meta.index_in_block];
+                let mut traces = vec![index];
                 Self::flatten_call(
                     call,
                     &mut calls,
                     &mut traces,
                     tracer_option.tracer_config.only_top_call,
-                    &meta,
+                    index,
+                    transaction_hash,
                 );
                 CallTracerResult::FlatCallTrace(calls)
             }
@@ -87,7 +89,8 @@ impl DebugNamespace {
         calls: &mut Vec<DebugCallFlat>,
         trace_address: &mut Vec<usize>,
         only_top_call: bool,
-        meta: &CallTraceMeta,
+        transaction_position: usize,
+        transaction_hash: H256,
     ) {
         let subtraces = call.calls.len();
         let debug_type = match call.r#type {
@@ -117,17 +120,22 @@ impl DebugNamespace {
             result,
             subtraces,
             trace_address: trace_address.clone(), // Clone the current trace address
-            transaction_position: meta.index_in_block,
-            transaction_hash: meta.tx_hash,
-            block_number: meta.block_number,
-            block_hash: meta.block_hash,
+            transaction_position,
+            transaction_hash,
             r#type: DebugCallType::Call,
         });
 
         if !only_top_call {
             for (number, call) in call.calls.into_iter().enumerate() {
                 trace_address.push(number);
-                Self::flatten_call(call, calls, trace_address, false, meta);
+                Self::flatten_call(
+                    call,
+                    calls,
+                    trace_address,
+                    false,
+                    transaction_position,
+                    transaction_hash,
+                );
                 trace_address.pop();
             }
         }
@@ -150,7 +158,6 @@ impl DebugNamespace {
 
         let mut connection = self.state.acquire_connection().await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
-        // let block_hash = block_hash self.state.
         self.current_method()
             .set_block_diff(self.state.last_sealed_l2_block.diff(block_number));
 
@@ -165,31 +172,25 @@ impl DebugNamespace {
             SupportedTracers::CallTracer => CallTracerBlockResult::CallTrace(
                 call_traces
                     .into_iter()
-                    .map(|(call, _)| ResultDebugCall {
+                    .map(|(call, _, _)| ResultDebugCall {
                         result: Self::map_default_call(call, options.tracer_config.only_top_call),
                     })
                     .collect(),
             ),
             SupportedTracers::FlatCallTracer => {
-                let res = call_traces
-                    .into_iter()
-                    .map(|(call, meta)| {
-                        let mut traces = vec![meta.index_in_block];
-                        let mut flat_calls = vec![];
-                        Self::flatten_call(
-                            call,
-                            &mut flat_calls,
-                            &mut traces,
-                            options.tracer_config.only_top_call,
-                            &meta,
-                        );
-                        ResultDebugCallFlat {
-                            tx_hash: meta.tx_hash,
-                            result: flat_calls,
-                        }
-                    })
-                    .collect();
-                CallTracerBlockResult::FlatCallTrace(res)
+                let mut flat_calls = vec![];
+                for (call, tx_hash, tx_index) in call_traces {
+                    let mut traces = vec![tx_index];
+                    Self::flatten_call(
+                        call,
+                        &mut flat_calls,
+                        &mut traces,
+                        options.tracer_config.only_top_call,
+                        tx_index,
+                        tx_hash,
+                    );
+                }
+                CallTracerBlockResult::FlatCallTrace(flat_calls)
             }
         };
         Ok(result)
@@ -206,8 +207,13 @@ impl DebugNamespace {
             .get_call_trace(tx_hash)
             .await
             .map_err(DalError::generalize)?;
-        Ok(call_trace.map(|(call_trace, meta)| {
-            Self::map_call(call_trace, meta, options.unwrap_or_default())
+        Ok(call_trace.map(|(call_trace, index_in_block)| {
+            Self::map_call(
+                call_trace,
+                index_in_block,
+                tx_hash,
+                options.unwrap_or_default(),
+            )
         }))
     }
 
@@ -256,7 +262,7 @@ impl DebugNamespace {
         let call = L2Tx::from_request(
             request.into(),
             MAX_ENCODED_TX_SIZE,
-            block_args.use_evm_emulator(),
+            false, // Even with EVM emulation enabled, calls must specify `to` field
         )?;
 
         let vm_permit = self
@@ -299,6 +305,8 @@ impl DebugNamespace {
                 ))
             }
         };
+        // It's a call request, it's safe to keep it zero
+        let hash = H256::zero();
         let call = Call::new_high_level(
             call.common_data.fee.gas_limit.as_u64(),
             result.vm.statistics.gas_used,
@@ -308,12 +316,6 @@ impl DebugNamespace {
             revert_reason,
             result.call_traces,
         );
-        let number = block_args.resolved_block_number();
-        let meta = CallTraceMeta {
-            block_number: number.0,
-            // It's a call request, it's safe to everything as default
-            ..Default::default()
-        };
-        Ok(Self::map_call(call, meta, options))
+        Ok(Self::map_call(call, 0, hash, options))
     }
 }

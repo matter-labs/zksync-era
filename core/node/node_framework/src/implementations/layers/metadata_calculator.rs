@@ -7,8 +7,7 @@ use std::{
 use anyhow::Context as _;
 use zksync_config::configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode};
 use zksync_metadata_calculator::{
-    LazyAsyncTreeReader, MerkleTreePruningTask, MerkleTreeReaderConfig, MetadataCalculator,
-    MetadataCalculatorConfig, TreeReaderTask,
+    LazyAsyncTreeReader, MerkleTreePruningTask, MetadataCalculator, MetadataCalculatorConfig,
 };
 use zksync_storage::RocksDB;
 
@@ -20,7 +19,7 @@ use crate::{
         web3_api::TreeApiClientResource,
     },
     service::{ShutdownHook, StopReceiver},
-    task::{Task, TaskId, TaskKind},
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
@@ -200,68 +199,6 @@ impl Task for TreeApiTask {
 impl Task for MerkleTreePruningTask {
     fn id(&self) -> TaskId {
         "merkle_tree_pruning_task".into()
-    }
-
-    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        (*self).run(stop_receiver.0).await
-    }
-}
-
-/// Mutually exclusive with [`MetadataCalculatorLayer`].
-#[derive(Debug)]
-pub struct TreeApiServerLayer {
-    config: MerkleTreeReaderConfig,
-    api_config: MerkleTreeApiConfig,
-}
-
-impl TreeApiServerLayer {
-    pub fn new(config: MerkleTreeReaderConfig, api_config: MerkleTreeApiConfig) -> Self {
-        Self { config, api_config }
-    }
-}
-
-#[derive(Debug, IntoContext)]
-#[context(crate = crate)]
-pub struct TreeApiServerOutput {
-    tree_api_client: TreeApiClientResource,
-    #[context(task)]
-    tree_reader_task: TreeReaderTask,
-    #[context(task)]
-    tree_api_task: TreeApiTask,
-}
-
-#[async_trait::async_trait]
-impl WiringLayer for TreeApiServerLayer {
-    type Input = ();
-    type Output = TreeApiServerOutput;
-
-    fn layer_name(&self) -> &'static str {
-        "tree_api_server"
-    }
-
-    async fn wire(self, (): Self::Input) -> Result<Self::Output, WiringError> {
-        let tree_reader_task = TreeReaderTask::new(self.config);
-        let bind_addr = (Ipv4Addr::UNSPECIFIED, self.api_config.port).into();
-        let tree_api_task = TreeApiTask {
-            bind_addr,
-            tree_reader: tree_reader_task.tree_reader(),
-        };
-        Ok(TreeApiServerOutput {
-            tree_api_client: TreeApiClientResource(Arc::new(tree_reader_task.tree_reader())),
-            tree_api_task,
-            tree_reader_task,
-        })
-    }
-}
-
-#[async_trait::async_trait]
-impl Task for TreeReaderTask {
-    fn kind(&self) -> TaskKind {
-        TaskKind::OneshotTask
-    }
-
-    fn id(&self) -> TaskId {
-        "merkle_tree_reader_task".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

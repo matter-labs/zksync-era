@@ -57,7 +57,7 @@ struct VmBenchmarkMetrics {
 static METRICS: vise::Global<VmBenchmarkMetrics> = vise::Global::new();
 
 #[derive(Debug)]
-pub struct PrometheusRuntime {
+struct PrometheusRuntime {
     stop_sender: watch::Sender<bool>,
     _runtime: tokio::runtime::Runtime,
 }
@@ -72,7 +72,7 @@ impl Drop for PrometheusRuntime {
 }
 
 impl PrometheusRuntime {
-    pub fn new() -> Option<Self> {
+    fn new() -> Option<Self> {
         const PUSH_INTERVAL: Duration = Duration::from_millis(100);
 
         let gateway_url = env::var("BENCHMARK_PROMETHEUS_PUSHGATEWAY_URL").ok()?;
@@ -164,7 +164,7 @@ thread_local! {
 
 static BIN_NAME: SyncOnceCell<&'static str> = SyncOnceCell::new();
 
-/// Measurement for criterion that exports timing-related metrics.
+/// Measurement for criterion that exports .
 #[derive(Debug)]
 pub struct MeteredTime {
     _prometheus: Option<PrometheusRuntime>,

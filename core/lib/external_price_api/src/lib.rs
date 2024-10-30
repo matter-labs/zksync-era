@@ -1,4 +1,3 @@
-pub mod cmc_api;
 pub mod coingecko_api;
 pub mod forced_price_client;
 #[cfg(test)]

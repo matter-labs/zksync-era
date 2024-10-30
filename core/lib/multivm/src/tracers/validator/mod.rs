@@ -1,8 +1,4 @@
-use std::{
-    collections::{BTreeSet, HashSet},
-    marker::PhantomData,
-    sync::Arc,
-};
+use std::{collections::HashSet, marker::PhantomData, sync::Arc};
 
 use once_cell::sync::OnceCell;
 use zksync_system_constants::{
@@ -12,7 +8,7 @@ use zksync_system_constants::{
 use zksync_types::{
     vm::VmVersion, web3::keccak256, AccountTreeId, Address, StorageKey, H256, U256,
 };
-use zksync_utils::{address_to_u256, be_bytes_to_safe_address, u256_to_h256};
+use zksync_utils::{be_bytes_to_safe_address, u256_to_account_address, u256_to_h256};
 
 use self::types::{NewTrustedValidationItems, ValidationTracerMode};
 use crate::{
@@ -36,7 +32,7 @@ mod vm_virtual_blocks;
 #[derive(Debug, Clone)]
 pub struct ValidationTracer<H> {
     validation_mode: ValidationTracerMode,
-    auxilary_allowed_slots: BTreeSet<H256>,
+    auxilary_allowed_slots: HashSet<H256>,
 
     user_address: Address,
     #[allow(dead_code)]
@@ -55,8 +51,6 @@ pub struct ValidationTracer<H> {
 type ValidationRoundResult = Result<NewTrustedValidationItems, ViolatedValidationRule>;
 
 impl<H> ValidationTracer<H> {
-    const MAX_ALLOWED_SLOT_OFFSET: u32 = 127;
-
     pub fn new(
         params: ValidationParams,
         vm_version: VmVersion,
@@ -137,15 +131,9 @@ impl<H> ValidationTracer<H> {
         }
 
         // The user is allowed to touch its own slots or slots semantically related to him.
-        let from = u256_to_h256(key.saturating_sub(Self::MAX_ALLOWED_SLOT_OFFSET.into()));
-        let to = u256_to_h256(key);
         let valid_users_slot = address == self.user_address
-            || key == address_to_u256(&self.user_address)
-            || self
-                .auxilary_allowed_slots
-                .range(from..=to)
-                .next()
-                .is_some();
+            || u256_to_account_address(&key) == self.user_address
+            || self.auxilary_allowed_slots.contains(&u256_to_h256(key));
         if valid_users_slot {
             return true;
         }

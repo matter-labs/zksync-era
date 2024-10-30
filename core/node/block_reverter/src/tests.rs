@@ -67,7 +67,6 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             virtual_blocks: 1,
             gas_limit: 0,
             logs_bloom: Default::default(),
-            pubdata_params: Default::default(),
         };
         storage
             .blocks_dal()
@@ -88,7 +87,6 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             system_logs: vec![],
             protocol_version: Some(ProtocolVersionId::latest()),
             pubdata_input: None,
-            fee_address: Default::default(),
         };
         storage
             .blocks_dal()

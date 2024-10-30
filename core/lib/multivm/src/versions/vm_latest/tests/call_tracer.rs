@@ -3,14 +3,17 @@ use std::sync::Arc;
 use once_cell::sync::OnceCell;
 use zksync_types::{Address, Execute};
 
-use super::TestedLatestVm;
 use crate::{
-    interface::{InspectExecutionMode, TxExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     tracers::CallTracer,
-    versions::testonly::{
-        read_max_depth_contract, read_test_contract, ContractToDeploy, VmTesterBuilder,
+    vm_latest::{
+        constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
+        tests::{
+            tester::VmTesterBuilder,
+            utils::{read_max_depth_contract, read_test_contract},
+        },
+        HistoryEnabled, ToTracerPointer,
     },
-    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, ToTracerPointer},
 };
 
 // This test is ultra slow, so it's ignored by default.
@@ -19,13 +22,14 @@ use crate::{
 fn test_max_depth() {
     let contarct = read_max_depth_contract();
     let address = Address::random();
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
-        .with_rich_accounts(1)
+        .with_random_rich_accounts(1)
+        .with_deployer()
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_custom_contracts(vec![ContractToDeploy::account(contarct, address)])
-        .build::<TestedLatestVm>();
+        .with_custom_contracts(vec![(contarct, address, true)])
+        .build();
 
     let account = &mut vm.rich_accounts[0];
     let tx = account.get_l2_tx_for_execute(
@@ -43,22 +47,23 @@ fn test_max_depth() {
     vm.vm.push_transaction(tx);
     let res = vm
         .vm
-        .inspect(&mut call_tracer.into(), InspectExecutionMode::OneTx);
+        .inspect(&mut call_tracer.into(), VmExecutionMode::OneTx);
     assert!(result.get().is_some());
     assert!(res.result.is_failed());
 }
 
 #[test]
 fn test_basic_behavior() {
-    let contract = read_test_contract();
+    let contarct = read_test_contract();
     let address = Address::random();
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
-        .with_rich_accounts(1)
+        .with_random_rich_accounts(1)
+        .with_deployer()
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_custom_contracts(vec![ContractToDeploy::account(contract, address)])
-        .build::<TestedLatestVm>();
+        .with_custom_contracts(vec![(contarct, address, true)])
+        .build();
 
     let increment_by_6_calldata =
         "7cf5dab00000000000000000000000000000000000000000000000000000000000000006";
@@ -79,7 +84,7 @@ fn test_basic_behavior() {
     vm.vm.push_transaction(tx);
     let res = vm
         .vm
-        .inspect(&mut call_tracer.into(), InspectExecutionMode::OneTx);
+        .inspect(&mut call_tracer.into(), VmExecutionMode::OneTx);
 
     let call_tracer_result = result.get().unwrap();
 
