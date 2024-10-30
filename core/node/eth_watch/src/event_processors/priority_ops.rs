@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+use std::{convert::TryFrom, sync::Arc};
 
 use anyhow::Context;
 use zksync_contracts::hyperchain_contract;
@@ -17,16 +17,21 @@ use crate::{
 pub struct PriorityOpsEventProcessor {
     next_expected_priority_id: PriorityOpId,
     new_priority_request_signature: H256,
+    sl_client: Arc<dyn EthClient>,
 }
 
 impl PriorityOpsEventProcessor {
-    pub fn new(next_expected_priority_id: PriorityOpId) -> anyhow::Result<Self> {
+    pub fn new(
+        next_expected_priority_id: PriorityOpId,
+        sl_client: Arc<dyn EthClient>,
+    ) -> anyhow::Result<Self> {
         Ok(Self {
             next_expected_priority_id,
             new_priority_request_signature: hyperchain_contract()
                 .event("NewPriorityRequest")
                 .context("NewPriorityRequest event is missing in ABI")?
                 .signature(),
+            sl_client,
         })
     }
 }
@@ -36,7 +41,6 @@ impl EventProcessor for PriorityOpsEventProcessor {
     async fn process_events(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        sl_client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<usize, EventProcessorError> {
         let mut priority_ops = Vec::new();
@@ -84,7 +88,7 @@ impl EventProcessor for PriorityOpsEventProcessor {
         let stage_latency = METRICS.poll_eth_node[&PollStage::PersistL1Txs].start();
         APP_METRICS.processed_txs[&TxStage::added_to_mempool()].inc();
         APP_METRICS.processed_l1_txs[&TxStage::added_to_mempool()].inc();
-        let processed_priority_transactions = sl_client.get_total_priority_txs().await?;
+        let processed_priority_transactions = self.sl_client.get_total_priority_txs().await?;
         let ops_to_insert: Vec<&L1Tx> = new_ops
             .iter()
             .take_while(|op| processed_priority_transactions > op.serial_id().0)

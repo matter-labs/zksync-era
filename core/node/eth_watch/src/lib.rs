@@ -2,7 +2,7 @@
 //! protocol upgrades etc.
 //! New events are accepted to the ZKsync network once they have the sufficient amount of L1 confirmations.
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
@@ -14,9 +14,9 @@ use zksync_types::{
     web3::BlockNumber as Web3BlockNumber, L1BatchNumber, L2ChainId, PriorityOpId,
 };
 
-pub use self::client::EthHttpQueryClient;
+pub use self::client::{EthClient, EthHttpQueryClient, L2EthClient};
 use self::{
-    client::{EthClient, RETRY_LIMIT},
+    client::{L2EthClientW, RETRY_LIMIT},
     event_processors::{EventProcessor, EventProcessorError, PriorityOpsEventProcessor},
     metrics::METRICS,
 };
@@ -41,8 +41,8 @@ struct EthWatchState {
 /// Ethereum watcher component.
 #[derive(Debug)]
 pub struct EthWatch {
-    l1_client: Box<dyn EthClient>,
-    sl_client: Box<dyn EthClient>,
+    l1_client: Arc<dyn EthClient>,
+    sl_client: Arc<dyn EthClient>,
     poll_interval: Duration,
     event_processors: Vec<Box<dyn EventProcessor>>,
     pool: ConnectionPool<Core>,
@@ -53,33 +53,44 @@ impl EthWatch {
     pub async fn new(
         chain_admin_contract: &Contract,
         l1_client: Box<dyn EthClient>,
-        sl_client: Box<dyn EthClient>,
+        sl_l2_client: Option<Box<dyn L2EthClient>>,
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
         chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         let mut storage = pool.connection_tagged("eth_watch").await?;
+        let l1_client: Arc<dyn EthClient> = l1_client.into();
+        let sl_l2_client: Option<Arc<dyn L2EthClient>> = sl_l2_client.map(Into::into);
+        let sl_client: Arc<dyn EthClient> = if let Some(sl_l2_client) = sl_l2_client.clone() {
+            Arc::new(L2EthClientW(sl_l2_client))
+        } else {
+            l1_client.clone()
+        };
+
         let state = Self::initialize_state(&mut storage, sl_client.as_ref()).await?;
         tracing::info!("initialized state: {state:?}");
         drop(storage);
 
         let priority_ops_processor =
-            PriorityOpsEventProcessor::new(state.next_expected_priority_id)?;
+            PriorityOpsEventProcessor::new(state.next_expected_priority_id, sl_client.clone())?;
         let decentralized_upgrades_processor = DecentralizedUpgradesEventProcessor::new(
             state.last_seen_protocol_version,
             chain_admin_contract,
+            sl_client.clone(),
         );
-        let batch_root_processor = BatchRootProcessor::new(
-            state.chain_batch_root_number_lower_bound,
-            state.batch_merkle_tree,
-            chain_id,
-        );
-        let event_processors: Vec<Box<dyn EventProcessor>> = vec![
+        let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(decentralized_upgrades_processor),
-            Box::new(batch_root_processor),
         ];
-
+        if let Some(sl_l2_client) = sl_l2_client {
+            let batch_root_processor = BatchRootProcessor::new(
+                state.chain_batch_root_number_lower_bound,
+                state.batch_merkle_tree,
+                chain_id,
+                sl_l2_client,
+            );
+            event_processors.push(Box::new(batch_root_processor));
+        }
         Ok(Self {
             l1_client,
             sl_client,
@@ -201,7 +212,7 @@ impl EthWatch {
                 )
                 .await?;
             let processed_events_count = processor
-                .process_events(storage, &*self.sl_client, processor_events.clone())
+                .process_events(storage, processor_events.clone())
                 .await?;
 
             let next_block_to_process = if processed_events_count == processor_events.len() {

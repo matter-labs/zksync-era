@@ -8,7 +8,7 @@ use zksync_types::{
         AccessList, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionCondition,
         TransactionReceipt,
     },
-    Address, L1BatchNumber, L2ChainId, SLChainId, H160, H256, U256, U64,
+    Address, SLChainId, H160, H256, U256, U64,
 };
 pub use zksync_web3_decl::{
     error::{EnrichedClientError, EnrichedClientResult},
@@ -142,21 +142,8 @@ pub trait EthInterface: Sync + Send + fmt::Debug {
     /// Returns the logs for the specified filter.
     async fn logs(&self, filter: &Filter) -> EnrichedClientResult<Vec<Log>>;
 
-    /// Returns the L2 version of logs which might have `l1BatchNumber` property for the specified filter.
-    async fn logs_extended(
-        &self,
-        filter: &Filter,
-    ) -> EnrichedClientResult<Vec<zksync_types::api::Log>>;
-
     /// Returns the block header for the specified block number or hash.
     async fn block(&self, block_id: BlockId) -> EnrichedClientResult<Option<Block<H256>>>;
-
-    /// Returns merkle proof for specific chain at provided SL batch number.
-    async fn get_chain_log_proof(
-        &self,
-        l1_batch_number: L1BatchNumber,
-        chain_id: L2ChainId,
-    ) -> EnrichedClientResult<Option<zksync_types::api::ChainAggProof>>;
 }
 
 #[async_trait::async_trait]

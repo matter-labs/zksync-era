@@ -494,6 +494,26 @@ impl From<Log> for zksync_basic_types::web3::Log {
     }
 }
 
+impl From<zksync_basic_types::web3::Log> for Log {
+    fn from(log: zksync_basic_types::web3::Log) -> Self {
+        Log {
+            address: log.address,
+            topics: log.topics,
+            data: log.data,
+            block_hash: log.block_hash,
+            block_number: log.block_number,
+            transaction_hash: log.transaction_hash,
+            transaction_index: log.transaction_index,
+            log_index: log.log_index,
+            transaction_log_index: log.transaction_log_index,
+            log_type: log.log_type,
+            removed: log.removed,
+            block_timestamp: log.block_timestamp,
+            l1_batch_number: None,
+        }
+    }
+}
+
 /// A log produced by a transaction.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

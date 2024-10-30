@@ -28,13 +28,11 @@ enum Method {
     TxReceipt,
     EthBalance,
     Logs,
-    LogsExtended,
     Block,
     #[metrics(name = "sign_prepared_tx_for_addr")]
     SignPreparedTx,
     Allowance,
     L2FeeHistory,
-    GetChainLogProof,
 }
 
 #[derive(Debug, Metrics)]

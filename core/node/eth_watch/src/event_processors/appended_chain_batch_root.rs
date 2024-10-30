@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Context;
 use itertools::Itertools;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
@@ -13,7 +15,7 @@ use zksync_types::{
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
-    client::EthClient,
+    client::L2EthClient,
     event_processors::{EventProcessor, EventProcessorError, EventsSource},
 };
 
@@ -24,6 +26,7 @@ pub struct BatchRootProcessor {
     appended_chain_batch_root_signature: H256,
     merkle_tree: MiniMerkleTree<[u8; 96]>,
     l2_chain_id: L2ChainId,
+    sl_l2_client: Arc<dyn L2EthClient>,
 }
 
 impl BatchRootProcessor {
@@ -31,6 +34,7 @@ impl BatchRootProcessor {
         next_batch_number_lower_bound: L1BatchNumber,
         merkle_tree: MiniMerkleTree<[u8; 96]>,
         l2_chain_id: L2ChainId,
+        sl_l2_client: Arc<dyn L2EthClient>,
     ) -> Self {
         Self {
             next_batch_number_lower_bound,
@@ -44,6 +48,7 @@ impl BatchRootProcessor {
             ),
             merkle_tree,
             l2_chain_id,
+            sl_l2_client,
         }
     }
 }
@@ -53,7 +58,6 @@ impl EventProcessor for BatchRootProcessor {
     async fn process_events(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        sl_client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<usize, EventProcessorError> {
         let events_count = events.len();
@@ -108,9 +112,10 @@ impl EventProcessor for BatchRootProcessor {
                 }
             });
 
-        let sl_chain_id = sl_client.chain_id().await?;
+        let sl_chain_id = self.sl_l2_client.chain_id().await?;
         for (sl_l1_batch_number, chain_batches) in new_events {
-            let chain_agg_proof = sl_client
+            let chain_agg_proof = self
+                .sl_l2_client
                 .get_chain_log_proof(sl_l1_batch_number, self.l2_chain_id)
                 .await?
                 .context("Missing chain log proof for finalized batch")?;
@@ -132,8 +137,15 @@ impl EventProcessor for BatchRootProcessor {
             }
 
             let chain_root_local = self.merkle_tree.merkle_root();
-            let chain_root_remote = sl_client.get_chain_root(sl_l1_batch_number, self.l2_chain_id).await?;
-            assert_eq!(chain_root_local, chain_root_remote, "Chain root mismatch");
+            let chain_root_remote = self
+                .sl_l2_client
+                .get_chain_root_l2(sl_l1_batch_number, self.l2_chain_id)
+                .await?;
+            assert_eq!(
+                chain_root_local,
+                chain_root_remote.unwrap(),
+                "Chain root mismatch, l1 batch number #{sl_l1_batch_number}"
+            );
 
             let number_of_leaves = self.merkle_tree.length();
             let batch_proofs = (0..chain_batches.len()).map(|i| {

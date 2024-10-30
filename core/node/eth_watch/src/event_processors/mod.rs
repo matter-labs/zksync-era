@@ -9,7 +9,6 @@ pub(crate) use self::{
     decentralized_upgrades::DecentralizedUpgradesEventProcessor,
     priority_ops::PriorityOpsEventProcessor,
 };
-use crate::client::EthClient;
 
 mod appended_chain_batch_root;
 mod decentralized_upgrades;
@@ -57,7 +56,6 @@ pub(super) trait EventProcessor: 'static + fmt::Debug + Send + Sync {
     async fn process_events(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        sl_client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<usize, EventProcessorError>;
 

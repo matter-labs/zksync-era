@@ -1,8 +1,8 @@
 use std::fmt;
 
 use async_trait::async_trait;
-use jsonrpsee::{core::ClientError, rpc_params};
-use zksync_types::{web3, Address, L1BatchNumber, L2ChainId, SLChainId, H256, U256, U64};
+use jsonrpsee::core::ClientError;
+use zksync_types::{web3, Address, SLChainId, H256, U256, U64};
 use zksync_web3_decl::{
     client::{DynClient, ForWeb3Network, MockClient, L1, L2},
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
@@ -266,20 +266,6 @@ where
         Ok(logs)
     }
 
-    async fn logs_extended(
-        &self,
-        filter: &web3::Filter,
-    ) -> EnrichedClientResult<Vec<zksync_types::api::Log>> {
-        COUNTERS.call[&(Method::LogsExtended, self.component())].inc();
-        let latency = LATENCIES.direct[&Method::LogsExtended].start();
-        let result = self
-            .request("eth_getLogs", rpc_params!(filter))
-            .await
-            .map_err(|err| EnrichedClientError::new(err, "eth_getLogs"))?;
-        latency.observe();
-        Ok(result)
-    }
-
     async fn block(
         &self,
         block_id: web3::BlockId,
@@ -304,24 +290,6 @@ where
         };
         latency.observe();
         Ok(block)
-    }
-
-    async fn get_chain_log_proof(
-        &self,
-        l1_batch_number: L1BatchNumber,
-        chain_id: L2ChainId,
-    ) -> EnrichedClientResult<Option<zksync_types::api::ChainAggProof>> {
-        COUNTERS.call[&(Method::GetChainLogProof, self.component())].inc();
-        let latency = LATENCIES.direct[&Method::GetChainLogProof].start();
-        let result = self
-            .request(
-                "unstable_getChainLogProof",
-                rpc_params!(l1_batch_number, chain_id),
-            )
-            .await
-            .map_err(|err| EnrichedClientError::new(err, "unstable_getChainLogProof"))?;
-        latency.observe();
-        Ok(result)
     }
 }
 

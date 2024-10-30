@@ -17,7 +17,7 @@ use zksync_types::{
 };
 use zksync_utils::u256_to_h256;
 
-use crate::client::{EthClient, RETRY_LIMIT};
+use crate::client::{EthClient, L2EthClient, RETRY_LIMIT};
 
 #[derive(Debug)]
 pub struct FakeEthClientData {
@@ -29,6 +29,7 @@ pub struct FakeEthClientData {
     processed_priority_transactions_count: u64,
     chain_log_proofs: HashMap<L1BatchNumber, ChainAggProof>,
     batch_roots: HashMap<u64, Vec<Log>>,
+    chain_roots: HashMap<u64, H256>,
 }
 
 impl FakeEthClientData {
@@ -42,6 +43,7 @@ impl FakeEthClientData {
             processed_priority_transactions_count: 0,
             chain_log_proofs: Default::default(),
             batch_roots: Default::default(),
+            chain_roots: Default::default(),
         }
     }
 
@@ -83,6 +85,12 @@ impl FakeEthClientData {
                 .entry(*sl_block)
                 .or_default()
                 .push(batch_root_to_log(*sl_block, *l2_batch_number, *batch_root));
+        }
+    }
+
+    fn add_chain_roots(&mut self, chain_roots: &[(u64, H256)]) {
+        for (batch, root) in chain_roots {
+            self.chain_roots.insert(*batch, *root);
         }
     }
 
@@ -138,8 +146,12 @@ impl MockEthClient {
         }
     }
 
-    pub async fn add_batch_roots(&mut self, add_batch_roots: &[(u64, u64, H256)]) {
-        self.inner.write().await.add_batch_roots(add_batch_roots);
+    pub async fn add_batch_roots(&mut self, batch_roots: &[(u64, u64, H256)]) {
+        self.inner.write().await.add_batch_roots(batch_roots);
+    }
+
+    pub async fn add_chain_roots(&mut self, chain_roots: &[(u64, H256)]) {
+        self.inner.write().await.add_chain_roots(chain_roots);
     }
 
     pub async fn add_chain_log_proofs(
@@ -253,6 +265,17 @@ impl EthClient for MockEthClient {
         Ok(self.inner.read().await.chain_id)
     }
 
+    async fn get_chain_root(
+        &self,
+        _block_number: U64,
+        _l2_chain_id: L2ChainId,
+    ) -> Result<H256, ContractCallError> {
+        unimplemented!()
+    }
+}
+
+#[async_trait::async_trait]
+impl L2EthClient for MockEthClient {
     async fn get_chain_log_proof(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -264,6 +287,20 @@ impl EthClient for MockEthClient {
             .await
             .chain_log_proofs
             .get(&l1_batch_number)
+            .cloned())
+    }
+
+    async fn get_chain_root_l2(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        _l2_chain_id: L2ChainId,
+    ) -> Result<Option<H256>, ContractCallError> {
+        Ok(self
+            .inner
+            .read()
+            .await
+            .chain_roots
+            .get(&l1_batch_number.0.into())
             .cloned())
     }
 }

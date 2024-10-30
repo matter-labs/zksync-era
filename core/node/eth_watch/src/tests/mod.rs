@@ -16,7 +16,7 @@ use zksync_types::{
     ProtocolVersion, ProtocolVersionId, SLChainId, Transaction, H256, U256,
 };
 
-use crate::{tests::client::MockEthClient, EthWatch};
+use crate::{tests::client::MockEthClient, EthWatch, L2EthClient};
 
 mod client;
 
@@ -92,15 +92,16 @@ async fn create_test_watcher(
     is_gateway: bool,
 ) -> (EthWatch, MockEthClient, MockEthClient) {
     let l1_client = MockEthClient::new(SLChainId(42));
-    let sl_client = if is_gateway {
-        MockEthClient::new(SL_CHAIN_ID)
+    let sl_client = MockEthClient::new(SL_CHAIN_ID);
+    let sl_l2_client: Option<Box<dyn L2EthClient>> = if is_gateway {
+        Some(Box::new(sl_client.clone()))
     } else {
-        l1_client.clone()
+        None
     };
     let watcher = EthWatch::new(
         &chain_admin_contract(),
         Box::new(l1_client.clone()),
-        Box::new(sl_client.clone()),
+        sl_l2_client,
         connection_pool,
         std::time::Duration::from_nanos(1),
         L2ChainId::default(),
@@ -206,7 +207,7 @@ async fn test_normal_operation_upgrade_timestamp() {
     let mut watcher = EthWatch::new(
         &chain_admin_contract(),
         Box::new(client.clone()),
-        Box::new(client.clone()),
+        None,
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
         L2ChainId::default(),
@@ -434,6 +435,37 @@ async fn test_batch_root_processor_from_genesis() {
             (11, 3, batch_roots[2]),
         ])
         .await;
+    sl_client
+        .add_chain_roots(&[
+            (
+                5,
+                H256::from_slice(
+                    &hex::decode(
+                        "10a2ef76e709d318b459be49f1e8d7f02d7120f2b501bc0afddd935f1a813c67",
+                    )
+                    .unwrap(),
+                ),
+            ),
+            (
+                9,
+                H256::from_slice(
+                    &hex::decode(
+                        "e0c3330f674b6b2d578f958a1dbd66f164d068b0bb5a9fb077eca013976fda6f",
+                    )
+                    .unwrap(),
+                ),
+            ),
+            (
+                11,
+                H256::from_slice(
+                    &hex::decode(
+                        "d22fc9a7b005fefecd33bb56cdbf70bcc23610e693cd21295f9920227c2cb1cc",
+                    )
+                    .unwrap(),
+                ),
+            ),
+        ])
+        .await;
     let chain_log_proofs = chain_log_proofs();
     sl_client.add_chain_log_proofs(chain_log_proofs).await;
 
@@ -488,6 +520,37 @@ async fn test_batch_root_processor_restart() {
             (13, 4, batch_roots[3]),
             (14, 5, batch_roots[4]),
             (14, 6, batch_roots[5]),
+        ])
+        .await;
+    sl_client
+        .add_chain_roots(&[
+            (
+                11,
+                H256::from_slice(
+                    &hex::decode(
+                        "d22fc9a7b005fefecd33bb56cdbf70bcc23610e693cd21295f9920227c2cb1cc",
+                    )
+                    .unwrap(),
+                ),
+            ),
+            (
+                13,
+                H256::from_slice(
+                    &hex::decode(
+                        "53edc1f5ad79c5999bd578dfc135f9c51ebd7fafa4585b64f71d15b2dce1b728",
+                    )
+                    .unwrap(),
+                ),
+            ),
+            (
+                14,
+                H256::from_slice(
+                    &hex::decode(
+                        "61b35796307159a6da8aa45448e6941e3438380582e2f3cb358db59598ae156f",
+                    )
+                    .unwrap(),
+                ),
+            ),
         ])
         .await;
     let chain_log_proofs = chain_log_proofs();
