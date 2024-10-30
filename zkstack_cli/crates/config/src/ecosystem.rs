@@ -12,9 +12,9 @@ use zksync_basic_types::L2ChainId;
 
 use crate::{
     consts::{
-        CONFIGS_PATH, CONFIG_NAME, CONTRACTS_FILE, ECOSYSTEM_PATH, ERA_CHAIN_ID,
-        ERC20_CONFIGS_FILE, ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE, L1_CONTRACTS_FOUNDRY,
-        LOCAL_ARTIFACTS_PATH, LOCAL_DB_PATH, WALLETS_FILE,
+        CONFIGS_PATH, CONFIG_NAME, CONTRACTS_FILE, ERA_CHAIN_ID, ERC20_CONFIGS_FILE,
+        ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE, L1_CONTRACTS_FOUNDRY, LOCAL_ARTIFACTS_PATH,
+        LOCAL_DB_PATH, WALLETS_FILE,
     },
     create_localhost_wallets,
     forge_interface::deploy_ecosystem::{
@@ -22,7 +22,7 @@ use crate::{
         output::{ERC20Tokens, Erc20Token},
     },
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, ZkStackConfig},
-    utils::find_file,
+    utils::{find_file, get_preexisting_ecosystem_contracts_path},
     ChainConfig, ChainConfigInternal, ContractsConfig, WalletsConfig,
 };
 
@@ -242,8 +242,8 @@ impl EcosystemConfig {
     }
 
     /// Path to the predefined ecosystem configs
-    pub fn get_preexisting_configs_path(&self) -> PathBuf {
-        self.link_to_code.join(ECOSYSTEM_PATH)
+    pub fn get_preexisting_ecosystem_contracts_path(&self) -> PathBuf {
+        get_preexisting_ecosystem_contracts_path(&self.link_to_code, self.l1_network)
     }
 
     pub fn get_chain_rocks_db_path(&self, chain_name: &str) -> PathBuf {

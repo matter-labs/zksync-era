@@ -185,33 +185,11 @@ async fn deploy_ecosystem(
 
     let ecosystem_contracts_path = match &ecosystem.ecosystem_contracts_path {
         Some(path) => Some(path.clone()),
-        None => {
-            let input_path: String = Prompt::new(MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT)
-                .allow_empty()
-                .validate_with(|val: &String| {
-                    if val.is_empty() {
-                        return Ok(());
-                    }
-                    PathBuf::from_str(val)
-                        .map(|_| ())
-                        .map_err(|_| MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR.to_string())
-                })
-                .ask();
-            if input_path.is_empty() {
-                None
-            } else {
-                Some(input_path.into())
-            }
-        }
+        None => prompt_ecosystem_contracts_path(),
     };
 
     let ecosystem_preexisting_configs_path =
-        ecosystem_config
-            .get_preexisting_configs_path()
-            .join(format!(
-                "{}.yaml",
-                ecosystem_config.l1_network.to_string().to_lowercase()
-            ));
+        ecosystem_config.get_preexisting_ecosystem_contracts_path();
 
     // currently there are not some preexisting ecosystem contracts in
     // chains, so we need check if this file exists.
@@ -232,6 +210,25 @@ async fn deploy_ecosystem(
         });
 
     ContractsConfig::read(shell, ecosystem_contracts_path)
+}
+
+pub fn prompt_ecosystem_contracts_path() -> Option<PathBuf> {
+    let input_path: String = Prompt::new(MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT)
+        .allow_empty()
+        .validate_with(|val: &String| {
+            if val.is_empty() {
+                return Ok(());
+            }
+            PathBuf::from_str(val)
+                .map(|_| ())
+                .map_err(|_| MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR.to_string())
+        })
+        .ask();
+    if input_path.is_empty() {
+        None
+    } else {
+        Some(input_path.into())
+    }
 }
 
 async fn deploy_ecosystem_inner(

@@ -60,6 +60,7 @@ pub(super) fn msg_path_to_zksync_does_not_exist_err(path: &str) -> String {
 }
 
 /// Ecosystem and chain init related messages
+pub(super) const MSG_ECOSYSTEM_CONTRACTS_PATH_HELP: &str = "Ecosystem contracts path";
 pub(super) const MSG_L1_RPC_URL_HELP: &str = "L1 RPC URL";
 pub(super) const MSG_NO_PORT_REALLOCATION_HELP: &str = "Do not reallocate ports";
 pub(super) const MSG_GENESIS_ARGS_HELP: &str = "Genesis options";
