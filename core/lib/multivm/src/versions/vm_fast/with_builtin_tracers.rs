@@ -2,8 +2,8 @@ use zksync_vm2::interface::Tracer;
 use zksync_vm_interface::tracer::{ValidationParams, ViolatedValidationRule};
 
 use super::{
+    circuits_tracer::CircuitsTracer,
     validation_tracer::{ValidationGasLimitOnly, ValidationMode, ValidationTracer},
-    CircuitsTracer,
 };
 
 #[derive(Default, Debug)]

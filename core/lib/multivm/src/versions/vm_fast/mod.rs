@@ -1,7 +1,6 @@
 pub use zksync_vm2::interface;
 
 pub use self::{
-    circuits_tracer::CircuitsTracer,
     vm::Vm,
     with_builtin_tracers::{
         DefaultTracers, WithBuiltinTracers, WithBuiltinTracersForApi,
@@ -22,6 +21,6 @@ mod refund;
 mod tests;
 mod transaction_data;
 mod utils;
-pub mod validation_tracer;
+mod validation_tracer;
 mod vm;
 mod with_builtin_tracers;
