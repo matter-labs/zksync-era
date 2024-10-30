@@ -131,9 +131,9 @@ pub(crate) fn read_simple_transfer_contract() -> Vec<u8> {
     )
 }
 
-pub(crate) fn read_validation_test_contract() -> (Vec<u8>, Contract) {
+pub(crate) fn read_validation_test_contract() -> Vec<u8> {
     let path = "etc/contracts-test-data/artifacts-zk/contracts/custom-account/validation-rule-breaker.sol/ValidationRuleBreaker.json";
-    (read_bytecode(path), load_contract(path))
+    read_bytecode(path)
 }
 
 pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {
