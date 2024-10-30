@@ -206,6 +206,7 @@ pub struct BridgeAddresses {
     pub l2_erc20_default_bridge: Option<Address>,
     pub l1_weth_bridge: Option<Address>,
     pub l2_weth_bridge: Option<Address>,
+    pub l2_legacy_shared_bridge: Option<Address>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
@@ -256,8 +257,6 @@ pub struct TransactionReceipt {
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
     /// Status: either 1 (success) or 0 (failure).
     pub status: U64,
-    /// State root.
-    pub root: H256,
     /// Logs bloom
     #[serde(rename = "logsBloom")]
     pub logs_bloom: Bloom,
@@ -644,7 +643,7 @@ pub struct ProtocolVersion {
     /// Verifier configuration
     #[deprecated]
     pub verification_keys_hashes: Option<L1VerifierConfig>,
-    /// Hashes of base system contracts (bootloader, default account and evm simulator)
+    /// Hashes of base system contracts (bootloader, default account and evm emulator)
     #[deprecated]
     pub base_system_contracts: Option<BaseSystemContractsHashes>,
     /// Bootloader code hash

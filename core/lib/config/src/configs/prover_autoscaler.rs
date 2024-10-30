@@ -30,6 +30,9 @@ pub struct ProverAutoscalerAgentConfig {
     pub namespaces: Vec<String>,
     /// Watched cluster name. Also can be set via flag.
     pub cluster_name: Option<String>,
+    /// If dry-run enabled don't do any k8s updates, just report success.
+    #[serde(default = "ProverAutoscalerAgentConfig::default_dry_run")]
+    pub dry_run: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Default)]
@@ -53,9 +56,16 @@ pub struct ProverAutoscalerScalerConfig {
     pub prover_speed: HashMap<Gpu, u32>,
     /// Maximum number of provers which can be run per cluster/GPU.
     pub max_provers: HashMap<String, HashMap<Gpu, u32>>,
+    /// Minimum number of provers per namespace.
+    pub min_provers: HashMap<String, u32>,
     /// Duration after which pending pod considered long pending.
     #[serde(default = "ProverAutoscalerScalerConfig::default_long_pending_duration")]
     pub long_pending_duration: Duration,
+    /// List of simple autoscaler targets.
+    pub scaler_targets: Vec<ScalerTarget>,
+    /// If dry-run enabled don't send any scale requests.
+    #[serde(default)]
+    pub dry_run: bool,
 }
 
 #[derive(
@@ -88,6 +98,41 @@ pub enum Gpu {
     A100,
 }
 
+// TODO: generate this enum by QueueReport from https://github.com/matter-labs/zksync-era/blob/main/prover/crates/bin/prover_job_monitor/src/autoscaler_queue_reporter.rs#L23
+// and remove allowing of non_camel_case_types by generating field name parser.
+#[derive(Debug, Display, PartialEq, Eq, Hash, Clone, Deserialize, EnumString, Default)]
+#[allow(non_camel_case_types)]
+pub enum QueueReportFields {
+    #[strum(ascii_case_insensitive)]
+    basic_witness_jobs,
+    #[strum(ascii_case_insensitive)]
+    leaf_witness_jobs,
+    #[strum(ascii_case_insensitive)]
+    node_witness_jobs,
+    #[strum(ascii_case_insensitive)]
+    recursion_tip_witness_jobs,
+    #[strum(ascii_case_insensitive)]
+    scheduler_witness_jobs,
+    #[strum(ascii_case_insensitive)]
+    proof_compressor_jobs,
+    #[default]
+    #[strum(ascii_case_insensitive)]
+    prover_jobs,
+}
+
+/// ScalerTarget can be configured to autoscale any of services for which queue is reported by
+/// prover-job-monitor, except of provers. Provers need special treatment due to GPU requirement.
+#[derive(Debug, Clone, PartialEq, Deserialize, Default)]
+pub struct ScalerTarget {
+    pub queue_report_field: QueueReportFields,
+    pub deployment: String,
+    /// Max replicas per cluster.
+    pub max_replicas: HashMap<String, usize>,
+    /// The queue will be divided by the speed and rounded up to get number of replicas.
+    #[serde(default = "ScalerTarget::default_speed")]
+    pub speed: usize,
+}
+
 impl ProverAutoscalerConfig {
     /// Default graceful shutdown timeout -- 5 seconds
     pub fn default_graceful_shutdown_timeout() -> Duration {
@@ -98,6 +143,10 @@ impl ProverAutoscalerConfig {
 impl ProverAutoscalerAgentConfig {
     pub fn default_namespaces() -> Vec<String> {
         vec!["prover-blue".to_string(), "prover-red".to_string()]
+    }
+
+    pub fn default_dry_run() -> bool {
+        true
     }
 }
 
@@ -115,5 +164,11 @@ impl ProverAutoscalerScalerConfig {
     /// Default long_pending_duration -- 10m
     pub fn default_long_pending_duration() -> Duration {
         Duration::minutes(10)
+    }
+}
+
+impl ScalerTarget {
+    pub fn default_speed() -> usize {
+        1
     }
 }

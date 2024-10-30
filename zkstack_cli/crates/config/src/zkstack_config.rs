@@ -39,6 +39,7 @@ impl ZkStackConfig {
                 legacy_bridge: chain_internal.legacy_bridge,
                 link_to_code,
                 artifacts,
+                evm_emulator: chain_internal.evm_emulator,
                 shell: shell.clone().into(),
             };
 

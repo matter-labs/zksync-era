@@ -32,10 +32,10 @@ impl TeeProofGenerationDal<'_, '_> {
         &mut self,
         tee_type: TeeType,
         processing_timeout: Duration,
-        min_batch_number: Option<L1BatchNumber>,
+        min_batch_number: L1BatchNumber,
     ) -> DalResult<Option<L1BatchNumber>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
-        let min_batch_number = min_batch_number.map_or(0, |num| i64::from(num.0));
+        let min_batch_number = i64::from(min_batch_number.0);
         sqlx::query!(
             r#"
             WITH upsert AS (
@@ -43,9 +43,6 @@ impl TeeProofGenerationDal<'_, '_> {
                     p.l1_batch_number
                 FROM
                     proof_generation_details p
-                LEFT JOIN
-                    l1_batches l1
-                    ON p.l1_batch_number = l1.number
                 LEFT JOIN
                     tee_proof_generation_details tee
                     ON
@@ -56,9 +53,6 @@ impl TeeProofGenerationDal<'_, '_> {
                         p.l1_batch_number >= $5
                         AND p.vm_run_data_blob_url IS NOT NULL
                         AND p.proof_gen_data_blob_url IS NOT NULL
-                        AND l1.hash IS NOT NULL
-                        AND l1.aux_data_hash IS NOT NULL
-                        AND l1.meta_parameters_hash IS NOT NULL
                     )
                     AND (
                         tee.l1_batch_number IS NULL

@@ -95,7 +95,7 @@ async fn main() -> anyhow::Result<()> {
             // TODO: maybe get cluster name from curl -H "Metadata-Flavor: Google"
             // http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name
             let watcher = Watcher::new(client.clone(), cluster, agent_config.namespaces);
-            let scaler = Scaler { client };
+            let scaler = Scaler::new(client, agent_config.dry_run);
             tasks.push(tokio::spawn(watcher.clone().run()));
             tasks.push(tokio::spawn(agent::run_server(
                 agent_config.http_port,
@@ -110,7 +110,8 @@ async fn main() -> anyhow::Result<()> {
             let interval = scaler_config.scaler_run_interval.unsigned_abs();
             let exporter_config = PrometheusExporterConfig::pull(scaler_config.prometheus_port);
             tasks.push(tokio::spawn(exporter_config.run(stop_receiver.clone())));
-            let watcher = global::watcher::Watcher::new(scaler_config.agents.clone());
+            let watcher =
+                global::watcher::Watcher::new(scaler_config.agents.clone(), scaler_config.dry_run);
             let queuer = global::queuer::Queuer::new(scaler_config.prover_job_monitor_url.clone());
             let scaler = global::scaler::Scaler::new(watcher.clone(), queuer, scaler_config);
             tasks.extend(get_tasks(watcher, scaler, interval, stop_receiver)?);

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use anyhow::Context as _;
+use anyhow::Context;
 use time::Duration;
 use zksync_config::configs::{self, prover_autoscaler::Gpu};
 use zksync_protobuf::{read_optional, repr::ProtoRepr, required, ProtoFmt};
@@ -42,6 +42,7 @@ impl ProtoRepr for proto::ProverAutoscalerAgentConfig {
                 .context("http_port")?,
             namespaces: self.namespaces.to_vec(),
             cluster_name: Some("".to_string()),
+            dry_run: self.dry_run.unwrap_or(Self::Type::default_dry_run()),
         })
     }
 
@@ -51,6 +52,7 @@ impl ProtoRepr for proto::ProverAutoscalerAgentConfig {
             http_port: Some(this.http_port.into()),
             namespaces: this.namespaces.clone(),
             cluster_name: this.cluster_name.clone(),
+            dry_run: Some(this.dry_run),
         }
     }
 }
@@ -103,6 +105,20 @@ impl ProtoRepr for proto::ProverAutoscalerScalerConfig {
                 }
                 acc
             }),
+            min_provers: self
+                .min_provers
+                .iter()
+                .enumerate()
+                .map(|(i, e)| e.read().context(i))
+                .collect::<Result<_, _>>()
+                .context("min_provers")?,
+            scaler_targets: self
+                .scaler_targets
+                .iter()
+                .enumerate()
+                .map(|(i, x)| x.read().context(i).unwrap())
+                .collect::<Vec<_>>(),
+            dry_run: self.dry_run.unwrap_or_default(),
         })
     }
 
@@ -137,6 +153,13 @@ impl ProtoRepr for proto::ProverAutoscalerScalerConfig {
                     })
                 })
                 .collect(),
+            min_provers: this
+                .min_provers
+                .iter()
+                .map(|(k, v)| proto::MinProver::build(&(k.clone(), *v)))
+                .collect(),
+            scaler_targets: this.scaler_targets.iter().map(ProtoRepr::build).collect(),
+            dry_run: Some(this.dry_run),
         }
     }
 }
@@ -205,6 +228,74 @@ impl ProtoRepr for proto::MaxProver {
         Self {
             cluster_and_gpu: Some(this.0.to_string()),
             max: Some(this.1),
+        }
+    }
+}
+
+impl ProtoRepr for proto::MinProver {
+    type Type = (String, u32);
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok((
+            required(&self.namespace).context("namespace")?.clone(),
+            *required(&self.min).context("min")?,
+        ))
+    }
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            namespace: Some(this.0.to_string()),
+            min: Some(this.1),
+        }
+    }
+}
+
+impl ProtoRepr for proto::MaxReplica {
+    type Type = (String, usize);
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok((
+            required(&self.cluster).context("cluster")?.parse()?,
+            *required(&self.max).context("max")? as usize,
+        ))
+    }
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            cluster: Some(this.0.to_string()),
+            max: Some(this.1 as u64),
+        }
+    }
+}
+
+impl ProtoRepr for proto::ScalerTarget {
+    type Type = configs::prover_autoscaler::ScalerTarget;
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(Self::Type {
+            queue_report_field: required(&self.queue_report_field)
+                .and_then(|x| Ok((*x).parse()?))
+                .context("queue_report_field")?,
+            deployment: required(&self.deployment).context("deployment")?.clone(),
+            max_replicas: self
+                .max_replicas
+                .iter()
+                .enumerate()
+                .map(|(i, e)| e.read().context(i))
+                .collect::<Result<_, _>>()
+                .context("max_replicas")?,
+            speed: match self.speed {
+                Some(x) => x as usize,
+                None => Self::Type::default_speed(),
+            },
+        })
+    }
+
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            queue_report_field: Some(this.queue_report_field.to_string()),
+            deployment: Some(this.deployment.clone()),
+            max_replicas: this
+                .max_replicas
+                .iter()
+                .map(|(k, v)| proto::MaxReplica::build(&(k.clone(), *v)))
+                .collect(),
+            speed: Some(this.speed as u64),
         }
     }
 }
