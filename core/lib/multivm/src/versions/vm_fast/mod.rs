@@ -1,6 +1,13 @@
 pub use zksync_vm2::interface;
 
-pub use self::{circuits_tracer::CircuitsTracer, vm::Vm, with_builtin_tracers::WithBuiltinTracers};
+pub use self::{
+    circuits_tracer::CircuitsTracer,
+    vm::Vm,
+    with_builtin_tracers::{
+        DefaultTracers, WithBuiltinTracers, WithBuiltinTracersForApi,
+        WithBuiltinTracersForSequencer, WithBuiltinTracersForValidation,
+    },
+};
 
 mod bootloader_state;
 mod bytecode;

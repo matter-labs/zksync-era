@@ -10,8 +10,7 @@ use zksync_vm_interface::{
 };
 
 use super::{
-    validation_tracer::{ValidationMode, ValidationTracer},
-    Vm, WithBuiltinTracers,
+    validation_tracer::ValidationMode, Vm, WithBuiltinTracers, WithBuiltinTracersForValidation,
 };
 use crate::{
     interface::storage::{ImmutableStorageView, InMemoryStorage},
@@ -80,10 +79,10 @@ impl PartialEq for VmStateDump {
     }
 }
 
-impl<
-        T: Tracer + Default + std::fmt::Debug + 'static,
-        V: ValidationMode + std::fmt::Debug + 'static,
-    > TestedVm for Vm<ImmutableStorageView<InMemoryStorage>, T, V>
+impl<E: Tracer + Default, V: ValidationMode> TestedVm
+    for Vm<ImmutableStorageView<InMemoryStorage>, WithBuiltinTracers<E, V>>
+where
+    WithBuiltinTracers<E, V>: std::fmt::Debug + 'static,
 {
     type StateDump = VmStateDump;
 
@@ -171,7 +170,9 @@ impl<
     }
 }
 
-impl TestedVmForValidation for Vm<ImmutableStorageView<InMemoryStorage>, (), ValidationTracer> {
+impl TestedVmForValidation
+    for Vm<ImmutableStorageView<InMemoryStorage>, WithBuiltinTracersForValidation<()>>
+{
     fn run_validation(&mut self, tx: L2Tx) -> Option<ViolatedValidationRule> {
         let validation_params = validation_params(&tx, &self.system_env);
         self.push_transaction(tx.into());

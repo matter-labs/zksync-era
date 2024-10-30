@@ -9,7 +9,11 @@ use super::{
 #[derive(Default, Debug)]
 pub struct WithBuiltinTracers<External, Validation>((External, (CircuitsTracer, Validation)));
 
-impl<External> WithBuiltinTracers<External, ValidationTracer> {
+pub type DefaultTracers = WithBuiltinTracersForSequencer<()>;
+
+pub type WithBuiltinTracersForValidation<Tr> = WithBuiltinTracers<Tr, ValidationTracer>;
+
+impl<External> WithBuiltinTracersForValidation<External> {
     pub fn for_validation(external: External, validation_params: ValidationParams) -> Self {
         Self((
             external,
@@ -25,13 +29,17 @@ impl<External> WithBuiltinTracers<External, ValidationTracer> {
     }
 }
 
-impl<External> WithBuiltinTracers<External, ValidationGasLimitOnly> {
+pub type WithBuiltinTracersForApi<Tr> = WithBuiltinTracers<Tr, ValidationGasLimitOnly>;
+
+impl<External> WithBuiltinTracersForApi<External> {
     pub fn for_api(external: External) -> Self {
         Self((external, Default::default()))
     }
 }
 
-impl<External> WithBuiltinTracers<External, ValidationGasLimitOnly> {
+pub type WithBuiltinTracersForSequencer<Tr> = WithBuiltinTracers<Tr, ValidationGasLimitOnly>;
+
+impl<External> WithBuiltinTracersForSequencer<External> {
     pub fn for_sequencer(external: External) -> Self {
         Self((external, Default::default()))
     }

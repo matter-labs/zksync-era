@@ -17,7 +17,7 @@ use once_cell::sync::OnceCell;
 use zksync_multivm::{
     interface::{
         executor::{OneshotExecutor, TransactionValidator},
-        storage::{ReadStorage, StorageView, StorageWithOverrides},
+        storage::{ImmutableStorageView, ReadStorage, StorageView, StorageWithOverrides},
         tracer::{ValidationError, ValidationParams},
         utils::{DivergenceHandler, ShadowVm},
         Call, ExecutionResult, InspectExecutionMode, OneshotEnv, OneshotTracingParams,
@@ -27,7 +27,7 @@ use zksync_multivm::{
     is_supported_by_fast_vm,
     tracers::{CallTracer, StorageInvocations, TracerDispatcher, ValidationTracer},
     utils::adjust_pubdata_price_for_tx,
-    vm_fast::{self, validation_tracer::ValidationGasLimitOnly, WithBuiltinTracers},
+    vm_fast::{self, WithBuiltinTracers, WithBuiltinTracersForApi},
     vm_latest::{HistoryDisabled, HistoryEnabled},
     zk_evm_latest::ethereum_types::U256,
     FastVmInstance, HistoryMode, LegacyVmInstance, MultiVMTracer,
@@ -293,12 +293,12 @@ where
 }
 
 #[derive(Debug)]
-enum Vm<S: ReadStorage, T = (), V = ValidationGasLimitOnly> {
+enum Vm<S: ReadStorage, Tr = vm_fast::DefaultTracers> {
     Legacy(LegacyVmInstance<S, HistoryDisabled>),
-    Fast(FastVmInstance<S, T, V>),
+    Fast(FastVmInstance<S, Tr>),
 }
 
-impl<S: ReadStorage> Vm<S> {
+impl<S: ReadStorage> Vm<S, WithBuiltinTracersForApi<()>> {
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
         missed_storage_invocation_limit: usize,
@@ -419,17 +419,16 @@ impl<S: ReadStorage> VmSandbox<S> {
         self,
         action: impl FnOnce(&mut Vm<StorageWithOverrides<S>>, Transaction) -> T,
     ) -> T {
-        self.execute_in_vm_with_tracer::<T, (), ValidationGasLimitOnly>(action)
+        self.execute_in_vm_with_tracer(action)
     }
 
-    fn execute_in_vm_with_tracer<
-        T,
-        Tr: vm_fast::interface::Tracer + Default,
-        Validation: vm_fast::validation_tracer::ValidationMode,
-    >(
+    fn execute_in_vm_with_tracer<T, Tr: vm_fast::interface::Tracer>(
         mut self,
-        action: impl FnOnce(&mut Vm<StorageWithOverrides<S>, Tr, Validation>, Transaction) -> T,
-    ) -> T {
+        action: impl FnOnce(&mut Vm<StorageWithOverrides<S>, Tr>, Transaction) -> T,
+    ) -> T
+    where
+        vm_fast::Vm<ImmutableStorageView<StorageWithOverrides<S>>, Tr>: VmInterface,
+    {
         Self::setup_storage(
             &mut self.storage,
             &self.execution_args,

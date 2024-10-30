@@ -13,11 +13,8 @@ use crate::{
         VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
-    vm_fast::{
-        validation_tracer::{ValidationGasLimitOnly, ValidationMode},
-        WithBuiltinTracers,
-    },
-    vm_latest::HistoryEnabled,
+    vm_fast::{self, DefaultTracers},
+    vm_latest::{self, HistoryEnabled},
 };
 
 /// Enumeration encompassing all supported legacy VM versions.
@@ -37,7 +34,7 @@ pub enum LegacyVmInstance<S: ReadStorage, H: HistoryMode> {
     VmBoojumIntegration(crate::vm_boojum_integration::Vm<StorageView<S>, H>),
     Vm1_4_1(crate::vm_1_4_1::Vm<StorageView<S>, H>),
     Vm1_4_2(crate::vm_1_4_2::Vm<StorageView<S>, H>),
-    Vm1_5_0(crate::vm_latest::Vm<StorageView<S>, H>),
+    Vm1_5_0(vm_latest::Vm<StorageView<S>, H>),
 }
 
 macro_rules! dispatch_legacy_vm {
@@ -193,29 +190,29 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                 Self::Vm1_4_2(vm)
             }
             VmVersion::Vm1_5_0SmallBootloaderMemory => {
-                let vm = crate::vm_latest::Vm::new_with_subversion(
+                let vm = vm_latest::Vm::new_with_subversion(
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    crate::vm_latest::MultiVMSubversion::SmallBootloaderMemory,
+                    vm_latest::MultiVMSubversion::SmallBootloaderMemory,
                 );
                 Self::Vm1_5_0(vm)
             }
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => {
-                let vm = crate::vm_latest::Vm::new_with_subversion(
+                let vm = vm_latest::Vm::new_with_subversion(
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory,
+                    vm_latest::MultiVMSubversion::IncreasedBootloaderMemory,
                 );
                 Self::Vm1_5_0(vm)
             }
             VmVersion::VmGateway => {
-                let vm = crate::vm_latest::Vm::new_with_subversion(
+                let vm = vm_latest::Vm::new_with_subversion(
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    crate::vm_latest::MultiVMSubversion::Gateway,
+                    vm_latest::MultiVMSubversion::Gateway,
                 );
                 Self::Vm1_5_0(vm)
             }
@@ -229,19 +226,19 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
 }
 
 /// Fast VM shadowed by the latest legacy VM.
-pub type ShadowedFastVm<S, Tr = (), Validation = ValidationGasLimitOnly> = ShadowVm<
+pub type ShadowedFastVm<S, Tr = DefaultTracers> = ShadowVm<
     S,
-    crate::vm_latest::Vm<StorageView<S>, HistoryEnabled>,
-    crate::vm_fast::Vm<ImmutableStorageView<S>, Tr, Validation>,
+    vm_latest::Vm<StorageView<S>, HistoryEnabled>,
+    vm_fast::Vm<ImmutableStorageView<S>, Tr>,
 >;
 
 /// Fast VM variants.
 #[derive(Debug)]
-pub enum FastVmInstance<S: ReadStorage, Tr = (), Validation = ValidationGasLimitOnly> {
+pub enum FastVmInstance<S: ReadStorage, Tr> {
     /// Fast VM running in isolation.
-    Fast(crate::vm_fast::Vm<ImmutableStorageView<S>, Tr, Validation>),
+    Fast(vm_fast::Vm<ImmutableStorageView<S>, Tr>),
     /// Fast VM shadowed by the latest legacy VM.
-    Shadowed(ShadowedFastVm<S, Tr, Validation>),
+    Shadowed(ShadowedFastVm<S, Tr>),
 }
 
 macro_rules! dispatch_fast_vm {
@@ -253,12 +250,13 @@ macro_rules! dispatch_fast_vm {
     };
 }
 
-impl<S: ReadStorage, Tr: zksync_vm2::interface::Tracer + Default, Validation: ValidationMode>
-    VmInterface for FastVmInstance<S, Tr, Validation>
+impl<S: ReadStorage, Tr: Default> VmInterface for FastVmInstance<S, Tr>
+where
+    vm_fast::Vm<ImmutableStorageView<S>, Tr>: VmInterface<TracerDispatcher = Tr>,
 {
     type TracerDispatcher = (
-        crate::vm_latest::TracerDispatcher<StorageView<S>, HistoryEnabled>,
-        WithBuiltinTracers<Tr, Validation>,
+        vm_latest::TracerDispatcher<StorageView<S>, HistoryEnabled>,
+        Tr,
     );
 
     fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
@@ -305,6 +303,9 @@ impl<S: ReadStorage, Tr: zksync_vm2::interface::Tracer + Default, Validation: Va
 
 impl<S: ReadStorage, Tr: zksync_vm2::interface::Tracer + Default> VmInterfaceHistoryEnabled
     for FastVmInstance<S, Tr>
+where
+    vm_fast::Vm<ImmutableStorageView<S>, Tr>:
+        VmInterface<TracerDispatcher = Tr> + VmInterfaceHistoryEnabled,
 {
     fn make_snapshot(&mut self) {
         dispatch_fast_vm!(self.make_snapshot());
@@ -319,8 +320,9 @@ impl<S: ReadStorage, Tr: zksync_vm2::interface::Tracer + Default> VmInterfaceHis
     }
 }
 
-impl<S: ReadStorage, Tr: zksync_vm2::interface::Tracer + Default, Validation: ValidationMode>
-    FastVmInstance<S, Tr, Validation>
+impl<S: ReadStorage, Tr: vm_fast::interface::Tracer> FastVmInstance<S, Tr>
+where
+    vm_fast::Vm<ImmutableStorageView<S>, Tr>: VmInterface,
 {
     /// Creates an isolated fast VM.
     pub fn fast(
@@ -328,11 +330,7 @@ impl<S: ReadStorage, Tr: zksync_vm2::interface::Tracer + Default, Validation: Va
         system_env: SystemEnv,
         storage_view: StoragePtr<StorageView<S>>,
     ) -> Self {
-        Self::Fast(crate::vm_fast::Vm::new(
-            l1_batch_env,
-            system_env,
-            storage_view,
-        ))
+        Self::Fast(vm_fast::Vm::new(l1_batch_env, system_env, storage_view))
     }
 
     /// Creates a shadowed fast VM.
