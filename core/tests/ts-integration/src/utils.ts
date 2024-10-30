@@ -20,21 +20,21 @@ export function runServerInBackground({
     stdio,
     cwd,
     env,
-    useZkStack,
+    useZkInception,
     chain
 }: {
     components?: string[];
     stdio: any;
     cwd?: ProcessEnvOptions['cwd'];
     env?: ProcessEnvOptions['env'];
-    useZkStack?: boolean;
+    useZkInception?: boolean;
     newL1GasPrice?: string;
     newPubdataPrice?: string;
     chain?: string;
 }): ChildProcessWithoutNullStreams {
     let command = '';
-    if (useZkStack) {
-        command = 'zkstack server';
+    if (useZkInception) {
+        command = 'zk_inception server';
         if (chain) {
             command += ` --chain ${chain}`;
         }
@@ -167,7 +167,7 @@ export class NodeSpawner {
             stdio: ['ignore', logs, logs],
             cwd: pathToHome,
             env: env,
-            useZkStack: fileConfig.loadFromFile,
+            useZkInception: fileConfig.loadFromFile,
             chain: fileConfig.chain
         });
 

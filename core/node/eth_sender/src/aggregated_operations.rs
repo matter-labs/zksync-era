@@ -3,17 +3,13 @@ use std::ops;
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
-    pubdata_da::PubdataSendingMode, L1BatchNumber, ProtocolVersionId,
+    pubdata_da::PubdataDA, L1BatchNumber, ProtocolVersionId,
 };
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum AggregatedOperation {
-    Commit(
-        L1BatchWithMetadata,
-        Vec<L1BatchWithMetadata>,
-        PubdataSendingMode,
-    ),
+    Commit(L1BatchWithMetadata, Vec<L1BatchWithMetadata>, PubdataDA),
     PublishProofOnchain(ProveBatches),
     Execute(ExecuteBatches),
 }

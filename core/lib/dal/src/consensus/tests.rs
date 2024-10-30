@@ -1,20 +1,18 @@
 use std::fmt::Debug;
 
 use rand::Rng;
-use zksync_concurrency::{ctx, testonly::abort_on_panic};
+use zksync_concurrency::ctx;
 use zksync_protobuf::{
     repr::{decode, encode},
-    testonly::{test_encode, test_encode_all_formats, FmtConv},
+    testonly::{test_encode, test_encode_random},
     ProtoRepr,
 };
 use zksync_test_account::Account;
 use zksync_types::{
-    commitment::{L1BatchCommitmentMode, PubdataParams},
-    web3::Bytes,
-    Execute, ExecuteTransactionCommon, L1BatchNumber, ProtocolVersionId, Transaction,
+    web3::Bytes, Execute, ExecuteTransactionCommon, L1BatchNumber, ProtocolVersionId, Transaction,
 };
 
-use super::*;
+use super::{proto, AttestationStatus, Payload};
 use crate::tests::mock_protocol_upgrade_transaction;
 
 fn execute(rng: &mut impl Rng) -> Execute {
@@ -53,29 +51,15 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
             })
             .collect(),
         last_in_batch: rng.gen(),
-        pubdata_params: if protocol_version.is_pre_gateway() {
-            PubdataParams::default()
-        } else {
-            PubdataParams {
-                pubdata_type: match rng.gen_range(0..2) {
-                    0 => L1BatchCommitmentMode::Rollup,
-                    _ => L1BatchCommitmentMode::Validium,
-                },
-                l2_da_validator_address: rng.gen(),
-            }
-        },
     }
 }
 
 /// Tests struct <-> proto struct conversions.
 #[test]
 fn test_encoding() {
-    abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
-    test_encode_all_formats::<FmtConv<AttestationStatus>>(rng);
-    test_encode_all_formats::<FmtConv<GlobalConfig>>(rng);
-    test_encode_all_formats::<FmtConv<BlockMetadata>>(rng);
+    test_encode_random::<AttestationStatus>(rng);
     encode_decode::<proto::TransactionV25, ComparableTransaction>(l1_transaction(rng));
     encode_decode::<proto::TransactionV25, ComparableTransaction>(l2_transaction(rng));
     encode_decode::<proto::Transaction, ComparableTransaction>(l1_transaction(rng));
@@ -83,15 +67,10 @@ fn test_encoding() {
     encode_decode::<proto::Transaction, ComparableTransaction>(
         mock_protocol_upgrade_transaction().into(),
     );
-    // Test encoding in the current and all the future versions.
-    for v in ProtocolVersionId::latest() as u16.. {
-        let Ok(v) = ProtocolVersionId::try_from(v) else {
-            break;
-        };
-        tracing::info!("version {v}");
-        let p = payload(rng, v);
-        test_encode(rng, &p);
-    }
+    let p = payload(rng, ProtocolVersionId::Version24);
+    test_encode(rng, &p);
+    let p = payload(rng, ProtocolVersionId::Version25);
+    test_encode(rng, &p);
 }
 
 fn encode_decode<P, C>(msg: P::Type)

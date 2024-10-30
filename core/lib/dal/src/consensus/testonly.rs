@@ -1,34 +1,15 @@
-use rand::{distributions::Distribution, Rng};
-use zksync_consensus_utils::EncodeDist;
+use rand::{
+    distributions::{Distribution, Standard},
+    Rng,
+};
 
-use super::*;
+use super::AttestationStatus;
 
-impl Distribution<BlockMetadata> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> BlockMetadata {
-        BlockMetadata {
-            payload_hash: rng.gen(),
-        }
-    }
-}
-
-impl Distribution<AttestationStatus> for EncodeDist {
+impl Distribution<AttestationStatus> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> AttestationStatus {
         AttestationStatus {
             genesis: rng.gen(),
             next_batch_to_attest: rng.gen(),
-        }
-    }
-}
-
-impl Distribution<GlobalConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> GlobalConfig {
-        GlobalConfig {
-            genesis: rng.gen(),
-            registry_address: Some(rng.gen()),
-            seed_peers: self
-                .sample_range(rng)
-                .map(|_| (rng.gen(), self.sample(rng)))
-                .collect(),
         }
     }
 }

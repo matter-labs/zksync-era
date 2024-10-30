@@ -20,9 +20,9 @@
       "release-type": "simple",
       "component": "prover"
     },
-    "zkstack_cli": {
+    "zk_toolbox": {
       "release-type": "simple",
-      "component": "zkstack_cli",
+      "component": "zk_toolbox",
       "plugins": [
         "cargo-workspace"
       ]

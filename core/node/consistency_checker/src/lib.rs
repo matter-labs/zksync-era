@@ -19,7 +19,7 @@ use zksync_types::{
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
     ethabi,
     ethabi::Token,
-    pubdata_da::PubdataSendingMode,
+    pubdata_da::PubdataDA,
     Address, L1BatchNumber, ProtocolVersionId, H256, U256,
 };
 
@@ -224,7 +224,7 @@ impl LocalL1BatchCommitData {
             .context("cannot detect DA source from reference commitment token")?;
 
         // For `PubdataDA::Calldata`, it's required that the pubdata fits into a single blob.
-        if matches!(da, PubdataSendingMode::Calldata) {
+        if matches!(da, PubdataDA::Calldata) {
             let pubdata_len = self
                 .l1_batch
                 .header
@@ -258,7 +258,7 @@ impl LocalL1BatchCommitData {
 pub fn detect_da(
     protocol_version: ProtocolVersionId,
     reference: &Token,
-) -> Result<PubdataSendingMode, ethabi::Error> {
+) -> Result<PubdataDA, ethabi::Error> {
     /// These are used by the L1 Contracts to indicate what DA layer is used for pubdata
     const PUBDATA_SOURCE_CALLDATA: u8 = 0;
     const PUBDATA_SOURCE_BLOBS: u8 = 1;
@@ -269,7 +269,7 @@ pub fn detect_da(
     }
 
     if protocol_version.is_pre_1_4_2() {
-        return Ok(PubdataSendingMode::Calldata);
+        return Ok(PubdataDA::Calldata);
     }
 
     let reference = match reference {
@@ -291,9 +291,9 @@ pub fn detect_da(
         ))),
     };
     match last_reference_token.first() {
-        Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => Ok(PubdataSendingMode::Calldata),
-        Some(&byte) if byte == PUBDATA_SOURCE_BLOBS => Ok(PubdataSendingMode::Blobs),
-        Some(&byte) if byte == PUBDATA_SOURCE_CUSTOM => Ok(PubdataSendingMode::Custom),
+        Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => Ok(PubdataDA::Calldata),
+        Some(&byte) if byte == PUBDATA_SOURCE_BLOBS => Ok(PubdataDA::Blobs),
+        Some(&byte) if byte == PUBDATA_SOURCE_CUSTOM => Ok(PubdataDA::Custom),
         Some(&byte) => Err(parse_error(format!(
             "unexpected first byte of the last reference token; expected one of [{PUBDATA_SOURCE_CALLDATA}, {PUBDATA_SOURCE_BLOBS}], \
                 got {byte}"

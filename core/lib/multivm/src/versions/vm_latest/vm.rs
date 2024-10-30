@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::collections::HashMap;
 
 use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
@@ -7,14 +7,13 @@ use zksync_types::{
     Transaction, H256,
 };
 use zksync_utils::{be_words_to_bytes, h256_to_u256, u256_to_h256};
-use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{
     glue::GlueInto,
     interface::{
         storage::{StoragePtr, WriteStorage},
         BytecodeCompressionError, BytecodeCompressionResult, CurrentExecutionState,
-        FinishedL1Batch, L1BatchEnv, L2BlockEnv, PushTransactionResult, SystemEnv, VmExecutionMode,
+        FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
         VmTrackingContracts,
     },
@@ -22,7 +21,7 @@ use crate::{
     vm_latest::{
         bootloader_state::BootloaderState,
         old_vm::{events::merge_events, history_recorder::HistoryEnabled},
-        tracers::{dispatcher::TracerDispatcher, PubdataTracer},
+        tracers::dispatcher::TracerDispatcher,
         types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState},
     },
     HistoryMode,
@@ -39,8 +38,6 @@ pub(crate) enum MultiVMSubversion {
     SmallBootloaderMemory,
     /// The final correct version of v1.5.0
     IncreasedBootloaderMemory,
-    /// VM for post-gateway versions.
-    Gateway,
 }
 
 impl MultiVMSubversion {
@@ -58,7 +55,6 @@ impl TryFrom<VmVersion> for MultiVMSubversion {
         match value {
             VmVersion::Vm1_5_0SmallBootloaderMemory => Ok(Self::SmallBootloaderMemory),
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => Ok(Self::IncreasedBootloaderMemory),
-            VmVersion::VmGateway => Ok(Self::Gateway),
             _ => Err(VmVersionIsNotVm150Error),
         }
     }
@@ -138,23 +134,18 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher<S, H::Vm1_5_0>;
 
-    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
+    /// Push tx into memory for the future execution
+    fn push_transaction(&mut self, tx: Transaction) {
         self.push_transaction_with_compression(tx, true);
-        PushTransactionResult {
-            compressed_bytecodes: self
-                .bootloader_state
-                .get_last_tx_compressed_bytecodes()
-                .into(),
-        }
     }
 
     /// Execute VM with custom tracers.
     fn inspect(
         &mut self,
         tracer: &mut Self::TracerDispatcher,
-        execution_mode: InspectExecutionMode,
+        execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        self.inspect_inner(tracer, execution_mode.into(), None)
+        self.inspect_inner(tracer, execution_mode, None)
     }
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
@@ -186,30 +177,19 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         }
     }
 
-    fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
-        let pubdata_tracer = Some(PubdataTracer::new(
-            self.batch_env.clone(),
-            VmExecutionMode::Batch,
-            self.subversion,
-            Some(pubdata_builder.clone()),
-        ));
-
-        let result = self.inspect_inner(
-            &mut TracerDispatcher::default(),
-            VmExecutionMode::Batch,
-            pubdata_tracer,
-        );
+    fn finish_batch(&mut self) -> FinishedL1Batch {
+        let result = self.inspect(&mut TracerDispatcher::default(), VmExecutionMode::Batch);
         let execution_state = self.get_current_execution_state();
-        let bootloader_memory = self
-            .bootloader_state
-            .bootloader_memory(pubdata_builder.as_ref());
+        let bootloader_memory = self.bootloader_state.bootloader_memory();
         FinishedL1Batch {
             block_tip_execution_result: result,
             final_execution_state: execution_state,
             final_bootloader_memory: Some(bootloader_memory),
             pubdata_input: Some(
                 self.bootloader_state
-                    .settlement_layer_pubdata(pubdata_builder.as_ref()),
+                    .get_pubdata_information()
+                    .clone()
+                    .build_pubdata(false),
             ),
             state_diffs: Some(
                 self.bootloader_state

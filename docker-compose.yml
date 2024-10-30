@@ -1,3 +1,4 @@
+version: '3.2'
 services:
   reth:
     restart: always
@@ -5,8 +6,8 @@ services:
     ports:
       - 127.0.0.1:8545:8545
     volumes:
-      - type: volume
-        source: reth-data
+      - type: bind
+        source: ./volumes/reth/data
         target: /rethdata
       - type: bind
         source: ./etc/reth/chaindata
@@ -21,8 +22,8 @@ services:
     ports:
       - 127.0.0.1:5432:5432
     volumes:
-      - type: volume
-        source: postgres-data
+      - type: bind
+        source: ./volumes/postgres
         target: /var/lib/postgresql/data
     environment:
       # We bind only to 127.0.0.1, so setting insecure password is acceptable here
@@ -55,7 +56,3 @@ services:
     profiles:
       - runner
     network_mode: host
-
-volumes:
-  postgres-data:
-  reth-data:

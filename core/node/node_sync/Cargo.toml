@@ -43,4 +43,3 @@ zksync_node_test_utils.workspace = true
 assert_matches.workspace = true
 once_cell.workspace = true
 test-casing.workspace = true
-backon.workspace = true

@@ -4,7 +4,7 @@ use std::{slice, sync::Arc, time::Duration};
 
 use zksync_base_token_adjuster::NoOpRatioProvider;
 use zksync_config::{
-    configs::{chain::StateKeeperConfig, wallets::Wallets},
+    configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode, wallets::Wallets},
     GasAdjusterConfig,
 };
 use zksync_contracts::BaseSystemContracts;
@@ -25,10 +25,9 @@ use zksync_node_test_utils::{
 use zksync_types::{
     block::L2BlockHeader,
     commitment::L1BatchCommitmentMode,
-    fee_model::{BatchFeeInput, FeeModelConfig, FeeModelConfigV2},
+    fee_model::{BatchFeeInput, FeeModelConfig, FeeModelConfigV1},
     l2::L2Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
-    pubdata_da::PubdataSendingMode,
     system_contracts::get_system_smart_contracts,
     L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, H256,
 };
@@ -98,13 +97,8 @@ impl Tester {
         MainNodeFeeInputProvider::new(
             gas_adjuster,
             Arc::new(NoOpRatioProvider::default()),
-            FeeModelConfig::V2(FeeModelConfigV2 {
+            FeeModelConfig::V1(FeeModelConfigV1 {
                 minimal_l2_gas_price: self.minimal_l2_gas_price(),
-                compute_overhead_part: 1.0,
-                pubdata_overhead_part: 1.0,
-                batch_overhead_l1_gas: 10,
-                max_gas_per_batch: 500_000_000_000,
-                max_pubdata_per_batch: 100_000_000_000,
             }),
         )
     }
@@ -122,13 +116,8 @@ impl Tester {
         let batch_fee_input_provider = MainNodeFeeInputProvider::new(
             gas_adjuster,
             Arc::new(NoOpRatioProvider::default()),
-            FeeModelConfig::V2(FeeModelConfigV2 {
+            FeeModelConfig::V1(FeeModelConfigV1 {
                 minimal_l2_gas_price: self.minimal_l2_gas_price(),
-                compute_overhead_part: 1.0,
-                pubdata_overhead_part: 1.0,
-                batch_overhead_l1_gas: 10,
-                max_gas_per_batch: 500_000_000_000,
-                max_pubdata_per_batch: 100_000_000_000,
             }),
         );
 
@@ -147,8 +136,6 @@ impl Tester {
             wallets.state_keeper.unwrap().fee_account.address(),
             Duration::from_secs(1),
             L2ChainId::from(270),
-            Some(Default::default()),
-            Default::default(),
         )
         .unwrap();
 

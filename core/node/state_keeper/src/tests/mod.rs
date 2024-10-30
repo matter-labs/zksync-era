@@ -59,7 +59,6 @@ pub(crate) fn pending_batch_data(pending_l2_blocks: Vec<L2BlockExecutionData>) -
             default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             chain_id: L2ChainId::from(270),
         },
-        pubdata_params: Default::default(),
         pending_l2_blocks,
     }
 }
@@ -103,7 +102,7 @@ pub(super) fn default_l1_batch_env(
 
 pub(super) fn create_updates_manager() -> UpdatesManager {
     let l1_batch_env = default_l1_batch_env(1, 1, Address::default());
-    UpdatesManager::new(&l1_batch_env, &default_system_env(), Default::default())
+    UpdatesManager::new(&l1_batch_env, &default_system_env())
 }
 
 pub(super) fn create_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> Transaction {

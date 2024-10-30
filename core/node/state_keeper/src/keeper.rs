@@ -17,9 +17,8 @@ use zksync_multivm::{
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
-    block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
-    protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId,
-    utils::display_timestamp, L1BatchNumber, Transaction,
+    block::L2BlockExecutionData, l2::TransactionType, protocol_upgrade::ProtocolUpgradeTx,
+    protocol_version::ProtocolVersionId, utils::display_timestamp, L1BatchNumber, Transaction,
 };
 
 use crate::{
@@ -117,7 +116,6 @@ impl ZkSyncStateKeeper {
         let PendingBatchData {
             mut l1_batch_env,
             mut system_env,
-            mut pubdata_params,
             pending_l2_blocks,
         } = match pending_batch_params {
             Some(params) => {
@@ -134,7 +132,7 @@ impl ZkSyncStateKeeper {
             }
             None => {
                 tracing::info!("There is no open pending batch, starting a new empty batch");
-                let (system_env, l1_batch_env, pubdata_params) = self
+                let (system_env, l1_batch_env) = self
                     .wait_for_new_batch_env(&cursor)
                     .await
                     .map_err(|e| e.context("wait_for_new_batch_params()"))?;
@@ -142,19 +140,18 @@ impl ZkSyncStateKeeper {
                     l1_batch_env,
                     pending_l2_blocks: Vec::new(),
                     system_env,
-                    pubdata_params,
                 }
             }
         };
 
         let protocol_version = system_env.version;
-        let mut updates_manager = UpdatesManager::new(&l1_batch_env, &system_env, pubdata_params);
+        let mut updates_manager = UpdatesManager::new(&l1_batch_env, &system_env);
         let mut protocol_upgrade_tx: Option<ProtocolUpgradeTx> = self
             .load_protocol_upgrade_tx(&pending_l2_blocks, protocol_version, l1_batch_env.number)
             .await?;
 
         let mut batch_executor = self
-            .create_batch_executor(l1_batch_env.clone(), system_env.clone(), pubdata_params)
+            .create_batch_executor(l1_batch_env.clone(), system_env.clone())
             .await?;
         self.restore_state(
             &mut *batch_executor,
@@ -204,11 +201,10 @@ impl ZkSyncStateKeeper {
 
             // Start the new batch.
             next_cursor.l1_batch += 1;
-            (system_env, l1_batch_env, pubdata_params) =
-                self.wait_for_new_batch_env(&next_cursor).await?;
-            updates_manager = UpdatesManager::new(&l1_batch_env, &system_env, pubdata_params);
+            (system_env, l1_batch_env) = self.wait_for_new_batch_env(&next_cursor).await?;
+            updates_manager = UpdatesManager::new(&l1_batch_env, &system_env);
             batch_executor = self
-                .create_batch_executor(l1_batch_env.clone(), system_env.clone(), pubdata_params)
+                .create_batch_executor(l1_batch_env.clone(), system_env.clone())
                 .await?;
 
             let version_changed = system_env.version != sealed_batch_protocol_version;
@@ -225,7 +221,6 @@ impl ZkSyncStateKeeper {
         &mut self,
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
-        pubdata_params: PubdataParams,
     ) -> Result<Box<dyn BatchExecutor<OwnedStorage>>, Error> {
         let storage = self
             .storage_factory
@@ -235,7 +230,7 @@ impl ZkSyncStateKeeper {
             .ok_or(Error::Canceled)?;
         Ok(self
             .batch_executor
-            .init_batch(storage, l1_batch_env, system_env, pubdata_params))
+            .init_batch(storage, l1_batch_env, system_env))
     }
 
     /// This function is meant to be called only once during the state-keeper initialization.
@@ -332,7 +327,7 @@ impl ZkSyncStateKeeper {
     async fn wait_for_new_batch_env(
         &mut self,
         cursor: &IoCursor,
-    ) -> Result<(SystemEnv, L1BatchEnv, PubdataParams), Error> {
+    ) -> Result<(SystemEnv, L1BatchEnv), Error> {
         // `io.wait_for_new_batch_params(..)` is not cancel-safe; once we get new batch params, we must hold onto them
         // until we get the rest of parameters from I/O or receive a stop signal.
         let params = self.wait_for_new_batch_params(cursor).await?;
@@ -692,7 +687,6 @@ impl ZkSyncStateKeeper {
                     tx_result,
                     tx_metrics,
                     compressed_bytecodes,
-                    call_tracer_result,
                     ..
                 } = exec_result
                 else {
@@ -717,7 +711,7 @@ impl ZkSyncStateKeeper {
                     tx_result.new_known_factory_deps.unwrap_or_default(),
                     tx_l1_gas_this_tx,
                     tx_execution_metrics,
-                    call_tracer_result,
+                    vec![],
                 );
                 Ok(())
             }

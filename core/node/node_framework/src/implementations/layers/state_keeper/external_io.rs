@@ -8,7 +8,6 @@ use zksync_types::L2ChainId;
 use crate::{
     implementations::resources::{
         action_queue::ActionQueueSenderResource,
-        healthcheck::AppHealthCheckResource,
         main_node_client::MainNodeClientResource,
         pools::{MasterPool, PoolResource},
         state_keeper::{ConditionalSealerResource, StateKeeperIOResource},
@@ -27,7 +26,6 @@ pub struct ExternalIOLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub app_health: AppHealthCheckResource,
     pub pool: PoolResource<MasterPool>,
     pub main_node_client: MainNodeClientResource,
 }
@@ -59,10 +57,6 @@ impl WiringLayer for ExternalIOLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         // Create `SyncState` resource.
         let sync_state = SyncState::default();
-        let app_health = &input.app_health.0;
-        app_health
-            .insert_custom_component(Arc::new(sync_state.clone()))
-            .map_err(WiringError::internal)?;
 
         // Create `ActionQueueSender` resource.
         let (action_queue_sender, action_queue) = ActionQueue::new();

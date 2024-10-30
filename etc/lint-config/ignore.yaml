@@ -2,8 +2,7 @@ files: [
   "KeysWithPlonkVerifier.sol",
   "TokenInit.sol",
   ".tslintrc.js",
-  ".prettierrc.js",
-  "era-observability/README.md"
+  ".prettierrc.js"
 ]
 dirs: [
   "target",

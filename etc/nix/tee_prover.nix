@@ -1,19 +1,12 @@
-{ craneLib
+{ cargoArtifacts
+, craneLib
 , commonArgs
 }:
-let
-  pname = "zksync_tee_prover";
-  cargoExtraArgs = "--locked -p zksync_tee_prover";
-in
 craneLib.buildPackage (commonArgs // {
-  inherit pname;
+  pname = "zksync_tee_prover";
   version = (builtins.fromTOML (builtins.readFile ../../core/bin/zksync_tee_prover/Cargo.toml)).package.version;
-  inherit cargoExtraArgs;
-
-  cargoArtifacts = craneLib.buildDepsOnly (commonArgs // {
-    inherit pname;
-    inherit cargoExtraArgs;
-  });
+  cargoExtraArgs = "-p zksync_tee_prover --bin zksync_tee_prover";
+  inherit cargoArtifacts;
 
   postInstall = ''
     strip $out/bin/zksync_tee_prover

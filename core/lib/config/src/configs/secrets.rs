@@ -1,10 +1,7 @@
 use anyhow::Context;
 use zksync_basic_types::url::SensitiveUrl;
 
-use crate::configs::{
-    consensus::ConsensusSecrets,
-    da_client::{avail::AvailSecrets, celestia::CelestiaSecrets, eigen::EigenSecrets},
-};
+use crate::configs::{consensus::ConsensusSecrets, da_client::avail::AvailSecrets};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DatabaseSecrets {
@@ -21,8 +18,6 @@ pub struct L1Secrets {
 #[derive(Debug, Clone, PartialEq)]
 pub enum DataAvailabilitySecrets {
     Avail(AvailSecrets),
-    Celestia(CelestiaSecrets),
-    Eigen(EigenSecrets),
 }
 
 #[derive(Debug, Clone, PartialEq)]

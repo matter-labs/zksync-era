@@ -9,5 +9,3 @@ pub mod batch;
 pub mod oneshot;
 mod shared;
 pub mod storage;
-#[cfg(test)]
-mod testonly;

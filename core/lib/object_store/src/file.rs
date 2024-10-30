@@ -42,6 +42,7 @@ impl FileBackedObjectStore {
             Bucket::SchedulerWitnessJobsFri,
             Bucket::ProofsFri,
             Bucket::StorageSnapshot,
+            Bucket::TeeVerifierInput,
             Bucket::VmDumps,
         ] {
             let bucket_path = format!("{base_dir}/{bucket}");

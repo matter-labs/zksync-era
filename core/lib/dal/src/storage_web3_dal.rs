@@ -15,13 +15,6 @@ use zksync_utils::h256_to_u256;
 
 use crate::{models::storage_block::ResolvedL1BatchForL2Block, Core, CoreDal};
 
-/// Raw bytecode information returned by [`StorageWeb3Dal::get_contract_code_unchecked()`].
-#[derive(Debug)]
-pub struct RawBytecode {
-    pub bytecode_hash: H256,
-    pub bytecode: Vec<u8>,
-}
-
 #[derive(Debug)]
 pub struct StorageWeb3Dal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
@@ -185,8 +178,6 @@ impl StorageWeb3Dal<'_, '_> {
                             MAX(number) + 1
                         FROM
                             l1_batches
-                        WHERE
-                            is_sealed
                     ),
                     (
                         SELECT
@@ -241,17 +232,16 @@ impl StorageWeb3Dal<'_, '_> {
         &mut self,
         address: Address,
         block_number: L2BlockNumber,
-    ) -> DalResult<Option<RawBytecode>> {
+    ) -> DalResult<Option<Vec<u8>>> {
         let hashed_key = get_code_key(&address).hashed_key();
         let row = sqlx::query!(
             r#"
             SELECT
-                bytecode_hash,
                 bytecode
             FROM
                 (
                     SELECT
-                        value
+                        *
                     FROM
                         storage_logs
                     WHERE
@@ -262,7 +252,7 @@ impl StorageWeb3Dal<'_, '_> {
                         storage_logs.operation_number DESC
                     LIMIT
                         1
-                ) deploy_log
+                ) t
             JOIN factory_deps ON value = factory_deps.bytecode_hash
             WHERE
                 value != $3
@@ -276,11 +266,7 @@ impl StorageWeb3Dal<'_, '_> {
         .with_arg("block_number", &block_number)
         .fetch_optional(self.storage)
         .await?;
-
-        Ok(row.map(|row| RawBytecode {
-            bytecode_hash: H256::from_slice(&row.bytecode_hash),
-            bytecode: row.bytecode,
-        }))
+        Ok(row.map(|row| row.bytecode))
     }
 
     /// Given bytecode hash, returns bytecode and L2 block number at which it was inserted.

@@ -10,10 +10,9 @@ use zksync_db_connection::{
     utils::pg_interval_from_duration,
 };
 use zksync_types::{
-    block::L2BlockExecutionData, debug_flat_call::CallTraceMeta, l1::L1Tx, l2::L2Tx,
-    protocol_upgrade::ProtocolUpgradeTx, Address, ExecuteTransactionCommon, L1BatchNumber,
-    L1BlockNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction, H256,
-    PROTOCOL_UPGRADE_TX_TYPE, U256,
+    block::L2BlockExecutionData, l1::L1Tx, l2::L2Tx, protocol_upgrade::ProtocolUpgradeTx, Address,
+    ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, L2BlockNumber, PriorityOpId,
+    ProtocolVersionId, Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_utils::u256_to_big_decimal;
 use zksync_vm_interface::{
@@ -2132,17 +2131,12 @@ impl TransactionsDal<'_, '_> {
         Ok(data)
     }
 
-    pub async fn get_call_trace(
-        &mut self,
-        tx_hash: H256,
-    ) -> DalResult<Option<(Call, CallTraceMeta)>> {
+    pub async fn get_call_trace(&mut self, tx_hash: H256) -> DalResult<Option<(Call, usize)>> {
         let row = sqlx::query!(
             r#"
             SELECT
                 protocol_version,
-                index_in_block,
-                miniblocks.number AS "miniblock_number!",
-                miniblocks.hash AS "miniblocks_hash!"
+                index_in_block
             FROM
                 transactions
             INNER JOIN miniblocks ON transactions.miniblock_number = miniblocks.number
@@ -2183,12 +2177,7 @@ impl TransactionsDal<'_, '_> {
         .map(|call_trace| {
             (
                 parse_call_trace(&call_trace.call_trace, protocol_version),
-                CallTraceMeta {
-                    index_in_block: row.index_in_block.unwrap_or_default() as usize,
-                    tx_hash,
-                    block_number: row.miniblock_number as u32,
-                    block_hash: H256::from_slice(&row.miniblocks_hash),
-                },
+                row.index_in_block.unwrap_or_default() as usize,
             )
         }))
     }
