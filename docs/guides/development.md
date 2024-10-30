@@ -35,7 +35,7 @@ This command installs `zkstack` from the current source directory.
 
 ## Configure Ecosystem
 
-The root directory includes configuration files for an ecosystem with a single chain, `era`. To initialize the
+The project root directory includes configuration files for an ecosystem with a single chain, `era`. To initialize the
 ecosystem, first start the required containers:
 
 ```bash
