@@ -61,10 +61,11 @@ jobs:
   build-push-core-images:
     name: Build and push images
     needs: [setup, changed_files]
-    uses: ./.github/workflows/build-core-template.yml
+    uses: ./.github/workflows/new-build-core-template.yml
     if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      action: "push"
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -95,12 +96,13 @@ jobs:
   build-push-prover-images:
     name: Build and push images
     needs: [setup, changed_files]
-    uses: ./.github/workflows/build-prover-template.yml
+    uses: ./.github/workflows/new-build-prover-template.yml
     if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
       CUDA_ARCH: "60;70;75;80;89"
+      action: "push"
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

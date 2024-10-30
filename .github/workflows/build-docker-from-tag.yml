@@ -49,7 +49,7 @@ jobs:
   build-push-core-images:
     name: Build and push image
     needs: [ setup ]
-    uses: ./.github/workflows/build-core-template.yml
+    uses: ./.github/workflows/new-build-core-template.yml
     if: contains(github.ref_name, 'core')
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
@@ -57,6 +57,7 @@ jobs:
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       en_alpha_release: true
+      action: "push"
 
   build-push-tee-prover-images:
     name: Build and push images
@@ -84,12 +85,13 @@ jobs:
   build-push-prover-images:
     name: Build and push image
     needs: [ setup ]
-    uses: ./.github/workflows/build-prover-template.yml
+    uses: ./.github/workflows/new-build-prover-template.yml
     if: contains(github.ref_name, 'prover')
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
       CUDA_ARCH: "60;70;75;80;89"
+      action: "push"
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
