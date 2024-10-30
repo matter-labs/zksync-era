@@ -117,7 +117,8 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
             baseTokenAddress: contracts.l1.base_token_addr
         });
 
-        l2Node = await mainNodeSpawner.spawnMainNode();
+        await mainNodeSpawner.killAndSpawnMainNode();
+        l2Node = mainNodeSpawner.mainNode;
     }
 
     const l2Provider = new zksync.Provider(l2NodeUrl);
