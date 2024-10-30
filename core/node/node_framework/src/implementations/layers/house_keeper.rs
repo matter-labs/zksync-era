@@ -2,9 +2,8 @@ use std::sync::Arc;
 
 use zksync_config::configs::house_keeper::HouseKeeperConfig;
 use zksync_house_keeper::{
-    blocks_state_reporter::L1BatchMetricsReporter,
-    node_metadata::{NodeHealth, NodeInfo},
-    periodic_job::PeriodicJob,
+    blocks_state_reporter::L1BatchMetricsReporter, periodic_job::PeriodicJob,
+    version::NodeVersionInfo,
 };
 
 use crate::{
@@ -68,14 +67,9 @@ impl WiringLayer for HouseKeeperLayer {
             replica_pool.clone(),
         );
 
-        let node_health = NodeHealth::Running(NodeInfo {
-            git_version: "GIT_VERSION".to_string(),
-            git_branch: "GIT_BRANCH".to_string(),
-        });
-
         let app_health = input.app_health.0;
         app_health
-            .insert_custom_component(Arc::new(node_health))
+            .insert_custom_component(Arc::new(NodeVersionInfo::default()))
             .map_err(WiringError::internal)?;
 
         Ok(Output {
