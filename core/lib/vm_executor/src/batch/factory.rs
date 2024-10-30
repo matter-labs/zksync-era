@@ -6,12 +6,7 @@ use tokio::sync::mpsc;
 use zksync_multivm::{
     circuit_sequencer_api_latest::boojum::pairing::hex,
     interface::{
-        executor::{BatchExecutor, BatchExecutorFactory},
-        storage::{ReadStorage, StoragePtr, StorageView, StorageViewStats},
-        utils::DivergenceHandler,
-        BatchTransactionExecutionResult, BytecodeCompressionError, CompressedBytecodeInfo,
-        ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmFactory,
-        VmInterface, VmInterfaceHistoryEnabled,
+        executor::{BatchExecutor, BatchExecutorFactory}, storage::{ReadStorage, StoragePtr, StorageView, StorageViewStats}, utils::DivergenceHandler, BatchTransactionExecutionResult, BytecodeCompressionError, Call, CompressedBytecodeInfo, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmFactory, VmInterface, VmInterfaceHistoryEnabled
     },
     tracers::CallTracer,
     vm_fast,
@@ -227,7 +222,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
             .take()
             .unwrap_or_default();
 
-        // write_to_file(format!("{:#?}", call_traces), hash);
+        // write_to_file(pretty_print(&call_traces[0], 0), hash);
 
         BatchTransactionExecutionResult {
             tx_result: Box::new(tx_result),
@@ -236,6 +231,30 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         }
     }
 }
+
+/// Pretty-print the `Call` struct with indentation for subcalls.
+pub fn pretty_print(call: &Call, depth: usize) -> String {
+    let mut result = String::new();
+    
+    // Add indentation based on the depth
+    for _ in 0..depth {
+        result.push('\t');
+    }
+    
+    // Format the current call in the desired format
+    result.push_str(&format!("->{}:{}, err: {:#?}", hex::encode(call.to), hex::encode(&call.input), &call.revert_reason));
+    
+    // Add a newline after each call
+    result.push('\n');
+    
+    // Recursively format each subcall with increased depth
+    for subcall in &call.calls {
+        result.push_str(&pretty_print(&subcall, depth + 1));
+    }
+    
+    result
+}
+
 
 fn write_to_file(str: String, hash: H256) {
     let file_name = format!("{}.txt", hex::encode(hash.as_bytes()));

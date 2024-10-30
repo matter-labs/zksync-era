@@ -16,7 +16,9 @@ pub struct DeployGatewayCTMInput {
     native_token_vault_addr: Address,
     chain_type_manager_proxy_addr: Address,
     shared_bridge_proxy_addr: Address,
+
     governance: Address,
+    base_token: Address,
 
     chain_chain_id: U256,
     era_chain_id: U256,
@@ -76,6 +78,8 @@ impl DeployGatewayCTMInput {
                 .state_transition_proxy_addr,
             shared_bridge_proxy_addr: contracts_config.bridges.shared.l1_address,
             governance: contracts_config.l1.governance_addr,
+
+            base_token: contracts_config.l1.base_token_addr,
 
             chain_chain_id: U256::from(chain_config.chain_id.0),
             era_chain_id: U256::from(ecosystem_config.era_chain_id.0),
