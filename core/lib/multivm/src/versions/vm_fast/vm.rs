@@ -29,8 +29,8 @@ use super::{
     hook::Hook,
     initial_bootloader_memory::bootloader_initial_memory,
     transaction_data::TransactionData,
-    validation_tracer::{ValidationGasLimitOnly, ValidationMode},
-    WithBuiltinTracers,
+    validation_tracer::ValidationMode,
+    DefaultTracers, WithBuiltinTracers,
 };
 use crate::{
     glue::GlueInto,
@@ -91,7 +91,7 @@ impl VmRunResult {
 /// The wrapper is parametric by the storage and tracer types. Besides the [`Tracer`] trait and implement [`Default`]
 /// (the latter is necessary to complete batches). [`CircuitsTracer`] is currently always enabled;
 /// you don't need to specify it explicitly.
-pub struct Vm<S, Tr = WithBuiltinTracers<(), ValidationGasLimitOnly>> {
+pub struct Vm<S, Tr = DefaultTracers> {
     pub(crate) world: World<S, Tr>,
     pub(crate) inner: VirtualMachine<Tr, World<S, Tr>>,
     pub(crate) bootloader_state: BootloaderState,
