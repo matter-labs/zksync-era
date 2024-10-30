@@ -420,6 +420,12 @@ impl AsyncTreeReader {
             .await
             .unwrap()
     }
+
+    pub(crate) async fn bogus_stale_keys(self, l1_batch_number: L1BatchNumber) -> Vec<NodeKey> {
+        tokio::task::spawn_blocking(move || self.inner.bogus_stale_keys(l1_batch_number))
+            .await
+            .unwrap()
+    }
 }
 
 /// Version of async tree reader that holds a weak reference to RocksDB. Used in [`MerkleTreeHealthCheck`].

@@ -59,12 +59,12 @@ impl StaleKeysRepairTask {
 
     /// Runs stale key detection for a single tree version.
     #[tracing::instrument(skip(db))]
-    pub fn run_for_version(db: &RocksDBWrapper, version: u64) -> anyhow::Result<Vec<NodeKey>> {
+    pub fn bogus_stale_keys(db: &RocksDBWrapper, version: u64) -> Vec<NodeKey> {
         const SAMPLE_COUNT: usize = 5;
 
-        let version_keys = db
-            .all_keys_for_version(version)
-            .with_context(|| format!("failed loading keys changed in tree version {version}"))?;
+        let version_keys = db.all_keys_for_version(version).unwrap_or_else(|err| {
+            panic!("failed loading keys changed in tree version {version}: {err}")
+        });
         let stale_keys = db.stale_keys(version);
 
         if !version_keys.unreachable_keys.is_empty() {
@@ -99,7 +99,7 @@ impl StaleKeysRepairTask {
         }
 
         if bogus_stale_keys.is_empty() {
-            return Ok(vec![]);
+            return vec![];
         }
 
         let keys_sample: Vec<_> = bogus_stale_keys.iter().take(SAMPLE_COUNT).collect();
@@ -108,8 +108,7 @@ impl StaleKeysRepairTask {
             stale_keys.sample = ?keys_sample,
             "Found bogus stale keys"
         );
-
-        Ok(bogus_stale_keys)
+        bogus_stale_keys
     }
 
     /// Returns a boolean flag indicating whether the task data was updated.
@@ -158,17 +157,15 @@ impl StaleKeysRepairTask {
             .clone()
             .into_par_iter()
             .map(|version| {
-                Self::run_for_version(&self.db, version).map(|output| {
-                    output
-                        .into_iter()
-                        .map(|key| StaleNodeKey::new(key, version))
-                        .collect::<Vec<_>>()
-                })
+                Self::bogus_stale_keys(&self.db, version)
+                    .into_iter()
+                    .map(|key| StaleNodeKey::new(key, version))
+                    .collect::<Vec<_>>()
             })
-            .try_reduce(Vec::new, |mut acc, keys| {
+            .reduce(Vec::new, |mut acc, keys| {
                 acc.extend(keys);
-                Ok(acc)
-            })?;
+                acc
+            });
         self.update_task_data(versions, &stale_keys)?;
         Ok(true)
     }
@@ -271,7 +268,7 @@ mod tests {
 
         // The task should work fine with future tree versions.
         for version in [0, 1, 100] {
-            let bogus_stale_keys = StaleKeysRepairTask::run_for_version(&db, version).unwrap();
+            let bogus_stale_keys = StaleKeysRepairTask::bogus_stale_keys(&db, version);
             assert!(bogus_stale_keys.is_empty());
         }
 
@@ -280,7 +277,7 @@ mod tests {
             .collect();
         MerkleTree::new(&mut db).unwrap().extend(kvs).unwrap();
 
-        let bogus_stale_keys = StaleKeysRepairTask::run_for_version(&db, 0).unwrap();
+        let bogus_stale_keys = StaleKeysRepairTask::bogus_stale_keys(&db, 0);
         assert!(bogus_stale_keys.is_empty());
     }
 
@@ -290,7 +287,7 @@ mod tests {
         let mut db = RocksDBWrapper::new(temp_dir.path()).unwrap();
         setup_tree_with_bogus_stale_keys(&mut db);
 
-        let bogus_stale_keys = StaleKeysRepairTask::run_for_version(&db, 1).unwrap();
+        let bogus_stale_keys = StaleKeysRepairTask::bogus_stale_keys(&db, 1);
         assert!(!bogus_stale_keys.is_empty());
 
         let (mut task, _handle) = StaleKeysRepairTask::new(db);
@@ -306,7 +303,7 @@ mod tests {
             .verify_consistency(1, false)
             .unwrap();
 
-        let bogus_stale_keys = StaleKeysRepairTask::run_for_version(&task.db, 1).unwrap();
+        let bogus_stale_keys = StaleKeysRepairTask::bogus_stale_keys(&task.db, 1);
         assert!(bogus_stale_keys.is_empty());
         MerkleTree::new(&mut task.db)
             .unwrap()
@@ -339,7 +336,7 @@ mod tests {
         drop(handle);
         task_thread.join().unwrap().unwrap();
 
-        let bogus_stale_keys = StaleKeysRepairTask::run_for_version(&db, 1).unwrap();
+        let bogus_stale_keys = StaleKeysRepairTask::bogus_stale_keys(&db, 1);
         assert!(bogus_stale_keys.is_empty());
     }
 }
