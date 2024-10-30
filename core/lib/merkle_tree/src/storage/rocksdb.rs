@@ -25,6 +25,7 @@ use crate::{
         database::{PruneDatabase, PrunePatchSet},
         Database, NodeKeys, PatchSet,
     },
+    tasks::StaleKeysRepairData,
     types::{
         InternalNode, LeafNode, Manifest, Nibbles, Node, NodeKey, ProfiledTreeOperation, Root,
         StaleNodeKey,
@@ -111,6 +112,8 @@ impl RocksDBWrapper {
     // This key must not overlap with keys for nodes; easy to see that it's true,
     // since the minimum node key is [0, 0, 0, 0, 0, 0, 0, 0].
     const MANIFEST_KEY: &'static [u8] = &[0];
+
+    const STALE_KEYS_REPAIR_KEY: &'static [u8] = &[0, 0];
 
     /// Creates a new wrapper, initializing RocksDB at the specified directory.
     ///
@@ -235,21 +238,35 @@ impl RocksDBWrapper {
         })
     }
 
-    pub(crate) fn remove_stale_keys(
+    pub(crate) fn repair_stale_keys(
         &mut self,
-        version: u64,
-        keys: &[NodeKey],
+        data: &StaleKeysRepairData,
+        removed_keys: &[StaleNodeKey],
     ) -> anyhow::Result<()> {
+        let mut raw_value = vec![];
+        data.serialize(&mut raw_value);
+
         let mut write_batch = self.db.new_write_batch();
-        for &key in keys {
-            write_batch.delete_cf(
-                MerkleTreeColumnFamily::StaleKeys,
-                &StaleNodeKey::new(key, version).to_db_key(),
-            );
+        write_batch.put_cf(
+            MerkleTreeColumnFamily::Tree,
+            Self::STALE_KEYS_REPAIR_KEY,
+            &raw_value,
+        );
+        for key in removed_keys {
+            write_batch.delete_cf(MerkleTreeColumnFamily::StaleKeys, &key.to_db_key());
         }
         self.db
             .write(write_batch)
             .context("Failed writing a batch to RocksDB")
+    }
+
+    pub(crate) fn stale_keys_repair_data(
+        &self,
+    ) -> Result<Option<StaleKeysRepairData>, DeserializeError> {
+        let Some(raw_value) = self.raw_node(Self::STALE_KEYS_REPAIR_KEY) else {
+            return Ok(None);
+        };
+        StaleKeysRepairData::deserialize(&raw_value).map(Some)
     }
 
     /// Returns the wrapped RocksDB instance.
