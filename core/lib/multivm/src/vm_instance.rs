@@ -320,10 +320,7 @@ where
     }
 }
 
-impl<S: ReadStorage, Tr: vm_fast::interface::Tracer> FastVmInstance<S, Tr>
-where
-    vm_fast::Vm<ImmutableStorageView<S>, Tr>: VmInterface,
-{
+impl<S: ReadStorage, Tr: vm_fast::interface::Tracer> FastVmInstance<S, Tr> {
     /// Creates an isolated fast VM.
     pub fn fast(
         l1_batch_env: L1BatchEnv,

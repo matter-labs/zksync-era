@@ -203,7 +203,7 @@ impl Harness {
 
 fn sanity_check_vm<Vm>() -> (Vm, Harness)
 where
-    Vm: VmFactory<StorageView<InMemoryStorage>>,
+    Vm: VmFactory<StorageView<InMemoryStorage>> + VmInterface,
 {
     let system_env = default_system_env();
     let l1_batch_env = default_l1_batch(L1BatchNumber(1));

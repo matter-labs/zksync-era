@@ -230,7 +230,6 @@ impl<S, Main, Shadow> ShadowVm<S, Main, Shadow>
 where
     S: ReadStorage,
     Main: VmTrackingContracts,
-    Shadow: VmInterface,
 {
     /// Sets the divergence handler to be used by this VM.
     pub fn set_divergence_handler(&mut self, handler: DivergenceHandler) {
@@ -239,6 +238,18 @@ where
         }
     }
 
+    /// Dumps the current VM state.
+    pub fn dump_state(&self) -> VmDump {
+        self.main.dump_state()
+    }
+}
+
+impl<S, Main, Shadow> ShadowVm<S, Main, Shadow>
+where
+    S: ReadStorage,
+    Main: VmTrackingContracts,
+    Shadow: VmInterface,
+{
     /// Mutable ref is not necessary, but it automatically drops potential borrows.
     fn report(&mut self, err: DivergenceErrors) {
         self.report_shared(err);
@@ -250,11 +261,6 @@ where
             .take()
             .unwrap()
             .report(err, self.main.dump_state());
-    }
-
-    /// Dumps the current VM state.
-    pub fn dump_state(&self) -> VmDump {
-        self.main.dump_state()
     }
 
     /// Gets the specified value from both the main and shadow VM, checking whether it matches on both.
@@ -322,7 +328,6 @@ impl<S, Main, Shadow> ShadowVm<S, Main, Shadow>
 where
     S: ReadStorage,
     Main: VmFactory<StorageView<S>> + VmTrackingContracts,
-    Shadow: VmInterface,
 {
     /// Creates a VM with a custom shadow storage.
     pub fn with_custom_shadow<ShadowS>(

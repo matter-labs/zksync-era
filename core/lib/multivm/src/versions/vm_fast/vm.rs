@@ -698,7 +698,6 @@ where
 impl<S, Tr: Tracer> VmFactory<StorageView<S>> for Vm<ImmutableStorageView<S>, Tr>
 where
     S: ReadStorage,
-    Self: VmInterface,
 {
     fn new(
         batch_env: L1BatchEnv,

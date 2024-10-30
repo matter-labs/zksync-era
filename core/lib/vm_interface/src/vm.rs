@@ -81,7 +81,7 @@ pub trait VmInterfaceExt: VmInterface {
 impl<T: VmInterface> VmInterfaceExt for T {}
 
 /// Encapsulates creating VM instance based on the provided environment.
-pub trait VmFactory<S>: VmInterface {
+pub trait VmFactory<S> {
     /// Creates a new VM instance.
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self;
 }

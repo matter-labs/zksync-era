@@ -17,7 +17,7 @@ use once_cell::sync::OnceCell;
 use zksync_multivm::{
     interface::{
         executor::{OneshotExecutor, TransactionValidator},
-        storage::{ImmutableStorageView, ReadStorage, StorageView, StorageWithOverrides},
+        storage::{ReadStorage, StorageView, StorageWithOverrides},
         tracer::{ValidationError, ValidationParams},
         utils::{DivergenceHandler, ShadowVm},
         Call, ExecutionResult, InspectExecutionMode, OneshotEnv, OneshotTracingParams,
@@ -425,10 +425,7 @@ impl<S: ReadStorage> VmSandbox<S> {
     fn execute_in_vm_with_tracer<T, Tr: vm_fast::interface::Tracer>(
         mut self,
         action: impl FnOnce(&mut Vm<StorageWithOverrides<S>, Tr>, Transaction) -> T,
-    ) -> T
-    where
-        vm_fast::Vm<ImmutableStorageView<StorageWithOverrides<S>>, Tr>: VmInterface,
-    {
+    ) -> T {
         Self::setup_storage(
             &mut self.storage,
             &self.execution_args,
