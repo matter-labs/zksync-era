@@ -374,7 +374,7 @@ impl GpuScaler {
     ) {
         provers
             .into_iter()
-            .for_each(|(GPUPoolKey { cluster, gpu }, n)| {
+            .for_each(|(GPUPoolKey { cluster, gpu }, replicas)| {
                 let prover = gpu_to_prover(gpu);
                 clusters
                     .clusters
@@ -391,7 +391,7 @@ impl GpuScaler {
                             )
                         },
                         |d| {
-                            if d.desired != n as i32 {
+                            if d.desired != replicas as i32 {
                                 requests
                                     .entry(cluster.clone())
                                     .or_default()
@@ -399,7 +399,7 @@ impl GpuScaler {
                                     .push(ScaleDeploymentRequest {
                                         namespace: namespace.into(),
                                         name: prover.clone(),
-                                        size: n as i32,
+                                        size: replicas as i32,
                                     });
                             }
                         },
@@ -601,7 +601,7 @@ impl SimpleScaler {
         requests: &mut HashMap<String, ScaleRequest>,
     ) {
         let deployment = self.deployment.clone();
-        replicas.into_iter().for_each(|(cluster, n)| {
+        replicas.into_iter().for_each(|(cluster, replicas)| {
             clusters
                 .clusters
                 .get(&cluster)
@@ -617,7 +617,7 @@ impl SimpleScaler {
                         )
                     },
                     |d| {
-                        if d.desired != n as i32 {
+                        if d.desired != replicas as i32 {
                             requests
                                 .entry(cluster.clone())
                                 .or_default()
@@ -625,7 +625,7 @@ impl SimpleScaler {
                                 .push(ScaleDeploymentRequest {
                                     namespace: namespace.into(),
                                     name: deployment.clone(),
-                                    size: n as i32,
+                                    size: replicas as i32,
                                 });
                         }
                     },
