@@ -72,6 +72,7 @@ mod metrics;
 mod pruning;
 pub mod recovery;
 mod storage;
+pub mod tasks;
 mod types;
 mod utils;
 
@@ -209,6 +210,21 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     ///
     /// Proxies database I/O errors.
     pub fn truncate_recent_versions(&mut self, retained_version_count: u64) -> anyhow::Result<()> {
+        let mut manifest = self.db.manifest().unwrap_or_default();
+        if manifest.version_count > retained_version_count {
+            manifest.version_count = retained_version_count;
+            let patch = PatchSet::from_manifest(manifest);
+            self.db.apply_patch(patch)?;
+        }
+        Ok(())
+    }
+
+    /// Incorrect version of [`Self::truncate_recent_versions()`] that doesn't remove stale keys for the truncated tree versions.
+    #[cfg(test)]
+    fn truncate_recent_versions_incorrectly(
+        &mut self,
+        retained_version_count: u64,
+    ) -> anyhow::Result<()> {
         let mut manifest = self.db.manifest().unwrap_or_default();
         if manifest.version_count > retained_version_count {
             manifest.version_count = retained_version_count;

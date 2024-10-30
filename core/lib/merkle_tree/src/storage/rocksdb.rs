@@ -1,6 +1,12 @@
 //! RocksDB implementation of [`Database`].
 
-use std::{any::Any, cell::RefCell, path::Path, sync::Arc};
+use std::{
+    any::Any,
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    path::Path,
+    sync::Arc,
+};
 
 use anyhow::Context as _;
 use rayon::prelude::*;
@@ -68,6 +74,15 @@ impl ToDbKey for (NodeKey, bool) {
     fn to_db_key(&self) -> Vec<u8> {
         NodeKey::to_db_key(self.0)
     }
+}
+
+/// All node keys modified in a certain version of the tree, loaded via a prefix iterator.
+#[derive(Debug, Default)]
+pub(crate) struct VersionKeys {
+    /// Valid / reachable keys modified in the version.
+    pub valid_keys: HashSet<Nibbles>,
+    /// Unreachable keys modified in the version, e.g. as a result of truncating the tree and overwriting the version.
+    pub unreachable_keys: HashSet<Nibbles>,
 }
 
 /// Main [`Database`] implementation wrapping a [`RocksDB`] reference.
@@ -172,6 +187,69 @@ impl RocksDBWrapper {
                 ErrorContext::InternalNode(*key)
             })
         })
+    }
+
+    pub(crate) fn all_keys_for_version(
+        &self,
+        version: u64,
+    ) -> Result<VersionKeys, DeserializeError> {
+        let Some(Root::Filled {
+            node: root_node, ..
+        }) = self.root(version)
+        else {
+            return Ok(VersionKeys::default());
+        };
+
+        let cf = MerkleTreeColumnFamily::Tree;
+        let version_prefix = version.to_be_bytes();
+        let mut nodes = HashMap::from([(Nibbles::EMPTY, root_node)]);
+        let mut unreachable_keys = HashSet::new();
+
+        for (raw_key, raw_value) in self.db.prefix_iterator_cf(cf, &version_prefix) {
+            let key = NodeKey::from_db_key(&raw_key);
+            let Some((parent_nibbles, nibble)) = key.nibbles.split_last() else {
+                // Root node, already processed
+                continue;
+            };
+            let Some(Node::Internal(parent)) = nodes.get(&parent_nibbles) else {
+                unreachable_keys.insert(key.nibbles);
+                continue;
+            };
+            let Some(this_ref) = parent.child_ref(nibble) else {
+                unreachable_keys.insert(key.nibbles);
+                continue;
+            };
+            if this_ref.version != version {
+                unreachable_keys.insert(key.nibbles);
+                continue;
+            }
+
+            // Now we are sure that `this_ref` actually points to the node we're processing.
+            let node = Self::deserialize_node(&raw_value, &key, this_ref.is_leaf)?;
+            nodes.insert(key.nibbles, node);
+        }
+
+        Ok(VersionKeys {
+            valid_keys: nodes.into_keys().collect(),
+            unreachable_keys,
+        })
+    }
+
+    pub(crate) fn remove_stale_keys(
+        &mut self,
+        version: u64,
+        keys: &[NodeKey],
+    ) -> anyhow::Result<()> {
+        let mut write_batch = self.db.new_write_batch();
+        for &key in keys {
+            write_batch.delete_cf(
+                MerkleTreeColumnFamily::StaleKeys,
+                &StaleNodeKey::new(key, version).to_db_key(),
+            );
+        }
+        self.db
+            .write(write_batch)
+            .context("Failed writing a batch to RocksDB")
     }
 
     /// Returns the wrapped RocksDB instance.
