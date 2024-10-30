@@ -69,7 +69,8 @@ impl WiringLayer for HouseKeeperLayer {
         );
 
         let node_health = NodeHealth::Running(NodeInfo {
-            version: "".to_string(),
+            git_version: "GIT_VERSION".to_string(),
+            git_branch: "GIT_BRANCH".to_string(),
         });
 
         let app_health = input.app_health.0;
