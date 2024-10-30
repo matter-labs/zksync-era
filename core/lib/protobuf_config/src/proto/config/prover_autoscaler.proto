@@ -52,9 +52,10 @@ message MaxReplica {
 
 message ScalerTarget {
   optional string queue_report_field = 1; // required
-  optional string pod_name_prefix = 2; // required
+  optional string deployment = 5; // required
   repeated MaxReplica max_replicas = 3; // required at least one
   optional uint64 speed = 4; // optional
+  reserved 2; reserved "pod_name_prefix";
 }
 
 message ProverAutoscalerScalerConfig {
@@ -69,4 +70,5 @@ message ProverAutoscalerScalerConfig {
   repeated MaxProver max_provers = 9; // optional
   repeated MinProver min_provers = 10; // optional
   repeated ScalerTarget scaler_targets = 11; // optional
+  optional bool dry_run = 12; // optional
 }

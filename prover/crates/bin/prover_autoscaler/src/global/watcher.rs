@@ -38,11 +38,12 @@ pub fn check_is_ready(v: &Vec<bool>) -> Result<()> {
 pub struct Watcher {
     /// List of base URLs of all agents.
     pub cluster_agents: Vec<Arc<Url>>,
+    pub dry_run: bool,
     pub data: Arc<Mutex<WatchedData>>,
 }
 
 impl Watcher {
-    pub fn new(agent_urls: Vec<String>) -> Self {
+    pub fn new(agent_urls: Vec<String>, dry_run: bool) -> Self {
         let size = agent_urls.len();
         Self {
             cluster_agents: agent_urls
@@ -54,6 +55,7 @@ impl Watcher {
                     )
                 })
                 .collect(),
+            dry_run,
             data: Arc::new(Mutex::new(WatchedData {
                 clusters: Clusters::default(),
                 is_ready: vec![false; size],
@@ -80,6 +82,7 @@ impl Watcher {
                 .collect();
         }
 
+        let dry_run = self.dry_run;
         let handles: Vec<_> = id_requests
             .into_iter()
             .map(|(id, sr)| {
@@ -92,6 +95,10 @@ impl Watcher {
                 tokio::spawn(async move {
                     let mut headers = HeaderMap::new();
                     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+                    if dry_run {
+                        tracing::info!("Dry-run mode, not sending the request.");
+                        return Ok((id, Ok(ScaleResponse::default())));
+                    }
                     let response = send_request_with_retries(
                         &url,
                         MAX_RETRIES,
