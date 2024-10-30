@@ -306,9 +306,9 @@ impl<S: WriteStorage> ResultTracer<S> {
                     },
                 });
             } else {
-                self.result = Some(self.result.clone().unwrap_or(Result::Success {
+                self.result = Some(Result::Success {
                     return_data: vec![],
-                }));
+                });
             }
         }
     }
