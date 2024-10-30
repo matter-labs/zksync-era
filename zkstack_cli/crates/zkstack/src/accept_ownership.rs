@@ -44,7 +44,7 @@ pub async fn accept_admin(
     let calldata = ACCEPT_ADMIN
         .encode("chainAdminAcceptAdmin", (admin, target_address))
         .unwrap();
-    let forge = Forge::new(&foundry_contracts_path)
+    let forge = Forge::new(foundry_contracts_path)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
             forge_args.clone(),

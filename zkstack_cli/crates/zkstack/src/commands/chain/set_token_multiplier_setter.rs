@@ -93,7 +93,7 @@ pub async fn set_token_multiplier_setter(
             (chain_admin_address, target_address),
         )
         .unwrap();
-    let forge = Forge::new(&foundry_contracts_path)
+    let forge = Forge::new(foundry_contracts_path)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
             forge_args.clone(),

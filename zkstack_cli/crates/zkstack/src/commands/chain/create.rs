@@ -32,7 +32,7 @@ fn create(
     let possible_erc20 = ecosystem
         .as_ref()
         .map(|ecosystem| ecosystem.get_erc20_tokens())
-        .unwrap_or(vec![]);
+        .unwrap_or_default();
 
     let number_of_chains = ecosystem
         .as_ref()
@@ -41,7 +41,7 @@ fn create(
 
     let l1_network = ecosystem
         .as_ref()
-        .map(|ecosystem| ecosystem.l1_network.clone());
+        .map(|ecosystem| ecosystem.l1_network);
 
     let chains_path = ecosystem.as_ref().map(|ecosystem| ecosystem.chains.clone());
 

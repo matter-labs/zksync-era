@@ -77,6 +77,7 @@ pub struct ChainCreateArgs {
 }
 
 impl ChainCreateArgs {
+    #[allow(clippy::too_many_arguments)]
     pub fn fill_values_with_prompt(
         self,
         shell: &Shell,
