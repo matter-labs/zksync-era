@@ -118,6 +118,7 @@ impl ProtoRepr for proto::ProverAutoscalerScalerConfig {
                 .enumerate()
                 .map(|(i, x)| x.read().context(i).unwrap())
                 .collect::<Vec<_>>(),
+            dry_run: self.dry_run.unwrap_or_default(),
         })
     }
 
@@ -158,6 +159,7 @@ impl ProtoRepr for proto::ProverAutoscalerScalerConfig {
                 .map(|(k, v)| proto::MinProver::build(&(k.clone(), *v)))
                 .collect(),
             scaler_targets: this.scaler_targets.iter().map(ProtoRepr::build).collect(),
+            dry_run: Some(this.dry_run),
         }
     }
 }
@@ -269,9 +271,7 @@ impl ProtoRepr for proto::ScalerTarget {
             queue_report_field: required(&self.queue_report_field)
                 .and_then(|x| Ok((*x).parse()?))
                 .context("queue_report_field")?,
-            pod_name_prefix: required(&self.pod_name_prefix)
-                .context("pod_name_prefix")?
-                .clone(),
+            deployment: required(&self.deployment).context("deployment")?.clone(),
             max_replicas: self
                 .max_replicas
                 .iter()
@@ -289,7 +289,7 @@ impl ProtoRepr for proto::ScalerTarget {
     fn build(this: &Self::Type) -> Self {
         Self {
             queue_report_field: Some(this.queue_report_field.to_string()),
-            pod_name_prefix: Some(this.pod_name_prefix.clone()),
+            deployment: Some(this.deployment.clone()),
             max_replicas: this
                 .max_replicas
                 .iter()

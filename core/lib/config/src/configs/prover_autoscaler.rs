@@ -63,6 +63,9 @@ pub struct ProverAutoscalerScalerConfig {
     pub long_pending_duration: Duration,
     /// List of simple autoscaler targets.
     pub scaler_targets: Vec<ScalerTarget>,
+    /// If dry-run enabled don't send any scale requests.
+    #[serde(default)]
+    pub dry_run: bool,
 }
 
 #[derive(
@@ -122,7 +125,7 @@ pub enum QueueReportFields {
 #[derive(Debug, Clone, PartialEq, Deserialize, Default)]
 pub struct ScalerTarget {
     pub queue_report_field: QueueReportFields,
-    pub pod_name_prefix: String,
+    pub deployment: String,
     /// Max replicas per cluster.
     pub max_replicas: HashMap<String, usize>,
     /// The queue will be divided by the speed and rounded up to get number of replicas.
