@@ -1,6 +1,6 @@
 use clap::Parser;
 use common::Prompt;
-use config::ChainConfig;
+use config::{ChainConfig, EcosystemConfig};
 use serde::{Deserialize, Serialize};
 use types::L1Network;
 use url::Url;
@@ -12,8 +12,8 @@ use crate::{
     },
     defaults::LOCAL_RPC_URL,
     messages::{
-        MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR,
-        MSG_L1_RPC_URL_PROMPT, MSG_NO_PORT_REALLOCATION_HELP,
+        MSG_ECOSYSTEM_CONTRACTS_PATH_HELP, MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP,
+        MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT, MSG_NO_PORT_REALLOCATION_HELP,
     },
 };
 
@@ -26,6 +26,8 @@ pub struct InitConfigsArgs {
     pub l1_rpc_url: Option<String>,
     #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP)]
     pub no_port_reallocation: bool,
+    #[clap(long, help = MSG_ECOSYSTEM_CONTRACTS_PATH_HELP)]
+    pub _ecosystem_contracts_path: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -36,10 +38,14 @@ pub struct InitConfigsArgsFinal {
 }
 
 impl InitConfigsArgs {
-    pub fn fill_values_with_prompt(self, config: &ChainConfig) -> InitConfigsArgsFinal {
+    pub fn fill_values_with_prompt(
+        self,
+        _ecosystem: Option<&EcosystemConfig>,
+        chain: &ChainConfig,
+    ) -> InitConfigsArgsFinal {
         let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
             let mut prompt = Prompt::new(MSG_L1_RPC_URL_PROMPT);
-            if config.l1_network == L1Network::Localhost {
+            if chain.l1_network == L1Network::Localhost {
                 prompt = prompt.default(LOCAL_RPC_URL);
             }
             prompt
@@ -52,7 +58,7 @@ impl InitConfigsArgs {
         });
 
         InitConfigsArgsFinal {
-            genesis_args: self.genesis_args.fill_values_with_prompt(config),
+            genesis_args: self.genesis_args.fill_values_with_prompt(chain),
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
         }

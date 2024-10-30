@@ -19,7 +19,7 @@ use crate::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
         SaveConfigWithBasePath, ZkStackConfig,
     },
-    utils::find_file,
+    utils::{find_file, get_preexisting_ecosystem_contracts_path},
     ContractsConfig, EcosystemConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
 
@@ -169,6 +169,10 @@ impl ChainConfig {
             legacy_bridge: self.legacy_bridge,
             evm_emulator: self.evm_emulator,
         }
+    }
+
+    pub fn get_preexisting_ecosystem_contracts_path(&self) -> PathBuf {
+        get_preexisting_ecosystem_contracts_path(&self.link_to_code, self.l1_network)
     }
 }
 
