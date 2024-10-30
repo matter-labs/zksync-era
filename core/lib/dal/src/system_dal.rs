@@ -86,4 +86,20 @@ impl SystemDal<'_, '_> {
         });
         Ok(table_sizes.collect())
     }
+
+    pub async fn get_last_migration(&mut self) -> DalResult<i64> {
+        let row = sqlx::query!(
+            r#"
+                SELECT *
+                FROM _sqlx_migrations
+                ORDER BY version DESC
+                LIMIT 1;
+            "#
+        )
+        .instrument("get_last_migration")
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(row.version)
+    }
 }
