@@ -390,8 +390,8 @@ impl GpuScaler {
                                 namespace
                             )
                         },
-                        |d| {
-                            if d.desired != replicas as i32 {
+                        |deployment| {
+                            if deployment.desired != replicas as i32 {
                                 requests
                                     .entry(cluster.clone())
                                     .or_default()
@@ -600,31 +600,31 @@ impl SimpleScaler {
         clusters: &Clusters,
         requests: &mut HashMap<String, ScaleRequest>,
     ) {
-        let deployment = self.deployment.clone();
+        let deployment_name = self.deployment.clone();
         replicas.into_iter().for_each(|(cluster, replicas)| {
             clusters
                 .clusters
                 .get(&cluster)
                 .and_then(|c| c.namespaces.get(namespace))
-                .and_then(|ns| ns.deployments.get(&deployment))
+                .and_then(|ns| ns.deployments.get(&deployment_name))
                 .map_or_else(
                     || {
                         tracing::error!(
                             "Wasn't able to find deployment {} in cluster {}, namespace {}",
-                            deployment,
+                            deployment_name,
                             cluster,
                             namespace
                         )
                     },
-                    |d| {
-                        if d.desired != replicas as i32 {
+                    |deployment| {
+                        if deployment.desired != replicas as i32 {
                             requests
                                 .entry(cluster.clone())
                                 .or_default()
                                 .deployments
                                 .push(ScaleDeploymentRequest {
                                     namespace: namespace.into(),
-                                    name: deployment.clone(),
+                                    name: deployment_name.clone(),
                                     size: replicas as i32,
                                 });
                         }
