@@ -408,7 +408,7 @@ pub struct GatewayUpgradeEncodedInput {
     pub ctm_deployer: Address,
     pub old_validator_timelock: Address,
     pub new_validator_timelock: Address,
-    pub wrapped_base_token_store: Address
+    pub wrapped_base_token_store: Address,
 }
 
 impl GatewayUpgradeEncodedInput {
@@ -421,7 +421,7 @@ impl GatewayUpgradeEncodedInput {
             ParamType::Address,
             ParamType::Address,
             ParamType::Address,
-            ParamType::Address
+            ParamType::Address,
         ])
     }
 
@@ -463,7 +463,7 @@ pub struct ZkChainSpecificUpgradeData {
     pub predeployed_l2_weth_address: Address,
     pub base_token_l1_address: Address,
     pub base_token_name: String,
-    pub base_token_symbol: String
+    pub base_token_symbol: String,
 }
 
 impl ZkChainSpecificUpgradeData {
@@ -473,7 +473,7 @@ impl ZkChainSpecificUpgradeData {
         predeployed_l2_weth_address: Option<Address>,
         base_token_l1_address: Option<Address>,
         base_token_name: Option<String>,
-        base_token_symbol: Option<String>
+        base_token_symbol: Option<String>,
     ) -> Option<Self> {
         Some(Self {
             base_token_asset_id: base_token_asset_id?,
@@ -481,7 +481,7 @@ impl ZkChainSpecificUpgradeData {
             predeployed_l2_weth_address: predeployed_l2_weth_address?,
             base_token_l1_address: base_token_l1_address?,
             base_token_name: base_token_name?,
-            base_token_symbol: base_token_symbol?
+            base_token_symbol: base_token_symbol?,
         })
     }
 
@@ -502,7 +502,7 @@ impl ZkChainSpecificUpgradeData {
             Token::Address(self.predeployed_l2_weth_address),
             Token::Address(self.base_token_l1_address),
             Token::String(self.base_token_name.clone()),
-            Token::String(self.base_token_symbol.clone())
+            Token::String(self.base_token_symbol.clone()),
         ])
     }
 

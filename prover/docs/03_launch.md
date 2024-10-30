@@ -47,7 +47,7 @@ We will be running a bunch of binaries, it's recommended to run each in a separa
 ### Server
 
 ```
-zk server --components=api,tree,eth,state_keeper,housekeeper,tee_verifier_input_producer,commitment_generator,da_dispatcher,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip
+zk server --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip
 ```
 
 ### Proof data handler

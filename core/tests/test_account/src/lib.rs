@@ -54,6 +54,12 @@ impl Account {
         Self::new(K256PrivateKey::random_using(rng))
     }
 
+    /// Creates an account deterministically from the provided seed.
+    pub fn from_seed(seed: u32) -> Self {
+        let private_key_bytes = H256::from_low_u64_be(u64::from(seed) + 1);
+        Self::new(K256PrivateKey::from_bytes(private_key_bytes).unwrap())
+    }
+
     pub fn get_l2_tx_for_execute(&mut self, execute: Execute, fee: Option<Fee>) -> Transaction {
         let tx = self.get_l2_tx_for_execute_with_nonce(execute, fee, self.nonce);
         self.nonce += 1;
@@ -154,7 +160,7 @@ impl Account {
         let max_fee_per_gas = U256::from(0u32);
         let gas_limit = U256::from(20_000_000);
         let factory_deps = execute.factory_deps;
-        abi::Transaction::L1 {
+        let tx = abi::Transaction::L1 {
             tx: abi::L2CanonicalTransaction {
                 tx_type: PRIORITY_OPERATION_L2_TX_TYPE.into(),
                 from: address_to_u256(&self.address),
@@ -186,9 +192,8 @@ impl Account {
             .into(),
             factory_deps,
             eth_block: 0,
-        }
-        .try_into()
-        .unwrap()
+        };
+        Transaction::from_abi(tx, false).unwrap()
     }
 
     pub fn get_test_contract_transaction(

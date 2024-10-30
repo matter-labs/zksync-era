@@ -248,7 +248,7 @@ pub fn get_bootloader_encoding_space(version: VmVersion) -> u32 {
             )
         }
         VmVersion::VmGateway => crate::vm_latest::constants::get_bootloader_tx_encoding_space(
-            crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory,
+            crate::vm_latest::MultiVMSubversion::Gateway,
         ),
     }
 }
@@ -397,11 +397,14 @@ pub fn get_used_bootloader_memory_bytes(version: VmVersion) -> usize {
                 crate::vm_latest::MultiVMSubversion::SmallBootloaderMemory,
             )
         }
-        VmVersion::Vm1_5_0IncreasedBootloaderMemory | VmVersion::VmGateway => {
+        VmVersion::Vm1_5_0IncreasedBootloaderMemory => {
             crate::vm_latest::constants::get_used_bootloader_memory_bytes(
                 crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory,
             )
         }
+        VmVersion::VmGateway => crate::vm_latest::constants::get_used_bootloader_memory_bytes(
+            crate::vm_latest::MultiVMSubversion::Gateway,
+        ),
     }
 }
 
@@ -430,11 +433,14 @@ pub fn get_used_bootloader_memory_words(version: VmVersion) -> usize {
                 crate::vm_latest::MultiVMSubversion::SmallBootloaderMemory,
             )
         }
-        VmVersion::Vm1_5_0IncreasedBootloaderMemory | VmVersion::VmGateway => {
+        VmVersion::Vm1_5_0IncreasedBootloaderMemory => {
             crate::vm_latest::constants::get_used_bootloader_memory_bytes(
                 crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory,
             )
         }
+        VmVersion::VmGateway => crate::vm_latest::constants::get_used_bootloader_memory_bytes(
+            crate::vm_latest::MultiVMSubversion::Gateway,
+        ),
     }
 }
 

@@ -6,7 +6,6 @@ use zksync_contracts::{
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{ContractCallError, EnrichedClientResult};
-use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_types::{
     abi,
     abi::ProposedUpgrade,
@@ -253,8 +252,11 @@ fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
         received_timestamp_ms: 0,
     };
     // Convert to abi::Transaction and back, so that canonical_tx_hash is computed.
-    let tx =
-        Transaction::try_from(abi::Transaction::try_from(Transaction::from(tx)).unwrap()).unwrap();
+    let tx = Transaction::from_abi(
+        abi::Transaction::try_from(Transaction::from(tx)).unwrap(),
+        false,
+    )
+    .unwrap();
     tx.try_into().unwrap()
 }
 
@@ -280,10 +282,13 @@ fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx 
         received_timestamp_ms: 0,
     };
     // Convert to abi::Transaction and back, so that canonical_tx_hash is computed.
-    Transaction::try_from(abi::Transaction::try_from(Transaction::from(tx)).unwrap())
-        .unwrap()
-        .try_into()
-        .unwrap()
+    Transaction::from_abi(
+        abi::Transaction::try_from(Transaction::from(tx)).unwrap(),
+        false,
+    )
+    .unwrap()
+    .try_into()
+    .unwrap()
 }
 
 async fn create_test_watcher(
@@ -302,7 +307,6 @@ async fn create_test_watcher(
         Box::new(sl_client.clone()),
         connection_pool,
         std::time::Duration::from_nanos(1),
-        SyncMerkleTree::from_hashes(std::iter::empty(), None),
         None,
     )
     .await
@@ -409,7 +413,6 @@ async fn test_normal_operation_upgrade_timestamp() {
         Box::new(client.clone()),
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
-        SyncMerkleTree::from_hashes(std::iter::empty(), None),
         None,
     )
     .await

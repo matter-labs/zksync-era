@@ -43,7 +43,6 @@ pub mod l2;
 pub mod l2_to_l1_log;
 pub mod priority_op_onchain_data;
 pub mod protocol_upgrade;
-pub mod pubdata_da;
 pub mod snapshots;
 pub mod storage;
 pub mod system_contracts;
@@ -331,9 +330,14 @@ impl TryFrom<Transaction> for abi::Transaction {
     }
 }
 
-impl TryFrom<abi::Transaction> for Transaction {
-    type Error = anyhow::Error;
-    fn try_from(tx: abi::Transaction) -> anyhow::Result<Self> {
+impl Transaction {
+    /// Converts a transaction from its ABI representation.
+    ///
+    /// # Arguments
+    ///
+    /// - `allow_no_target` enables / disables L2 transactions without target (i.e., `to` field).
+    ///   This field can only be absent for EVM deployment transactions.
+    pub fn from_abi(tx: abi::Transaction, allow_no_target: bool) -> anyhow::Result<Self> {
         Ok(match tx {
             abi::Transaction::L1 {
                 tx,
@@ -407,7 +411,7 @@ impl TryFrom<abi::Transaction> for Transaction {
             abi::Transaction::L2(raw) => {
                 let (req, hash) =
                     transaction_request::TransactionRequest::from_bytes_unverified(&raw)?;
-                let mut tx = L2Tx::from_request_unverified(req)?;
+                let mut tx = L2Tx::from_request_unverified(req, allow_no_target)?;
                 tx.set_input(raw, hash);
                 tx.into()
             }

@@ -50,9 +50,13 @@ jobs:
 
       - name: start-services
         run: |
-          mkdir -p ./volumes/postgres
           run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
+        
+      - name: Install zkstack
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
+          ci_run zkstackup -g
 
       - name: init
         run: |
@@ -61,9 +65,11 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run zk
-          ci_run zkt
           ci_run cp etc/tokens/{test,localhost}.json
-          ci_run zk_supervisor contracts 
+
+      - name: build contracts
+        run: |
+          ci_run zkstack dev contracts 
 
       - name: update-image
         run: |

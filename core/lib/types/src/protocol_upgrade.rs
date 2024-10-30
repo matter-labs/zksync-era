@@ -68,6 +68,8 @@ pub struct ProtocolUpgrade {
     pub bootloader_code_hash: Option<H256>,
     /// New default account code hash.
     pub default_account_code_hash: Option<H256>,
+    /// New EVM emulator code hash
+    pub evm_emulator_code_hash: Option<H256>,
     /// New verifier params.
     pub verifier_params: Option<VerifierParams>,
     /// New verifier address.
@@ -225,11 +227,14 @@ impl ProtocolUpgrade {
                 prepapre_upgrde_call(&upgrade, chain_specific).await?;
 
             Some(
-                Transaction::try_from(abi::Transaction::L1 {
-                    tx: upgrade.l2_protocol_upgrade_tx,
-                    factory_deps,
-                    eth_block: 0,
-                })
+                Transaction::from_abi(
+                    abi::Transaction::L1 {
+                        tx: upgrade.l2_protocol_upgrade_tx,
+                        factory_deps,
+                        eth_block: 0,
+                    },
+                    false,
+                )
                 .context("Transaction::try_from()")?
                 .try_into()
                 .map_err(|err| anyhow::format_err!("try_into::<ProtocolUpgradeTx>(): {err}"))?,
@@ -246,6 +251,7 @@ impl ProtocolUpgrade {
             bootloader_code_hash: (bootloader_hash != H256::zero()).then_some(bootloader_hash),
             default_account_code_hash: (default_account_hash != H256::zero())
                 .then_some(default_account_hash),
+            evm_emulator_code_hash: None, // EVM emulator upgrades are not supported yet
             verifier_params: (upgrade.verifier_params != abi::VerifierParams::default())
                 .then_some(upgrade.verifier_params.into()),
             verifier_address: (upgrade.verifier != Address::zero()).then_some(upgrade.verifier),
@@ -284,14 +290,17 @@ pub fn decode_genesis_upgrade_event(
         .unwrap_or_else(|_| panic!("Version is not supported, packed version: {full_version_id}"));
     Ok((
         protocol_version,
-        Transaction::try_from(abi::Transaction::L1 {
-            tx: tx.into(),
-            eth_block: event
-                .block_number
-                .expect("Event block number is missing")
-                .as_u64(),
-            factory_deps,
-        })
+        Transaction::from_abi(
+            abi::Transaction::L1 {
+                tx: tx.into(),
+                eth_block: event
+                    .block_number
+                    .expect("Event block number is missing")
+                    .as_u64(),
+                factory_deps,
+            },
+            true,
+        )
         .unwrap()
         .try_into()
         .unwrap(),
@@ -436,6 +445,9 @@ impl ProtocolVersion {
                 default_aa: upgrade
                     .default_account_code_hash
                     .unwrap_or(self.base_system_contracts_hashes.default_aa),
+                evm_emulator: upgrade
+                    .evm_emulator_code_hash
+                    .or(self.base_system_contracts_hashes.evm_emulator),
             },
             tx: upgrade.tx,
         }

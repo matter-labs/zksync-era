@@ -94,6 +94,7 @@ impl FactoryDepsDal<'_, '_> {
         &mut self,
         bootloader_hash: H256,
         default_aa_hash: H256,
+        evm_emulator_hash: Option<H256>,
     ) -> anyhow::Result<Option<BaseSystemContracts>> {
         let bootloader_bytecode = self
             .get_sealed_factory_dep(bootloader_hash)
@@ -111,6 +112,21 @@ impl FactoryDepsDal<'_, '_> {
             return Ok(None);
         };
 
+        let evm_emulator_code = if let Some(evm_emulator_hash) = evm_emulator_hash {
+            let evm_emulator_bytecode = self
+                .get_sealed_factory_dep(evm_emulator_hash)
+                .await
+                .context("failed loading EVM emulator code")?
+                .with_context(|| format!("EVM emulator code with hash {evm_emulator_hash:?} should be present in the database"))?;
+
+            Some(SystemContractCode {
+                code: bytes_to_be_words(evm_emulator_bytecode),
+                hash: evm_emulator_hash,
+            })
+        } else {
+            None
+        };
+
         let bootloader_code = SystemContractCode {
             code: bytes_to_be_words(bootloader_bytecode),
             hash: bootloader_hash,
@@ -123,6 +139,7 @@ impl FactoryDepsDal<'_, '_> {
         Ok(Some(BaseSystemContracts {
             bootloader: bootloader_code,
             default_aa: default_aa_code,
+            evm_emulator: evm_emulator_code,
         }))
     }
 
@@ -131,6 +148,7 @@ impl FactoryDepsDal<'_, '_> {
         protocol_version: Option<ProtocolVersionId>,
         bootloader_hash: H256,
         default_aa_hash: H256,
+        evm_simulator_hash: Option<H256>,
     ) -> anyhow::Result<BaseSystemContracts> {
         // There are two potential sources of base contracts bytecode:
         // - Factory deps of the upgrade transaction
@@ -138,7 +156,11 @@ impl FactoryDepsDal<'_, '_> {
 
         // Firstly trying from factory deps
         if let Some(deps) = self
-            .get_base_system_contracts_from_factory_deps(bootloader_hash, default_aa_hash)
+            .get_base_system_contracts_from_factory_deps(
+                bootloader_hash,
+                default_aa_hash,
+                evm_simulator_hash,
+            )
             .await?
         {
             return Ok(deps);
@@ -180,6 +202,10 @@ impl FactoryDepsDal<'_, '_> {
             return None.context(error_msg);
         }
 
+        if evm_simulator_hash.is_some() {
+            panic!("EVM simulator not supported as part of upgrade");
+        }
+
         println!("Hi1212121!!!");
 
         Ok(BaseSystemContracts {
@@ -191,6 +217,8 @@ impl FactoryDepsDal<'_, '_> {
                 code: bytes_to_be_words(default_aa_preimage),
                 hash: default_aa_hash,
             },
+            // We do not support evm simulator bytecode from upgrades
+            evm_emulator: None,
         })
     }
 

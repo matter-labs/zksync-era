@@ -83,12 +83,8 @@ impl ProtoRepr for proto::Contracts {
             l2_legacy_shared_bridge_addr: l2
                 .legacy_shared_bridge_addr
                 .as_ref()
-                .and_then(|x| {
-                    (x.len() > 0).then_some(x)
-                })
-                .map(|x| {
-                    parse_h160(x)
-                })
+                .and_then(|x| (x.len() > 0).then_some(x))
+                .map(|x| parse_h160(x))
                 .transpose()
                 .context("l2_legacy_shared_bridge_addr")?,
             l1_weth_bridge_proxy_addr: weth_bridge
@@ -134,12 +130,6 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("base_token_addr")?,
-            l2_da_validator_addr: l2
-                .da_validator_addr
-                .as_ref()
-                .map(|x| parse_h160(x))
-                .transpose()
-                .context("l2_da_validator_addr")?,
             chain_admin_addr: l1
                 .chain_admin_addr
                 .as_ref()
@@ -147,6 +137,12 @@ impl ProtoRepr for proto::Contracts {
                 .transpose()
                 .context("chain_admin_addr")?,
             settlement_layer: self.settlement_layer,
+            l2_da_validator_addr: l2
+                .da_validator_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("l2_da_validator_addr")?,
         })
     }
 

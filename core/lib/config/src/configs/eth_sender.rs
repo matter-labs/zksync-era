@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use serde::Deserialize;
-use zksync_basic_types::{settlement::SettlementMode, H256};
+use zksync_basic_types::{pubdata_da::PubdataSendingMode, settlement::SettlementMode, H256};
 use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::EthWatchConfig;
@@ -42,9 +42,9 @@ impl EthConfig {
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
                 tx_aggregation_paused: false,
                 tx_aggregation_only_prove_and_execute: false,
-                time_in_mempool_in_l1_blocks_cap: 1800,
                 ignore_db_nonce: None,
                 priority_tree_start_index: Some(0),
+                time_in_mempool_in_l1_blocks_cap: 1800,
             }),
             gas_adjuster: Some(GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -80,15 +80,6 @@ pub enum ProofSendingMode {
 pub enum ProofLoadingMode {
     OldProofFromDb,
     FriProofFromGcs,
-}
-
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Default)]
-pub enum PubdataSendingMode {
-    #[default]
-    Calldata,
-    Blobs,
-    Custom,
-    RelayedL2Calldata,
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -130,14 +121,13 @@ pub struct SenderConfig {
     /// special mode specifically for gateway migration to decrease number of non-executed batches
     #[serde(default = "SenderConfig::default_tx_aggregation_only_prove_and_execute")]
     pub tx_aggregation_only_prove_and_execute: bool,
-
-    /// Cap of time in mempool for price calculations
-    #[serde(default = "SenderConfig::default_time_in_mempool_in_l1_blocks_cap")]
-    pub time_in_mempool_in_l1_blocks_cap: u32,
     /// Used to ignore db nonce check for sender and only use the RPC one.
     pub ignore_db_nonce: Option<bool>,
     /// Index of the priority operation to start building the `PriorityMerkleTree` from.
     pub priority_tree_start_index: Option<usize>,
+    /// Cap of time in mempool for price calculations
+    #[serde(default = "SenderConfig::default_time_in_mempool_in_l1_blocks_cap")]
+    pub time_in_mempool_in_l1_blocks_cap: u32,
 }
 
 impl SenderConfig {

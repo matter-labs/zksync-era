@@ -10,7 +10,7 @@ use zksync_multivm::zk_evm_latest::ethereum_types::U256;
 use zksync_types::{
     blob::num_blobs_required,
     commitment::{
-        AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchAuxiliaryOutput,
+        AuxCommitments, BlobHash, CommitmentCommonInput, CommitmentInput, L1BatchAuxiliaryOutput,
         L1BatchCommitment, L1BatchCommitmentArtifacts, L1BatchCommitmentMode,
     },
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
@@ -180,6 +180,7 @@ impl CommitmentGenerator {
             rollup_root_hash: tree_data.hash,
             bootloader_code_hash: header.base_system_contracts_hashes.bootloader,
             default_aa_code_hash: header.base_system_contracts_hashes.default_aa,
+            evm_emulator_code_hash: header.base_system_contracts_hashes.evm_emulator,
             protocol_version,
         };
         let touched_slots = connection
@@ -266,7 +267,7 @@ impl CommitmentGenerator {
             }
             state_diffs.sort_unstable_by_key(|rec| (rec.address, rec.key));
 
-            let (blob_commitments, blob_linear_hashes) = if protocol_version.is_post_1_4_2() {
+            let blob_hashes = if protocol_version.is_post_1_4_2() {
                 let pubdata_input = header.pubdata_input.with_context(|| {
                     format!("`pubdata_input` is missing for L1 batch #{l1_batch_number}")
                 })?;
@@ -280,28 +281,35 @@ impl CommitmentGenerator {
                     pubdata_input,
                 );
 
-                (commitments, linear_hashes)
+                commitments
+                    .into_iter()
+                    .zip(linear_hashes)
+                    .map(|(commitment, linear_hash)| BlobHash {
+                        commitment,
+                        linear_hash,
+                    })
+                    .collect::<Vec<_>>()
             } else {
-                (
-                    vec![H256::zero(); num_blobs_required(&protocol_version)],
-                    vec![H256::zero(); num_blobs_required(&protocol_version)],
-                )
+                vec![Default::default(); num_blobs_required(&protocol_version)]
             };
 
-            let mut connection = self
-                .connection_pool
-                .connection_tagged("commitment_generator")
-                .await?;
-            let aggregated_root = read_aggregation_root(&mut connection, l1_batch_number).await?;
+            let aggregation_root = if protocol_version.is_pre_gateway() {
+                H256::zero()
+            } else {
+                let mut connection = self
+                    .connection_pool
+                    .connection_tagged("commitment_generator")
+                    .await?;
+                read_aggregation_root(&mut connection, l1_batch_number).await?
+            };
 
             CommitmentInput::PostBoojum {
                 common,
                 system_logs: header.system_logs,
                 state_diffs,
                 aux_commitments,
-                blob_commitments,
-                blob_linear_hashes,
-                aggregated_root,
+                blob_hashes,
+                aggregation_root,
             }
         };
 
@@ -380,13 +388,10 @@ impl CommitmentGenerator {
             (L1BatchCommitmentMode::Rollup, _) => {
                 // Do nothing
             }
-            (
-                L1BatchCommitmentMode::Validium,
-                CommitmentInput::PostBoojum {
-                    blob_commitments, ..
-                },
-            ) => {
-                blob_commitments.fill(H256::zero());
+            (L1BatchCommitmentMode::Validium, CommitmentInput::PostBoojum { blob_hashes, .. }) => {
+                for hashes in blob_hashes {
+                    hashes.commitment = H256::zero();
+                }
             }
             (L1BatchCommitmentMode::Validium, _) => { /* Do nothing */ }
         }
@@ -396,14 +401,9 @@ impl CommitmentGenerator {
         match (self.commitment_mode, &mut commitment.auxiliary_output) {
             (
                 L1BatchCommitmentMode::Validium,
-                L1BatchAuxiliaryOutput::PostBoojum {
-                    blob_linear_hashes,
-                    blob_commitments,
-                    ..
-                },
+                L1BatchAuxiliaryOutput::PostBoojum { blob_hashes, .. },
             ) => {
-                blob_linear_hashes.fill(H256::zero());
-                blob_commitments.fill(H256::zero());
+                blob_hashes.fill(Default::default());
             }
             _ => { /* Do nothing */ }
         }

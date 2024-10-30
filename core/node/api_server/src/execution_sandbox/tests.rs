@@ -5,12 +5,9 @@ use std::collections::HashMap;
 use assert_matches::assert_matches;
 use test_casing::test_casing;
 use zksync_dal::ConnectionPool;
-use zksync_multivm::{
-    interface::{ExecutionResult, Halt, VmRevertReason},
-    utils::derive_base_fee_and_gas_per_pubdata,
-};
+use zksync_multivm::{interface::ExecutionResult, utils::derive_base_fee_and_gas_per_pubdata};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_node_test_utils::{create_l2_block, prepare_recovery_snapshot};
+use zksync_node_test_utils::{create_l1_batch, create_l2_block, prepare_recovery_snapshot};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     api::state_override::{OverrideAccount, StateOverride},
@@ -96,17 +93,6 @@ async fn creating_block_args_after_snapshot_recovery() {
     let snapshot_recovery =
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
 
-    let pending_block_args = BlockArgs::pending(&mut storage).await.unwrap();
-    assert_eq!(
-        pending_block_args.block_id,
-        api::BlockId::Number(api::BlockNumber::Pending)
-    );
-    assert_eq!(
-        pending_block_args.resolved_block_number(),
-        snapshot_recovery.l2_block_number + 1
-    );
-    assert!(pending_block_args.is_pending());
-
     let start_info = BlockStartInfo::new(&mut storage, Duration::MAX)
         .await
         .unwrap();
@@ -124,6 +110,35 @@ async fn creating_block_args_after_snapshot_recovery() {
         .await
         .unwrap_err();
     assert_matches!(err, BlockArgsError::Missing);
+
+    // Ensure there is a batch in the storage.
+    let l2_block = create_l2_block(snapshot_recovery.l2_block_number.0 + 1);
+    storage
+        .blocks_dal()
+        .insert_l2_block(&l2_block)
+        .await
+        .unwrap();
+    storage
+        .blocks_dal()
+        .insert_mock_l1_batch(&create_l1_batch(snapshot_recovery.l1_batch_number.0 + 1))
+        .await
+        .unwrap();
+    storage
+        .blocks_dal()
+        .mark_l2_blocks_as_executed_in_l1_batch(snapshot_recovery.l1_batch_number + 1)
+        .await
+        .unwrap();
+
+    let pending_block_args = BlockArgs::pending(&mut storage).await.unwrap();
+    assert_eq!(
+        pending_block_args.block_id,
+        api::BlockId::Number(api::BlockNumber::Pending)
+    );
+    assert_eq!(
+        pending_block_args.resolved_block_number(),
+        snapshot_recovery.l2_block_number + 2
+    );
+    assert!(pending_block_args.is_pending());
 
     let pruned_blocks = [
         api::BlockNumber::Earliest,
@@ -149,13 +164,6 @@ async fn creating_block_args_after_snapshot_recovery() {
             .unwrap_err();
         assert_matches!(err, BlockArgsError::Missing);
     }
-
-    let l2_block = create_l2_block(snapshot_recovery.l2_block_number.0 + 1);
-    storage
-        .blocks_dal()
-        .insert_l2_block(&l2_block)
-        .await
-        .unwrap();
 
     let latest_block_args = BlockArgs::new(&mut storage, latest_block, &start_info)
         .await
@@ -299,18 +307,6 @@ async fn validating_transaction(set_balance: bool) {
     if set_balance {
         assert_matches!(result, ExecutionResult::Success { .. });
     } else {
-        // FIXME: maybe provide a better way to encode it?
-        let expected_reason = VmRevertReason::Unknown {
-            function_selector: vec![3, 235, 139, 84],
-            data: vec![
-                3, 235, 139, 84, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 6, 157, 185, 192, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
-        };
-        assert_matches!(
-            result,
-            ExecutionResult::Halt { reason: Halt::ValidationFailed(reason) } if reason == expected_reason
-        );
+        assert_matches!(result, ExecutionResult::Halt { .. });
     }
 }

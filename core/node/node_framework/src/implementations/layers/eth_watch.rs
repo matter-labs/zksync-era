@@ -9,7 +9,6 @@ use crate::{
     implementations::resources::{
         eth_interface::{EthInterfaceResource, GatewayEthInterfaceResource},
         pools::{MasterPool, PoolResource},
-        priority_merkle_tree::PriorityTreeResource,
     },
     service::StopReceiver,
     task::{Task, TaskId},
@@ -34,7 +33,6 @@ pub struct EthWatchLayer {
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub eth_client: EthInterfaceResource,
-    pub priority_tree: PriorityTreeResource,
     pub gateway_client: Option<GatewayEthInterfaceResource>,
 }
 
@@ -73,7 +71,6 @@ impl WiringLayer for EthWatchLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let main_pool = input.master_pool.get().await?;
         let client = input.eth_client.0;
-        let priority_tree = input.priority_tree.0;
         let sl_diamond_proxy_addr = if self.settlement_mode.is_gateway() {
             self.gateway_contracts_config
                 .clone()
@@ -128,7 +125,6 @@ impl WiringLayer for EthWatchLayer {
             Box::new(sl_client),
             main_pool,
             self.eth_watch_config.poll_interval(),
-            priority_tree,
             ZkChainSpecificUpgradeData::from_partial_components(
                 self.contracts_config.base_token_asset_id,
                 self.contracts_config.l2_legacy_shared_bridge_addr,
@@ -137,7 +133,7 @@ impl WiringLayer for EthWatchLayer {
                 self.contracts_config.base_token_addr,
                 // FIXME: add support for ERC20 chains
                 Some(String::from("Ether")),
-                Some(String::from("ETH"))
+                Some(String::from("ETH")),
             ),
         )
         .await?;

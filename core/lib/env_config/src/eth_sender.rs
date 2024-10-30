@@ -44,7 +44,8 @@ impl FromEnv for GasAdjusterConfig {
 
 #[cfg(test)]
 mod tests {
-    use zksync_config::configs::eth_sender::{ProofSendingMode, PubdataSendingMode};
+    use zksync_basic_types::pubdata_da::PubdataSendingMode;
+    use zksync_config::configs::eth_sender::ProofSendingMode;
 
     use super::*;
     use crate::test_utils::{hash, EnvMutex};
@@ -74,9 +75,9 @@ mod tests {
                     pubdata_sending_mode: PubdataSendingMode::Calldata,
                     tx_aggregation_only_prove_and_execute: false,
                     tx_aggregation_paused: false,
-                    time_in_mempool_in_l1_blocks_cap: 2000,
                     ignore_db_nonce: None,
                     priority_tree_start_index: None,
+                    time_in_mempool_in_l1_blocks_cap: 2000,
                 }),
                 gas_adjuster: Some(GasAdjusterConfig {
                     default_priority_fee_per_gas: 20000000000,

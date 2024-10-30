@@ -1,13 +1,12 @@
-use zk_evm_1_3_1::zkevm_opcode_defs::sub;
-use zksync_types::{
-    commitment::{L1BatchCommitmentMode, PubdataParams},
-    ethabi, U256,
-};
+use zksync_types::{ethabi, vm::VmVersion, ProtocolVersionId, U256};
 use zksync_utils::{bytes_to_be_words, h256_to_u256};
 
 use super::tx::BootloaderTx;
 use crate::{
-    interface::{BootloaderMemory, CompressedBytecodeInfo, TxExecutionMode},
+    interface::{
+        pubdata::{PubdataBuilder, PubdataInput},
+        BootloaderMemory, CompressedBytecodeInfo, TxExecutionMode,
+    },
     utils::bytecode,
     vm_latest::{
         bootloader_state::l2_block::BootloaderL2Block,
@@ -18,10 +17,6 @@ use crate::{
             get_tx_overhead_offset, get_tx_trusted_gas_limit_offset,
             BOOTLOADER_TX_DESCRIPTION_SIZE, OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS,
             TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
-        },
-        types::internals::{
-            pubdata::{PubdataBuilder, RollupPubdataBuilder, ValidiumPubdataBuilder},
-            PubdataInput,
         },
         MultiVMSubversion,
     },
@@ -143,34 +138,27 @@ fn apply_l2_block_inner(
     ])
 }
 
-pub(crate) fn get_encoded_pubdata(
-    pubdata_information: PubdataInput,
-    pubdata_params: PubdataParams,
-    l2_version: bool,
+fn bootloader_memory_input(
+    pubdata_builder: &dyn PubdataBuilder,
+    input: &PubdataInput,
+    protocol_version: ProtocolVersionId,
 ) -> Vec<u8> {
-    let pubdata_bytes: Vec<u8> = if pubdata_params.pubdata_type == L1BatchCommitmentMode::Rollup {
-        RollupPubdataBuilder::new().build_pubdata(pubdata_information, l2_version)
-    } else {
-        ValidiumPubdataBuilder::new().build_pubdata(pubdata_information, l2_version)
-    };
+    let l2_da_validator_address = pubdata_builder.l2_da_validator();
+    let operator_input = pubdata_builder.l1_messenger_operator_input(input, protocol_version);
 
-    if l2_version {
-        ethabi::encode(&[
-            ethabi::Token::Address(pubdata_params.l2_da_validator_address),
-            ethabi::Token::Bytes(pubdata_bytes),
-        ])
-        .to_vec()
-    } else {
-        pubdata_bytes
-    }
+    ethabi::encode(&[
+        ethabi::Token::Address(l2_da_validator_address),
+        ethabi::Token::Bytes(operator_input),
+    ])
 }
 
 pub(crate) fn apply_pubdata_to_memory(
     memory: &mut BootloaderMemory,
-    pubdata_information: PubdataInput,
-    pubdata_params: PubdataParams,
-    subversion: MultiVMSubversion,
+    pubdata_builder: &dyn PubdataBuilder,
+    pubdata_information: &PubdataInput,
+    protocol_version: ProtocolVersionId,
 ) {
+    let subversion = MultiVMSubversion::try_from(VmVersion::from(protocol_version)).unwrap();
     let (l1_messenger_pubdata_start_slot, pubdata) = match subversion {
         MultiVMSubversion::SmallBootloaderMemory | MultiVMSubversion::IncreasedBootloaderMemory => {
             // Skipping two slots as they will be filled by the bootloader itself:
@@ -182,7 +170,7 @@ pub(crate) fn apply_pubdata_to_memory(
             // Need to skip first word as it represents array offset
             // while bootloader expects only [len || data]
             let pubdata = ethabi::encode(&[ethabi::Token::Bytes(
-                pubdata_information.build_pubdata_legacy(true),
+                pubdata_builder.l1_messenger_operator_input(pubdata_information, protocol_version),
             )])[32..]
                 .to_vec();
 
@@ -199,7 +187,8 @@ pub(crate) fn apply_pubdata_to_memory(
             let l1_messenger_pubdata_start_slot =
                 get_operator_provided_l1_messenger_pubdata_offset(subversion) + 1;
 
-            let pubdata = get_encoded_pubdata(pubdata_information, pubdata_params, true);
+            let pubdata =
+                bootloader_memory_input(pubdata_builder, pubdata_information, protocol_version);
 
             assert!(
                 // Note that unlike the previous version, the difference is `1`, since now it also includes the offset

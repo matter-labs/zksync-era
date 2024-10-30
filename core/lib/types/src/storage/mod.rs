@@ -6,7 +6,7 @@ pub use log::*;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{web3::keccak256, L2ChainId};
 pub use zksync_system_constants::*;
-use zksync_utils::address_to_h256;
+use zksync_utils::{address_to_h256, u256_to_h256};
 
 use crate::{AccountTreeId, Address, H160, H256, U256};
 
@@ -90,6 +90,10 @@ pub fn get_code_key(account: &Address) -> StorageKey {
     StorageKey::new(account_code_storage, address_to_h256(account))
 }
 
+pub fn get_evm_code_hash_key(account: &Address) -> StorageKey {
+    get_deployer_key(get_address_mapping_key(account, u256_to_h256(1.into())))
+}
+
 pub fn get_known_code_key(hash: &H256) -> StorageKey {
     let known_codes_storage = AccountTreeId::new(KNOWN_CODES_STORAGE_ADDRESS);
     StorageKey::new(known_codes_storage, *hash)
@@ -108,6 +112,11 @@ fn get_message_root_log_key(key: H256) -> StorageKey {
 fn get_immutable_simulator_log_key(key: H256) -> StorageKey {
     let immutable_simulator = AccountTreeId::new(IMMUTABLE_SIMULATOR_STORAGE_ADDRESS);
     StorageKey::new(immutable_simulator, key)
+}
+
+pub fn get_deployer_key(key: H256) -> StorageKey {
+    let deployer_contract = AccountTreeId::new(CONTRACT_DEPLOYER_ADDRESS);
+    StorageKey::new(deployer_contract, key)
 }
 
 pub fn get_is_account_key(account: &Address) -> StorageKey {

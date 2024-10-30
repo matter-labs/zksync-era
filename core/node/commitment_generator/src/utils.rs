@@ -19,6 +19,7 @@ use zk_evm_1_5_0::{
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::commit::kzg::ZK_SYNC_BYTES_PER_BLOB;
 use zksync_multivm::{interface::VmEvent, utils::get_used_bootloader_memory_bytes};
+use zksync_system_constants::message_root::{AGG_TREE_HEIGHT_KEY, AGG_TREE_NODES_KEY};
 use zksync_types::{
     vm::VmVersion,
     web3::keccak256,
@@ -249,9 +250,11 @@ pub(crate) fn pubdata_to_blob_linear_hashes(
     // Now, we need to calculate the linear hashes of the blobs.
     // Firstly, let's pad the pubdata to the size of the blob.
     if pubdata_input.len() % ZK_SYNC_BYTES_PER_BLOB != 0 {
-        let padding =
-            vec![0u8; ZK_SYNC_BYTES_PER_BLOB - pubdata_input.len() % ZK_SYNC_BYTES_PER_BLOB];
-        pubdata_input.extend(padding);
+        pubdata_input.resize(
+            pubdata_input.len()
+                + (ZK_SYNC_BYTES_PER_BLOB - pubdata_input.len() % ZK_SYNC_BYTES_PER_BLOB),
+            0,
+        );
     }
 
     let mut result = vec![H256::zero(); blobs_required];
@@ -270,12 +273,6 @@ pub(crate) async fn read_aggregation_root(
     connection: &mut Connection<'_, Core>,
     l1_batch_number: L1BatchNumber,
 ) -> anyhow::Result<H256> {
-    // Position of `FullTree::_height` in `MessageRoot`'s storage layout.
-    const AGG_TREE_HEIGHT_KEY: usize = 3;
-
-    // Position of `FullTree::nodes` in `MessageRoot`'s storage layout.
-    const AGG_TREE_NODES_KEY: usize = 5;
-
     let (_, last_l2_block) = connection
         .blocks_dal()
         .get_l2_block_range_of_l1_batch(l1_batch_number)
@@ -284,7 +281,7 @@ pub(crate) async fn read_aggregation_root(
 
     let agg_tree_height_slot = StorageKey::new(
         AccountTreeId::new(L2_MESSAGE_ROOT_ADDRESS),
-        u256_to_h256(AGG_TREE_HEIGHT_KEY.into()),
+        H256::from_low_u64_be(AGG_TREE_HEIGHT_KEY as u64),
     );
 
     let agg_tree_height = connection

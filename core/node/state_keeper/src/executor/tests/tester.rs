@@ -26,7 +26,7 @@ use zksync_state::{OwnedStorage, ReadStorageFactory, RocksdbStorageOptions};
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
     block::L2BlockHasher,
-    commitment::{L1BatchCommitmentMode, PubdataParams},
+    commitment::PubdataParams,
     ethabi::Token,
     get_code_key, get_known_code_key,
     protocol_version::ProtocolSemanticVersion,
@@ -126,10 +126,9 @@ impl Tester {
         &mut self,
         storage_type: StorageType,
     ) -> Box<dyn BatchExecutor<OwnedStorage>> {
-        let (l1_batch_env, system_env) = self.default_batch_params();
+        let (l1_batch_env, system_env, pubdata_params) = self.default_batch_params();
         match storage_type {
             StorageType::AsyncRocksdbCache => {
-                let (l1_batch_env, system_env) = self.default_batch_params();
                 let (state_keeper_storage, task) = AsyncRocksdbCache::new(
                     self.pool(),
                     self.state_keeper_db_path(),
@@ -144,6 +143,7 @@ impl Tester {
                     Arc::new(state_keeper_storage),
                     l1_batch_env,
                     system_env,
+                    pubdata_params,
                 )
                 .await
             }
@@ -155,12 +155,18 @@ impl Tester {
                     )),
                     l1_batch_env,
                     system_env,
+                    pubdata_params,
                 )
                 .await
             }
             StorageType::Postgres => {
-                self.create_batch_executor_inner(Arc::new(self.pool()), l1_batch_env, system_env)
-                    .await
+                self.create_batch_executor_inner(
+                    Arc::new(self.pool()),
+                    l1_batch_env,
+                    system_env,
+                    pubdata_params,
+                )
+                .await
             }
         }
     }
@@ -170,6 +176,7 @@ impl Tester {
         storage_factory: Arc<dyn ReadStorageFactory>,
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
+        pubdata_params: PubdataParams,
     ) -> Box<dyn BatchExecutor<OwnedStorage>> {
         let (_stop_sender, stop_receiver) = watch::channel(false);
         let storage = storage_factory
@@ -180,11 +187,11 @@ impl Tester {
         if self.config.trace_calls {
             let mut executor = MainBatchExecutorFactory::<TraceCalls>::new(false);
             executor.set_fast_vm_mode(self.config.fast_vm_mode);
-            executor.init_batch(storage, l1_batch_env, system_env)
+            executor.init_batch(storage, l1_batch_env, system_env, pubdata_params)
         } else {
             let mut executor = MainBatchExecutorFactory::<()>::new(false);
             executor.set_fast_vm_mode(self.config.fast_vm_mode);
-            executor.init_batch(storage, l1_batch_env, system_env)
+            executor.init_batch(storage, l1_batch_env, system_env, pubdata_params)
         }
     }
 
@@ -234,7 +241,7 @@ impl Tester {
         snapshot: &SnapshotRecoveryStatus,
     ) -> Box<dyn BatchExecutor<OwnedStorage>> {
         let current_timestamp = snapshot.l2_block_timestamp + 1;
-        let (mut l1_batch_env, system_env) =
+        let (mut l1_batch_env, system_env, pubdata_params) =
             self.batch_params(snapshot.l1_batch_number + 1, current_timestamp);
         l1_batch_env.previous_batch_hash = Some(snapshot.l1_batch_root_hash);
         l1_batch_env.first_l2_block = L2BlockEnv {
@@ -244,11 +251,11 @@ impl Tester {
             max_virtual_blocks_to_create: 1,
         };
 
-        self.create_batch_executor_inner(storage_factory, l1_batch_env, system_env)
+        self.create_batch_executor_inner(storage_factory, l1_batch_env, system_env, pubdata_params)
             .await
     }
 
-    pub(super) fn default_batch_params(&self) -> (L1BatchEnv, SystemEnv) {
+    pub(super) fn default_batch_params(&self) -> (L1BatchEnv, SystemEnv, PubdataParams) {
         // Not really important for the batch executor - it operates over a single batch.
         self.batch_params(L1BatchNumber(1), 100)
     }
@@ -258,20 +265,16 @@ impl Tester {
         &self,
         l1_batch_number: L1BatchNumber,
         timestamp: u64,
-    ) -> (L1BatchEnv, SystemEnv) {
+    ) -> (L1BatchEnv, SystemEnv, PubdataParams) {
         let mut system_params = default_system_env();
         if let Some(vm_gas_limit) = self.config.vm_gas_limit {
             system_params.bootloader_gas_limit = vm_gas_limit;
         }
         system_params.default_validation_computational_gas_limit =
             self.config.validation_computational_gas_limit;
-        system_params.pubdata_params = PubdataParams {
-            l2_da_validator_address: get_da_contract_address(),
-            pubdata_type: L1BatchCommitmentMode::Rollup,
-        };
         let mut batch_params = default_l1_batch_env(l1_batch_number.0, timestamp, self.fee_account);
         batch_params.previous_batch_hash = Some(H256::zero()); // Not important in this context.
-        (batch_params, system_params)
+        (batch_params, system_params, PubdataParams::default())
     }
 
     /// Performs the genesis in the storage.
@@ -285,7 +288,7 @@ impl Tester {
                     patch: 0.into(),
                 },
                 &BASE_SYSTEM_CONTRACTS,
-                &get_system_smart_contracts(),
+                &get_system_smart_contracts(false),
                 Default::default(),
             )
             .await

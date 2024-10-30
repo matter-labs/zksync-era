@@ -1,6 +1,7 @@
 use anyhow::Context;
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::{eth_sender::EthConfig, gateway::GatewayChainConfig, ContractsConfig};
+use zksync_db_connection::error::DalError;
 use zksync_eth_client::BoundEthInterface;
 use zksync_eth_sender::{Aggregator, EthTxAggregator};
 use zksync_types::{commitment::L1BatchCommitmentMode, settlement::SettlementMode, L2ChainId};
@@ -14,7 +15,6 @@ use crate::{
         },
         object_store::ObjectStoreResource,
         pools::{MasterPool, PoolResource, ReplicaPool},
-        priority_merkle_tree::PriorityTreeResource,
     },
     service::StopReceiver,
     task::{Task, TaskId},
@@ -61,7 +61,6 @@ pub struct Input {
     pub object_store: ObjectStoreResource,
     #[context(default)]
     pub circuit_breakers: CircuitBreakersResource,
-    pub priority_tree: PriorityTreeResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -144,7 +143,6 @@ impl WiringLayer for EthTxAggregatorLayer {
 
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
         let object_store = input.object_store.0;
-        let priority_tree = input.priority_tree.0;
 
         // Create and add tasks.
         let eth_client_blobs_addr = eth_client_blobs
@@ -152,13 +150,19 @@ impl WiringLayer for EthTxAggregatorLayer {
             .map(BoundEthInterface::sender_account);
 
         let config = self.eth_sender_config.sender.context("sender")?;
+        let mut connection = replica_pool
+            .connection_tagged("eth_sender")
+            .await
+            .map_err(DalError::generalize)?;
         let aggregator = Aggregator::new(
             config.clone(),
             object_store,
             eth_client_blobs_addr.is_some(),
             self.l1_batch_commit_data_generator_mode,
-            priority_tree,
-        );
+            &mut connection,
+        )
+        .await?;
+        drop(connection);
 
         let eth_tx_aggregator = EthTxAggregator::new(
             master_pool.clone(),

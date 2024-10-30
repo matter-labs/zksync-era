@@ -20,11 +20,8 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiClient;
 use zksync_node_sync::SyncState;
 use zksync_types::{
-    api::{self, BridgeAddresses},
-    commitment::L1BatchCommitmentMode,
-    l2::L2Tx,
-    transaction_request::CallRequest,
-    Address, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, SLChainId, H256, U256, U64,
+    api, commitment::L1BatchCommitmentMode, l2::L2Tx, transaction_request::CallRequest, Address,
+    L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, SLChainId, H256, U256, U64,
 };
 use zksync_web3_decl::{error::Web3Error, types::Filter};
 
@@ -239,18 +236,18 @@ impl SealedL2BlockNumber {
 }
 
 #[derive(Debug, Clone)]
-pub struct BridgeAddressesHandle(Arc<RwLock<BridgeAddresses>>);
+pub struct BridgeAddressesHandle(Arc<RwLock<api::BridgeAddresses>>);
 
 impl BridgeAddressesHandle {
-    pub fn new(bridge_addresses: BridgeAddresses) -> Self {
+    pub fn new(bridge_addresses: api::BridgeAddresses) -> Self {
         Self(Arc::new(RwLock::new(bridge_addresses)))
     }
 
-    pub async fn update(&self, bridge_addresses: BridgeAddresses) {
+    pub async fn update(&self, bridge_addresses: api::BridgeAddresses) {
         *self.0.write().await = bridge_addresses;
     }
 
-    pub async fn read(&self) -> BridgeAddresses {
+    pub async fn read(&self) -> api::BridgeAddresses {
         self.0.read().await.clone()
     }
 }
@@ -274,12 +271,19 @@ pub(crate) struct RpcState {
 }
 
 impl RpcState {
-    pub fn parse_transaction_bytes(&self, bytes: &[u8]) -> Result<(L2Tx, H256), Web3Error> {
+    pub fn parse_transaction_bytes(
+        &self,
+        bytes: &[u8],
+        block_args: &BlockArgs,
+    ) -> Result<(L2Tx, H256), Web3Error> {
         let chain_id = self.api_config.l2_chain_id;
         let (tx_request, hash) = api::TransactionRequest::from_bytes(bytes, chain_id)?;
-
         Ok((
-            L2Tx::from_request(tx_request, self.api_config.max_tx_size)?,
+            L2Tx::from_request(
+                tx_request,
+                self.api_config.max_tx_size,
+                block_args.use_evm_emulator(),
+            )?,
             hash,
         ))
     }
