@@ -1162,7 +1162,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__create)
-            opts="-v -h --chain-name --chain-id --prover-mode --wallet-creation --wallet-path --l1-batch-commit-data-generator-mode --base-token-address --base-token-price-nominator --base-token-price-denominator --set-as-default --legacy-bridge --evm-emulator --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --chain-name --chain-id --prover-mode --wallet-creation --wallet-path --l1-batch-commit-data-generator-mode --base-token-address --base-token-price-nominator --base-token-price-denominator --set-as-default --legacy-bridge --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1216,10 +1216,6 @@ _zkstack() {
                     return 0
                     ;;
                 --set-as-default)
-                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
-                    return 0
-                    ;;
-                --evm-emulator)
                     COMPREPLY=($(compgen -W "true false" -- "${cur}"))
                     return 0
                     ;;
@@ -1445,7 +1441,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__genesis)
-            opts="-d -d -v -h --server-db-url --server-db-name --dev --dont-drop --verbose --chain --ignore-prerequisites --help init-database server help"
+            opts="-u -d -v -h --server-db-url --server-db-name --use-default --dont-drop --verbose --chain --ignore-prerequisites --help init-database server help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1527,7 +1523,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__genesis__init__database)
-            opts="-d -d -v -h --server-db-url --server-db-name --dev --dont-drop --verbose --chain --ignore-prerequisites --help"
+            opts="-u -d -v -h --server-db-url --server-db-name --use-default --dont-drop --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1823,7 +1819,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__init)
-            opts="-a -d -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --server-db-url --server-db-name --dont-drop --deploy-paymaster --l1-rpc-url --no-port-reallocation --dev --verbose --chain --ignore-prerequisites --help configs help"
+            opts="-a -u -d -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --server-db-url --server-db-name --use-default --dont-drop --deploy-paymaster --l1-rpc-url --no-port-reallocation --verbose --chain --ignore-prerequisites --help configs help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1881,7 +1877,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__init__configs)
-            opts="-d -d -v -h --server-db-url --server-db-name --dev --dont-drop --l1-rpc-url --no-port-reallocation --verbose --chain --ignore-prerequisites --help"
+            opts="-u -d -v -h --server-db-url --server-db-name --use-default --dont-drop --l1-rpc-url --no-port-reallocation --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4647,7 +4643,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__ecosystem__create)
-            opts="-v -h --ecosystem-name --l1-network --link-to-code --chain-name --chain-id --prover-mode --wallet-creation --wallet-path --l1-batch-commit-data-generator-mode --base-token-address --base-token-price-nominator --base-token-price-denominator --set-as-default --legacy-bridge --evm-emulator --start-containers --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --ecosystem-name --l1-network --link-to-code --chain-name --chain-id --prover-mode --wallet-creation --wallet-path --l1-batch-commit-data-generator-mode --base-token-address --base-token-price-nominator --base-token-price-denominator --set-as-default --legacy-bridge --start-containers --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4716,10 +4712,6 @@ _zkstack() {
                     return 0
                     ;;
                 --set-as-default)
-                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
-                    return 0
-                    ;;
-                --evm-emulator)
                     COMPREPLY=($(compgen -W "true false" -- "${cur}"))
                     return 0
                     ;;
@@ -4837,7 +4829,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__ecosystem__init)
-            opts="-a -d -o -v -h --deploy-erc20 --deploy-ecosystem --ecosystem-contracts-path --l1-rpc-url --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --deploy-paymaster --server-db-url --server-db-name --dont-drop --ecosystem-only --dev --observability --no-port-reallocation --verbose --chain --ignore-prerequisites --help"
+            opts="-a -u -d -o -v -h --deploy-erc20 --deploy-ecosystem --ecosystem-contracts-path --l1-rpc-url --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --deploy-paymaster --server-db-url --server-db-name --use-default --dont-drop --ecosystem-only --dev --observability --no-port-reallocation --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
