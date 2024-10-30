@@ -4,11 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     consts::CONTRACTS_FILE,
     forge_interface::{
-        deploy_ecosystem::output::DeployL1Output,
-        deploy_l2_contracts::output::{
-            ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
-            Multicall3Output,
-        },
+        deploy_ecosystem::output::DeployL1Output, deploy_l2_contracts,
         register_chain::output::RegisterChainOutput,
     },
     traits::{FileConfigWithDefaultName, ZkStackConfig},
@@ -79,35 +75,21 @@ impl ContractsConfig {
         self.l1.chain_admin_addr = register_chain_output.chain_admin_addr;
     }
 
-    pub fn set_l2_shared_bridge(
-        &mut self,
-        initialize_bridges_output: &InitializeBridgeOutput,
-    ) -> anyhow::Result<()> {
-        self.bridges.shared.l2_address = Some(initialize_bridges_output.l2_shared_bridge_proxy);
-        self.bridges.erc20.l2_address = Some(initialize_bridges_output.l2_shared_bridge_proxy);
-        self.l2.legacy_shared_bridge_addr = Some(initialize_bridges_output.l2_shared_bridge_proxy);
-        Ok(())
-    }
-
-    pub fn set_consensus_registry(
-        &mut self,
-        consensus_registry_output: &ConsensusRegistryOutput,
-    ) -> anyhow::Result<()> {
-        self.l2.consensus_registry = Some(consensus_registry_output.consensus_registry_proxy);
-        Ok(())
-    }
-
-    pub fn set_default_l2_upgrade(
-        &mut self,
-        default_upgrade_output: &DefaultL2UpgradeOutput,
-    ) -> anyhow::Result<()> {
-        self.l2.default_l2_upgrader = default_upgrade_output.l2_default_upgrader;
-        Ok(())
-    }
-
-    pub fn set_multicall3(&mut self, multicall3_output: &Multicall3Output) -> anyhow::Result<()> {
-        self.l2.multicall3 = Some(multicall3_output.multicall3);
-        Ok(())
+    pub fn set_l2_contracts(&mut self, output: &deploy_l2_contracts::output::Output) {
+        if let Some(spec) = &output.l2_shared_bridge_proxy {
+            self.bridges.shared.l2_address = Some(spec.address);
+            self.bridges.erc20.l2_address = Some(spec.address);
+            self.l2.legacy_shared_bridge_addr = Some(spec.address);
+        }
+        if let Some(spec) = &output.l2_consensus_registry_proxy {
+            self.l2.consensus_registry = Some(spec.address);
+        }
+        if let Some(spec) = &output.l2_force_deploy_upgrader {
+            self.l2.default_l2_upgrader = spec.address;
+        }
+        if let Some(spec) = &output.l2_multicall3 {
+            self.l2.multicall3 = Some(spec.address);
+        }
     }
 }
 

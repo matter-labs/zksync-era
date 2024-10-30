@@ -36,6 +36,7 @@ zksync_consensus_crypto = "=0.5.0"
 zksync_consensus_utils = "=0.5.0"
 zksync_protobuf = "=0.5.0"
 zksync_protobuf_build = "=0.5.0"
+zksync_concurrency = "=0.5.0"
 
 # External dependencies
 anyhow = "1.0.82"

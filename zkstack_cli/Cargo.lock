@@ -6744,6 +6744,7 @@ dependencies = [
  "url",
  "xshell",
  "zksync_basic_types",
+ "zksync_concurrency",
  "zksync_config",
  "zksync_consensus_crypto",
  "zksync_consensus_roles",

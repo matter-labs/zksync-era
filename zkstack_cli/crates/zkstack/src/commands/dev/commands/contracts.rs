@@ -73,7 +73,7 @@ pub enum ContractType {
 }
 
 struct ContractBuilder {
-    cmd: Box<dyn FnOnce(Shell, PathBuf) -> anyhow::Result<()>>,
+    cmd: Box<dyn FnOnce(&Shell, PathBuf) -> anyhow::Result<()>>,
     msg: String,
     link_to_code: PathBuf,
 }
@@ -104,7 +104,7 @@ impl ContractBuilder {
         }
     }
 
-    fn build(self, shell: Shell) -> anyhow::Result<()> {
+    fn build(self, shell: &Shell) -> anyhow::Result<()> {
         let spinner = Spinner::new(&self.msg);
         (self.cmd)(shell, self.link_to_code.clone())?;
         spinner.finish();
@@ -126,7 +126,7 @@ pub fn run(shell: &Shell, args: ContractsArgs) -> anyhow::Result<()> {
     contracts
         .iter()
         .map(|contract| ContractBuilder::new(&ecosystem, *contract))
-        .try_for_each(|builder| builder.build(shell.clone()))?;
+        .try_for_each(|builder| builder.build(shell))?;
 
     logger::outro(MSG_BUILDING_CONTRACTS_SUCCESS);
 

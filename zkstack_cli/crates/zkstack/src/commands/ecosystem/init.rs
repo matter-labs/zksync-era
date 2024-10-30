@@ -108,7 +108,7 @@ async fn init_ecosystem(
     initial_deployment_config: &InitialDeploymentConfig,
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
-    build_system_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
+    build_system_contracts(shell, ecosystem_config.link_to_code.clone())?;
     spinner.finish();
 
     let contracts = deploy_ecosystem(
