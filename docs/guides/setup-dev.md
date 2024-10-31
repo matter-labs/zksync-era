@@ -156,7 +156,7 @@ sudo apt-get install libssl-dev
 
 ## `Rust`
 
-Install the latest `rust` version.
+Install `Rust`'s toolchain version reported in `/rust-toolchain.toml` (also a later stable version should work).
 
 Instructions can be found on the [official site](https://www.rust-lang.org/tools/install).
 
