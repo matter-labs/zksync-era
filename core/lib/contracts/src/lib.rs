@@ -16,7 +16,11 @@ use ethabi::{
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, env::Workspace};
+use zksync_utils::{
+    bytecode::{self, hash_bytecode},
+    bytes_to_be_words,
+    env::Workspace,
+};
 
 pub mod test_contracts;
 
@@ -334,6 +338,7 @@ pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
     let artifacts_path =
         Path::new(&home_path()).join("contracts/system-contracts/bootloader/build/artifacts");
     let bytecode_path = artifacts_path.join(format!("{bootloader_type}.yul.zbin"));
+    println!("str: {:#?}", bytecode_path.to_str());
     if fs::exists(bytecode_path).unwrap_or_default() {
         read_yul_bytecode(
             "contracts/system-contracts/bootloader/build/artifacts",

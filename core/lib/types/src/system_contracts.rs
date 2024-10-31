@@ -219,7 +219,7 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 34] = [
         ContractLanguage::Sol,
     ),
     (
-        "../../../system-contracts/artifacts-zk/@openzeppelin/contracts-v4/proxy/transparent/",
+        "",
         "TransparentUpgradeableProxy",
         L2_TRANSPARENT_UPGRADABLE_PROXY_IMPL,
         ContractLanguage::Sol,
