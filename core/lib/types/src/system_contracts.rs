@@ -183,25 +183,25 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 34] = [
         ContractLanguage::Sol,
     ),
     (
-        "../../../l1-contracts/zkout/",
+        "../../l1-contracts/zkout/",
         "Bridgehub",
         L2_BRIDGEHUB_ADDRESS,
         ContractLanguage::Sol,
     ),
     (
-        "../../../l1-contracts/zkout/",
+        "../../l1-contracts/zkout/",
         "MessageRoot",
         L2_MESSAGE_ROOT_ADDRESS,
         ContractLanguage::Sol,
     ),
     (
-        "../../../l1-contracts/zkout/",
+        "../../l1-contracts/zkout/",
         "L2AssetRouter",
         L2_ASSET_ROUTER_ADDRESS,
         ContractLanguage::Sol,
     ),
     (
-        "../../../l1-contracts/zkout/",
+        "../../l1-contracts/zkout/",
         "L2NativeTokenVault",
         L2_NATIVE_TOKEN_VAULT_ADDRESS,
         ContractLanguage::Sol,
@@ -213,7 +213,7 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 34] = [
         ContractLanguage::Sol,
     ),
     (
-        "../../../l1-contracts/zkout/",
+        "../../l1-contracts/zkout/",
         "L2WrappedBaseToken",
         L2_WRAPPED_BASE_TOKEN_IMPL,
         ContractLanguage::Sol,
