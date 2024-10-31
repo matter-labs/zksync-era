@@ -430,6 +430,10 @@ impl AsyncTreeReader {
         .await
         .unwrap()
     }
+
+    pub(crate) fn into_db(self) -> RocksDBWrapper {
+        self.inner.into_db()
+    }
 }
 
 /// Version of async tree reader that holds a weak reference to RocksDB. Used in [`MerkleTreeHealthCheck`].

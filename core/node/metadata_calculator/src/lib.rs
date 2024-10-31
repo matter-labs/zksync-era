@@ -27,13 +27,14 @@ pub use self::{
     helpers::{AsyncTreeReader, LazyAsyncTreeReader, MerkleTreeInfo},
     pruning::MerkleTreePruningTask,
 };
-use crate::helpers::create_readonly_db;
+use crate::{helpers::create_readonly_db, repair::StaleKeysRepairTask};
 
 pub mod api_server;
 mod helpers;
 mod metrics;
 mod pruning;
 mod recovery;
+mod repair;
 #[cfg(test)]
 pub(crate) mod tests;
 mod updater;
@@ -201,6 +202,11 @@ impl MetadataCalculator {
         let (pruning_handles_sender, pruning_handles) = oneshot::channel();
         self.pruning_handles_sender = pruning_handles_sender;
         MerkleTreePruningTask::new(pruning_handles, self.pool.clone(), poll_interval)
+    }
+
+    /// This method should be called once.
+    pub fn stale_keys_repair_task(&self) -> StaleKeysRepairTask {
+        StaleKeysRepairTask::new(self.tree_reader())
     }
 
     async fn create_tree(&self) -> anyhow::Result<GenericAsyncTree> {

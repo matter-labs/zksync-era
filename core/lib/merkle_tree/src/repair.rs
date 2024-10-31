@@ -2,7 +2,7 @@
 
 use std::{
     ops,
-    sync::mpsc,
+    sync::{mpsc, Arc, Mutex},
     time::{Duration, Instant},
 };
 
@@ -14,9 +14,25 @@ use crate::{
     Database, PruneDatabase, RocksDBWrapper,
 };
 
+/// Persisted information about stale keys repair progress.
 #[derive(Debug)]
 pub(crate) struct StaleKeysRepairData {
     pub next_version: u64,
+}
+
+/// [`StaleKeysRepairTask`] progress stats.
+#[derive(Debug, Clone, Default)]
+pub struct StaleKeysRepairStats {
+    /// Versions checked by the task, or `None` if no versions have been checked.
+    pub checked_versions: Option<ops::RangeInclusive<u64>>,
+    /// Number of repaired stale keys.
+    pub repaired_key_count: usize,
+}
+
+#[derive(Debug)]
+struct StepStats {
+    checked_versions: ops::RangeInclusive<u64>,
+    repaired_key_count: usize,
 }
 
 /// Handle for a [`StaleKeysRepairTask`] allowing to abort its operation.
@@ -25,7 +41,16 @@ pub(crate) struct StaleKeysRepairData {
 #[must_use = "Paired `StaleKeysRepairTask` is aborted once handle is dropped"]
 #[derive(Debug)]
 pub struct StaleKeysRepairHandle {
+    stats: Arc<Mutex<StaleKeysRepairStats>>,
     _aborted_sender: mpsc::Sender<()>,
+}
+
+impl StaleKeysRepairHandle {
+    /// Returns stats for the paired task.
+    #[allow(clippy::missing_panics_doc)] // mutex poisoning shouldn't happen
+    pub fn stats(&self) -> StaleKeysRepairStats {
+        self.stats.lock().expect("stats mutex poisoned").clone()
+    }
 }
 
 /// Task that repairs stale keys for the tree.
@@ -38,6 +63,7 @@ pub struct StaleKeysRepairTask {
     db: RocksDBWrapper,
     parallelism: u64,
     poll_interval: Duration,
+    stats: Arc<Mutex<StaleKeysRepairStats>>,
     aborted_receiver: mpsc::Receiver<()>,
 }
 
@@ -45,16 +71,24 @@ impl StaleKeysRepairTask {
     /// Creates a new task.
     pub fn new(db: RocksDBWrapper) -> (Self, StaleKeysRepairHandle) {
         let (aborted_sender, aborted_receiver) = mpsc::channel();
+        let stats = Arc::<Mutex<StaleKeysRepairStats>>::default();
         let this = Self {
             db,
             parallelism: (rayon::current_num_threads() as u64).max(1),
             poll_interval: Duration::from_secs(60),
+            stats: stats.clone(),
             aborted_receiver,
         };
         let handle = StaleKeysRepairHandle {
+            stats,
             _aborted_sender: aborted_sender,
         };
         (this, handle)
+    }
+
+    /// Sets the poll interval for this task.
+    pub fn set_poll_interval(&mut self, poll_interval: Duration) {
+        self.poll_interval = poll_interval;
     }
 
     /// Runs stale key detection for a single tree version.
@@ -112,7 +146,7 @@ impl StaleKeysRepairTask {
     }
 
     /// Returns a boolean flag indicating whether the task data was updated.
-    fn step(&mut self) -> anyhow::Result<bool> {
+    fn step(&mut self) -> anyhow::Result<Option<StepStats>> {
         let repair_data = self
             .db
             .stale_keys_repair_data()
@@ -121,7 +155,7 @@ impl StaleKeysRepairTask {
         let start_version = match (repair_data, min_stale_key_version) {
             (_, None) => {
                 tracing::debug!("No stale keys in tree, nothing to do");
-                return Ok(false);
+                return Ok(None);
             }
             (None, Some(version)) => version,
             (Some(data), Some(version)) => data.next_version.max(version),
@@ -136,14 +170,14 @@ impl StaleKeysRepairTask {
                 min_stale_key_version,
                 "Tree has stale keys, but no latest versions"
             );
-            return Ok(false);
+            return Ok(None);
         };
 
         let end_version = (start_version + self.parallelism - 1).min(latest_version);
         let versions = start_version..=end_version;
         if versions.is_empty() {
             tracing::debug!(?versions, latest_version, "No tree versions to check");
-            return Ok(false);
+            return Ok(None);
         }
 
         tracing::debug!(
@@ -166,8 +200,12 @@ impl StaleKeysRepairTask {
                 acc.extend(keys);
                 acc
             });
-        self.update_task_data(versions, &stale_keys)?;
-        Ok(true)
+        self.update_task_data(versions.clone(), &stale_keys)?;
+
+        Ok(Some(StepStats {
+            checked_versions: versions,
+            repaired_key_count: stale_keys.len(),
+        }))
     }
 
     #[tracing::instrument(
@@ -201,15 +239,37 @@ impl StaleKeysRepairTask {
         }
     }
 
+    fn update_stats(&self, step_stats: StepStats) {
+        let mut stats = self.stats.lock().expect("stats mutex poisoned");
+        if let Some(versions) = &mut stats.checked_versions {
+            *versions = *versions.start()..=*step_stats.checked_versions.end();
+        } else {
+            stats.checked_versions = Some(step_stats.checked_versions);
+        }
+        stats.repaired_key_count += step_stats.repaired_key_count;
+    }
+
     /// Runs this task indefinitely.
     ///
     /// # Errors
     ///
     /// Propagates RocksDB I/O errors.
     pub fn run(mut self) -> anyhow::Result<()> {
+        let repair_data = self
+            .db
+            .stale_keys_repair_data()
+            .context("failed getting repair data")?;
+        tracing::info!(
+            paralellism = self.parallelism,
+            poll_interval = ?self.poll_interval,
+            ?repair_data,
+            "Starting repair task"
+        );
+
         let mut wait_interval = Duration::ZERO;
         while !self.wait_for_abort(wait_interval) {
-            wait_interval = if self.step()? {
+            wait_interval = if let Some(step_stats) = self.step()? {
+                self.update_stats(step_stats);
                 Duration::ZERO
             } else {
                 self.poll_interval
@@ -293,7 +353,9 @@ mod tests {
         let (mut task, _handle) = StaleKeysRepairTask::new(db);
         task.parallelism = 10; // Ensure that all tree versions are checked at once.
                                // Repair the tree.
-        assert!(task.step().unwrap());
+        let step_stats = task.step().unwrap().expect("tree was not repaired");
+        assert_eq!(step_stats.checked_versions, 1..=1);
+        assert!(step_stats.repaired_key_count > 0);
         // Check that the tree works fine once it's pruned.
         let (mut pruner, _) = MerkleTreePruner::new(&mut task.db);
         pruner.prune_up_to(1).unwrap().expect("tree was not pruned");
@@ -310,7 +372,7 @@ mod tests {
             .verify_consistency(1, false)
             .unwrap();
 
-        assert!(!task.step().unwrap());
+        assert!(task.step().unwrap().is_none());
     }
 
     #[test]
