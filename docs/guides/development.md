@@ -50,6 +50,8 @@ zkstack ecosystem init
 
 These commands will guide you through the configuration options for setting up the ecosystem.
 
+> NOTE: For local development only. You can also use the development defaults by supplying the `--dev` flag.
+
 Initialization may take some time, but key steps (such as downloading and unpacking keys or setting up containers) only
 need to be completed once.
 
