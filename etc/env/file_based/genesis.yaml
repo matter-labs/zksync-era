@@ -12,5 +12,5 @@ prover:
   dummy_verifier: true
 genesis_protocol_semantic_version: 0.25.0
 l1_batch_commit_data_generator_mode: Rollup
-# Uncomment to enable EVM emulation (requires to run genesis)
+# TODO: uncomment once EVM emulator is present in the `contracts` submodule
 # evm_emulator_hash: 0x01000e53aa35d9d19fa99341c2e2901cf93b3668f01569dd5c6ca409c7696b91

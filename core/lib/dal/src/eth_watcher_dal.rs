@@ -107,7 +107,7 @@ mod tests {
     async fn test_get_or_set_next_block_to_process_with_different_event_types() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
-        let mut dal = conn.processed_events_dal();
+        let mut dal = conn.eth_watcher_dal();
 
         // Test with ProtocolUpgrades
         let next_block = dal

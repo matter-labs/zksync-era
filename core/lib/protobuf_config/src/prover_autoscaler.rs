@@ -112,6 +112,13 @@ impl ProtoRepr for proto::ProverAutoscalerScalerConfig {
                 .map(|(i, e)| e.read().context(i))
                 .collect::<Result<_, _>>()
                 .context("min_provers")?,
+            scaler_targets: self
+                .scaler_targets
+                .iter()
+                .enumerate()
+                .map(|(i, x)| x.read().context(i).unwrap())
+                .collect::<Vec<_>>(),
+            dry_run: self.dry_run.unwrap_or_default(),
         })
     }
 
@@ -151,6 +158,8 @@ impl ProtoRepr for proto::ProverAutoscalerScalerConfig {
                 .iter()
                 .map(|(k, v)| proto::MinProver::build(&(k.clone(), *v)))
                 .collect(),
+            scaler_targets: this.scaler_targets.iter().map(ProtoRepr::build).collect(),
+            dry_run: Some(this.dry_run),
         }
     }
 }
@@ -235,6 +244,58 @@ impl ProtoRepr for proto::MinProver {
         Self {
             namespace: Some(this.0.to_string()),
             min: Some(this.1),
+        }
+    }
+}
+
+impl ProtoRepr for proto::MaxReplica {
+    type Type = (String, usize);
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok((
+            required(&self.cluster).context("cluster")?.parse()?,
+            *required(&self.max).context("max")? as usize,
+        ))
+    }
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            cluster: Some(this.0.to_string()),
+            max: Some(this.1 as u64),
+        }
+    }
+}
+
+impl ProtoRepr for proto::ScalerTarget {
+    type Type = configs::prover_autoscaler::ScalerTarget;
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(Self::Type {
+            queue_report_field: required(&self.queue_report_field)
+                .and_then(|x| Ok((*x).parse()?))
+                .context("queue_report_field")?,
+            deployment: required(&self.deployment).context("deployment")?.clone(),
+            max_replicas: self
+                .max_replicas
+                .iter()
+                .enumerate()
+                .map(|(i, e)| e.read().context(i))
+                .collect::<Result<_, _>>()
+                .context("max_replicas")?,
+            speed: match self.speed {
+                Some(x) => x as usize,
+                None => Self::Type::default_speed(),
+            },
+        })
+    }
+
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            queue_report_field: Some(this.queue_report_field.to_string()),
+            deployment: Some(this.deployment.clone()),
+            max_replicas: this
+                .max_replicas
+                .iter()
+                .map(|(k, v)| proto::MaxReplica::build(&(k.clone(), *v)))
+                .collect(),
+            speed: Some(this.speed as u64),
         }
     }
 }

@@ -1,9 +1,12 @@
 use zksync_types::{ExecuteTransactionCommon, Nonce, Transaction, H160};
 
 use super::{TestedVm, VmTester};
-use crate::interface::{
-    CurrentExecutionState, ExecutionResult, Halt, TxRevertReason, VmExecutionMode,
-    VmExecutionResultAndLogs, VmInterfaceExt, VmRevertReason,
+use crate::{
+    interface::{
+        CurrentExecutionState, ExecutionResult, Halt, InspectExecutionMode, TxRevertReason,
+        VmExecutionResultAndLogs, VmInterfaceExt, VmRevertReason,
+    },
+    versions::testonly::default_pubdata_builder,
 };
 
 #[derive(Debug, Clone)]
@@ -181,7 +184,7 @@ impl<VM: TestedVm> VmTester<VM> {
         for tx_test_info in txs {
             self.execute_tx_and_verify(tx_test_info.clone());
         }
-        self.vm.execute(VmExecutionMode::Batch);
+        self.vm.finish_batch(default_pubdata_builder());
         let mut state = self.vm.get_current_execution_state();
         state.used_contract_hashes.sort();
         state
@@ -202,7 +205,7 @@ fn execute_tx_and_verify(
     let inner_state_before = vm.dump_state();
     vm.make_snapshot();
     vm.push_transaction(tx_test_info.tx.clone());
-    let result = vm.execute(VmExecutionMode::OneTx);
+    let result = vm.execute(InspectExecutionMode::OneTx);
     tx_test_info.verify_result(&result);
     if tx_test_info.should_rollback() {
         vm.rollback_to_the_latest_snapshot();

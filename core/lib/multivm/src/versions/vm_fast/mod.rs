@@ -1,4 +1,4 @@
-pub use zksync_vm2::interface::Tracer;
+pub use zksync_vm2::interface;
 
 pub use self::vm::Vm;
 

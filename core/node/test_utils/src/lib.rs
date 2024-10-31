@@ -45,6 +45,7 @@ pub fn create_l2_block(number: u32) -> L2BlockHeader {
         virtual_blocks: 1,
         gas_limit: 0,
         logs_bloom: Default::default(),
+        pubdata_params: Default::default(),
     }
 }
 
@@ -98,6 +99,10 @@ pub fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
         events_queue_commitment: Some(H256::zero()),
         bootloader_initial_content_commitment: Some(H256::zero()),
         state_diffs_compressed: vec![],
+        state_diff_hash: Some(H256::zero()),
+        local_root: Some(H256::zero()),
+        aggregation_root: Some(H256::zero()),
+        da_inclusion_data: Some(vec![]),
     }
 }
 
@@ -128,6 +133,9 @@ pub fn l1_batch_metadata_to_commitment_artifacts(
             }
             _ => None,
         },
+        local_root: metadata.local_root.unwrap(),
+        aggregation_root: metadata.aggregation_root.unwrap(),
+        state_diff_hash: metadata.state_diff_hash.unwrap(),
     }
 }
 
@@ -213,6 +221,7 @@ impl Snapshot {
             virtual_blocks: 1,
             gas_limit: 0,
             logs_bloom: Default::default(),
+            pubdata_params: Default::default(),
         };
         Snapshot {
             l1_batch,

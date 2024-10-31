@@ -392,7 +392,6 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
             logs: vec![],
             l2_to_l1_logs: vec![],
             status,
-            root: block_hash,
             logs_bloom: Default::default(),
             // Even though the Rust SDK recommends us to supply "None" for legacy transactions
             // we always supply some number anyway to have the same behavior as most popular RPCs

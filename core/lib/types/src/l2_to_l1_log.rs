@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use zksync_system_constants::{BLOB1_LINEAR_HASH_KEY, PUBDATA_CHUNK_PUBLISHER_ADDRESS};
+use zksync_system_constants::{BLOB1_LINEAR_HASH_KEY_PRE_GATEWAY, PUBDATA_CHUNK_PUBLISHER_ADDRESS};
 
 use crate::{
     blob::{num_blobs_created, num_blobs_required},
@@ -80,10 +80,15 @@ pub fn l2_to_l1_logs_tree_size(protocol_version: ProtocolVersionId) -> usize {
 }
 
 /// Returns the blob hashes parsed out from the system logs
-pub fn parse_system_logs_for_blob_hashes(
+pub fn parse_system_logs_for_blob_hashes_pre_gateway(
     protocol_version: &ProtocolVersionId,
     system_logs: &[SystemL2ToL1Log],
 ) -> Vec<H256> {
+    assert!(
+        protocol_version.is_pre_gateway(),
+        "Cannot parse blob linear hashes from system logs for post gateway"
+    );
+
     let num_required_blobs = num_blobs_required(protocol_version) as u32;
     let num_created_blobs = num_blobs_created(protocol_version) as u32;
 
@@ -95,9 +100,11 @@ pub fn parse_system_logs_for_blob_hashes(
         .iter()
         .filter(|log| {
             log.0.sender == PUBDATA_CHUNK_PUBLISHER_ADDRESS
-                && log.0.key >= H256::from_low_u64_be(BLOB1_LINEAR_HASH_KEY as u64)
+                && log.0.key >= H256::from_low_u64_be(BLOB1_LINEAR_HASH_KEY_PRE_GATEWAY as u64)
                 && log.0.key
-                    < H256::from_low_u64_be((BLOB1_LINEAR_HASH_KEY + num_created_blobs) as u64)
+                    < H256::from_low_u64_be(
+                        (BLOB1_LINEAR_HASH_KEY_PRE_GATEWAY + num_created_blobs) as u64,
+                    )
         })
         .map(|log| (log.0.key, log.0.value))
         .collect::<Vec<(H256, H256)>>();

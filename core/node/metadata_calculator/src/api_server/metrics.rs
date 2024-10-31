@@ -9,6 +9,8 @@ use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics
 pub(super) enum MerkleTreeApiMethod {
     Info,
     GetProofs,
+    GetNodes,
+    GetStaleKeys,
 }
 
 /// Metrics for Merkle tree API.

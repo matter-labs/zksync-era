@@ -3,10 +3,10 @@ use zksync_test_account::TxType;
 use zksync_types::{Address, Execute, U256};
 
 use super::{
-    read_expensive_contract, read_test_contract, tester::VmTesterBuilder, ContractToDeploy,
-    TestedVm,
+    default_pubdata_builder, read_expensive_contract, read_test_contract, tester::VmTesterBuilder,
+    ContractToDeploy, TestedVm,
 };
-use crate::interface::{TxExecutionMode, VmExecutionMode, VmInterfaceExt};
+use crate::interface::{InspectExecutionMode, TxExecutionMode, VmInterfaceExt};
 
 pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
     // In this test, we compare the execution of the bootloader with the predefined
@@ -24,7 +24,7 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
 
     let tx = account.get_deploy_tx(&counter, None, TxType::L2).tx;
     vm.vm.push_transaction(tx.clone());
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
 
     assert!(!result.result.is_failed());
 
@@ -37,7 +37,10 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
     );
     assert!(result.refunds.gas_refunded > 0, "The final refund is 0");
 
-    let result_without_predefined_refunds = vm.vm.execute(VmExecutionMode::Batch);
+    let result_without_predefined_refunds = vm
+        .vm
+        .finish_batch(default_pubdata_builder())
+        .block_tip_execution_result;
     let mut current_state_without_predefined_refunds = vm.vm.get_current_execution_state();
     assert!(!result_without_predefined_refunds.result.is_failed(),);
 
@@ -56,7 +59,10 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
     vm.vm
         .push_transaction_with_refund(tx.clone(), result.refunds.gas_refunded);
 
-    let result_with_predefined_refunds = vm.vm.execute(VmExecutionMode::Batch);
+    let result_with_predefined_refunds = vm
+        .vm
+        .finish_batch(default_pubdata_builder())
+        .block_tip_execution_result;
     let mut current_state_with_predefined_refunds = vm.vm.get_current_execution_state();
 
     assert!(!result_with_predefined_refunds.result.is_failed());
@@ -107,7 +113,10 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
     let changed_operator_suggested_refund = result.refunds.gas_refunded + 1000;
     vm.vm
         .push_transaction_with_refund(tx, changed_operator_suggested_refund);
-    let result = vm.vm.execute(VmExecutionMode::Batch);
+    let result = vm
+        .vm
+        .finish_batch(default_pubdata_builder())
+        .block_tip_execution_result;
     let mut current_state_with_changed_predefined_refunds = vm.vm.get_current_execution_state();
 
     assert!(!result.result.is_failed());
@@ -185,7 +194,7 @@ pub(crate) fn test_negative_pubdata_for_transaction<VM: TestedVm>() {
         None,
     );
     vm.vm.push_transaction(expensive_tx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         !result.result.is_failed(),
         "Transaction wasn't successful: {result:#?}"
@@ -202,7 +211,7 @@ pub(crate) fn test_negative_pubdata_for_transaction<VM: TestedVm>() {
         None,
     );
     vm.vm.push_transaction(clean_up_tx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         !result.result.is_failed(),
         "Transaction wasn't successful: {result:#?}"
