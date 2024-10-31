@@ -30,8 +30,8 @@ impl EthWatcherDal<'_, '_> {
             FROM
                 processed_events
             WHERE
-            TYPE = $1
-            AND chain_id = $2
+                type = $1
+                AND chain_id = $2
             "#,
             event_type as EventType,
             chain_id.0 as i64
@@ -48,13 +48,13 @@ impl EthWatcherDal<'_, '_> {
             sqlx::query!(
                 r#"
                 INSERT INTO
-                    processed_events (
-                        TYPE,
-                        chain_id,
-                        next_block_to_process
-                    )
+                processed_events (
+                    type,
+                    chain_id,
+                    next_block_to_process
+                )
                 VALUES
-                    ($1, $2, $3)
+                ($1, $2, $3)
                 "#,
                 event_type as EventType,
                 chain_id.0 as i64,
@@ -82,8 +82,8 @@ impl EthWatcherDal<'_, '_> {
             SET
                 next_block_to_process = $3
             WHERE
-            TYPE = $1
-            AND chain_id = $2
+                type = $1
+                AND chain_id = $2
             "#,
             event_type as EventType,
             chain_id.0 as i64,
@@ -107,7 +107,7 @@ mod tests {
     async fn test_get_or_set_next_block_to_process_with_different_event_types() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
-        let mut dal = conn.processed_events_dal();
+        let mut dal = conn.eth_watcher_dal();
 
         // Test with ProtocolUpgrades
         let next_block = dal

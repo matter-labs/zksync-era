@@ -48,6 +48,7 @@ impl EthTxManager {
         let fees_oracle = GasAdjusterFeesOracle {
             gas_adjuster,
             max_acceptable_priority_fee_in_gwei: config.max_acceptable_priority_fee_in_gwei,
+            time_in_mempool_in_l1_blocks_cap: config.time_in_mempool_in_l1_blocks_cap,
         };
         let l1_interface = Box::new(RealL1Interface {
             ethereum_gateway,
@@ -111,7 +112,7 @@ impl EthTxManager {
         &mut self,
         storage: &mut Connection<'_, Core>,
         tx: &EthTx,
-        time_in_mempool: u32,
+        time_in_mempool_in_l1_blocks: u32,
         current_block: L1BlockNumber,
     ) -> Result<H256, EthSenderError> {
         let previous_sent_tx = storage
@@ -127,7 +128,7 @@ impl EthTxManager {
             pubdata_price: _,
         } = self.fees_oracle.calculate_fees(
             &previous_sent_tx,
-            time_in_mempool,
+            time_in_mempool_in_l1_blocks,
             self.operator_type(tx),
         )?;
 
@@ -601,13 +602,18 @@ impl EthTxManager {
             .await?
         {
             // New gas price depends on the time this tx spent in mempool.
-            let time_in_mempool = l1_block_numbers.latest.0 - sent_at_block;
+            let time_in_mempool_in_l1_blocks = l1_block_numbers.latest.0 - sent_at_block;
 
             // We don't want to return early in case resend does not succeed -
             // the error is logged anyway, but early returns will prevent
             // sending new operations.
             let _ = self
-                .send_eth_tx(storage, &tx, time_in_mempool, l1_block_numbers.latest)
+                .send_eth_tx(
+                    storage,
+                    &tx,
+                    time_in_mempool_in_l1_blocks,
+                    l1_block_numbers.latest,
+                )
                 .await?;
         }
         Ok(())

@@ -1,0 +1,126 @@
+name: Workflow for testing prover component end-to-end
+on:
+  workflow_call:
+
+jobs:
+  e2e-test:
+    runs-on: [ matterlabs-ci-gpu-l4-runner-prover-tests ]
+    env:
+      RUNNER_COMPOSE_FILE: "docker-compose-gpu-runner-cuda-12-0.yml"
+
+    steps:
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+        with:
+          submodules: "recursive"
+          fetch-depth: 0
+
+      - name: Setup environment
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo IN_DOCKER=1 >> .env
+          echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
+          echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
+          echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
+          echo "RUSTC_WRAPPER=sccache" >> .env
+          
+          mkdir -p prover_logs
+
+      - name: Start services
+        run: |
+          run_retried docker-compose -f ${RUNNER_COMPOSE_FILE} pull
+          docker-compose -f ${RUNNER_COMPOSE_FILE} --profile runner up -d --wait
+          ci_run sccache --start-server
+
+      - name: Init
+        run: |
+          ci_run git config --global --add safe.directory "*"
+          ci_run chmod -R +x ./bin
+          
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
+          ci_run zkstackup -g --local
+          
+          ci_run zkstack chain create \
+            --chain-name proving_chain \
+            --chain-id sequential \
+            --prover-mode gpu \
+            --wallet-creation localhost \
+            --l1-batch-commit-data-generator-mode rollup \
+            --base-token-address 0x0000000000000000000000000000000000000001 \
+            --base-token-price-nominator 1 \
+            --base-token-price-denominator 1 \
+            --set-as-default true \
+            --ignore-prerequisites 
+
+          ci_run zkstack ecosystem init --dev --verbose
+          ci_run zkstack prover init --dev --verbose
+          
+          echo "URL=$(grep "http_url" ./chains/proving_chain/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
+      - name: Build prover binaries
+        run: |
+          ci_run cargo build --release --workspace --manifest-path=prover/Cargo.toml
+      - name: Prepare prover subsystem
+        run: |
+          ci_run zkstack prover init-bellman-cuda --clone --verbose
+          ci_run zkstack prover setup-keys --mode=download --region=us --verbose
+      - name: Run server
+        run: |
+          ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs/server.log &
+      - name: Run Gateway
+        run: |
+          ci_run zkstack prover run --component=gateway --docker=false &>prover_logs/gateway.log &
+      - name: Run Prover Job Monitor
+        run: |
+          ci_run zkstack prover run --component=prover-job-monitor --docker=false &>prover_logs/prover-job-monitor.log &
+      - name: Wait for batch to be passed through gateway
+        env:
+          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
+          BATCH_NUMBER: 1
+          INTERVAL: 30
+          TIMEOUT: 300
+        run: |
+          PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \
+          ci_run ./bin/prover_checkers/batch_availability_checker
+      - name: Run Witness Generator
+        run: |
+          ci_run zkstack prover run --component=witness-generator --round=all-rounds --docker=false &>prover_logs/witness-generator.log &
+      - name: Run Circuit Prover
+        run: |
+          ci_run zkstack prover run --component=circuit-prover --witness-vector-generator-count=10 --docker=false &>prover_logs/circuit_prover.log &
+      - name: Wait for prover jobs to finish
+        env:
+          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
+          BATCH_NUMBER: 1
+          INTERVAL: 30
+          TIMEOUT: 1200
+        run: |
+          PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \
+          ci_run ./bin/prover_checkers/prover_jobs_status_checker
+
+      - name: Kill prover & start compressor
+        run: |
+          sudo ./bin/prover_checkers/kill_prover
+          
+          ci_run zkstack prover run --component=compressor --docker=false &>prover_logs/compressor.log &
+      - name: Wait for batch to be executed on L1
+        env:
+            DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
+            BATCH_NUMBER: 1
+            INTERVAL: 30
+            TIMEOUT: 600
+        run: |
+          PASSED_ENV_VARS="BATCH_NUMBER,DATABASE_URL,URL,INTERVAL,TIMEOUT" \
+          ci_run ./bin/prover_checkers/batch_l1_status_checker
+
+      - name: Upload logs
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+        if: always()
+        with:
+          name: prover_logs
+          path: prover_logs
+
+      - name: Show sccache logs
+        if: always()
+        run: |
+          ci_run sccache --show-stats || true
+          ci_run cat /tmp/sccache_log.txt || true

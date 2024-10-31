@@ -1,7 +1,7 @@
 use std::{fmt, ops};
 
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{Address, Bloom, BloomInput, H256, U256};
+use zksync_basic_types::{commitment::PubdataParams, Address, Bloom, BloomInput, H256, U256};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_system_constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
 use zksync_utils::concat_and_hash;
@@ -65,6 +65,28 @@ pub struct L1BatchHeader {
     /// Version of protocol used for the L1 batch.
     pub protocol_version: Option<ProtocolVersionId>,
     pub pubdata_input: Option<Vec<u8>>,
+    pub fee_address: Address,
+}
+
+impl L1BatchHeader {
+    pub fn to_unsealed_header(&self, fee_input: BatchFeeInput) -> UnsealedL1BatchHeader {
+        UnsealedL1BatchHeader {
+            number: self.number,
+            timestamp: self.timestamp,
+            protocol_version: self.protocol_version,
+            fee_address: self.fee_address,
+            fee_input,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct UnsealedL1BatchHeader {
+    pub number: L1BatchNumber,
+    pub timestamp: u64,
+    pub protocol_version: Option<ProtocolVersionId>,
+    pub fee_address: Address,
+    pub fee_input: BatchFeeInput,
 }
 
 /// Holder for the L2 block metadata that is not available from transactions themselves.
@@ -91,6 +113,7 @@ pub struct L2BlockHeader {
     /// amount of gas can be spent on pubdata.
     pub gas_limit: u64,
     pub logs_bloom: Bloom,
+    pub pubdata_params: PubdataParams,
 }
 
 /// Structure that represents the data is returned by the storage oracle during batch execution.
@@ -132,6 +155,7 @@ impl L1BatchHeader {
             system_logs: vec![],
             protocol_version: Some(protocol_version),
             pubdata_input: Some(vec![]),
+            fee_address: Default::default(),
         }
     }
 

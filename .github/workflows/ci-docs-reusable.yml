@@ -27,12 +27,17 @@ jobs:
           run_retried docker compose pull zk
           docker compose up -d zk
 
+      - name: Install zkstack
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
+          ci_run zkstackup -g --local
+  
       - name: Build
         run: |
-          ci_run ./bin/zkt
           ci_run yarn install
           ci_run git config --global --add safe.directory /usr/src/zksync
 
       - name: Lints
         run: |
-          ci_run zk_supervisor lint -t md --check
+          ci_run zkstack dev fmt --check
+          ci_run zkstack dev lint -t md --check

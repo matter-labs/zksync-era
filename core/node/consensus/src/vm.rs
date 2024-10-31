@@ -1,13 +1,18 @@
+use std::sync::Arc;
+
 use anyhow::Context as _;
 use tokio::runtime::Handle;
-use zksync_concurrency::{ctx, error::Wrap as _};
+use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_consensus_roles::attester;
 use zksync_state::PostgresStorage;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{ethabi, fee::Fee, l2::L2Tx, AccountTreeId, L2ChainId, Nonce, U256};
-use zksync_vm_executor::oneshot::{CallOrExecute, MainOneshotExecutor, OneshotEnvParameters};
+use zksync_vm_executor::oneshot::{
+    CallOrExecute, MainOneshotExecutor, MultiVMBaseSystemContracts, OneshotEnvParameters,
+};
 use zksync_vm_interface::{
-    executor::OneshotExecutor, ExecutionResult, OneshotTracingParams, TxExecutionArgs,
+    executor::OneshotExecutor, storage::StorageWithOverrides, ExecutionResult,
+    OneshotTracingParams, TxExecutionArgs,
 };
 
 use crate::{abi, storage::ConnectionPool};
@@ -23,16 +28,17 @@ pub(crate) struct VM {
 impl VM {
     /// Constructs a new `VM` instance.
     pub async fn new(pool: ConnectionPool) -> Self {
+        let base_system_contracts =
+            scope::wait_blocking(MultiVMBaseSystemContracts::load_eth_call_blocking).await;
         Self {
             pool,
             // L2 chain ID and fee account don't seem to matter for calls, hence the use of default values.
-            options: OneshotEnvParameters::for_execution(
+            options: OneshotEnvParameters::new(
+                Arc::new(base_system_contracts),
                 L2ChainId::default(),
                 AccountTreeId::default(),
                 u32::MAX,
-            )
-            .await
-            .expect("OneshotExecutorOptions"),
+            ),
             executor: MainOneshotExecutor::new(usize::MAX),
         }
     }
@@ -84,7 +90,7 @@ impl VM {
 
         let output = ctx
             .wait(self.executor.inspect_transaction_with_bytecode_compression(
-                storage,
+                StorageWithOverrides::new(storage),
                 env,
                 TxExecutionArgs::for_eth_call(tx),
                 OneshotTracingParams::default(),

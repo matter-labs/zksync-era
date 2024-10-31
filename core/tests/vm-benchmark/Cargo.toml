@@ -11,6 +11,7 @@ zksync_multivm.workspace = true
 zksync_types.workspace = true
 zksync_utils.workspace = true
 zksync_vlog.workspace = true
+zksync_vm2.workspace = true
 
 criterion.workspace = true
 once_cell.workspace = true
@@ -20,7 +21,7 @@ tokio.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true
-iai.workspace = true
+yab.workspace = true
 
 [[bench]]
 name = "oneshot"
@@ -31,5 +32,5 @@ name = "batch"
 harness = false
 
 [[bench]]
-name = "iai"
+name = "instructions"
 harness = false

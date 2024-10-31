@@ -47,7 +47,7 @@ RUN mkdir -p /etc/zksolc-bin/vm-1.5.0-a167aa3 && \
     chmod +x /etc/zksolc-bin/vm-1.5.0-a167aa3/zksolc
 
 # install zksolc 1.5.x
-RUN for VERSION in $(seq -f "v1.5.%g" 0 4); do \
+RUN for VERSION in $(seq -f "v1.5.%g" 0 6); do \
     mkdir -p /etc/zksolc-bin/$VERSION && \
     wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-$VERSION -O /etc/zksolc-bin/$VERSION/zksolc && \
     chmod +x /etc/zksolc-bin/$VERSION/zksolc; \
@@ -68,7 +68,7 @@ RUN for VERSION in $(seq -f "v1.4.%g" 0 1); do \
     done
 
 # install zkvyper 1.5.x
-RUN for VERSION in $(seq -f "v1.5.%g" 0 4); do \
+RUN for VERSION in $(seq -f "v1.5.%g" 0 6); do \
     mkdir -p /etc/zkvyper-bin/$VERSION && \
     wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-$VERSION -O /etc/zkvyper-bin/$VERSION/zkvyper && \
     chmod +x /etc/zkvyper-bin/$VERSION/zkvyper; \
@@ -91,10 +91,13 @@ RUN mkdir -p /etc/vyper-bin/0.3.10 \
     && wget -O vyper0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10%2Bcommit.91361694.linux \
     && mv vyper0.3.10 /etc/vyper-bin/0.3.10/vyper \
     && chmod +x /etc/vyper-bin/0.3.10/vyper
+RUN mkdir -p /etc/vyper-bin/0.4.0 \
+    && wget -O vyper0.4.0 https://github.com/vyperlang/vyper/releases/download/v0.4.0/vyper.0.4.0+commit.e9db8d9f.linux \
+    && mv vyper0.4.0 /etc/vyper-bin/0.4.0/vyper \
+    && chmod +x /etc/vyper-bin/0.4.0/vyper
 
 COPY --from=builder /usr/src/zksync/target/release/zksync_contract_verifier /usr/bin/
-COPY contracts/system-contracts/bootloader/build/artifacts/ /contracts/system-contracts/bootloader/build/artifacts/
-COPY contracts/system-contracts/artifacts-zk /contracts/system-contracts/artifacts-zk
+COPY contracts/system-contracts/zkout/ /contracts/system-contracts/zkout/
 
 # CMD tail -f /dev/null
 ENTRYPOINT ["zksync_contract_verifier"]

@@ -115,6 +115,7 @@ impl RpcConfig {
 /// Config (shared between main node and external node).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConsensusConfig {
+    pub port: Option<u16>,
     /// Local socket address to listen for the incoming connections.
     pub server_addr: std::net::SocketAddr,
     /// Public address of this node (should forward to `server_addr`)
@@ -148,6 +149,9 @@ pub struct ConsensusConfig {
 
     /// Rate limiting configuration for the p2p RPCs.
     pub rpc: Option<RpcConfig>,
+
+    /// Local socket address to expose the node debug page.
+    pub debug_page_addr: Option<std::net::SocketAddr>,
 }
 
 impl ConsensusConfig {

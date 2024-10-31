@@ -75,6 +75,12 @@ impl ProtoRepr for proto::Genesis {
                     .and_then(|x| parse_h256(x))
                     .context("default_aa_hash")?,
             ),
+            evm_emulator_hash: self
+                .evm_emulator_hash
+                .as_deref()
+                .map(parse_h256)
+                .transpose()
+                .context("evm_emulator_hash")?,
             l1_chain_id: required(&self.l1_chain_id)
                 .map(|x| L1ChainId(*x))
                 .context("l1_chain_id")?,
@@ -105,6 +111,7 @@ impl ProtoRepr for proto::Genesis {
             genesis_protocol_semantic_version: this.protocol_version.map(|x| x.to_string()),
             default_aa_hash: this.default_aa_hash.map(|x| format!("{:?}", x)),
             bootloader_hash: this.bootloader_hash.map(|x| format!("{:?}", x)),
+            evm_emulator_hash: this.evm_emulator_hash.map(|x| format!("{:?}", x)),
             fee_account: Some(format!("{:?}", this.fee_account)),
             l1_chain_id: Some(this.l1_chain_id.0),
             l2_chain_id: Some(this.l2_chain_id.as_u64()),

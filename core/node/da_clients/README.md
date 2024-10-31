@@ -8,4 +8,6 @@ Currently, the following DataAvailability clients are implemented:
   utilizing the DA framework.
 - `Object Store client` that stores the pubdata in the Object Store(GCS).
 - `Avail` that sends the pubdata to the Avail DA layer.
+- `Celestia` that sends the pubdata to the Celestia DA layer.
+- `Eigen` that sends the pubdata to the Eigen DA layer.
 - `Near` that sends the pubdata to the Near DA layer.
