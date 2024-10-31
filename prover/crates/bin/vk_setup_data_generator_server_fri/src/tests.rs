@@ -72,7 +72,7 @@ fn test_proverservicedatakey_new() {
         "Circuit id should be equal to the given value"
     );
     assert_eq!(
-        key.round,
+        key.stage,
         AggregationRound::BasicCircuits,
         "Round should be equal to the given value"
     );

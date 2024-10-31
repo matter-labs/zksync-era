@@ -133,7 +133,7 @@ impl WitnessVectorGenerator {
 
         let setup_data_key = ProverServiceDataKey {
             circuit_id: prover_job_metadata.circuit_id,
-            round: prover_job_metadata.aggregation_round,
+            stage: prover_job_metadata.aggregation_round.into(),
         }
         .crypto_setup_key();
         let prover_job = ProverJob::new(

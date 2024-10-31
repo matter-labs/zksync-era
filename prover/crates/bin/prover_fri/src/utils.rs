@@ -149,23 +149,23 @@ pub fn setup_metadata_to_setup_data_key(
             // For node aggregation only one key exist for all circuit types
             ProverServiceDataKey {
                 circuit_id: ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
-                round,
+                stage: round,
             }
         }
         _ => ProverServiceDataKey {
             circuit_id: setup_metadata.circuit_id,
-            round,
+            stage: round,
         },
     }
 }
 
 pub fn get_setup_data_key(key: ProverServiceDataKey) -> ProverServiceDataKey {
-    match key.round {
+    match key.stage {
         AggregationRound::NodeAggregation => {
             // For node aggregation only one key exist for all circuit types
             ProverServiceDataKey {
                 circuit_id: ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
-                round: key.round,
+                stage: key.stage,
             }
         }
         _ => key,
@@ -180,11 +180,11 @@ mod tests {
     fn test_get_setup_data_key_for_node_agg_key() {
         let key = ProverServiceDataKey {
             circuit_id: 10,
-            round: AggregationRound::NodeAggregation,
+            stage: AggregationRound::NodeAggregation,
         };
         let expected = ProverServiceDataKey {
             circuit_id: ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
-            round: AggregationRound::NodeAggregation,
+            stage: AggregationRound::NodeAggregation,
         };
 
         let result = get_setup_data_key(key);
@@ -197,7 +197,7 @@ mod tests {
     fn test_get_setup_data_key_for_non_node_agg_key() {
         let key = ProverServiceDataKey {
             circuit_id: 10,
-            round: AggregationRound::BasicCircuits,
+            stage: AggregationRound::BasicCircuits,
         };
 
         let result = get_setup_data_key(key);

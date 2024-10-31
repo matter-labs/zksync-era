@@ -8,7 +8,7 @@ use zkevm_test_harness::{
     compute_setups::{generate_circuit_setup_data, CircuitSetupData},
     data_source::SetupDataSource,
 };
-use zksync_prover_fri_types::ProverServiceDataKey;
+use zksync_prover_fri_types::{ProverServiceDataKey, ProvingStage};
 #[cfg(feature = "gpu")]
 use {
     crate::GpuProverSetupData, shivini::cs::setup::GpuSetup, shivini::ProverContext,
@@ -31,22 +31,24 @@ pub fn generate_setup_data_common(
     )
     .unwrap();
 
-    let (finalization, vk) = if circuit.is_base_layer() {
-        (
+    let (finalization, vk) = match circuit.stage {
+        ProvingStage::BasicCircuits => (
             Some(keystore.load_finalization_hints(circuit)?),
             data_source
                 .get_base_layer_vk(circuit.circuit_id)
                 .unwrap()
                 .into_inner(),
-        )
-    } else {
-        (
+        ),
+        ProvingStage::Compression => {
+            todo!()
+        }
+        _ => (
             Some(keystore.load_finalization_hints(circuit)?),
             data_source
                 .get_recursion_layer_vk(circuit.circuit_id)
                 .unwrap()
                 .into_inner(),
-        )
+        ),
     };
 
     // Sanity check to make sure that generated setup data is matching.

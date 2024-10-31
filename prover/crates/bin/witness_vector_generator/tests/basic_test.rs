@@ -14,7 +14,7 @@ fn test_generate_witness_vector() {
         .expect("circuit wrapper deserialization failed");
     let key = ProverServiceDataKey {
         circuit_id: 1,
-        round: AggregationRound::BasicCircuits,
+        stage: AggregationRound::BasicCircuits,
     };
     let job = ProverJob {
         block_number: L1BatchNumber(1),

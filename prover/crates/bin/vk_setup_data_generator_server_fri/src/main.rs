@@ -134,6 +134,7 @@ enum CircuitSelector {
     Recursive,
     /// Select circuits from basic group.
     Basic,
+    Compression,
 }
 
 #[derive(Debug, Parser)]
@@ -195,12 +196,6 @@ enum Command {
         #[arg(long)]
         path: Option<String>,
     },
-    /// Generates setup keys (used by the FFLONK prover).
-    #[command(name = "generate-sk-fflonk")]
-    GenerateFflonkSetupKeys {
-        #[arg(long)]
-        path: Option<String>,
-    },
 }
 
 fn print_stats(digests: HashMap<String, String>) -> anyhow::Result<()> {
@@ -246,56 +241,17 @@ fn generate_setup_keys(
                 .numeric_circuit
                 .expect("--numeric-circuit must be provided"),
         ),
+        CircuitSelector::Compression => ProverServiceDataKey::new_compression(
+            options
+                .numeric_circuit
+                .expect("--numeric-circuit must be provided"),
+        ),
     };
 
     let digest = generator
         .generate_and_write_setup_data(circuit_type, options.dry_run, options.recompute_if_missing)
         .context("generate_setup_data()")?;
     tracing::info!("digest: {:?}", digest);
-    Ok(())
-}
-
-fn generate_fflonk_setup_keys(keystore: &Keystore) -> anyhow::Result<()> {
-    let worker = franklin_crypto::boojum::worker::Worker::new();
-
-    let vk = keystore.load_compression_vk()?;
-    let input = CompressionInput::CompressionWrapper(None, vk, CompressionMode::Five);
-
-    let setup_data = {
-        let circuit = input.into_compression_wrapper_circuit();
-        let proof_cfg = circuit.proof_config_for_compression_step();
-        match circuit {
-            ZkSyncCompressionForWrapperCircuit::CompressionMode5Circuit(inner) => {
-                let (setup_cs, finalization_hint) =
-                    shivini::synthesis_utils::synthesize_compression_circuit::<
-                        _,
-                        SetupCSConfig,
-                        Global,
-                    >(inner, true, None);
-                let (base_setup, _setup, setup_tree, variables_hint, witnesses_hint, vk) =
-                    setup_cs.prepare_base_setup_with_precomputations_and_vk::<CompressionTranscriptForWrapper, CompressionTreeHasherForWrapper>(
-                        proof_cfg.clone(),
-                        &worker
-                    );
-                let gpu_setup = GpuSetup::from_setup_and_hints(
-                    base_setup,
-                    setup_tree,
-                    variables_hint,
-                    witnesses_hint,
-                    &worker,
-                )
-                .unwrap();
-                GpuProverSetupData {
-                    setup: gpu_setup,
-                    vk,
-                    finalization_hint: finalization_hint.unwrap(),
-                }
-            }
-            _ => unreachable!(),
-        }
-    };
-
-    keystore.save_setup_data_for_fflonk(setup_data)?;
     Ok(())
 }
 
@@ -342,10 +298,6 @@ fn main() -> anyhow::Result<()> {
                 ),
             };
             generate_setup_keys(&generator, &options)
-        }
-        Command::GenerateFflonkSetupKeys { path } => {
-            let keystore = keystore_from_optional_path(path, None);
-            generate_fflonk_setup_keys(&keystore)
         }
     }
 }

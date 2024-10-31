@@ -164,7 +164,48 @@ impl ProverJob {
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct ProverServiceDataKey {
     pub circuit_id: u8,
-    pub round: AggregationRound,
+    pub stage: ProvingStage,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum ProvingStage {
+    BasicCircuits = 0,
+    LeafAggregation = 1,
+    NodeAggregation = 2,
+    RecursionTip = 3,
+    Scheduler = 4,
+    Compression = 5,
+    CompressionWrapper = 6,
+}
+
+impl From<ProvingStage> for AggregationRound {
+    fn from(stage: ProvingStage) -> Self {
+        match stage {
+            ProvingStage::BasicCircuits => AggregationRound::BasicCircuits,
+            ProvingStage::LeafAggregation => AggregationRound::LeafAggregation,
+            ProvingStage::NodeAggregation => AggregationRound::NodeAggregation,
+            ProvingStage::RecursionTip => AggregationRound::RecursionTip,
+            ProvingStage::Scheduler => AggregationRound::Scheduler,
+            ProvingStage::Compression => {
+                unreachable!("Compression stage is not a part of the aggregation rounds")
+            }
+            ProvingStage::CompressionWrapper => {
+                unreachable!("Compression wrapper stage is not a part of the aggregation rounds")
+            }
+        }
+    }
+}
+
+impl From<AggregationRound> for ProvingStage {
+    fn from(round: AggregationRound) -> Self {
+        match round {
+            AggregationRound::BasicCircuits => ProvingStage::BasicCircuits,
+            AggregationRound::LeafAggregation => ProvingStage::LeafAggregation,
+            AggregationRound::NodeAggregation => ProvingStage::NodeAggregation,
+            AggregationRound::RecursionTip => ProvingStage::RecursionTip,
+            AggregationRound::Scheduler => ProvingStage::Scheduler,
+        }
+    }
 }
 
 impl ProverServiceDataKey {
@@ -175,12 +216,13 @@ impl ProverServiceDataKey {
     /// The 2 overlap on all aggregation rounds, but NodeAggregation.
     /// There's only 1 node key and that belongs to circuit 2.
     pub fn crypto_setup_key(self) -> Self {
-        if let AggregationRound::NodeAggregation = self.round {
+        if self.stage == ProvingStage::NodeAggregation {
             return Self {
                 circuit_id: 2,
-                round: self.round,
+                stage: ProvingStage::NodeAggregation,
             };
         }
+
         self
     }
 }
@@ -203,21 +245,31 @@ fn get_round_for_recursive_circuit_type(circuit_type: u8) -> AggregationRound {
 }
 
 impl ProverServiceDataKey {
-    pub fn new(circuit_id: u8, round: AggregationRound) -> Self {
-        Self { circuit_id, round }
+    pub fn new(circuit_id: u8, round: ProvingStage) -> Self {
+        Self {
+            circuit_id,
+            stage: round,
+        }
     }
 
     /// Creates a new data key for recursive type - with auto selection of the aggregation round.
     pub fn new_recursive(circuit_id: u8) -> Self {
         Self {
             circuit_id,
-            round: get_round_for_recursive_circuit_type(circuit_id),
+            stage: get_round_for_recursive_circuit_type(circuit_id).into(),
         }
     }
     pub fn new_basic(circuit_id: u8) -> Self {
         Self {
             circuit_id,
-            round: AggregationRound::BasicCircuits,
+            stage: ProvingStage::BasicCircuits,
+        }
+    }
+
+    pub fn new_compression(circuit_id: u8) -> Self {
+        Self {
+            circuit_id,
+            stage: ProvingStage::Compression,
         }
     }
 
@@ -230,6 +282,11 @@ impl ProverServiceDataKey {
             results.push(ProverServiceDataKey::new_recursive(numeric_circuit))
         }
 
+        // TODO: Using hardcoded circuits is nasty
+        for numeric_circuit in 1..6 {
+            results.push(ProverServiceDataKey::new_compression(numeric_circuit))
+        }
+
         // Don't include snark, as it uses the old proving system.
 
         results
@@ -239,7 +296,7 @@ impl ProverServiceDataKey {
     pub fn snark() -> Self {
         Self {
             circuit_id: 1,
-            round: AggregationRound::Scheduler,
+            stage: ProvingStage::Scheduler,
         }
     }
 
@@ -250,20 +307,21 @@ impl ProverServiceDataKey {
     }
 
     pub fn is_base_layer(&self) -> bool {
-        self.round == AggregationRound::BasicCircuits
+        self.stage == ProvingStage::BasicCircuits
     }
 
     pub fn name(&self) -> String {
-        match self.round {
-            AggregationRound::BasicCircuits => {
+        match self.stage {
+            ProvingStage::BasicCircuits => {
                 format!("basic_{}", self.circuit_id)
             }
-            AggregationRound::LeafAggregation => {
+            ProvingStage::LeafAggregation => {
                 format!("leaf_{}", self.circuit_id)
             }
-            AggregationRound::NodeAggregation => "node".to_string(),
-            AggregationRound::RecursionTip => "recursion_tip".to_string(),
-            AggregationRound::Scheduler => "scheduler".to_string(),
+            ProvingStage::NodeAggregation => "node".to_string(),
+            ProvingStage::RecursionTip => "recursion_tip".to_string(),
+            ProvingStage::Scheduler => "scheduler".to_string(),
+            ProvingStage::Compression => format!("compression_{}", self.circuit_id),
         }
     }
 }
