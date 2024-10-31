@@ -36,11 +36,11 @@ const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts/out";
 const BRIDGEHUB_CONTRACT_FILE: (&str, &str) = ("bridgehub", "IBridgehub.sol/IBridgehub.json");
 const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
-    "IStateTransitionManager.sol/IStateTransitionManager.json",
+    "IChainTypeManager.sol/IChainTypeManager.json",
 );
 const ZKSYNC_HYPERCHAIN_CONTRACT_FILE: (&str, &str) = (
     "state-transition/chain-interfaces",
-    "IZkSyncHyperchain.sol/IZkSyncHyperchain.json",
+    "IZKChain.sol/IZKChain.json",
 );
 const DIAMOND_INIT_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
@@ -208,6 +208,16 @@ pub fn l1_messenger_contract() -> Contract {
     load_sys_contract("L1Messenger")
 }
 
+pub fn l2_message_root() -> Contract {
+    load_contract(
+        "contracts/l1-contracts/artifacts-zk/contracts/bridgehub/MessageRoot.sol/MessageRoot.json",
+    )
+}
+
+pub fn l2_rollup_da_validator_bytecode() -> Vec<u8> {
+    read_bytecode("contracts/l2-contracts/artifacts-zk/contracts/data-availability/RollupL2DAValidator.sol/RollupL2DAValidator.json")
+}
+
 /// Reads bytecode from the path RELATIVE to the Cargo workspace location.
 pub fn read_bytecode(relative_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u8> {
     read_bytecode_from_path(relative_path).expect("Exists")
@@ -286,7 +296,9 @@ impl SystemContractsRepo {
                         "artifacts-zk/contracts-preprocessed/{0}{1}.sol/{1}.json",
                         directory, name
                     )))
-                    .expect("One of the outputs should exists")
+                    .unwrap_or_else(|| {
+                        panic!("One of the outputs should exists for {directory}{name}");
+                    })
                 }
             }
             ContractLanguage::Yul => {
@@ -314,10 +326,21 @@ pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
     {
         return contract;
     };
-    read_yul_bytecode(
-        "contracts/system-contracts/bootloader/build/artifacts",
-        bootloader_type,
-    )
+
+    let artifacts_path =
+        Path::new(&home_path()).join("contracts/system-contracts/bootloader/build/artifacts");
+    let bytecode_path = artifacts_path.join(format!("{bootloader_type}.yul.zbin"));
+    if fs::exists(bytecode_path).unwrap_or_default() {
+        read_yul_bytecode(
+            "contracts/system-contracts/bootloader/build/artifacts",
+            bootloader_type,
+        )
+    } else {
+        read_yul_bytecode(
+            "contracts/system-contracts/bootloader/tests/artifacts",
+            bootloader_type,
+        )
+    }
 }
 
 fn read_proved_batch_bootloader_bytecode() -> Vec<u8> {
@@ -518,7 +541,8 @@ impl BaseSystemContracts {
 
     pub fn playground_gateway() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
-            "etc/multivm_bootloaders/vm_gateway/playground_batch.yul/playground_batch.yul.zbin",
+            "contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin",
+            // "etc/multivm_bootloaders/vm_gateway/playground_batch.yul/playground_batch.yul.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
@@ -595,7 +619,8 @@ impl BaseSystemContracts {
 
     pub fn estimate_gas_gateway() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
-            "etc/multivm_bootloaders/vm_gateway/fee_estimate.yul/fee_estimate.yul.zbin",
+            "contracts/system-contracts/bootloader/build/artifacts/fee_estimate.yul.zbin",
+            // "etc/multivm_bootloaders/vm_gateway/fee_estimate.yul/fee_estimate.yul.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
@@ -736,14 +761,14 @@ pub static PRE_BOOJUM_COMMIT_FUNCTION: Lazy<Function> = Lazy::new(|| {
     serde_json::from_str(abi).unwrap()
 });
 
-pub static SET_CHAIN_ID_EVENT: Lazy<Event> = Lazy::new(|| {
+pub static GENESIS_UPGRADE_EVENT: Lazy<Event> = Lazy::new(|| {
     let abi = r#"
     {
       "anonymous": false,
       "inputs": [
         {
           "indexed": true,
-          "name": "_stateTransitionChain",
+          "name": "_hyperchain",
           "type": "address"
         },
         {
@@ -821,9 +846,14 @@ pub static SET_CHAIN_ID_EVENT: Lazy<Event> = Lazy::new(|| {
           "indexed": true,
           "name": "_protocolVersion",
           "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "name": "_factoryDeps",
+          "type": "bytes[]"
         }
       ],
-      "name": "SetChainIdUpgrade",
+      "name": "GenesisUpgrade",
       "type": "event"
     }"#;
     serde_json::from_str(abi).unwrap()
@@ -1003,6 +1033,322 @@ pub static DIAMOND_CUT: Lazy<Function> = Lazy::new(|| {
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
+    }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+pub static POST_SHARED_BRIDGE_COMMIT_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "batchNumber",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "batchHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "indexRepeatedStorageChanges",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "numberOfLayer1Txs",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "priorityOperationsHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "l2LogsTreeRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "timestamp",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "commitment",
+              "type": "bytes32"
+            }
+          ],
+          "internalType": "struct IExecutor.StoredBatchInfo",
+          "name": "_lastCommittedBatchData",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "batchNumber",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "timestamp",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "indexRepeatedStorageChanges",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "newStateRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "numberOfLayer1Txs",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "priorityOperationsHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "bootloaderHeapInitialContentsHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "eventsQueueStateHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes",
+              "name": "systemLogs",
+              "type": "bytes"
+            },
+            {
+              "internalType": "bytes",
+              "name": "pubdataCommitments",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct IExecutor.CommitBatchInfo[]",
+          "name": "_newBatchesData",
+          "type": "tuple[]"
+        }
+      ],
+      "name": "commitBatchesSharedBridge",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+pub static POST_SHARED_BRIDGE_PROVE_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "batchNumber",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "batchHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "indexRepeatedStorageChanges",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "numberOfLayer1Txs",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "priorityOperationsHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "l2LogsTreeRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "timestamp",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "commitment",
+              "type": "bytes32"
+            }
+          ],
+          "internalType": "struct IExecutor.StoredBatchInfo",
+          "name": "_prevBatch",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "batchNumber",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "batchHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "indexRepeatedStorageChanges",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "numberOfLayer1Txs",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "priorityOperationsHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "l2LogsTreeRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "timestamp",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "commitment",
+              "type": "bytes32"
+            }
+          ],
+          "internalType": "struct IExecutor.StoredBatchInfo[]",
+          "name": "_committedBatches",
+          "type": "tuple[]"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256[]",
+              "name": "recursiveAggregationInput",
+              "type": "uint256[]"
+            },
+            {
+              "internalType": "uint256[]",
+              "name": "serializedProof",
+              "type": "uint256[]"
+            }
+          ],
+          "internalType": "struct IExecutor.ProofInput",
+          "name": "_proof",
+          "type": "tuple"
+        }
+      ],
+      "name": "proveBatchesSharedBridge",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+pub static POST_SHARED_BRIDGE_EXECUTE_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "batchNumber",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "batchHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "indexRepeatedStorageChanges",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "numberOfLayer1Txs",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "priorityOperationsHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "l2LogsTreeRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "timestamp",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "commitment",
+              "type": "bytes32"
+            }
+          ],
+          "internalType": "struct IExecutor.StoredBatchInfo[]",
+          "name": "_batchesData",
+          "type": "tuple[]"
+        }
+      ],
+      "name": "executeBatchesSharedBridge",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
     }"#;
     serde_json::from_str(abi).unwrap()
 });

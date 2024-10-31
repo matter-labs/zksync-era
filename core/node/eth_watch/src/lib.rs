@@ -44,6 +44,7 @@ pub struct EthWatch {
 }
 
 impl EthWatch {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         chain_admin_contract: &Contract,
         l1_client: Box<dyn EthClient>,

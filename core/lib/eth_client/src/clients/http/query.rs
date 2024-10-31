@@ -366,6 +366,7 @@ where
         for (base, blob) in fee_history
             .base_fee_per_gas
             .into_iter()
+            .take(chunk_size)
             .zip(fee_history.base_fee_per_blob_gas)
             .take(chunk_size)
         {
@@ -425,7 +426,7 @@ where
         let chunk_size = chunk_end - chunk_start + 1;
 
         let fee_history = client
-            .fee_history(U64::from(chunk_size).into(), chunk_end.into(), vec![])
+            .fee_history(U64::from(chunk_size).into(), chunk_end.into(), None)
             .rpc_context("fee_history")
             .with_arg("chunk_size", &chunk_size)
             .with_arg("block", &chunk_end)

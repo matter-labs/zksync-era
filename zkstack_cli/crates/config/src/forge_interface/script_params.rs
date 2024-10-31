@@ -39,9 +39,9 @@ pub const DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptPara
 };
 
 pub const REGISTER_CHAIN_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/register-hyperchain.toml",
-    output: "script-out/output-register-hyperchain.toml",
-    script_path: "deploy-scripts/RegisterHyperchain.s.sol",
+    input: "script-config/register-zk-chain.toml",
+    output: "script-out/output-register-zk-chain.toml",
+    script_path: "deploy-scripts/RegisterZKChain.s.sol",
 };
 
 pub const DEPLOY_ERC20_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
@@ -66,4 +66,16 @@ pub const SETUP_LEGACY_BRIDGE: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/setup-legacy-bridge.toml",
     output: "script-out/setup-legacy-bridge.toml",
     script_path: "deploy-scripts/dev/SetupLegacyBridge.s.sol",
+};
+
+pub const DEPLOY_GATEWAY_CTM: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/config-deploy-gateway-ctm.toml",
+    output: "script-out/output-deploy-gateway-ctm.toml",
+    script_path: "deploy-scripts/GatewayCTMFromL1.s.sol",
+};
+
+pub const GATEWAY_PREPARATION: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/gateway-preparation-l1.toml",
+    output: "script-out/output-gateway-preparation-l1.toml",
+    script_path: "deploy-scripts/GatewayPreparation.s.sol",
 };

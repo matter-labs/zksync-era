@@ -115,6 +115,7 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             api_namespaces: self
                 .sample_opt(|| self.sample_range(rng).map(|_| self.sample(rng)).collect()),
             extended_api_tracing: self.sample(rng),
+            settlement_layer_url: self.sample(rng),
         }
     }
 }
@@ -267,8 +268,11 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l2_testnet_paymaster_addr: self.sample_opt(|| rng.gen()),
             l1_multicall3_addr: rng.gen(),
             ecosystem_contracts: self.sample(rng),
+            user_facing_bridgehub_proxy_addr: rng.gen(),
+            user_facing_diamond_proxy_addr: rng.gen(),
             base_token_addr: self.sample_opt(|| rng.gen()),
             chain_admin_addr: self.sample_opt(|| rng.gen()),
+            settlement_layer: self.sample_opt(|| rng.gen()),
             l2_da_validator_addr: self.sample_opt(|| rng.gen()),
         }
     }
@@ -418,6 +422,8 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             pubdata_sending_mode: PubdataSendingMode::Calldata,
             tx_aggregation_paused: false,
             tx_aggregation_only_prove_and_execute: false,
+            ignore_db_nonce: None,
+            priority_tree_start_index: self.sample(rng),
             time_in_mempool_in_l1_blocks_cap: self.sample(rng),
         }
     }
@@ -851,6 +857,7 @@ impl Distribution<configs::secrets::L1Secrets> for EncodeDist {
         use configs::secrets::L1Secrets;
         L1Secrets {
             l1_rpc_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
+            gateway_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
         }
     }
 }
@@ -903,6 +910,7 @@ impl Distribution<configs::wallets::EthSender> for EncodeDist {
         configs::wallets::EthSender {
             operator: self.sample(rng),
             blob_operator: self.sample_opt(|| self.sample(rng)),
+            gateway: None,
         }
     }
 }

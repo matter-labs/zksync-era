@@ -2,8 +2,9 @@ use std::path::Path;
 
 use anyhow::Context;
 use common::{
-    contracts::build_l2_contracts,
+    // contracts::build_l2_contracts,
     forge::{Forge, ForgeScriptArgs},
+    hardhat::build_l2_contracts,
     spinner::Spinner,
 };
 use config::{
@@ -121,7 +122,7 @@ async fn build_and_deploy(
     signature: Option<&str>,
     mut update_config: impl FnMut(&Shell, &Path) -> anyhow::Result<()>,
 ) -> anyhow::Result<()> {
-    build_l2_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
+    build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
     call_forge(shell, chain_config, ecosystem_config, forge_args, signature).await?;
     update_config(
         shell,
@@ -249,7 +250,13 @@ async fn call_forge(
     forge_args: ForgeScriptArgs,
     signature: Option<&str>,
 ) -> anyhow::Result<()> {
-    let input = DeployL2ContractsInput::new(chain_config, ecosystem_config.era_chain_id)?;
+    let input = DeployL2ContractsInput::new(
+        chain_config,
+        &ecosystem_config
+            .get_contracts_config()
+            .expect("contracts config"),
+        ecosystem_config.era_chain_id,
+    )?;
     let foundry_contracts_path = chain_config.path_to_foundry();
     let secrets = chain_config.get_secrets_config()?;
     input.save(

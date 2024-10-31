@@ -16,7 +16,7 @@ use zksync_types::{
     protocol_version::ProtocolSemanticVersion,
     web3::{contract::Tokenizable, BlockNumber, Log},
     Address, Execute, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion,
-    ProtocolVersionId, SLChainId, Transaction, H160, H256, U256, U64,
+    ProtocolVersionId, SLChainId, Transaction, H256, U256, U64,
 };
 
 use crate::{
@@ -690,7 +690,7 @@ fn diamond_upgrade_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
     // }
     let final_data = ethabi::encode(&[Token::Tuple(vec![
         Token::Array(vec![]),
-        Token::Address(H160::zero()),
+        Token::Address(Address::zero()),
         Token::Bytes(init_calldata(upgrade.clone())),
     ])]);
     tracing::info!("{:?}", Token::Bytes(init_calldata(upgrade)));

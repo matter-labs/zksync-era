@@ -46,7 +46,9 @@ max_single_tx_gas = 6000000
 # Max acceptable fee for sending tx to L1
 max_acceptable_priority_fee_in_gwei = 100000000000
 
-pubdata_sending_mode = "Blobs"
+proof_loading_mode="FriProofFromGcs"
+
+pubdata_sending_mode = "Calldata"
 
 [eth_sender.gas_adjuster]
 # Priority fee to be used by GasAdjuster (in wei).

@@ -107,12 +107,25 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("base_token_addr")?,
+            user_facing_bridgehub_proxy_addr: self
+                .user_facing_bridgehub
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("base_token_addr")?,
+            user_facing_diamond_proxy_addr: self
+                .user_facing_diamond_proxy
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("base_token_addr")?,
             chain_admin_addr: l1
                 .chain_admin_addr
                 .as_ref()
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("chain_admin_addr")?,
+            settlement_layer: self.settlement_layer,
             l2_da_validator_addr: l2
                 .da_validator_addr
                 .as_ref()
@@ -173,6 +186,13 @@ impl ProtoRepr for proto::Contracts {
                     l2_address: this.l2_weth_bridge_addr.map(|a| format!("{:?}", a)),
                 }),
             }),
+            user_facing_bridgehub: this
+                .user_facing_bridgehub_proxy_addr
+                .map(|a| format!("{:?}", a)),
+            user_facing_diamond_proxy: this
+                .user_facing_diamond_proxy_addr
+                .map(|a| format!("{:?}", a)),
+            settlement_layer: this.settlement_layer,
         }
     }
 }

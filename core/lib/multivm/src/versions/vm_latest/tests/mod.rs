@@ -10,7 +10,7 @@ use zk_evm_1_5_0::{
 };
 use zksync_types::{writes::StateDiffRecord, StorageKey, StorageValue, Transaction, H256, U256};
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
-use zksync_vm_interface::pubdata::PubdataBuilder;
+use zksync_vm_interface::pubdata::{PubdataBuilder, PubdataInput};
 
 use super::{HistoryEnabled, Vm};
 use crate::{
@@ -43,6 +43,7 @@ mod evm_emulator;
 mod gas_limit;
 mod get_used_contracts;
 mod is_write_initial;
+mod l1_messenger;
 mod l1_tx_execution;
 mod l2_blocks;
 mod nonce_holder;
@@ -180,10 +181,19 @@ impl TestedVm for TestedLatestVm {
         self.bootloader_state.push_l2_block(block);
     }
 
-    fn push_transaction_with_refund(&mut self, tx: Transaction, refund: u64) {
+    fn push_transaction_with_refund_and_compression(
+        &mut self,
+        tx: Transaction,
+        refund: u64,
+        compression: bool,
+    ) {
         let tx = TransactionData::new(tx, false);
         let overhead = tx.overhead_gas();
-        self.push_raw_transaction(tx, overhead, refund, true)
+        self.push_raw_transaction(tx, overhead, refund, compression)
+    }
+
+    fn pubdata_input(&self) -> PubdataInput {
+        self.bootloader_state.get_pubdata_information().clone()
     }
 }
 

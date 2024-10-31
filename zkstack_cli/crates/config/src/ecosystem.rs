@@ -213,7 +213,7 @@ impl EcosystemConfig {
         ContractsConfig::read(self.get_shell(), self.config.join(CONTRACTS_FILE))
     }
 
-    pub fn path_to_foundry(&self) -> PathBuf {
+    pub fn path_to_l1_foundry(&self) -> PathBuf {
         self.link_to_code.join(L1_CONTRACTS_FOUNDRY)
     }
 

@@ -245,6 +245,17 @@ impl EthSenderTester {
                 None
             };
 
+        let mut connection = connection_pool.connection().await.unwrap();
+        let aggregator = Aggregator::new(
+            aggregator_config.clone(),
+            MockObjectStore::arc(),
+            aggregator_operate_4844_mode,
+            commitment_mode,
+            &mut connection,
+        )
+        .await
+        .unwrap();
+
         let aggregator = EthTxAggregator::new(
             connection_pool.clone(),
             SenderConfig {
@@ -253,12 +264,7 @@ impl EthSenderTester {
                 ..eth_sender.clone()
             },
             // Aggregator - unused
-            Aggregator::new(
-                aggregator_config.clone(),
-                MockObjectStore::arc(),
-                aggregator_operate_4844_mode,
-                commitment_mode,
-            ),
+            aggregator,
             gateway.clone(),
             // ZKsync contract address
             Address::random(),
@@ -406,14 +412,19 @@ impl EthSenderTester {
 
     pub async fn save_execute_tx(&mut self, l1_batch_number: L1BatchNumber) -> EthTx {
         assert_eq!(l1_batch_number, self.next_l1_batch_number_to_execute);
+        let l1_batch_headers = vec![
+            self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_execute)
+                .await,
+        ];
         let operation = AggregatedOperation::Execute(ExecuteBatches {
-            l1_batches: vec![
-                self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_execute)
-                    .await,
-            ]
-            .into_iter()
-            .map(l1_batch_with_metadata)
-            .collect(),
+            priority_ops_proofs: l1_batch_headers
+                .iter()
+                .map(|_| Default::default())
+                .collect(),
+            l1_batches: l1_batch_headers
+                .into_iter()
+                .map(l1_batch_with_metadata)
+                .collect(),
         });
         self.next_l1_batch_number_to_execute += 1;
         self.save_operation(operation).await
@@ -514,7 +525,6 @@ impl EthSenderTester {
             .save_eth_tx(
                 &mut self.conn.connection().await.unwrap(),
                 &aggregated_operation,
-                false,
                 self.is_l2,
             )
             .await

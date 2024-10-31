@@ -37,6 +37,12 @@ pub struct InitArgs {
     pub no_port_reallocation: bool,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
+    #[clap(
+        long,
+        help = "Skip submodules checkout",
+        default_missing_value = "true"
+    )]
+    pub skip_submodules_checkout: bool,
 }
 
 impl InitArgs {
@@ -87,6 +93,7 @@ impl InitArgs {
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
             dev: self.dev,
+            skip_submodules_checkout: self.skip_submodules_checkout,
         }
     }
 }
@@ -99,4 +106,5 @@ pub struct InitArgsFinal {
     pub l1_rpc_url: String,
     pub no_port_reallocation: bool,
     pub dev: bool,
+    pub skip_submodules_checkout: bool,
 }

@@ -107,7 +107,7 @@ impl<C: ContractsKind> MultiVMBaseSystemContracts<C> {
             ProtocolVersionId::Version25 | ProtocolVersionId::Version26 => {
                 &self.vm_protocol_defense
             }
-            ProtocolVersionId::Version27 => &self.gateway,
+            ProtocolVersionId::Version27 | ProtocolVersionId::Version28 => &self.gateway,
         };
         let base = base.clone();
 

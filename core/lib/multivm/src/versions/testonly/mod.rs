@@ -42,6 +42,7 @@ pub(super) mod default_aa;
 pub(super) mod gas_limit;
 pub(super) mod get_used_contracts;
 pub(super) mod is_write_initial;
+pub(super) mod l1_messenger;
 pub(super) mod l1_tx_execution;
 pub(super) mod l2_blocks;
 pub(super) mod nonce_holder;

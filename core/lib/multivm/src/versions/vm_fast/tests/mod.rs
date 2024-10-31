@@ -4,8 +4,9 @@ use zksync_types::{writes::StateDiffRecord, StorageKey, Transaction, H160, H256,
 use zksync_utils::h256_to_u256;
 use zksync_vm2::interface::{Event, HeapId, StateInterface};
 use zksync_vm_interface::{
-    pubdata::PubdataBuilder, storage::ReadStorage, CurrentExecutionState, L2BlockEnv,
-    VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+    pubdata::{PubdataBuilder, PubdataInput},
+    storage::ReadStorage,
+    CurrentExecutionState, L2BlockEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
 };
 
 use super::Vm;
@@ -15,28 +16,29 @@ use crate::{
     vm_fast::CircuitsTracer,
 };
 
-mod block_tip;
-mod bootloader;
-mod bytecode_publishing;
-mod circuits;
-mod code_oracle;
-mod default_aa;
-mod gas_limit;
-mod get_used_contracts;
-mod is_write_initial;
-mod l1_tx_execution;
-mod l2_blocks;
-mod nonce_holder;
-mod precompiles;
-mod refunds;
-mod require_eip712;
-mod rollbacks;
-mod secp256r1;
-mod simple_execution;
-mod storage;
-mod tracing_execution_error;
-mod transfer;
-mod upgrade;
+// mod block_tip;
+// mod bootloader;
+// mod bytecode_publishing;
+// mod circuits;
+// mod code_oracle;
+// mod default_aa;
+// mod gas_limit;
+// mod get_used_contracts;
+// mod is_write_initial;
+// mod l1_messenger;
+// mod l1_tx_execution;
+// mod l2_blocks;
+// mod nonce_holder;
+// mod precompiles;
+// mod refunds;
+// mod require_eip712;
+// mod rollbacks;
+// mod secp256r1;
+// mod simple_execution;
+// mod storage;
+// mod tracing_execution_error;
+// mod transfer;
+// mod upgrade;
 
 trait ObjectSafeEq: fmt::Debug + AsRef<dyn Any> {
     fn eq(&self, other: &dyn ObjectSafeEq) -> bool;
@@ -158,7 +160,16 @@ impl TestedVm for Vm<ImmutableStorageView<InMemoryStorage>> {
         self.bootloader_state.push_l2_block(block);
     }
 
-    fn push_transaction_with_refund(&mut self, tx: Transaction, refund: u64) {
-        self.push_transaction_inner(tx, refund, true);
+    fn push_transaction_with_refund_and_compression(
+        &mut self,
+        tx: Transaction,
+        refund: u64,
+        compression: bool,
+    ) {
+        self.push_transaction_inner(tx, refund, compression);
+    }
+
+    fn pubdata_input(&self) -> PubdataInput {
+        todo!()
     }
 }

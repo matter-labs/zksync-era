@@ -26,6 +26,7 @@ pub async fn deploy_l1(
     broadcast: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.link_to_code);
+    dbg!(config.get_default_configs_path());
     let default_genesis_config =
         GenesisConfig::read_with_base_path(shell, config.get_default_configs_path())
             .context("failed reading genesis config")?;
@@ -41,7 +42,7 @@ pub async fn deploy_l1(
     );
     deploy_config.save(shell, deploy_config_path)?;
 
-    let mut forge = Forge::new(&config.path_to_foundry())
+    let mut forge = Forge::new(&config.path_to_l1_foundry())
         .script(&DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url.to_string());
