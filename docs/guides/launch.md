@@ -33,6 +33,7 @@ To completely reset the dev environment:
 - Repeat the setup procedure above
 
   ```bash
+  zkstack containers
   zkstack ecosystem init
   ```
 
