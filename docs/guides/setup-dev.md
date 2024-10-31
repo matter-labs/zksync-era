@@ -238,8 +238,16 @@ Go to the zksync folder and run `nix develop`. After it finishes, you are in a s
 
 ## Foundry ZKsync
 
-[Foundry ZKsync](https://foundry-book.zksync.io/getting-started/installation) can be utilized for deploying smart
-contracts. For commands related to deployment, you can pass flags for Foundry integration.
+[Foundry ZKsync](https://foundry-book.zksync.io/getting-started/installation) is a dependency of the project and can be
+installed as follows:
+
+```bash
+curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
+foundryup-zksync --branch master
+```
+
+Foundry ZKsync can also be used for deploying smart contracts. For commands related to deployment, you can pass flags
+for Foundry integration.
 
 ## Non-GPU setup
 
