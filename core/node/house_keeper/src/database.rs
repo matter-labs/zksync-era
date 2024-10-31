@@ -5,7 +5,6 @@ use zksync_health_check::{Health, HealthStatus, HealthUpdater};
 
 use crate::periodic_job::PeriodicJob;
 
-/// This struct implements a static health check describing node's version information.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DatabaseInfo {
     last_migration: DatabaseMigration,
@@ -29,7 +28,7 @@ impl DatabaseHealthTask {
 
 #[async_trait]
 impl PeriodicJob for DatabaseHealthTask {
-    const SERVICE_NAME: &'static str = "L1BatchMetricsReporter";
+    const SERVICE_NAME: &'static str = "DatabaseHealth";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let mut conn = self.connection_pool.connection().await.unwrap();
