@@ -2,16 +2,14 @@
 
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use zk_evm_1_5_0::zkevm_opcode_defs::CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER;
 use zksync_system_constants::{CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS};
 use zksync_types::U256;
 use zksync_utils::{bytecode::hash_evm_bytecode, h256_to_u256};
-use zksync_vm2::{
-    interface::{
-        CallframeInterface, CallingMode, GlobalStateInterface, Opcode, OpcodeType, Tracer,
-    },
-    FatPointer,
+use zksync_vm2::interface::{
+    CallframeInterface, CallingMode, GlobalStateInterface, Opcode, OpcodeType, Tracer,
 };
+
+use super::utils::read_fat_pointer;
 
 /// Container for dynamic bytecodes added by [`EvmDeployTracer`].
 #[derive(Debug, Clone, Default)]
@@ -55,21 +53,7 @@ impl EvmDeployTracer {
             return;
         }
 
-        let (calldata_ptr, is_pointer) =
-            state.read_register(CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER + 1);
-        assert!(
-            is_pointer,
-            "far call convention violated: register 1 is not a pointer to calldata"
-        );
-        let calldata_ptr = FatPointer::from(calldata_ptr);
-        assert_eq!(
-            calldata_ptr.offset, 0,
-            "far call convention violated: calldata fat pointer is not shrunk to have 0 offset"
-        );
-
-        let data: Vec<_> = (calldata_ptr.start..calldata_ptr.start + calldata_ptr.length)
-            .map(|addr| state.read_heap_byte(calldata_ptr.memory_page, addr))
-            .collect();
+        let data = read_fat_pointer(state, state.read_register(1).0);
         if data.len() < 4 {
             return;
         }
