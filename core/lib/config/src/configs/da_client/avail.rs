@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use zksync_basic_types::{api_key::APIKey, seed_phrase::SeedPhrase};
+use zksync_basic_types::secrets::{APIKey, SeedPhrase};
 
 pub const AVAIL_GAS_RELAY_CLIENT_NAME: &str = "GasRelay";
 pub const AVAIL_FULL_CLIENT_NAME: &str = "FullClient";
@@ -14,7 +14,7 @@ pub enum AvailClientConfig {
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct AvailConfig {
     pub bridge_api_url: String,
-    pub timeout: usize,
+    pub timeout_ms: usize,
     #[serde(flatten)]
     pub config: AvailClientConfig,
 }

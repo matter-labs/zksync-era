@@ -28,12 +28,6 @@ pub struct ExtendedJobCountStatistics {
     pub successful: usize,
 }
 
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
-pub struct JobCountStatistics {
-    pub queued: usize,
-    pub in_progress: usize,
-}
-
 impl Add for ExtendedJobCountStatistics {
     type Output = ExtendedJobCountStatistics;
 
@@ -44,6 +38,19 @@ impl Add for ExtendedJobCountStatistics {
             failed: self.failed + rhs.failed,
             successful: self.successful + rhs.successful,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct JobCountStatistics {
+    pub queued: usize,
+    pub in_progress: usize,
+}
+
+impl JobCountStatistics {
+    /// all returns sum of queued and in_progress.
+    pub fn all(&self) -> usize {
+        self.queued + self.in_progress
     }
 }
 
