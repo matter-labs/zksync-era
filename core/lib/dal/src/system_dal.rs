@@ -1,5 +1,7 @@
 use std::{collections::HashMap, time::Duration};
 
+use chrono::DateTime;
+use serde::{Deserialize, Serialize};
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 
 use crate::Core;
@@ -10,6 +12,16 @@ pub(crate) struct TableSize {
     pub indexes_size: u64,
     pub relation_size: u64,
     pub total_size: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DatabaseMigration {
+    pub version: i64,
+    pub description: String,
+    pub installed_on: DateTime<chrono::Utc>,
+    pub success: bool,
+    pub checksum: String,
+    pub execution_time: i64,
 }
 
 #[derive(Debug)]
@@ -87,7 +99,7 @@ impl SystemDal<'_, '_> {
         Ok(table_sizes.collect())
     }
 
-    pub async fn get_last_migration(&mut self) -> DalResult<i64> {
+    pub async fn get_last_migration(&mut self) -> DalResult<DatabaseMigration> {
         let row = sqlx::query!(
             r#"
                 SELECT *
@@ -100,6 +112,14 @@ impl SystemDal<'_, '_> {
         .fetch_one(self.storage)
         .await?;
 
-        Ok(row.version)
+        Ok(DatabaseMigration {
+            version: row.version,
+            description: row.description,
+            installed_on: row.installed_on,
+            success: row.success,
+            // TODO improve presentation
+            checksum: String::from_utf8_lossy(row.checksum.as_ref()).to_string(),
+            execution_time: row.execution_time,
+        })
     }
 }

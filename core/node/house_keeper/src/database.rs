@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{system_dal::DatabaseMigration, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater};
 
 use crate::periodic_job::PeriodicJob;
@@ -8,7 +8,7 @@ use crate::periodic_job::PeriodicJob;
 /// This struct implements a static health check describing node's version information.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DatabaseInfo {
-    last_migration: i64,
+    last_migration: DatabaseMigration,
 }
 
 impl From<DatabaseInfo> for Health {
