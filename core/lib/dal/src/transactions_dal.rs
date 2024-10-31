@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, time::Duration};
+use std::{cmp::min, collections::HashMap, fmt, time::Duration};
 
 use bigdecimal::BigDecimal;
 use itertools::Itertools;
@@ -316,15 +316,16 @@ impl TransactionsDal<'_, '_> {
         let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
         #[allow(deprecated)]
         let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
+        let max_timestamp = NaiveDateTime::MAX.and_utc().timestamp() as u64;
         #[allow(deprecated)]
-        let timestamp_asserter_range_start = validation_traces
-            .timestamp_asserter_range
-            .clone()
-            .map(|x| NaiveDateTime::from_timestamp_opt(x.start as i64, 0).unwrap());
+        let timestamp_asserter_range_start =
+            validation_traces.timestamp_asserter_range.clone().map(|x| {
+                NaiveDateTime::from_timestamp_opt(min(x.start, max_timestamp) as i64, 0).unwrap()
+            });
         #[allow(deprecated)]
-        let timestamp_asserter_range_end = validation_traces
-            .timestamp_asserter_range
-            .map(|x| NaiveDateTime::from_timestamp_opt(x.end as i64, 0).unwrap());
+        let timestamp_asserter_range_end = validation_traces.timestamp_asserter_range.map(|x| {
+            NaiveDateTime::from_timestamp_opt(min(x.end, max_timestamp) as i64, 0).unwrap()
+        });
         // Besides just adding or updating(on conflict) the record, we want to extract some info
         // from the query below, to indicate what actually happened:
         // 1) transaction is added

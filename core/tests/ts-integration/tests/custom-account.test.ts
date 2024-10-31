@@ -192,8 +192,8 @@ describe('Tests for the custom account behavior', () => {
 
         const tx = await erc20.transfer.populateTransaction(alice.address, TRANSFER_AMOUNT);
 
-        await expect(
-            sendCustomAccountTransaction(
+        try {
+            await sendCustomAccountTransaction(
                 tx as zksync.types.Transaction,
                 alice.provider,
                 customAccountAddress,
@@ -201,10 +201,32 @@ describe('Tests for the custom account behavior', () => {
                 undefined,
                 undefined,
                 false
-            )
-        ).toBeRejected(
-            'failed to validate the transaction. reason: Validation revert: Account validation error: Timestamp is out of range'
-        );
+            );
+            expect(null).fail('The transaction was expected to fail');
+        } catch (e) {
+            const err = e as Error;
+            expect(err.message).toContain(
+                'failed to validate the transaction. reason: Validation revert: Account validation error'
+            );
+            const functionSelectorMatch = err.message.match(/function_selector\s=\s(0x[0-9a-fA-F]{8})/);
+            const calldataMatch = err.message.match(/data\s=\s(0x[0-9a-fA-F]+)/);
+
+            if (!functionSelectorMatch || !calldataMatch) {
+                expect(null).fail('Function selector or calldata not found in the error message');
+            }
+
+            const functionSelector = functionSelectorMatch![1];
+            const calldata = calldataMatch![1];
+
+            const startHex = calldata.slice(74, 138);
+            const endHex = calldata.slice(138);
+            const start = BigInt(`0x${startHex}`);
+            const end = BigInt(`0x${endHex}`);
+
+            expect(functionSelector).toBe('0x3d5740d9');
+            expect(start).toBe(BigInt(rangeStart));
+            expect(end).toBe(BigInt(rangeEnd));
+        }
     });
 
     test('Should fail the validation with incorrect signature', async () => {

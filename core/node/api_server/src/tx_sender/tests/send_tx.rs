@@ -1,6 +1,9 @@
 //! Tests for sending raw transactions.
 
+use std::ops::Range;
+
 use assert_matches::assert_matches;
+use chrono::NaiveDateTime;
 use test_casing::test_casing;
 use zksync_multivm::interface::{tracer::ValidationTraces, ExecutionResult};
 use zksync_node_fee_model::MockBatchFeeParamsProvider;
@@ -309,8 +312,7 @@ async fn sending_transaction_out_of_gas() {
     assert_matches!(vm_result.result, ExecutionResult::Revert { .. });
 }
 
-#[tokio::test]
-async fn submitting_tx_with_validation_traces() {
+async fn submit_tx_with_validation_traces(actual_range: Range<u64>, expected_range: Range<i64>) {
     // This test verifies that when a transaction produces ValidationTraces,
     // range_start and range_end get persisted in the database
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -344,7 +346,7 @@ async fn submitting_tx_with_validation_traces() {
     tx_executor.set_tx_validation_traces_responses(move |tx, _| {
         assert_eq!(tx.hash(), tx_hash);
         ValidationTraces {
-            timestamp_asserter_range: Some(10..20),
+            timestamp_asserter_range: Some(actual_range.clone()),
         }
     });
 
@@ -363,7 +365,7 @@ async fn submitting_tx_with_validation_traces() {
         .unwrap()
         .expect("transaction is not persisted");
     assert_eq!(
-        10,
+        expected_range.start,
         storage_tx
             .timestamp_asserter_range_start
             .unwrap()
@@ -371,11 +373,26 @@ async fn submitting_tx_with_validation_traces() {
             .timestamp()
     );
     assert_eq!(
-        20,
+        expected_range.end,
         storage_tx
             .timestamp_asserter_range_end
             .unwrap()
             .and_utc()
             .timestamp()
     );
+}
+
+#[tokio::test]
+async fn submitting_tx_with_validation_traces() {
+    // This test verifies that when a transaction produces ValidationTraces,
+    // range_start and range_end get persisted in the database
+    submit_tx_with_validation_traces(10..20, 10..20).await;
+}
+
+#[tokio::test]
+async fn submitting_tx_with_validation_traces_resulting_into_overflow() {
+    // This test verifies that the timestamp in ValidationTraces is capped at
+    // the maximum value supported by the NaiveDateTime type
+    submit_tx_with_validation_traces(10..u64::MAX, 10..NaiveDateTime::MAX.and_utc().timestamp())
+        .await;
 }
