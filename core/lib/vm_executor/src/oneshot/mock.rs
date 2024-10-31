@@ -68,7 +68,7 @@ impl MockOneshotExecutor {
                     logs: Default::default(),
                     statistics: Default::default(),
                     refunds: Default::default(),
-                    new_known_factory_deps: None,
+                    dynamic_factory_deps: Default::default(),
                 }
             },
         )

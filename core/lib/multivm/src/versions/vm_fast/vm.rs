@@ -642,8 +642,8 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
 
         // We need to filter out bytecodes the deployment of which may have been reverted; the tracer is not aware of reverts.
         // To do this, we check bytecodes against deployer events.
-        let new_known_factory_deps = self.world.decommit_bytecodes(&factory_deps_marked_as_known);
         let factory_deps_marked_as_known = VmEvent::extract_bytecodes_marked_as_known(&logs.events);
+        let dynamic_factory_deps = self.world.decommit_bytecodes(&factory_deps_marked_as_known);
 
         VmExecutionResultAndLogs {
             result: result.execution_result,
@@ -660,7 +660,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
                 total_log_queries: 0,
             },
             refunds: result.refunds,
-            new_known_factory_deps: Some(new_known_factory_deps),
+            dynamic_factory_deps,
         }
     }
 }

@@ -146,12 +146,9 @@ pub(crate) fn test_tracing_evm_contract_deployment<VM: TestedVm>() {
         .execute_transaction_with_bytecode_compression(deploy_tx, true);
     assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
 
-    let new_known_factory_deps = vm_result.new_known_factory_deps.unwrap();
-    assert_eq!(new_known_factory_deps.len(), 2); // the deployed EraVM contract + EVM contract
-    assert_eq!(
-        new_known_factory_deps[&expected_bytecode_hash],
-        evm_bytecode
-    );
+    let dynamic_factory_deps = vm_result.dynamic_factory_deps;
+    assert_eq!(dynamic_factory_deps.len(), 2); // the deployed EraVM contract + EVM contract
+    assert_eq!(dynamic_factory_deps[&expected_bytecode_hash], evm_bytecode);
 }
 
 pub(crate) fn test_mock_emulator_basics<VM: TestedVm>() {
@@ -341,9 +338,8 @@ pub(crate) fn test_mock_emulator_with_deployment<VM: TestedVm>() {
         .execute_transaction_with_bytecode_compression(test_tx, true);
     assert!(!vm_result.result.is_failed(), "{vm_result:?}");
 
-    let factory_deps = vm_result.new_known_factory_deps.unwrap();
     assert_eq!(
-        factory_deps,
+        vm_result.dynamic_factory_deps,
         HashMap::from([(new_evm_bytecode_hash, new_evm_bytecode)])
     );
 }

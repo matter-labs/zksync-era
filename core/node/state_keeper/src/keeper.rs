@@ -501,11 +501,12 @@ impl ZkSyncStateKeeper {
                 let exec_result_status = tx_result.result.clone();
                 let initiator_account = tx.initiator_account();
 
+                // FIXME: fix signature
                 updates_manager.extend_from_executed_transaction(
                     tx,
                     *tx_result.clone(),
                     compressed_bytecodes,
-                    tx_result.new_known_factory_deps.unwrap_or_default(),
+                    tx_result.dynamic_factory_deps,
                     tx_l1_gas_this_tx,
                     tx_execution_metrics,
                     call_tracer_result,
@@ -632,7 +633,7 @@ impl ZkSyncStateKeeper {
                         tx,
                         *tx_result.clone(),
                         compressed_bytecodes,
-                        tx_result.new_known_factory_deps.unwrap_or_default(),
+                        tx_result.dynamic_factory_deps,
                         tx_l1_gas_this_tx,
                         tx_execution_metrics,
                         call_tracer_result,
@@ -714,7 +715,7 @@ impl ZkSyncStateKeeper {
                     tx,
                     *tx_result.clone(),
                     compressed_bytecodes,
-                    tx_result.new_known_factory_deps.unwrap_or_default(),
+                    tx_result.dynamic_factory_deps,
                     tx_l1_gas_this_tx,
                     tx_execution_metrics,
                     call_tracer_result,

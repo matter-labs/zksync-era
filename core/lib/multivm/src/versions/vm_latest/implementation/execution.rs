@@ -100,8 +100,8 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             circuit_statistic_from_cycles(tx_tracer.circuits_tracer.statistics),
         );
         let result = tx_tracer.result_tracer.into_result();
-        let new_known_factory_deps = self.decommit_bytecodes(&factory_deps_marked_as_known);
         let factory_deps_marked_as_known = VmEvent::extract_bytecodes_marked_as_known(&logs.events);
+        let dynamic_factory_deps = self.decommit_bytecodes(&factory_deps_marked_as_known);
         *dispatcher = tx_tracer.dispatcher;
 
         let result = VmExecutionResultAndLogs {
@@ -109,7 +109,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             logs,
             statistics,
             refunds,
-            new_known_factory_deps: Some(new_known_factory_deps),
+            dynamic_factory_deps,
         };
 
         (stop_reason, result)

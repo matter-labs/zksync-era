@@ -128,16 +128,17 @@ impl VmExecutionLogs {
 }
 
 /// Result and logs of the VM execution.
+// FIXME: mock result
 #[derive(Debug, Clone)]
 pub struct VmExecutionResultAndLogs {
     pub result: ExecutionResult,
     pub logs: VmExecutionLogs,
     pub statistics: VmExecutionStatistics,
     pub refunds: Refunds,
-    /// Bytecodes decommitted during VM execution. `None` if not computed by the VM.
-    // FIXME: currently, this is only filled up by `vm_latest`; probably makes sense to narrow down
-    //   to *dynamic* factory deps, so that `HashMap::new()` is a valid value for VMs not supporting EVM emulation.
-    pub new_known_factory_deps: Option<HashMap<H256, Vec<u8>>>,
+    /// Dynamic bytecodes decommitted during VM execution (i.e., not present in the storage at the start of VM execution
+    /// or in `factory_deps` fields of executed transactions). Currently, the only kind of such codes are EVM bytecodes.
+    /// Correspondingly, they may only be present if supported by the VM version, and if the VM is initialized with the EVM emulator base system contract.
+    pub dynamic_factory_deps: HashMap<H256, Vec<u8>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

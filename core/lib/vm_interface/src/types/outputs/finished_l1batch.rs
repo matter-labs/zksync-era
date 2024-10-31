@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use zksync_types::writes::StateDiffRecord;
 
 use super::{BootloaderMemory, CurrentExecutionState, VmExecutionResultAndLogs};
@@ -26,7 +28,7 @@ impl FinishedL1Batch {
                 logs: VmExecutionLogs::default(),
                 statistics: VmExecutionStatistics::default(),
                 refunds: Refunds::default(),
-                new_known_factory_deps: None,
+                dynamic_factory_deps: HashMap::default(),
             },
             final_execution_state: CurrentExecutionState {
                 events: vec![],
