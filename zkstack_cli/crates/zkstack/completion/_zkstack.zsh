@@ -82,7 +82,6 @@ in-file\:"Specify file with wallets"))' \
 '--base-token-price-denominator=[Base token denominator]:BASE_TOKEN_PRICE_DENOMINATOR:_default' \
 '--set-as-default=[Set as default chain]' \
 '--evm-emulator=[Enable EVM emulator]' \
-'--l1-network=[L1 Network]:L1_NETWORK:(localhost sepolia holesky mainnet)' \
 '--start-containers=[Start reth and postgres containers after creation]' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--legacy-bridge[]' \
@@ -244,7 +243,6 @@ in-file\:"Specify file with wallets"))' \
 '--base-token-price-denominator=[Base token denominator]:BASE_TOKEN_PRICE_DENOMINATOR:_default' \
 '--set-as-default=[Set as default chain]' \
 '--evm-emulator=[Enable EVM emulator]' \
-'--l1-network=[L1 Network]:L1_NETWORK:(localhost sepolia holesky mainnet)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--legacy-bridge[]' \
 '-v[Verbose mode]' \
