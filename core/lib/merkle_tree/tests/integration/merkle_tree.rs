@@ -6,8 +6,8 @@ use rand::{rngs::StdRng, seq::SliceRandom, Rng, SeedableRng};
 use test_casing::test_casing;
 use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
-    Database, HashTree, MerkleTree, PatchSet, Patched, TreeEntry, TreeInstruction, TreeLogEntry,
-    TreeRangeDigest,
+    Database, HashTree, MerkleTree, PatchSet, Patched, PruneDatabase, TreeEntry, TreeInstruction,
+    TreeLogEntry, TreeRangeDigest,
 };
 use zksync_types::{AccountTreeId, Address, StorageKey, H256, U256};
 
@@ -270,7 +270,7 @@ fn accumulating_commits(chunk_size: usize) {
     test_accumulated_commits(PatchSet::default(), chunk_size);
 }
 
-fn test_root_hash_computing_with_reverts(db: &mut impl Database) {
+fn test_root_hash_computing_with_reverts(db: &mut impl PruneDatabase) {
     let (kvs, expected_hash) = &*ENTRIES_AND_HASH;
     let (initial_update, final_update) = kvs.split_at(75);
     let key_updates: Vec<_> = kvs
