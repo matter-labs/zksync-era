@@ -26,8 +26,9 @@ use self::{
 pub use self::{
     helpers::{AsyncTreeReader, LazyAsyncTreeReader, MerkleTreeInfo},
     pruning::MerkleTreePruningTask,
+    repair::StaleKeysRepairTask,
 };
-use crate::{helpers::create_readonly_db, repair::StaleKeysRepairTask};
+use crate::helpers::create_readonly_db;
 
 pub mod api_server;
 mod helpers;

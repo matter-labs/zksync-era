@@ -8,7 +8,7 @@ use anyhow::Context as _;
 use zksync_config::configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode};
 use zksync_metadata_calculator::{
     LazyAsyncTreeReader, MerkleTreePruningTask, MerkleTreeReaderConfig, MetadataCalculator,
-    MetadataCalculatorConfig, TreeReaderTask,
+    MetadataCalculatorConfig, StaleKeysRepairTask, TreeReaderTask,
 };
 use zksync_storage::RocksDB;
 
@@ -31,6 +31,7 @@ pub struct MetadataCalculatorLayer {
     config: MetadataCalculatorConfig,
     tree_api_config: Option<MerkleTreeApiConfig>,
     pruning_config: Option<Duration>,
+    stale_keys_repair_enabled: bool,
 }
 
 #[derive(Debug, FromContext)]
@@ -56,6 +57,9 @@ pub struct Output {
     /// Only provided if configuration is provided.
     #[context(task)]
     pub pruning_task: Option<MerkleTreePruningTask>,
+    /// Only provided if enabled in the config.
+    #[context(task)]
+    pub stale_keys_repair_task: Option<StaleKeysRepairTask>,
     pub rocksdb_shutdown_hook: ShutdownHook,
 }
 
@@ -65,6 +69,7 @@ impl MetadataCalculatorLayer {
             config,
             tree_api_config: None,
             pruning_config: None,
+            stale_keys_repair_enabled: false,
         }
     }
 
@@ -75,6 +80,11 @@ impl MetadataCalculatorLayer {
 
     pub fn with_pruning_config(mut self, pruning_config: Duration) -> Self {
         self.pruning_config = Some(pruning_config);
+        self
+    }
+
+    pub fn with_stale_keys_repair(mut self) -> Self {
+        self.stale_keys_repair_enabled = true;
         self
     }
 }
@@ -141,6 +151,12 @@ impl WiringLayer for MetadataCalculatorLayer {
             )
             .transpose()?;
 
+        let stale_keys_repair_task = if self.stale_keys_repair_enabled {
+            Some(metadata_calculator.stale_keys_repair_task())
+        } else {
+            None
+        };
+
         let tree_api_client = TreeApiClientResource(Arc::new(metadata_calculator.tree_reader()));
 
         let rocksdb_shutdown_hook = ShutdownHook::new("rocksdb_terminaton", async {
@@ -155,6 +171,7 @@ impl WiringLayer for MetadataCalculatorLayer {
             tree_api_client,
             tree_api_task,
             pruning_task,
+            stale_keys_repair_task,
             rocksdb_shutdown_hook,
         })
     }
@@ -193,6 +210,17 @@ impl Task for TreeApiTask {
             stop_receiver.0.changed().await?;
             Ok(())
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl Task for StaleKeysRepairTask {
+    fn id(&self) -> TaskId {
+        "merkle_tree_stale_keys_repair_task".into()
+    }
+
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        (*self).run(stop_receiver.0).await
     }
 }
 
