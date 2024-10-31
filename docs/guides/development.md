@@ -68,7 +68,7 @@ zkstack dev clean all
 You can then reinitialize the ecosystem as described in the [Configure Ecosystem](#configure-ecosystem) section.
 
 ```bash
-zkstack containers  
+zkstack containers
 zkstack ecosystem init
 ```
 
