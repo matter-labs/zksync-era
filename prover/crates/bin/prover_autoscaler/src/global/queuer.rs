@@ -24,7 +24,7 @@ pub struct Queuer {
     pub prover_job_monitor_url: String,
 }
 
-fn target_to_queue(target: &QueueReportFields, report: &QueueReport) -> u64 {
+fn target_to_queue(target: QueueReportFields, report: &QueueReport) -> u64 {
     let res = match target {
         QueueReportFields::basic_witness_jobs => report.basic_witness_jobs.all(),
         QueueReportFields::leaf_witness_jobs => report.leaf_witness_jobs.all(),
@@ -65,8 +65,8 @@ impl Queuer {
                 .flat_map(|versioned_report| {
                     jobs.iter().map(move |j| {
                         (
-                            (versioned_report.version.to_string(), j.clone()),
-                            target_to_queue(j, &versioned_report.report),
+                            (versioned_report.version.to_string(), *j),
+                            target_to_queue(*j, &versioned_report.report),
                         )
                     })
                 })

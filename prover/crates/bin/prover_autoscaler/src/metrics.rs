@@ -16,7 +16,9 @@ pub(crate) struct AutoscalerMetrics {
     #[metrics(labels = ["target", "status"])]
     pub calls: LabeledFamily<(String, u16), Counter, 2>,
     #[metrics(labels = ["target_cluster"])]
-    pub scale_errors: LabeledFamily<String, Gauge<u64>, 1>,
+    pub scale_errors: LabeledFamily<String, Gauge<u64>>,
+    #[metrics(labels = ["target_namespace", "job"])]
+    pub queue: LabeledFamily<(String, String), Gauge<u64>, 2>,
 }
 
 #[vise::register]
