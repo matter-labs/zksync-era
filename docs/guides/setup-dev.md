@@ -194,13 +194,13 @@ Rust toolchain as well.
 
 Install the latest postgres:
 
-On mac:
+On macOS:
 
 ```bash
 brew install postgresql@14
 ```
 
-On debian-based linux:
+On Debian-based linux:
 
 ```bash
 sudo apt-get install postgresql
