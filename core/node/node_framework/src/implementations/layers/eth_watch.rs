@@ -1,11 +1,10 @@
-use anyhow::Context;
 use futures::TryFutureExt;
 use zksync_config::{configs::gateway::GatewayChainConfig, ContractsConfig, EthWatchConfig};
 use zksync_contracts::chain_admin_contract;
 use zksync_eth_client::EthInterface;
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
 use zksync_types::{
-    abi::ZkChainSpecificUpgradeData, ethabi::ParamType, ethereum, settlement::SettlementMode,
+    abi::ZkChainSpecificUpgradeData, ethabi::ParamType, settlement::SettlementMode,
     web3::CallRequest, Address, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
 };
 use zksync_web3_decl::client::{DynClient, L1};
@@ -81,7 +80,7 @@ impl WiringLayer for EthWatchLayer {
             if let Some(base_token_addr) = self.contracts_config.base_token_addr {
                 let (name, symbol) = get_token_metadata(&client, base_token_addr)
                     .await
-                    .map_err(|e| WiringError::Internal(e))?;
+                    .map_err(WiringError::Internal)?;
                 (Some(name), Some(symbol))
             } else {
                 (None, None)

@@ -1,16 +1,15 @@
-use std::{borrow::Cow, fmt, io::Write, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
+use std::{borrow::Cow, fmt, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use tokio::sync::mpsc;
 use zksync_multivm::{
-    circuit_sequencer_api_latest::boojum::pairing::hex,
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
         pubdata::PubdataBuilder,
         storage::{ReadStorage, StoragePtr, StorageView, StorageViewStats},
         utils::DivergenceHandler,
-        BatchTransactionExecutionResult, BytecodeCompressionError, Call, CompressedBytecodeInfo,
+        BatchTransactionExecutionResult, BytecodeCompressionError, CompressedBytecodeInfo,
         ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmFactory,
         VmInterface, VmInterfaceHistoryEnabled,
     },
@@ -21,7 +20,7 @@ use zksync_multivm::{
     vm_latest::HistoryEnabled,
     FastVmInstance, LegacyVmInstance, MultiVMTracer,
 };
-use zksync_types::{commitment::PubdataParams, vm::FastVmMode, Transaction, H256};
+use zksync_types::{commitment::PubdataParams, vm::FastVmMode, Transaction};
 
 use super::{
     executor::{Command, MainBatchExecutor},
