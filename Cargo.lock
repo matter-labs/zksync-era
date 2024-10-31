@@ -11711,6 +11711,7 @@ dependencies = [
  "vise",
  "zksync_concurrency",
  "zksync_config",
+ "zksync_consensus_roles",
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
