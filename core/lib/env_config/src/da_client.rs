@@ -152,6 +152,7 @@ mod tests {
         );
     }
 
+    #[test]
     fn from_env_near_client() {
         let mut lock = MUTEX.lock();
         let config = r#"
