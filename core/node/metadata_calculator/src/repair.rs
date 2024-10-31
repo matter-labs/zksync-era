@@ -1,7 +1,9 @@
 //! High-level wrapper for the stale keys repair task.
 
-use std::sync::{Arc, Weak};
-use std::time::Duration;
+use std::{
+    sync::{Arc, Weak},
+    time::Duration,
+};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -131,7 +133,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        tests::{mock_config, reset_db_state},
+        tests::{extend_db_state, gen_storage_logs, mock_config, reset_db_state},
         MetadataCalculator,
     };
 
@@ -182,10 +184,12 @@ mod tests {
         })
         .await;
 
-        // Wait until the calculator is initialized.
-        let reader = reader.wait().await.unwrap();
-        while reader.clone().info().await.next_l1_batch_number < L1BatchNumber(6) {
-            tokio::time::sleep(POLL_INTERVAL).await;
+        // Wait until the calculator is initialized and then drop the reader so that it doesn't lock RocksDB.
+        {
+            let reader = reader.wait().await.unwrap();
+            while reader.clone().info().await.next_l1_batch_number < L1BatchNumber(6) {
+                tokio::time::sleep(POLL_INTERVAL).await;
+            }
         }
 
         // Wait until all tree versions have been checked.
@@ -197,10 +201,8 @@ mod tests {
             details.get("latest_checked_version") == Some(&5.into())
         })
         .await;
-
         let details = health.details().unwrap();
         assert_eq!(details["earliest_checked_version"], 1);
-        assert_eq!(details["latest_checked_version"], 5);
         assert_eq!(details["repaired_key_count"], 0);
 
         stop_sender.send_replace(true);
@@ -210,5 +212,47 @@ mod tests {
             matches!(health.status(), HealthStatus::ShutDown)
         })
         .await;
+
+        test_repair_persistence(temp_dir, pool).await;
+    }
+
+    async fn test_repair_persistence(temp_dir: TempDir, pool: ConnectionPool<Core>) {
+        let config = mock_config(temp_dir.path());
+        let calculator = MetadataCalculator::new(config, None, pool.clone())
+            .await
+            .unwrap();
+        let mut repair_task = calculator.stale_keys_repair_task();
+        repair_task.poll_interval = POLL_INTERVAL;
+        let health_check = repair_task.health_check();
+
+        let (stop_sender, stop_receiver) = watch::channel(false);
+        let calculator_handle = tokio::spawn(calculator.run(stop_receiver.clone()));
+        let repair_task_handle = tokio::spawn(repair_task.run(stop_receiver));
+        wait_for_health(&health_check, |health| {
+            matches!(health.status(), HealthStatus::Ready)
+        })
+        .await;
+
+        // Add more batches to the storage.
+        let mut storage = pool.connection().await.unwrap();
+        let logs = gen_storage_logs(200..300, 5);
+        extend_db_state(&mut storage, logs).await;
+
+        // Wait until new tree versions have been checked.
+        let health = wait_for_health(&health_check, |health| {
+            if !matches!(health.status(), HealthStatus::Ready) {
+                return false;
+            }
+            let details = health.details().unwrap();
+            details.get("latest_checked_version") == Some(&10.into())
+        })
+        .await;
+        let details = health.details().unwrap();
+        assert_eq!(details["earliest_checked_version"], 6);
+        assert_eq!(details["repaired_key_count"], 0);
+
+        stop_sender.send_replace(true);
+        calculator_handle.await.unwrap().unwrap();
+        repair_task_handle.await.unwrap().unwrap();
     }
 }
