@@ -2256,7 +2256,7 @@ impl TransactionsDal<'_, '_> {
             hash.as_bytes()
         )
         .map(Into::into)
-        .instrument("get_tx_error_by_hash")
+        .instrument("get_storage_tx_by_hash")
         .with_arg("hash", &hash)
         .fetch_optional(self.storage)
         .await

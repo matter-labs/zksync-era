@@ -134,7 +134,7 @@ impl ValidationTraces {
     /// producing the narrowest possible time window. Note that overlapping ranges are essential;
     /// a lack of overlap would have triggered an assertion failure in the `TimestampAsserter` contract,
     /// as `block.timestamp` cannot satisfy two non-overlapping ranges.
-    pub fn apply_range(&mut self, new_range: Range<u64>) {
+    pub fn apply_timestamp_asserter_range(&mut self, new_range: Range<u64>) {
         if let Some(range) = &mut self.timestamp_asserter_range {
             range.start = range.start.max(new_range.start);
             range.end = range.end.min(new_range.end);
@@ -167,7 +167,7 @@ mod tests {
             timestamp_asserter_range: None,
         };
         let new_range = 10..20;
-        validation_traces.apply_range(new_range.clone());
+        validation_traces.apply_timestamp_asserter_range(new_range.clone());
         assert_eq!(validation_traces.timestamp_asserter_range, Some(new_range));
     }
 
@@ -176,7 +176,7 @@ mod tests {
         let mut validation_traces = ValidationTraces {
             timestamp_asserter_range: Some(5..25),
         };
-        validation_traces.apply_range(10..20);
+        validation_traces.apply_timestamp_asserter_range(10..20);
         assert_eq!(validation_traces.timestamp_asserter_range, Some(10..20));
     }
 
@@ -185,7 +185,7 @@ mod tests {
         let mut validation_traces = ValidationTraces {
             timestamp_asserter_range: Some(10..30),
         };
-        validation_traces.apply_range(20..40);
+        validation_traces.apply_timestamp_asserter_range(20..40);
         assert_eq!(validation_traces.timestamp_asserter_range, Some(20..30));
     }
 }

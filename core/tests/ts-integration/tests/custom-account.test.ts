@@ -211,11 +211,11 @@ describe('Tests for the custom account behavior', () => {
             const functionSelectorMatch = err.message.match(/function_selector\s=\s(0x[0-9a-fA-F]{8})/);
             const calldataMatch = err.message.match(/data\s=\s(0x[0-9a-fA-F]+)/);
 
-            if (!functionSelectorMatch || !calldataMatch) {
-                expect(null).fail('Function selector or calldata not found in the error message');
-            }
+            expect(functionSelectorMatch && calldataMatch).toBeTruthy();
 
             const functionSelector = functionSelectorMatch![1];
+            expect(functionSelector).toBe('0x3d5740d9');
+
             const calldata = calldataMatch![1];
 
             const startHex = calldata.slice(74, 138);
@@ -223,7 +223,6 @@ describe('Tests for the custom account behavior', () => {
             const start = BigInt(`0x${startHex}`);
             const end = BigInt(`0x${endHex}`);
 
-            expect(functionSelector).toBe('0x3d5740d9');
             expect(start).toBe(BigInt(rangeStart));
             expect(end).toBe(BigInt(rangeEnd));
         }

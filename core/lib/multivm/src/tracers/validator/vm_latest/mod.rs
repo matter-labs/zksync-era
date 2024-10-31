@@ -122,10 +122,10 @@ impl<H: HistoryMode> ValidationTracer<H> {
                                     );
                                 }
 
-                                {
-                                    let mut traces_mut = self.traces.lock().unwrap();
-                                    traces_mut.apply_range(start..end);
-                                }
+                                self.traces
+                                    .lock()
+                                    .unwrap()
+                                    .apply_timestamp_asserter_range(start..end);
                             }
                         }
                     }

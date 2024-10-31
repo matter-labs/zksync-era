@@ -1,6 +1,7 @@
 use std::{
     env,
     ffi::OsString,
+    future::Future,
     num::{NonZeroU32, NonZeroU64, NonZeroUsize},
     path::PathBuf,
     time::Duration,
@@ -147,26 +148,19 @@ impl RemoteENConfig {
             .get_main_contract()
             .rpc_context("get_main_contract")
             .await?;
-        let timestamp_asserter_address = client
-            .get_timestamp_asserter()
-            .rpc_context("get_timestamp_asserter")
-            .await?;
-        let base_token_addr = match client.get_base_token_l1_address().await {
-            Err(ClientError::Call(err))
-                if [
-                    ErrorCode::MethodNotFound.code(),
-                    // This what `Web3Error::NotImplemented` gets
-                    // `casted` into in the `api` server.
-                    ErrorCode::InternalError.code(),
-                ]
-                .contains(&(err.code())) =>
-            {
-                // This is the fallback case for when the EN tries to interact
-                // with a node that does not implement the `zks_baseTokenL1Address` endpoint.
-                ETHEREUM_ADDRESS
-            }
-            response => response.context("Failed to fetch base token address")?,
-        };
+
+        let timestamp_asserter_address = handle_rpc_response_with_fallback(
+            client.get_timestamp_asserter(),
+            None,
+            "Failed to fetch timestamp asserter address",
+        )
+        .await?;
+        let base_token_addr = handle_rpc_response_with_fallback(
+            client.get_base_token_l1_address(),
+            Some(ETHEREUM_ADDRESS),
+            "Failed to fetch base token address",
+        )
+        .await?;
 
         // These two config variables should always have the same value.
         // TODO(EVM-578): double check and potentially forbid both of them being `None`.
@@ -235,6 +229,31 @@ impl RemoteENConfig {
             dummy_verifier: true,
             l2_timestamp_asserter_addr: None,
         }
+    }
+}
+
+async fn handle_rpc_response_with_fallback<T, F>(
+    rpc_call: F,
+    fallback: Option<T>,
+    context: &str,
+) -> anyhow::Result<T>
+where
+    F: Future<Output = Result<T, ClientError>>,
+    T: Clone,
+{
+    match rpc_call.await {
+        Err(ClientError::Call(err))
+            if [
+                ErrorCode::MethodNotFound.code(),
+                // This what `Web3Error::NotImplemented` gets
+                // `casted` into in the `api` server.
+                ErrorCode::InternalError.code(),
+            ]
+            .contains(&(err.code())) =>
+        {
+            fallback.ok_or_else(|| anyhow::anyhow!("RPC method not found or internal error"))
+        }
+        response => response.context(context),
     }
 }
 
@@ -1471,7 +1490,10 @@ impl From<&ExternalNodeConfig> for TxSenderConfig {
                 TimestampAsserterParams {
                     address,
                     min_time_till_end: Duration::from_secs(
-                        config.optional.timestamp_asserter_min_time_till_end_sec as u64,
+                        config
+                            .optional
+                            .timestamp_asserter_min_time_till_end_sec
+                            .into(),
                     ),
                 }
             }),
