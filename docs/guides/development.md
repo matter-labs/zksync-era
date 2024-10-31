@@ -4,8 +4,9 @@ This document outlines the steps for setting up and working with ZKsync.
 
 ## Installing the local ZK Stack CLI
 
-To set up the local toolkit, begin by installing `zkstackup`. From the project's root directory, run the following
-commands:
+To set up local development, begin by installing
+[ZK Stack CLI](https://github.com/matter-labs/zksync-era/blob/main/zkstack_cli/README.md). From the project's root
+directory, run the following commands:
 
 ```bash
 cd ./zkstack_cli/zkstackup
@@ -22,6 +23,12 @@ zkstackup --local
 ```
 
 This command installs `zkstack` from the current source directory.
+
+You can proceed to verify the installation and start familiarizing qith the CLI by running:
+
+```bash
+zkstack --help
+```
 
 > NOTE: Whenever you want to update you local installation with your changes, just rerun:
 >
