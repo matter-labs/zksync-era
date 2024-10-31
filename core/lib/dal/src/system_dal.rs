@@ -102,10 +102,10 @@ impl SystemDal<'_, '_> {
     pub async fn get_last_migration(&mut self) -> DalResult<DatabaseMigration> {
         let row = sqlx::query!(
             r#"
-                SELECT *
-                FROM _sqlx_migrations
-                ORDER BY version DESC
-                LIMIT 1;
+            SELECT *
+            FROM _sqlx_migrations
+            ORDER BY version DESC
+            LIMIT 1;
             "#
         )
         .instrument("get_last_migration")
