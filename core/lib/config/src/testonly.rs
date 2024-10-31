@@ -3,13 +3,12 @@ use std::num::NonZeroUsize;
 use rand::{distributions::Distribution, Rng};
 use secrecy::Secret;
 use zksync_basic_types::{
-    api_key::APIKey,
     basic_fri_types::CircuitIdRoundTuple,
     commitment::L1BatchCommitmentMode,
     network::Network,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     pubdata_da::PubdataSendingMode,
-    seed_phrase::SeedPhrase,
+    secrets::{APIKey, SeedPhrase},
     vm::FastVmMode,
     L1BatchNumber, L1ChainId, L2ChainId,
 };
@@ -949,7 +948,7 @@ impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::da_client::DAClientConfig {
         Avail(AvailConfig {
             bridge_api_url: self.sample(rng),
-            timeout: self.sample(rng),
+            timeout_ms: self.sample(rng),
             config: AvailClientConfig::FullClient(AvailDefaultConfig {
                 api_node_url: self.sample(rng),
                 app_id: self.sample(rng),
@@ -1114,6 +1113,7 @@ impl Distribution<configs::external_price_api_client::ExternalPriceApiClientConf
                 numerator: self.sample(rng),
                 denominator: self.sample(rng),
                 fluctuation: self.sample(rng),
+                next_value_fluctuation: self.sample(rng),
             }),
         }
     }
