@@ -152,13 +152,13 @@ impl RemoteENConfig {
         let timestamp_asserter_address = handle_rpc_response_with_fallback(
             client.get_timestamp_asserter(),
             None,
-            "Failed to fetch timestamp asserter address",
+            "Failed to fetch timestamp asserter address".to_string(),
         )
         .await?;
         let base_token_addr = handle_rpc_response_with_fallback(
             client.get_base_token_l1_address(),
             Some(ETHEREUM_ADDRESS),
-            "Failed to fetch base token address",
+            "Failed to fetch base token address".to_string(),
         )
         .await?;
 
@@ -235,7 +235,7 @@ impl RemoteENConfig {
 async fn handle_rpc_response_with_fallback<T, F>(
     rpc_call: F,
     fallback: Option<T>,
-    context: &str,
+    context: String,
 ) -> anyhow::Result<T>
 where
     F: Future<Output = Result<T, ClientError>>,
