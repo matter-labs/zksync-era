@@ -54,6 +54,7 @@ These commands will guide you through the configuration options for setting up t
 
 Initialization may take some time, but key steps (such as downloading and unpacking keys or setting up containers) only
 need to be completed once.
+You may find useful to run this (and other) commands with the `--verbose` flag to see more detailed output.
 
 ## Cleanup
 
