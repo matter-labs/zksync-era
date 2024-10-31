@@ -1,11 +1,11 @@
 use zksync_config::{configs::gateway::GatewayChainConfig, ContractsConfig, EthWatchConfig};
 use zksync_contracts::chain_admin_contract;
-use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
-use zksync_types::settlement::SettlementMode;
+use zksync_eth_watch::{EthHttpQueryClient, EthWatch, L2EthClient};
+use zksync_types::{settlement::SettlementMode, L2ChainId};
 
 use crate::{
     implementations::resources::{
-        eth_interface::{EthInterfaceResource, GatewayEthInterfaceResource},
+        eth_interface::{EthInterfaceResource, L2InterfaceResource},
         pools::{MasterPool, PoolResource},
     },
     service::StopReceiver,
@@ -24,6 +24,7 @@ pub struct EthWatchLayer {
     contracts_config: ContractsConfig,
     gateway_contracts_config: Option<GatewayChainConfig>,
     settlement_mode: SettlementMode,
+    chain_id: L2ChainId,
 }
 
 #[derive(Debug, FromContext)]
@@ -31,7 +32,7 @@ pub struct EthWatchLayer {
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub eth_client: EthInterfaceResource,
-    pub gateway_client: Option<GatewayEthInterfaceResource>,
+    pub gateway_client: Option<L2InterfaceResource>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -47,12 +48,14 @@ impl EthWatchLayer {
         contracts_config: ContractsConfig,
         gateway_contracts_config: Option<GatewayChainConfig>,
         settlement_mode: SettlementMode,
+        chain_id: L2ChainId,
     ) -> Self {
         Self {
             eth_watch_config,
             contracts_config,
             gateway_contracts_config,
             settlement_mode,
+            chain_id,
         }
     }
 }
@@ -97,27 +100,28 @@ impl WiringLayer for EthWatchLayer {
             self.eth_watch_config.confirmations_for_eth_event,
         );
 
-        let sl_client = if self.settlement_mode.is_gateway() {
+        let sl_l2_client: Option<Box<dyn L2EthClient>> = if self.settlement_mode.is_gateway() {
             let gateway_client = input.gateway_client.unwrap().0;
             let contracts_config = self.gateway_contracts_config.unwrap();
-            EthHttpQueryClient::new(
+            Some(Box::new(EthHttpQueryClient::new(
                 gateway_client,
                 contracts_config.diamond_proxy_addr,
                 Some(contracts_config.state_transition_proxy_addr),
                 contracts_config.chain_admin_addr,
                 contracts_config.governance_addr,
                 self.eth_watch_config.confirmations_for_eth_event,
-            )
+            )))
         } else {
-            l1_client.clone()
+            None
         };
 
         let eth_watch = EthWatch::new(
             &chain_admin_contract(),
             Box::new(l1_client),
-            Box::new(sl_client),
+            sl_l2_client,
             main_pool,
             self.eth_watch_config.poll_interval(),
+            self.chain_id,
         )
         .await?;
 
