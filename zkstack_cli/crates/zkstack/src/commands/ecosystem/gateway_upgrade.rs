@@ -24,7 +24,7 @@ use crate::{
 };
 
 pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> {
-    println!("Runnig ecosystem gateway upgrade args");
+    println!("Running ecosystem gateway upgrade args");
 
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
@@ -72,7 +72,7 @@ async fn no_governance_prepare(
         .load_chain(Some("era".to_string()))
         .context("No era")?;
 
-    // FIXME: probably gotta force this one
+    // FIXME: we will have to force this in production environment
     // assert_eq!(era_config.chain_id, ecosystem_config.era_chain_id);
 
     let gateway_upgrade_input = GatewayEcosystemUpgradeInput::new(
@@ -176,12 +176,6 @@ async fn governance_stage_1(
             .deployed_addresses
             .l1_bytecodes_supplier_addr,
     );
-
-    // TODO: we do not yet update the chain admin of the ecosystem
-    // contracts_config.l1.access_control_restriction_addr = Some(chain_output.access_control_restriction);
-
-    // TODO: this field is probably not needed at all
-    contracts_config.l1.chain_proxy_admin_addr = Some(H160::zero());
 
     contracts_config.l1.rollup_l1_da_validator_addr = Some(
         gateway_ecosystem_preparation_output

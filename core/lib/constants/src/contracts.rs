@@ -174,12 +174,6 @@ pub const L2_WRAPPED_BASE_TOKEN_IMPL: Address = H160([
     0x00, 0x01, 0x00, 0x07,
 ]);
 
-// Temporary measure to make this bytecode known at genesis time
-pub const L2_TRANSPARENT_UPGRADABLE_PROXY_IMPL: Address = H160([
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x01, 0x00, 0x08,
-]);
-
 pub const ERC20_TRANSFER_TOPIC: H256 = H256([
     221, 242, 82, 173, 27, 226, 200, 155, 105, 194, 176, 104, 252, 55, 141, 170, 149, 43, 167, 241,
     99, 196, 161, 22, 40, 245, 90, 77, 245, 35, 179, 239,

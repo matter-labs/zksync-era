@@ -29,7 +29,6 @@ impl GatewayEcosystemUpgradeInput {
         era_diamond_proxy: Address,
         testnet_verifier: bool,
     ) -> Self {
-        // FIXME: This will have to be properly initialized in a separate contract
         let aliased_governance_address =
             apply_l1_to_l2_alias(current_contracts_config.l1.governance_addr);
 
@@ -62,7 +61,6 @@ impl GatewayEcosystemUpgradeInput {
                 genesis_batch_commitment: new_genesis_config.genesis_commitment.unwrap(),
                 genesis_rollup_leaf_index: new_genesis_config.rollup_last_leaf_index.unwrap(),
                 genesis_root: new_genesis_config.genesis_root_hash.unwrap(),
-                // FIXME: these are incorrect oness
                 recursion_circuits_set_vks_hash: H256::zero(),
                 recursion_leaf_level_vk_hash: H256::zero(),
                 recursion_node_level_vk_hash: H256::zero(),
@@ -81,14 +79,10 @@ impl GatewayEcosystemUpgradeInput {
                     .ecosystem_contracts
                     .transparent_proxy_admin_addr,
                 era_diamond_proxy,
-                // FIXME: do we even need to provide it at this point
-                blob_versioned_hash_retriever: Address::from_low_u64_be(1),
                 legacy_erc20_bridge_address: current_contracts_config.bridges.erc20.l1_address,
                 old_validator_timelock: current_contracts_config
                     .ecosystem_contracts
                     .validator_timelock_addr,
-                l2_bridge_proxy_owner_address: aliased_governance_address,
-                l2_bridged_standard_erc20_proxy_owner_address: aliased_governance_address,
             },
             tokens: GatewayUpgradeTokensConfig {
                 token_weth_address: initial_deployment_config.token_weth_address,
@@ -127,11 +121,8 @@ pub struct GatewayUpgradeContractsConfig {
     pub state_transition_manager_address: Address,
     pub transparent_proxy_admin: Address,
     pub era_diamond_proxy: Address,
-    pub blob_versioned_hash_retriever: Address,
     pub legacy_erc20_bridge_address: Address,
     pub old_validator_timelock: Address,
-    pub l2_bridge_proxy_owner_address: Address,
-    pub l2_bridged_standard_erc20_proxy_owner_address: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

@@ -118,6 +118,12 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h256(x))
                 .transpose()
                 .context("base_token_asset_id")?,
+            predeployed_l2_weth_token_address: l1
+                .predeployed_l2_weth_token_address
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("predeployed_l2_weth_token_address")?,
             user_facing_bridgehub_proxy_addr: self
                 .user_facing_bridgehub
                 .as_ref()
@@ -179,6 +185,9 @@ impl ProtoRepr for proto::Contracts {
                 base_token_addr: this.base_token_addr.map(|a| format!("{:?}", a)),
                 base_token_asset_id: this.base_token_asset_id.map(|x| format!("{:?}", x)),
                 chain_admin_addr: this.chain_admin_addr.map(|a| format!("{:?}", a)),
+                predeployed_l2_weth_token_address: this
+                    .predeployed_l2_weth_token_address
+                    .map(|x| format!("{:?}", x)),
             }),
             l2: Some(proto::L2 {
                 testnet_paymaster_addr: this.l2_testnet_paymaster_addr.map(|a| format!("{:?}", a)),

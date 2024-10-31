@@ -101,15 +101,13 @@ impl From<abi::VerifierParams> for VerifierParams {
 /// Instead, they are expected to be known and need to be fetched, typically from L1.
 #[async_trait::async_trait]
 pub trait ProtocolUpgradePreimageOracle: Send + Sync {
-    // At the time of the protocol upgrade, it is expected that all of the
-    // preimages are somehow available and so implementation should potentially unwrap the result.
     async fn get_protocol_upgrade_preimages(&self, hash: Vec<H256>)
         -> anyhow::Result<Vec<Vec<u8>>>;
 }
 
 /// Some upgrades have chain-dependent calldata
 /// that has to be prepared properly
-async fn prepapre_upgrde_call(
+async fn prepare_upgrade_call(
     proposed_upgrade: &ProposedUpgrade,
     chain_specific: Option<ZkChainSpecificUpgradeData>,
 ) -> anyhow::Result<Vec<u8>> {
@@ -122,11 +120,13 @@ async fn prepapre_upgrde_call(
     if ProtocolVersionId::try_from_minor_version(minor_version.as_u32()).unwrap()
         != ProtocolVersionId::gateway_upgrade()
     {
-        // We'll just keep it the same
+        // We'll just keep it the same for non-Gateway upgrades
         return Ok(proposed_upgrade.l2_protocol_upgrade_tx.data.clone());
     }
 
-    // For gateway upgrade, things are bit more complex
+    // For gateway upgrade, things are bit more complex.
+    // The source of truth for the code below is the one that is present in
+    // `GatewayUpgrade.sol`.
     let mut encoded_input = GatewayUpgradeEncodedInput::decode(
         decode(
             &[GatewayUpgradeEncodedInput::schema()],
@@ -197,7 +197,6 @@ impl ProtocolUpgrade {
         let default_account_hash = H256::from_slice(&upgrade.default_account_hash);
 
         let tx = if upgrade.l2_protocol_upgrade_tx.tx_type != U256::zero() {
-            println!("{:#?}", upgrade.l2_protocol_upgrade_tx);
             let factory_deps = preimage_oracle
                 .get_protocol_upgrade_preimages(
                     upgrade
@@ -209,19 +208,8 @@ impl ProtocolUpgrade {
                 )
                 .await?;
 
-            println!(
-                "{} -- {}",
-                factory_deps.len(),
-                upgrade.l2_protocol_upgrade_tx.factory_deps.len()
-            );
-
-            assert_eq!(
-                factory_deps.len(),
-                upgrade.l2_protocol_upgrade_tx.factory_deps.len()
-            );
-
             upgrade.l2_protocol_upgrade_tx.data =
-                prepapre_upgrde_call(&upgrade, chain_specific).await?;
+                prepare_upgrade_call(&upgrade, chain_specific).await?;
 
             Some(
                 Transaction::from_abi(
@@ -239,8 +227,6 @@ impl ProtocolUpgrade {
         } else {
             None
         };
-
-        println!("Yay, passed this one");
 
         Ok(Self {
             version: ProtocolSemanticVersion::try_from_packed(upgrade.new_protocol_version)
@@ -303,50 +289,6 @@ pub fn decode_genesis_upgrade_event(
         .unwrap(),
     ))
 }
-
-// impl TryFrom<Call> for ProtocolUpgrade {
-//     type Error = anyhow::Error;
-
-//     fn try_from(call: Call) -> Result<Self, Self::Error> {
-//         anyhow::ensure!(call.data.len() >= 4);
-//         let (signature, data) = call.data.split_at(4);
-
-//         let diamond_cut_tokens =
-//             if signature.to_vec() == ADMIN_EXECUTE_UPGRADE_FUNCTION.short_signature().to_vec() {
-//                 // Unwraps are safe, because we validate the input against the function signature.
-//                 ADMIN_EXECUTE_UPGRADE_FUNCTION
-//                     .decode_input(data)?
-//                     .pop()
-//                     .unwrap()
-//                     .into_tuple()
-//                     .unwrap()
-//             } else if signature.to_vec()
-//                 == ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION
-//                     .short_signature()
-//                     .to_vec()
-//             {
-//                 let mut data = ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION.decode_input(data)?;
-
-//                 assert_eq!(
-//                     data.len(),
-//                     2,
-//                     "The second method is expected to accept exactly 2 arguments"
-//                 );
-
-//                 // The second item must be a tuple of diamond cut data
-//                 // Unwraps are safe, because we validate the input against the function signature.
-//                 data.pop().unwrap().into_tuple().unwrap()
-//             } else {
-//                 anyhow::bail!("unknown function");
-//             };
-
-//         ProtocolUpgrade::try_from_init_calldata(
-//             // Unwrap is safe because we have validated the input against the function signature.
-//             &diamond_cut_tokens[2].clone().into_bytes().unwrap(),
-//         )
-//         .context("ProtocolUpgrade::try_from_init_calldata()")
-//     }
-// }
 
 impl TryFrom<Log> for GovernanceOperation {
     type Error = crate::ethabi::Error;

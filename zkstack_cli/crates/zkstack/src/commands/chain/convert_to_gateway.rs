@@ -108,7 +108,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 
     chain_contracts_config.set_transaction_filterer(output.gateway_transaction_filterer_proxy);
 
-    // We could've deployed the CTM at the beginnig however, to be closer to how the actual upgrade
+    // We could've deployed the CTM at the beginning however, to be closer to how the actual upgrade
     // looks like we'll do it as the last step
 
     deploy_gateway_ctm(

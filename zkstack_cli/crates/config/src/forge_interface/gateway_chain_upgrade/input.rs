@@ -42,7 +42,7 @@ impl GatewayChainUpgradeInput {
                 chain_id: current_chain_config.chain_id,
                 diamond_proxy_address: contracts_config.l1.diamond_proxy_addr,
                 validium_mode: validum,
-                // FIXME: we assume that all rollup chains want to forever remain this way
+                // TODO(EVM-860): we assume that all rollup chains want to forever remain this way
                 permanent_rollup: !validum,
             },
         }

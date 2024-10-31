@@ -348,8 +348,6 @@ impl Transaction {
                     .iter()
                     .map(|b| h256_to_u256(hash_bytecode(b)))
                     .collect();
-                println!("{:#?}", tx.factory_deps);
-                println!("{:#?}", factory_deps_hashes);
                 anyhow::ensure!(tx.factory_deps == factory_deps_hashes);
                 for item in &tx.reserved[2..] {
                     anyhow::ensure!(item == &U256::zero());

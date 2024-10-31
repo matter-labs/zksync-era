@@ -49,7 +49,6 @@ pub struct GatewayEcosystemUpgradeContractsOutput {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GatewayEcosystemUpgradeDeployedAddresses {
-    // TODO: also deploy new chainadmin / access control restriction for the ecosystem
     pub native_token_vault_addr: Address,
     pub rollup_l1_da_validator_addr: Address,
     pub validator_timelock_addr: Address,

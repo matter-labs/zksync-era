@@ -40,6 +40,7 @@ zksync_protobuf_build = "=0.5.0"
 zksync_utils = { path = "../core/lib/utils" }
 zksync_types = { path = "../core/lib/types" }
 zksync_web3_decl = { path = "../core/lib/web3_decl" }
+zksync_eth_client = { path = "../core/lib/eth_client" }
 
 # External dependencies
 anyhow = "1.0.82"

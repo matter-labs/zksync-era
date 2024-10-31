@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
 use common::{
@@ -20,8 +18,6 @@ use config::{
 use ethers::{
     abi::{decode, encode, parse_abi, ParamType},
     contract::BaseContract,
-    providers::Middleware,
-    types::{transaction::eip2718::TypedTransaction, Bytes, NameOrAddress, TransactionRequest},
     utils::hex,
 };
 use lazy_static::lazy_static;
@@ -30,7 +26,12 @@ use strum::EnumIter;
 use types::L1BatchCommitmentMode;
 use xshell::Shell;
 use zksync_basic_types::{H256, U256};
-use zksync_types::{web3::keccak256, Address, H160, L2_NATIVE_TOKEN_VAULT_ADDRESS};
+use zksync_eth_client::EthInterface;
+use zksync_types::{
+    web3::{keccak256, CallRequest},
+    Address, L2_NATIVE_TOKEN_VAULT_ADDRESS,
+};
+use zksync_web3_decl::client::{Client, L1};
 
 use crate::{
     accept_ownership::{
@@ -119,16 +120,12 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
             finalize_stage1(shell, args, ecosystem_config, chain_config, l1_url).await
         }
         GatewayChainUpgradeStage::FinalizeStage2 => {
-            finalize_stage2(shell, args, ecosystem_config, chain_config, l1_url).await
+            finalize_stage2(shell, ecosystem_config, chain_config).await
         }
         GatewayChainUpgradeStage::KeepUpStage2 => {
             panic!("Not supported");
         }
     }
-
-    // // TODO: this has to be done as the final stage of the chain upgrade.
-    // contracts_config.bridges.l1_nullifier_addr = Some(contracts_config.bridges.shared.l1_address);
-    // contracts_config.bridges.shared.l1_address = gateway_ecosystem_preparation_output.deployed_addresses.bridges.shared_bridge_proxy_addr;
 }
 
 pub fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
@@ -235,9 +232,6 @@ async fn prepare_stage1(
         Some(chain_output.access_control_restriction);
     contracts_config.l1.chain_admin_addr = chain_output.chain_admin_addr;
 
-    // TODO: this field is probably not needed at all
-    contracts_config.l1.chain_proxy_admin_addr = Some(H160::zero());
-
     contracts_config.l1.rollup_l1_da_validator_addr = Some(
         gateway_ecosystem_preparation_output
             .deployed_addresses
@@ -289,7 +283,7 @@ async fn schedule_stage1(
         shell,
         &ecosystem_config,
         &chain_config.get_contracts_config()?,
-        // TODO: maybe not have it as a constant
+        // For now it is hardcoded both in scripts and here
         U256::from(0x1900000000_u64),
         // We only do instant upgrades for now
         U256::zero(),
@@ -314,6 +308,7 @@ async fn finalize_stage1(
     println!("Finalizing stage1 of chain upgrade!");
 
     let mut geneal_config = chain_config.get_general_config()?;
+    let genesis_config = chain_config.get_genesis_config()?;
     let mut contracts_config = chain_config.get_contracts_config()?;
     let secrets_config = chain_config.get_secrets_config()?;
     let gateway_ecosystem_preparation_output =
@@ -330,7 +325,6 @@ async fn finalize_stage1(
     ];
 
     println!("Setting new validators!");
-    // TODO: these can be done in a single operation
     for val in validators {
         admin_update_validator(
             shell,
@@ -364,20 +358,6 @@ async fn finalize_stage1(
     contracts_config.l1.validator_timelock_addr = gateway_ecosystem_preparation_output
         .deployed_addresses
         .validator_timelock_addr;
-
-    admin_schedule_upgrade(
-        shell,
-        &ecosystem_config,
-        &chain_config.get_contracts_config()?,
-        // TODO: maybe not have it as a constant
-        U256::from(0x1900000000_u64),
-        // We only do instant upgrades for now
-        U256::zero(),
-        &chain_config.get_wallets_config()?.governor,
-        &args.forge_args,
-        l1_url.clone(),
-    )
-    .await?;
 
     admin_execute_upgrade(
         shell,
@@ -425,33 +405,24 @@ async fn finalize_stage1(
     )
     .await?;
 
-    // FIXME: use some struct from zksync-era
-    let provider = ethers::providers::Provider::new_client(
-        secrets_config
-            .l1
-            .clone()
-            .context("l1 secrets")?
-            .l1_rpc_url
-            .clone()
-            .expose_str(),
-        109,
-        100,
-    )
-    .unwrap();
-    let result1 = provider
-        .call(
-            &TypedTransaction::Legacy(TransactionRequest {
-                to: Some(NameOrAddress::Address(
-                    contracts_config.l1.diamond_proxy_addr,
-                )),
-                // TODO: maybe use a contract, but for some reason it did not work
-                data: Some(Bytes::from_str("f4ff5e2e").unwrap()),
-                ..TransactionRequest::default()
-            }),
-            None,
-        )
-        .await?;
-    let priority_tree_start_index = decode(&[ParamType::Uint(32)], &result1)?
+    let client = Box::new(
+        Client::<L1>::http(secrets_config.l1.clone().context("l1 secrets")?.l1_rpc_url)
+            .context("Client::new()")?
+            .for_network(genesis_config.l1_chain_id.into())
+            .build(),
+    );
+    let request = CallRequest {
+        to: Some(contracts_config.l1.diamond_proxy_addr),
+        data: Some(
+            zksync_types::ethabi::short_signature("getPriorityTreeStartIndex", &[])
+                .to_vec()
+                .into(),
+        ),
+        ..Default::default()
+    };
+    let result = client.call_contract_function(request, None).await?;
+
+    let priority_tree_start_index = decode(&[ParamType::Uint(32)], &result.0)?
         .pop()
         .unwrap()
         .into_uint()
@@ -476,16 +447,15 @@ async fn finalize_stage1(
 
 async fn finalize_stage2(
     shell: &Shell,
-    args: GatewayUpgradeArgs,
     ecosystem_config: EcosystemConfig,
     chain_config: ChainConfig,
-    l1_url: String,
 ) -> anyhow::Result<()> {
     println!("Finalizing stage2 for the chain! (just updating configs)");
 
     let ecosystem_config = ecosystem_config.get_contracts_config()?;
 
     let mut contracts_config = chain_config.get_contracts_config()?;
+    contracts_config.bridges.l1_nullifier_addr = Some(contracts_config.bridges.shared.l1_address);
     contracts_config.bridges.shared.l1_address = ecosystem_config.bridges.shared.l1_address;
     contracts_config.bridges.shared.l2_address =
         Some(zksync_system_constants::L2_ASSET_ROUTER_ADDRESS);
@@ -495,67 +465,3 @@ async fn finalize_stage2(
 
     Ok(())
 }
-
-// async fn await_for_tx_to_complete(
-//     gateway_provider: &Provider<Http>,
-//     hash: H256,
-// ) -> anyhow::Result<()> {
-//     println!("Waiting for transaction to complete...");
-//     while Middleware::get_transaction_receipt(gateway_provider, hash)
-//         .await?
-//         .is_none()
-//     {
-//         tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-//     }
-
-//     // We do not handle network errors
-//     let receipt = Middleware::get_transaction_receipt(gateway_provider, hash)
-//         .await?
-//         .unwrap();
-
-//     if receipt.status == Some(U64::from(1)) {
-//         println!("Transaction completed successfully!");
-//     } else {
-//         panic!("Transaction failed!");
-//     }
-
-//     Ok(())
-// }
-
-// async fn await_for_withdrawal_to_finalize(
-//     gateway_provider: &Client<L2>,
-//     hash: H256,
-// ) -> anyhow::Result<()> {
-//     println!("Waiting for withdrawal to finalize...");
-//     while gateway_provider.get_withdrawal_log(hash, 0).await.is_err() {
-//         println!("Waiting for withdrawal to finalize...");
-//         tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-//     }
-//     Ok(())
-// }
-
-// async fn call_script(
-//     shell: &Shell,
-//     forge_args: ForgeScriptArgs,
-//     data: &Bytes,
-//     config: &EcosystemConfig,
-//     private_key: Option<H256>,
-//     rpc_url: String,
-// ) -> anyhow::Result<H256> {
-//     let mut forge = Forge::new(&config.path_to_l1_foundry())
-//         .script(&GATEWAY_PREPARATION.script(), forge_args.clone())
-//         .with_ffi()
-//         .with_rpc_url(rpc_url)
-//         .with_broadcast()
-//         .with_calldata(data);
-
-//     // Governor private key is required for this script
-//     forge = fill_forge_private_key(forge, private_key)?;
-//     check_the_balance(&forge).await?;
-//     forge.run(shell)?;
-
-//     let gateway_preparation_script_output =
-//         GatewayPreparationOutput::read(shell, GATEWAY_PREPARATION.output(&config.link_to_code))?;
-
-//     Ok(gateway_preparation_script_output.governance_l2_tx_hash)
-// }

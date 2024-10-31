@@ -151,8 +151,8 @@ impl FactoryDepsDal<'_, '_> {
         evm_simulator_hash: Option<H256>,
     ) -> anyhow::Result<BaseSystemContracts> {
         // There are two potential sources of base contracts bytecode:
-        // - Factory deps of the upgrade transaction
-        // - Database
+        // - Factory deps table in case the upgrade transaction has been executed before.
+        // - Factory deps of the upgrade transaction.
 
         // Firstly trying from factory deps
         if let Some(deps) = self
@@ -166,16 +166,9 @@ impl FactoryDepsDal<'_, '_> {
             return Ok(deps);
         }
 
-        println!("Hi!!!2");
-
         let error_msg = format!("Could not find either of the following factoey deps: bootloader {bootloader_hash:?} or {default_aa_hash:?}");
 
-        let Some(protocol_version) = protocol_version else {
-            // TODO: refactor
-            return None.context(error_msg);
-        };
-
-        println!("Hi!!!3");
+        let protocol_version = protocol_version.context("Protocol version not provided")?;
 
         let upgrade_tx = self
             .storage
@@ -184,29 +177,28 @@ impl FactoryDepsDal<'_, '_> {
             .await?
             .context(error_msg.clone())?;
 
-        println!("Hi!!!10");
-        if upgrade_tx.execute.factory_deps.len() < 2 {
-            // TODO: refactor
-            return None.context(error_msg);
-        }
-
-        println!("Hi!!!");
+        anyhow::ensure!(
+            upgrade_tx.execute.factory_deps.len() >= 2,
+            "Upgrade transaction does not have enough factory deps"
+        );
 
         let bootloader_preimage = upgrade_tx.execute.factory_deps[0].clone();
         let default_aa_preimage = upgrade_tx.execute.factory_deps[1].clone();
 
-        if hash_bytecode(&bootloader_preimage) != bootloader_hash
-            || hash_bytecode(&default_aa_preimage) != default_aa_hash
-        {
-            // TODO: refactor
-            return None.context(error_msg);
-        }
+        anyhow::ensure!(
+            hash_bytecode(&bootloader_preimage) == bootloader_hash,
+            "Bootloader hash mismatch"
+        );
+        anyhow::ensure!(
+            hash_bytecode(&default_aa_preimage) == default_aa_hash,
+            "Default account hash mismatch"
+        );
 
         if evm_simulator_hash.is_some() {
-            panic!("EVM simulator not supported as part of upgrade");
+            // For now, it is not yet decided whether Gateway upgrade will happen before
+            // or after the EVM equivalence upgrade.
+            panic!("EVM simulator not supported as part of gateway upgrade");
         }
-
-        println!("Hi1212121!!!");
 
         Ok(BaseSystemContracts {
             bootloader: SystemContractCode {
@@ -217,7 +209,6 @@ impl FactoryDepsDal<'_, '_> {
                 code: bytes_to_be_words(default_aa_preimage),
                 hash: default_aa_hash,
             },
-            // We do not support evm simulator bytecode from upgrades
             evm_emulator: None,
         })
     }

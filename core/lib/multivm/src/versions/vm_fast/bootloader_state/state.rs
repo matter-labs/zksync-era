@@ -220,7 +220,7 @@ impl BootloaderState {
 
     /// Get offset of tx description
     pub(crate) fn get_tx_description_offset(&self, tx_index: usize) -> usize {
-        // FIXME
+        // FIXME: support gateway inside fast vm
         get_tx_description_offset(crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory)
             + self.find_tx(tx_index).offset
     }
