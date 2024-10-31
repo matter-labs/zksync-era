@@ -16,22 +16,32 @@ import {
     L2_ASSET_ROUTER_ADDRESS,
     L2_BRIDGEHUB_ADDRESS,
     L2_NATIVE_TOKEN_VAULT_ADDRESS,
+    L2_INTEROP_HANDLER_ADDRESS,
+    L2_INTEROP_CENTER_ADDRESS,
     REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
     L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR,
     BRIDGEHUB_L2_CANONICAL_TRANSACTION_ABI,
     ETH_ADDRESS_IN_CONTRACTS,
     L2_LOG_STRING,
-    ARTIFACTS_PATH
+    ARTIFACTS_PATH,
+    INTEROP_CALL_ABI
 } from '../src/constants';
 import { RetryProvider } from '../src/retry-provider';
 
-// Read contract ABIs
+import { getInteropTriggerData, getInteropBundleData } from '../src/temp-sdk';
+
+// Read contract artifacts
 function readContract(path: string, fileName: string, contractName?: string) {
     contractName = contractName || fileName;
     return JSON.parse(fs.readFileSync(`${path}/${fileName}.sol/${contractName}.json`, { encoding: 'utf-8' }));
 }
 
 const ArtifactBridgeHub = readContract(`${ARTIFACTS_PATH}bridgehub`, 'Bridgehub');
+const ArtifactInteropCenter = readContract(`${ARTIFACTS_PATH}bridgehub`, 'InteropCenter');
+const ArtifactInteropHandler = readContract(
+    `../../../contracts/system-contracts/artifacts-zk/contracts-preprocessed`,
+    'InteropHandler'
+);
 const ArtifactNativeTokenVault = readContract(`${ARTIFACTS_PATH}bridge/ntv`, 'L2NativeTokenVault');
 const ArtifactMintableERC20 = readContract(
     '../../../contracts/l1-contracts/artifacts-zk/contracts/dev-contracts',
@@ -79,8 +89,11 @@ describe('Interop checks', () => {
     let interop1_wallet: zksync.Wallet;
     let interop1_rich_wallet: zksync.Wallet;
     let interop1_bridgehub_contract: zksync.Contract;
+    let interop1_interop_center_contract: zksync.Contract;
+    let interop2_interop_handler: zksync.Contract;
     let interop1_nativeTokenVault_contract: zksync.Contract;
     let interop1_tokenA_contract: zksync.Contract;
+    let aliased_interop1_wallet_address: string;
 
     // Interop2 (Second Chain) Variables
     let interop2_provider: zksync.Provider;
@@ -89,6 +102,10 @@ describe('Interop checks', () => {
     let interop2_nativeTokenVault_contract: zksync.Contract;
     let interop2_swap_contract: zksync.Contract;
     let interop2_tokenB_contract: zksync.Contract;
+
+    const swapAmount = ethers.parseEther('0.1');
+    const mintValue = ethers.parseEther('0.2');
+    const bridgeBackAmount = ethers.parseEther('0.2');
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
@@ -119,6 +136,16 @@ describe('Interop checks', () => {
 
         // Initialize Contracts on Interop1
         interop1_bridgehub_contract = new zksync.Contract(L2_BRIDGEHUB_ADDRESS, ArtifactBridgeHub.abi, interop1_wallet);
+        interop1_interop_center_contract = new zksync.Contract(
+            L2_INTEROP_CENTER_ADDRESS,
+            ArtifactInteropCenter.abi,
+            interop1_wallet
+        );
+        interop2_interop_handler = new zksync.Contract(
+            L2_INTEROP_HANDLER_ADDRESS,
+            ArtifactInteropHandler.abi,
+            interop2_wallet
+        );
         interop1_nativeTokenVault_contract = new zksync.Contract(
             L2_NATIVE_TOKEN_VAULT_ADDRESS,
             ArtifactNativeTokenVault.abi,
@@ -133,7 +160,7 @@ describe('Interop checks', () => {
         );
 
         console.log(`Test wallet 1 address: ${interop1_wallet.address}`);
-        console.log(`Test wallet 2 address: ${interop1_wallet.address}`)
+        console.log(`Test wallet 2 address: ${interop1_wallet.address}`);
         console.log(
             `[rich wallet] l1_wallet address: ${l1_wallet.address} with ${ethers.formatEther(
                 await l1_provider.getBalance(l1_wallet.address)
@@ -168,6 +195,9 @@ describe('Interop checks', () => {
                 value: ethers.parseEther('100') //amount*10n
             })
         ).wait();
+
+        aliased_interop1_wallet_address = await interop2_interop_handler.aliasAccount(interop1_wallet.address);
+        console.log('aliased address', aliased_interop1_wallet_address);
     });
 
     test('Can perform an ETH deposit', async () => {
@@ -178,7 +208,7 @@ describe('Interop checks', () => {
         await (
             await interop1_rich_wallet.deposit({
                 token: ETH_ADDRESS_IN_CONTRACTS,
-                amount: fundAmount,
+                amount: fundAmount * 10n,
                 to: interop1_wallet.address,
                 approveERC20: true,
                 approveBaseERC20: true,
@@ -190,7 +220,7 @@ describe('Interop checks', () => {
         await (
             await interop2_rich_wallet.deposit({
                 token: ETH_ADDRESS_IN_CONTRACTS,
-                amount: fundAmount,
+                amount: fundAmount * 10n,
                 to: interop2_wallet.address,
                 approveERC20: true,
                 approveBaseERC20: true,
@@ -198,6 +228,63 @@ describe('Interop checks', () => {
                 overrides: { gasPrice }
             })
         ).wait();
+        console.log('Test wallet funded');
+    });
+
+    test.skip('Can perform an ETH interop', async () => {
+        // Fund accounts
+        const gasPrice = await scaledGasPrice(interop1_rich_wallet);
+        const fundAmount = ethers.parseEther('10');
+        console.log('Funding test wallet at interop1');
+        printBalances('before eth value interop');
+
+        // Send Transfer Transaction
+        console.log('interop1_wallet.privateKey', interop1_wallet.privateKey);
+        const tx = await from_interop1_requestInterop(
+            [
+                {
+                    directCall: true,
+                    to: interop1_wallet.address,
+                    from: ethers.ZeroAddress,
+                    data: '0x',
+                    value: '0x' + mintValue.toString(16),
+                    requestedInteropCallValue: '0x' + mintValue.toString(16)
+                }
+            ],
+            //feeStarters
+            [
+                // getL2TokenTransferIndirectStarter(),
+                {
+                    directCall: false,
+                    to: ethers.ZeroAddress,
+                    from: L2_ASSET_ROUTER_ADDRESS,
+                    data: getTokenTransferSecondBridgeData(
+                        tokenA_details.assetId!,
+                        swapAmount,
+                        interop1_wallet.address
+                    ),
+                    value: '0x0',
+                    requestedInteropCallValue: '0x0'
+                }
+            ],
+            {
+                gasLimit: 30000000,
+                gasPerPubdataByteLimit: 1000,
+                refundRecipient: interop1_wallet.address
+            }
+        );
+
+        console.log('tx', tx);
+        await tx.wait();
+
+        await delay(timeout);
+
+        // Read and broadcast the interop transaction from Interop1 to Interop2
+        await readAndBroadcastInteropTx(tx.hash, interop1_provider, interop2_provider);
+        await delay(timeout);
+
+        printBalances('after eth value interop');
+
         console.log('Test wallet funded');
     });
 
@@ -234,16 +321,18 @@ describe('Interop checks', () => {
             tokenB_details.decimals
         ]);
         tokenB_details.l2AddressSecondChain = await interop2_tokenB_contract_deployment.getAddress();
-        await (await interop2_tokenB_contract_deployment.mint(await interop1_wallet.getAddress(), ethers.parseEther('100'))).wait();
-        await (await interop2_tokenB_contract_deployment.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS,  ethers.parseEther('100'))).wait();
+        await (
+            await interop2_tokenB_contract_deployment.mint(await interop1_wallet.getAddress(), ethers.parseEther('100'))
+        ).wait();
+        await (
+            await interop2_tokenB_contract_deployment.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, ethers.parseEther('100'))
+        ).wait();
         console.log('Registering token B on Interop2');
         await (await interop2_nativeTokenVault_contract.registerToken(tokenB_details.l2AddressSecondChain)).wait();
         console.log('Token B registered on Interop2');
         // await delay(timeout);
         tokenB_details.assetId = await interop2_nativeTokenVault_contract.assetId(tokenB_details.l2AddressSecondChain);
-        tokenB_details.l2Address = await interop1_nativeTokenVault_contract.tokenAddress(
-            tokenB_details.assetId
-        );
+        tokenB_details.l2Address = await interop1_nativeTokenVault_contract.tokenAddress(tokenB_details.assetId);
         interop2_tokenB_contract = new zksync.Contract(
             tokenB_details.l2AddressSecondChain,
             ArtifactMintableERC20.abi,
@@ -317,9 +406,7 @@ describe('Interop checks', () => {
         tokenA_details.l2AddressSecondChain = await interop2_nativeTokenVault_contract.tokenAddress(
             tokenA_details.assetId
         );
-        tokenB_details.l2Address = await interop1_nativeTokenVault_contract.tokenAddress(
-            tokenB_details.assetId
-        );
+        tokenB_details.l2Address = await interop1_nativeTokenVault_contract.tokenAddress(tokenB_details.assetId);
 
         console.log(tokenA_details);
         console.log(tokenB_details);
@@ -357,130 +444,121 @@ describe('Interop checks', () => {
         console.log('[SETUP COMPLETED]');
     });
 
-    test('Can transfer token A from Interop1 to Interop2', async () => {
-        console.log('\n\n[TEST STARTED] - Can transfer token A from Interop1 to Interop2.');
-        const interop1_tokenA_balance_before = await getTokenBalance({
-            provider: interop1_provider,
-            tokenAddress: tokenA_details.l2Address,
-            address: interop1_wallet.address
-        });
-        console.log(
-            `Test wallet token A Interop 1 balance before transfer: ${ethers.formatEther(
-                interop1_tokenA_balance_before
-            )} AA`
-        );
+    // test('Can transfer token A from Interop1 to Interop2', async () => {
+    //     await printBalances('before token transfer');
+    //     // Send Transfer Transaction
+    //     await from_interop1_transfer_tokenA();
+    //     await delay(timeout);
+    //     await printBalances('after token transfer');
+    //     // await delay(1);
+    // });
+
+    test('Can perform request interop new interface', async () => {
+        // Fund accounts
+        const gasPrice = await scaledGasPrice(interop1_rich_wallet);
+        const fundAmount = ethers.parseEther('10');
+        console.log('Cross chain swap and additional calls...');
+        await printBalances('before request interop');
+
+        await (await interop1_tokenA_contract.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, swapAmount)).wait();
 
         // Send Transfer Transaction
-        await from_interop1_transfer_tokenA();
-
-        const interop1_tokenA_balance_after = await getTokenBalance({
-            provider: interop1_provider,
-            tokenAddress: tokenA_details.l2Address,
-            address: interop1_wallet.address
-        });
-        console.log(
-            `Test wallet token A Interop 1 balance after transfer: ${ethers.formatEther(
-                interop1_tokenA_balance_after
-            )} AA`
+        console.log('fundAmount', fundAmount);
+        console.log('interop1_wallet.privateKey', interop1_wallet.privateKey);
+        const tx = await from_interop1_requestInterop(
+            [
+                {
+                    directCall: true,
+                    to: aliased_interop1_wallet_address,
+                    from: ethers.ZeroAddress,
+                    data: '0x',
+                    value: '0x' + mintValue.toString(16),
+                    requestedInteropCallValue: '0x' + mintValue.toString(16)
+                }
+            ],
+            //feeStarters
+            [
+                // getL2TokenTransferIndirectStarter(),
+                {
+                    directCall: false,
+                    to: ethers.ZeroAddress,
+                    from: L2_ASSET_ROUTER_ADDRESS,
+                    data: getTokenTransferSecondBridgeData(
+                        tokenA_details.assetId!,
+                        swapAmount,
+                        aliased_interop1_wallet_address
+                    ),
+                    value: '0x0',
+                    requestedInteropCallValue: '0x0'
+                },
+                // getCrossChainSwapApprovalDirectStarter(),
+                {
+                    directCall: true,
+                    to: tokenA_details.l2AddressSecondChain!,
+                    from: ethers.ZeroAddress,
+                    data: interop1_tokenA_contract.interface.encodeFunctionData('approve', [
+                        await interop2_swap_contract.getAddress(),
+                        swapAmount
+                    ]),
+                    value: '0x0',
+                    requestedInteropCallValue: '0x0'
+                },
+                // getCrossChainSwapDirectStarter(),
+                {
+                    directCall: true,
+                    to: await interop2_swap_contract.getAddress(),
+                    from: ethers.ZeroAddress,
+                    data: interop2_swap_contract.interface.encodeFunctionData('swap', [swapAmount]),
+                    value: '0x0',
+                    requestedInteropCallValue: '0x0'
+                },
+                // getCrossChainNtvApprovalDirectStarter(),
+                {
+                    directCall: true,
+                    to: tokenB_details.l2AddressSecondChain!,
+                    from: ethers.ZeroAddress,
+                    data: interop1_tokenA_contract.interface.encodeFunctionData('approve', [
+                        L2_NATIVE_TOKEN_VAULT_ADDRESS,
+                        swapAmount * 2n
+                    ]),
+                    value: '0x0',
+                    requestedInteropCallValue: '0x0'
+                },
+                // // getTransferBackTokenDirectStarter()
+                {
+                    directCall: true,
+                    to: L2_BRIDGEHUB_ADDRESS,
+                    from: ethers.ZeroAddress,
+                    data: await getRequestL2TransactionTwoBridgesData(
+                        (
+                            await interop1_wallet.provider.getNetwork()
+                        ).chainId,
+                        mintValue,
+                        0n,
+                        getTokenTransferSecondBridgeData(tokenB_details.assetId!, swapAmount, interop1_wallet.address),
+                        interop1_wallet.address
+                    ),
+                    value: '0x' + mintValue.toString(16), // note in two bridges this is * 2n , because we pay for gas as well. This cleans it up.
+                    requestedInteropCallValue: '0x' + mintValue.toString(16)
+                }
+            ],
+            {
+                gasLimit: 30000000,
+                gasPerPubdataByteLimit: 1000,
+                refundRecipient: interop1_wallet.address
+            }
         );
 
-        // Update token A address on Interop2
-        // tokenA_details.addresses.interop2 = await interop2_nativeTokenVault_contract.tokenAddress(tokenA_details.assetId);
-        // if (tokenA_details.addresses.interop2 === ethers.ZeroHash) throw new Error("Token A resolves to zero address on Interop2");
-
-        const interop2_tokenA_balance_after = await getTokenBalance({
-            provider: interop2_provider,
-            tokenAddress: tokenA_details.l2AddressSecondChain!,
-            address: interop2_wallet.address
-        });
-        console.log(
-            `Test wallet token A Interop 2 balance after transfer: ${ethers.formatEther(
-                interop2_tokenA_balance_after
-            )} AA`
-        );
-    });
-
-    test('Can perform cross chain swap', async () => {
-        console.log('\n\n[TEST STARTED] - Can perform cross chain swap.');
-
-        console.log('Approving token A allowance for Swap Contract on Interop2 from Interop1...');
-        const allowanceBefore = await getTokenAllowance({
-            provider: interop2_provider,
-            tokenAddress: tokenA_details.l2AddressSecondChain!,
-            fromAddress: await interop1_wallet.getAddress(),
-            toAddress: await interop2_swap_contract.getAddress()
-        });
-        console.log('Allowance before', allowanceBefore);
-        await from_interop1_approveSwapAllowance();
-        const allowanceAfter = await getTokenAllowance({
-            provider: interop2_provider,
-            tokenAddress: tokenA_details.l2AddressSecondChain!,
-            fromAddress: await interop1_wallet.getAddress(),
-            toAddress: await interop2_swap_contract.getAddress()
-        });
-        console.log('Allowance after', allowanceAfter);
-
-        await delay(5 * timeout);
-
-        const interop2_tokenB_balance_before = await getTokenBalance({
-            provider: interop2_provider,
-            tokenAddress: tokenB_details.l2AddressSecondChain!,
-            address: interop2_wallet.address
-        });
-        console.log(
-            `Test wallet token B Interop2 balance before swap: ${ethers.formatEther(interop2_tokenB_balance_before)} BB`
-        );
-
-        // Send Swap Transaction
-        console.log('Swapping token A to token B...');
-        await from_interop1_swap_a_to_b();
+        // console.log("tx", tx)
+        await tx.wait();
 
         await delay(timeout);
 
-        const interop2_tokenB_balance_after = await getTokenBalance({
-            provider: interop2_provider,
-            tokenAddress: tokenB_details.l2AddressSecondChain!,
-            address: interop2_wallet.address
-        });
-        console.log(
-            `Test wallet token B Interop2 balance after swap: ${ethers.formatEther(interop2_tokenB_balance_after)} BB`
-        );
-    });
+        // Read and broadcast the interop transaction from Interop1 to Interop2
+        await readAndBroadcastInteropTx(tx.hash, interop1_provider, interop2_provider);
+        await delay(timeout);
 
-    test('Can transfer token B from Interop2 to Interop1', async () => {
-        console.log('\n\n[TEST STARTED] - Can transfer token B from Interop2 to Interop1.');
-
-        console.log('Transferring token B from Interop2 to Interop1...');
-        const interop1_tokenB_balance_before = await getTokenBalance({
-            provider: interop1_provider,
-            tokenAddress: tokenB_details.l2Address,
-            address: interop1_wallet.address
-        });
-        console.log(
-            `Test wallet token B Interop1 balance after transfer: ${ethers.formatEther(
-                interop1_tokenB_balance_before
-            )} BB`
-        );
-        await delay(1000)
-        await from_interop2_transfer_tokenB();
-
-        // Update token B address on Interop1
-        // tokenB_details.addresses.interop1 = await interop1_nativeTokenVault_contract.tokenAddress(
-        //     tokenB_details.assetId
-        // );
-        // if (tokenB_details.addresses.interop1 === ethers.ZeroHash)
-        //     throw new Error('Token B resolves to zero address on Interop1');
-
-        const interop1_tokenB_balance_after = await getTokenBalance({
-            provider: interop1_provider,
-            tokenAddress: tokenB_details.l2Address,
-            address: interop1_wallet.address
-        });
-        console.log(
-            `Test wallet token B Interop1 balance after transfer: ${ethers.formatEther(
-                interop1_tokenB_balance_after
-            )} BB`
-        );
+        await printBalances('after request interop');
     });
 
     /**
@@ -489,16 +567,11 @@ describe('Interop checks', () => {
     async function from_interop1_transfer_tokenA() {
         const amount = ethers.parseEther('0.1');
         const mintValue = ethers.parseEther('0.2');
-        const bridgeCalldata = ethers.concat([
-            '0x01',
-            new ethers.AbiCoder().encode(
-                ['bytes32', 'bytes'],
-                [
-                    tokenA_details.assetId,
-                    new ethers.AbiCoder().encode(['uint256', 'address'], [amount, interop1_wallet.address])
-                ]
-            )
-        ]);
+        const bridgeCalldata = getTokenTransferSecondBridgeData(
+            tokenA_details.assetId!,
+            amount,
+            interop1_wallet.address
+        );
 
         await (await interop1_tokenA_contract.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, amount)).wait();
         const tx = await from_interop1_requestL2TransactionTwoBridges(mintValue, bridgeCalldata);
@@ -509,93 +582,84 @@ describe('Interop checks', () => {
         await readAndBroadcastInteropTx(tx.hash, interop1_provider, interop2_provider);
     }
 
-    /**
-     * Sends an approve transaction from Interop1 to Interop2.
-     */
-    async function from_interop1_approveSwapAllowance() {
-        const amount = ethers.parseEther('0.1');
-        const mintValue = ethers.parseEther('0.2');
+    // /**
+    //  * Sends an approve transaction from Interop1 to Interop2.
+    //  */
+    // async function from_interop1_approveSwapAllowance() {
+    //     const amount = ethers.parseEther('0.1');
+    //     const mintValue = ethers.parseEther('0.2');
 
-        // Use the token contract on Interop2 (Second Chain)
-        const l2Calldata = interop1_tokenA_contract.interface.encodeFunctionData('approve', [
-            await interop2_swap_contract.getAddress(),
-            amount
-        ]);
+    //     // Use the token contract on Interop2 (Second Chain)
+    //     const l2Calldata = interop1_tokenA_contract.interface.encodeFunctionData('approve', [
+    //         await interop2_swap_contract.getAddress(),
+    //         amount
+    //     ]);
 
-        // Create an interop transaction from Interop1 to Interop2
-        const tx = await from_interop1_requestL2TransactionDirect(
-            mintValue,
-            tokenA_details.l2AddressSecondChain!,
-            BigInt(0),
-            l2Calldata
-        );
-        await tx.wait();
+    //     // Create an interop transaction from Interop1 to Interop2
+    //     const tx = await from_interop1_requestL2TransactionDirect(
+    //         mintValue,
+    //         tokenA_details.l2AddressSecondChain!,
+    //         BigInt(0),
+    //         l2Calldata
+    //     );
+    //     await tx.wait();
 
-        await delay(timeout);
+    //     await delay(timeout);
 
-        // Read and broadcast the interop transaction from Interop1 to Interop2
-        await readAndBroadcastInteropTx(tx.hash, interop1_provider, interop2_provider);
-    }
+    //     // Read and broadcast the interop transaction from Interop1 to Interop2
+    //     await readAndBroadcastInteropTx(tx.hash, interop1_provider, interop2_provider);
+    // }
 
-    /**
-     * Sends a swap transaction from Interop1 to Interop2.
-     */
-    async function from_interop1_swap_a_to_b() {
-        const amount = ethers.parseEther('0.1');
-        const mintValue = ethers.parseEther('0.2');
+    // /**
+    //  * Sends a swap transaction from Interop1 to Interop2.
+    //  */
+    // async function from_interop1_swap_a_to_b() {
+    //     const amount = ethers.parseEther('0.1');
+    //     const mintValue = ethers.parseEther('0.2');
 
-        // Prepare calldata using the Swap contract on Interop2
-        const l2Calldata = interop2_swap_contract.interface.encodeFunctionData('swap', [amount]);
+    //     // Prepare calldata using the Swap contract on Interop2
+    //     const l2Calldata = interop2_swap_contract.interface.encodeFunctionData('swap', [amount]);
 
-        // Create interop transaction from Interop1 to Interop2
-        const tx = await from_interop1_requestL2TransactionDirect(
-            mintValue,
-            await interop2_swap_contract.getAddress(),
-            BigInt(0),
-            l2Calldata
-        );
-        await readAndBroadcastInteropTx(tx.hash, interop1_provider, interop2_provider);
-    }
+    //     // Create interop transaction from Interop1 to Interop2
+    //     const tx = await from_interop1_requestL2TransactionDirect(
+    //         mintValue,
+    //         await interop2_swap_contract.getAddress(),
+    //         BigInt(0),
+    //         l2Calldata
+    //     );
+    //     await readAndBroadcastInteropTx(tx.hash, interop1_provider, interop2_provider);
+    // }
 
-    /**
-     * Sends a transfer transaction from Interop2 to Interop1.
-     */
-    async function from_interop2_transfer_tokenB() {
-        const amount = ethers.parseEther('0.2'); // swap ratio is 1:2 (A:B)
-        const mintValue = ethers.parseEther('0.2');
-        const bridgeCalldata = ethers.concat([
-            '0x01',
-            new ethers.AbiCoder().encode(
-                ['bytes32', 'bytes'],
-                [
-                    tokenB_details.assetId,
-                    new ethers.AbiCoder().encode(['uint256', 'address'], [amount, interop1_wallet.address])
-                ]
-            )
-        ]);
+    // /**
+    //  * Sends a transfer transaction from Interop2 to Interop1.
+    //  */
+    // async function from_interop2_transfer_tokenB() {
+    //     const amount = ethers.parseEther('0.2'); // swap ratio is 1:2 (A:B)
+    //     const mintValue = ethers.parseEther('0.2');
+    //     const bridgeCalldata = getTokenTransferSecondBridgeData(tokenB_details.assetId!, amount, interop1_wallet.address);
 
-        const input = {
-            chainId: (await interop1_provider.getNetwork()).chainId,
-            mintValue,
-            l2Value: 0,
-            l2GasLimit: 30000000,
-            l2GasPerPubdataByteLimit: REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
-            refundRecipient: interop1_wallet.address,
-            secondBridgeAddress: L2_ASSET_ROUTER_ADDRESS,
-            secondBridgeValue: 0,
-            secondBridgeCalldata: bridgeCalldata
-        };
-        const l2Calldata = interop1_bridgehub_contract.interface.encodeFunctionData('requestL2TransactionTwoBridges', [input]);
+    //     const input = {
+    //         chainId: (await interop1_provider.getNetwork()).chainId,
+    //         mintValue,
+    //         l2Value: 0,
+    //         l2GasLimit: 30000000,
+    //         l2GasPerPubdataByteLimit: REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
+    //         refundRecipient: interop1_wallet.address,
+    //         secondBridgeAddress: L2_ASSET_ROUTER_ADDRESS,
+    //         secondBridgeValue: 0,
+    //         secondBridgeCalldata: bridgeCalldata
+    //     };
+    //     const l2Calldata = interop1_bridgehub_contract.interface.encodeFunctionData('requestL2TransactionTwoBridges', [input]);
 
-        // Create interop transaction from Interop1 to Interop2
-        const tx = await from_interop1_requestL2TransactionDirect(
-            mintValue * 2n,
-            L2_BRIDGEHUB_ADDRESS,
-            mintValue,
-            l2Calldata
-        );
-        await readAndBroadcastInteropTx(tx.hash, interop1_provider, interop2_provider);
-    }
+    //     // Create interop transaction from Interop1 to Interop2
+    //     const tx = await from_interop1_requestL2TransactionDirect(
+    //         mintValue * 2n,
+    //         L2_BRIDGEHUB_ADDRESS,
+    //         mintValue,
+    //         l2Calldata
+    //     );
+    //     await readAndBroadcastInteropTx(tx.hash, interop1_provider, interop2_provider);
+    // }
 
     /**
      * Requests an L2 transaction involving two bridges on Interop1.
@@ -668,6 +732,129 @@ describe('Interop checks', () => {
         return tx;
     }
 
+    interface InteropCallStarter {
+        directCall: boolean;
+        to: string;
+        from: string;
+        data: string;
+        value: string;
+        // The value that is requested for the interop call.
+        // This has to be known beforehand, as the funds in the interop call belong to the user.
+        // This is because we cannot guarantee atomicity of xL2 txs (just the atomicity of calls on the destination chain)
+        // So contracts cannot send their own value, only stamp the value that belongs to the user.
+        requestedInteropCallValue: string;
+    }
+
+    interface GasFields {
+        gasLimit: number;
+        gasPerPubdataByteLimit: number;
+        refundRecipient: string;
+    }
+
+    /**
+     * Requests a direct L2 transaction on Interop1.
+     * @param mintValue - The value to mint.
+     * @param l2Contract - The target L2 contract address.
+     * @param l2Value - The value to send with the transaction.
+     * @param l2Calldata - The calldata for the transaction.
+     * @returns The transaction response.
+     */
+    async function from_interop1_requestInterop(
+        feePaymentCallStarters: InteropCallStarter[],
+        executionCallStarters: InteropCallStarter[],
+        gasFields: GasFields
+    ) {
+        const input = [
+            // destinationChainId:
+            (await interop2_provider.getNetwork()).chainId.toString(),
+            // feePaymentCallStarters:
+            feePaymentCallStarters,
+            // executionCallStarters:
+            executionCallStarters,
+            // gasFields:
+            {
+                gasLimit: 600000000,
+                gasPerPubdataByteLimit: REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
+                refundRecipient: interop1_wallet.address
+            }
+            // refundRecipient: interop1_wallet.address
+        ];
+
+        // console.log("input", input)
+        // console.log("interop1_interop_center_contract", interop1_interop_center_contract.interface.fragments[32])
+        const request = await interop1_interop_center_contract.requestInterop.populateTransaction(...input);
+        request.value =
+            mintValue +
+            BigInt(
+                executionCallStarters.reduce(
+                    (acc: bigint, curr: InteropCallStarter) => acc + BigInt(curr.requestedInteropCallValue),
+                    0n
+                )
+            );
+        request.from = interop1_wallet.address;
+        // console.log("request", request)
+
+        const tx = await interop1_interop_center_contract.requestInterop(...input, {
+            value: '0x' + request.value.toString(16),
+            gasLimit: 30000000
+        });
+
+        await tx.wait();
+        return tx;
+    }
+
+    function getTokenTransferSecondBridgeData(assetId: string, amount: bigint, recipient: string) {
+        return ethers.concat([
+            '0x01',
+            new ethers.AbiCoder().encode(
+                ['bytes32', 'bytes'],
+                [assetId, new ethers.AbiCoder().encode(['uint256', 'address'], [amount, recipient])]
+            )
+        ]);
+    }
+
+    function getRequestL2TransactionTwoBridgesData(
+        chainId: bigint,
+        mintValue: bigint,
+        l2Value: bigint,
+        secondBridgeCalldata: string,
+        refundRecipient: string
+    ) {
+        return interop1_bridgehub_contract.interface.encodeFunctionData('requestL2TransactionTwoBridges', [
+            {
+                chainId: chainId.toString(),
+                mintValue,
+                l2Value,
+                l2GasLimit: 30000000,
+                l2GasPerPubdataByteLimit: REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
+                refundRecipient: refundRecipient,
+                secondBridgeAddress: L2_ASSET_ROUTER_ADDRESS,
+                secondBridgeValue: 0,
+                secondBridgeCalldata
+            }
+        ]);
+    }
+
+    //   function getRequestL2TransactionDirectData(
+    //     mintValue: bigint,
+    //     l2Contract: string,
+    //     l2Value: bigint,
+    //     l2Calldata: string,
+
+    //   ) {
+    //     return interop1_bridgehub_contract.interface.encodeFunctionData("requestL2TransactionDirect", [{
+    //       chainId: interop2_chain.id.toString(),
+    //       mintValue,
+    //       l2Contract,
+    //       l2Value,
+    //       l2Calldata,
+    //       l2GasLimit: 30000000,
+    //       l2GasPerPubdataByteLimit: REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
+    //       factoryDeps: [],
+    //       refundRecipient: interop1_zkAccount.address,
+    //     }]);
+    //   }
+
     /**
      * Reads and broadcasts an interop transaction between Interop1 and Interop2.
      * @param tx - The original transaction response.
@@ -680,141 +867,132 @@ describe('Interop checks', () => {
         receiver_chain_provider: zksync.Provider
     ) {
         console.log('*Reading and broadcasting interop tx*');
-        let { l1BatchNumber, l2TxNumberInBlock, message } = { l1BatchNumber: 0, l2TxNumberInBlock: 0, message: '' };
+        console.log('txHash', txHash);
+        // await getInteropTriggerData(sender_chain_provider, txHash, 0);
+        // await getInteropTriggerData(sender_chain_provider, txHash, 1);
+        // await getInteropTriggerData(sender_chain_provider, txHash, 2);
+        // await getInteropTriggerData(sender_chain_provider, txHash, 3);
+        // await getInteropTriggerData(sender_chain_provider, txHash, 4);
+        // await getInteropTriggerData(sender_chain_provider, txHash, 5);
 
-        try {
-            // console.log("Reading interop message");
-            // `getFinalizeWithdrawalParamsWithoutProof` is only available for wallet instance but not provider
-            const sender_chain_utilityWallet = new zksync.Wallet(
-                zksync.Wallet.createRandom().privateKey,
-                sender_chain_provider
-            );
-            const {
-                l1BatchNumber: l1BatchNumberRead,
-                l2TxNumberInBlock: l2TxNumberInBlockRead,
-                message: messageRead
-            } = await sender_chain_utilityWallet.getFinalizeWithdrawalParamsWithoutProof(txHash, 0);
-            // console.log("Finished reading interop message");
-
-            l1BatchNumber = l1BatchNumberRead || 0;
-            l2TxNumberInBlock = l2TxNumberInBlockRead || 0;
-            message = messageRead || '';
-
-            if (!message) return;
-        } catch (e) {
-            console.log('Error reading interop message:', e); // note no error here, since we run out of txs sometime
+        const {
+            l1BatchNumber: l1BatchNumber_trigger,
+            l2TxNumberInBlock: l2TxNumberInBlock_trigger,
+            output: triggerData,
+            rawData: rawData_trigger
+        } = await getInteropTriggerData(sender_chain_provider, txHash, 2);
+        const {
+            l1BatchNumber: l1BatchNumber_fee,
+            l2TxNumberInBlock: l2TxNumberInBlock_fee,
+            output: feeBundleData,
+            rawData: rawData_fee
+        } = await getInteropBundleData(sender_chain_provider, txHash, 0);
+        const {
+            l1BatchNumber: l1BatchNumber_execution,
+            l2TxNumberInBlock: l2TxNumberInBlock_execution,
+            output: executionBundleData,
+            rawData: rawData_execution
+        } = await getInteropBundleData(sender_chain_provider, txHash, 1);
+        const xl2Input = triggerData;
+        if (triggerData == null) {
             return;
         }
 
-        // Decode the interop message
-        const decodedRequest = ethers.AbiCoder.defaultAbiCoder().decode(
-            [BRIDGEHUB_L2_CANONICAL_TRANSACTION_ABI],
-            '0x' + message.slice(2)
-        );
+        // console.log("trigger message", rawData_trigger)
 
-        const xl2Input = {
-            txType: decodedRequest[0][0],
-            from: decodedRequest[0][1],
-            to: decodedRequest[0][2],
-            gasLimit: decodedRequest[0][3],
-            gasPerPubdataByteLimit: decodedRequest[0][4],
-            maxFeePerGas: decodedRequest[0][5],
-            maxPriorityFeePerGas: decodedRequest[0][6],
-            paymaster: decodedRequest[0][7],
-            nonce: decodedRequest[0][8],
-            value: decodedRequest[0][9],
-            reserved: [
-                decodedRequest[0][10][0],
-                decodedRequest[0][10][1],
-                decodedRequest[0][10][2],
-                decodedRequest[0][10][3]
-            ],
-            data: decodedRequest[0][11],
-            signature: decodedRequest[0][12],
-            factoryDeps: decodedRequest[0][13],
-            paymasterInput: decodedRequest[0][14],
-            reservedDynamic: decodedRequest[0][15]
-        };
+        console.log('triggerData', triggerData);
+        console.log('feeBundleData', feeBundleData);
+        console.log('executionBundleData', executionBundleData);
+        // throw new Error('stop here');
 
-        // Construct log for Merkle proof
-        const log = {
-            l2ShardId: 0,
-            isService: true,
-            txNumberInBatch: l2TxNumberInBlock,
-            sender: L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR,
-            key: ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [interop1_wallet.address])),
-            value: ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['bytes'], [message]))
-        };
+        const fromFormatted = `0x${xl2Input.from.toString(16).padStart(40, '0')}`;
+        // const toFormatted = `0x${xl2Input.to.toString(16).padStart(40, '0')}`;
 
-        const leafHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode([L2_LOG_STRING], [log]));
-
-        const proof1 =
-            ethers.ZeroHash +
-            ethers.AbiCoder.defaultAbiCoder()
-                .encode(
-                    ['uint256', 'uint256', 'uint256', 'bytes32'],
-                    [(await sender_chain_provider.getNetwork()).chainId, l1BatchNumber, l2TxNumberInBlock, leafHash]
-                )
-                .slice(2);
-
+        const txData = ethers.AbiCoder.defaultAbiCoder().encode(['bytes', 'bytes'], [rawData_fee, rawData_execution]);
         // Construct the interop transaction
+        const nonce = await receiver_chain_provider.getTransactionCount(xl2Input.from);
+        const feeData = await receiver_chain_provider.getFeeData();
         const interopTx = {
-            type: INTEROP_TX_TYPE,
-            from: `0x${xl2Input.from.toString(16).padStart(40, '0')}`,
-            to: `0x${xl2Input.to.toString(16).padStart(40, '0')}`,
-            chainId: (await receiver_chain_provider.getNetwork()).chainId,
-            data: xl2Input.data,
-            nonce: Math.floor(Math.random() * 1000000),
+            // type: INTEROP_TX_TYPE,
+            from: xl2Input.from,
+            to: L2_INTEROP_HANDLER_ADDRESS,
+            chainId: (await receiver_chain_provider.getNetwork()).chainId.toString(),
+            data: txData,
+            nonce: nonce,
             customData: {
-                paymaster_params: { paymaster: ethers.ZeroAddress, paymasterInput: '0x' },
-                merkleProof: proof1,
-                fullFee: '0xf000000000000000',
-                toMint:
-                    (xl2Input.reserved[0].toString(16).length % 2 == 0 ? '0x' : '0x0') +
-                    xl2Input.reserved[0].toString(16),
-                refundRecipient: await interop1_wallet.getAddress()
+                paymasterParams: { paymaster: ethers.ZeroAddress, paymasterInput: '0x' }
+                // merkleProof: proof1,
+                // fullFee: '0xf000000000000000',
+                // toMint:
+                //     (xl2Input.reserved[0].toString(16).length % 2 == 0 ? '0x' : '0x0') +
+                //     xl2Input.reserved[0].toString(16),
+                // refundRecipient: await interop1_wallet.getAddress()
             },
-            maxFeePerGas: xl2Input.maxFeePerGas,
-            maxPriorityFeePerGas: xl2Input.maxPriorityFeePerGas,
-            gasLimit: xl2Input.gasLimit,
-            value: xl2Input.value
+            maxFeePerGas: feeData.maxFeePerGas,
+            maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
+            gasLimit: 30000000,
+            value: 0
         };
-        const hexTx = zksync.utils.serializeEip712(interopTx);
 
+        console.log('interopTx', interopTx);
+        const sig = ethers.Signature.from({
+            v: 27,
+            r: '0x0000000000000000000000000000000000000000000000000000000000000000',
+            s: '0x0000000000000000000000000000000000000000000000000000000000000000'
+        });
+        const hexTx = zksync.utils.serializeEip712(interopTx, sig);
+        // console.log("interopTx fail", xl2Input.unimplemented[0])
         const receiverChainId = (await receiver_chain_provider.getNetwork()).chainId;
         const interop1ChainId = (await interop1_provider.getNetwork()).chainId;
         // console.log("kl tod inteorp tx", interopTx)
         console.log(`Broadcasting interop tx to ${receiverChainId === interop1ChainId ? 'Interop1' : 'Interop2'}`);
         const broadcastTx = await receiver_chain_provider.broadcastTransaction(hexTx);
-        await delay(timeout * 2);
 
-        const interopTxAsCanonicalTx = {
-            txType: 253n,
-            from: interopTx.from,
-            to: interopTx.to,
-            gasLimit: interopTx.gasLimit,
-            gasPerPubdataByteLimit: 50000n,
-            maxFeePerGas: interopTx.maxFeePerGas,
-            maxPriorityFeePerGas: 0,
-            paymaster: interopTx.customData.paymaster_params.paymaster,
-            nonce: interopTx.nonce,
-            value: interopTx.value,
-            reserved: [interopTx.customData.toMint, interopTx.customData.refundRecipient, '0x00', '0x00'],
-            data: interopTx.data,
-            signature: '0x',
-            factoryDeps: [],
-            paymasterInput: '0x',
-            reservedDynamic: proof1
-        };
-        const encodedTx = ethers.AbiCoder.defaultAbiCoder().encode(
-            [BRIDGEHUB_L2_CANONICAL_TRANSACTION_ABI],
-            [interopTxAsCanonicalTx]
-        );
-        const interopTxHash = ethers.keccak256(ethers.getBytes(encodedTx));
-        console.log('interopTxHash', interopTxHash);
+        console.log('Resolved hash', broadcastTx.realInteropHash);
+        // console.log('broadcastTx hash', broadcastTx.hash);
+        await delay(timeout * 3);
 
         // Recursively read and broadcast
-        await readAndBroadcastInteropTx(interopTxHash, receiver_chain_provider, sender_chain_provider);
+        await readAndBroadcastInteropTx(broadcastTx.realInteropHash!, receiver_chain_provider, sender_chain_provider);
+    }
+
+    async function printBalances(balanceTime: string) {
+        console.log(
+            `Test wallet Eth Interop 1 balance ${balanceTime}: ${ethers.formatEther(
+                await interop1_provider.getBalance(interop1_wallet.address)
+            )} ETH, \n`,
+            `Test wallet Eth Interop 2 balance ${balanceTime}: ${ethers.formatEther(
+                await interop2_provider.getBalance(interop1_wallet.address)
+            )} ETH, \n`,
+            `Test wallet token A Interop 1 balance ${balanceTime}: ${ethers.formatEther(
+                await getTokenBalance({
+                    provider: interop1_provider,
+                    tokenAddress: tokenA_details.l2Address,
+                    address: interop1_wallet.address
+                })
+            )} AA, \n`,
+            `Aliased Test wallet token A Interop 2 balance ${balanceTime}: ${ethers.formatEther(
+                await getTokenBalance({
+                    provider: interop2_provider,
+                    tokenAddress: tokenA_details.l2AddressSecondChain!,
+                    address: aliased_interop1_wallet_address
+                })
+            )} AA, \n`,
+            `Test wallet token B Interop 1 balance ${balanceTime}: ${ethers.formatEther(
+                await getTokenBalance({
+                    provider: interop1_provider,
+                    tokenAddress: tokenB_details.l2Address,
+                    address: interop1_wallet.address
+                })
+            )} BB, \n`,
+            `Test wallet token B Interop 2 balance ${balanceTime}: ${ethers.formatEther(
+                await getTokenBalance({
+                    provider: interop2_provider,
+                    tokenAddress: tokenB_details.l2AddressSecondChain!,
+                    address: aliased_interop1_wallet_address
+                })
+            )} BB`
+        );
     }
 
     async function getTokenBalance({

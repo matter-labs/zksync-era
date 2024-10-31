@@ -356,7 +356,7 @@ impl From<StorageTransaction> for XL2TxCommonData {
                 &tx.l1_tx_mint
                     .map(bigdecimal_to_u256)
                     .unwrap_or_default()
-                    .to_string()
+                    .to_string(),
             )
             .unwrap(),
             Address::from_slice(&tx.l1_tx_refund_recipient.unwrap()),

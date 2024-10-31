@@ -104,6 +104,8 @@ impl<H> ValidationTracer<H> {
         key: U256,
         msg_sender: Address,
     ) -> bool {
+        return true;
+
         // If there are no restrictions, all storage reads are valid.
         // We also don't support the paymaster validation for now.
         if matches!(

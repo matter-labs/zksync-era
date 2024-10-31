@@ -11,7 +11,7 @@ use zksync_types::{
     utils::decompose_full_nonce,
     web3::{self, Bytes, SyncInfo, SyncState},
     AccountTreeId, ExecuteTransactionCommon, ExternalTx, L2BlockNumber, StorageKey, H256,
-    INTEROP_TX_TYPE, L2_BASE_TOKEN_ADDRESS, U256,
+    L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{

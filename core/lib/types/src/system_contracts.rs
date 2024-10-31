@@ -14,8 +14,9 @@ use crate::{
     block::DeployedContract, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
     COMPLEX_UPGRADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS, ECRECOVER_PRECOMPILE_ADDRESS,
     EC_ADD_PRECOMPILE_ADDRESS, EC_MUL_PRECOMPILE_ADDRESS, EC_PAIRING_PRECOMPILE_ADDRESS,
-    IMMUTABLE_SIMULATOR_STORAGE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS,
-    L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, L2_NULLIFIER_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS,
+    IMMUTABLE_SIMULATOR_STORAGE_ADDRESS, INTEROP_ACCOUNT_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS,
+    KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS,
+    L2_INTEROP_CENTER_ADDRESS, L2_INTEROP_HANDLER_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS,
     NONCE_HOLDER_ADDRESS, SHA256_PRECOMPILE_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
 
@@ -27,7 +28,7 @@ use crate::{
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
 pub const DEPLOYMENT_NONCE_INCREMENT: U256 = U256([0, 0, 1, 0]); // 2^128
 
-static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 31] = [
+static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 33] = [
     (
         "",
         "AccountCodeStorage",
@@ -201,9 +202,21 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 31] = [
         ContractLanguage::Sol,
     ),
     (
-        "",
-        "L2Nullifier",
-        L2_NULLIFIER_ADDRESS,
+        "../../../l1-contracts/artifacts-zk/contracts/bridgehub/",
+        "InteropHandler",
+        L2_INTEROP_HANDLER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../../l1-contracts/artifacts-zk/contracts/bridgehub/",
+        "InteropCenter",
+        L2_INTEROP_CENTER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../../l1-contracts/artifacts-zk/contracts/bridgehub/",
+        "InteropAccount",
+        INTEROP_ACCOUNT_ADDRESS, // kl todo this is temporary
         ContractLanguage::Sol,
     ),
 ];
