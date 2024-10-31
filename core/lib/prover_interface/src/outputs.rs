@@ -1,6 +1,6 @@
 use core::fmt;
 
-use circuit_sequencer_api_1_5_0::proof::FinalProof;
+use circuit_sequencer_api::proof::FinalProof;
 use serde::{Deserialize, Serialize};
 use serde_with::{hex::Hex, serde_as};
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};

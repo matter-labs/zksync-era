@@ -1,4 +1,4 @@
-use circuit_sequencer_api_1_5_0::{geometry_config::get_geometry_config, toolset::GeometryConfig};
+use circuit_sequencer_api::geometry_config::{GeometryConfig, ProtocolGeometry};
 use zksync_vm2::interface::{CycleStats, GlobalStateInterface, Opcode, OpcodeType, Tracer};
 use zksync_vm_interface::CircuitStatistic;
 
@@ -157,4 +157,4 @@ impl CircuitsTracer {
     }
 }
 
-const GEOMETRY_CONFIG: GeometryConfig = get_geometry_config();
+const GEOMETRY_CONFIG: GeometryConfig = ProtocolGeometry::V1_5_0.config();

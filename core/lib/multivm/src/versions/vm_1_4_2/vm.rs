@@ -1,6 +1,6 @@
 use std::{mem, rc::Rc};
 
-use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
+use circuit_sequencer_api::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     Transaction,

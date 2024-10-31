@@ -1,4 +1,4 @@
-use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
+use circuit_sequencer_api::sort_storage_access::sort_storage_access_queries;
 use zksync_types::l2_to_l1_log::UserL2ToL1Log;
 
 use crate::{
@@ -120,11 +120,12 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::Fi
 impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface::FinishedL1Batch {
     fn glue_from(value: crate::vm_1_3_2::vm_instance::VmBlockResult) -> Self {
         let storage_log_queries = value.full_result.storage_log_queries.clone();
-        let deduplicated_storage_logs =
-            circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries(
-                storage_log_queries.iter().map(|log| &log.log_query),
-            )
-            .1;
+        let deduplicated_storage_logs = sort_storage_access_queries(
+            storage_log_queries
+                .iter()
+                .map(|log| glue_log_query(log.log_query)),
+        )
+        .1;
 
         crate::interface::FinishedL1Batch {
             block_tip_execution_result: VmExecutionResultAndLogs {
