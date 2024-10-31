@@ -85,6 +85,20 @@ impl VmEvent {
             .map(|event| event.indexed_topics[1])
             .collect()
     }
+
+    /// Extracts all bytecodes marked as known on the system contracts.
+    pub fn extract_bytecodes_marked_as_known(events: &[Self]) -> Vec<H256> {
+        events
+            .iter()
+            .filter(|event| {
+                // Filter events from the deployer contract that match the expected signature.
+                event.address == KNOWN_CODES_STORAGE_ADDRESS
+                    && event.indexed_topics.len() == 3
+                    && event.indexed_topics[0] == PUBLISHED_BYTECODE_SIGNATURE
+            })
+            .map(|event| event.indexed_topics[1])
+            .collect()
+    }
 }
 
 /// Refunds produced for the user.

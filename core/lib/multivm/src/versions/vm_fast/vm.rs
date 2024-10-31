@@ -55,7 +55,6 @@ use crate::{
             get_result_success_first_slot, get_vm_hook_params_start_position, get_vm_hook_position,
             OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
         },
-        utils::extract_bytecodes_marked_as_known,
         MultiVMSubversion,
     },
 };
@@ -643,8 +642,8 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
 
         // We need to filter out bytecodes the deployment of which may have been reverted; the tracer is not aware of reverts.
         // To do this, we check bytecodes against deployer events.
-        let factory_deps_marked_as_known = extract_bytecodes_marked_as_known(&logs.events);
         let new_known_factory_deps = self.world.decommit_bytecodes(&factory_deps_marked_as_known);
+        let factory_deps_marked_as_known = VmEvent::extract_bytecodes_marked_as_known(&logs.events);
 
         VmExecutionResultAndLogs {
             result: result.execution_result,

@@ -5,7 +5,7 @@ use zksync_multivm::{
         Call, CompressedBytecodeInfo, ExecutionResult, L2BlockEnv, TransactionExecutionResult,
         TxExecutionStatus, VmEvent, VmExecutionMetrics, VmExecutionResultAndLogs,
     },
-    vm_latest::{utils::extract_bytecodes_marked_as_known, TransactionVmExt},
+    vm_latest::TransactionVmExt,
 };
 use zksync_types::{
     block::{BlockGasCount, L2BlockHasher},
@@ -92,7 +92,7 @@ impl L2BlockUpdates {
         call_traces: Vec<Call>,
     ) {
         let saved_factory_deps =
-            extract_bytecodes_marked_as_known(&tx_execution_result.logs.events);
+            VmEvent::extract_bytecodes_marked_as_known(&tx_execution_result.logs.events);
         self.events.extend(tx_execution_result.logs.events);
         self.user_l2_to_l1_logs
             .extend(tx_execution_result.logs.user_l2_to_l1_logs);
