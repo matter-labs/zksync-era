@@ -15,7 +15,7 @@ use zksync_utils::{bytecode::hash_bytecode, env::Workspace};
 use zksync_web3_decl::client::{DynClient, L1};
 
 use crate::l1_fetcher::{
-    blob_http_client::BlobHttpClient,
+    blob_http_client::{BlobClient, BlobHttpClient},
     types::{v1::V1, v2::V2, CommitBlock, ParseError},
 };
 
@@ -46,9 +46,6 @@ pub enum ProtocolVersioning {
 
 #[derive(Debug, Clone)]
 pub struct L1FetcherConfig {
-    /// The Ethereum blob storage URL base.
-    pub blobs_url: String,
-    /// The amount of blocks to step over on each log iterration.
     pub block_step: u64,
 
     pub diamond_proxy_addr: Address,
@@ -56,15 +53,23 @@ pub struct L1FetcherConfig {
     pub versioning: ProtocolVersioning,
 }
 
-#[derive(Debug)]
 pub struct L1Fetcher {
     eth_client: Box<DynClient<L1>>,
+    blob_client: Box<dyn BlobClient>,
     config: L1FetcherConfig,
 }
 
 impl L1Fetcher {
-    pub fn new(config: L1FetcherConfig, eth_client: Box<DynClient<L1>>) -> Result<Self> {
-        Ok(L1Fetcher { eth_client, config })
+    pub fn new(
+        config: L1FetcherConfig,
+        eth_client: Box<DynClient<L1>>,
+        blob_client: Box<dyn BlobClient>,
+    ) -> Result<Self> {
+        Ok(L1Fetcher {
+            eth_client,
+            config,
+            blob_client,
+        })
     }
 
     fn v1_contract() -> Result<Contract> {
@@ -142,7 +147,6 @@ impl L1Fetcher {
         assert!(start_block <= end_block);
 
         let event = L1Fetcher::block_commit_event().unwrap();
-        let client = BlobHttpClient::new(self.config.blobs_url.clone()).unwrap();
         let functions = L1Fetcher::commit_functions().unwrap();
         let block_step = self.config.block_step;
 
@@ -192,10 +196,14 @@ impl L1Fetcher {
                 )
                 .await
                 .unwrap();
-                let blocks =
-                    L1Fetcher::process_tx_data(&functions, &client, tx, &self.config.versioning)
-                        .await
-                        .unwrap();
+                let blocks = L1Fetcher::process_tx_data(
+                    &functions,
+                    &self.blob_client,
+                    tx,
+                    &self.config.versioning,
+                )
+                .await
+                .unwrap();
 
                 for mut block in blocks {
                     for _ in 0..block.priority_operations_count {
@@ -232,7 +240,7 @@ impl L1Fetcher {
 
     async fn process_tx_data(
         commit_functions: &[Function],
-        blob_client: &BlobHttpClient,
+        blob_client: &Box<dyn BlobClient>,
         tx: Transaction,
         protocol_versioning: &ProtocolVersioning,
     ) -> Result<Vec<CommitBlock>, ParseError> {
@@ -328,7 +336,7 @@ pub async fn parse_calldata(
     l1_block_number: u64,
     commit_candidates: &[Function],
     calldata: &[u8],
-    client: &BlobHttpClient,
+    client: &Box<dyn BlobClient>,
 ) -> Result<Vec<CommitBlock>, ParseError> {
     if calldata.len() < 4 {
         return Err(ParseError::InvalidCalldata("too short".to_string()));
@@ -390,7 +398,7 @@ async fn parse_commit_block_info(
     protocol_versioning: &ProtocolVersioning,
     data: &ethabi::Token,
     l1_block_number: u64,
-    client: &BlobHttpClient,
+    client: &Box<dyn BlobClient>,
 ) -> Result<Vec<CommitBlock>, ParseError> {
     let ethabi::Token::Array(data) = data else {
         return Err(ParseError::InvalidCommitBlockInfo(
@@ -437,9 +445,10 @@ mod tests {
 
     use crate::{
         l1_fetcher::{
-            blob_http_client::BlobHttpClient,
+            blob_http_client::{BlobClient, BlobHttpClient, LocalDbBlobSource},
             constants::{
-                sepolia_diamond_proxy_addr, sepolia_initial_state_path, sepolia_versioning,
+                local_diamond_proxy_addr, sepolia_diamond_proxy_addr, sepolia_initial_state_path,
+                sepolia_versioning,
             },
             l1_fetcher::{L1Fetcher, L1FetcherConfig, ProtocolVersioning::OnlyV3},
         },
@@ -466,12 +475,16 @@ mod tests {
     }
     fn sepolia_l1_fetcher() -> L1Fetcher {
         let config = L1FetcherConfig {
-            blobs_url: "https://api.sepolia.blobscan.com/blobs/".to_string(),
             block_step: 10000,
             diamond_proxy_addr: sepolia_diamond_proxy_addr().parse().unwrap(),
             versioning: sepolia_versioning(),
         };
-        L1Fetcher::new(config, sepolia_l1_client()).unwrap()
+        L1Fetcher::new(
+            config,
+            sepolia_l1_client(),
+            Box::new(BlobHttpClient::new("https://api.sepolia.blobscan.com/blobs/").unwrap()),
+        )
+        .unwrap()
     }
     #[test_log::test(tokio::test)]
     async fn uncompressing_factory_deps_from_l2_to_l1_messages() {
@@ -484,8 +497,8 @@ mod tests {
         )
         .await
         .unwrap();
-        let blob_provider =
-            BlobHttpClient::new("https://api.sepolia.blobscan.com/blobs/".to_string()).unwrap();
+        let blob_provider: Box<dyn BlobClient> =
+            Box::new(BlobHttpClient::new("https://api.sepolia.blobscan.com/blobs/").unwrap());
         let functions = L1Fetcher::commit_functions().unwrap();
         let blocks =
             L1Fetcher::process_tx_data(&functions, &blob_provider, tx, &sepolia_versioning())
@@ -514,8 +527,8 @@ mod tests {
         )
         .await
         .unwrap();
-        let blob_provider =
-            BlobHttpClient::new("https://api.sepolia.blobscan.com/blobs/".to_string()).unwrap();
+        let blob_provider: Box<dyn BlobClient> =
+            Box::new(BlobHttpClient::new("https://api.sepolia.blobscan.com/blobs/").unwrap());
         let functions = L1Fetcher::commit_functions().unwrap();
         let blocks =
             L1Fetcher::process_tx_data(&functions, &blob_provider, tx, &sepolia_versioning())
@@ -545,36 +558,6 @@ mod tests {
     }
 
     #[test_log::test(tokio::test)]
-    async fn test_local_recovery() {
-        let config = L1FetcherConfig {
-            blobs_url: "LOCAL_BLOBS_ONLY!".to_string(),
-            block_step: 100000,
-            diamond_proxy_addr: "0x461993b882e2e6a5dea726db44d98c958a67365b"
-                .parse()
-                .unwrap(),
-            versioning: OnlyV3,
-        };
-        let fetcher = L1Fetcher::new(config, local_l1_client()).unwrap();
-
-        let blocks = fetcher.get_all_blocks_to_process().await;
-        let temp_dir = TempDir::new().unwrap().into_path().join("db");
-        let mut processor = StateCompressor::new(temp_dir).await;
-        processor.process_genesis_state(None).await;
-        processor.process_blocks(blocks.clone()).await;
-        for block in &blocks {
-            if block.factory_deps.len() != 0 || block.priority_operations_count != 0 {
-                tracing::info!(
-                    "block {} with {} factory deps and {} priority txs",
-                    block.l1_batch_number,
-                    block.factory_deps.len(),
-                    block.priority_operations_count
-                );
-            }
-        }
-        //panic!("blocks_len: {:?}", blocks.len());
-    }
-
-    #[test_log::test(tokio::test)]
     async fn test_recovery_without_initial_state_file() {
         get_genesis_factory_deps();
         get_genesis_state();
@@ -597,7 +580,7 @@ mod tests {
             .await;
         processor.process_blocks(blocks).await;
 
-        assert_eq!(8, processor.export_factory_deps().await.len());
+        assert_eq!(34, processor.export_factory_deps().await.len());
 
         let temp_dir2 = TempDir::new().unwrap().into_path().join("db2");
         let mut reconstructed = TreeProcessor::new(temp_dir2).await.unwrap();
@@ -610,49 +593,5 @@ mod tests {
             "0x575d0a455a544bf171783c5be9db312b6af771ad6844f4eef89d7f2e642bfb90",
             format!("{:?}", reconstructed.get_root_hash())
         );
-
-        let connection_pool = ConnectionPool::<Core>::test_pool().await;
-        let mut storage = connection_pool
-            .connection_tagged("l1_recovery")
-            .await
-            .unwrap();
-
-        let dummy_miniblock_number = L2BlockNumber(1);
-        storage
-            .storage_logs_dal()
-            .insert_storage_logs_from_snapshot(
-                dummy_miniblock_number,
-                &processor.export_storage_logs().await,
-            )
-            .await
-            .unwrap();
-
-        let chunk_deps_hashmap: HashMap<H256, Vec<u8>> = processor
-            .export_factory_deps()
-            .await
-            .iter()
-            .map(|dep| (hash_bytecode(&dep.bytecode.0), dep.bytecode.0.clone()))
-            .collect();
-        storage
-            .factory_deps_dal()
-            .insert_factory_deps(dummy_miniblock_number, &chunk_deps_hashmap)
-            .await
-            .unwrap();
-
-        let status = SnapshotRecoveryStatus {
-            l1_batch_number: L1BatchNumber(109),
-            l1_batch_root_hash: reconstructed.get_root_hash(),
-            l1_batch_timestamp: 0,
-            l2_block_number: dummy_miniblock_number,
-            l2_block_hash: H256::zero(),
-            l2_block_timestamp: 0,
-            protocol_version: Default::default(),
-            storage_logs_chunks_processed: vec![true],
-        };
-        storage
-            .snapshot_recovery_dal()
-            .insert_initial_recovery_status(&status)
-            .await
-            .unwrap()
     }
 }

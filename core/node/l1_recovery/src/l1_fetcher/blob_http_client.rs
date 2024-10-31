@@ -1,5 +1,7 @@
 use std::str::FromStr;
 
+use clap::builder::Str;
+use reqwest::Url;
 use serde::Deserialize;
 use tokio::time::{sleep, Duration};
 use zksync_basic_types::url::SensitiveUrl;
@@ -18,38 +20,27 @@ struct JsonResponse {
     data: String,
 }
 
-pub struct BlobHttpClient {
-    client: reqwest::Client,
-    url_base: String,
+#[async_trait::async_trait]
+pub trait BlobClient {
+    async fn get_blob(&self, kzg_commitment: &[u8]) -> Result<Vec<u8>, ParseError>;
 }
 
-impl BlobHttpClient {
-    pub fn new(blob_url: String) -> anyhow::Result<Self> {
-        let mut headers = reqwest::header::HeaderMap::new();
-        headers.insert(
-            "Accept",
-            reqwest::header::HeaderValue::from_static("application/json"),
-        );
-        let client = reqwest::Client::builder()
-            .default_headers(headers)
-            .build()?;
-        Ok(Self {
-            client,
-            url_base: blob_url,
-        })
-    }
+pub struct LocalDbBlobSource {
+    pool: ConnectionPool<Core>,
+}
 
-    async fn get_blob_from_db(&self, kzg_commitment: &[u8]) -> Result<Vec<u8>, ParseError> {
-        let pool = ConnectionPool::<Core>::singleton(
-            SensitiveUrl::from_str(
-                "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era",
-            )
-            .expect("Failed to parse the database URL"),
-        )
-        .build()
-        .await
-        .unwrap();
-        let mut storage = pool.connection().await.unwrap();
+impl LocalDbBlobSource {
+    pub fn new(connection_pool: ConnectionPool<Core>) -> Self {
+        Self {
+            pool: connection_pool,
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl BlobClient for LocalDbBlobSource {
+    async fn get_blob(&self, kzg_commitment: &[u8]) -> Result<Vec<u8>, ParseError> {
+        let mut storage = self.pool.connection().await.unwrap();
         let mut id = 1;
         loop {
             let tx = storage.eth_sender_dal().get_eth_tx(id).await.unwrap();
@@ -71,13 +62,36 @@ impl BlobHttpClient {
             }
         }
     }
-    pub async fn get_blob(&self, kzg_commitment: &[u8]) -> Result<Vec<u8>, ParseError> {
-        if self.url_base == "LOCAL_BLOBS_ONLY!" {
-            return self.get_blob_from_db(kzg_commitment).await;
-        }
-        let url = self.format_url(kzg_commitment);
+}
+
+pub struct BlobHttpClient {
+    url: String,
+    client: reqwest::Client,
+}
+
+impl BlobHttpClient {
+    pub fn new(url: &str) -> anyhow::Result<Self> {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            "Accept",
+            reqwest::header::HeaderValue::from_static("application/json"),
+        );
+        let client = reqwest::Client::builder()
+            .default_headers(headers)
+            .build()?;
+        Ok(Self {
+            url: url.to_string(),
+            client,
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl BlobClient for BlobHttpClient {
+    async fn get_blob(&self, kzg_commitment: &[u8]) -> Result<Vec<u8>, ParseError> {
+        let full_url = format!("{}0x{}", self.url, hex::encode(kzg_commitment));
         for attempt in 1..=MAX_RETRIES {
-            match self.client.get(&url).send().await {
+            match self.client.get(&full_url).send().await {
                 Ok(response) => match response.text().await {
                     Ok(text) => match get_blob_data(&text) {
                         Ok(data) => {
@@ -91,26 +105,22 @@ impl BlobHttpClient {
                             });
                         }
                         Err(e) => {
-                            tracing::error!("failed parsing response of {url}");
+                            tracing::error!("failed parsing response of {full_url}");
                             return Err(e);
                         }
                     },
                     Err(e) => {
-                        tracing::error!("attempt {}: {} failed: {:?}", attempt, url, e);
+                        tracing::error!("attempt {}: {} failed: {:?}", attempt, full_url, e);
                         sleep(Duration::from_secs(FAILED_FETCH_RETRY_INTERVAL_S)).await;
                     }
                 },
                 Err(e) => {
-                    tracing::error!("attempt {}: GET {} failed: {:?}", attempt, url, e);
+                    tracing::error!("attempt {}: GET {} failed: {:?}", attempt, full_url, e);
                     sleep(Duration::from_secs(FAILED_FETCH_RETRY_INTERVAL_S)).await;
                 }
             }
         }
-        Err(ParseError::BlobStorageError(url))
-    }
-
-    fn format_url(&self, kzg_commitment: &[u8]) -> String {
-        format!("{}0x{}", self.url_base, hex::encode(kzg_commitment))
+        Err(ParseError::BlobStorageError(full_url))
     }
 }
 

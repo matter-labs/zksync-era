@@ -59,3 +59,8 @@ pub fn mainnet_versioning() -> ProtocolVersioning {
 pub fn sepolia_diamond_proxy_addr() -> &'static str {
     "0x9a6de0f62Aa270A8bCB1e2610078650D539B1Ef9"
 }
+
+#[allow(unused)] // only used in tests
+pub fn local_diamond_proxy_addr() -> &'static str {
+    "0x1cf41905d6829cfb3136ec10c7589ebb92bdd7e7"
+}

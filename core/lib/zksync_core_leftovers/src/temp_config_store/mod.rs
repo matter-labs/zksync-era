@@ -15,8 +15,9 @@ use zksync_config::{
         CommitmentGeneratorConfig, DatabaseSecrets, ExperimentalVmConfig,
         ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
         FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
-        GeneralConfig, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
-        ProtectiveReadsWriterConfig, ProverJobMonitorConfig, PruningConfig, SnapshotRecoveryConfig,
+        GeneralConfig, L1RecoveryConfig, ObservabilityConfig, PrometheusConfig,
+        ProofDataHandlerConfig, ProtectiveReadsWriterConfig, ProverJobMonitorConfig, PruningConfig,
+        SnapshotRecoveryConfig,
     },
     ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DAClientConfig, DADispatcherConfig,
     DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
@@ -82,6 +83,7 @@ pub struct TempConfigStore {
     pub experimental_vm_config: Option<ExperimentalVmConfig>,
     pub prover_job_monitor_config: Option<ProverJobMonitorConfig>,
     pub timestamp_asserter_config: Option<TimestampAsserterConfig>,
+    pub l1_recovery: Option<L1RecoveryConfig>,
 }
 
 impl TempConfigStore {
@@ -124,6 +126,7 @@ impl TempConfigStore {
             experimental_vm_config: self.experimental_vm_config.clone(),
             prover_job_monitor_config: self.prover_job_monitor_config.clone(),
             timestamp_asserter_config: self.timestamp_asserter_config.clone(),
+            l1_recovery: self.l1_recovery.clone(),
         }
     }
 
@@ -206,6 +209,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         experimental_vm_config: ExperimentalVmConfig::from_env().ok(),
         prover_job_monitor_config: ProverJobMonitorConfig::from_env().ok(),
         timestamp_asserter_config: TimestampAsserterConfig::from_env().ok(),
+        l1_recovery: None,
     })
 }
 

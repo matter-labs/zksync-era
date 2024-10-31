@@ -7,7 +7,7 @@ use super::{
     L2ToL1Pubdata, ParseError,
 };
 use crate::l1_fetcher::{
-    blob_http_client::BlobHttpClient,
+    blob_http_client::{BlobClient, BlobHttpClient},
     constants::zksync::{CALLDATA_SOURCE_TAIL_SIZE, PUBDATA_COMMITMENT_SIZE},
 };
 
@@ -95,7 +95,7 @@ impl TryFrom<&ethabi::Token> for V3 {
 impl V3 {
     pub async fn parse_pubdata(
         &self,
-        client: &BlobHttpClient,
+        client: &Box<dyn BlobClient>,
     ) -> Result<Vec<L2ToL1Pubdata>, ParseError> {
         let bytes = &self.pubdata_commitments[..];
         match self.pubdata_source {
@@ -120,7 +120,7 @@ fn parse_pubdata_source(bytes: &[u8], pointer: &mut usize) -> Result<PubdataSour
 
 async fn parse_pubdata_from_blobs(
     bytes: &[u8],
-    client: &BlobHttpClient,
+    client: &Box<dyn BlobClient>,
 ) -> Result<Vec<L2ToL1Pubdata>, ParseError> {
     let mut pointer = 0;
     let mut l = bytes.len();

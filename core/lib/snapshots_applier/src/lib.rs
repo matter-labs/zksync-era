@@ -19,7 +19,7 @@ use zksync_types::{
         SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey, SnapshotVersion,
     },
     tokens::TokenInfo,
-    L1BatchNumber, L2BlockNumber, StorageKey, H256,
+    L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, H256,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -114,18 +114,29 @@ impl From<EnrichedClientError> for SnapshotsApplierError {
     }
 }
 
+pub struct L1BlockMetadata {
+    pub root_hash: Option<H256>,
+    pub timestamp: u64,
+}
+
+pub struct L2BlockMetadata {
+    pub block_hash: Option<H256>,
+    pub protocol_version: Option<ProtocolVersionId>,
+    pub timestamp: u64,
+}
+
 /// Main node API used by the [`SnapshotsApplier`].
 #[async_trait]
 pub trait SnapshotsApplierMainNodeClient: fmt::Debug + Send + Sync {
     async fn fetch_l1_batch_details(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<api::L1BatchDetails>>;
+    ) -> EnrichedClientResult<Option<L1BlockMetadata>>;
 
     async fn fetch_l2_block_details(
         &self,
         number: L2BlockNumber,
-    ) -> EnrichedClientResult<Option<api::BlockDetails>>;
+    ) -> EnrichedClientResult<Option<L2BlockMetadata>>;
 
     async fn fetch_newest_snapshot_l1_batch_number(
         &self,
@@ -147,21 +158,34 @@ impl SnapshotsApplierMainNodeClient for Box<DynClient<L2>> {
     async fn fetch_l1_batch_details(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<api::L1BatchDetails>> {
+    ) -> EnrichedClientResult<Option<L1BlockMetadata>> {
         self.get_l1_batch_details(number)
             .rpc_context("get_l1_batch_details")
             .with_arg("number", &number)
             .await
+            .map(|details| {
+                details.map(|details| L1BlockMetadata {
+                    root_hash: details.base.root_hash,
+                    timestamp: details.base.timestamp,
+                })
+            })
     }
 
     async fn fetch_l2_block_details(
         &self,
         number: L2BlockNumber,
-    ) -> EnrichedClientResult<Option<api::BlockDetails>> {
+    ) -> EnrichedClientResult<Option<L2BlockMetadata>> {
         self.get_block_details(number)
             .rpc_context("get_block_details")
             .with_arg("number", &number)
             .await
+            .map(|details| {
+                details.map(|details| L2BlockMetadata {
+                    block_hash: details.base.root_hash,
+                    protocol_version: details.protocol_version,
+                    timestamp: details.base.timestamp,
+                })
+            })
     }
 
     async fn fetch_newest_snapshot_l1_batch_number(
@@ -512,7 +536,6 @@ impl SnapshotRecoveryStrategy {
             .await?
             .with_context(|| format!("L1 batch #{l1_batch_number} is missing on main node"))?;
         let l1_batch_root_hash = l1_batch
-            .base
             .root_hash
             .context("snapshot L1 batch fetched from main node doesn't have root hash set")?;
         let l2_block = main_node_client
@@ -520,25 +543,18 @@ impl SnapshotRecoveryStrategy {
             .await?
             .with_context(|| format!("L2 block #{l2_block_number} is missing on main node"))?;
         let l2_block_hash = l2_block
-            .base
-            .root_hash
+            .block_hash
             .context("snapshot L2 block fetched from main node doesn't have hash set")?;
         let protocol_version = l2_block.protocol_version.context(
             "snapshot L2 block fetched from main node doesn't have protocol version set",
         )?;
-        if l2_block.l1_batch_number != l1_batch_number {
-            let err = anyhow::anyhow!(
-                "snapshot L2 block returned by main node doesn't belong to expected L1 batch #{l1_batch_number}: {l2_block:?}"
-            );
-            return Err(err.into());
-        }
 
         let status = SnapshotRecoveryStatus {
             l1_batch_number,
-            l1_batch_timestamp: l1_batch.base.timestamp,
+            l1_batch_timestamp: l1_batch.timestamp,
             l1_batch_root_hash,
             l2_block_number: snapshot.l2_block_number,
-            l2_block_timestamp: l2_block.base.timestamp,
+            l2_block_timestamp: l2_block.timestamp,
             l2_block_hash,
             protocol_version,
             storage_logs_chunks_processed: vec![false; snapshot.storage_logs_chunks.len()],

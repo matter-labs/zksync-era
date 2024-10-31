@@ -5,7 +5,7 @@ use zksync_types::snapshots::{SnapshotFactoryDependency, SnapshotStorageLog};
 
 use crate::{
     l1_fetcher::types::CommitBlock,
-    processor::tree::TreeProcessor,
+    processor::{genesis::get_genesis_factory_deps, tree::TreeProcessor},
     storage::{snapshot::SnapshotDatabase, snapshot_columns, INDEX_TO_KEY_MAP},
 };
 
@@ -37,7 +37,13 @@ impl StateCompressor {
             .database
             .iterator_cf(factory_deps, rocksdb::IteratorMode::Start);
 
-        let mut result = vec![];
+        let mut result: Vec<SnapshotFactoryDependency> = get_genesis_factory_deps()
+            .iter()
+            .map(|dep| SnapshotFactoryDependency {
+                bytecode: dep.clone().into(),
+            })
+            .collect();
+
         while let Some(Ok((_, bs))) = iterator.next() {
             let factory_dep: SnapshotFactoryDependency = bincode::deserialize(&bs).unwrap();
             result.push(factory_dep);

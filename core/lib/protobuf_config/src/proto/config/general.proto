@@ -27,6 +27,7 @@ import "zksync/core/consensus.proto";
 import "zksync/config/prover_job_monitor.proto";
 import "zksync/config/da_client.proto";
 import "zksync/config/timestamp_asserter.proto";
+import "zksync/config/l1_recovery.proto";
 
 message GeneralConfig {
     optional database.Postgres postgres = 1;
@@ -64,4 +65,5 @@ message GeneralConfig {
     optional prover_job_monitor.ProverJobMonitor prover_job_monitor = 45;
     optional da_client.DataAvailabilityClient da_client = 46;
     optional timestamp_asserter.TimestampAsserter timestamp_asserter = 47;
+    optional l1_recovery.L1Recovery l1_recovery = 47;
 }

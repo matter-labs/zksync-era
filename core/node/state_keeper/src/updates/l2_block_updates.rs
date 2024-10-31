@@ -90,10 +90,6 @@ impl L2BlockUpdates {
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         call_traces: Vec<Call>,
     ) {
-        tracing::warn!(
-            "new_known_factory_deps_len = {}",
-            new_known_factory_deps.len()
-        );
         let saved_factory_deps =
             VmEvent::extract_bytecodes_marked_as_known(&tx_execution_result.logs.events);
 

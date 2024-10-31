@@ -451,6 +451,9 @@ pub(crate) struct OptionalENConfig {
     /// This is an experimental and incomplete feature; do not use unless you know what you're doing.
     #[serde(default)]
     pub snapshots_recovery_enabled: bool,
+
+    #[serde(default)]
+    pub recover_from_l1: bool,
     /// Maximum concurrency factor for the concurrent parts of snapshot recovery for Postgres. It may be useful to
     /// reduce this factor to about 5 if snapshot recovery overloads I/O capacity of the node. Conversely,
     /// if I/O capacity of your infra is high, you may increase concurrency to speed up Postgres recovery.
@@ -664,6 +667,11 @@ impl OptionalENConfig {
             l1_batch_commit_data_generator_mode: enconfig.l1_batch_commit_data_generator_mode,
             snapshots_recovery_enabled: general_config
                 .snapshot_recovery
+                .as_ref()
+                .map(|a| a.enabled)
+                .unwrap_or_default(),
+            recover_from_l1: general_config
+                .l1_recovery
                 .as_ref()
                 .map(|a| a.enabled)
                 .unwrap_or_default(),
