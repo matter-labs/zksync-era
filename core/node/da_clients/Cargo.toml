@@ -50,7 +50,7 @@ sha2.workspace = true
 prost.workspace = true
 bech32.workspace = true
 ripemd.workspace = true
-tonic = { workspace = true, features = ["tls", "tls-roots", "prost", "codegen"] }
+tonic = { workspace = true, features = ["tls-roots", "prost", "codegen"] }
 pbjson-types.workspace = true
 
 # Eigen dependencies

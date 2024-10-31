@@ -25,6 +25,8 @@ pub struct RawEigenClient {
     account_id: String,
 }
 
+pub(crate) const DATA_CHUNK_SIZE: usize = 32;
+
 impl RawEigenClient {
     pub(crate) const BUFFER_SIZE: usize = 1000;
 
@@ -55,9 +57,10 @@ impl RawEigenClient {
         let (tx, rx) = mpsc::channel(Self::BUFFER_SIZE);
 
         let response_stream = client_clone.disperse_blob_authenticated(ReceiverStream::new(rx));
+        let padded_data = convert_by_padding_empty_byte(&data);
 
         // 1. send DisperseBlobRequest
-        self.disperse_data(data, &tx).await?;
+        self.disperse_data(padded_data, &tx).await?;
 
         // this await is blocked until the first response on the stream, so we only await after sending the `DisperseBlobRequest`
         let mut response_stream = response_stream.await?.into_inner();
@@ -214,4 +217,30 @@ fn get_account_id(secret_key: &SecretKey) -> String {
     let hex = hex::encode(public_key.serialize_uncompressed());
 
     format!("0x{}", hex)
+}
+
+fn convert_by_padding_empty_byte(data: &[u8]) -> Vec<u8> {
+    let parse_size = DATA_CHUNK_SIZE - 1;
+
+    // Calculate the number of chunks
+    let data_len = (data.len() + parse_size - 1) / parse_size;
+
+    // Pre-allocate `valid_data` with enough space for all chunks
+    let mut valid_data = vec![0u8; data_len * DATA_CHUNK_SIZE];
+    let mut valid_end = data_len * DATA_CHUNK_SIZE;
+
+    for (i, chunk) in data.chunks(parse_size).enumerate() {
+        let offset = i * DATA_CHUNK_SIZE;
+        valid_data[offset] = 0x00; // Set first byte of each chunk to 0x00 for big-endian compliance
+
+        let copy_end = offset + 1 + chunk.len();
+        valid_data[offset + 1..copy_end].copy_from_slice(chunk);
+
+        if i == data_len - 1 && chunk.len() < parse_size {
+            valid_end = offset + 1 + chunk.len();
+        }
+    }
+
+    valid_data.truncate(valid_end);
+    valid_data
 }

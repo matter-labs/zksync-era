@@ -100,7 +100,7 @@ pub enum Gpu {
 
 // TODO: generate this enum by QueueReport from https://github.com/matter-labs/zksync-era/blob/main/prover/crates/bin/prover_job_monitor/src/autoscaler_queue_reporter.rs#L23
 // and remove allowing of non_camel_case_types by generating field name parser.
-#[derive(Debug, Display, PartialEq, Eq, Hash, Clone, Deserialize, EnumString, Default)]
+#[derive(Debug, Display, PartialEq, Eq, Hash, Clone, Copy, Deserialize, EnumString, Default)]
 #[allow(non_camel_case_types)]
 pub enum QueueReportFields {
     #[strum(ascii_case_insensitive)]
