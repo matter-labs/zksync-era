@@ -1114,6 +1114,7 @@ impl Distribution<configs::external_price_api_client::ExternalPriceApiClientConf
                 numerator: self.sample(rng),
                 denominator: self.sample(rng),
                 fluctuation: self.sample(rng),
+                next_value_fluctuation: self.sample(rng),
             }),
         }
     }

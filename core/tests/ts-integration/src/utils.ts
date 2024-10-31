@@ -1,17 +1,12 @@
 import { spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions } from 'child_process';
 import { assert } from 'chai';
-import { FileConfig } from 'utils/build/file-configs';
+import { FileConfig, getConfigPath } from 'utils/build/file-configs';
 import { killPidWithAllChilds } from 'utils/build/kill';
 import * as utils from 'utils';
 import fs from 'node:fs/promises';
 import * as zksync from 'zksync-ethers';
-import {
-    deleteInternalEnforcedL1GasPrice,
-    deleteInternalEnforcedPubdataPrice,
-    setInternalEnforcedL1GasPrice,
-    setInternalEnforcedPubdataPrice,
-    setTransactionSlots
-} from '../tests/utils';
+import * as fsSync from 'fs';
+import YAML from 'yaml';
 
 // executes a command in background and returns a child process handle
 // by default pipes data to parent's stdio but this can be overridden
@@ -105,48 +100,149 @@ export class Node<TYPE extends NodeType> {
     }
 }
 
+interface MainNodeOptions {
+    newL1GasPrice?: bigint;
+    newPubdataPrice?: bigint;
+    customBaseToken?: boolean;
+    externalPriceApiClientForcedNumerator?: number;
+    externalPriceApiClientForcedDenominator?: number;
+    externalPriceApiClientForcedFluctuation?: number;
+    baseTokenPricePollingIntervalMs?: number;
+    baseTokenAdjusterL1UpdateDeviationPercentage?: number;
+}
 export class NodeSpawner {
+    private readonly generalConfigPath: string | undefined;
+    private readonly originalConfig: string | undefined;
+    public mainNode: Node<NodeType.MAIN> | null;
+
     public constructor(
         private readonly pathToHome: string,
         private readonly logs: fs.FileHandle,
         private readonly fileConfig: FileConfig,
         private readonly options: MainNodeSpawnOptions,
         private env?: ProcessEnvOptions['env']
-    ) {}
+    ) {
+        this.mainNode = null;
+        if (fileConfig.loadFromFile) {
+            this.generalConfigPath = getConfigPath({
+                pathToHome,
+                chain: fileConfig.chain,
+                configsFolder: 'configs',
+                config: 'general.yaml'
+            });
+            this.originalConfig = fsSync.readFileSync(this.generalConfigPath, 'utf8');
+        }
+    }
 
-    public async spawnMainNode(newL1GasPrice?: string, newPubdataPrice?: string): Promise<Node<NodeType.MAIN>> {
+    public async killAndSpawnMainNode(configOverrides: MainNodeOptions | null = null): Promise<void> {
+        if (this.mainNode != null) {
+            await this.mainNode.killAndWaitForShutdown();
+            this.mainNode = null;
+        }
+        this.mainNode = await this.spawnMainNode(configOverrides);
+    }
+
+    private async spawnMainNode(overrides: MainNodeOptions | null): Promise<Node<NodeType.MAIN>> {
         const env = this.env ?? process.env;
         const { fileConfig, pathToHome, options, logs } = this;
 
-        const testMode = newPubdataPrice || newL1GasPrice;
+        const testMode = overrides?.newPubdataPrice != null || overrides?.newL1GasPrice != null;
 
-        console.log('New L1 Gas Price: ', newL1GasPrice);
-        console.log('New Pubdata Price: ', newPubdataPrice);
+        console.log('Overrides: ', overrides);
 
         if (fileConfig.loadFromFile) {
-            setTransactionSlots(pathToHome, fileConfig, testMode ? 1 : 8192);
+            this.restoreConfig();
+            const config = this.readFileConfig();
+            config['state_keeper']['transaction_slots'] = testMode ? 1 : 8192;
 
-            if (newL1GasPrice) {
-                setInternalEnforcedL1GasPrice(pathToHome, fileConfig, parseFloat(newL1GasPrice));
-            } else {
-                deleteInternalEnforcedL1GasPrice(pathToHome, fileConfig);
+            if (overrides != null) {
+                if (overrides.newL1GasPrice) {
+                    config['eth']['gas_adjuster']['internal_enforced_l1_gas_price'] = overrides.newL1GasPrice;
+                }
+
+                if (overrides.newPubdataPrice) {
+                    config['eth']['gas_adjuster']['internal_enforced_pubdata_price'] = overrides.newPubdataPrice;
+                }
+
+                if (overrides.externalPriceApiClientForcedNumerator !== undefined) {
+                    config['external_price_api_client']['forced_numerator'] =
+                        overrides.externalPriceApiClientForcedNumerator;
+                }
+
+                if (overrides.externalPriceApiClientForcedDenominator !== undefined) {
+                    config['external_price_api_client']['forced_denominator'] =
+                        overrides.externalPriceApiClientForcedDenominator;
+                }
+
+                if (overrides.externalPriceApiClientForcedFluctuation !== undefined) {
+                    config['external_price_api_client']['forced_fluctuation'] =
+                        overrides.externalPriceApiClientForcedFluctuation;
+                }
+
+                if (overrides.baseTokenPricePollingIntervalMs !== undefined) {
+                    const cacheUpdateInterval = overrides.baseTokenPricePollingIntervalMs / 2;
+                    // To reduce price polling interval we also need to reduce base token receipt checking and tx sending sleeps as they are blocking the poller. Also cache update needs to be reduced appropriately.
+
+                    config['base_token_adjuster']['l1_receipt_checking_sleep_ms'] =
+                        overrides.baseTokenPricePollingIntervalMs;
+                    config['base_token_adjuster']['l1_tx_sending_sleep_ms'] = overrides.baseTokenPricePollingIntervalMs;
+                    config['base_token_adjuster']['price_polling_interval_ms'] =
+                        overrides.baseTokenPricePollingIntervalMs;
+                    config['base_token_adjuster']['price_cache_update_interval_ms'] = cacheUpdateInterval;
+                }
+
+                if (overrides.baseTokenAdjusterL1UpdateDeviationPercentage !== undefined) {
+                    config['base_token_adjuster']['l1_update_deviation_percentage'] =
+                        overrides.baseTokenAdjusterL1UpdateDeviationPercentage;
+                }
             }
 
-            if (newPubdataPrice) {
-                setInternalEnforcedPubdataPrice(pathToHome, fileConfig, parseFloat(newPubdataPrice));
-            } else {
-                deleteInternalEnforcedPubdataPrice(pathToHome, fileConfig);
-            }
+            this.writeFileConfig(config);
         } else {
             env['DATABASE_MERKLE_TREE_MODE'] = 'full';
 
-            if (newPubdataPrice) {
-                env['ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_PUBDATA_PRICE'] = newPubdataPrice;
-            }
+            if (overrides != null) {
+                if (overrides.newPubdataPrice) {
+                    env['ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_PUBDATA_PRICE'] =
+                        overrides.newPubdataPrice.toString();
+                }
 
-            if (newL1GasPrice) {
-                // We need to ensure that each transaction gets into its own batch for more fair comparison.
-                env['ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE'] = newL1GasPrice;
+                if (overrides.newL1GasPrice) {
+                    // We need to ensure that each transaction gets into its own batch for more fair comparison.
+                    env['ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE'] = overrides.newL1GasPrice.toString();
+                }
+
+                if (overrides.externalPriceApiClientForcedNumerator !== undefined) {
+                    env['EXTERNAL_PRICE_API_CLIENT_FORCED_NUMERATOR'] =
+                        overrides.externalPriceApiClientForcedNumerator.toString();
+                }
+
+                if (overrides.externalPriceApiClientForcedDenominator !== undefined) {
+                    env['EXTERNAL_PRICE_API_CLIENT_FORCED_DENOMINATOR'] =
+                        overrides.externalPriceApiClientForcedDenominator.toString();
+                }
+
+                if (overrides.externalPriceApiClientForcedFluctuation !== undefined) {
+                    env['EXTERNAL_PRICE_API_CLIENT_FORCED_FLUCTUATION'] =
+                        overrides.externalPriceApiClientForcedFluctuation.toString();
+                }
+
+                if (overrides.baseTokenPricePollingIntervalMs !== undefined) {
+                    const cacheUpdateInterval = overrides.baseTokenPricePollingIntervalMs / 2;
+                    // To reduce price polling interval we also need to reduce base token receipt checking and tx sending sleeps as they are blocking the poller. Also cache update needs to be reduced appropriately.
+                    env['BASE_TOKEN_ADJUSTER_L1_RECEIPT_CHECKING_SLEEP_MS'] =
+                        overrides.baseTokenPricePollingIntervalMs.toString();
+                    env['BASE_TOKEN_ADJUSTER_L1_TX_SENDING_SLEEP_MS'] =
+                        overrides.baseTokenPricePollingIntervalMs.toString();
+                    env['BASE_TOKEN_ADJUSTER_PRICE_POLLING_INTERVAL_MS'] =
+                        overrides.baseTokenPricePollingIntervalMs.toString();
+                    env['BASE_TOKEN_ADJUSTER_PRICE_CACHE_UPDATE_INTERVAL_MS'] = cacheUpdateInterval.toString();
+                }
+
+                if (overrides.baseTokenAdjusterL1UpdateDeviationPercentage !== undefined) {
+                    env['BASE_TOKEN_ADJUSTER_L1_UPDATE_DEVIATION_PERCENTAGE'] =
+                        overrides.baseTokenAdjusterL1UpdateDeviationPercentage.toString();
+                }
             }
 
             if (testMode) {
@@ -174,6 +270,26 @@ export class NodeSpawner {
         // Wait until the main node starts responding.
         await waitForNodeToStart(proc, options.apiWeb3JsonRpcHttpUrl);
         return new Node(proc, options.apiWeb3JsonRpcHttpUrl, NodeType.MAIN);
+    }
+
+    public restoreConfig() {
+        if (this.generalConfigPath != void 0 && this.originalConfig != void 0)
+            fsSync.writeFileSync(this.generalConfigPath, this.originalConfig, 'utf8');
+    }
+
+    private readFileConfig() {
+        if (this.generalConfigPath == void 0)
+            throw new Error('Trying to set property in config while not in file mode');
+        const generalConfig = fsSync.readFileSync(this.generalConfigPath, 'utf8');
+        return YAML.parse(generalConfig);
+    }
+
+    private writeFileConfig(config: any) {
+        if (this.generalConfigPath == void 0)
+            throw new Error('Trying to set property in config while not in file mode');
+
+        const newGeneralConfig = YAML.stringify(config);
+        fsSync.writeFileSync(this.generalConfigPath, newGeneralConfig, 'utf8');
     }
 }
 

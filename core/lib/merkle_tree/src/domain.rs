@@ -360,7 +360,10 @@ impl ZkSyncTree {
     pub fn roll_back_logs(&mut self, last_l1_batch_to_keep: L1BatchNumber) -> anyhow::Result<()> {
         self.tree.db.reset();
         let retained_version_count = u64::from(last_l1_batch_to_keep.0 + 1);
-        self.tree.truncate_recent_versions(retained_version_count)
+        // Since `Patched<_>` doesn't implement `PruneDatabase`, we borrow the underlying DB, which is safe
+        // because the in-memory patch was reset above.
+        MerkleTree::new_unchecked(self.tree.db.inner_mut())
+            .truncate_recent_versions(retained_version_count)
     }
 
     /// Saves the accumulated changes in the tree to RocksDB.
