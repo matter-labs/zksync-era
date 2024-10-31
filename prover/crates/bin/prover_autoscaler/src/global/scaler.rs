@@ -429,7 +429,7 @@ impl SimpleScaler {
         long_pending_duration: chrono::Duration,
     ) -> Self {
         Self {
-            queue_report_field: config.queue_report_field.clone(),
+            queue_report_field: config.queue_report_field,
             deployment: config.deployment.clone(),
             cluster_priorities,
             max_replicas: config.max_replicas.clone(),
@@ -685,7 +685,7 @@ impl Task for Scaler {
                 // Simple Scalers.
                 for scaler in &self.simple_scalers {
                     let q = queue
-                        .get(&(ppv.to_string(), scaler.queue_report_field.clone()))
+                        .get(&(ppv.to_string(), scaler.queue_report_field))
                         .cloned()
                         .unwrap_or(0);
                     AUTOSCALER_METRICS.queue[&(ns.clone(), scaler.deployment.clone())].set(q);
