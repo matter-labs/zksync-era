@@ -313,7 +313,7 @@ impl MainNodeBuilder {
                 Some(TimestampAsserterParams {
                     address,
                     min_time_till_end: Duration::from_secs(
-                        timestamp_asserter_config.min_time_till_end_sec as u64,
+                        timestamp_asserter_config.min_time_till_end_sec.into(),
                     ),
                 })
             }

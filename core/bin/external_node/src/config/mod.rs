@@ -157,7 +157,7 @@ impl RemoteENConfig {
         .await?;
         let base_token_addr = handle_rpc_response_with_fallback(
             client.get_base_token_l1_address(),
-            Some(ETHEREUM_ADDRESS),
+            ETHEREUM_ADDRESS,
             "Failed to fetch base token address".to_string(),
         )
         .await?;
@@ -234,7 +234,7 @@ impl RemoteENConfig {
 
 async fn handle_rpc_response_with_fallback<T, F>(
     rpc_call: F,
-    fallback: Option<T>,
+    fallback: T,
     context: String,
 ) -> anyhow::Result<T>
 where
@@ -251,7 +251,7 @@ where
             ]
             .contains(&(err.code())) =>
         {
-            fallback.ok_or_else(|| anyhow::anyhow!("RPC method not found or internal error"))
+            Ok(fallback)
         }
         response => response.context(context),
     }
