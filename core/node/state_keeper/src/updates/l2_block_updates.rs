@@ -93,11 +93,6 @@ impl L2BlockUpdates {
     ) {
         let saved_factory_deps =
             VmEvent::extract_bytecodes_marked_as_known(&tx_execution_result.logs.events);
-        self.events.extend(tx_execution_result.logs.events);
-        self.user_l2_to_l1_logs
-            .extend(tx_execution_result.logs.user_l2_to_l1_logs);
-        self.system_l2_to_l1_logs
-            .extend(tx_execution_result.logs.system_l2_to_l1_logs);
 
         let gas_refunded = tx_execution_result.refunds.gas_refunded;
         let operator_suggested_refund = tx_execution_result.refunds.operator_suggested_refund;
@@ -132,7 +127,7 @@ impl L2BlockUpdates {
         tx_factory_deps.extend(new_known_factory_deps);
 
         // Save all bytecodes that were marked as known in the bootloader
-        let known_bytecodes = saved_factory_deps.into_iter().map(|bytecode_hash| {
+        let known_bytecodes = saved_factory_deps.map(|bytecode_hash| {
             let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
                 panic!(
                     "Failed to get factory deps on tx: bytecode hash: {:?}, tx hash: {}",
@@ -140,7 +135,7 @@ impl L2BlockUpdates {
                     tx.hash()
                 )
             });
-            (bytecode_hash, bytecode.to_vec())
+            (bytecode_hash, bytecode.clone())
         });
         self.new_factory_deps.extend(known_bytecodes);
 
@@ -149,6 +144,11 @@ impl L2BlockUpdates {
         self.txs_encoding_size += tx.bootloader_encoding_size();
         self.payload_encoding_size +=
             zksync_protobuf::repr::encode::<zksync_dal::consensus::proto::Transaction>(&tx).len();
+        self.events.extend(tx_execution_result.logs.events);
+        self.user_l2_to_l1_logs
+            .extend(tx_execution_result.logs.user_l2_to_l1_logs);
+        self.system_l2_to_l1_logs
+            .extend(tx_execution_result.logs.system_l2_to_l1_logs);
         self.storage_logs
             .extend(tx_execution_result.logs.storage_logs);
 

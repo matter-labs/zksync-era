@@ -87,7 +87,7 @@ impl VmEvent {
     }
 
     /// Extracts all bytecodes marked as known on the system contracts.
-    pub fn extract_bytecodes_marked_as_known(events: &[Self]) -> Vec<H256> {
+    pub fn extract_bytecodes_marked_as_known(events: &[Self]) -> impl Iterator<Item = H256> + '_ {
         events
             .iter()
             .filter(|event| {
@@ -97,7 +97,6 @@ impl VmEvent {
                     && event.indexed_topics[0] == PUBLISHED_BYTECODE_SIGNATURE
             })
             .map(|event| event.indexed_topics[1])
-            .collect()
     }
 }
 

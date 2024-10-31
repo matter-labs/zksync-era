@@ -1,12 +1,13 @@
 use std::mem;
 
 use zk_evm_1_5_0::aux_structures::Timestamp;
+use zksync_vm_interface::VmEvent;
 
 use crate::{
     interface::{
         storage::WriteStorage,
         tracer::{TracerExecutionStatus, VmExecutionStopReason},
-        VmEvent, VmExecutionMode, VmExecutionResultAndLogs,
+        VmExecutionMode, VmExecutionResultAndLogs,
     },
     vm_latest::{
         old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
@@ -101,7 +102,8 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         );
         let result = tx_tracer.result_tracer.into_result();
         let factory_deps_marked_as_known = VmEvent::extract_bytecodes_marked_as_known(&logs.events);
-        let dynamic_factory_deps = self.decommit_bytecodes(&factory_deps_marked_as_known);
+        // FIXME: check that it filters out reverted deployments
+        let dynamic_factory_deps = self.decommit_dynamic_bytecodes(factory_deps_marked_as_known);
         *dispatcher = tx_tracer.dispatcher;
 
         let result = VmExecutionResultAndLogs {

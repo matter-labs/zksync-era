@@ -147,7 +147,7 @@ pub(crate) fn test_tracing_evm_contract_deployment<VM: TestedVm>() {
     assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
 
     let dynamic_factory_deps = vm_result.dynamic_factory_deps;
-    assert_eq!(dynamic_factory_deps.len(), 2); // the deployed EraVM contract + EVM contract
+    assert_eq!(dynamic_factory_deps.len(), 1); // the deployed EVM contract (the EraVM contract should be filtered out)
     assert_eq!(dynamic_factory_deps[&expected_bytecode_hash], evm_bytecode);
 }
 
