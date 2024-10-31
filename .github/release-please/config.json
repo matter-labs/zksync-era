@@ -18,7 +18,8 @@
     },
     "prover": {
       "release-type": "simple",
-      "component": "prover"
+      "component": "prover",
+      "release-as": "17.0.0"
     },
     "zkstack_cli": {
       "release-type": "simple",
