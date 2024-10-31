@@ -197,6 +197,54 @@ mod default_aa {
     }
 }
 
+mod evm_emulator {
+    use test_casing::{test_casing, Product};
+
+    use crate::versions::testonly::evm_emulator::*;
+
+    #[test]
+    fn tracing_evm_contract_deployment() {
+        test_tracing_evm_contract_deployment::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn mock_emulator_basics() {
+        test_mock_emulator_basics::<super::ShadowedFastVm>();
+    }
+
+    #[test_casing(2, [false, true])]
+    #[test]
+    fn mock_emulator_with_payment(deploy_emulator: bool) {
+        test_mock_emulator_with_payment::<super::ShadowedFastVm>(deploy_emulator);
+    }
+
+    #[test_casing(4, Product(([false, true], [false, true])))]
+    #[test]
+    fn mock_emulator_with_recursion(deploy_emulator: bool, is_external: bool) {
+        test_mock_emulator_with_recursion::<super::ShadowedFastVm>(deploy_emulator, is_external);
+    }
+
+    #[test]
+    fn calling_to_mock_emulator_from_native_contract() {
+        test_calling_to_mock_emulator_from_native_contract::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn mock_emulator_with_deployment() {
+        test_mock_emulator_with_deployment::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn mock_emulator_with_delegate_call() {
+        test_mock_emulator_with_delegate_call::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn mock_emulator_with_static_call() {
+        test_mock_emulator_with_static_call::<super::ShadowedFastVm>();
+    }
+}
+
 mod gas_limit {
     use crate::versions::testonly::gas_limit::*;
 
