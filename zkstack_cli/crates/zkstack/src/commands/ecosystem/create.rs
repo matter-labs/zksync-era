@@ -107,7 +107,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     spinner.finish();
 
     let spinner = Spinner::new(MSG_CREATING_DEFAULT_CHAIN_SPINNER);
-    create_chain_inner(chain_config, &ecosystem_config, shell)?;
+    create_chain_inner(chain_config, shell)?;
     spinner.finish();
 
     if args.start_containers {

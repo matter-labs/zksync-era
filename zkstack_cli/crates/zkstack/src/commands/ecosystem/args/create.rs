@@ -76,7 +76,7 @@ impl EcosystemCreateArgs {
             0,
             Some(l1_network),
             vec![],
-            Path::new(&link_to_code),
+            Some(link_to_code.clone()),
         )?;
 
         let start_containers = self.start_containers.unwrap_or_else(|| {

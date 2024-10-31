@@ -1,7 +1,4 @@
-use std::{
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::{path::PathBuf, str::FromStr};
 
 use anyhow::{bail, Context};
 use clap::{Parser, ValueEnum, ValueHint};
@@ -34,6 +31,7 @@ use crate::{
         MSG_WALLET_CREATION_PROMPT, MSG_WALLET_CREATION_VALIDATOR_ERR, MSG_WALLET_PATH_HELP,
         MSG_WALLET_PATH_INVALID_ERR, MSG_WALLET_PATH_PROMPT,
     },
+    utils::link_to_code::{get_link_to_code, resolve_link_to_code},
 };
 
 // We need to duplicate it for using enum inside the arguments
@@ -89,7 +87,7 @@ impl ChainCreateArgs {
         number_of_chains: u32,
         l1_network: Option<L1Network>,
         possible_erc20: Vec<Erc20Token>,
-        link_to_code: &Path,
+        link_to_code: Option<String>,
     ) -> anyhow::Result<ChainCreateArgsFinal> {
         let mut chain_name = self
             .chain_name
@@ -232,9 +230,12 @@ impl ChainCreateArgs {
             }
         };
 
+        let link_to_code = link_to_code.unwrap_or_else(|| get_link_to_code(shell));
+        let link_to_code = resolve_link_to_code(shell, link_to_code)?;
+
         let default_genesis_config = GenesisConfig::read_with_base_path(
             shell,
-            EcosystemConfig::default_configs_path(link_to_code),
+            EcosystemConfig::default_configs_path(&link_to_code),
         )
         .context("failed reading genesis config")?;
         let has_evm_emulation_support = default_genesis_config.evm_emulator_hash.is_some();
@@ -268,6 +269,7 @@ impl ChainCreateArgs {
             set_as_default,
             legacy_bridge: self.legacy_bridge,
             evm_emulator,
+            link_to_code,
         })
     }
 }
@@ -284,6 +286,7 @@ pub struct ChainCreateArgsFinal {
     pub set_as_default: bool,
     pub legacy_bridge: bool,
     pub evm_emulator: bool,
+    pub link_to_code: PathBuf,
 }
 
 #[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]
