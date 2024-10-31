@@ -285,41 +285,10 @@ mod tests {
     use std::thread;
 
     use super::*;
-    use crate::{Key, MerkleTree, MerkleTreePruner, TreeEntry, ValueHash};
-
-    fn setup_tree_with_bogus_stale_keys(db: impl PruneDatabase) {
-        let mut tree = MerkleTree::new(db).unwrap();
-        let kvs: Vec<_> = (0_u64..100)
-            .map(|i| TreeEntry::new(Key::from(i), i + 1, ValueHash::zero()))
-            .collect();
-        tree.extend(kvs).unwrap();
-
-        let overridden_kvs = vec![TreeEntry::new(
-            Key::from(0),
-            1,
-            ValueHash::repeat_byte(0xaa),
-        )];
-        tree.extend(overridden_kvs).unwrap();
-
-        let stale_keys = tree.db.stale_keys(1);
-        assert!(
-            stale_keys.iter().any(|key| !key.is_empty()),
-            "{stale_keys:?}"
-        );
-
-        // Revert `overridden_kvs`.
-        tree.truncate_recent_versions_incorrectly(1).unwrap();
-        assert_eq!(tree.latest_version(), Some(0));
-        let future_stale_keys = tree.db.stale_keys(1);
-        assert!(!future_stale_keys.is_empty());
-
-        // Add a new version without the key. To make the matter more egregious, the inserted key
-        // differs from all existing keys, starting from the first nibble.
-        let new_key = Key::from_big_endian(&[0xaa; 32]);
-        let new_kvs = vec![TreeEntry::new(new_key, 101, ValueHash::repeat_byte(0xaa))];
-        tree.extend(new_kvs).unwrap();
-        assert_eq!(tree.latest_version(), Some(1));
-    }
+    use crate::{
+        utils::testonly::setup_tree_with_stale_keys, Key, MerkleTree, MerkleTreePruner, TreeEntry,
+        ValueHash,
+    };
 
     #[test]
     fn stale_keys_repair_with_normal_tree() {
@@ -345,7 +314,7 @@ mod tests {
     fn detecting_bogus_stale_keys() {
         let temp_dir = tempfile::TempDir::new().unwrap();
         let mut db = RocksDBWrapper::new(temp_dir.path()).unwrap();
-        setup_tree_with_bogus_stale_keys(&mut db);
+        setup_tree_with_stale_keys(&mut db, true);
 
         let bogus_stale_keys = StaleKeysRepairTask::bogus_stale_keys(&db, 1);
         assert!(!bogus_stale_keys.is_empty());
@@ -379,7 +348,7 @@ mod tests {
     fn full_stale_keys_task_workflow() {
         let temp_dir = tempfile::TempDir::new().unwrap();
         let mut db = RocksDBWrapper::new(temp_dir.path()).unwrap();
-        setup_tree_with_bogus_stale_keys(&mut db);
+        setup_tree_with_stale_keys(&mut db, true);
 
         let (task, handle) = StaleKeysRepairTask::new(db.clone());
         let task_thread = thread::spawn(|| task.run());
@@ -393,6 +362,9 @@ mod tests {
             }
             thread::sleep(Duration::from_millis(50));
         }
+        let stats = handle.stats();
+        assert_eq!(stats.checked_versions, Some(1..=1));
+        assert!(stats.repaired_key_count > 0, "{stats:?}");
 
         assert!(!task_thread.is_finished());
         drop(handle);
