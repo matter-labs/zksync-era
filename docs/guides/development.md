@@ -65,11 +65,10 @@ To clean up the local ecosystem (e.g., removing containers and clearing the cont
 zkstack dev clean all
 ```
 
-## Re-initialization
-
-You can reinitialize the ecosystem afterward by running:
+You can then reinitialize the ecosystem as described in the [Configure Ecosystem](#configure-ecosystem) section.
 
 ```bash
+zkstack containers  
 zkstack ecosystem init
 ```
 
