@@ -2,6 +2,10 @@
 
 This document outlines the steps for setting up and working with ZKsync.
 
+## Prerequisites
+
+If you haven't already, install the prerequisites as described in [Install Dependencies](./setup-dev.md).
+
 ## Installing the local ZK Stack CLI
 
 To set up local development, begin by installing
