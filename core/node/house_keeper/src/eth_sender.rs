@@ -7,15 +7,14 @@ use crate::periodic_job::PeriodicJob;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EthSenderInfo {
-    failed_l1_txns: Option<()>,
+    failed_l1_txns: i64,
     last_created_commit_batch: Option<()>,
     last_created_prove_batch: Option<()>,
     last_created_execute_batch: Option<()>,
     last_executed_commit_batch: Option<()>,
     last_executed_prove_batch: Option<()>,
     last_executed_execute_batch: Option<()>,
-    current_nonce: Option<()>,
-    latest_operator_nonce: Option<()>,
+    next_nonce: Option<u64>,
 }
 
 impl From<EthSenderInfo> for Health {
@@ -39,20 +38,25 @@ impl PeriodicJob for EthSenderHealthTask {
     const SERVICE_NAME: &'static str = "EthSenderHealth";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
-        let mut conn = self.connection_pool.connection().await.unwrap();
-        let _last_migration = conn.system_dal().get_last_migration().await.unwrap();
+        let mut conn = self.connection_pool.connection().await?;
+        let failed_l1_txns = conn
+            .eth_sender_dal()
+            .get_number_of_failed_transactions()
+            .await?;
+
+        // TODO retrieve SettlementMode from config
+        let next_nonce = conn.eth_sender_dal().get_next_nonce(None, false).await?;
 
         self.eth_sender_health_updater.update(
             EthSenderInfo {
-                failed_l1_txns: None,
+                failed_l1_txns,
                 last_created_commit_batch: None,
                 last_created_prove_batch: None,
                 last_created_execute_batch: None,
                 last_executed_commit_batch: None,
                 last_executed_prove_batch: None,
                 last_executed_execute_batch: None,
-                current_nonce: None,
-                latest_operator_nonce: None,
+                next_nonce,
             }
             .into(),
         );
