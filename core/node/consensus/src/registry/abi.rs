@@ -20,7 +20,7 @@ impl AsRef<ethabi::Contract> for ConsensusRegistry {
 
 impl ConsensusRegistry {
     const FILE: &'static str =
-        "contracts/l2-contracts/artifacts-zk/contracts/ConsensusRegistry.sol/ConsensusRegistry.json";
+        "contracts/l2-contracts/zkout/ConsensusRegistry.sol/ConsensusRegistry.json";
 
     /// Loads bytecode of the contract.
     #[cfg(test)]

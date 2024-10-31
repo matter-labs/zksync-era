@@ -3,11 +3,9 @@ use std::{path::PathBuf, str::FromStr};
 use anyhow::Context;
 use common::{
     config::global_config,
-    contracts::build_system_contracts,
+    contracts::{build_l1_contracts, build_l2_contracts, build_system_contracts},
     forge::{Forge, ForgeScriptArgs},
-    git,
-    hardhat::{build_l1_contracts, build_l2_contracts},
-    logger,
+    git, logger,
     spinner::Spinner,
     Prompt,
 };
@@ -117,9 +115,9 @@ async fn init_ecosystem(
     install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
     if !init_args.skip_contract_compilation_override {
         build_da_contracts(shell, &ecosystem_config.link_to_code)?;
-        build_l1_contracts(shell, &ecosystem_config.link_to_code)?;
+        build_l1_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
         build_system_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
-        build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
+        build_l2_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
     }
     spinner.finish();
 

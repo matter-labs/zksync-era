@@ -117,7 +117,10 @@ impl DeployGatewayCTMInput {
 
             latest_protocol_version: genesis_config.protocol_version.unwrap().pack(),
 
-            expected_rollup_l2_da_validator: contracts_config.ecosystem_contracts.expected_rollup_l2_da_validator.unwrap(),
+            expected_rollup_l2_da_validator: contracts_config
+                .ecosystem_contracts
+                .expected_rollup_l2_da_validator
+                .unwrap(),
 
             force_deployments_data: contracts_config
                 .ecosystem_contracts

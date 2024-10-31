@@ -35,11 +35,11 @@ describe('L2 native ERC20 contract checks', () => {
         l2Wallet = new Wallet(alice.privateKey, l2Provider);
         l1Wallet = new Wallet(alice.privateKey, l1Provider);
         const L2_NATIVE_TOKEN_VAULT_ADDRESS = '0x0000000000000000000000000000000000010004';
-        const ARTIFACTS_PATH = '../../../contracts/l1-contracts/artifacts/contracts/';
-        const l2NtvInterface = readContract(`${ARTIFACTS_PATH}/bridge/ntv`, 'L2NativeTokenVault').abi;
+        const ARTIFACTS_PATH = '../../../contracts/l1-contracts/out';
+        const l2NtvInterface = readContract(`${ARTIFACTS_PATH}`, 'L2NativeTokenVault').abi;
         const l2NativeTokenVault = new ethers.Contract(L2_NATIVE_TOKEN_VAULT_ADDRESS, l2NtvInterface, l2Wallet);
-        const l1AssetRouterInterface = readContract(`${ARTIFACTS_PATH}/bridge/asset-router`, 'L1AssetRouter').abi;
-        const l1NativeTokenVaultInterface = readContract(`${ARTIFACTS_PATH}/bridge/ntv`, 'L1NativeTokenVault').abi;
+        const l1AssetRouterInterface = readContract(`${ARTIFACTS_PATH}`, 'L1AssetRouter').abi;
+        const l1NativeTokenVaultInterface = readContract(`${ARTIFACTS_PATH}`, 'L1NativeTokenVault').abi;
         const l1AssetRouter = new ethers.Contract(await assetRouter.getAddress(), l1AssetRouterInterface, l1Wallet);
         l1NativeTokenVault = new ethers.Contract(
             await l1AssetRouter.nativeTokenVault(),
@@ -52,7 +52,7 @@ describe('L2 native ERC20 contract checks', () => {
         isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
 
         const ZkSyncERC20 = await readContract(
-            '../../../contracts/l1-contracts/artifacts-zk/contracts/dev-contracts',
+            '../../../contracts/l1-contracts/zkout',
             'TestnetERC20Token'
         );
 

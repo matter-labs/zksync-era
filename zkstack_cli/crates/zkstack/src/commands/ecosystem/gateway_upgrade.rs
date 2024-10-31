@@ -4,9 +4,7 @@ use anyhow::Context;
 use common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
-    git,
-    hardhat::{build_l1_contracts, build_l2_contracts},
-    logger,
+    git, logger,
     spinner::Spinner,
     Prompt,
 };
@@ -143,10 +141,7 @@ async fn no_governance_prepare(
         .with_slow()
         .with_broadcast();
 
-    forge = fill_forge_private_key(
-        forge,
-        ecosystem_config.get_wallets()?.deployer.as_ref(),
-    )?;
+    forge = fill_forge_private_key(forge, ecosystem_config.get_wallets()?.deployer.as_ref())?;
 
     println!("Preparing the ecosystem for the upgrade!");
 

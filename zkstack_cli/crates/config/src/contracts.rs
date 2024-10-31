@@ -61,8 +61,12 @@ impl ContractsConfig {
         self.ecosystem_contracts.transparent_proxy_admin_addr = deploy_l1_output
             .deployed_addresses
             .transparent_proxy_admin_addr;
-        self.ecosystem_contracts.l1_bytecodes_supplier_addr =
-            Some(deploy_l1_output.deployed_addresses.state_transition.bytecodes_supplier_addr);
+        self.ecosystem_contracts.l1_bytecodes_supplier_addr = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .state_transition
+                .bytecodes_supplier_addr,
+        );
         self.ecosystem_contracts.stm_deployment_tracker_proxy_addr = Some(
             deploy_l1_output
                 .deployed_addresses
@@ -75,9 +79,8 @@ impl ContractsConfig {
                 .force_deployments_data
                 .clone(),
         );
-        self.ecosystem_contracts.expected_rollup_l2_da_validator = Some(
-            deploy_l1_output.expected_rollup_l2_da_validator_addr
-        );
+        self.ecosystem_contracts.expected_rollup_l2_da_validator =
+            Some(deploy_l1_output.expected_rollup_l2_da_validator_addr);
         self.l1.default_upgrade_addr = deploy_l1_output
             .deployed_addresses
             .state_transition
@@ -134,11 +137,12 @@ impl ContractsConfig {
         self.l1.access_control_restriction_addr =
             Some(register_chain_output.access_control_restriction_addr);
         self.l1.chain_proxy_admin_addr = Some(register_chain_output.chain_proxy_admin_addr);
-        self.l2.legacy_shared_bridge_addr = if register_chain_output.l2_legacy_shared_bridge_addr != Address::zero() {
-            Some(register_chain_output.l2_legacy_shared_bridge_addr)
-        } else {
-            None
-        };
+        self.l2.legacy_shared_bridge_addr =
+            if register_chain_output.l2_legacy_shared_bridge_addr != Address::zero() {
+                Some(register_chain_output.l2_legacy_shared_bridge_addr)
+            } else {
+                None
+            };
 
         self.user_facing_diamond_proxy = Some(register_chain_output.diamond_proxy_addr);
     }
@@ -202,7 +206,7 @@ pub struct EcosystemContracts {
     // `Option` to be able to parse configs from previous protocol version
     pub l1_bytecodes_supplier_addr: Option<Address>,
 
-    pub expected_rollup_l2_da_validator: Option<Address>
+    pub expected_rollup_l2_da_validator: Option<Address>,
 }
 
 impl ZkStackConfig for EcosystemContracts {}

@@ -10,7 +10,9 @@ use xshell::Shell;
 use crate::{
     commands::{
         chain::{
-            args::init::configs::{InitConfigsArgs, InitConfigsArgsFinal}, gateway_upgrade::encode_ntv_asset_id, genesis
+            args::init::configs::{InitConfigsArgs, InitConfigsArgsFinal},
+            gateway_upgrade::encode_ntv_asset_id,
+            genesis,
         },
         portal::update_portal_config,
     },

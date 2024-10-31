@@ -139,7 +139,6 @@ pub async fn set_da_validator_pair(
     accept_ownership(shell, governor, forge).await
 }
 
-
 #[allow(clippy::too_many_arguments)]
 pub async fn make_permanent_rollup(
     shell: &Shell,
@@ -157,10 +156,7 @@ pub async fn make_permanent_rollup(
     let calldata = ACCEPT_ADMIN
         .encode(
             "makePermanentRollup",
-            (
-                chain_admin_addr,
-                diamond_proxy_address,
-            ),
+            (chain_admin_addr, diamond_proxy_address),
         )
         .unwrap();
     let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
@@ -175,7 +171,6 @@ pub async fn make_permanent_rollup(
         .with_calldata(&calldata);
     accept_ownership(shell, governor, forge).await
 }
-
 
 #[allow(clippy::too_many_arguments)]
 pub async fn governance_execute_calls(

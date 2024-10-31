@@ -12,7 +12,7 @@ pub fn build_test_contracts(shell: Shell, link_to_code: PathBuf) -> anyhow::Resu
 
 pub fn build_l1_contracts(shell: Shell, link_to_code: PathBuf) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code.join("contracts/l1-contracts"));
-    Ok(Cmd::new(cmd!(shell, "yarn build")).run()?)
+    Ok(Cmd::new(cmd!(shell, "yarn build:foundry")).run()?)
 }
 
 pub fn build_l1_da_contracts(shell: Shell, link_to_code: PathBuf) -> anyhow::Result<()> {
@@ -27,7 +27,7 @@ pub fn build_l2_contracts(shell: Shell, link_to_code: PathBuf) -> anyhow::Result
     //     "forge build --zksync --zk-enable-eravm-extensions"
     // ))
     // .run()?)
-    Cmd::new(cmd!(shell, "yarn build")).run()?;
+    Cmd::new(cmd!(shell, "yarn build:foundry")).run()?;
     Ok(())
 }
 
@@ -39,7 +39,7 @@ pub fn build_system_contracts(shell: Shell, link_to_code: PathBuf) -> anyhow::Re
     Ok(())
     // Cmd::new(cmd!(shell, "yarn preprocess:system-contracts")).run()?;
     // Cmd::new(cmd!(
-    //     shell,
+    //     shell,a
     //     "forge build --zksync --zk-enable-eravm-extensions"
     // ))
     // .run()?;

@@ -190,7 +190,7 @@ pub async fn init(
             &chain_config.get_wallets_config()?.governor,
             contracts_config.l1.diamond_proxy_addr,
             &init_args.forge_args.clone(),
-            init_args.l1_rpc_url.clone(),    
+            init_args.l1_rpc_url.clone(),
         )
         .await?;
         println!("Done");

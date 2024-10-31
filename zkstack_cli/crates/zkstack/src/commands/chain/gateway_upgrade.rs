@@ -32,7 +32,7 @@ use strum::EnumIter;
 use types::L1BatchCommitmentMode;
 use xshell::Shell;
 use zksync_basic_types::{settlement::SettlementMode, H256, U256, U64};
-use zksync_config::configs::{chain};
+use zksync_config::configs::chain;
 use zksync_types::{web3::keccak256, Address, L2ChainId, H160, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 use zksync_web3_decl::{
     client::{Client, L1, L2},
@@ -188,10 +188,7 @@ async fn prepare_stage1(
         .with_slow()
         .with_broadcast();
 
-    forge = fill_forge_private_key(
-        forge,
-        Some(&chain_config.get_wallets_config()?.governor),
-    )?;
+    forge = fill_forge_private_key(forge, Some(&chain_config.get_wallets_config()?.governor))?;
 
     println!("Preparing the chain for the upgrade!");
 

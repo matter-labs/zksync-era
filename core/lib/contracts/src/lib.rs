@@ -215,13 +215,11 @@ pub fn l1_messenger_contract() -> Contract {
 }
 
 pub fn l2_message_root() -> Contract {
-    load_contract(
-        "contracts/l1-contracts/artifacts-zk/contracts/bridgehub/MessageRoot.sol/MessageRoot.json",
-    )
+    load_contract("contracts/l1-contracts/zkout/MessageRoot.sol/MessageRoot.json")
 }
 
 pub fn l2_rollup_da_validator_bytecode() -> Vec<u8> {
-    read_bytecode("contracts/l2-contracts/artifacts-zk/contracts/data-availability/RollupL2DAValidator.sol/RollupL2DAValidator.json")
+    read_bytecode("contracts/l2-contracts/zkout/RollupL2DAValidator.sol/RollupL2DAValidator.json")
 }
 
 /// Reads bytecode from the path RELATIVE to the Cargo workspace location.
