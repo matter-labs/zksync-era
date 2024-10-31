@@ -8,7 +8,6 @@ use zksync_types::{L1BatchNumber, StorageKey};
 use crate::{
     consistency::ConsistencyError,
     storage::{PatchSet, Patched, RocksDBWrapper},
-    tasks::StaleKeysRepairTask,
     types::{
         Key, NodeKey, RawNode, Root, TreeEntry, TreeEntryWithProof, TreeInstruction, TreeLogEntry,
         ValueHash, TREE_DEPTH,
@@ -466,13 +465,6 @@ impl ZkSyncTreeReader {
     pub fn raw_stale_keys(&self, l1_batch_number: L1BatchNumber) -> Vec<NodeKey> {
         let version = u64::from(l1_batch_number.0);
         self.0.db.stale_keys(version)
-    }
-
-    /// Returns bogus stale keys produced in the specified L1 batch. Bogus keys could be produced after truncating the tree
-    /// (i.e., during node reverts).
-    pub fn bogus_stale_keys(&self, l1_batch_number: L1BatchNumber) -> Vec<NodeKey> {
-        let version = u64::from(l1_batch_number.0);
-        StaleKeysRepairTask::bogus_stale_keys(&self.0.db, version)
     }
 
     /// Verifies consistency of the tree at the specified L1 batch number.

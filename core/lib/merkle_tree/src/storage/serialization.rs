@@ -4,7 +4,7 @@ use std::{collections::HashMap, str};
 
 use crate::{
     errors::{DeserializeError, DeserializeErrorKind, ErrorContext},
-    tasks::StaleKeysRepairData,
+    repair::StaleKeysRepairData,
     types::{
         ChildRef, InternalNode, Key, LeafNode, Manifest, Node, RawNode, Root, TreeTags, ValueHash,
         HASH_SIZE, KEY_SIZE,

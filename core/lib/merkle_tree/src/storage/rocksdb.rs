@@ -21,11 +21,11 @@ use zksync_storage::{
 use crate::{
     errors::{DeserializeError, ErrorContext},
     metrics::ApplyPatchStats,
+    repair::StaleKeysRepairData,
     storage::{
         database::{PruneDatabase, PrunePatchSet},
         Database, NodeKeys, PatchSet,
     },
-    tasks::StaleKeysRepairData,
     types::{
         InternalNode, LeafNode, Manifest, Nibbles, Node, NodeKey, ProfiledTreeOperation, Root,
         StaleNodeKey,

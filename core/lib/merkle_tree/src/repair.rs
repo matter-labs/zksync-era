@@ -31,7 +31,7 @@ pub struct StaleKeysRepairHandle {
 /// Task that repairs stale keys for the tree.
 ///
 /// Early tree versions contained a bug: If a tree version was truncated, stale keys for it remained intact.
-/// If an overwritten tree version did not contain the same keys, this led to keys incorrectly marked as stale,
+/// If an overwritten tree version did not contain the same keys, this could lead to keys incorrectly marked as stale,
 /// meaning that after pruning, a tree may end up broken.
 #[derive(Debug)]
 pub struct StaleKeysRepairTask {

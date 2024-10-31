@@ -71,8 +71,8 @@ mod hasher;
 mod metrics;
 mod pruning;
 pub mod recovery;
+pub mod repair;
 mod storage;
-pub mod tasks;
 mod types;
 mod utils;
 
