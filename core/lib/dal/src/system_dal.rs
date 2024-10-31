@@ -117,8 +117,7 @@ impl SystemDal<'_, '_> {
             description: row.description,
             installed_on: row.installed_on,
             success: row.success,
-            // TODO improve presentation
-            checksum: String::from_utf8_lossy(row.checksum.as_ref()).to_string(),
+            checksum: hex::encode(row.checksum),
             execution_time: row.execution_time,
         })
     }
