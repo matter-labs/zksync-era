@@ -9,10 +9,7 @@ use zksync_basic_types::{
         L1VerifierConfig, ProtocolSemanticVersion, ProtocolVersionId, VerifierParams,
     },
 };
-use zksync_contracts::{
-    BaseSystemContractsHashes, ADMIN_EXECUTE_UPGRADE_FUNCTION,
-    ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION, DIAMOND_CUT,
-};
+use zksync_contracts::{BaseSystemContractsHashes, DIAMOND_CUT};
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{

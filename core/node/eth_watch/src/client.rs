@@ -11,7 +11,7 @@ use zksync_eth_client::{
     EthInterface,
 };
 use zksync_types::{
-    ethabi::{decode, Contract, ParamType, Token},
+    ethabi::{decode, Contract, ParamType},
     web3::{BlockId, BlockNumber, FilterBuilder, Log},
     Address, SLChainId, H256, U256,
 };
@@ -95,7 +95,7 @@ impl EthHttpQueryClient {
             state_transition_manager_address,
             chain_admin_address,
             governance_address,
-            bytecode_supplier_addr: bytecode_supplier_addr,
+            bytecode_supplier_addr,
             new_upgrade_cut_data_signature: state_transition_manager_contract()
                 .event("NewUpgradeCutData")
                 .context("NewUpgradeCutData event is missing in ABI")

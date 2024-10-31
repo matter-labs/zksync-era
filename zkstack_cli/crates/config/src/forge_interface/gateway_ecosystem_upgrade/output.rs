@@ -1,13 +1,8 @@
-use std::collections::HashMap;
-
-use ethers::types::{Address, H256, U256};
+use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::web3::Bytes;
 
-use crate::{
-    consts::ERC20_CONFIGS_FILE,
-    traits::{FileConfigWithDefaultName, ZkStackConfig},
-};
+use crate::traits::{FileConfigWithDefaultName, ZkStackConfig};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GatewayEcosystemUpgradeOutput {

@@ -1,19 +1,10 @@
-use std::{collections::HashMap, str::FromStr};
-
-use ethers::{
-    prelude::U256,
-    types::{Address, H256},
-};
-use rand::Rng;
+use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::L2ChainId;
 
 use crate::{
-    apply_l1_to_l2_alias,
-    consts::INITIAL_DEPLOYMENT_FILE,
-    forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
-    traits::{FileConfigWithDefaultName, ZkStackConfig},
-    ContractsConfig, GenesisConfig, WalletsConfig, ERC20_DEPLOYMENT_FILE,
+    apply_l1_to_l2_alias, forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
+    traits::ZkStackConfig, ContractsConfig, GenesisConfig, WalletsConfig,
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -89,7 +80,7 @@ impl GatewayEcosystemUpgradeInput {
                 transparent_proxy_admin: current_contracts_config
                     .ecosystem_contracts
                     .transparent_proxy_admin_addr,
-                era_diamond_proxy: era_diamond_proxy,
+                era_diamond_proxy,
                 // FIXME: do we even need to provide it at this point
                 blob_versioned_hash_retriever: Address::from_low_u64_be(1),
                 legacy_erc20_bridge_address: current_contracts_config.bridges.erc20.l1_address,

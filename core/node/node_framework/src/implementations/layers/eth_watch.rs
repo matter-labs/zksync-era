@@ -1,9 +1,7 @@
 use zksync_config::{configs::gateway::GatewayChainConfig, ContractsConfig, EthWatchConfig};
 use zksync_contracts::chain_admin_contract;
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
-use zksync_types::{
-    abi::ZkChainSpecificUpgradeData, settlement::SettlementMode, web3::contract, Address,
-};
+use zksync_types::{abi::ZkChainSpecificUpgradeData, settlement::SettlementMode, Address};
 
 use crate::{
     implementations::resources::{

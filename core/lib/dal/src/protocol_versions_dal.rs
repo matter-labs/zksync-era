@@ -256,7 +256,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 .factory_deps_dal()
                 .get_base_system_contracts(
                     Some(
-                        ProtocolVersionId::try_from_minor_version(version_id as u32)
+                        ProtocolVersionId::try_from_minor_version(u32::from(version_id))
                             .expect("Invalid version id"),
                     ),
                     H256::from_slice(&row.bootloader_code_hash),

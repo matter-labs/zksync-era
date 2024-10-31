@@ -34,7 +34,7 @@ impl DecentralizedUpgradesEventProcessor {
                 .context("UpdateUpgradeTimestamp event is missing in ABI")
                 .unwrap()
                 .signature(),
-            chain_specific_data: chain_specific_data,
+            chain_specific_data,
         }
     }
 }

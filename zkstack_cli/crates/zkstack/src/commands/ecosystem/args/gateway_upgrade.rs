@@ -1,21 +1,15 @@
 use std::path::PathBuf;
 
 use clap::{Parser, ValueEnum};
-use common::{forge::ForgeScriptArgs, Prompt, PromptConfirm};
+use common::{forge::ForgeScriptArgs, Prompt};
 use serde::{Deserialize, Serialize};
 use strum::EnumIter;
 use types::L1Network;
 use url::Url;
 
 use crate::{
-    commands::chain::args::genesis::GenesisArgs,
     defaults::LOCAL_RPC_URL,
-    messages::{
-        MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEPLOY_PAYMASTER_PROMPT,
-        MSG_DEV_ARG_HELP, MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR,
-        MSG_L1_RPC_URL_PROMPT, MSG_NO_PORT_REALLOCATION_HELP, MSG_OBSERVABILITY_HELP,
-        MSG_OBSERVABILITY_PROMPT,
-    },
+    messages::{MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT},
 };
 
 #[derive(

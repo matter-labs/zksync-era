@@ -104,6 +104,7 @@ pub(crate) struct RemoteENConfig {
     pub bridgehub_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Option<Address>,
+    pub l1_bytecodes_supplier_addr: Option<Address>,
     /// Should not be accessed directly. Use [`ExternalNodeConfig::diamond_proxy_address`] instead.
     pub user_facing_diamond_proxy: Address,
     // While on L1 shared bridge and legacy bridge are different contracts with different addresses,
@@ -196,6 +197,9 @@ impl RemoteENConfig {
             transparent_proxy_admin_addr: ecosystem_contracts
                 .as_ref()
                 .map(|a| a.transparent_proxy_admin_addr),
+            l1_bytecodes_supplier_addr: ecosystem_contracts
+                .as_ref()
+                .and_then(|a| a.l1_bytecodes_supplier_addr),
             user_facing_diamond_proxy,
             user_facing_bridgehub,
             l2_testnet_paymaster_addr,
@@ -224,6 +228,7 @@ impl RemoteENConfig {
             bridgehub_proxy_addr: None,
             state_transition_proxy_addr: None,
             transparent_proxy_admin_addr: None,
+            l1_bytecodes_supplier_addr: None,
             user_facing_diamond_proxy: Address::repeat_byte(1),
             user_facing_bridgehub: None,
             l1_erc20_bridge_proxy_addr: Some(Address::repeat_byte(2)),
@@ -1428,6 +1433,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
                 l1_weth_bridge: config.remote.l1_weth_bridge_addr,
                 l2_weth_bridge: config.remote.l2_weth_bridge_addr,
             },
+            l1_bytecodes_supplier_addr: config.remote.l1_bytecodes_supplier_addr,
             bridgehub_proxy_addr: config.remote.bridgehub_proxy_addr,
             state_transition_proxy_addr: config.remote.state_transition_proxy_addr,
             transparent_proxy_admin_addr: config.remote.transparent_proxy_admin_addr,

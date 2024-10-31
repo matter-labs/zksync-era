@@ -1,70 +1,26 @@
-use std::{path::PathBuf, str::FromStr};
-
 use anyhow::Context;
-use common::{
-    config::global_config,
-    forge::{Forge, ForgeScriptArgs},
-    git, logger,
-    spinner::Spinner,
-    Prompt,
-};
+use common::{forge::Forge, git, spinner::Spinner};
 use config::{
     forge_interface::{
-        deploy_ecosystem::{
-            input::{DeployErc20Config, Erc20DeploymentConfig, InitialDeploymentConfig},
-            output::ERC20Tokens,
-        },
         gateway_ecosystem_upgrade::{
             input::GatewayEcosystemUpgradeInput, output::GatewayEcosystemUpgradeOutput,
         },
-        script_params::{
-            DEPLOY_ERC20_SCRIPT_PARAMS, FINALIZE_UPGRADE_SCRIPT_PARAMS,
-            GATEWAY_UPGRADE_ECOSYSTEM_PARAMS,
-        },
+        script_params::{FINALIZE_UPGRADE_SCRIPT_PARAMS, GATEWAY_UPGRADE_ECOSYSTEM_PARAMS},
     },
-    traits::{
-        FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
-        SaveConfigWithBasePath,
-    },
-    ContractsConfig, EcosystemConfig, GenesisConfig, WalletsConfig, CONFIGS_PATH,
+    traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
+    EcosystemConfig, GenesisConfig, CONFIGS_PATH,
 };
-use ethers::{
-    abi::{parse_abi, Address},
-    contract::BaseContract,
-    utils::hex,
-};
+use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
 use lazy_static::lazy_static;
-use types::{L1Network, ProverMode};
+use types::ProverMode;
 use xshell::Shell;
 use zksync_types::{H160, L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 
-use super::{
-    args::{
-        gateway_upgrade::{GatewayUpgradeArgs, GatewayUpgradeArgsFinal},
-        init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
-    },
-    common::deploy_l1,
-    setup_observability,
-    utils::{build_da_contracts, build_system_contracts, install_yarn_dependencies},
-};
+use super::args::gateway_upgrade::{GatewayUpgradeArgs, GatewayUpgradeArgsFinal};
 use crate::{
-    accept_ownership::{accept_admin, accept_owner, governance_execute_calls},
-    commands::{
-        chain::{self},
-        ecosystem::{
-            args::gateway_upgrade::GatewayUpgradeStage,
-            create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
-        },
-    },
-    messages::{
-        msg_ecosystem_initialized, msg_ecosystem_no_found_preexisting_contract,
-        msg_initializing_chain, MSG_CHAIN_NOT_INITIALIZED,
-        MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
-        MSG_DEPLOYING_ERC20_SPINNER, MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR,
-        MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT, MSG_INITIALIZING_ECOSYSTEM,
-        MSG_INTALLING_DEPS_SPINNER,
-    },
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    accept_ownership::governance_execute_calls,
+    commands::ecosystem::args::gateway_upgrade::GatewayUpgradeStage,
+    messages::MSG_INTALLING_DEPS_SPINNER, utils::forge::fill_forge_private_key,
 };
 
 pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> {

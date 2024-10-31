@@ -1,11 +1,10 @@
-use std::{str::FromStr, sync::Arc};
+use std::str::FromStr;
 
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
 use common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
-    withdraw::ZKSProvider,
 };
 use config::{
     forge_interface::{
@@ -13,16 +12,15 @@ use config::{
             input::GatewayChainUpgradeInput, output::GatewayChainUpgradeOutput,
         },
         gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput,
-        gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
-        script_params::{GATEWAY_PREPARATION, GATEWAY_UPGRADE_CHAIN_PARAMS},
+        script_params::GATEWAY_UPGRADE_CHAIN_PARAMS,
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig,
 };
 use ethers::{
-    abi::{decode, encode, parse_abi, ParamType, Token},
+    abi::{decode, encode, parse_abi, ParamType},
     contract::BaseContract,
-    providers::{Http, Middleware, Provider},
+    providers::Middleware,
     types::{transaction::eip2718::TypedTransaction, Bytes, NameOrAddress, TransactionRequest},
     utils::hex,
 };
@@ -31,13 +29,8 @@ use serde::{Deserialize, Serialize};
 use strum::EnumIter;
 use types::L1BatchCommitmentMode;
 use xshell::Shell;
-use zksync_basic_types::{settlement::SettlementMode, H256, U256, U64};
-use zksync_config::configs::chain;
-use zksync_types::{web3::keccak256, Address, L2ChainId, H160, L2_NATIVE_TOKEN_VAULT_ADDRESS};
-use zksync_web3_decl::{
-    client::{Client, L1, L2},
-    jsonrpsee::http_client::HttpClient,
-};
+use zksync_basic_types::{H256, U256};
+use zksync_types::{web3::keccak256, Address, H160, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 
 use crate::{
     accept_ownership::{
@@ -45,7 +38,7 @@ use crate::{
         set_da_validator_pair,
     },
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    utils::forge::fill_forge_private_key,
 };
 
 lazy_static! {
@@ -297,7 +290,7 @@ async fn schedule_stage1(
         &ecosystem_config,
         &chain_config.get_contracts_config()?,
         // TODO: maybe not have it as a constant
-        U256::from(0x1900000000 as u64),
+        U256::from(0x1900000000_u64),
         // We only do instant upgrades for now
         U256::zero(),
         &chain_config.get_wallets_config()?.governor,
@@ -377,7 +370,7 @@ async fn finalize_stage1(
         &ecosystem_config,
         &chain_config.get_contracts_config()?,
         // TODO: maybe not have it as a constant
-        U256::from(0x1900000000 as u64),
+        U256::from(0x1900000000_u64),
         // We only do instant upgrades for now
         U256::zero(),
         &chain_config.get_wallets_config()?.governor,

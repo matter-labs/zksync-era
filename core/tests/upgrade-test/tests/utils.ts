@@ -121,9 +121,8 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
             complexUpgraderAbi: new ethers.Interface(
                 require(`${pathToHome}/contracts/system-contracts/zkout/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
             ),
-            counterBytecode:
-                require(`${pathToHome}/core/tests/ts-integration/zkout/counter.sol/Counter.json`)
-                    .deployedBytecode,
+            counterBytecode: require(`${pathToHome}/core/tests/ts-integration/zkout/counter.sol/Counter.json`)
+                .deployedBytecode,
             stateTransitonManager: new ethers.Interface(
                 require(`${L1_CONTRACTS_FOLDER}/state-transition/StateTransitionManager.sol/StateTransitionManager.json`).abi
             )

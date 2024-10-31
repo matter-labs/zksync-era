@@ -21,8 +21,9 @@ use crate::{
         TxExecutionMode, VmInterfaceExt,
     },
     vm_latest::{
-        constants::{TX_OPERATOR_L2_BLOCK_INFO_OFFSET, TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO},
+        constants::{get_tx_operator_l2_block_info_offset, TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO},
         utils::l2_blocks::get_l2_block_hash_key,
+        MultiVMSubversion,
     },
 };
 
@@ -400,7 +401,8 @@ pub(crate) fn test_l2_block_first_in_batch<VM: TestedVm>() {
 
 fn set_manual_l2_block_info(vm: &mut impl TestedVm, tx_number: usize, block_info: L2BlockEnv) {
     let fictive_miniblock_position =
-        TX_OPERATOR_L2_BLOCK_INFO_OFFSET + TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO * tx_number;
+        get_tx_operator_l2_block_info_offset(MultiVMSubversion::latest())
+            + TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO * tx_number;
     vm.write_to_bootloader_heap(&[
         (fictive_miniblock_position, block_info.number.into()),
         (fictive_miniblock_position + 1, block_info.timestamp.into()),

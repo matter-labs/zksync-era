@@ -273,7 +273,7 @@ pub fn pretty_print(call: &Call, depth: usize) -> String {
 
     // Recursively format each subcall with increased depth
     for subcall in &call.calls {
-        result.push_str(&pretty_print(&subcall, depth + 1));
+        result.push_str(&pretty_print(subcall, depth + 1));
     }
 
     result

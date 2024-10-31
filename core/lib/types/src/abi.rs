@@ -440,7 +440,7 @@ impl GatewayUpgradeEncodedInput {
         }
 
         Ok(Self {
-            force_deployments: force_deployments,
+            force_deployments,
             l2_gateway_upgrade_position: next()
                 .into_uint()
                 .context("l2_gateway_upgrade_position")?

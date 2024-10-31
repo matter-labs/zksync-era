@@ -1,22 +1,9 @@
-use std::{collections::HashMap, str::FromStr};
-
-use ethers::{
-    prelude::U256,
-    types::{Address, H256},
-};
-use rand::Rng;
+use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 use types::L1BatchCommitmentMode;
 use zksync_basic_types::L2ChainId;
-use zksync_protobuf_config::proto::genesis::L1BatchCommitDataGeneratorMode;
 
-use crate::{
-    apply_l1_to_l2_alias,
-    consts::INITIAL_DEPLOYMENT_FILE,
-    forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
-    traits::{FileConfigWithDefaultName, ZkStackConfig},
-    ChainConfig, ContractsConfig, GenesisConfig, WalletsConfig, ERC20_DEPLOYMENT_FILE,
-};
+use crate::{traits::ZkStackConfig, ChainConfig};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GatewayChainUpgradeInput {

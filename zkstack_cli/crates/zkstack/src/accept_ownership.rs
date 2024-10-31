@@ -2,20 +2,19 @@ use anyhow::Context;
 use common::{
     forge::{Forge, ForgeScript, ForgeScriptArgs},
     spinner::Spinner,
-    wallets::{self, Wallet},
+    wallets::Wallet,
 };
 use config::{
     forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, ChainConfig, ContractsConfig,
     EcosystemConfig,
 };
 use ethers::{
-    abi::{parse_abi, Token, Tokenize},
+    abi::{parse_abi, Token},
     contract::BaseContract,
-    types::{Address, Bytes, H256},
+    types::Address,
 };
 use lazy_static::lazy_static;
 use xshell::Shell;
-use zksync_config::configs::chain;
 use zksync_types::U256;
 
 use crate::{

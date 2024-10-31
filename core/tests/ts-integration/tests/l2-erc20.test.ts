@@ -51,10 +51,7 @@ describe('L2 native ERC20 contract checks', () => {
         baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
         isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
 
-        const ZkSyncERC20 = await readContract(
-            '../../../contracts/l1-contracts/zkout',
-            'TestnetERC20Token'
-        );
+        const ZkSyncERC20 = await readContract('../../../contracts/l1-contracts/zkout', 'TestnetERC20Token');
 
         aliceErc20 = await deployContract(alice, ZkSyncERC20, ['ZKsync', 'ZK', 18]);
         const l2TokenAddress = await aliceErc20.getAddress();
