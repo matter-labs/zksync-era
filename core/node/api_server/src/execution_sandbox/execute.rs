@@ -8,7 +8,7 @@ use tokio::runtime::Handle;
 use zksync_dal::{Connection, Core};
 use zksync_multivm::interface::{
     executor::{OneshotExecutor, TransactionValidator},
-    storage::ReadStorage,
+    storage::{ReadStorage, StorageWithOverrides},
     tracer::{ValidationError, ValidationParams},
     Call, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
     TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs,
@@ -20,11 +20,10 @@ use zksync_types::{
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 
 use super::{
-    storage::StorageWithOverrides,
     vm_metrics::{self, SandboxStage},
     BlockArgs, VmPermit, SANDBOX_METRICS,
 };
-use crate::tx_sender::SandboxExecutorOptions;
+use crate::{execution_sandbox::storage::apply_state_override, tx_sender::SandboxExecutorOptions};
 
 /// Action that can be executed by [`SandboxExecutor`].
 #[derive(Debug)]
@@ -109,6 +108,9 @@ impl SandboxExecutor {
         missed_storage_invocation_limit: usize,
     ) -> Self {
         let mut executor = MainOneshotExecutor::new(missed_storage_invocation_limit);
+        executor.set_fast_vm_mode(options.fast_vm_mode);
+        #[cfg(test)]
+        executor.panic_on_divergence();
         executor
             .set_execution_latency_histogram(&SANDBOX_METRICS.sandbox[&SandboxStage::Execution]);
         Self {
@@ -119,9 +121,16 @@ impl SandboxExecutor {
     }
 
     pub(crate) async fn mock(executor: MockOneshotExecutor) -> Self {
+        Self::custom_mock(executor, SandboxExecutorOptions::mock().await)
+    }
+
+    pub(crate) fn custom_mock(
+        executor: MockOneshotExecutor,
+        options: SandboxExecutorOptions,
+    ) -> Self {
         Self {
             engine: SandboxExecutorEngine::Mock(executor),
-            options: SandboxExecutorOptions::mock().await,
+            options,
             storage_caches: None,
         }
     }
@@ -144,7 +153,7 @@ impl SandboxExecutor {
             .await?;
 
         let state_override = state_override.unwrap_or_default();
-        let storage = StorageWithOverrides::new(storage, &state_override);
+        let storage = apply_state_override(storage, &state_override);
         let (execution_args, tracing_params) = action.into_parts();
         let result = self
             .inspect_transaction_with_bytecode_compression(
@@ -175,7 +184,7 @@ impl SandboxExecutor {
         let initialization_stage = SANDBOX_METRICS.sandbox[&SandboxStage::Initialization].start();
         let resolve_started_at = Instant::now();
         let resolve_time = resolve_started_at.elapsed();
-        let resolved_block_info = block_args.inner.resolve(&mut connection).await?;
+        let resolved_block_info = &block_args.resolved;
         // We don't want to emit too many logs.
         if resolve_time > Duration::from_millis(10) {
             tracing::debug!("Resolved block numbers (took {resolve_time:?})");
@@ -185,7 +194,7 @@ impl SandboxExecutor {
             SandboxAction::Execution { fee_input, tx } => {
                 self.options
                     .eth_call
-                    .to_execute_env(&mut connection, &resolved_block_info, *fee_input, tx)
+                    .to_execute_env(&mut connection, resolved_block_info, *fee_input, tx)
                     .await?
             }
             &SandboxAction::Call {
@@ -197,7 +206,7 @@ impl SandboxExecutor {
                     .eth_call
                     .to_call_env(
                         &mut connection,
-                        &resolved_block_info,
+                        resolved_block_info,
                         fee_input,
                         enforced_base_fee,
                     )
@@ -210,7 +219,7 @@ impl SandboxExecutor {
             } => {
                 self.options
                     .estimate_gas
-                    .to_env(&mut connection, &resolved_block_info, fee_input, base_fee)
+                    .to_env(&mut connection, resolved_block_info, fee_input, base_fee)
                     .await?
             }
         };
@@ -239,13 +248,13 @@ impl SandboxExecutor {
 }
 
 #[async_trait]
-impl<S> OneshotExecutor<S> for SandboxExecutor
+impl<S> OneshotExecutor<StorageWithOverrides<S>> for SandboxExecutor
 where
     S: ReadStorage + Send + 'static,
 {
     async fn inspect_transaction_with_bytecode_compression(
         &self,
-        storage: S,
+        storage: StorageWithOverrides<S>,
         env: OneshotEnv,
         args: TxExecutionArgs,
         tracing_params: OneshotTracingParams,
@@ -276,13 +285,13 @@ where
 }
 
 #[async_trait]
-impl<S> TransactionValidator<S> for SandboxExecutor
+impl<S> TransactionValidator<StorageWithOverrides<S>> for SandboxExecutor
 where
     S: ReadStorage + Send + 'static,
 {
     async fn validate_transaction(
         &self,
-        storage: S,
+        storage: StorageWithOverrides<S>,
         env: OneshotEnv,
         tx: L2Tx,
         validation_params: ValidationParams,

@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use zksync_config::{configs::EcosystemContracts, GenesisConfig};
+use zksync_consensus_roles::validator;
 use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
     api::en, protocol_version::ProtocolSemanticVersion, tokens::TokenInfo, Address, L1BatchNumber,
@@ -82,6 +83,36 @@ impl EnNamespace {
         Ok(Some(en::AttestationStatus(
             zksync_protobuf::serde::Serialize
                 .proto_fmt(&status, serde_json::value::Serializer)
+                .unwrap(),
+        )))
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub async fn block_metadata_impl(
+        &self,
+        block_number: L2BlockNumber,
+    ) -> Result<Option<en::BlockMetadata>, Web3Error> {
+        let Some(meta) = self
+            .state
+            .acquire_connection()
+            .await?
+            // unwrap is ok, because we start outermost transaction.
+            .transaction_builder()
+            .unwrap()
+            // run readonly transaction to perform consistent reads.
+            .set_readonly()
+            .build()
+            .await
+            .context("TransactionBuilder::build()")?
+            .consensus_dal()
+            .block_metadata(validator::BlockNumber(block_number.0.into()))
+            .await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(en::BlockMetadata(
+            zksync_protobuf::serde::Serialize
+                .proto_fmt(&meta, serde_json::value::Serializer)
                 .unwrap(),
         )))
     }
@@ -177,6 +208,10 @@ impl EnNamespace {
             genesis_commitment: Some(genesis_batch.metadata.commitment),
             bootloader_hash: Some(genesis_batch.header.base_system_contracts_hashes.bootloader),
             default_aa_hash: Some(genesis_batch.header.base_system_contracts_hashes.default_aa),
+            evm_emulator_hash: genesis_batch
+                .header
+                .base_system_contracts_hashes
+                .evm_emulator,
             l1_chain_id: self.state.api_config.l1_chain_id,
             sl_chain_id: Some(self.state.api_config.l1_chain_id.into()),
             l2_chain_id: self.state.api_config.l2_chain_id,

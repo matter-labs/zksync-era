@@ -45,16 +45,12 @@ pub struct ContractsConfig {
     pub ecosystem_contracts: Option<EcosystemContracts>,
     // Used by the RPC API and by the node builder in wiring the BaseTokenRatioProvider layer.
     pub base_token_addr: Option<Address>,
-
     // FIXME: maybe refactor
     pub user_facing_bridgehub_proxy_addr: Option<Address>,
     pub user_facing_diamond_proxy_addr: Option<Address>,
-
-    pub l2_da_validator_addr: Option<Address>,
-
     pub chain_admin_addr: Option<Address>,
-
     pub settlement_layer: Option<u64>,
+    pub l2_da_validator_addr: Option<Address>,
 }
 
 impl ContractsConfig {
@@ -68,7 +64,7 @@ impl ContractsConfig {
             l2_erc20_bridge_addr: Some(Address::repeat_byte(0x0c)),
             l1_shared_bridge_proxy_addr: Some(Address::repeat_byte(0x0e)),
             l2_shared_bridge_addr: Some(Address::repeat_byte(0x0f)),
-            l2_legacy_shared_bridge_addr: Some(Address::repeat_byte(0xff)),
+            l2_legacy_shared_bridge_addr: Some(Address::repeat_byte(0x19)),
             l1_weth_bridge_proxy_addr: Some(Address::repeat_byte(0x0b)),
             l2_weth_bridge_addr: Some(Address::repeat_byte(0x0c)),
             l2_testnet_paymaster_addr: Some(Address::repeat_byte(0x11)),
@@ -79,8 +75,8 @@ impl ContractsConfig {
             user_facing_bridgehub_proxy_addr: Some(Address::repeat_byte(0x15)),
             user_facing_diamond_proxy_addr: Some(Address::repeat_byte(0x16)),
             chain_admin_addr: Some(Address::repeat_byte(0x18)),
-            l2_da_validator_addr: Some(Address::repeat_byte(0x19)),
             settlement_layer: Some(0),
+            l2_da_validator_addr: Some(Address::repeat_byte(0x1a)),
         }
     }
 }

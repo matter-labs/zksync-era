@@ -4,7 +4,7 @@ use zksync_types::{
         Log, Transaction, TransactionId, TransactionReceipt, TransactionVariant,
     },
     transaction_request::CallRequest,
-    web3::{Bytes, Index, SyncState},
+    web3::{Bytes, Index, SyncState, U64Number},
     Address, H256, U256, U64,
 };
 use zksync_web3_decl::{
@@ -260,16 +260,20 @@ impl EthNamespaceServer for EthNamespace {
 
     async fn fee_history(
         &self,
-        block_count: U64,
+        block_count: U64Number,
         newest_block: BlockNumber,
         reward_percentiles: Option<Vec<f32>>,
     ) -> RpcResult<FeeHistory> {
         self.fee_history_impl(
-            block_count,
+            block_count.into(),
             newest_block,
             reward_percentiles.unwrap_or_default(),
         )
         .await
         .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn max_priority_fee_per_gas(&self) -> RpcResult<U256> {
+        Ok(self.max_priority_fee_per_gas_impl())
     }
 }

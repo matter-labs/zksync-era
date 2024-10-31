@@ -244,11 +244,10 @@ impl RequestProcessor {
                     || bootloader_heap_initial_content
                         != bootloader_heap_initial_content_from_prover
                 {
-                    let server_values = format!("events_queue_state = {events_queue_state}, bootloader_heap_initial_content = {bootloader_heap_initial_content}");
-                    let prover_values = format!("events_queue_state = {events_queue_state_from_prover}, bootloader_heap_initial_content = {bootloader_heap_initial_content_from_prover}");
                     panic!(
-                        "Auxilary output doesn't match, server values: {} prover values: {}",
-                        server_values, prover_values
+                        "Auxilary output doesn't match\n\
+                        server values: events_queue_state = {events_queue_state}, bootloader_heap_initial_content = {bootloader_heap_initial_content}\n\
+                        prover values: events_queue_state = {events_queue_state_from_prover}, bootloader_heap_initial_content = {bootloader_heap_initial_content_from_prover}",
                     );
                 }
 
@@ -261,8 +260,9 @@ impl RequestProcessor {
                         .system_logs
                         .iter()
                         .find_map(|log| {
-                            (log.0.key == H256::from_low_u64_be(STATE_DIFF_HASH_KEY_PRE_GATEWAY))
-                                .then_some(log.0.value)
+                            (log.0.key
+                                == H256::from_low_u64_be(STATE_DIFF_HASH_KEY_PRE_GATEWAY as u64))
+                            .then_some(log.0.value)
                         })
                         .expect("Failed to get state_diff_hash from system logs")
                 } else {

@@ -17,6 +17,7 @@ pub(super) struct ZkSyncFunctions {
     pub(super) get_l2_bootloader_bytecode_hash: Function,
     pub(super) get_l2_default_account_bytecode_hash: Function,
     pub(super) get_verifier: Function,
+    pub(super) get_evm_emulator_bytecode_hash: Option<Function>,
     pub(super) get_verifier_params: Function,
     pub(super) get_protocol_version: Function,
 
@@ -37,6 +38,14 @@ fn get_function(contract: &Contract, name: &str) -> Function {
         .unwrap_or_else(|| panic!("{} function entry not found", name))
 }
 
+fn get_optional_function(contract: &Contract, name: &str) -> Option<Function> {
+    contract
+        .functions
+        .get(name)
+        .cloned()
+        .map(|mut functions| functions.pop().unwrap())
+}
+
 impl Default for ZkSyncFunctions {
     fn default() -> Self {
         let zksync_contract = hyperchain_contract();
@@ -55,6 +64,8 @@ impl Default for ZkSyncFunctions {
             get_function(&zksync_contract, "getL2BootloaderBytecodeHash");
         let get_l2_default_account_bytecode_hash =
             get_function(&zksync_contract, "getL2DefaultAccountBytecodeHash");
+        let get_evm_emulator_bytecode_hash =
+            get_optional_function(&zksync_contract, "getL2EvmSimulatorBytecodeHash");
         let get_verifier = get_function(&zksync_contract, "getVerifier");
         let get_verifier_params = get_function(&zksync_contract, "getVerifierParams");
         let get_protocol_version = get_function(&zksync_contract, "getProtocolVersion");
@@ -70,6 +81,7 @@ impl Default for ZkSyncFunctions {
             post_gateway_execute,
             get_l2_bootloader_bytecode_hash,
             get_l2_default_account_bytecode_hash,
+            get_evm_emulator_bytecode_hash,
             get_verifier,
             get_verifier_params,
             get_protocol_version,

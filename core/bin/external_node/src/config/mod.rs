@@ -462,6 +462,8 @@ pub(crate) struct OptionalENConfig {
     /// Gateway RPC URL, needed for operating during migration.
     #[allow(dead_code)]
     pub gateway_url: Option<SensitiveUrl>,
+    /// Interval for bridge addresses refreshing in seconds.
+    bridge_addresses_refresh_interval_sec: Option<NonZeroU64>,
 }
 
 impl OptionalENConfig {
@@ -692,6 +694,7 @@ impl OptionalENConfig {
             api_namespaces,
             contracts_diamond_proxy_addr: None,
             gateway_url: enconfig.gateway_url.clone(),
+            bridge_addresses_refresh_interval_sec: enconfig.bridge_addresses_refresh_interval_sec,
         })
     }
 
@@ -916,6 +919,11 @@ impl OptionalENConfig {
 
     pub fn pruning_data_retention(&self) -> Duration {
         Duration::from_secs(self.pruning_data_retention_sec)
+    }
+
+    pub fn bridge_addresses_refresh_interval(&self) -> Option<Duration> {
+        self.bridge_addresses_refresh_interval_sec
+            .map(|n| Duration::from_secs(n.get()))
     }
 
     #[cfg(test)]
@@ -1416,9 +1424,9 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
                 l2_erc20_default_bridge: config.remote.l2_erc20_bridge_addr,
                 l1_shared_default_bridge: config.remote.l1_shared_bridge_proxy_addr,
                 l2_shared_default_bridge: config.remote.l2_shared_bridge_addr,
+                l2_legacy_shared_bridge: config.remote.l2_legacy_shared_bridge_addr,
                 l1_weth_bridge: config.remote.l1_weth_bridge_addr,
                 l2_weth_bridge: config.remote.l2_weth_bridge_addr,
-                l2_legacy_shared_bridge: config.remote.l2_legacy_shared_bridge_addr,
             },
             bridgehub_proxy_addr: config.remote.bridgehub_proxy_addr,
             state_transition_proxy_addr: config.remote.state_transition_proxy_addr,

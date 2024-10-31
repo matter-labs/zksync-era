@@ -119,12 +119,6 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("base_token_addr")?,
-            l2_da_validator_addr: l2
-                .da_validator_addr
-                .as_ref()
-                .map(|x| parse_h160(x))
-                .transpose()
-                .context("l2_da_validator_addr")?,
             chain_admin_addr: l1
                 .chain_admin_addr
                 .as_ref()
@@ -132,6 +126,12 @@ impl ProtoRepr for proto::Contracts {
                 .transpose()
                 .context("chain_admin_addr")?,
             settlement_layer: self.settlement_layer,
+            l2_da_validator_addr: l2
+                .da_validator_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("l2_da_validator_addr")?,
         })
     }
 

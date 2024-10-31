@@ -1,9 +1,12 @@
+use std::sync::Arc;
+
 use zksync_dal::{ConnectionPool, Core};
 use zksync_node_sync::SyncState;
 use zksync_web3_decl::client::{DynClient, L2};
 
 use crate::{
     implementations::resources::{
+        healthcheck::AppHealthCheckResource,
         main_node_client::MainNodeClientResource,
         pools::{MasterPool, PoolResource},
         sync_state::SyncStateResource,
@@ -24,6 +27,7 @@ pub struct SyncStateUpdaterLayer;
 pub struct Input {
     /// Fetched to check whether the `SyncState` was already provided by another layer.
     pub sync_state: Option<SyncStateResource>,
+    pub app_health: AppHealthCheckResource,
     pub master_pool: PoolResource<MasterPool>,
     pub main_node_client: MainNodeClientResource,
 }
@@ -62,6 +66,10 @@ impl WiringLayer for SyncStateUpdaterLayer {
         let MainNodeClientResource(main_node_client) = input.main_node_client;
 
         let sync_state = SyncState::default();
+        let app_health = &input.app_health.0;
+        app_health
+            .insert_custom_component(Arc::new(sync_state.clone()))
+            .map_err(WiringError::internal)?;
 
         Ok(Output {
             sync_state: Some(sync_state.clone().into()),

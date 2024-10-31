@@ -16,9 +16,10 @@ use zksync_multivm::interface::{
 use zksync_state::OwnedStorage;
 use zksync_test_account::Account;
 use zksync_types::{
-    fee::Fee, get_code_key, get_known_code_key, utils::storage_key_for_standard_token_balance,
-    AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, PriorityOpId, StorageLog,
-    Transaction, H256, L2_BASE_TOKEN_ADDRESS, SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
+    commitment::PubdataParams, fee::Fee, get_code_key, get_known_code_key,
+    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Execute, L1BatchNumber,
+    L2BlockNumber, PriorityOpId, StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS,
+    SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
@@ -35,6 +36,7 @@ pub(crate) fn successful_exec() -> BatchTransactionExecutionResult {
             logs: Default::default(),
             statistics: Default::default(),
             refunds: Default::default(),
+            new_known_factory_deps: None,
         }),
         compressed_bytecodes: vec![],
         call_traces: vec![],
@@ -51,6 +53,7 @@ impl BatchExecutorFactory<OwnedStorage> for MockBatchExecutor {
         _storage: OwnedStorage,
         _l1_batch_env: L1BatchEnv,
         _system_env: SystemEnv,
+        _pubdata_params: PubdataParams,
     ) -> Box<dyn BatchExecutor<OwnedStorage>> {
         Box::new(Self)
     }

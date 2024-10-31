@@ -33,7 +33,6 @@ use crate::{
         oracles::storage::StorageOracle,
         types::l1_batch::bootloader_initial_memory,
         utils::l2_blocks::{assert_next_block, load_last_l2_block},
-        MultiVMSubversion,
     },
 };
 
@@ -65,7 +64,6 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
     storage: StoragePtr<S>,
     system_env: &SystemEnv,
     l1_batch_env: &L1BatchEnv,
-    subversion: MultiVMSubversion,
 ) -> (ZkSyncVmState<S, H>, BootloaderState) {
     let last_l2_block = if let Some(last_l2_block) = load_last_l2_block(&storage) {
         last_l2_block
@@ -100,6 +98,13 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         Timestamp(0),
     );
 
+    if let Some(evm_emulator) = &system_env.base_system_smart_contracts.evm_emulator {
+        decommittment_processor.populate(
+            vec![(h256_to_u256(evm_emulator.hash), evm_emulator.code.clone())],
+            Timestamp(0),
+        );
+    }
+
     memory.populate(
         vec![(
             BOOTLOADER_CODE_PAGE,
@@ -119,6 +124,13 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         Timestamp(0),
     );
 
+    // By convention, default AA is used as a fallback if the EVM emulator is not available.
+    let evm_emulator_code_hash = system_env
+        .base_system_smart_contracts
+        .evm_emulator
+        .as_ref()
+        .unwrap_or(&system_env.base_system_smart_contracts.default_aa)
+        .hash;
     let mut vm = VmState::empty_state(
         storage_oracle,
         memory,
@@ -130,11 +142,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
             default_aa_code_hash: h256_to_u256(
                 system_env.base_system_smart_contracts.default_aa.hash,
             ),
-            // For now, the default account hash is used as the code hash for the EVM simulator.
-            // In the 1.5.0 version, it is not possible to instantiate EVM bytecode.
-            evm_simulator_code_hash: h256_to_u256(
-                system_env.base_system_smart_contracts.default_aa.hash,
-            ),
+            evm_simulator_code_hash: h256_to_u256(evm_emulator_code_hash),
             zkporter_is_available: system_env.zk_porter_available,
         },
     );
@@ -183,8 +191,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         system_env.execution_mode,
         bootloader_initial_memory,
         first_l2_block,
-        system_env.pubdata_params,
-        subversion,
+        system_env.version,
     );
 
     (vm, bootloader_state)

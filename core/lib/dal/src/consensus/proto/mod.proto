@@ -6,9 +6,8 @@ import "zksync/roles/validator.proto";
 import "zksync/roles/attester.proto";
 import "zksync/roles/node.proto";
 
-enum L1BatchCommitDataGeneratorMode {
-  Rollup = 0;
-  Validium = 1;
+message BlockMetadata {
+  optional roles.validator.PayloadHash payload_hash = 1; // required
 }
 
 message Payload {
@@ -31,8 +30,8 @@ message Payload {
 }
 
 message PubdataParams {
-    optional bytes l2_da_validator_address = 1; // required; H160
-    optional L1BatchCommitDataGeneratorMode pubdata_type = 2; // optional, default to rollup
+  optional bytes l2_da_validator_address = 1; // required; H160
+  optional L1BatchCommitDataGeneratorMode pubdata_type = 2; // required
 }
 
 message L1Transaction {
@@ -148,4 +147,9 @@ message GlobalConfig {
 message AttestationStatus {
   optional roles.validator.GenesisHash genesis = 1; // required
   optional uint64 next_batch_to_attest = 2; // required
+}
+
+enum L1BatchCommitDataGeneratorMode {
+  Rollup = 0;
+  Validium = 1;
 }
