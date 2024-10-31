@@ -101,6 +101,10 @@ interface IRecursiveContract {
     function recurse(uint _depth) external returns (uint);
 }
 
+interface IRecursiveDeployment {
+    function testRecursiveDeployment(bytes32[] calldata _bytecodeHashes, bytes32[] calldata _bytecodes) external;
+}
+
 /// Native incrementing library. Not actually a library to simplify deployment.
 contract IncrementingContract {
     // Should not collide with other storage slots
@@ -154,7 +158,7 @@ uint constant EVM_EMULATOR_STIPEND = 1 << 30;
 /**
  * Mock EVM emulator used in low-level tests.
  */
-contract MockEvmEmulator is IRecursiveContract, IncrementingContract {
+contract MockEvmEmulator is IRecursiveContract, IRecursiveDeployment, IncrementingContract {
     IAccountCodeStorage constant ACCOUNT_CODE_STORAGE_CONTRACT = IAccountCodeStorage(address(0x8002));
 
     /// Set to `true` for testing logic sanity.
@@ -210,7 +214,11 @@ contract MockEvmEmulator is IRecursiveContract, IncrementingContract {
     MockContractDeployer constant CONTRACT_DEPLOYER_CONTRACT = MockContractDeployer(address(0x8006));
 
     /// Emulates EVM contract deployment and a subsequent call to it in a single transaction.
-    function testDeploymentAndCall(bytes32 _evmBytecodeHash, bytes calldata _evmBytecode) external validEvmEntry {
+    function testDeploymentAndCall(
+        bytes32 _evmBytecodeHash,
+        bytes calldata _evmBytecode,
+        bool _revert
+    ) external validEvmEntry {
         IRecursiveContract newContract = IRecursiveContract(CONTRACT_DEPLOYER_CONTRACT.create(
             _evmBytecodeHash,
             _evmBytecodeHash,
@@ -222,6 +230,34 @@ contract MockEvmEmulator is IRecursiveContract, IncrementingContract {
 
         uint gasToSend = gasleft() - EVM_EMULATOR_STIPEND;
         require(newContract.recurse{gas: gasToSend}(5) == 120, "unexpected recursive result");
+        require(!_revert, "requested revert");
+    }
+
+    function testCallToPreviousDeployment() external validEvmEntry {
+        IRecursiveContract newContract = IRecursiveContract(address(uint160(address(this)) + 1));
+        require(address(newContract).code.length > 0, "contract code length");
+        require(address(newContract).codehash != bytes32(0), "contract code hash");
+
+        uint gasToSend = gasleft() - EVM_EMULATOR_STIPEND;
+        require(newContract.recurse{gas: gasToSend}(5) == 120, "unexpected recursive result");
+    }
+
+    function testRecursiveDeployment(
+        bytes32[] calldata _bytecodeHashes,
+        bytes32[] calldata _bytecodes
+    ) external override validEvmEntry {
+        require(_bytecodeHashes.length == _bytecodes.length, "input length mismatch");
+        if (_bytecodes.length == 0) {
+            return;
+        }
+
+        IRecursiveDeployment newContract = IRecursiveDeployment(CONTRACT_DEPLOYER_CONTRACT.create(
+            _bytecodeHashes[0],
+            _bytecodeHashes[0],
+            bytes.concat(_bytecodes[0])
+        ));
+        uint gasToSend = gasleft() - EVM_EMULATOR_STIPEND;
+        newContract.testRecursiveDeployment{gas: gasToSend}(_bytecodeHashes[1:], _bytecodes[1:]);
     }
 
     fallback() external validEvmEntry {
