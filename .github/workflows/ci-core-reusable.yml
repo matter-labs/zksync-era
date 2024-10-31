@@ -147,7 +147,8 @@ jobs:
             --base-token-price-denominator 1 \
             --set-as-default false \
             --ignore-prerequisites \
-            --legacy-bridge
+            --legacy-bridge \
+            --evm-emulator false
 
           ci_run zkstack ecosystem init --dev --verbose
           ci_run zkstack dev contracts --test-contracts
@@ -262,7 +263,8 @@ jobs:
           --base-token-price-nominator 1 \
           --base-token-price-denominator 1 \
           --set-as-default false \
-          --ignore-prerequisites
+          --ignore-prerequisites \
+          --evm-emulator false
 
           ci_run zkstack chain init \
           --deploy-paymaster \
@@ -283,7 +285,8 @@ jobs:
           --base-token-price-nominator 314 \
           --base-token-price-denominator 1000 \
           --set-as-default false \
-          --ignore-prerequisites
+          --ignore-prerequisites \
+          --evm-emulator false
 
           ci_run zkstack chain init \
           --deploy-paymaster \
@@ -304,7 +307,8 @@ jobs:
           --base-token-price-nominator 1 \
           --base-token-price-denominator 1 \
           --set-as-default false \
-          --ignore-prerequisites
+          --ignore-prerequisites \
+          --evm-emulator false
 
           ci_run zkstack chain build-transactions --chain offline_chain --l1-rpc-url http://127.0.0.1:8545
 
@@ -339,7 +343,8 @@ jobs:
           --base-token-price-nominator 314 \
           --base-token-price-denominator 1000 \
           --set-as-default false \
-          --ignore-prerequisites
+          --ignore-prerequisites \
+          --evm-emulator false
 
           ci_run zkstack chain init \
           --deploy-paymaster \
