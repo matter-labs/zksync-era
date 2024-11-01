@@ -6,16 +6,16 @@ use zksync_types::{
     KECCAK256_PRECOMPILE_ADDRESS, L2_BASE_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS,
     SYSTEM_CONTEXT_ADDRESS, U256,
 };
-use zksync_vm2::{
-    interface::{
-        CallframeInterface, ExecutionStatus, GlobalStateInterface, Opcode::*, OpcodeType,
-        ReturnType::*, Tracer,
-    },
-    ExecutionEnd,
+use zksync_vm2::interface::{
+    CallframeInterface, GlobalStateInterface, Opcode::*, OpcodeType, ReturnType::*, ShouldStop,
+    Tracer,
 };
-use zksync_vm_interface::tracer::{ValidationParams, ViolatedValidationRule};
+use zksync_vm_interface::tracer::{
+    TimestampAsserterParams, ValidationParams, ValidationTraces, ViolatedValidationRule,
+};
 
 use super::utils::read_fat_pointer;
+use crate::tracers::TIMESTAMP_ASSERTER_FUNCTION_SELECTOR;
 
 pub trait ValidationMode: Tracer + Default {
     const STOP_AFTER_VALIDATION: bool;
@@ -68,8 +68,11 @@ pub struct ValidationTracer {
     trusted_storage: HashSet<(Address, U256)>,
     /// These location's values are added to [Self::trusted_addresses] to support upgradeable proxies.
     storage_containing_trusted_addresses: HashSet<(Address, U256)>,
+    timestamp_asserter_params: Option<TimestampAsserterParams>,
+    l1_batch_timestamp: u64,
 
     validation_error: Option<ViolatedValidationRule>,
+    traces: ValidationTraces,
 }
 
 impl ValidationMode for ValidationTracer {
@@ -134,13 +137,13 @@ impl Tracer for ValidationTracer {
     fn after_instruction<OP: OpcodeType, S: GlobalStateInterface>(
         &mut self,
         state: &mut S,
-    ) -> ExecutionStatus {
+    ) -> ShouldStop {
         if !self.in_validation {
-            return ExecutionStatus::Running;
+            return ShouldStop::Continue;
         }
 
         if self.validation_error.is_some() {
-            return ExecutionStatus::Stopped(ExecutionEnd::Panicked);
+            return ShouldStop::Stop;
         }
 
         match OP::VALUE {
@@ -150,7 +153,7 @@ impl Tracer for ValidationTracer {
                 if code_address == KECCAK256_PRECOMPILE_ADDRESS {
                     let calldata = read_fat_pointer(state, state.read_register(1).0);
                     if calldata.len() != 64 {
-                        return ExecutionStatus::Running;
+                        return ShouldStop::Continue;
                     }
 
                     // Solidity mappings store values at the keccak256 hash of `key ++ slot_of_mapping`
@@ -171,7 +174,37 @@ impl Tracer for ValidationTracer {
                     self.set_error(ViolatedValidationRule::CalledContractWithNoCode(
                         code_address,
                     ));
-                    return ExecutionStatus::Stopped(ExecutionEnd::Panicked);
+                    return ShouldStop::Stop;
+                }
+
+                if let Some(ref params) = self.timestamp_asserter_params {
+                    if code_address == params.address {
+                        let calldata = read_fat_pointer(state, state.read_register(1).0);
+                        if calldata.len() == 68
+                            && calldata[..4] == TIMESTAMP_ASSERTER_FUNCTION_SELECTOR
+                        {
+                            // start and end need to be capped to u64::MAX to avoid overflow
+                            let start = U256::from_big_endian(
+                                &calldata[calldata.len() - 64..calldata.len() - 32],
+                            )
+                            .try_into()
+                            .unwrap_or(u64::MAX);
+                            let end = U256::from_big_endian(&calldata[calldata.len() - 32..])
+                                .try_into()
+                                .unwrap_or(u64::MAX);
+
+                            // using self.l1_batch_env.timestamp is ok here because the tracer is always
+                            // used in a oneshot execution mode
+                            if end < self.l1_batch_timestamp + params.min_time_till_end.as_secs() {
+                                self.set_error(
+                                    ViolatedValidationRule::TimestampAssertionCloseToRangeEnd,
+                                );
+                                return ShouldStop::Stop;
+                            }
+
+                            self.traces.apply_timestamp_asserter_range(start..end);
+                        }
+                    }
                 }
             }
             Ret(kind) => {
@@ -185,17 +218,18 @@ impl Tracer for ValidationTracer {
             _ => {}
         }
 
-        ExecutionStatus::Running
+        ShouldStop::Continue
     }
 }
 
 impl ValidationTracer {
-    pub fn new(params: ValidationParams) -> Self {
+    pub fn new(params: ValidationParams, l1_batch_timestamp: u64) -> Self {
         let ValidationParams {
             user_address,
             trusted_slots,
             trusted_addresses,
             trusted_address_slots,
+            timestamp_asserter_params,
             ..
         } = params;
         Self {
@@ -203,6 +237,8 @@ impl ValidationTracer {
             trusted_storage: trusted_slots,
             trusted_addresses,
             storage_containing_trusted_addresses: trusted_address_slots,
+            l1_batch_timestamp,
+            timestamp_asserter_params,
 
             ..Self::default()
         }
@@ -242,5 +278,9 @@ impl ValidationTracer {
 
     pub fn validation_error(&self) -> Option<ViolatedValidationRule> {
         self.validation_error.clone()
+    }
+
+    pub fn traces(&self) -> ValidationTraces {
+        self.traces.clone()
     }
 }

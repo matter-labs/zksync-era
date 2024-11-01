@@ -1,31 +1,34 @@
 use zksync_vm2::interface::Tracer;
-use zksync_vm_interface::tracer::{ValidationParams, ViolatedValidationRule};
+use zksync_vm_interface::tracer::ValidationParams;
 
 use super::{
     circuits_tracer::CircuitsTracer,
+    evm_deploy_tracer::{DynamicBytecodes, EvmDeployTracer},
     validation_tracer::{ValidationGasLimitOnly, ValidationMode, ValidationTracer},
 };
 
-#[derive(Default, Debug)]
-pub struct WithBuiltinTracers<External, Validation>((External, (CircuitsTracer, Validation)));
+#[derive(Debug, Default)]
+pub struct WithBuiltinTracers<External, Validation>(
+    (External, (Validation, (CircuitsTracer, EvmDeployTracer))),
+);
 
 pub type DefaultTracers = WithBuiltinTracersForSequencer<()>;
 
 pub type WithBuiltinTracersForValidation<Tr> = WithBuiltinTracers<Tr, ValidationTracer>;
 
 impl<External> WithBuiltinTracersForValidation<External> {
-    pub fn for_validation(external: External, validation_params: ValidationParams) -> Self {
+    pub fn for_validation(
+        external: External,
+        validation_params: ValidationParams,
+        timestamp: u64,
+    ) -> Self {
         Self((
             external,
             (
-                CircuitsTracer::default(),
-                ValidationTracer::new(validation_params),
+                ValidationTracer::new(validation_params, timestamp),
+                Default::default(),
             ),
         ))
-    }
-
-    pub fn validation_error(&self) -> Option<ViolatedValidationRule> {
-        self.0 .1 .1.validation_error()
     }
 }
 
@@ -51,11 +54,19 @@ impl<External, Validation> WithBuiltinTracers<External, Validation> {
     }
 
     pub fn validation(&mut self) -> &mut Validation {
-        &mut self.0 .1 .1
+        &mut self.0 .1 .0
     }
 
-    pub fn circuit(&mut self) -> &mut CircuitsTracer {
-        &mut self.0 .1 .0
+    pub(super) fn circuit(&mut self) -> &mut CircuitsTracer {
+        &mut self.0 .1 .1 .0
+    }
+
+    pub(super) fn insert_dynamic_bytecodes_handle(&mut self, dynamic_bytecodes: DynamicBytecodes) {
+        self.0
+             .1
+             .1
+             .1
+            .insert_dynamic_bytecodes_handle(dynamic_bytecodes)
     }
 }
 
@@ -78,7 +89,7 @@ impl<External: Tracer, Validation: ValidationMode> Tracer
     >(
         &mut self,
         state: &mut S,
-    ) -> zksync_vm2::interface::ExecutionStatus {
+    ) -> zksync_vm2::interface::ShouldStop {
         self.0.after_instruction::<OP, _>(state)
     }
 

@@ -18,7 +18,7 @@ use zksync_multivm::{
     interface::{
         executor::{OneshotExecutor, TransactionValidator},
         storage::{ReadStorage, StorageView, StorageWithOverrides},
-        tracer::{ValidationError, ValidationParams},
+        tracer::{ValidationError, ValidationParams, ValidationTraces},
         utils::{DivergenceHandler, ShadowVm},
         Call, ExecutionResult, InspectExecutionMode, OneshotEnv, OneshotTracingParams,
         OneshotTransactionExecutionResult, StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode,
@@ -172,13 +172,14 @@ where
         env: OneshotEnv,
         tx: L2Tx,
         validation_params: ValidationParams,
-    ) -> anyhow::Result<Result<(), ValidationError>> {
+    ) -> anyhow::Result<Result<ValidationTraces, ValidationError>> {
         anyhow::ensure!(
             env.system.execution_mode == TxExecutionMode::VerifyExecute,
             "Unexpected execution mode for tx validation: {:?} (expected `VerifyExecute`)",
             env.system.execution_mode
         );
 
+        let l1_batch_env = env.l1_batch.clone();
         let sandbox = VmSandbox {
             fast_vm_mode: if !is_supported_by_fast_vm(env.system.version) {
                 FastVmMode::Old // the fast VM doesn't support old protocol versions
@@ -197,8 +198,13 @@ where
 
             sandbox.execute_in_vm_with_tracer(|vm, transaction| match vm {
                 Vm::Legacy(vm) => {
-                    let (validation_tracer, mut validation_result) =
-                        ValidationTracer::<HistoryDisabled>::new(validation_params, version);
+                    let validation_tracer = ValidationTracer::<HistoryDisabled>::new(
+                        validation_params,
+                        version,
+                        l1_batch_env.timestamp,
+                    );
+                    let mut validation_result = validation_tracer.get_result();
+                    let validation_traces = validation_tracer.get_traces();
                     let tracers = validation_tracer.into_tracer_pointer();
 
                     vm.push_transaction(transaction);
@@ -215,15 +221,19 @@ where
                         (ExecutionResult::Halt { reason }, _) => {
                             Err(ValidationError::FailedTx(reason))
                         }
-                        _ => Ok(()),
+                        _ => Ok(validation_traces.lock().unwrap().clone()),
                     }
                 }
 
                 Vm::Fast(FastVmInstance::Fast(vm)) => {
                     vm.push_transaction(transaction);
-                    let mut tracer = WithBuiltinTracers::for_validation((), validation_params);
+                    let mut tracer = WithBuiltinTracers::for_validation(
+                        (),
+                        validation_params,
+                        l1_batch_env.timestamp,
+                    );
                     let result_and_logs = vm.inspect(&mut tracer, InspectExecutionMode::OneTx);
-                    if let Some(violation) = tracer.validation_error() {
+                    if let Some(violation) = tracer.validation().validation_error() {
                         return Err(ValidationError::ViolatedRule(violation));
                     }
                     match result_and_logs.result {
@@ -231,16 +241,25 @@ where
                         ExecutionResult::Revert { .. } => {
                             unreachable!("Revert can only happen at the end of a transaction")
                         }
-                        ExecutionResult::Success { .. } => Ok(()),
+                        ExecutionResult::Success { .. } => Ok(tracer.validation().traces()),
                     }
                 }
 
                 Vm::Fast(FastVmInstance::Shadowed(vm)) => {
                     vm.push_transaction(transaction);
-                    let tracer = WithBuiltinTracers::for_validation((), validation_params.clone());
+                    let tracer = WithBuiltinTracers::for_validation(
+                        (),
+                        validation_params.clone(),
+                        l1_batch_env.timestamp,
+                    );
 
-                    let (validation_tracer, mut validation_result) =
-                        ValidationTracer::<HistoryEnabled>::new(validation_params, version);
+                    let validation_tracer = ValidationTracer::<HistoryEnabled>::new(
+                        validation_params,
+                        version,
+                        l1_batch_env.timestamp,
+                    );
+                    let validation_traces = validation_tracer.get_traces();
+                    let mut validation_result = validation_tracer.get_result();
                     let legacy_tracers: Box<
                         dyn MultiVMTracer<StorageView<StorageWithOverrides<S>>, HistoryEnabled>,
                     > = validation_tracer.into_tracer_pointer();
@@ -252,7 +271,8 @@ where
                     let result_and_logs =
                         vm.inspect(&mut aggregate_tracer, InspectExecutionMode::OneTx);
 
-                    let fast_result = if let Some(violation) = aggregate_tracer.1.validation_error()
+                    let fast_result = if let Some(violation) =
+                        aggregate_tracer.1.validation().validation_error()
                     {
                         Err(ValidationError::ViolatedRule(violation))
                     } else {
@@ -263,7 +283,9 @@ where
                             ExecutionResult::Revert { .. } => {
                                 unreachable!("Revert can only happen at the end of a transaction")
                             }
-                            ExecutionResult::Success { .. } => Ok(()),
+                            ExecutionResult::Success { .. } => {
+                                Ok(aggregate_tracer.1.validation().traces())
+                            }
                         }
                     };
 
@@ -278,7 +300,7 @@ where
                         (ExecutionResult::Halt { reason }, _) => {
                             Err(ValidationError::FailedTx(reason))
                         }
-                        _ => Ok(()),
+                        _ => Ok(validation_traces.lock().unwrap().clone()),
                     };
 
                     if fast_result != legacy_result {

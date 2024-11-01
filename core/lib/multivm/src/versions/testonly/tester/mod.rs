@@ -234,7 +234,7 @@ pub(crate) trait TestedVm:
 }
 
 pub(crate) trait TestedVmForValidation {
-    fn run_validation(&mut self, tx: L2Tx) -> Option<ViolatedValidationRule>;
+    fn run_validation(&mut self, tx: L2Tx, timestamp: u64) -> Option<ViolatedValidationRule>;
 }
 
 pub(crate) fn validation_params(tx: &L2Tx, system: &SystemEnv) -> ValidationParams {
@@ -247,5 +247,6 @@ pub(crate) fn validation_params(tx: &L2Tx, system: &SystemEnv) -> ValidationPara
         trusted_addresses: Default::default(),
         trusted_address_slots: Default::default(),
         computational_gas_limit: system.default_validation_computational_gas_limit,
+        timestamp_asserter_params: None,
     }
 }

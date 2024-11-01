@@ -196,14 +196,17 @@ impl TestedVm for TestedLatestVm {
 }
 
 impl TestedVmForValidation for TestedLatestVm {
-    fn run_validation(&mut self, tx: L2Tx) -> Option<ViolatedValidationRule> {
+    fn run_validation(&mut self, tx: L2Tx, timestamp: u64) -> Option<ViolatedValidationRule> {
         let validation_params = validation_params(&tx, &self.system_env);
         self.push_transaction(tx.into());
 
-        let (tracer, mut failures) = ValidationTracer::<HistoryEnabled>::new(
+        let tracer = ValidationTracer::<HistoryEnabled>::new(
             validation_params,
             VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            timestamp,
         );
+        let mut failures = tracer.get_result();
+
         self.inspect_inner(
             &mut tracer.into_tracer_pointer().into(),
             VmExecutionMode::OneTx,

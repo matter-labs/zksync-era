@@ -24,14 +24,13 @@ use serde::{de, Deserialize, Deserializer, Serialize};
 
 #[macro_use]
 mod macros;
-pub mod api_key;
 pub mod basic_fri_types;
 pub mod commitment;
 pub mod network;
 pub mod protocol_version;
 pub mod prover_dal;
 pub mod pubdata_da;
-pub mod seed_phrase;
+pub mod secrets;
 pub mod settlement;
 pub mod tee_types;
 pub mod url;

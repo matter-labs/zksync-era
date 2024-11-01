@@ -95,5 +95,5 @@ fn test_rule<VM: TestedVm + TestedVmForValidation>(rule: u32) -> Option<Violated
     let mut l2_tx = L2Tx::from_request(aa_txn_request, 100000, false).unwrap();
     l2_tx.set_input(encoded_tx, aa_hash);
 
-    vm.vm.run_validation(l2_tx)
+    vm.vm.run_validation(l2_tx, 55)
 }

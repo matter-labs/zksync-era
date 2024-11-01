@@ -35,14 +35,6 @@ pub(super) struct EN {
 impl EN {
     /// Task running a consensus node for the external node.
     /// It may be a validator, but it cannot be a leader (cannot propose blocks).
-    ///
-    /// If `enable_pregenesis` is false,
-    /// before starting the consensus node it fetches all the blocks
-    /// older than consensus genesis from the main node using json RPC.
-    /// NOTE: currently `enable_pregenesis` is hardcoded to `false` in `era.rs`.
-    ///   True is used only in tests. Once the `block_metadata` RPC is enabled everywhere
-    ///   this flag should be removed and fetching pregenesis blocks will always be done
-    ///   over the gossip network.
     pub async fn run(
         self,
         ctx: &ctx::Ctx,
@@ -50,7 +42,6 @@ impl EN {
         cfg: ConsensusConfig,
         secrets: ConsensusSecrets,
         build_version: Option<semver::Version>,
-        enable_pregenesis: bool,
     ) -> anyhow::Result<()> {
         let attester = config::attester_key(&secrets).context("attester_key")?;
 
@@ -74,23 +65,12 @@ impl EN {
                 .await
                 .wrap("try_update_global_config()")?;
 
-            let mut payload_queue = conn
+            let payload_queue = conn
                 .new_payload_queue(ctx, actions, self.sync_state.clone())
                 .await
                 .wrap("new_payload_queue()")?;
 
             drop(conn);
-
-            // Fetch blocks before the genesis.
-            if !enable_pregenesis {
-                self.fetch_blocks(
-                    ctx,
-                    &mut payload_queue,
-                    Some(global_config.genesis.first_block),
-                )
-                .await
-                .wrap("fetch_blocks()")?;
-            }
 
             // Monitor the genesis of the main node.
             // If it changes, it means that a hard fork occurred and we need to reset the consensus state.

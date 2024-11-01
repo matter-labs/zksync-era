@@ -24,6 +24,7 @@ mod bytecode_publishing;
 mod circuits;
 mod code_oracle;
 mod default_aa;
+mod evm_emulator;
 mod gas_limit;
 mod get_used_contracts;
 mod is_write_initial;
@@ -173,13 +174,13 @@ where
 impl TestedVmForValidation
     for Vm<ImmutableStorageView<InMemoryStorage>, WithBuiltinTracersForValidation<()>>
 {
-    fn run_validation(&mut self, tx: L2Tx) -> Option<ViolatedValidationRule> {
+    fn run_validation(&mut self, tx: L2Tx, timestamp: u64) -> Option<ViolatedValidationRule> {
         let validation_params = validation_params(&tx, &self.system_env);
         self.push_transaction(tx.into());
 
-        let mut tracer = WithBuiltinTracers::for_validation((), validation_params);
+        let mut tracer = WithBuiltinTracers::for_validation((), validation_params, timestamp);
         self.inspect(&mut tracer, InspectExecutionMode::OneTx);
 
-        tracer.validation_error()
+        tracer.validation().validation_error()
     }
 }
