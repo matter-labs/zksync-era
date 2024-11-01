@@ -220,10 +220,16 @@ impl BaseTokenL1Behaviour {
                 if receipt.status == Some(1.into()) {
                     return Ok(receipt.gas_used);
                 }
+                let reason = (*l1_params.eth_client)
+                    .as_ref()
+                    .failure_reason(hash)
+                    .await
+                    .context("failed getting failure reason of `setTokenMultiplier` transaction")?;
                 return Err(anyhow::Error::msg(format!(
-                    "`setTokenMultiplier` transaction {:?} failed with status {:?}",
+                    "`setTokenMultiplier` transaction {:?} failed with status {:?}, reason: {:?}",
                     hex::encode(hash),
-                    receipt.status
+                    receipt.status,
+                    reason
                 )));
             } else {
                 tokio::time::sleep(sleep_duration).await;

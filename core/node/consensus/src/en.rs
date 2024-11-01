@@ -35,14 +35,6 @@ pub(super) struct EN {
 impl EN {
     /// Task running a consensus node for the external node.
     /// It may be a validator, but it cannot be a leader (cannot propose blocks).
-    ///
-    /// If `enable_pregenesis` is false,
-    /// before starting the consensus node it fetches all the blocks
-    /// older than consensus genesis from the main node using json RPC.
-    /// NOTE: currently `enable_pregenesis` is hardcoded to `false` in `era.rs`.
-    ///   True is used only in tests. Once the `block_metadata` RPC is enabled everywhere
-    ///   this flag should be removed and fetching pregenesis blocks will always be done
-    ///   over the gossip network.
     pub async fn run(
         self,
         ctx: &ctx::Ctx,
@@ -50,7 +42,6 @@ impl EN {
         cfg: ConsensusConfig,
         secrets: ConsensusSecrets,
         build_version: Option<semver::Version>,
-        enable_pregenesis: bool,
     ) -> anyhow::Result<()> {
         let attester = config::attester_key(&secrets).context("attester_key")?;
 
@@ -74,23 +65,12 @@ impl EN {
                 .await
                 .wrap("try_update_global_config()")?;
 
-            let mut payload_queue = conn
+            let payload_queue = conn
                 .new_payload_queue(ctx, actions, self.sync_state.clone())
                 .await
                 .wrap("new_payload_queue()")?;
 
             drop(conn);
-
-            // Fetch blocks before the genesis.
-            if !enable_pregenesis {
-                self.fetch_blocks(
-                    ctx,
-                    &mut payload_queue,
-                    Some(global_config.genesis.first_block),
-                )
-                .await
-                .wrap("fetch_blocks()")?;
-            }
 
             // Monitor the genesis of the main node.
             // If it changes, it means that a hard fork occurred and we need to reset the consensus state.
@@ -127,7 +107,7 @@ impl EN {
             )
             .await
             .wrap("Store::new()")?;
-            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
+            s.spawn_bg(async { Ok(runner.run(ctx).await.context("Store::runner()")?) });
 
             // Run the temporary fetcher until the certificates are backfilled.
             // Temporary fetcher should be removed once json RPC syncing is fully deprecated.
@@ -146,14 +126,25 @@ impl EN {
             let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone()))
                 .await
                 .wrap("BlockStore::new()")?;
-            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
+            s.spawn_bg(async { Ok(runner.run(ctx).await.context("BlockStore::run()")?) });
 
             let attestation = Arc::new(attestation::Controller::new(attester));
-            s.spawn_bg(self.run_attestation_controller(
-                ctx,
-                global_config.clone(),
-                attestation.clone(),
-            ));
+            s.spawn_bg({
+                let global_config = global_config.clone();
+                let attestation = attestation.clone();
+                async {
+                    let res = self
+                        .run_attestation_controller(ctx, global_config, attestation)
+                        .await
+                        .wrap("run_attestation_controller()");
+                    // Attestation currently is not critical for the node to function.
+                    // If it fails, we just log the error and continue.
+                    if let Err(err) = res {
+                        tracing::error!("attestation controller failed: {err:#}");
+                    }
+                    Ok(())
+                }
+            });
 
             let executor = executor::Executor {
                 config: config::executor(&cfg, &secrets, &global_config, build_version)?,

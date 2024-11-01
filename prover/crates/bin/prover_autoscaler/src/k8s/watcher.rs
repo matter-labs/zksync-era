@@ -134,6 +134,11 @@ impl Watcher {
                         }
                         pod.status = phase;
 
+                        if pod.status == "Succeeded" || pod.status == "Failed" {
+                            // Cleaning up list of pods.
+                            v.pods.remove(&p.name_any());
+                        }
+
                         tracing::info!("Got pod: {}", p.name_any())
                     }
                     Watched::Event(e) => {

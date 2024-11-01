@@ -1,6 +1,6 @@
 //! RocksDB implementation of [`Database`].
 
-use std::{any::Any, cell::RefCell, path::Path, sync::Arc};
+use std::{any::Any, cell::RefCell, ops, path::Path, sync::Arc};
 
 use anyhow::Context as _;
 use rayon::prelude::*;
@@ -345,6 +345,32 @@ impl PruneDatabase for RocksDBWrapper {
         let stale_keys_cf = MerkleTreeColumnFamily::StaleKeys;
         let first_version = &patch.deleted_stale_key_versions.start.to_be_bytes() as &[_];
         let last_version = &patch.deleted_stale_key_versions.end.to_be_bytes();
+        write_batch.delete_range_cf(stale_keys_cf, first_version..last_version);
+
+        self.db
+            .write(write_batch)
+            .context("Failed writing a batch to RocksDB")
+    }
+
+    fn truncate(
+        &mut self,
+        manifest: Manifest,
+        truncated_versions: ops::RangeTo<u64>,
+    ) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            manifest.version_count <= truncated_versions.end,
+            "Invalid truncate call: manifest={manifest:?}, truncated_versions={truncated_versions:?}"
+        );
+        let mut write_batch = self.db.new_write_batch();
+
+        let tree_cf = MerkleTreeColumnFamily::Tree;
+        let mut node_bytes = Vec::with_capacity(128);
+        manifest.serialize(&mut node_bytes);
+        write_batch.put_cf(tree_cf, Self::MANIFEST_KEY, &node_bytes);
+
+        let stale_keys_cf = MerkleTreeColumnFamily::StaleKeys;
+        let first_version = &manifest.version_count.to_be_bytes() as &[_];
+        let last_version = &truncated_versions.end.to_be_bytes();
         write_batch.delete_range_cf(stale_keys_cf, first_version..last_version);
 
         self.db
