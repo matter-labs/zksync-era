@@ -359,7 +359,7 @@ pub struct ForceDeployment {
 }
 
 impl ForceDeployment {
-    /// ABI schema of the `ProposedUpgrade`.
+    /// ABI schema of the `ForceDeployment`.
     pub fn schema() -> ParamType {
         ParamType::Tuple(vec![
             ParamType::FixedBytes(32),
