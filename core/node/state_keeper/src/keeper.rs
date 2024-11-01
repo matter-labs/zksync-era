@@ -501,7 +501,6 @@ impl ZkSyncStateKeeper {
                 let exec_result_status = tx_result.result.clone();
                 let initiator_account = tx.initiator_account();
 
-                // FIXME: fix signature
                 updates_manager.extend_from_executed_transaction(
                     tx,
                     *tx_result,
