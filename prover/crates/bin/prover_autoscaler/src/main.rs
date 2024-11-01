@@ -1,4 +1,4 @@
-use std::{path::PathBuf, time::Duration};
+use std::time::Duration;
 
 use anyhow::Context;
 use structopt::StructOpt;
@@ -8,7 +8,7 @@ use tokio::{
 };
 use zksync_prover_autoscaler::{
     agent,
-    config::ProverAutoscalerConfig,
+    config::{config_from_yaml, ProverAutoscalerConfig},
     global::{self},
     k8s::{Scaler, Watcher},
     task_wiring::TaskRunner,
@@ -49,12 +49,6 @@ struct Opt {
     /// Path to the configuration file.
     #[structopt(long)]
     config_path: std::path::PathBuf,
-}
-
-fn config_from_yaml<T: serde::de::DeserializeOwned>(path: &PathBuf) -> anyhow::Result<T> {
-    let yaml = std::fs::read_to_string(path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
-    Ok(serde_yaml::from_str(&yaml)?)
 }
 
 #[tokio::main]

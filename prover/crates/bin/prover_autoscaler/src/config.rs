@@ -1,5 +1,6 @@
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, path::PathBuf, time::Duration};
 
+use anyhow::Context;
 use serde::Deserialize;
 use strum::Display;
 use strum_macros::EnumString;
@@ -175,4 +176,10 @@ impl ScalerTarget {
     pub fn default_speed() -> usize {
         1
     }
+}
+
+pub fn config_from_yaml<T: serde::de::DeserializeOwned>(path: &PathBuf) -> anyhow::Result<T> {
+    let yaml = std::fs::read_to_string(path)
+        .with_context(|| format!("failed to read {}", path.display()))?;
+    Ok(serde_yaml::from_str(&yaml)?)
 }
