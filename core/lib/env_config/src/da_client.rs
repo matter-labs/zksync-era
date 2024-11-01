@@ -250,6 +250,7 @@ mod tests {
             DA_CLIENT="Eigen"
             DA_RPC_NODE_URL="localhost:12345"
             DA_INCLUSION_POLLING_INTERVAL_MS="1000"
+            DA_AUTHENTICATED_DISPERSAL="true"
         "#;
         lock.set_env(config);
 
@@ -259,6 +260,7 @@ mod tests {
             DAClientConfig::Eigen(EigenConfig {
                 rpc_node_url: "localhost:12345".to_string(),
                 inclusion_polling_interval_ms: 1000,
+                authenticated_dispersal: true,
             })
         );
     }

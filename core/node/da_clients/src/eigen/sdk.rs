@@ -7,6 +7,8 @@ use tonic::{
     transport::{Channel, ClientTlsConfig, Endpoint},
     Streaming,
 };
+#[cfg(test)]
+use zksync_da_client::types::DAError;
 
 use super::disperser::BlobInfo;
 use crate::eigen::{
@@ -25,6 +27,7 @@ pub struct RawEigenClient {
     polling_interval: Duration,
     private_key: SecretKey,
     account_id: String,
+    authenticated_dispersal: bool,
 }
 
 pub(crate) const DATA_CHUNK_SIZE: usize = 32;
@@ -36,6 +39,7 @@ impl RawEigenClient {
         rpc_node_url: String,
         inclusion_polling_interval_ms: u64,
         private_key: SecretKey,
+        authenticated_dispersal: bool,
     ) -> anyhow::Result<Self> {
         let endpoint =
             Endpoint::from_str(rpc_node_url.as_str())?.tls_config(ClientTlsConfig::new())?;
@@ -51,10 +55,42 @@ impl RawEigenClient {
             polling_interval,
             private_key,
             account_id,
+            authenticated_dispersal,
         })
     }
 
-    pub async fn dispatch_blob(&self, data: Vec<u8>) -> anyhow::Result<String> {
+    async fn dispatch_blob_non_authenticated(&self, data: Vec<u8>) -> anyhow::Result<String> {
+        let padded_data = convert_by_padding_empty_byte(&data);
+        let request = disperser::DisperseBlobRequest {
+            data: padded_data,
+            custom_quorum_numbers: vec![],
+            account_id: String::default(), // Account Id is not used in non-authenticated mode
+        };
+
+        let mut client_clone = self.client.clone();
+        let disperse_reply = client_clone.disperse_blob(request).await?.into_inner();
+
+        let blob_info = self
+            .await_for_inclusion(client_clone, disperse_reply)
+            .await?;
+
+        let verification_proof = blob_info
+            .blob_verification_proof
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("No blob verification proof in response"))?;
+        let blob_id = format!(
+            "{}:{}",
+            verification_proof.batch_id, verification_proof.blob_index
+        );
+        tracing::info!("Blob dispatch confirmed, blob id: {}", blob_id);
+
+        let blob_id = blob_info::BlobInfo::try_from(blob_info)
+            .map_err(|e| anyhow::anyhow!("Failed to convert blob info: {}", e))?;
+
+        Ok(hex::encode(rlp::encode(&blob_id)))
+    }
+
+    async fn dispatch_blob_authenticated(&self, data: Vec<u8>) -> anyhow::Result<String> {
         let mut client_clone = self.client.clone();
         let (tx, rx) = mpsc::channel(Self::BUFFER_SIZE);
 
@@ -105,6 +141,13 @@ impl RawEigenClient {
         let blob_id = blob_info::BlobInfo::try_from(blob_info)
             .map_err(|e| anyhow::anyhow!("Failed to convert blob info: {}", e))?;
         Ok(hex::encode(rlp::encode(&blob_id)))
+    }
+
+    pub async fn dispatch_blob(&self, data: Vec<u8>) -> anyhow::Result<String> {
+        match self.authenticated_dispersal {
+            true => self.dispatch_blob_authenticated(data).await,
+            false => self.dispatch_blob_non_authenticated(data).await,
+        }
     }
 
     async fn disperse_data(
@@ -214,6 +257,51 @@ impl RawEigenClient {
                 _ => return Err(anyhow::anyhow!("Received unknown blob status")),
             }
         }
+    }
+
+    #[cfg(test)]
+    pub async fn get_blob_data(&self, blob_id: &str) -> anyhow::Result<Option<Vec<u8>>, DAError> {
+        use anyhow::anyhow;
+        use zksync_da_client::types::DAError;
+
+        use crate::eigen::blob_info::BlobInfo;
+
+        let commit = hex::decode(blob_id).map_err(|_| DAError {
+            error: anyhow!("Failed to decode blob_id"),
+            is_retriable: false,
+        })?;
+        let blob_info: BlobInfo = rlp::decode(&commit).map_err(|_| DAError {
+            error: anyhow!("Failed to decode blob_info"),
+            is_retriable: false,
+        })?;
+        let blob_index = blob_info.blob_verification_proof.blob_index;
+        let batch_header_hash = blob_info
+            .blob_verification_proof
+            .batch_medatada
+            .batch_header_hash;
+        let get_response = self
+            .client
+            .clone()
+            .retrieve_blob(disperser::RetrieveBlobRequest {
+                batch_header_hash,
+                blob_index,
+            })
+            .await
+            .map_err(|e| DAError {
+                error: anyhow!(e),
+                is_retriable: true,
+            })?
+            .into_inner();
+
+        if get_response.data.len() == 0 {
+            return Err(DAError {
+                error: anyhow!("Failed to get blob data"),
+                is_retriable: false,
+            });
+        }
+        //TODO: remove zkgpad_rs
+        let data = kzgpad_rs::remove_empty_byte_from_padded_bytes(&get_response.data);
+        return Ok(Some(data));
     }
 }
 

@@ -29,6 +29,7 @@ impl EigenClient {
                     config.disperser_rpc,
                     config.status_query_interval,
                     private_key,
+                    config.authenticaded,
                 )
                 .await?;
                 Ok(EigenClient {
@@ -68,5 +69,82 @@ impl DataAvailabilityClient for EigenClient {
 
     fn blob_size_limit(&self) -> Option<usize> {
         Some(1920 * 1024) // 2mb - 128kb as a buffer
+    }
+}
+
+#[cfg(test)]
+impl EigenClient {
+    pub async fn get_blob_data(&self, blob_id: &str) -> anyhow::Result<Option<Vec<u8>>, DAError> {
+        self.client.get_blob_data(blob_id).await
+        /*match &self.disperser {
+            Disperser::Remote(remote_client) => remote_client.get_blob_data(blob_id).await,
+            Disperser::Memory(memstore) => memstore.clone().get_blob_data(blob_id).await,
+        }*/
+    }
+}
+#[cfg(test)]
+mod tests {
+    use zksync_config::configs::da_client::eigen::DisperserConfig;
+    use zksync_types::secrets::PrivateKey;
+
+    use super::*;
+    use crate::eigen::blob_info::BlobInfo;
+    #[tokio::test]
+    async fn test_non_auth_dispersal() {
+        let config = EigenConfig::Disperser(DisperserConfig {
+            custom_quorum_numbers: None,
+            disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
+            eth_confirmation_depth: -1,
+            eigenda_eth_rpc: String::default(),
+            eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
+            blob_size_limit: 2 * 1024 * 1024, // 2MB
+            status_query_timeout: 1800,       // 30 minutes
+            status_query_interval: 5,         // 5 seconds
+            wait_for_finalization: false,
+            authenticaded: false,
+        });
+        let secrets = EigenSecrets {
+            private_key: PrivateKey::from_str(
+                "d08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6",
+            )
+            .unwrap(),
+        };
+        let client = EigenClient::new(config, secrets).await.unwrap();
+        let data = vec![1; 20];
+        let result = client.dispatch_blob(0, data.clone()).await.unwrap();
+        let blob_info: BlobInfo =
+            rlp::decode(&hex::decode(result.blob_id.clone()).unwrap()).unwrap();
+        // TODO: once get inclusion data is added, check it
+        let retrieved_data = client.get_blob_data(&result.blob_id).await.unwrap();
+        assert_eq!(retrieved_data.unwrap(), data);
+    }
+    #[tokio::test]
+    async fn test_auth_dispersal() {
+        let config = EigenConfig::Disperser(DisperserConfig {
+            custom_quorum_numbers: None,
+            disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
+            eth_confirmation_depth: -1,
+            eigenda_eth_rpc: String::default(),
+            eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
+            blob_size_limit: 2 * 1024 * 1024, // 2MB
+            status_query_timeout: 1800,       // 30 minutes
+            status_query_interval: 5,         // 5 seconds
+            wait_for_finalization: false,
+            authenticaded: true,
+        });
+        let secrets = EigenSecrets {
+            private_key: PrivateKey::from_str(
+                "d08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6",
+            )
+            .unwrap(),
+        };
+        let client = EigenClient::new(config, secrets).await.unwrap();
+        let data = vec![1; 20];
+        let result = client.dispatch_blob(0, data.clone()).await.unwrap();
+        let blob_info: BlobInfo =
+            rlp::decode(&hex::decode(result.blob_id.clone()).unwrap()).unwrap();
+        // TODO: once get inclusion data is added, check it
+        let retrieved_data = client.get_blob_data(&result.blob_id).await.unwrap();
+        assert_eq!(retrieved_data.unwrap(), data);
     }
 }
