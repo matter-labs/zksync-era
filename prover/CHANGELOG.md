@@ -1,5 +1,16 @@
 # Changelog
 
+## [17.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v16.6.0...prover-v17.0.0) (2024-10-31)
+
+
+### ⚠ BREAKING CHANGES
+
+* force minor bump for provers release -- v25 ([#3208](https://github.com/matter-labs/zksync-era/issues/3208))
+
+### Features
+
+* force minor bump for provers release -- v25 ([#3208](https://github.com/matter-labs/zksync-era/issues/3208)) ([6851e35](https://github.com/matter-labs/zksync-era/commit/6851e353f01cde5d385403dedb68bcae76d06966))
+
 ## [16.6.0](https://github.com/matter-labs/zksync-era/compare/prover-v16.5.0...prover-v16.6.0) (2024-10-31)
 
 
