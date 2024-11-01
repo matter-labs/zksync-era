@@ -1,4 +1,5 @@
 #![doc = include_str!("../doc/ContractVerificationDal.md")]
+
 use std::{
     fmt::{Display, Formatter},
     time::Duration,
@@ -6,23 +7,20 @@ use std::{
 
 use anyhow::Context as _;
 use sqlx::postgres::types::PgInterval;
-use zksync_db_connection::connection::Connection;
+use zksync_db_connection::{error::SqlxContext, instrument::InstrumentExt};
 use zksync_types::{
     contract_verification_api::{
-        DeployContractCalldata, VerificationIncomingRequest, VerificationInfo, VerificationRequest,
+        VerificationIncomingRequest, VerificationInfo, VerificationRequest,
         VerificationRequestStatus,
     },
-    Address, CONTRACT_DEPLOYER_ADDRESS,
+    web3, Address, CONTRACT_DEPLOYER_ADDRESS, H256,
 };
 use zksync_utils::address_to_h256;
 use zksync_vm_interface::VmEvent;
 
-use crate::{models::storage_verification_request::StorageVerificationRequest, Core};
-
-#[derive(Debug)]
-pub struct ContractVerificationDal<'a, 'c> {
-    pub(crate) storage: &'a mut Connection<'c, Core>,
-}
+use crate::{
+    models::storage_verification_request::StorageVerificationRequest, Connection, Core, DalResult,
+};
 
 #[derive(Debug)]
 enum Compiler {
@@ -43,6 +41,23 @@ impl Display for Compiler {
     }
 }
 
+#[derive(Debug)]
+pub struct DeployedContractData {
+    pub bytecode_hash: H256,
+    /// Bytecode as persisted in Postgres (i.e., with additional padding for EVM bytecodes).
+    pub bytecode: Vec<u8>,
+    /// Recipient of the deployment transaction.
+    pub contract_address: Option<Address>,
+    /// Call data for the deployment transaction.
+    pub calldata: Option<Vec<u8>>,
+}
+
+#[derive(Debug)]
+pub struct ContractVerificationDal<'a, 'c> {
+    pub(crate) storage: &'a mut Connection<'c, Core>,
+}
+
+// FIXME: instrument other queries
 impl ContractVerificationDal<'_, '_> {
     pub async fn get_count_of_queued_verification_requests(&mut self) -> sqlx::Result<usize> {
         sqlx::query!(
@@ -286,17 +301,18 @@ impl ContractVerificationDal<'_, '_> {
     }
 
     /// Returns bytecode and calldata from the contract and the transaction that created it.
+    // FIXME: add unit test
     pub async fn get_contract_info_for_verification(
         &mut self,
         address: Address,
-    ) -> anyhow::Result<Option<(Vec<u8>, DeployContractCalldata)>> {
+    ) -> DalResult<Option<DeployedContractData>> {
         let address_h256 = address_to_h256(&address);
-
-        let Some(row) = sqlx::query!(
+        sqlx::query!(
             r#"
             SELECT
+                factory_deps.bytecode_hash,
                 factory_deps.bytecode,
-                transactions.data AS "data?",
+                transactions.data -> 'calldata' AS "calldata?",
                 transactions.contract_address AS "contract_address?"
             FROM
                 (
@@ -327,26 +343,25 @@ impl ContractVerificationDal<'_, '_> {
             VmEvent::DEPLOY_EVENT_SIGNATURE.as_bytes(),
             address_h256.as_bytes(),
         )
-        .fetch_optional(self.storage.conn())
-        .await?
-        else {
-            return Ok(None);
-        };
-        let calldata = match row.contract_address {
-            Some(contract_address) if contract_address == CONTRACT_DEPLOYER_ADDRESS.0.to_vec() => {
-                // `row.contract_address` and `row.data` are either both `None` or both `Some(_)`.
-                // In this arm it's checked that `row.contract_address` is `Some(_)`, so it's safe to unwrap `row.data`.
-                let data: serde_json::Value = row.data.context("data missing")?;
-                let calldata_str: String = serde_json::from_value(
-                    data.get("calldata").context("calldata missing")?.clone(),
-                )
-                .context("failed parsing calldata")?;
-                let calldata = hex::decode(&calldata_str[2..]).context("invalid calldata")?;
-                DeployContractCalldata::Deploy(calldata)
-            }
-            _ => DeployContractCalldata::Ignore,
-        };
-        Ok(Some((row.bytecode, calldata)))
+        .try_map(|row| {
+            Ok(DeployedContractData {
+                bytecode_hash: H256::from_slice(&row.bytecode_hash),
+                bytecode: row.bytecode,
+                contract_address: row.contract_address.as_deref().map(Address::from_slice),
+                calldata: row
+                    .calldata
+                    .map(|calldata| {
+                        serde_json::from_value::<web3::Bytes>(calldata)
+                            .decode_column("calldata")
+                            .map(|bytes| bytes.0)
+                    })
+                    .transpose()?,
+            })
+        })
+        .instrument("get_contract_info_for_verification")
+        .with_arg("address", &address)
+        .fetch_optional(self.storage)
+        .await
     }
 
     /// Returns true if the contract has a stored contracts_verification_info.

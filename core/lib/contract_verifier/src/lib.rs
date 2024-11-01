@@ -11,14 +11,14 @@ use anyhow::Context as _;
 use chrono::Utc;
 use ethabi::{Contract, Token};
 use tokio::time;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{contract_verification_dal::DeployedContractData, ConnectionPool, Core, CoreDal};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
     contract_verification_api::{
-        CompilationArtifacts, CompilerType, DeployContractCalldata, SourceCodeData,
-        VerificationIncomingRequest, VerificationInfo, VerificationRequest,
+        CompilationArtifacts, CompilerType, SourceCodeData, VerificationIncomingRequest,
+        VerificationInfo, VerificationRequest,
     },
-    Address,
+    Address, CONTRACT_DEPLOYER_ADDRESS,
 };
 
 use crate::{
@@ -149,7 +149,7 @@ impl ContractVerifier {
             .connection_pool
             .connection_tagged("contract_verifier")
             .await?;
-        let (deployed_bytecode, creation_tx_calldata) = storage
+        let deployed_contract = storage
             .contract_verification_dal()
             .get_contract_info_for_verification(request.req.contract_address)
             .await?
@@ -160,16 +160,17 @@ impl ContractVerifier {
                 )
             })?;
         drop(storage);
+        // FIXME: make compilation depend on bytecode type
 
         let constructor_args =
-            self.decode_constructor_args(creation_tx_calldata, request.req.contract_address)?;
+            self.decode_constructor_args(&deployed_contract, request.req.contract_address)?;
 
-        if artifacts.bytecode != deployed_bytecode {
+        if artifacts.bytecode != deployed_contract.bytecode {
             tracing::info!(
                 "Bytecode mismatch req {}, deployed: 0x{}, compiled: 0x{}",
                 request.id,
-                hex::encode(deployed_bytecode),
-                hex::encode(artifacts.bytecode)
+                hex::encode(&deployed_contract.bytecode),
+                hex::encode(&artifacts.bytecode)
             );
             return Err(ContractVerifierError::BytecodeMismatch);
         }
@@ -342,74 +343,85 @@ impl ContractVerifier {
     #[tracing::instrument(level = "trace", skip_all, ret, err)]
     fn decode_constructor_args(
         &self,
-        calldata: DeployContractCalldata,
+        contract: &DeployedContractData,
         contract_address_to_verify: Address,
     ) -> anyhow::Result<ConstructorArgs> {
-        match calldata {
-            DeployContractCalldata::Deploy(calldata) => {
-                anyhow::ensure!(
-                    calldata.len() >= 4,
-                    "calldata doesn't include Solidity function selector"
-                );
+        let Some(calldata) = &contract.calldata else {
+            return Ok(ConstructorArgs::Ignore);
+        };
 
-                let contract_deployer = &self.contract_deployer;
-                let create = contract_deployer
-                    .function("create")
-                    .context("no `create` in contract deployer ABI")?;
-                let create2 = contract_deployer
-                    .function("create2")
-                    .context("no `create2` in contract deployer ABI")?;
-                let create_acc = contract_deployer
-                    .function("createAccount")
-                    .context("no `createAccount` in contract deployer ABI")?;
-                let create2_acc = contract_deployer
-                    .function("create2Account")
-                    .context("no `create2Account` in contract deployer ABI")?;
-                let force_deploy = contract_deployer
-                    .function("forceDeployOnAddresses")
-                    .context("no `forceDeployOnAddresses` in contract deployer ABI")?;
-
-                let (selector, token_data) = calldata.split_at(4);
-                // It's assumed that `create` and `create2` methods have the same parameters
-                // and the same for `createAccount` and `create2Account`.
-                Ok(match selector {
-                    selector
-                        if selector == create.short_signature()
-                            || selector == create2.short_signature() =>
-                    {
-                        let tokens = create
-                            .decode_input(token_data)
-                            .context("failed to decode `create` / `create2` input")?;
-                        // Constructor arguments are in the third parameter.
-                        ConstructorArgs::Check(tokens[2].clone().into_bytes().context(
-                            "third parameter of `create/create2` should be of type `bytes`",
-                        )?)
-                    }
-                    selector
-                        if selector == create_acc.short_signature()
-                            || selector == create2_acc.short_signature() =>
-                    {
-                        let tokens = create
-                            .decode_input(token_data)
-                            .context("failed to decode `createAccount` / `create2Account` input")?;
-                        // Constructor arguments are in the third parameter.
-                        ConstructorArgs::Check(tokens[2].clone().into_bytes().context(
-                            "third parameter of `createAccount/create2Account` should be of type `bytes`",
-                        )?)
-                    }
-                    selector if selector == force_deploy.short_signature() => {
-                        Self::decode_force_deployment(
-                            token_data,
-                            force_deploy,
-                            contract_address_to_verify,
-                        )
-                        .context("failed decoding force deployment")?
-                    }
-                    _ => ConstructorArgs::Ignore,
-                })
-            }
-            DeployContractCalldata::Ignore => Ok(ConstructorArgs::Ignore),
+        if contract.contract_address == Some(CONTRACT_DEPLOYER_ADDRESS) {
+            self.decode_contract_deployer_call(calldata, contract_address_to_verify)
+        } else {
+            // FIXME: handle EVM contracts
+            Ok(ConstructorArgs::Ignore)
         }
+    }
+
+    fn decode_contract_deployer_call(
+        &self,
+        calldata: &[u8],
+        contract_address_to_verify: Address,
+    ) -> anyhow::Result<ConstructorArgs> {
+        anyhow::ensure!(
+            calldata.len() >= 4,
+            "calldata doesn't include Solidity function selector"
+        );
+
+        let contract_deployer = &self.contract_deployer;
+        let create = contract_deployer
+            .function("create")
+            .context("no `create` in contract deployer ABI")?;
+        let create2 = contract_deployer
+            .function("create2")
+            .context("no `create2` in contract deployer ABI")?;
+        let create_acc = contract_deployer
+            .function("createAccount")
+            .context("no `createAccount` in contract deployer ABI")?;
+        let create2_acc = contract_deployer
+            .function("create2Account")
+            .context("no `create2Account` in contract deployer ABI")?;
+        let force_deploy = contract_deployer
+            .function("forceDeployOnAddresses")
+            .context("no `forceDeployOnAddresses` in contract deployer ABI")?;
+
+        let (selector, token_data) = calldata.split_at(4);
+        // It's assumed that `create` and `create2` methods have the same parameters
+        // and the same for `createAccount` and `create2Account`.
+        Ok(match selector {
+            selector
+                if selector == create.short_signature()
+                    || selector == create2.short_signature() =>
+            {
+                let tokens = create
+                    .decode_input(token_data)
+                    .context("failed to decode `create` / `create2` input")?;
+                // Constructor arguments are in the third parameter.
+                ConstructorArgs::Check(
+                    tokens[2]
+                        .clone()
+                        .into_bytes()
+                        .context("third parameter of `create/create2` should be of type `bytes`")?,
+                )
+            }
+            selector
+                if selector == create_acc.short_signature()
+                    || selector == create2_acc.short_signature() =>
+            {
+                let tokens = create
+                    .decode_input(token_data)
+                    .context("failed to decode `createAccount` / `create2Account` input")?;
+                // Constructor arguments are in the third parameter.
+                ConstructorArgs::Check(tokens[2].clone().into_bytes().context(
+                    "third parameter of `createAccount/create2Account` should be of type `bytes`",
+                )?)
+            }
+            selector if selector == force_deploy.short_signature() => {
+                Self::decode_force_deployment(token_data, force_deploy, contract_address_to_verify)
+                    .context("failed decoding force deployment")?
+            }
+            _ => ConstructorArgs::Ignore,
+        })
     }
 
     fn decode_force_deployment(

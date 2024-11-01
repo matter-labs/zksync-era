@@ -235,12 +235,6 @@ pub struct VerificationRequestStatus {
     pub compilation_errors: Option<Vec<String>>,
 }
 
-#[derive(Debug)]
-pub enum DeployContractCalldata {
-    Deploy(Vec<u8>),
-    Ignore,
-}
-
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
