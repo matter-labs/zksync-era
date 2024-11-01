@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
 
 use anyhow::Context;
 use structopt::StructOpt;
@@ -6,10 +6,9 @@ use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
 };
-use zksync_core_leftovers::temp_config_store::read_yaml_repr;
-use zksync_protobuf_config::proto::prover_autoscaler;
 use zksync_prover_autoscaler::{
     agent,
+    config::ProverAutoscalerConfig,
     global::{self},
     k8s::{Scaler, Watcher},
     task_wiring::TaskRunner,
@@ -52,19 +51,21 @@ struct Opt {
     config_path: std::path::PathBuf,
 }
 
+fn config_from_yaml<T: serde::de::DeserializeOwned>(path: &PathBuf) -> anyhow::Result<T> {
+    let yaml = std::fs::read_to_string(path)
+        .with_context(|| format!("failed to read {}", path.display()))?;
+    Ok(serde_yaml::from_str(&yaml)?)
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Opt::from_args();
     let general_config =
-        read_yaml_repr::<prover_autoscaler::ProverAutoscalerConfig>(&opt.config_path)
-            .context("general config")?;
+        config_from_yaml::<ProverAutoscalerConfig>(&opt.config_path).context("general config")?;
     let observability_config = general_config
         .observability
         .context("observability config")?;
     let _observability_guard = observability_config.install()?;
-    // That's unfortunate that there are at least 3 different Duration in rust and we use all 3 in this repo.
-    // TODO: Consider updating zksync_protobuf to support std::time::Duration.
-    let graceful_shutdown_timeout = general_config.graceful_shutdown_timeout.unsigned_abs();
 
     let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
     let mut stop_signal_sender = Some(stop_signal_sender);
@@ -77,9 +78,6 @@ async fn main() -> anyhow::Result<()> {
 
     let (stop_sender, stop_receiver) = watch::channel(false);
 
-    let _ = rustls::crypto::ring::default_provider().install_default();
-    let client = kube::Client::try_default().await?;
-
     let mut tasks = vec![];
 
     match opt.job {
@@ -91,6 +89,9 @@ async fn main() -> anyhow::Result<()> {
             let agent_config = general_config.agent_config.context("agent_config")?;
             let exporter_config = PrometheusExporterConfig::pull(agent_config.prometheus_port);
             tasks.push(tokio::spawn(exporter_config.run(stop_receiver.clone())));
+
+            let _ = rustls::crypto::ring::default_provider().install_default();
+            let client = kube::Client::try_default().await?;
 
             // TODO: maybe get cluster name from curl -H "Metadata-Flavor: Google"
             // http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name
@@ -107,7 +108,7 @@ async fn main() -> anyhow::Result<()> {
         AutoscalerType::Scaler => {
             tracing::info!("Starting ProverAutoscaler Scaler");
             let scaler_config = general_config.scaler_config.context("scaler_config")?;
-            let interval = scaler_config.scaler_run_interval.unsigned_abs();
+            let interval = scaler_config.scaler_run_interval;
             let exporter_config = PrometheusExporterConfig::pull(scaler_config.prometheus_port);
             tasks.push(tokio::spawn(exporter_config.run(stop_receiver.clone())));
             let watcher =
@@ -127,7 +128,9 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     stop_sender.send(true).ok();
-    tasks.complete(graceful_shutdown_timeout).await;
+    tasks
+        .complete(general_config.graceful_shutdown_timeout)
+        .await;
 
     Ok(())
 }
