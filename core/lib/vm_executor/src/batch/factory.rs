@@ -214,7 +214,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         with_compression: bool,
     ) -> BatchTransactionExecutionResult<BytecodeResult> {
         let call_tracer_result = Arc::new(OnceCell::default());
-        let legacy_tracer = if true {
+        let legacy_tracer = if Tr::TRACE_CALLS {
             vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
         } else {
             vec![]

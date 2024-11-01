@@ -12,8 +12,9 @@ use zksync_eth_client::{
 };
 use zksync_types::{
     ethabi::{decode, Contract, ParamType},
-    web3::{BlockId, BlockNumber, FilterBuilder, Log},
-    Address, SLChainId, H256, U256,
+    tokens::TokenMetadata,
+    web3::{BlockId, BlockNumber, CallRequest, FilterBuilder, Log},
+    Address, SLChainId, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256,
 };
 
 /// L1 client functionality used by [`EthWatch`](crate::EthWatch) and constituent event processors.
@@ -47,8 +48,11 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>>;
 
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId>;
+
+    async fn get_base_token_metadata(&self) -> Result<TokenMetadata, ContractCallError>;
 }
 
+// This constant is used for reading auxilary events
 const LOOK_BACK_BLOCK_RANGE: u64 = 1_000_000;
 pub const RETRY_LIMIT: usize = 5;
 const TOO_MANY_RESULTS_INFURA: &str = "query returned more than";
@@ -356,5 +360,52 @@ impl EthClient for EthHttpQueryClient {
 
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId> {
         Ok(self.client.fetch_chain_id().await?)
+    }
+
+    async fn get_base_token_metadata(&self) -> Result<TokenMetadata, ContractCallError> {
+        let base_token_addr = CallFunctionArgs::new("getBaseToken", ())
+            .for_contract(self.diamond_proxy_addr, &self.getters_facet_contract_abi)
+            .call(&self.client)
+            .await
+            .map(|x: Address| x)?;
+
+        if base_token_addr == SHARED_BRIDGE_ETHER_TOKEN_ADDRESS {
+            return Ok(TokenMetadata {
+                name: String::from("Ether"),
+                symbol: String::from("ETH"),
+                decimals: 18,
+            });
+        }
+
+        let selectors: [[u8; 4]; 3] = [
+            zksync_types::ethabi::short_signature("name", &[]),
+            zksync_types::ethabi::short_signature("symbol", &[]),
+            zksync_types::ethabi::short_signature("decimals", &[]),
+        ];
+        let types: [ParamType; 3] = [ParamType::String, ParamType::String, ParamType::Uint(32)];
+
+        let mut decoded_result = vec![];
+        for (selector, param_type) in selectors.into_iter().zip(types.into_iter()) {
+            let request = CallRequest {
+                to: Some(base_token_addr),
+                data: Some(selector.into()),
+                ..Default::default()
+            };
+            let result = self.client.call_contract_function(request, None).await?;
+            // Base tokens are expected to support erc20 metadata
+            let mut token = zksync_types::ethabi::decode(&[param_type], &result.0)
+                .expect("base token does not support erc20 metadata");
+            decoded_result.push(token.pop().unwrap());
+        }
+
+        Ok(TokenMetadata {
+            name: decoded_result[0].to_string(),
+            symbol: decoded_result[1].to_string(),
+            decimals: decoded_result[2]
+                .clone()
+                .into_uint()
+                .expect("decimals not supported")
+                .as_u32() as u8,
+        })
     }
 }

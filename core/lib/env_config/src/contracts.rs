@@ -105,7 +105,7 @@ mod tests {
                 )
                 .unwrap(),
             ),
-            predeployed_l2_weth_token_address: Some(addr(
+            predeployed_l2_wrapped_base_token_address: Some(addr(
                 "0x35ea7f92f4c5f433efe15284e99c040110cf6299",
             )),
             user_facing_bridgehub_proxy_addr: Some(addr(

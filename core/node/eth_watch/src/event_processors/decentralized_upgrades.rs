@@ -45,10 +45,10 @@ impl ProtocolUpgradePreimageOracle for &dyn EthClient {
         &self,
         hashes: Vec<H256>,
     ) -> anyhow::Result<Vec<Vec<u8>>> {
-        let preaimges = self.get_published_preimages(hashes.clone()).await?;
+        let preimages = self.get_published_preimages(hashes.clone()).await?;
 
         let mut result = vec![];
-        for (i, preimage) in preaimges.into_iter().enumerate() {
+        for (i, preimage) in preimages.into_iter().enumerate() {
             let preimage = preimage.with_context(|| {
                 format!("Protocol upgrade preimage for {:#?} is missing", hashes[i])
             })?;

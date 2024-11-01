@@ -117,7 +117,7 @@ async fn prepare_upgrade_call(
     }
 
     let minor_version = proposed_upgrade.l2_protocol_upgrade_tx.nonce;
-    if ProtocolVersionId::try_from_minor_version(minor_version.as_u32()).unwrap()
+    if ProtocolVersionId::try_from(minor_version.as_u32() as u16).unwrap()
         != ProtocolVersionId::gateway_upgrade()
     {
         // We'll just keep it the same for non-Gateway upgrades

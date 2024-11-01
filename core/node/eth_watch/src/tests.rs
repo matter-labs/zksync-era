@@ -1,19 +1,19 @@
 use std::{collections::HashMap, convert::TryInto, sync::Arc};
 
 use tokio::sync::RwLock;
+use zksync_config::ContractsConfig;
 use zksync_contracts::{
     chain_admin_contract, hyperchain_contract, state_transition_manager_contract,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{ContractCallError, EnrichedClientResult};
 use zksync_types::{
-    abi,
-    abi::ProposedUpgrade,
-    ethabi,
-    ethabi::Token,
+    abi::{self, ProposedUpgrade},
+    ethabi::{self, Token},
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     protocol_version::ProtocolSemanticVersion,
+    tokens::TokenMetadata,
     web3::{contract::Tokenizable, BlockNumber, Log},
     Address, Execute, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion,
     ProtocolVersionId, SLChainId, Transaction, H256, U256, U64,
@@ -224,6 +224,14 @@ impl EthClient for MockEthClient {
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId> {
         Ok(self.inner.read().await.chain_id)
     }
+
+    async fn get_base_token_metadata(&self) -> Result<TokenMetadata, ContractCallError> {
+        Ok(TokenMetadata {
+            name: "Ether".to_string(),
+            symbol: "ETH".to_string(),
+            decimals: 18,
+        })
+    }
 }
 
 fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
@@ -307,7 +315,7 @@ async fn create_test_watcher(
         Box::new(sl_client.clone()),
         connection_pool,
         std::time::Duration::from_nanos(1),
-        None,
+        &ContractsConfig::for_tests(),
     )
     .await
     .unwrap();
@@ -413,7 +421,7 @@ async fn test_normal_operation_upgrade_timestamp() {
         Box::new(client.clone()),
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
-        None,
+        &ContractsConfig::for_tests(),
     )
     .await
     .unwrap();

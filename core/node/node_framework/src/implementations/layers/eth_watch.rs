@@ -76,18 +76,6 @@ impl WiringLayer for EthWatchLayer {
         let main_pool = input.master_pool.get().await?;
         let client = input.eth_client.0;
 
-        let (base_token_name, base_token_symbol) =
-            if let Some(base_token_addr) = self.contracts_config.base_token_addr {
-                let (name, symbol) = get_token_metadata(&client, base_token_addr)
-                    .await
-                    .map_err(WiringError::Internal)?;
-                (Some(name), Some(symbol))
-            } else {
-                (None, None)
-            };
-
-        //  = if self.contracts_config.base_token_addr
-
         let sl_diamond_proxy_addr = if self.settlement_mode.is_gateway() {
             self.gateway_contracts_config
                 .clone()
@@ -114,6 +102,7 @@ impl WiringLayer for EthWatchLayer {
                 .and_then(|a| a.l1_bytecodes_supplier_addr),
             self.contracts_config
                 .ecosystem_contracts
+                .as_ref()
                 .map(|a| a.state_transition_proxy_addr),
             self.contracts_config.chain_admin_addr,
             self.contracts_config.governance_addr,
@@ -142,54 +131,12 @@ impl WiringLayer for EthWatchLayer {
             Box::new(sl_client),
             main_pool,
             self.eth_watch_config.poll_interval(),
-            ZkChainSpecificUpgradeData::from_partial_components(
-                self.contracts_config.base_token_asset_id,
-                self.contracts_config.l2_legacy_shared_bridge_addr,
-                self.contracts_config.predeployed_l2_weth_token_address,
-                self.contracts_config.base_token_addr,
-                base_token_name,
-                base_token_symbol,
-            ),
+            &self.contracts_config,
         )
         .await?;
 
         Ok(Output { eth_watch })
     }
-}
-
-/// Returns token's name and symbol
-async fn get_token_metadata(
-    client: &Box<DynClient<L1>>,
-    addr: Address,
-) -> anyhow::Result<(String, String)> {
-    if addr == SHARED_BRIDGE_ETHER_TOKEN_ADDRESS {
-        return Ok((String::from("Ether"), String::from("ETH")));
-    }
-
-    // It is an ERC20 token, so we'll have to call it on L1.
-
-    let name_selector = zksync_types::ethabi::short_signature("name", &[]);
-    let symbol_selector = zksync_types::ethabi::short_signature("symbol", &[]);
-
-    let name_request = CallRequest {
-        to: Some(addr),
-        data: Some(name_selector.into()),
-        ..Default::default()
-    };
-
-    let symbol_request = CallRequest {
-        to: Some(addr),
-        data: Some(symbol_selector.into()),
-        ..Default::default()
-    };
-
-    let name_result = client.call_contract_function(name_request, None).await?;
-    let symbol_result = client.call_contract_function(symbol_request, None).await?;
-
-    let name = zksync_types::ethabi::decode(&[ParamType::String], &name_result.0)?;
-    let symbol = zksync_types::ethabi::decode(&[ParamType::String], &symbol_result.0)?;
-
-    Ok((name[0].to_string(), symbol[0].to_string()))
 }
 
 #[async_trait::async_trait]

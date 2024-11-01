@@ -255,10 +255,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 .storage
                 .factory_deps_dal()
                 .get_base_system_contracts(
-                    Some(
-                        ProtocolVersionId::try_from_minor_version(u32::from(version_id))
-                            .expect("Invalid version id"),
-                    ),
+                    Some(ProtocolVersionId::try_from(version_id).expect("Invalid version id")),
                     H256::from_slice(&row.bootloader_code_hash),
                     H256::from_slice(&row.default_account_code_hash),
                     row.evm_emulator_code_hash.as_deref().map(H256::from_slice),

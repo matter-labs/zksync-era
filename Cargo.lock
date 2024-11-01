@@ -10232,6 +10232,7 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_concurrency",
+ "zksync_config",
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",

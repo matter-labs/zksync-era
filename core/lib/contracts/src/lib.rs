@@ -533,6 +533,7 @@ impl BaseSystemContracts {
     }
 
     pub fn playground_gateway() -> Self {
+        // TODO: the value should be taken from the `multivm_bootloaders` folder
         let bootloader_bytecode = read_bootloader_code("playground_batch");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
@@ -608,6 +609,7 @@ impl BaseSystemContracts {
     }
 
     pub fn estimate_gas_gateway() -> Self {
+        // TODO: the value should be taken from the `multivm_bootloaders` folder
         let bootloader_bytecode = read_bootloader_code("fee_estimate");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }

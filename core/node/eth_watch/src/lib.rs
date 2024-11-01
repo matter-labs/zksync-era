@@ -6,11 +6,13 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use tokio::sync::watch;
+use zksync_config::ContractsConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     abi::ZkChainSpecificUpgradeData, ethabi::Contract, protocol_version::ProtocolSemanticVersion,
-    web3::BlockNumber as Web3BlockNumber, PriorityOpId,
+    tokens::TokenMetadata, web3::BlockNumber as Web3BlockNumber, PriorityOpId,
+    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
 };
 
 pub use self::client::EthHttpQueryClient;
@@ -51,7 +53,7 @@ impl EthWatch {
         sl_client: Box<dyn EthClient>,
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
-        chain_specific_data: Option<ZkChainSpecificUpgradeData>,
+        contracts_config: &ContractsConfig,
     ) -> anyhow::Result<Self> {
         let mut storage = pool.connection_tagged("eth_watch").await?;
         let state = Self::initialize_state(&mut storage).await?;
@@ -63,7 +65,7 @@ impl EthWatch {
         let decentralized_upgrades_processor = DecentralizedUpgradesEventProcessor::new(
             state.last_seen_protocol_version,
             chain_admin_contract,
-            chain_specific_data,
+            get_chain_specific_upgrade_params(&l1_client, contracts_config).await?,
         );
         let event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
@@ -199,4 +201,20 @@ impl EthWatch {
         }
         Ok(())
     }
+}
+
+async fn get_chain_specific_upgrade_params(
+    l1_client: &Box<dyn EthClient>,
+    contracts_config: &ContractsConfig,
+) -> anyhow::Result<Option<ZkChainSpecificUpgradeData>> {
+    let TokenMetadata { name, symbol, .. } = l1_client.get_base_token_metadata().await?;
+
+    Ok(ZkChainSpecificUpgradeData::from_partial_components(
+        contracts_config.base_token_asset_id,
+        contracts_config.l2_legacy_shared_bridge_addr,
+        contracts_config.predeployed_l2_wrapped_base_token_address,
+        contracts_config.base_token_addr,
+        Some(name),
+        Some(symbol),
+    ))
 }
