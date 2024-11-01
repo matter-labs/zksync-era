@@ -8,11 +8,11 @@ use zksync_vm_interface::{
     VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
 };
 
-use super::Vm;
+use super::{circuits_tracer::CircuitsTracer, Vm};
 use crate::{
     interface::storage::{ImmutableStorageView, InMemoryStorage},
     versions::testonly::TestedVm,
-    vm_fast::CircuitsTracer,
+    vm_fast::evm_deploy_tracer::{DynamicBytecodes, EvmDeployTracer},
 };
 
 mod block_tip;
@@ -21,6 +21,7 @@ mod bytecode_publishing;
 mod circuits;
 mod code_oracle;
 mod default_aa;
+mod evm_emulator;
 mod gas_limit;
 mod get_used_contracts;
 mod is_write_initial;
@@ -122,9 +123,13 @@ impl TestedVm for Vm<ImmutableStorageView<InMemoryStorage>> {
     }
 
     fn manually_decommit(&mut self, code_hash: H256) -> bool {
+        let mut tracer = (
+            ((), CircuitsTracer::default()),
+            EvmDeployTracer::new(DynamicBytecodes::default()),
+        );
         let (_, is_fresh) = self.inner.world_diff_mut().decommit_opcode(
             &mut self.world,
-            &mut ((), CircuitsTracer::default()),
+            &mut tracer,
             h256_to_u256(code_hash),
         );
         is_fresh

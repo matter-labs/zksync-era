@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use rand::Rng as _;
-use test_casing::{test_casing, Product};
+use test_casing::test_casing;
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, error::Wrap, scope};
 use zksync_consensus_roles::{
@@ -12,7 +12,7 @@ use zksync_test_account::Account;
 use zksync_types::ProtocolVersionId;
 use zksync_web3_decl::namespaces::EnNamespaceClient as _;
 
-use super::{POLL_INTERVAL, PREGENESIS, VERSIONS};
+use super::{POLL_INTERVAL, VERSIONS};
 use crate::{
     mn::run_main_node,
     registry::{testonly, Registry},
@@ -126,9 +126,9 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
 // Test running a couple of attesters (which are also validators).
 // Main node is expected to collect all certificates.
 // External nodes are expected to just vote for the batch.
-#[test_casing(4, Product((VERSIONS,PREGENESIS)))]
+#[test_casing(2, VERSIONS)]
 #[tokio::test]
-async fn test_multiple_attesters(version: ProtocolVersionId, pregenesis: bool) {
+async fn test_multiple_attesters(version: ProtocolVersionId) {
     const NODES: usize = 4;
 
     zksync_concurrency::testonly::abort_on_panic();
@@ -137,7 +137,7 @@ async fn test_multiple_attesters(version: ProtocolVersionId, pregenesis: bool) {
     let account = &mut Account::random();
     let to_fund = &[account.address];
     let setup = Setup::new(rng, 4);
-    let mut cfgs = new_configs(rng, &setup, NODES, pregenesis);
+    let mut cfgs = new_configs(rng, &setup, NODES);
     scope::run!(ctx, |ctx, s| async {
         let validator_pool = ConnectionPool::test(false, version).await;
         let (mut validator, runner) = StateKeeper::new(ctx, validator_pool.clone()).await?;
