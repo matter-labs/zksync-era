@@ -63,17 +63,17 @@ url = "2.5.2"
 vise = "0.2.0"
 
 # Proving dependencies
-circuit_definitions = { package = "circuit_definitions", version = "0.150.9" }
-circuit_sequencer_api = { package = "circuit_sequencer_api", version = "0.150.9" }
-zkevm_test_harness = { package = "zkevm_test_harness", version = "0.150.9" }
-proof-compression-gpu = { git = "https://github.com/matter-labs/zksync-crypto-gpu", package = "proof-compression-gpu", branch = "si/fflonk-gpu" }
-fflonk-gpu = { git = "https://github.com/matter-labs/zksync-crypto-gpu", package = "fflonk-gpu", branch = "si/fflonk-gpu" }
-franklin-crypto = { package = "franklin-crypto", version = "0.30.5" }
+circuit_definitions = { package = "circuit_definitions", version = "0.150.11" }
+circuit_sequencer_api = { package = "circuit_sequencer_api", version = "0.150.11" }
+zkevm_test_harness = { package = "zkevm_test_harness", version = "0.150.11" }
+proof-compression-gpu = { package = "proof-compression", version = "0.152.3" }
+fflonk-gpu = { package = "fflonk-cuda", version = "0.152.3" }
+franklin-crypto = { package = "franklin-crypto", version = "0.30.6" }
 
 # GPU proving dependencies
-wrapper_prover = { git = "https://github.com/matter-labs/zksync-crypto-gpu", package = "zksync-wrapper-prover", branch = "si/fflonk-gpu" }
-shivini = { git = "https://github.com/matter-labs/zksync-crypto-gpu", package = "shivini", branch = "si/fflonk-gpu" }
-boojum-cuda = { git = "https://github.com/matter-labs/zksync-crypto-gpu", package = "boojum-cuda", branch = "si/fflonk-gpu" }
+wrapper_prover = { package = "zksync-wrapper-prover", version = "0.152.3" }
+shivini = { package = "shivini", version = "0.152.3" }
+boojum-cuda = { package = "boojum-cuda", version = "0.152.3" }
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }
@@ -102,9 +102,6 @@ zksync_prover_fri_utils = { path = "crates/lib/prover_fri_utils" }
 zksync_prover_keystore = { path = "crates/lib/keystore" }
 zksync_vk_setup_data_generator_server_fri = { path = "crates/bin/vk_setup_data_generator_server_fri" }
 zksync_prover_job_monitor = { path = "crates/bin/prover_job_monitor" }
-
-[patch.crates-io]
-boojum = { package = "boojum", version = "0.30.5" }
 
 # for `perf` profiling
 [profile.perf]
