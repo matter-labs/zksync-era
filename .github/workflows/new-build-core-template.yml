@@ -77,8 +77,6 @@ jobs:
           tar -C ./contracts -zxf l1-contracts.tar.gz
           tar -C ./contracts -zxf l2-contracts.tar.gz
           tar -C ./contracts -zxf system-contracts.tar.gz
-          # TODO Remove mkdir once we use foundry inside contracts repo
-          mkdir -p contracts/l1-contracts/out
 
       - name: Install Apt dependencies
         if: env.BUILD_CONTRACTS == 'true'
@@ -210,14 +208,6 @@ jobs:
           name: contacts
           path: |
             ./contracts
-
-      # TODO Remove it when we migrate to foundry inside contracts repository
-      - name: Create necessary artefacts
-        shell: bash
-        run: |
-          mkdir -p contracts/l1-contracts/artifacts/
-          mkdir -p contracts/l1-contracts/out
-
 
       - name: login to Docker registries
         if: ${{ inputs.action == 'push' }}
