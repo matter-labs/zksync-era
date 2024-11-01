@@ -88,7 +88,6 @@ impl L2BlockUpdates {
         tx_l1_gas_this_tx: BlockGasCount,
         execution_metrics: VmExecutionMetrics,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
-        new_known_factory_deps: HashMap<H256, Vec<u8>>,
         call_traces: Vec<Call>,
     ) {
         let saved_factory_deps =
@@ -124,7 +123,7 @@ impl L2BlockUpdates {
             .collect();
         // Ensure that *dynamic* factory deps (ones that may be created when executing EVM contracts)
         // are added into the lookup map as well.
-        tx_factory_deps.extend(new_known_factory_deps);
+        tx_factory_deps.extend(tx_execution_result.dynamic_factory_deps);
 
         // Save all bytecodes that were marked as known in the bootloader
         let known_bytecodes = saved_factory_deps.map(|bytecode_hash| {
@@ -211,7 +210,6 @@ mod tests {
             BlockGasCount::default(),
             VmExecutionMetrics::default(),
             vec![],
-            HashMap::new(),
             vec![],
         );
 

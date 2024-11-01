@@ -504,9 +504,8 @@ impl ZkSyncStateKeeper {
                 // FIXME: fix signature
                 updates_manager.extend_from_executed_transaction(
                     tx,
-                    *tx_result.clone(),
+                    *tx_result,
                     compressed_bytecodes,
-                    tx_result.dynamic_factory_deps,
                     tx_l1_gas_this_tx,
                     tx_execution_metrics,
                     call_tracer_result,
@@ -631,9 +630,8 @@ impl ZkSyncStateKeeper {
                     } = *tx_metrics;
                     updates_manager.extend_from_executed_transaction(
                         tx,
-                        *tx_result.clone(),
+                        *tx_result,
                         compressed_bytecodes,
-                        tx_result.dynamic_factory_deps,
                         tx_l1_gas_this_tx,
                         tx_execution_metrics,
                         call_tracer_result,
@@ -713,9 +711,8 @@ impl ZkSyncStateKeeper {
                 } = *tx_metrics;
                 updates_manager.extend_from_executed_transaction(
                     tx,
-                    *tx_result.clone(),
+                    *tx_result,
                     compressed_bytecodes,
-                    tx_result.dynamic_factory_deps,
                     tx_l1_gas_this_tx,
                     tx_execution_metrics,
                     call_tracer_result,
