@@ -268,6 +268,10 @@ impl ValidationTracer {
         || address == SYSTEM_CONTEXT_ADDRESS && slot == U256::zero()
         // allow reading code hashes of existing contracts
         || address == ACCOUNT_CODE_STORAGE_ADDRESS && !value.is_zero()
+        // allow TimestampAsserter to do its job
+        || self.timestamp_asserter_params.as_ref()
+            .map(|p| p.address == caller)
+            .unwrap_or_default()
     }
 
     fn set_error(&mut self, error: ViolatedValidationRule) {
