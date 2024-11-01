@@ -19,6 +19,7 @@ pub(crate) struct SolcInput {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct StandardJson {
     language: String,
     sources: HashMap<String, Source>,
@@ -26,6 +27,7 @@ struct StandardJson {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct Settings {
     /// The output selection filters.
     output_selection: Option<serde_json::Value>,
@@ -60,8 +62,8 @@ impl Solc {
             };
         let default_output_selection = serde_json::json!({
             "*": {
-                "*": [ "abi" ],
-                 "": [ "abi" ]
+                "*": [ "abi", "evm.bytecode", "evm.deployedBytecode" ],
+                 "": [ "abi", "evm.bytecode", "evm.deployedBytecode" ],
             }
         });
 

@@ -8,6 +8,41 @@ use zksync_utils::bytecode::validate_bytecode;
 
 use super::*;
 
+#[derive(Debug)]
+struct TestCompilerVersions {
+    solc: String,
+    zksolc: String,
+}
+
+impl TestCompilerVersions {
+    fn new(mut versions: SupportedCompilerVersions) -> Option<Self> {
+        let solc = versions
+            .solc
+            .into_iter()
+            .find(|ver| !ver.starts_with("zkVM"))?;
+        Some(Self {
+            solc,
+            zksolc: versions.zksolc.pop()?,
+        })
+    }
+
+    fn for_zksolc(self) -> CompilerVersions {
+        CompilerVersions::Solc {
+            compiler_solc_version: self.solc,
+            compiler_zksolc_version: self.zksolc,
+        }
+    }
+}
+
+async fn checked_env_resolver() -> Option<(EnvCompilerResolver, TestCompilerVersions)> {
+    let compiler_resolver = EnvCompilerResolver::default();
+    let supported_compilers = compiler_resolver.supported_versions().await.ok()?;
+    Some((
+        compiler_resolver,
+        TestCompilerVersions::new(supported_compilers)?,
+    ))
+}
+
 fn assert_no_compilers_expected() {
     assert_ne!(
         env::var("RUN_CONTRACT_VERIFICATION_TEST").ok().as_deref(),
@@ -25,10 +60,7 @@ async fn using_real_compiler() {
         return;
     };
 
-    let versions = CompilerVersions::Solc {
-        compiler_zksolc_version: supported_compilers.zksolc[0].clone(),
-        compiler_solc_version: supported_compilers.solc[0].clone(),
-    };
+    let versions = supported_compilers.for_zksolc();
     let compiler = compiler_resolver.resolve_zksolc(&versions).await.unwrap();
     let req = VerificationIncomingRequest {
         compiler_versions: versions,
@@ -42,16 +74,36 @@ async fn using_real_compiler() {
 }
 
 #[tokio::test]
+async fn using_standalone_solc() {
+    let Some((compiler_resolver, supported_compilers)) = checked_env_resolver().await else {
+        assert_no_compilers_expected();
+        return;
+    };
+
+    let version = &supported_compilers.solc;
+    let compiler = compiler_resolver.resolve_solc(version).await.unwrap();
+    let req = VerificationIncomingRequest {
+        compiler_versions: CompilerVersions::Solc {
+            compiler_solc_version: version.clone(),
+            compiler_zksolc_version: "1000.0.0".to_owned(), // doesn't matter
+        },
+        ..test_request(Address::repeat_byte(1))
+    };
+    let input = Solc::build_input(req).unwrap();
+    let output = compiler.compile(input).await.unwrap();
+
+    assert!(output.deployed_bytecode.is_some());
+    assert_eq!(output.abi, counter_contract_abi());
+}
+
+#[tokio::test]
 async fn using_real_compiler_in_verifier() {
     let Some((compiler_resolver, supported_compilers)) = checked_env_resolver().await else {
         assert_no_compilers_expected();
         return;
     };
 
-    let versions = CompilerVersions::Solc {
-        compiler_zksolc_version: supported_compilers.zksolc[0].clone(),
-        compiler_solc_version: supported_compilers.solc[0].clone(),
-    };
+    let versions = supported_compilers.for_zksolc();
     let address = Address::repeat_byte(1);
     let compiler = compiler_resolver.resolve_zksolc(&versions).await.unwrap();
     let req = VerificationIncomingRequest {
@@ -92,10 +144,7 @@ async fn compilation_errors() {
         return;
     };
 
-    let versions = CompilerVersions::Solc {
-        compiler_zksolc_version: supported_compilers.zksolc[0].clone(),
-        compiler_solc_version: supported_compilers.solc[0].clone(),
-    };
+    let versions = supported_compilers.for_zksolc();
     let address = Address::repeat_byte(1);
     let req = VerificationIncomingRequest {
         compiler_versions: versions,

@@ -316,15 +316,6 @@ async fn assert_request_success(
     assert_eq!(verification_info.artifacts.abi, counter_contract_abi());
 }
 
-async fn checked_env_resolver() -> Option<(EnvCompilerResolver, SupportedCompilerVersions)> {
-    let compiler_resolver = EnvCompilerResolver::default();
-    let supported_compilers = compiler_resolver.supported_versions().await.ok()?;
-    if supported_compilers.zksolc.is_empty() || supported_compilers.solc.is_empty() {
-        return None;
-    }
-    Some((compiler_resolver, supported_compilers))
-}
-
 #[tokio::test]
 async fn bytecode_mismatch_error() {
     let pool = ConnectionPool::test_pool().await;
