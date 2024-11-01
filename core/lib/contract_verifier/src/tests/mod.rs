@@ -18,7 +18,7 @@ use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics,
 
 use super::*;
 use crate::{
-    compilers::{ZkSolcInput, ZkVyperInput},
+    compilers::{SolcInput, ZkSolcInput, ZkVyperInput},
     resolver::{Compiler, SupportedCompilerVersions},
 };
 
@@ -130,6 +130,19 @@ impl CompilerResolver for MockCompilerResolver {
             vyper: vec![],
             zkvyper: vec![],
         })
+    }
+
+    async fn resolve_solc(
+        &self,
+        version: &str,
+    ) -> Result<Box<dyn Compiler<SolcInput>>, ContractVerifierError> {
+        if version != SOLC_VERSION {
+            return Err(ContractVerifierError::UnknownCompilerVersion(
+                "solc".to_owned(),
+                version.to_owned(),
+            ));
+        }
+        todo!()
     }
 
     async fn resolve_zksolc(

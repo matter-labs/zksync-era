@@ -7,7 +7,7 @@ use zksync_types::contract_verification_api::{CompilationArtifacts, CompilerVers
 use zksync_utils::env::Workspace;
 
 use crate::{
-    compilers::{ZkSolc, ZkSolcInput, ZkVyper, ZkVyperInput},
+    compilers::{Solc, SolcInput, ZkSolc, ZkSolcInput, ZkVyper, ZkVyperInput},
     error::ContractVerifierError,
 };
 
@@ -46,6 +46,12 @@ pub(crate) trait CompilerResolver: fmt::Debug + Send + Sync {
     ///
     /// Returned errors are assumed to be fatal.
     async fn supported_versions(&self) -> anyhow::Result<SupportedCompilerVersions>;
+
+    /// Resolves a `solc` compiler.
+    async fn resolve_solc(
+        &self,
+        version: &str,
+    ) -> Result<Box<dyn Compiler<SolcInput>>, ContractVerifierError>;
 
     /// Resolves a `zksolc` compiler.
     async fn resolve_zksolc(
@@ -102,6 +108,28 @@ impl EnvCompilerResolver {
         }
         Ok(versions)
     }
+
+    async fn resolve_solc_path(
+        &self,
+        solc_version: String,
+    ) -> Result<PathBuf, ContractVerifierError> {
+        let solc_path = self
+            .home_dir
+            .join("etc")
+            .join("solc-bin")
+            .join(&solc_version)
+            .join("solc");
+        if !fs::try_exists(&solc_path)
+            .await
+            .context("failed accessing solc")?
+        {
+            return Err(ContractVerifierError::UnknownCompilerVersion(
+                "solc".to_owned(),
+                solc_version,
+            ));
+        }
+        Ok(solc_path)
+    }
 }
 
 #[async_trait]
@@ -127,6 +155,14 @@ impl CompilerResolver for EnvCompilerResolver {
         })
     }
 
+    async fn resolve_solc(
+        &self,
+        version: &str,
+    ) -> Result<Box<dyn Compiler<SolcInput>>, ContractVerifierError> {
+        let solc_path = self.resolve_solc_path(version.to_owned()).await?;
+        Ok(Box::new(Solc::new(solc_path)))
+    }
+
     async fn resolve_zksolc(
         &self,
         versions: &CompilerVersions,
@@ -148,23 +184,7 @@ impl CompilerResolver for EnvCompilerResolver {
             ));
         }
 
-        let solc_version = versions.compiler_version();
-        let solc_path = self
-            .home_dir
-            .join("etc")
-            .join("solc-bin")
-            .join(&solc_version)
-            .join("solc");
-        if !fs::try_exists(&solc_path)
-            .await
-            .context("failed accessing solc")?
-        {
-            return Err(ContractVerifierError::UnknownCompilerVersion(
-                "solc".to_owned(),
-                solc_version,
-            ));
-        }
-
+        let solc_path = self.resolve_solc_path(versions.compiler_version()).await?;
         let compiler_paths = CompilerPaths {
             base: solc_path,
             zk: zksolc_path,

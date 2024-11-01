@@ -22,7 +22,7 @@ use zksync_types::{
 use zksync_utils::bytecode::BytecodeMarker;
 
 use crate::{
-    compilers::{ZkSolc, ZkVyper},
+    compilers::{Solc, ZkSolc, ZkVyper},
     error::ContractVerifierError,
     metrics::API_CONTRACT_VERIFIER_METRICS,
     resolver::{CompilerResolver, EnvCompilerResolver},
@@ -232,6 +232,22 @@ impl ContractVerifier {
             .map_err(|_| ContractVerifierError::CompilationTimeout)?
     }
 
+    async fn compile_solc(
+        &self,
+        req: VerificationIncomingRequest,
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        let solc = self
+            .compiler_resolver
+            .resolve_solc(&req.compiler_versions.compiler_version())
+            .await?;
+        tracing::debug!(?solc, ?req.compiler_versions, "resolved compiler");
+        let input = Solc::build_input(req)?;
+
+        time::timeout(self.compilation_timeout, solc.compile(input))
+            .await
+            .map_err(|_| ContractVerifierError::CompilationTimeout)?
+    }
+
     #[tracing::instrument(level = "debug", skip_all)]
     async fn compile(
         &self,
@@ -242,7 +258,7 @@ impl ContractVerifier {
         match (bytecode_marker, compiler_type) {
             (BytecodeMarker::EraVm, CompilerType::Solc) => self.compile_zksolc(req).await,
             (BytecodeMarker::EraVm, CompilerType::Vyper) => self.compile_zkvyper(req).await,
-            (BytecodeMarker::Evm, CompilerType::Solc) => todo!(),
+            (BytecodeMarker::Evm, CompilerType::Solc) => self.compile_solc(req).await,
             (BytecodeMarker::Evm, CompilerType::Vyper) => todo!(),
         }
     }

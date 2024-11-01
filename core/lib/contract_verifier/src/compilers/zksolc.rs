@@ -10,6 +10,7 @@ use zksync_types::contract_verification_api::{
     CompilationArtifacts, SourceCodeData, VerificationIncomingRequest,
 };
 
+use super::{parse_standard_json_output, Source};
 use crate::{
     error::ContractVerifierError,
     resolver::{Compiler, CompilerPaths},
@@ -39,13 +40,6 @@ pub(crate) struct StandardJson {
     pub settings: Settings,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct Source {
-    /// The source code file content.
-    pub content: String,
-}
-
 /// Compiler settings.
 /// There are fields like `output_selection`, `is_system`, `force_evmla` which are accessed by contract verifier explicitly.
 /// Other fields are accumulated in `other`, this way every field that was in the original request will be passed to a compiler.
@@ -60,7 +54,9 @@ pub(crate) struct Settings {
     /// Flag to force `evmla` IR.
     #[serde(default)]
     pub force_evmla: bool,
-    pub optimizer: Optimizer,
+    /// Other settings (only filled when parsing `StandardJson` input from the request).
+    #[serde(flatten)]
+    pub other: serde_json::Value,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -117,10 +113,12 @@ impl ZkSolc {
                     output_selection: Some(default_output_selection),
                     is_system: req.is_system,
                     force_evmla: req.force_evmla,
-                    optimizer: Optimizer {
-                        enabled: req.optimization_used,
-                        mode: req.optimizer_mode.and_then(|s| s.chars().next()),
-                    },
+                    other: serde_json::json!({
+                        "optimizer": Optimizer {
+                            enabled: req.optimization_used,
+                            mode: req.optimizer_mode.and_then(|s| s.chars().next()),
+                        },
+                    }),
                 };
 
                 Ok(ZkSolcInput::StandardJson {
@@ -151,49 +149,6 @@ impl ZkSolc {
             }),
             other => unreachable!("Unexpected `SourceCodeData` variant: {other:?}"),
         }
-    }
-
-    fn parse_standard_json_output(
-        output: &serde_json::Value,
-        contract_name: String,
-        file_name: String,
-    ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        if let Some(errors) = output.get("errors") {
-            let errors = errors.as_array().unwrap().clone();
-            if errors
-                .iter()
-                .any(|err| err["severity"].as_str().unwrap() == "error")
-            {
-                let error_messages = errors
-                    .into_iter()
-                    .map(|err| err["formattedMessage"].clone())
-                    .collect();
-                return Err(ContractVerifierError::CompilationError(
-                    serde_json::Value::Array(error_messages),
-                ));
-            }
-        }
-
-        let contracts = output["contracts"]
-            .get(&file_name)
-            .ok_or(ContractVerifierError::MissingSource(file_name))?;
-        let Some(contract) = contracts.get(&contract_name) else {
-            return Err(ContractVerifierError::MissingContract(contract_name));
-        };
-        let bytecode_str = contract["evm"]["bytecode"]["object"]
-            .as_str()
-            .ok_or(ContractVerifierError::AbstractContract(contract_name))?;
-        let bytecode = hex::decode(bytecode_str).unwrap();
-        let abi = contract["abi"].clone();
-        if !abi.is_array() {
-            let err = anyhow::anyhow!(
-                "zksolc returned unexpected value for ABI: {}",
-                serde_json::to_string_pretty(&abi).unwrap()
-            );
-            return Err(err.into());
-        }
-
-        Ok(CompilationArtifacts { bytecode, abi })
     }
 
     fn parse_single_file_yul_output(
@@ -292,7 +247,7 @@ impl Compiler<ZkSolcInput> for ZkSolc {
                 if output.status.success() {
                     let output = serde_json::from_slice(&output.stdout)
                         .context("zksolc output is not valid JSON")?;
-                    Self::parse_standard_json_output(&output, contract_name, file_name)
+                    parse_standard_json_output(&output, contract_name, file_name)
                 } else {
                     Err(ContractVerifierError::CompilerError(
                         "zksolc".to_string(),
