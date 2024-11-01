@@ -128,7 +128,6 @@ impl VmExecutionLogs {
 }
 
 /// Result and logs of the VM execution.
-// FIXME: mock result
 #[derive(Debug, Clone)]
 pub struct VmExecutionResultAndLogs {
     pub result: ExecutionResult,
