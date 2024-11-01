@@ -13,6 +13,7 @@ use super::dump::{DumpingVm, VmDump};
 use crate::{
     pubdata::PubdataBuilder,
     storage::{ReadStorage, StoragePtr, StorageView},
+    tracer::{ValidationError, ValidationTraces},
     BytecodeCompressionResult, CurrentExecutionState, FinishedL1Batch, InspectExecutionMode,
     L1BatchEnv, L2BlockEnv, PushTransactionResult, SystemEnv, VmExecutionResultAndLogs, VmFactory,
     VmInterface, VmInterfaceHistoryEnabled, VmTrackingContracts,
@@ -222,6 +223,14 @@ impl CheckDivergence for FinishedL1Batch {
         );
         errors.check_match("pubdata_input", &self.pubdata_input, &other.pubdata_input);
         errors.check_match("state_diffs", &self.state_diffs, &other.state_diffs);
+        errors
+    }
+}
+
+impl CheckDivergence for Result<ValidationTraces, ValidationError> {
+    fn check_divergence(&self, other: &Self) -> DivergenceErrors {
+        let mut errors = DivergenceErrors::new();
+        errors.check_match("validation result", self, other);
         errors
     }
 }

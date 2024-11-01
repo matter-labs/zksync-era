@@ -19,7 +19,7 @@ use zksync_multivm::{
         executor::{OneshotExecutor, TransactionValidator},
         storage::{ReadStorage, StorageView, StorageWithOverrides},
         tracer::{ValidationError, ValidationParams, ValidationTraces},
-        utils::{DivergenceHandler, ShadowVm},
+        utils::{DivergenceHandler, ShadowMut, ShadowVm},
         Call, ExecutionResult, InspectExecutionMode, OneshotEnv, OneshotTracingParams,
         OneshotTransactionExecutionResult, StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode,
         VmFactory, VmInterface,
@@ -247,67 +247,62 @@ where
 
                 Vm::Fast(FastVmInstance::Shadowed(vm)) => {
                     vm.push_transaction(transaction);
-                    let tracer = WithBuiltinTracers::for_validation(
-                        (),
-                        validation_params.clone(),
-                        l1_batch_env.timestamp,
-                    );
 
-                    let validation_tracer = ValidationTracer::<HistoryEnabled>::new(
-                        validation_params,
-                        version,
-                        l1_batch_env.timestamp,
-                    );
-                    let validation_traces = validation_tracer.get_traces();
-                    let mut validation_result = validation_tracer.get_result();
-                    let legacy_tracers: Box<
-                        dyn MultiVMTracer<StorageView<StorageWithOverrides<S>>, HistoryEnabled>,
-                    > = validation_tracer.into_tracer_pointer();
+                    vm.get_custom_mut("validation result", |vm| match vm {
+                        ShadowMut::Main(vm) => {
+                            let validation_tracer = ValidationTracer::<HistoryEnabled>::new(
+                                validation_params.clone(),
+                                version,
+                                l1_batch_env.timestamp,
+                            );
+                            let mut validation_result = validation_tracer.get_result();
+                            let validation_traces = validation_tracer.get_traces();
+                            let tracers: Box<dyn MultiVMTracer<_, HistoryEnabled>> =
+                                validation_tracer.into_tracer_pointer();
 
-                    let mut aggregate_tracer = (
-                        TracerDispatcher::<_, _>::from(legacy_tracers).into(),
-                        tracer,
-                    );
-                    let result_and_logs =
-                        vm.inspect(&mut aggregate_tracer, InspectExecutionMode::OneTx);
+                            let exec_result = vm.inspect(
+                                &mut TracerDispatcher::from(tracers).into(),
+                                InspectExecutionMode::OneTx,
+                            );
 
-                    let fast_result = if let Some(violation) =
-                        aggregate_tracer.1.validation().validation_error()
-                    {
-                        Err(ValidationError::ViolatedRule(violation))
-                    } else {
-                        match &result_and_logs.result {
-                            ExecutionResult::Halt { reason } => {
-                                Err(ValidationError::FailedTx(reason.clone()))
-                            }
-                            ExecutionResult::Revert { .. } => {
-                                unreachable!("Revert can only happen at the end of a transaction")
-                            }
-                            ExecutionResult::Success { .. } => {
-                                Ok(aggregate_tracer.1.validation().traces())
+                            let validation_result = Arc::make_mut(&mut validation_result)
+                                .take()
+                                .map_or(Ok(()), Err);
+
+                            match (exec_result.result, validation_result) {
+                                (_, Err(violated_rule)) => {
+                                    Err(ValidationError::ViolatedRule(violated_rule))
+                                }
+                                (ExecutionResult::Halt { reason }, _) => {
+                                    Err(ValidationError::FailedTx(reason))
+                                }
+                                _ => Ok(validation_traces.lock().unwrap().clone()),
                             }
                         }
-                    };
-
-                    let validation_result = Arc::make_mut(&mut validation_result)
-                        .take()
-                        .map_or(Ok(()), Err);
-
-                    let legacy_result = match (result_and_logs.result, validation_result) {
-                        (_, Err(violated_rule)) => {
-                            Err(ValidationError::ViolatedRule(violated_rule))
+                        ShadowMut::Shadow(vm) => {
+                            let mut tracer = WithBuiltinTracers::for_validation(
+                                (),
+                                validation_params.clone(),
+                                l1_batch_env.timestamp,
+                            );
+                            let result_and_logs =
+                                vm.inspect(&mut tracer, InspectExecutionMode::OneTx);
+                            if let Some(violation) = tracer.validation().validation_error() {
+                                return Err(ValidationError::ViolatedRule(violation));
+                            }
+                            match result_and_logs.result {
+                                ExecutionResult::Halt { reason } => {
+                                    Err(ValidationError::FailedTx(reason))
+                                }
+                                ExecutionResult::Revert { .. } => {
+                                    unreachable!(
+                                        "Revert can only happen at the end of a transaction"
+                                    )
+                                }
+                                ExecutionResult::Success { .. } => Ok(tracer.validation().traces()),
+                            }
                         }
-                        (ExecutionResult::Halt { reason }, _) => {
-                            Err(ValidationError::FailedTx(reason))
-                        }
-                        _ => Ok(validation_traces.lock().unwrap().clone()),
-                    };
-
-                    if fast_result != legacy_result {
-                        unimplemented!("Validation result mismatch, what do I do now? (TODO this is just to make CI happy)")
-                    }
-
-                    legacy_result
+                    })
                 }
             })
         })
