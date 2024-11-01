@@ -5,7 +5,7 @@
 
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
-use std::{fmt, ops::Range};
+use std::fmt;
 
 use anyhow::Context as _;
 use fee::encoding_len;
@@ -415,9 +415,4 @@ impl Transaction {
             }
         })
     }
-}
-
-#[derive(Clone, Serialize, Debug, Default, Eq, PartialEq, Hash)]
-pub struct TransactionTimeRangeConstraint {
-    pub timestamp_asserter_range: Option<Range<u64>>,
 }

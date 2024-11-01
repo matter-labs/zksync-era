@@ -87,7 +87,7 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
     let configsFolderSuffix = nodeMode == NodeMode.External ? 'external_node' : undefined;
     let generalConfig = loadConfig({ pathToHome, chain, config: 'general.yaml', configsFolderSuffix });
     let secretsConfig = loadConfig({ pathToHome, chain, config: 'secrets.yaml', configsFolderSuffix });
-    let contracts = loadConfig({ pathToHome, chain, config: 'contracts.yaml' });
+    let contracts = loadConfig({ pathToHome, chain, config: 'contracts.yaml', configsFolderSuffix });
 
     const network = ecosystem.l1_network.toLowerCase();
     let mainWalletPK = getMainWalletPk(pathToHome);
@@ -166,8 +166,6 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
     const maxLogsLimit = parseInt(generalConfig.api.web3_json_rpc.req_entities_limit);
 
     const healthcheckPort = generalConfig.api.healthcheck.port;
-    const timestampAsserterAddress = contracts.l2.timestamp_asserter_addr;
-    const timestampAsserterMinTimeTillEndSec = parseInt(generalConfig.timestamp_asserter.min_time_till_end_sec);
     return {
         maxLogsLimit,
         pathToHome,
@@ -198,9 +196,7 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
             decimals: baseToken?.decimals || token.decimals,
             l1Address: baseToken?.address || token.address,
             l2Address: baseTokenAddressL2
-        },
-        timestampAsserterAddress,
-        timestampAsserterMinTimeTillEndSec
+        }
     };
 }
 
@@ -287,13 +283,6 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     );
 
     const healthcheckPort = process.env.API_HEALTHCHECK_PORT ?? '3071';
-    if (!process.env.CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR) {
-        throw new Error('CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR is not defined');
-    }
-    const timestampAsserterAddress = process.env.CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR.toString();
-
-    const timestampAsserterMinTimeTillEndSec = parseInt(process.env.TIMESTAMP_ASSERTER_MIN_TIME_TILL_END_SEC!);
-
     return {
         maxLogsLimit,
         pathToHome,
@@ -324,9 +313,7 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
             decimals: baseToken?.decimals || token.decimals,
             l1Address: baseToken?.address || token.address,
             l2Address: baseTokenAddressL2
-        },
-        timestampAsserterAddress,
-        timestampAsserterMinTimeTillEndSec
+        }
     };
 }
 

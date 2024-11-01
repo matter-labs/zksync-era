@@ -5,7 +5,7 @@ use zksync_types::{
     tx::IncludedTxLocation, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog, H256,
 };
-use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
+use zksync_vm_interface::TransactionExecutionMetrics;
 
 use super::*;
 use crate::{
@@ -457,11 +457,7 @@ async fn transactions_are_handled_correctly_after_pruning() {
     let tx = mock_l2_transaction();
     let tx_hash = tx.hash();
     conn.transactions_dal()
-        .insert_transaction_l2(
-            &tx,
-            TransactionExecutionMetrics::default(),
-            ValidationTraces::default(),
-        )
+        .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
         .await
         .unwrap();
     conn.blocks_dal()
