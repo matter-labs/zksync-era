@@ -8,12 +8,14 @@ use tonic::{
     Streaming,
 };
 
+use super::disperser::BlobInfo;
 use crate::eigen::{
-    disperser,
+    blob_info,
     disperser::{
+        self,
         authenticated_request::Payload::{AuthenticationData, DisperseRequest},
         disperser_client::DisperserClient,
-        AuthenticatedReply, BlobAuthHeader, BlobVerificationProof, DisperseBlobReply,
+        AuthenticatedReply, BlobAuthHeader, DisperseBlobReply,
     },
 };
 
@@ -86,16 +88,23 @@ impl RawEigenClient {
         };
 
         // 5. poll for blob status until it reaches the Confirmed state
-        let verification_proof = self
+        let blob_info = self
             .await_for_inclusion(client_clone, disperse_reply)
             .await?;
+
+        let verification_proof = blob_info
+            .blob_verification_proof
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("No blob verification proof in response"))?;
         let blob_id = format!(
             "{}:{}",
             verification_proof.batch_id, verification_proof.blob_index
         );
         tracing::info!("Blob dispatch confirmed, blob id: {}", blob_id);
 
-        Ok(blob_id)
+        let blob_id = blob_info::BlobInfo::try_from(blob_info)
+            .map_err(|e| anyhow::anyhow!("Failed to convert blob info: {}", e))?;
+        Ok(hex::encode(rlp::encode(&blob_id)))
     }
 
     async fn disperse_data(
@@ -175,7 +184,7 @@ impl RawEigenClient {
         &self,
         mut client: DisperserClient<Channel>,
         disperse_blob_reply: DisperseBlobReply,
-    ) -> anyhow::Result<BlobVerificationProof> {
+    ) -> anyhow::Result<BlobInfo> {
         let polling_request = disperser::BlobStatusRequest {
             request_id: disperse_blob_reply.request_id,
         };
@@ -196,13 +205,10 @@ impl RawEigenClient {
                     return Err(anyhow::anyhow!("Insufficient signatures"))
                 }
                 disperser::BlobStatus::Confirmed | disperser::BlobStatus::Finalized => {
-                    let verification_proof = resp
+                    let blob_info = resp
                         .info
-                        .ok_or_else(|| anyhow::anyhow!("No blob header in response"))?
-                        .blob_verification_proof
-                        .ok_or_else(|| anyhow::anyhow!("No blob verification proof in response"))?;
-
-                    return Ok(verification_proof);
+                        .ok_or_else(|| anyhow::anyhow!("No blob header in response"))?;
+                    return Ok(blob_info);
                 }
 
                 _ => return Err(anyhow::anyhow!("Received unknown blob status")),

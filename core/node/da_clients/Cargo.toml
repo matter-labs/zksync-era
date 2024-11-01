@@ -55,3 +55,4 @@ pbjson-types.workspace = true
 
 # Eigen dependencies
 tokio-stream.workspace = true
+rlp.workspace = true

@@ -1,3 +1,4 @@
+mod blob_info;
 mod client;
 mod sdk;
 

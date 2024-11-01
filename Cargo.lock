@@ -10935,6 +10935,7 @@ dependencies = [
  "prost 0.12.6",
  "reqwest 0.12.9",
  "ripemd",
+ "rlp",
  "scale-encode",
  "secp256k1",
  "serde",
