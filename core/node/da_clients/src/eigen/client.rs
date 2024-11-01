@@ -94,6 +94,7 @@ impl EigenClient {
         }*/
     }
 }
+
 #[cfg(test)]
 mod tests {
     use zksync_config::configs::da_client::eigen::DisperserConfig;
@@ -101,6 +102,7 @@ mod tests {
 
     use super::*;
     use crate::eigen::blob_info::BlobInfo;
+
     #[tokio::test]
     async fn test_non_auth_dispersal() {
         let config = EigenConfig::Disperser(DisperserConfig {
@@ -138,6 +140,7 @@ mod tests {
         let retrieved_data = client.get_blob_data(&result.blob_id).await.unwrap();
         assert_eq!(retrieved_data.unwrap(), data);
     }
+
     #[tokio::test]
     async fn test_auth_dispersal() {
         let config = EigenConfig::Disperser(DisperserConfig {
