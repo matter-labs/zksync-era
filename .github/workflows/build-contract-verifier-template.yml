@@ -28,7 +28,7 @@ jobs:
     name: Build and Push Docker Images
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
-    runs-on: ${{ fromJSON('["matterlabs-ci-runner-high-performance", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
+    runs-on: ${{ fromJSON('["matterlabs-ci-runner-high-performance-test", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
     strategy:
       matrix:
         components:

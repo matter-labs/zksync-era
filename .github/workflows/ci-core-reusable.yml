@@ -81,7 +81,7 @@ jobs:
           ci_run cargo test --release -p vm-benchmark --bench oneshot --bench batch
 
   loadtest:
-    runs-on: [ matterlabs-ci-runner-high-performance ]
+    runs-on: [ matterlabs-ci-runner-high-performance-test ]
     strategy:
       fail-fast: false
       matrix:
