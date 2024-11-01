@@ -159,6 +159,22 @@ impl ExecutionResult {
 }
 
 impl VmExecutionResultAndLogs {
+    /// Creates a mock full result based on the provided base result.
+    pub fn mock(result: ExecutionResult) -> Self {
+        Self {
+            result,
+            logs: VmExecutionLogs::default(),
+            statistics: VmExecutionStatistics::default(),
+            refunds: Refunds::default(),
+            dynamic_factory_deps: HashMap::new(),
+        }
+    }
+
+    /// Creates a mock successful result with no payload.
+    pub fn mock_success() -> Self {
+        Self::mock(ExecutionResult::Success { output: vec![] })
+    }
+
     pub fn get_execution_metrics(&self, tx: Option<&Transaction>) -> VmExecutionMetrics {
         let contracts_deployed = tx
             .map(|tx| tx.execute.factory_deps.len() as u16)

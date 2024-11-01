@@ -1,9 +1,6 @@
-use std::collections::HashMap;
-
 use zksync_types::writes::StateDiffRecord;
 
 use super::{BootloaderMemory, CurrentExecutionState, VmExecutionResultAndLogs};
-use crate::{ExecutionResult, Refunds, VmExecutionLogs, VmExecutionStatistics};
 
 /// State of the VM after the batch execution.
 #[derive(Debug, Clone)]
@@ -23,13 +20,7 @@ pub struct FinishedL1Batch {
 impl FinishedL1Batch {
     pub fn mock() -> Self {
         FinishedL1Batch {
-            block_tip_execution_result: VmExecutionResultAndLogs {
-                result: ExecutionResult::Success { output: vec![] },
-                logs: VmExecutionLogs::default(),
-                statistics: VmExecutionStatistics::default(),
-                refunds: Refunds::default(),
-                dynamic_factory_deps: HashMap::default(),
-            },
+            block_tip_execution_result: VmExecutionResultAndLogs::mock_success(),
             final_execution_state: CurrentExecutionState {
                 events: vec![],
                 deduplicated_storage_logs: vec![],
