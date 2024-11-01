@@ -1,10 +1,12 @@
 //! Tests for the contract verifier.
 
+use std::collections::HashMap;
+
 use tokio::sync::watch;
 use zksync_dal::Connection;
 use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_types::{
-    contract_verification_api::{CompilerVersions, VerificationIncomingRequest},
+    contract_verification_api::{CompilerVersions, SourceCodeData, VerificationIncomingRequest},
     get_code_key, get_known_code_key,
     l2::L2Tx,
     tx::IncludedTxLocation,
@@ -15,7 +17,10 @@ use zksync_utils::{address_to_h256, bytecode::hash_bytecode};
 use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics, VmEvent};
 
 use super::*;
-use crate::resolver::{Compiler, SupportedCompilerVersions};
+use crate::{
+    compilers::{ZkSolcInput, ZkVyperInput},
+    resolver::{Compiler, SupportedCompilerVersions},
+};
 
 mod real;
 
@@ -127,7 +132,7 @@ impl CompilerResolver for MockCompilerResolver {
         })
     }
 
-    async fn resolve_solc(
+    async fn resolve_zksolc(
         &self,
         versions: &CompilerVersions,
     ) -> Result<Box<dyn Compiler<ZkSolcInput>>, ContractVerifierError> {
@@ -146,7 +151,7 @@ impl CompilerResolver for MockCompilerResolver {
         Ok(Box::new(self.clone()))
     }
 
-    async fn resolve_vyper(
+    async fn resolve_zkvyper(
         &self,
         _versions: &CompilerVersions,
     ) -> Result<Box<dyn Compiler<ZkVyperInput>>, ContractVerifierError> {

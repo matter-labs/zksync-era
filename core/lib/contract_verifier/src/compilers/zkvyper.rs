@@ -2,7 +2,9 @@ use std::{collections::HashMap, fs::File, io::Write, path::Path, process::Stdio}
 
 use anyhow::Context as _;
 use zksync_queued_job_processor::async_trait;
-use zksync_types::contract_verification_api::CompilationArtifacts;
+use zksync_types::contract_verification_api::{
+    CompilationArtifacts, SourceCodeData, VerificationIncomingRequest,
+};
 
 use crate::{
     error::ContractVerifierError,
@@ -24,6 +26,28 @@ pub(crate) struct ZkVyper {
 impl ZkVyper {
     pub fn new(paths: CompilerPaths) -> Self {
         Self { paths }
+    }
+
+    pub fn build_input(
+        req: VerificationIncomingRequest,
+    ) -> Result<ZkVyperInput, ContractVerifierError> {
+        // Users may provide either just contract name or
+        // source file name and contract name joined with ":".
+        let contract_name = if let Some((_, contract_name)) = req.contract_name.rsplit_once(':') {
+            contract_name.to_owned()
+        } else {
+            req.contract_name.clone()
+        };
+
+        let sources = match req.source_code_data {
+            SourceCodeData::VyperMultiFile(s) => s,
+            other => unreachable!("unexpected `SourceCodeData` variant: {other:?}"),
+        };
+        Ok(ZkVyperInput {
+            contract_name,
+            sources,
+            optimizer_mode: req.optimizer_mode,
+        })
     }
 
     fn parse_output(

@@ -29,12 +29,12 @@ async fn using_real_compiler() {
         compiler_zksolc_version: supported_compilers.zksolc[0].clone(),
         compiler_solc_version: supported_compilers.solc[0].clone(),
     };
-    let compiler = compiler_resolver.resolve_solc(&versions).await.unwrap();
+    let compiler = compiler_resolver.resolve_zksolc(&versions).await.unwrap();
     let req = VerificationIncomingRequest {
         compiler_versions: versions,
         ..test_request(Address::repeat_byte(1))
     };
-    let input = ContractVerifier::build_zksolc_input(req).unwrap();
+    let input = ZkSolc::build_input(req).unwrap();
     let output = compiler.compile(input).await.unwrap();
 
     validate_bytecode(&output.bytecode).unwrap();
@@ -53,12 +53,12 @@ async fn using_real_compiler_in_verifier() {
         compiler_solc_version: supported_compilers.solc[0].clone(),
     };
     let address = Address::repeat_byte(1);
-    let compiler = compiler_resolver.resolve_solc(&versions).await.unwrap();
+    let compiler = compiler_resolver.resolve_zksolc(&versions).await.unwrap();
     let req = VerificationIncomingRequest {
         compiler_versions: versions,
         ..test_request(Address::repeat_byte(1))
     };
-    let input = ContractVerifier::build_zksolc_input(req.clone()).unwrap();
+    let input = ZkSolc::build_input(req.clone()).unwrap();
     let output = compiler.compile(input).await.unwrap();
 
     let pool = ConnectionPool::test_pool().await;

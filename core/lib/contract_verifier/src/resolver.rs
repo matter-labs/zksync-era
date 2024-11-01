@@ -7,9 +7,8 @@ use zksync_types::contract_verification_api::{CompilationArtifacts, CompilerVers
 use zksync_utils::env::Workspace;
 
 use crate::{
+    compilers::{ZkSolc, ZkSolcInput, ZkVyper, ZkVyperInput},
     error::ContractVerifierError,
-    zksolc_utils::{ZkSolc, ZkSolcInput},
-    zkvyper_utils::{ZkVyper, ZkVyperInput},
 };
 
 /// Compiler versions supported by a [`CompilerResolver`].
@@ -49,13 +48,13 @@ pub(crate) trait CompilerResolver: fmt::Debug + Send + Sync {
     async fn supported_versions(&self) -> anyhow::Result<SupportedCompilerVersions>;
 
     /// Resolves a `zksolc` compiler.
-    async fn resolve_solc(
+    async fn resolve_zksolc(
         &self,
         versions: &CompilerVersions,
     ) -> Result<Box<dyn Compiler<ZkSolcInput>>, ContractVerifierError>;
 
     /// Resolves a `zkvyper` compiler.
-    async fn resolve_vyper(
+    async fn resolve_zkvyper(
         &self,
         versions: &CompilerVersions,
     ) -> Result<Box<dyn Compiler<ZkVyperInput>>, ContractVerifierError>;
@@ -128,7 +127,7 @@ impl CompilerResolver for EnvCompilerResolver {
         })
     }
 
-    async fn resolve_solc(
+    async fn resolve_zksolc(
         &self,
         versions: &CompilerVersions,
     ) -> Result<Box<dyn Compiler<ZkSolcInput>>, ContractVerifierError> {
@@ -173,7 +172,7 @@ impl CompilerResolver for EnvCompilerResolver {
         Ok(Box::new(ZkSolc::new(compiler_paths, zksolc_version)))
     }
 
-    async fn resolve_vyper(
+    async fn resolve_zkvyper(
         &self,
         versions: &CompilerVersions,
     ) -> Result<Box<dyn Compiler<ZkVyperInput>>, ContractVerifierError> {
