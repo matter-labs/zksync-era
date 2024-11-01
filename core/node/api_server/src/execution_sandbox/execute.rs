@@ -9,7 +9,7 @@ use zksync_dal::{Connection, Core};
 use zksync_multivm::interface::{
     executor::{OneshotExecutor, TransactionValidator},
     storage::{ReadStorage, StorageWithOverrides},
-    tracer::{ValidationError, ValidationParams},
+    tracer::{TimestampAsserterParams, ValidationError, ValidationParams, ValidationTraces},
     Call, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
     TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs,
 };
@@ -99,6 +99,7 @@ pub(crate) struct SandboxExecutor {
     engine: SandboxExecutorEngine,
     pub(super) options: SandboxExecutorOptions,
     storage_caches: Option<PostgresStorageCaches>,
+    pub(super) timestamp_asserter_params: Option<TimestampAsserterParams>,
 }
 
 impl SandboxExecutor {
@@ -106,6 +107,7 @@ impl SandboxExecutor {
         options: SandboxExecutorOptions,
         caches: PostgresStorageCaches,
         missed_storage_invocation_limit: usize,
+        timestamp_asserter_params: Option<TimestampAsserterParams>,
     ) -> Self {
         let mut executor = MainOneshotExecutor::new(missed_storage_invocation_limit);
         executor.set_fast_vm_mode(options.fast_vm_mode);
@@ -117,6 +119,7 @@ impl SandboxExecutor {
             engine: SandboxExecutorEngine::Real(executor),
             options,
             storage_caches: Some(caches),
+            timestamp_asserter_params,
         }
     }
 
@@ -132,6 +135,7 @@ impl SandboxExecutor {
             engine: SandboxExecutorEngine::Mock(executor),
             options,
             storage_caches: None,
+            timestamp_asserter_params: None,
         }
     }
 
@@ -295,7 +299,7 @@ where
         env: OneshotEnv,
         tx: L2Tx,
         validation_params: ValidationParams,
-    ) -> anyhow::Result<Result<(), ValidationError>> {
+    ) -> anyhow::Result<Result<ValidationTraces, ValidationError>> {
         match &self.engine {
             SandboxExecutorEngine::Real(executor) => {
                 executor
