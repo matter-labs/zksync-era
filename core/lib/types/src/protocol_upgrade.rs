@@ -164,7 +164,7 @@ async fn prepare_upgrade_call(
 impl ProtocolUpgrade {
     pub async fn try_from_diamond_cut(
         diamond_cut_data: &[u8],
-        preimage_oracle: &dyn ProtocolUpgradePreimageOracle,
+        preimage_oracle: impl ProtocolUpgradePreimageOracle,
         chain_specific: Option<ZkChainSpecificUpgradeData>,
     ) -> anyhow::Result<Self> {
         // Unwraps are safe because we have validated the input against the function signature.
@@ -183,7 +183,7 @@ impl ProtocolUpgrade {
     /// `l1-contracts/contracts/state-transition/libraries/diamond.sol:DiamondCutData.initCalldata`
     async fn try_from_init_calldata(
         init_calldata: &[u8],
-        preimage_oracle: &dyn ProtocolUpgradePreimageOracle,
+        preimage_oracle: impl ProtocolUpgradePreimageOracle,
         chain_specific: Option<ZkChainSpecificUpgradeData>,
     ) -> anyhow::Result<Self> {
         let upgrade = ethabi::decode(

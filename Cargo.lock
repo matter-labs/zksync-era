@@ -10226,6 +10226,9 @@ dependencies = [
  "anyhow",
  "async-recursion",
  "async-trait",
+ "bincode",
+ "hex",
+ "itertools 0.10.5",
  "test-log",
  "thiserror",
  "tokio",
@@ -10240,6 +10243,8 @@ dependencies = [
  "zksync_shared_metrics",
  "zksync_system_constants",
  "zksync_types",
+ "zksync_utils",
+ "zksync_web3_decl",
 ]
 
 [[package]]

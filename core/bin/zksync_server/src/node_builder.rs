@@ -287,6 +287,7 @@ impl MainNodeBuilder {
                 .as_ref()
                 .and_then(|x| Some(x.gas_adjuster?.settlement_mode))
                 .unwrap_or(SettlementMode::SettlesToL1),
+            self.genesis_config.l2_chain_id,
         ));
         Ok(self)
     }

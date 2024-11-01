@@ -9,7 +9,6 @@ use zksync_basic_types::{
     Bloom, L1BatchNumber, H160, H256, H64, U256, U64,
 };
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_utils::u256_to_h256;
 
 pub use crate::transaction_request::{
     Eip712Meta, SerializationTransactionError, TransactionRequest,
@@ -199,63 +198,9 @@ pub struct L2ToL1LogProof {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct LeafAggProof {
-    pub leaf_chain_proof: LeafChainProof,
-    pub chain_agg_proof: ChainAggProof,
-    pub local_msg_root: H256,
-    pub sl_batch_number: U256,
-    pub sl_chain_id: U256,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct LeafChainProof {
-    pub batch_leaf_proof: Vec<H256>,
-    pub batch_leaf_proof_mask: U256,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct ChainAggProof {
     pub chain_id_leaf_proof: Vec<H256>,
     pub chain_id_leaf_proof_mask: U256,
-}
-
-impl LeafAggProof {
-    pub fn encode(self) -> (u32, Vec<H256>) {
-        let mut encoded_result = vec![];
-
-        let LeafAggProof {
-            leaf_chain_proof,
-            chain_agg_proof,
-            sl_batch_number,
-            sl_chain_id,
-            ..
-        } = self;
-
-        let LeafChainProof {
-            batch_leaf_proof,
-            batch_leaf_proof_mask,
-        } = leaf_chain_proof;
-
-        let ChainAggProof {
-            chain_id_leaf_proof: _,
-            chain_id_leaf_proof_mask,
-        } = chain_agg_proof;
-
-        let batch_leaf_proof_len = batch_leaf_proof.len() as u32;
-
-        encoded_result.push(u256_to_h256(batch_leaf_proof_mask));
-        encoded_result.extend(batch_leaf_proof);
-
-        let sl_encoded_data =
-            sl_batch_number * U256::from(2).pow(128.into()) + chain_id_leaf_proof_mask;
-        encoded_result.push(u256_to_h256(sl_encoded_data));
-
-        encoded_result.push(u256_to_h256(sl_chain_id));
-
-        (batch_leaf_proof_len, encoded_result)
-    }
 }
 
 /// A struct with the two default bridge contracts.
@@ -527,6 +472,45 @@ impl Log {
             }
         }
         false
+    }
+}
+
+impl From<Log> for zksync_basic_types::web3::Log {
+    fn from(log: Log) -> Self {
+        zksync_basic_types::web3::Log {
+            address: log.address,
+            topics: log.topics,
+            data: log.data,
+            block_hash: log.block_hash,
+            block_number: log.block_number,
+            transaction_hash: log.transaction_hash,
+            transaction_index: log.transaction_index,
+            log_index: log.log_index,
+            transaction_log_index: log.transaction_log_index,
+            log_type: log.log_type,
+            removed: log.removed,
+            block_timestamp: log.block_timestamp,
+        }
+    }
+}
+
+impl From<zksync_basic_types::web3::Log> for Log {
+    fn from(log: zksync_basic_types::web3::Log) -> Self {
+        Log {
+            address: log.address,
+            topics: log.topics,
+            data: log.data,
+            block_hash: log.block_hash,
+            block_number: log.block_number,
+            transaction_hash: log.transaction_hash,
+            transaction_index: log.transaction_index,
+            log_index: log.log_index,
+            transaction_log_index: log.transaction_log_index,
+            log_type: log.log_type,
+            removed: log.removed,
+            block_timestamp: log.block_timestamp,
+            l1_batch_number: None,
+        }
     }
 }
 

@@ -23,7 +23,11 @@ use zksync_types::{
     api, commitment::L1BatchCommitmentMode, l2::L2Tx, transaction_request::CallRequest, Address,
     L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, SLChainId, H256, U256, U64,
 };
-use zksync_web3_decl::{error::Web3Error, types::Filter};
+use zksync_web3_decl::{
+    client::{DynClient, L2},
+    error::Web3Error,
+    types::Filter,
+};
 
 use super::{
     backend_jsonrpsee::MethodTracer,
@@ -268,6 +272,7 @@ pub(crate) struct RpcState {
     pub(super) mempool_cache: Option<MempoolCache>,
     pub(super) last_sealed_l2_block: SealedL2BlockNumber,
     pub(super) bridge_addresses_handle: BridgeAddressesHandle,
+    pub(super) l2_l1_log_proof_handler: Option<Box<DynClient<L2>>>,
 }
 
 impl RpcState {

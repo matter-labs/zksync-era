@@ -205,6 +205,7 @@ impl WiringLayer for Web3ServerLayer {
         let bridge_addresses_updater_task =
             input
                 .main_node_client
+                .clone()
                 .map(|main_node_client| BridgeAddressesUpdaterTask {
                     bridge_address_updater: bridge_addresses_handle.clone(),
                     main_node_client: main_node_client.0,
@@ -232,6 +233,9 @@ impl WiringLayer for Web3ServerLayer {
         }
         if let Some(sync_state) = sync_state {
             api_builder = api_builder.with_sync_state(sync_state);
+        }
+        if let Some(main_node_client) = input.main_node_client {
+            api_builder = api_builder.with_l2_l1_log_proof_handler(main_node_client.0)
         }
         let replication_lag_limit = self.optional_config.replication_lag_limit;
         api_builder = self.optional_config.apply(api_builder);
