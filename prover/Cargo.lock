@@ -8226,6 +8226,7 @@ name = "zksync_l1_contract_interface"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "circuit_definitions",
  "fflonk",
  "hex",
  "once_cell",
@@ -8550,6 +8551,7 @@ name = "zksync_prover_interface"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "circuit_definitions",
  "circuit_sequencer_api 0.150.11",
  "fflonk",
  "serde",

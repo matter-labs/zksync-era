@@ -1,6 +1,12 @@
+use circuit_definitions::circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuitNoLookupCustomGate;
+use crypto_codegen::serialize_proof;
 use fflonk::{
-    bellman::{bn256, bn256::Fr, CurveAffine, Engine, PrimeField, PrimeFieldRepr},
-    FflonkSnarkVerifierCircuitProof,
+    bellman::{
+        bn256,
+        bn256::{Bn256, Fr},
+        CurveAffine, Engine, PrimeField, PrimeFieldRepr,
+    },
+    FflonkProof,
 };
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{commitment::L1BatchWithMetadata, ethabi::Token, U256};
@@ -38,12 +44,9 @@ impl Tokenize for &ProveBatches {
                     let serialized_proof = serialize_evm(&scheduler_proof);
                     (serialized_proof, proof.aggregation_result_coords)
                 }
-                L1BatchProofForL1::Plonk(_proof) => {
-                    unreachable!("Plonk proof support is not enabled yet")
-                    // todo: this produces type conflicts. Uncomment and check the work of the code after dependencies are merged to main
-                    // let (_, serialized_proof) = serialize_proof(&proof.scheduler_proof);
-                    //
-                    // (serialized_proof, proof.aggregation_result_coords)
+                L1BatchProofForL1::Plonk(proof) => {
+                    let (_, serialized_proof) = serialize_proof(&proof.scheduler_proof);
+                    (serialized_proof, proof.aggregation_result_coords)
                 }
             };
 
@@ -106,7 +109,9 @@ fn serialize_g1_for_ethereum(point: &<bn256::Bn256 as Engine>::G1Affine) -> (U25
     (x, y)
 }
 
-fn serialize_evm(proof: &FflonkSnarkVerifierCircuitProof) -> Vec<U256> {
+fn serialize_evm(
+    proof: &FflonkProof<Bn256, ZkSyncSnarkWrapperCircuitNoLookupCustomGate>,
+) -> Vec<U256> {
     let mut serialized_proof = vec![];
     for input in proof.inputs.iter() {
         serialized_proof.push(serialize_fe_for_ethereum(input));

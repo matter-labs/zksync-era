@@ -230,6 +230,7 @@ circuit_sequencer_api_1_4_0 = { package = "circuit_sequencer_api", version = "0.
 circuit_sequencer_api_1_4_1 = { package = "circuit_sequencer_api", version = "0.141" }
 circuit_sequencer_api_1_4_2 = { package = "circuit_sequencer_api", version = "0.142" }
 circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", version = "=0.150.11" }
+circuit_definitions = "0.150.11"
 crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.30.6" }
 kzg = { package = "zksync_kzg", version = "=0.150.11" }
 zk_evm = { version = "=0.133.0" }

@@ -1,7 +1,8 @@
 use core::fmt;
 
-use circuit_sequencer_api_1_5_0::proof::FinalProof;
-use fflonk::FflonkSnarkVerifierCircuitProof;
+use circuit_definitions::circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuitNoLookupCustomGate;
+use circuit_sequencer_api_1_5_0::{boojum::pairing::bn256::Bn256, proof::FinalProof};
+use fflonk::FflonkProof;
 use serde::{Deserialize, Serialize};
 use serde_with::{hex::Hex, serde_as};
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
@@ -18,7 +19,7 @@ pub enum L1BatchProofForL1 {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct FflonkL1BatchProofForL1 {
     pub aggregation_result_coords: [[u8; 32]; 4],
-    pub scheduler_proof: FflonkSnarkVerifierCircuitProof,
+    pub scheduler_proof: FflonkProof<Bn256, ZkSyncSnarkWrapperCircuitNoLookupCustomGate>,
     pub protocol_version: ProtocolSemanticVersion,
 }
 
