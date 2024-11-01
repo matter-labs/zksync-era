@@ -128,6 +128,7 @@ fn parsing_optional_config_from_env() {
             "zks_getProof=100,eth_call=2",
         ),
         ("EN_L1_BATCH_COMMIT_DATA_GENERATOR_MODE", "Validium"),
+        ("EN_TIMESTAMP_ASSERTER_MIN_TIME_TILL_END_SEC", "2"),
     ];
     let env_vars = env_vars
         .into_iter()

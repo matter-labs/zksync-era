@@ -12,7 +12,7 @@ use zksync_types::{
     H256,
 };
 use zksync_utils::{address_to_h256, bytecode::hash_bytecode};
-use zksync_vm_interface::{TransactionExecutionMetrics, VmEvent};
+use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics, VmEvent};
 
 use super::*;
 use crate::resolver::{Compiler, SupportedCompilerVersions};
@@ -51,7 +51,11 @@ async fn mock_deployment(storage: &mut Connection<'_, Core>, address: Address, b
     deploy_tx.set_input(vec![0; 128], H256::repeat_byte(0x23));
     storage
         .transactions_dal()
-        .insert_transaction_l2(&deploy_tx, TransactionExecutionMetrics::default())
+        .insert_transaction_l2(
+            &deploy_tx,
+            TransactionExecutionMetrics::default(),
+            ValidationTraces::default(),
+        )
         .await
         .unwrap();
 
