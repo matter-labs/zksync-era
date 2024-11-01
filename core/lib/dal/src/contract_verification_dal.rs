@@ -5,7 +5,6 @@ use std::{
     time::Duration,
 };
 
-use anyhow::Context as _;
 use sqlx::postgres::types::PgInterval;
 use zksync_db_connection::{error::SqlxContext, instrument::InstrumentExt};
 use zksync_types::{
@@ -57,9 +56,8 @@ pub struct ContractVerificationDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
-// FIXME: instrument other queries
 impl ContractVerificationDal<'_, '_> {
-    pub async fn get_count_of_queued_verification_requests(&mut self) -> sqlx::Result<usize> {
+    pub async fn get_count_of_queued_verification_requests(&mut self) -> DalResult<usize> {
         sqlx::query!(
             r#"
             SELECT
@@ -70,7 +68,8 @@ impl ContractVerificationDal<'_, '_> {
                 status = 'queued'
             "#
         )
-        .fetch_one(self.storage.conn())
+        .instrument("get_count_of_queued_verification_requests")
+        .fetch_one(self.storage)
         .await
         .map(|row| row.count as usize)
     }
@@ -78,7 +77,7 @@ impl ContractVerificationDal<'_, '_> {
     pub async fn add_contract_verification_request(
         &mut self,
         query: VerificationIncomingRequest,
-    ) -> sqlx::Result<usize> {
+    ) -> DalResult<usize> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -114,7 +113,9 @@ impl ContractVerificationDal<'_, '_> {
             query.is_system,
             query.force_evmla,
         )
-        .fetch_one(self.storage.conn())
+        .instrument("add_contract_verification_request")
+        .with_arg("address", &query.contract_address)
+        .fetch_one(self.storage)
         .await
         .map(|row| row.id as usize)
     }
@@ -126,7 +127,7 @@ impl ContractVerificationDal<'_, '_> {
     pub async fn get_next_queued_verification_request(
         &mut self,
         processing_timeout: Duration,
-    ) -> sqlx::Result<Option<VerificationRequest>> {
+    ) -> DalResult<Option<VerificationRequest>> {
         let processing_timeout = PgInterval {
             months: 0,
             days: 0,
@@ -175,7 +176,9 @@ impl ContractVerificationDal<'_, '_> {
             "#,
             &processing_timeout
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_next_queued_verification_request")
+        .with_arg("processing_timeout", &processing_timeout)
+        .fetch_optional(self.storage)
         .await?
         .map(Into::into);
         Ok(result)
@@ -185,12 +188,10 @@ impl ContractVerificationDal<'_, '_> {
     pub async fn save_verification_info(
         &mut self,
         verification_info: VerificationInfo,
-    ) -> anyhow::Result<()> {
-        let mut transaction = self
-            .storage
-            .start_transaction()
-            .await
-            .context("start_transaction()")?;
+    ) -> DalResult<()> {
+        let mut transaction = self.storage.start_transaction().await?;
+        let id = verification_info.request.id;
+        let address = verification_info.request.req.contract_address;
 
         sqlx::query!(
             r#"
@@ -203,10 +204,12 @@ impl ContractVerificationDal<'_, '_> {
             "#,
             verification_info.request.id as i64,
         )
-        .execute(transaction.conn())
+        .instrument("save_verification_info#set_status")
+        .with_arg("id", &id)
+        .with_arg("address", &address)
+        .execute(&mut transaction)
         .await?;
 
-        let address = verification_info.request.req.contract_address;
         // Serialization should always succeed.
         let verification_info_json = serde_json::to_value(verification_info)
             .expect("Failed to serialize verification info into serde_json");
@@ -224,20 +227,22 @@ impl ContractVerificationDal<'_, '_> {
             address.as_bytes(),
             &verification_info_json
         )
-        .execute(transaction.conn())
+        .instrument("save_verification_info#insert")
+        .with_arg("id", &id)
+        .with_arg("address", &address)
+        .execute(&mut transaction)
         .await?;
 
-        transaction.commit().await.context("commit()")?;
-        Ok(())
+        transaction.commit().await
     }
 
     pub async fn save_verification_error(
         &mut self,
         id: usize,
-        error: String,
-        compilation_errors: serde_json::Value,
-        panic_message: Option<String>,
-    ) -> sqlx::Result<()> {
+        error: &str,
+        compilation_errors: &serde_json::Value,
+        panic_message: Option<&str>,
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE contract_verification_requests
@@ -251,11 +256,14 @@ impl ContractVerificationDal<'_, '_> {
                 id = $1
             "#,
             id as i64,
-            error.as_str(),
-            &compilation_errors,
+            error,
+            compilation_errors,
             panic_message
         )
-        .execute(self.storage.conn())
+        .instrument("save_verification_error")
+        .with_arg("id", &id)
+        .with_arg("error", &error)
+        .execute(self.storage)
         .await?;
         Ok(())
     }
@@ -263,8 +271,8 @@ impl ContractVerificationDal<'_, '_> {
     pub async fn get_verification_request_status(
         &mut self,
         id: usize,
-    ) -> anyhow::Result<Option<VerificationRequestStatus>> {
-        let Some(row) = sqlx::query!(
+    ) -> DalResult<Option<VerificationRequestStatus>> {
+        sqlx::query!(
             r#"
             SELECT
                 status,
@@ -277,31 +285,35 @@ impl ContractVerificationDal<'_, '_> {
             "#,
             id as i64,
         )
-        .fetch_optional(self.storage.conn())
-        .await?
-        else {
-            return Ok(None);
-        };
-
-        let mut compilation_errors = vec![];
-        if let Some(errors) = row.compilation_errors {
-            for value in errors.as_array().context("expected an array")? {
-                compilation_errors.push(value.as_str().context("expected string")?.to_string());
+        .try_map(|row| {
+            let mut compilation_errors = vec![];
+            if let Some(errors) = row.compilation_errors {
+                let serde_json::Value::Array(errors) = errors else {
+                    return Err(anyhow::anyhow!("errors are not an array"))
+                        .decode_column("compilation_errors")?;
+                };
+                for value in errors {
+                    let serde_json::Value::String(err) = value else {
+                        return Err(anyhow::anyhow!("error is not a string"))
+                            .decode_column("compilation_errors")?;
+                    };
+                    compilation_errors.push(err.to_owned());
+                }
             }
-        }
-        Ok(Some(VerificationRequestStatus {
-            status: row.status,
-            error: row.error,
-            compilation_errors: if compilation_errors.is_empty() {
-                None
-            } else {
-                Some(compilation_errors)
-            },
-        }))
+
+            Ok(VerificationRequestStatus {
+                status: row.status,
+                error: row.error,
+                compilation_errors: (!compilation_errors.is_empty()).then_some(compilation_errors),
+            })
+        })
+        .instrument("get_verification_request_status")
+        .with_arg("id", &id)
+        .fetch_optional(self.storage)
+        .await
     }
 
     /// Returns bytecode and calldata from the contract and the transaction that created it.
-    // FIXME: add unit test
     pub async fn get_contract_info_for_verification(
         &mut self,
         address: Address,
@@ -365,7 +377,7 @@ impl ContractVerificationDal<'_, '_> {
     }
 
     /// Returns true if the contract has a stored contracts_verification_info.
-    pub async fn is_contract_verified(&mut self, address: Address) -> sqlx::Result<bool> {
+    pub async fn is_contract_verified(&mut self, address: Address) -> DalResult<bool> {
         let count = sqlx::query!(
             r#"
             SELECT
@@ -377,13 +389,15 @@ impl ContractVerificationDal<'_, '_> {
             "#,
             address.as_bytes()
         )
-        .fetch_one(self.storage.conn())
+        .instrument("is_contract_verified")
+        .with_arg("address", &address)
+        .fetch_one(self.storage)
         .await?
         .count;
         Ok(count > 0)
     }
 
-    async fn get_compiler_versions(&mut self, compiler: Compiler) -> sqlx::Result<Vec<String>> {
+    async fn get_compiler_versions(&mut self, compiler: Compiler) -> DalResult<Vec<String>> {
         let compiler = format!("{compiler}");
         let versions: Vec<_> = sqlx::query!(
             r#"
@@ -398,7 +412,9 @@ impl ContractVerificationDal<'_, '_> {
             "#,
             &compiler
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_compiler_versions")
+        .with_arg("compiler", &compiler)
+        .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(|row| row.version)
@@ -406,19 +422,19 @@ impl ContractVerificationDal<'_, '_> {
         Ok(versions)
     }
 
-    pub async fn get_zksolc_versions(&mut self) -> sqlx::Result<Vec<String>> {
+    pub async fn get_zksolc_versions(&mut self) -> DalResult<Vec<String>> {
         self.get_compiler_versions(Compiler::ZkSolc).await
     }
 
-    pub async fn get_solc_versions(&mut self) -> sqlx::Result<Vec<String>> {
+    pub async fn get_solc_versions(&mut self) -> DalResult<Vec<String>> {
         self.get_compiler_versions(Compiler::Solc).await
     }
 
-    pub async fn get_zkvyper_versions(&mut self) -> sqlx::Result<Vec<String>> {
+    pub async fn get_zkvyper_versions(&mut self) -> DalResult<Vec<String>> {
         self.get_compiler_versions(Compiler::ZkVyper).await
     }
 
-    pub async fn get_vyper_versions(&mut self) -> sqlx::Result<Vec<String>> {
+    pub async fn get_vyper_versions(&mut self) -> DalResult<Vec<String>> {
         self.get_compiler_versions(Compiler::Vyper).await
     }
 
@@ -426,12 +442,8 @@ impl ContractVerificationDal<'_, '_> {
         &mut self,
         compiler: Compiler,
         versions: Vec<String>,
-    ) -> anyhow::Result<()> {
-        let mut transaction = self
-            .storage
-            .start_transaction()
-            .await
-            .context("start_transaction")?;
+    ) -> DalResult<()> {
+        let mut transaction = self.storage.start_transaction().await?;
         let compiler = format!("{compiler}");
 
         sqlx::query!(
@@ -442,7 +454,9 @@ impl ContractVerificationDal<'_, '_> {
             "#,
             &compiler
         )
-        .execute(transaction.conn())
+        .instrument("set_compiler_versions#delete")
+        .with_arg("compiler", &compiler)
+        .execute(&mut transaction)
         .await?;
 
         sqlx::query!(
@@ -461,31 +475,33 @@ impl ContractVerificationDal<'_, '_> {
             &versions,
             &compiler,
         )
-        .execute(transaction.conn())
+        .instrument("set_compiler_versions#insert")
+        .with_arg("compiler", &compiler)
+        .with_arg("versions.len", &versions.len())
+        .execute(&mut transaction)
         .await?;
 
-        transaction.commit().await.context("commit()")?;
-        Ok(())
+        transaction.commit().await
     }
 
-    pub async fn set_zksolc_versions(&mut self, versions: Vec<String>) -> anyhow::Result<()> {
+    pub async fn set_zksolc_versions(&mut self, versions: Vec<String>) -> DalResult<()> {
         self.set_compiler_versions(Compiler::ZkSolc, versions).await
     }
 
-    pub async fn set_solc_versions(&mut self, versions: Vec<String>) -> anyhow::Result<()> {
+    pub async fn set_solc_versions(&mut self, versions: Vec<String>) -> DalResult<()> {
         self.set_compiler_versions(Compiler::Solc, versions).await
     }
 
-    pub async fn set_zkvyper_versions(&mut self, versions: Vec<String>) -> anyhow::Result<()> {
+    pub async fn set_zkvyper_versions(&mut self, versions: Vec<String>) -> DalResult<()> {
         self.set_compiler_versions(Compiler::ZkVyper, versions)
             .await
     }
 
-    pub async fn set_vyper_versions(&mut self, versions: Vec<String>) -> anyhow::Result<()> {
+    pub async fn set_vyper_versions(&mut self, versions: Vec<String>) -> DalResult<()> {
         self.set_compiler_versions(Compiler::Vyper, versions).await
     }
 
-    pub async fn get_all_successful_requests(&mut self) -> sqlx::Result<Vec<VerificationRequest>> {
+    pub async fn get_all_successful_requests(&mut self) -> DalResult<Vec<VerificationRequest>> {
         let result = sqlx::query_as!(
             StorageVerificationRequest,
             r#"
@@ -509,7 +525,8 @@ impl ContractVerificationDal<'_, '_> {
                 id
             "#,
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_all_successful_requests")
+        .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(Into::into)
@@ -520,8 +537,8 @@ impl ContractVerificationDal<'_, '_> {
     pub async fn get_contract_verification_info(
         &mut self,
         address: Address,
-    ) -> anyhow::Result<Option<VerificationInfo>> {
-        let Some(row) = sqlx::query!(
+    ) -> DalResult<Option<VerificationInfo>> {
+        Ok(sqlx::query!(
             r#"
             SELECT
                 verification_info
@@ -532,14 +549,15 @@ impl ContractVerificationDal<'_, '_> {
             "#,
             address.as_bytes(),
         )
-        .fetch_optional(self.storage.conn())
+        .try_map(|row| {
+            row.verification_info
+                .map(|info| serde_json::from_value(info).decode_column("verification_info"))
+                .transpose()
+        })
+        .instrument("get_contract_verification_info")
+        .with_arg("address", &address)
+        .fetch_optional(self.storage)
         .await?
-        else {
-            return Ok(None);
-        };
-        let Some(info) = row.verification_info else {
-            return Ok(None);
-        };
-        Ok(Some(serde_json::from_value(info).context("invalid info")?))
+        .flatten())
     }
 }

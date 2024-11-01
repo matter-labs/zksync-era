@@ -500,7 +500,7 @@ impl ContractVerifier {
                 };
                 storage
                     .contract_verification_dal()
-                    .save_verification_error(request_id, error_message, compilation_errors, None)
+                    .save_verification_error(request_id, &error_message, &compilation_errors, None)
                     .await?;
                 tracing::info!("Request with id = {request_id} was failed");
             }
@@ -547,9 +547,9 @@ impl JobProcessor for ContractVerifier {
             .contract_verification_dal()
             .save_verification_error(
                 job_id,
-                "Internal error".to_string(),
-                serde_json::Value::Array(Vec::new()),
-                Some(error),
+                "Internal error",
+                &serde_json::Value::Array(Vec::new()),
+                Some(&error),
             )
             .await
             .unwrap();
