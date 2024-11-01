@@ -46,6 +46,7 @@ impl ProtoRepr for proto::GeneralConfig {
             ),
             experimental_vm_config: read_optional_repr(&self.experimental_vm),
             prover_job_monitor_config: read_optional_repr(&self.prover_job_monitor),
+            timestamp_asserter_config: read_optional_repr(&self.timestamp_asserter),
         })
     }
 
@@ -104,6 +105,10 @@ impl ProtoRepr for proto::GeneralConfig {
             experimental_vm: this.experimental_vm_config.as_ref().map(ProtoRepr::build),
             prover_job_monitor: this
                 .prover_job_monitor_config
+                .as_ref()
+                .map(ProtoRepr::build),
+            timestamp_asserter: this
+                .timestamp_asserter_config
                 .as_ref()
                 .map(ProtoRepr::build),
         }
