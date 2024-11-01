@@ -102,7 +102,6 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         );
         let result = tx_tracer.result_tracer.into_result();
         let factory_deps_marked_as_known = VmEvent::extract_bytecodes_marked_as_known(&logs.events);
-        // FIXME: check that it filters out reverted deployments
         let dynamic_factory_deps = self.decommit_dynamic_bytecodes(factory_deps_marked_as_known);
         *dispatcher = tx_tracer.dispatcher;
 

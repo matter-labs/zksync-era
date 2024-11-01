@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use assert_matches::assert_matches;
 use ethabi::Token;
+use rand::{rngs::StdRng, Rng, SeedableRng};
 use zksync_contracts::{load_contract, read_bytecode, SystemContractCode};
 use zksync_system_constants::{
     CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L2_BASE_TOKEN_ADDRESS,
@@ -395,6 +396,14 @@ pub(crate) fn test_mock_emulator_with_deployment<VM: TestedVm>(revert: bool) {
     assert!(vm_result.dynamic_factory_deps.is_empty(), "{vm_result:?}");
 }
 
+fn encode_deployment(hash: H256, bytecode: Vec<u8>) -> Token {
+    assert_eq!(bytecode.len(), 32);
+    Token::Tuple(vec![
+        Token::FixedBytes(hash.0.to_vec()),
+        Token::FixedBytes(bytecode),
+    ])
+}
+
 pub(crate) fn test_mock_emulator_with_recursive_deployment<VM: TestedVm>() {
     let contract_address = Address::repeat_byte(0xaa);
     let mut vm = EvmTestBuilder::new(true, contract_address)
@@ -412,21 +421,14 @@ pub(crate) fn test_mock_emulator_with_recursive_deployment<VM: TestedVm>() {
     let test_fn = mock_emulator_abi
         .function("testRecursiveDeployment")
         .unwrap();
-    let (hash_tokens, bytecode_tokens): (Vec<_>, Vec<_>) = bytecodes
+    let deployments: Vec<_> = bytecodes
         .iter()
-        .map(|(hash, code)| {
-            (
-                Token::FixedBytes(hash.0.to_vec()),
-                Token::FixedBytes(code.clone()),
-            )
-        })
-        .unzip();
+        .map(|(hash, code)| encode_deployment(*hash, code.clone()))
+        .collect();
     let test_tx = account.get_l2_tx_for_execute(
         Execute {
             contract_address: Some(contract_address),
-            calldata: test_fn
-                .encode_input(&[Token::Array(hash_tokens), Token::Array(bytecode_tokens)])
-                .unwrap(),
+            calldata: test_fn.encode_input(&[Token::Array(deployments)]).unwrap(),
             value: 0.into(),
             factory_deps: vec![],
         },
@@ -438,6 +440,74 @@ pub(crate) fn test_mock_emulator_with_recursive_deployment<VM: TestedVm>() {
         .execute_transaction_with_bytecode_compression(test_tx, true);
     assert!(!vm_result.result.is_failed(), "{vm_result:?}");
     assert_eq!(vm_result.dynamic_factory_deps, bytecodes);
+}
+
+pub(crate) fn test_mock_emulator_with_partial_reverts<VM: TestedVm>() {
+    for seed in [1, 10, 100, 1_000] {
+        println!("Testing with RNG seed {seed}");
+        let mut rng = StdRng::seed_from_u64(seed);
+        test_mock_emulator_with_partial_reverts_and_rng::<VM>(&mut rng);
+    }
+}
+
+fn test_mock_emulator_with_partial_reverts_and_rng<VM: TestedVm>(rng: &mut impl Rng) {
+    let contract_address = Address::repeat_byte(0xaa);
+    let mut vm = EvmTestBuilder::new(true, contract_address)
+        .with_mock_deployer()
+        .build::<VM>();
+    let account = &mut vm.rich_accounts[0];
+
+    let mock_emulator_abi = load_contract(MOCK_EMULATOR_PATH);
+    let all_bytecodes: HashMap<_, _> = (0_u8..10)
+        .map(|_| {
+            let bytecode = vec![rng.gen(); 32];
+            (hash_evm_bytecode(&bytecode), bytecode)
+        })
+        .collect();
+    let should_revert: Vec<_> = (0..10).map(|_| rng.gen::<bool>()).collect();
+
+    let test_fn = mock_emulator_abi
+        .function("testDeploymentWithPartialRevert")
+        .unwrap();
+    let deployments: Vec<_> = all_bytecodes
+        .iter()
+        .map(|(hash, code)| encode_deployment(*hash, code.clone()))
+        .collect();
+    let revert_tokens: Vec<_> = should_revert.iter().copied().map(Token::Bool).collect();
+
+    let test_tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(contract_address),
+            calldata: test_fn
+                .encode_input(&[Token::Array(deployments), Token::Array(revert_tokens)])
+                .unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(test_tx, true);
+    assert!(!vm_result.result.is_failed(), "{vm_result:?}");
+
+    let dynamic_deps = &vm_result.dynamic_factory_deps;
+    assert_eq!(
+        dynamic_deps.len(),
+        should_revert
+            .iter()
+            .map(|flag| !flag as usize)
+            .sum::<usize>(),
+        "{dynamic_deps:?}"
+    );
+    for ((bytecode_hash, bytecode), &should_revert) in all_bytecodes.iter().zip(&should_revert) {
+        assert_eq!(
+            dynamic_deps.get(bytecode_hash),
+            (!should_revert).then_some(bytecode),
+            "hash={bytecode_hash:?}, deps={dynamic_deps:?}"
+        );
+    }
 }
 
 pub(crate) fn test_mock_emulator_with_delegate_call<VM: TestedVm>() {

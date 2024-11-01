@@ -839,7 +839,6 @@ impl<S: ReadStorage, T: Tracer> World<S, T> {
         )
     }
 
-    // FIXME: test with multiple deploying txs
     fn decommit_dynamic_bytecodes(
         &self,
         candidate_hashes: impl Iterator<Item = H256>,

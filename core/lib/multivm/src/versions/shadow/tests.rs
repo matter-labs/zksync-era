@@ -245,6 +245,11 @@ mod evm_emulator {
     }
 
     #[test]
+    fn mock_emulator_with_partial_reverts() {
+        test_mock_emulator_with_partial_reverts::<super::ShadowedFastVm>();
+    }
+
+    #[test]
     fn mock_emulator_with_delegate_call() {
         test_mock_emulator_with_delegate_call::<super::ShadowedFastVm>();
     }
