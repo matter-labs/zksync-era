@@ -7,7 +7,7 @@ use zksync_types::{commitment::PubdataParams, l2::L2Tx, Transaction};
 
 use crate::{
     storage::{ReadStorage, StorageView},
-    tracer::{ValidationError, ValidationParams},
+    tracer::{ValidationError, ValidationParams, ValidationTraces},
     BatchTransactionExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, OneshotEnv,
     OneshotTracingParams, OneshotTransactionExecutionResult, SystemEnv, TxExecutionArgs,
 };
@@ -69,5 +69,5 @@ pub trait TransactionValidator<S: ReadStorage>: OneshotExecutor<S> {
         env: OneshotEnv,
         tx: L2Tx,
         validation_params: ValidationParams,
-    ) -> anyhow::Result<Result<(), ValidationError>>;
+    ) -> anyhow::Result<Result<ValidationTraces, ValidationError>>;
 }
