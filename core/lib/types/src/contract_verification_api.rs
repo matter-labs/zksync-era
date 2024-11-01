@@ -213,8 +213,17 @@ pub struct VerificationRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompilationArtifacts {
+    /// In case of EVM contracts, this is the original bytecode (`bytecode` in `solc` output).
     pub bytecode: Vec<u8>,
+    /// Only set for EVM contracts.
+    pub deployed_bytecode: Option<Vec<u8>>,
     pub abi: serde_json::Value,
+}
+
+impl CompilationArtifacts {
+    pub fn deployed_bytecode(&self) -> &[u8] {
+        self.deployed_bytecode.as_deref().unwrap_or(&self.bytecode)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

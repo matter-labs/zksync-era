@@ -71,6 +71,7 @@ impl ZkVyper {
                 return Ok(CompilationArtifacts {
                     abi: artifact["abi"].clone(),
                     bytecode,
+                    deployed_bytecode: None,
                 });
             }
         }

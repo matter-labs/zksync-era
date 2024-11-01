@@ -162,6 +162,7 @@ impl ZkSolc {
         let bytecode = hex::decode(bytecode_str).context("invalid Yul output bytecode")?;
         Ok(CompilationArtifacts {
             bytecode,
+            deployed_bytecode: None,
             abi: serde_json::Value::Array(Vec::new()),
         })
     }
@@ -247,7 +248,7 @@ impl Compiler<ZkSolcInput> for ZkSolc {
                 if output.status.success() {
                     let output = serde_json::from_slice(&output.stdout)
                         .context("zksolc output is not valid JSON")?;
-                    parse_standard_json_output(&output, contract_name, file_name)
+                    parse_standard_json_output(&output, contract_name, file_name, false)
                 } else {
                     Err(ContractVerifierError::CompilerError(
                         "zksolc".to_string(),

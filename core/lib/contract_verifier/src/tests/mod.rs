@@ -258,6 +258,7 @@ async fn contract_verifier_basics() {
 
         CompilationArtifacts {
             bytecode: vec![0; 32],
+            deployed_bytecode: None,
             abi: counter_contract_abi(),
         }
     });
@@ -341,6 +342,7 @@ async fn bytecode_mismatch_error() {
 
     let mock_resolver = MockCompilerResolver::new(|_| CompilationArtifacts {
         bytecode: vec![0; 32],
+        deployed_bytecode: None,
         abi: counter_contract_abi(),
     });
     let verifier = ContractVerifier::with_resolver(

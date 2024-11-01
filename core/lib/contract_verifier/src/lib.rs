@@ -19,7 +19,7 @@ use zksync_types::{
     },
     Address, CONTRACT_DEPLOYER_ADDRESS,
 };
-use zksync_utils::bytecode::BytecodeMarker;
+use zksync_utils::bytecode::{prepare_evm_bytecode, BytecodeMarker};
 
 use crate::{
     compilers::{Solc, ZkSolc, ZkVyper},
@@ -161,16 +161,22 @@ impl ContractVerifier {
             .context("unknown bytecode kind")?;
         let artifacts = self.compile(request.req.clone(), bytecode_marker).await?;
 
+        // FIXME: extract constructor args / check bytecode for EVM contracts
         let constructor_args =
             self.decode_constructor_args(&deployed_contract, request.req.contract_address)?;
 
-        // FIXME: post-process EVM bytecode
-        if artifacts.bytecode != deployed_contract.bytecode {
+        let deployed_bytecode = match bytecode_marker {
+            BytecodeMarker::EraVm => deployed_contract.bytecode.as_slice(),
+            BytecodeMarker::Evm => prepare_evm_bytecode(&deployed_contract.bytecode)
+                .context("invalid stored EVM bytecode")?,
+        };
+
+        if artifacts.deployed_bytecode() != deployed_bytecode {
             tracing::info!(
                 "Bytecode mismatch req {}, deployed: 0x{}, compiled: 0x{}",
                 request.id,
-                hex::encode(&deployed_contract.bytecode),
-                hex::encode(&artifacts.bytecode)
+                hex::encode(deployed_bytecode),
+                hex::encode(artifacts.deployed_bytecode())
             );
             return Err(ContractVerifierError::BytecodeMismatch);
         }

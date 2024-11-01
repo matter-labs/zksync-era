@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use zksync_types::contract_verification_api::CompilationArtifacts;
 
@@ -20,11 +21,11 @@ pub(crate) struct Source {
 }
 
 /// Parsing logic shared between `solc` and `zksolc`.
-// FIXME: deployed bytecode.
 fn parse_standard_json_output(
     output: &serde_json::Value,
     contract_name: String,
     file_name: String,
+    get_deployed_bytecode: bool,
 ) -> Result<CompilationArtifacts, ContractVerifierError> {
     if let Some(errors) = output.get("errors") {
         let errors = errors.as_array().unwrap().clone();
@@ -49,10 +50,25 @@ fn parse_standard_json_output(
         return Err(ContractVerifierError::MissingContract(contract_name));
     };
 
-    let bytecode_str = contract["evm"]["bytecode"]["object"]
+    let Some(bytecode_str) = contract
+        .pointer("/evm/bytecode/object")
+        .context("missing bytecode in solc / zksolc output")?
         .as_str()
-        .ok_or(ContractVerifierError::AbstractContract(contract_name))?;
-    let bytecode = hex::decode(bytecode_str).unwrap();
+    else {
+        return Err(ContractVerifierError::AbstractContract(contract_name));
+    };
+    let bytecode = hex::decode(bytecode_str).context("invalid bytecode")?;
+
+    let deployed_bytecode = if get_deployed_bytecode {
+        let bytecode_str = contract
+            .pointer("/evm/deployedBytecode/object")
+            .context("missing deployed bytecode in solc output")?
+            .as_str()
+            .ok_or(ContractVerifierError::AbstractContract(contract_name))?;
+        Some(hex::decode(bytecode_str).context("invalid deployed bytecode")?)
+    } else {
+        None
+    };
 
     let abi = contract["abi"].clone();
     if !abi.is_array() {
@@ -63,5 +79,9 @@ fn parse_standard_json_output(
         return Err(err.into());
     }
 
-    Ok(CompilationArtifacts { bytecode, abi })
+    Ok(CompilationArtifacts {
+        bytecode,
+        deployed_bytecode,
+        abi,
+    })
 }

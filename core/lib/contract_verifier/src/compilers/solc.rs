@@ -154,7 +154,7 @@ impl Compiler<SolcInput> for Solc {
         if output.status.success() {
             let output = serde_json::from_slice(&output.stdout)
                 .context("zksolc output is not valid JSON")?;
-            parse_standard_json_output(&output, input.contract_name, input.file_name)
+            parse_standard_json_output(&output, input.contract_name, input.file_name, true)
         } else {
             Err(ContractVerifierError::CompilerError(
                 "zksolc".to_string(),
