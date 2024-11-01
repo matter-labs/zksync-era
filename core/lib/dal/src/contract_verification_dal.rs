@@ -561,3 +561,84 @@ impl ContractVerificationDal<'_, '_> {
         .flatten())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use zksync_types::{
+        tx::IncludedTxLocation, Execute, L1BatchNumber, L2BlockNumber, ProtocolVersion,
+    };
+    use zksync_utils::bytecode::hash_bytecode;
+    use zksync_vm_interface::TransactionExecutionMetrics;
+
+    use super::*;
+    use crate::{
+        tests::{create_l2_block_header, mock_l2_transaction},
+        ConnectionPool, CoreDal,
+    };
+
+    #[tokio::test]
+    async fn getting_contract_info_for_verification() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .insert_l2_block(&create_l2_block_header(0))
+            .await
+            .unwrap();
+
+        // Add a transaction, its bytecode and the bytecode deployment event.
+        let deployed_address = Address::repeat_byte(12);
+        let mut tx = mock_l2_transaction();
+        let bytecode = vec![1; 32];
+        let bytecode_hash = hash_bytecode(&bytecode);
+        tx.execute = Execute::for_deploy(H256::zero(), bytecode.clone(), &[]);
+        conn.transactions_dal()
+            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+            .await
+            .unwrap();
+        conn.factory_deps_dal()
+            .insert_factory_deps(
+                L2BlockNumber(0),
+                &HashMap::from([(bytecode_hash, bytecode.clone())]),
+            )
+            .await
+            .unwrap();
+        let location = IncludedTxLocation {
+            tx_hash: tx.hash(),
+            tx_index_in_l2_block: 0,
+            tx_initiator_address: tx.initiator_account(),
+        };
+        let deploy_event = VmEvent {
+            location: (L1BatchNumber(0), 0),
+            address: CONTRACT_DEPLOYER_ADDRESS,
+            indexed_topics: vec![
+                VmEvent::DEPLOY_EVENT_SIGNATURE,
+                address_to_h256(&tx.initiator_account()),
+                bytecode_hash,
+                address_to_h256(&deployed_address),
+            ],
+            value: vec![],
+        };
+        conn.events_dal()
+            .save_events(L2BlockNumber(0), &[(location, vec![&deploy_event])])
+            .await
+            .unwrap();
+
+        let contract = conn
+            .contract_verification_dal()
+            .get_contract_info_for_verification(deployed_address)
+            .await
+            .unwrap()
+            .expect("no info");
+        assert_eq!(contract.bytecode_hash, bytecode_hash);
+        assert_eq!(contract.bytecode, bytecode);
+        assert_eq!(contract.contract_address, Some(CONTRACT_DEPLOYER_ADDRESS));
+        assert_eq!(contract.calldata.unwrap(), tx.execute.calldata);
+    }
+}
