@@ -90,7 +90,7 @@ impl FactoryDepsDal<'_, '_> {
         .map(|row| row.bytecode))
     }
 
-    async fn get_base_system_contracts_from_factory_deps(
+    pub async fn get_base_system_contracts_from_factory_deps(
         &mut self,
         bootloader_hash: H256,
         default_aa_hash: H256,
@@ -141,76 +141,6 @@ impl FactoryDepsDal<'_, '_> {
             default_aa: default_aa_code,
             evm_emulator: evm_emulator_code,
         }))
-    }
-
-    pub async fn get_base_system_contracts(
-        &mut self,
-        protocol_version: Option<ProtocolVersionId>,
-        bootloader_hash: H256,
-        default_aa_hash: H256,
-        evm_simulator_hash: Option<H256>,
-    ) -> anyhow::Result<BaseSystemContracts> {
-        // There are two potential sources of base contracts bytecode:
-        // - Factory deps table in case the upgrade transaction has been executed before.
-        // - Factory deps of the upgrade transaction.
-
-        // Firstly trying from factory deps
-        if let Some(deps) = self
-            .get_base_system_contracts_from_factory_deps(
-                bootloader_hash,
-                default_aa_hash,
-                evm_simulator_hash,
-            )
-            .await?
-        {
-            return Ok(deps);
-        }
-
-        let error_msg = format!("Could not find either of the following factoey deps: bootloader {bootloader_hash:?} or {default_aa_hash:?}");
-
-        let protocol_version = protocol_version.context("Protocol version not provided")?;
-
-        let upgrade_tx = self
-            .storage
-            .protocol_versions_dal()
-            .get_protocol_upgrade_tx(protocol_version)
-            .await?
-            .context(error_msg.clone())?;
-
-        anyhow::ensure!(
-            upgrade_tx.execute.factory_deps.len() >= 2,
-            "Upgrade transaction does not have enough factory deps"
-        );
-
-        let bootloader_preimage = upgrade_tx.execute.factory_deps[0].clone();
-        let default_aa_preimage = upgrade_tx.execute.factory_deps[1].clone();
-
-        anyhow::ensure!(
-            hash_bytecode(&bootloader_preimage) == bootloader_hash,
-            "Bootloader hash mismatch"
-        );
-        anyhow::ensure!(
-            hash_bytecode(&default_aa_preimage) == default_aa_hash,
-            "Default account hash mismatch"
-        );
-
-        if evm_simulator_hash.is_some() {
-            // For now, it is not yet decided whether Gateway upgrade will happen before
-            // or after the EVM equivalence upgrade.
-            panic!("EVM simulator not supported as part of gateway upgrade");
-        }
-
-        Ok(BaseSystemContracts {
-            bootloader: SystemContractCode {
-                code: bytes_to_be_words(bootloader_preimage),
-                hash: bootloader_hash,
-            },
-            default_aa: SystemContractCode {
-                code: bytes_to_be_words(default_aa_preimage),
-                hash: default_aa_hash,
-            },
-            evm_emulator: None,
-        })
     }
 
     /// Returns bytecodes for factory deps with the specified `hashes`.

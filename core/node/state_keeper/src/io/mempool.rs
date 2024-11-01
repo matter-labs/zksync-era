@@ -22,7 +22,9 @@ use zksync_types::{
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::time::millis_since_epoch;
-use zksync_vm_executor::storage::L1BatchParamsProvider;
+use zksync_vm_executor::storage::{
+    get_base_system_contracts_hashes_by_version_id, L1BatchParamsProvider,
+};
 
 use crate::{
     io::{
@@ -349,18 +351,15 @@ impl StateKeeperIO for MempoolIO {
         protocol_version: ProtocolVersionId,
         _cursor: &IoCursor,
     ) -> anyhow::Result<BaseSystemContracts> {
-        self.pool
-            .connection_tagged("state_keeper")
-            .await?
-            .protocol_versions_dal()
-            .load_base_system_contracts_by_version_id(protocol_version as u16)
-            .await
-            .context("failed loading base system contracts")?
-            .with_context(|| {
-                format!(
-                    "no base system contracts persisted for protocol version {protocol_version:?}"
-                )
-            })
+        get_base_system_contracts_hashes_by_version_id(
+            &mut self.pool.connection_tagged("state_keeper").await?,
+            protocol_version as u16,
+        )
+        .await
+        .context("failed loading base system contracts")?
+        .with_context(|| {
+            format!("no base system contracts persisted for protocol version {protocol_version:?}")
+        })
     }
 
     async fn load_batch_version_id(
