@@ -4,14 +4,17 @@
 use std::collections::HashMap;
 
 use anyhow::Context as _;
+use shivini::cs::gpu_setup_and_vk_from_base_setup_vk_params_and_hints;
 use zkevm_test_harness::{
-    compute_setups::{generate_circuit_setup_data, CircuitSetupData},
+    compute_setups::{
+        generate_circuit_setup_data, light::generate_light_circuit_setup_data, CircuitSetupData,
+    },
     data_source::SetupDataSource,
 };
 use zksync_prover_fri_types::{ProverServiceDataKey, ProvingStage};
 #[cfg(feature = "gpu")]
 use {
-    crate::GpuProverSetupData, shivini::cs::setup::GpuSetup, shivini::ProverContext,
+    crate::GpuProverSetupData, shivini::ProverContext,
     zksync_prover_fri_types::circuit_definitions::boojum::worker::Worker,
 };
 
@@ -24,12 +27,9 @@ pub fn generate_setup_data_common(
     circuit: ProverServiceDataKey,
 ) -> anyhow::Result<CircuitSetupData> {
     let mut data_source = keystore.load_keys_to_data_source()?;
-    let circuit_setup_data = generate_circuit_setup_data(
-        circuit.is_base_layer(),
-        circuit.circuit_id,
-        &mut data_source,
-    )
-    .unwrap();
+    let circuit_setup_data =
+        generate_circuit_setup_data(circuit.stage as u8, circuit.circuit_id, &mut data_source)
+            .unwrap();
 
     let (finalization, vk) = match circuit.stage {
         ProvingStage::BasicCircuits => (
@@ -40,7 +40,10 @@ pub fn generate_setup_data_common(
                 .into_inner(),
         ),
         ProvingStage::Compression => {
-            todo!()
+            unreachable!("Compression stage should not be generated with CPU.")
+        }
+        ProvingStage::CompressionWrapper => {
+            unreachable!("CompressionWrapper stage should not be generated with CPU.")
         }
         _ => (
             Some(keystore.load_finalization_hints(circuit)?),
@@ -153,22 +156,42 @@ impl SetupDataGenerator for GPUSetupDataGenerator {
         {
             let _context =
                 ProverContext::create().context("failed initializing gpu prover context")?;
-            let circuit_setup_data = generate_setup_data_common(&self.keystore, circuit)?;
+
+            let mut data_source = self.keystore.load_keys_to_data_source()?;
+
+            let circuit_setup_data = generate_light_circuit_setup_data(
+                circuit.stage as u8,
+                circuit.circuit_id,
+                &mut data_source,
+            )
+            .unwrap();
 
             let worker = Worker::new();
-            let gpu_setup_data = GpuSetup::from_setup_and_hints(
-                circuit_setup_data.setup_base,
-                circuit_setup_data.setup_tree,
-                circuit_setup_data.vars_hint.clone(),
-                circuit_setup_data.wits_hint,
-                &worker,
-            )
-            .context("failed creating GPU base layer setup data")?;
+            let (gpu_setup_data, verification_key) =
+                gpu_setup_and_vk_from_base_setup_vk_params_and_hints(
+                    circuit_setup_data.setup_base,
+                    circuit_setup_data.vk_geometry,
+                    circuit_setup_data.vars_hint.clone(),
+                    circuit_setup_data.wits_hint,
+                    &worker,
+                )
+                .context("failed creating GPU base layer setup data")?;
+
             let gpu_prover_setup_data = GpuProverSetupData {
                 setup: gpu_setup_data,
-                vk: circuit_setup_data.vk,
+                vk: verification_key.clone(),
                 finalization_hint: circuit_setup_data.finalization_hint,
             };
+
+            let serialized_vk = get_vk_by_circuit(self.keystore.clone(), circuit)?;
+
+            assert_eq!(
+                bincode::serialize(&verification_key).expect("Failed serializing setup data"),
+                serialized_vk,
+                "Verification key mismatch for circuit: {:?}",
+                circuit.name()
+            );
+
             // Serialization should always succeed.
             Ok(bincode::serialize(&gpu_prover_setup_data).expect("Failed serializing setup data"))
         }
@@ -176,5 +199,40 @@ impl SetupDataGenerator for GPUSetupDataGenerator {
 
     fn keystore(&self) -> &Keystore {
         &self.keystore
+    }
+}
+
+fn get_vk_by_circuit(keystore: Keystore, circuit: ProverServiceDataKey) -> anyhow::Result<Vec<u8>> {
+    let data_source = keystore.load_keys_to_data_source()?;
+
+    match circuit.stage {
+        ProvingStage::BasicCircuits => {
+            let vk = data_source
+                .get_base_layer_vk(circuit.circuit_id)
+                .unwrap()
+                .into_inner();
+            Ok(bincode::serialize(&vk).expect("Failed serializing setup data"))
+        }
+        ProvingStage::Compression => {
+            let vk = data_source
+                .get_compression_vk(circuit.circuit_id)
+                .unwrap()
+                .into_inner();
+            Ok(bincode::serialize(&vk).expect("Failed serializing setup data"))
+        }
+        ProvingStage::CompressionWrapper => {
+            let vk = data_source
+                .get_compression_for_wrapper_vk(circuit.circuit_id)
+                .unwrap()
+                .into_inner();
+            Ok(bincode::serialize(&vk).expect("Failed serializing setup data"))
+        }
+        _ => {
+            let vk = data_source
+                .get_recursion_layer_vk(circuit.circuit_id)
+                .unwrap()
+                .into_inner();
+            Ok(bincode::serialize(&vk).expect("Failed serializing setup data"))
+        }
     }
 }

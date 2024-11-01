@@ -5,7 +5,6 @@ use std::{env, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
-use fflonk_gpu::bellman::plonk::generator::setup;
 use tokio::sync::{oneshot, watch};
 use zksync_config::configs::FriProofCompressorConfig;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};

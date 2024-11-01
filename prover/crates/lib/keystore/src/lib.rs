@@ -86,7 +86,7 @@ impl From<CircuitSetupData> for GoldilocksProverSetupData {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "F: serde::Serialize + serde::de::DeserializeOwned")]
 pub struct GpuProverSetupData<F: PrimeField + SmallField, H: TreeHasher<F>> {
-    pub setup: GpuSetup<GLHasher, Global>,
+    pub setup: GpuSetup<GLHasher>,
     #[serde(bound(
         serialize = "H::Output: serde::Serialize",
         deserialize = "H::Output: serde::de::DeserializeOwned"

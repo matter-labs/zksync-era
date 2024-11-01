@@ -273,6 +273,13 @@ impl ProverServiceDataKey {
         }
     }
 
+    pub fn new_compression_wrapper(circuit_id: u8) -> Self {
+        Self {
+            circuit_id,
+            stage: ProvingStage::CompressionWrapper,
+        }
+    }
+
     pub fn all_boojum() -> Vec<ProverServiceDataKey> {
         let mut results = vec![];
         for numeric_circuit in BaseLayerCircuitType::as_iter_u8() {
@@ -322,6 +329,7 @@ impl ProverServiceDataKey {
             ProvingStage::RecursionTip => "recursion_tip".to_string(),
             ProvingStage::Scheduler => "scheduler".to_string(),
             ProvingStage::Compression => format!("compression_{}", self.circuit_id),
+            ProvingStage::CompressionWrapper => format!("compression_wrapper_{}", self.circuit_id),
         }
     }
 }

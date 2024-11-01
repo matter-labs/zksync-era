@@ -11,8 +11,8 @@ use circuit_definitions::{
     boojum::cs::implementations::setup::FinalizationHintsForProver,
     circuit_definitions::{
         aux_layer::{
-            compression_modes::CompressionTreeHasherForWrapper, ZkSyncCompressionProof,
-            ZkSyncCompressionVerificationKey, ZkSyncSnarkWrapperVK,
+            ZkSyncCompressionForWrapperVerificationKey, ZkSyncCompressionLayerVerificationKey,
+            ZkSyncSnarkWrapperVK,
         },
         base_layer::ZkSyncBaseLayerVerificationKey,
         recursion_layer::{ZkSyncRecursionLayerStorageType, ZkSyncRecursionLayerVerificationKey},
@@ -20,7 +20,6 @@ use circuit_definitions::{
     zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use shivini::cs::GpuProverSetupData;
 use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
 use zksync_basic_types::basic_fri_types::AggregationRound;
 use zksync_prover_fri_types::{ProverServiceDataKey, ProvingStage};
@@ -183,6 +182,26 @@ impl Keystore {
         ))
     }
 
+    pub fn load_compression_vk(
+        &self,
+        circuit_type: u8,
+    ) -> anyhow::Result<ZkSyncCompressionLayerVerificationKey> {
+        Self::load_json_from_file(self.get_file_path(
+            ProverServiceDataKey::new_compression(circuit_type),
+            ProverServiceDataType::VerificationKey,
+        ))
+    }
+
+    pub fn load_compression_for_wrapper_vk(
+        &self,
+        circuit_type: u8,
+    ) -> anyhow::Result<ZkSyncCompressionForWrapperVerificationKey> {
+        Self::load_json_from_file(self.get_file_path(
+            ProverServiceDataKey::new_compression_wrapper(circuit_type),
+            ProverServiceDataType::VerificationKey,
+        ))
+    }
+
     pub fn save_base_layer_verification_key(
         &self,
         vk: ZkSyncBaseLayerVerificationKey,
@@ -204,6 +223,36 @@ impl Keystore {
             ProverServiceDataType::VerificationKey,
         );
         tracing::info!("saving recursive layer verification key to: {:?}", filepath);
+        Self::save_json_pretty(filepath, &vk)
+    }
+
+    pub fn save_compression_vk(
+        &self,
+        vk: ZkSyncCompressionLayerVerificationKey,
+    ) -> anyhow::Result<()> {
+        let filepath = self.get_file_path(
+            ProverServiceDataKey::new_compression(vk.numeric_circuit_type()),
+            ProverServiceDataType::VerificationKey,
+        );
+        tracing::info!(
+            "saving compression layer verification key to: {:?}",
+            filepath
+        );
+        Self::save_json_pretty(filepath, &vk)
+    }
+
+    pub fn save_compression_for_wrapper_vk(
+        &self,
+        vk: ZkSyncCompressionForWrapperVerificationKey,
+    ) -> anyhow::Result<()> {
+        let filepath = self.get_file_path(
+            ProverServiceDataKey::new_compression_wrapper(vk.numeric_circuit_type()),
+            ProverServiceDataType::VerificationKey,
+        );
+        tracing::info!(
+            "saving compression wrapper verification key to: {:?}",
+            filepath
+        );
         Self::save_json_pretty(filepath, &vk)
     }
 
@@ -307,55 +356,53 @@ impl Keystore {
         })
     }
 
-    pub fn load_compression_setup_data(
-        &self,
-    ) -> anyhow::Result<GpuProverSetupData<CompressionTreeHasherForWrapper>> {
-        let filepath = self.get_file_path(
-            // todo: this is a stub and I believe it should be reworked
-            ProverServiceDataKey::snark(),
-            ProverServiceDataType::SetupData,
-        );
-
-        let mut file = File::open(filepath.clone())
-            .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
-        let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer).with_context(|| {
-            format!("Failed reading setup-data to buffer from path: {filepath:?}")
-        })?;
-        tracing::info!(
-            "loading compression wrapper setup data from path: {:?}",
-            filepath
-        );
-        bincode::deserialize::<GpuProverSetupData<CompressionTreeHasherForWrapper>>(&buffer)
-            .with_context(|| {
-                format!("Failed deserializing compression wrapper setup data at path: {filepath:?}")
-            })
-    }
-
-    pub fn load_compression_wrapper_setup_data(
-        &self,
-    ) -> anyhow::Result<GpuProverSetupData<CompressionTreeHasherForWrapper>> {
-        let filepath = self.get_file_path(
-            // todo: this is a stub and I believe it should be reworked
-            ProverServiceDataKey::snark(),
-            ProverServiceDataType::SetupData,
-        );
-
-        let mut file = File::open(filepath.clone())
-            .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
-        let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer).with_context(|| {
-            format!("Failed reading setup-data to buffer from path: {filepath:?}")
-        })?;
-        tracing::info!(
-            "loading compression wrapper setup data from path: {:?}",
-            filepath
-        );
-        bincode::deserialize::<GpuProverSetupData<CompressionTreeHasherForWrapper>>(&buffer)
-            .with_context(|| {
-                format!("Failed deserializing compression wrapper setup data at path: {filepath:?}")
-            })
-    }
+    // pub fn load_compression_setup_data(
+    //     &self,
+    // ) -> anyhow::Result<GpuProverSetupData<CompressionTreeHasherForWrapper>> {
+    //     let filepath = self.get_file_path(
+    //         ProverServiceDataKey::snark(),
+    //         ProverServiceDataType::SetupData,
+    //     );
+    //
+    //     let mut file = File::open(filepath.clone())
+    //         .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
+    //     let mut buffer = Vec::new();
+    //     file.read_to_end(&mut buffer).with_context(|| {
+    //         format!("Failed reading setup-data to buffer from path: {filepath:?}")
+    //     })?;
+    //     tracing::info!(
+    //         "loading compression wrapper setup data from path: {:?}",
+    //         filepath
+    //     );
+    //     bincode::deserialize::<GpuProverSetupData<CompressionTreeHasherForWrapper>>(&buffer)
+    //         .with_context(|| {
+    //             format!("Failed deserializing compression wrapper setup data at path: {filepath:?}")
+    //         })
+    // }
+    //
+    // pub fn load_compression_wrapper_setup_data(
+    //     &self,
+    // ) -> anyhow::Result<GpuProverSetupData<CompressionTreeHasherForWrapper>> {
+    //     let filepath = self.get_file_path(
+    //         ProverServiceDataKey::snark(),
+    //         ProverServiceDataType::SetupData,
+    //     );
+    //
+    //     let mut file = File::open(filepath.clone())
+    //         .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
+    //     let mut buffer = Vec::new();
+    //     file.read_to_end(&mut buffer).with_context(|| {
+    //         format!("Failed reading setup-data to buffer from path: {filepath:?}")
+    //     })?;
+    //     tracing::info!(
+    //         "loading compression wrapper setup data from path: {:?}",
+    //         filepath
+    //     );
+    //     bincode::deserialize::<GpuProverSetupData<CompressionTreeHasherForWrapper>>(&buffer)
+    //         .with_context(|| {
+    //             format!("Failed deserializing compression wrapper setup data at path: {filepath:?}")
+    //         })
+    // }
 
     pub fn is_setup_data_present(&self, key: &ProverServiceDataKey) -> bool {
         Path::new(&self.get_file_path(*key, ProverServiceDataType::SetupData)).exists()
@@ -401,10 +448,11 @@ impl Keystore {
 
         for circuit in 1..=5 {
             data_source
-                .set_compression_vk(
-                    self.load_compression_wrapper_setup_data(circuit as u8)
-                        .context("load_base_layer_verification_key()")?,
-                )
+                .set_compression_vk(self.load_compression_vk(circuit)?)
+                .unwrap();
+
+            data_source
+                .set_compression_for_wrapper_vk(self.load_compression_for_wrapper_vk(circuit)?)
                 .unwrap();
         }
 
@@ -521,6 +569,48 @@ impl Keystore {
         )
         .context("save_finalization_hints()")?;
 
+        // Compression
+        for circuit in 1..=5 {
+            let vk = source
+                .get_compression_vk(circuit as u8)
+                .map_err(|err| anyhow::anyhow!("No vk exist for circuit type: {circuit}: {err}"))?;
+
+            self.save_compression_vk(vk)
+                .context("save_compression_vk()")?;
+
+            let hint = source.get_compression_hint(circuit as u8).map_err(|err| {
+                anyhow::anyhow!("No finalization hint exist for circuit type: {circuit}: {err}")
+            })?;
+
+            self.save_finalization_hints(
+                ProverServiceDataKey::new_compression(circuit as u8),
+                &hint.into_inner(),
+            )
+            .context("save_finalization_hints()")?;
+        }
+
+        // Compression wrapper
+        for circuit in 1..=5 {
+            let vk = source
+                .get_compression_for_wrapper_vk(circuit as u8)
+                .map_err(|err| anyhow::anyhow!("No vk exist for circuit type: {circuit}: {err}"))?;
+
+            self.save_compression_for_wrapper_vk(vk)
+                .context("save_compression_wrapper_vk()")?;
+
+            let hint = source
+                .get_compression_for_wrapper_hint(circuit as u8)
+                .map_err(|err| {
+                    anyhow::anyhow!("No finalization hint exist for circuit type: {circuit}: {err}")
+                })?;
+
+            self.save_finalization_hints(
+                ProverServiceDataKey::new_compression_wrapper(circuit as u8),
+                &hint.into_inner(),
+            )
+            .context("save_finalization_hints()")?;
+        }
+
         Ok(())
     }
 
@@ -576,12 +666,5 @@ impl Keystore {
             mapping.insert(key, setup_data);
         }
         Ok(mapping)
-    }
-
-    pub fn load_compression_vk(&self) -> anyhow::Result<ZkSyncCompressionVerificationKey> {
-        Self::load_json_from_file(
-            self.get_base_path()
-                .join("verification_compression_wrapper_key.json"),
-        )
     }
 }
