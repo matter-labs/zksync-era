@@ -36,9 +36,31 @@ message CelestiaConfig {
   optional uint64 timeout_ms = 4;
 }
 
+message MemStoreConfig {
+  optional uint64 max_blob_size_bytes = 3;
+  optional uint64 blob_expiration = 4;
+  optional uint64 get_latency = 5;
+  optional uint64 put_latency = 6;
+}
+
+message DisperserConfig {
+  repeated uint32 custom_quorum_numbers = 1;
+  optional string disperser_rpc = 3;
+  optional int32 eth_confirmation_depth = 4;
+  optional string eigenda_eth_rpc = 5;
+  optional string eigenda_svc_manager_address = 6;
+  optional uint64 blob_size_limit = 7;
+  optional uint64 status_query_timeout = 8;
+  optional uint64 status_query_interval = 9;
+  optional bool wait_for_finalization = 10;
+  optional bool authenticated = 11;
+}
+
 message EigenConfig {
-  optional string rpc_node_url = 1;
-  optional uint64 inclusion_polling_interval_ms = 2;
+  oneof config {
+    MemStoreConfig mem_store = 1;
+    DisperserConfig disperser = 2;
+  }
 }
 
 message DataAvailabilityClient {

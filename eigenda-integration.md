@@ -21,7 +21,7 @@ If you want to use memstore:
 
 ```yaml
 da_client:
-  eigen_da:
+  eigen:
     mem_store:
       max_blob_size_bytes: 2097152
       blob_expiration: 100000
@@ -33,7 +33,7 @@ If you want to use disperser:
 
 ```yaml
 da_client:
-  eigen_da:
+  eigen:
     disperser:
       disperser_rpc: <your_desired_disperser>
       eth_confirmation_depth: -1
@@ -226,4 +226,3 @@ Note that:
 ```bash
 git submodule update --init --recursive && zkstack dev contracts
 ```
-

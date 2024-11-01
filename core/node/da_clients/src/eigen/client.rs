@@ -22,16 +22,23 @@ impl EigenClient {
         let private_key = SecretKey::from_str(secrets.private_key.0.expose_secret().as_str())
             .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;
 
-        Ok(EigenClient {
-            client: Arc::new(
-                RawEigenClient::new(
-                    config.rpc_node_url,
-                    config.inclusion_polling_interval_ms,
+        match config {
+            EigenConfig::Disperser(config) => {
+                // TODO: add complete config
+                let client = RawEigenClient::new(
+                    config.disperser_rpc,
+                    config.status_query_interval,
                     private_key,
                 )
-                .await?,
-            ),
-        })
+                .await?;
+                Ok(EigenClient {
+                    client: Arc::new(client),
+                })
+            }
+            EigenConfig::MemStore(_) => {
+                todo!()
+            }
+        }
     }
 }
 
