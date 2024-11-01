@@ -17,4 +17,3 @@ serde.workspace = true
 strum.workspace = true
 thiserror.workspace = true
 zksync_basic_types.workspace = true
-zksync_utils.workspace = true

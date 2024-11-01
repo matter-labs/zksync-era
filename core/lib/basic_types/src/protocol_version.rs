@@ -86,12 +86,6 @@ impl ProtocolVersionId {
         ProtocolSemanticVersion::try_from_packed(packed_semver).map(|p| p.minor)
     }
 
-    pub fn try_from_minor_version(minor_version: u32) -> Result<Self, String> {
-        Self::try_from_packed_semver(
-            U256::from(minor_version) << U256::from(PACKED_SEMVER_MINOR_OFFSET),
-        )
-    }
-
     pub fn into_packed_semver_with_patch(self, patch: usize) -> U256 {
         let minor = U256::from(self as u16);
         let patch = U256::from(patch as u32);
