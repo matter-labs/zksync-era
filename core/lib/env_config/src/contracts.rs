@@ -74,6 +74,7 @@ mod tests {
             base_token_addr: Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS),
             chain_admin_addr: Some(addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
             l2_da_validator_addr: Some(addr("0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
+            l2_timestamp_asserter_addr: Some(addr("0x0000000000000000000000000000000000000002")),
         }
     }
 
@@ -102,6 +103,7 @@ CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347
 CONTRACTS_BASE_TOKEN_ADDR="0x0000000000000000000000000000000000000001"
 CONTRACTS_CHAIN_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
 CONTRACTS_L2_DA_VALIDATOR_ADDR="0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
+CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR="0x0000000000000000000000000000000000000002"
         "#;
         lock.set_env(config);
 
