@@ -1,7 +1,0 @@
-syntax = "proto3";
-
-package zksync.config.l1_recovery;
-
-message L1Recovery {
-    optional bool enabled = 1;
-}

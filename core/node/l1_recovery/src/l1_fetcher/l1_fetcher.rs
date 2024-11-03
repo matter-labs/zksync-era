@@ -1,4 +1,4 @@
-use std::{cmp, collections::HashMap, fs::File, future::Future};
+use std::{cmp, collections::HashMap, fs::File, future::Future, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use ethabi::{Contract, Event, Function};
@@ -15,7 +15,7 @@ use zksync_utils::{bytecode::hash_bytecode, env::Workspace};
 use zksync_web3_decl::client::{DynClient, L1};
 
 use crate::l1_fetcher::{
-    blob_http_client::{BlobClient, BlobHttpClient},
+    blob_http_client::BlobClient,
     types::{v1::V1, v2::V2, CommitBlock, ParseError},
 };
 
@@ -55,7 +55,7 @@ pub struct L1FetcherConfig {
 
 pub struct L1Fetcher {
     eth_client: Box<DynClient<L1>>,
-    blob_client: Box<dyn BlobClient>,
+    blob_client: Arc<dyn BlobClient>,
     config: L1FetcherConfig,
 }
 
@@ -63,7 +63,7 @@ impl L1Fetcher {
     pub fn new(
         config: L1FetcherConfig,
         eth_client: Box<DynClient<L1>>,
-        blob_client: Box<dyn BlobClient>,
+        blob_client: Arc<dyn BlobClient>,
     ) -> Result<Self> {
         Ok(L1Fetcher {
             eth_client,
@@ -240,7 +240,7 @@ impl L1Fetcher {
 
     async fn process_tx_data(
         commit_functions: &[Function],
-        blob_client: &Box<dyn BlobClient>,
+        blob_client: &Arc<dyn BlobClient>,
         tx: Transaction,
         protocol_versioning: &ProtocolVersioning,
     ) -> Result<Vec<CommitBlock>, ParseError> {
@@ -336,7 +336,7 @@ pub async fn parse_calldata(
     l1_block_number: u64,
     commit_candidates: &[Function],
     calldata: &[u8],
-    client: &Box<dyn BlobClient>,
+    client: &Arc<dyn BlobClient>,
 ) -> Result<Vec<CommitBlock>, ParseError> {
     if calldata.len() < 4 {
         return Err(ParseError::InvalidCalldata("too short".to_string()));
@@ -398,7 +398,7 @@ async fn parse_commit_block_info(
     protocol_versioning: &ProtocolVersioning,
     data: &ethabi::Token,
     l1_block_number: u64,
-    client: &Box<dyn BlobClient>,
+    client: &Arc<dyn BlobClient>,
 ) -> Result<Vec<CommitBlock>, ParseError> {
     let ethabi::Token::Array(data) = data else {
         return Err(ParseError::InvalidCommitBlockInfo(
@@ -434,7 +434,7 @@ async fn parse_commit_block_info(
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, num::NonZero, str::FromStr};
+    use std::{collections::HashMap, num::NonZero, str::FromStr, sync::Arc};
 
     use tempfile::TempDir;
     use zksync_basic_types::{url::SensitiveUrl, L1BatchNumber, L2BlockNumber, H256, U64};
@@ -468,7 +468,7 @@ mod tests {
         Box::new(eth_client)
     }
 
-    fn local_l1_client() -> Box<DynClient<L1>> {
+    pub fn local_l1_client() -> Box<DynClient<L1>> {
         let url = SensitiveUrl::from_str(&"http://127.0.0.1:8545").unwrap();
         let eth_client = Client::http(url).unwrap().build();
         Box::new(eth_client)
@@ -482,7 +482,7 @@ mod tests {
         L1Fetcher::new(
             config,
             sepolia_l1_client(),
-            Box::new(BlobHttpClient::new("https://api.sepolia.blobscan.com/blobs/").unwrap()),
+            Arc::new(BlobHttpClient::new("https://api.sepolia.blobscan.com/blobs/").unwrap()),
         )
         .unwrap()
     }
@@ -497,8 +497,8 @@ mod tests {
         )
         .await
         .unwrap();
-        let blob_provider: Box<dyn BlobClient> =
-            Box::new(BlobHttpClient::new("https://api.sepolia.blobscan.com/blobs/").unwrap());
+        let blob_provider: Arc<dyn BlobClient> =
+            Arc::new(BlobHttpClient::new("https://api.sepolia.blobscan.com/blobs/").unwrap());
         let functions = L1Fetcher::commit_functions().unwrap();
         let blocks =
             L1Fetcher::process_tx_data(&functions, &blob_provider, tx, &sepolia_versioning())
@@ -527,8 +527,8 @@ mod tests {
         )
         .await
         .unwrap();
-        let blob_provider: Box<dyn BlobClient> =
-            Box::new(BlobHttpClient::new("https://api.sepolia.blobscan.com/blobs/").unwrap());
+        let blob_provider: Arc<dyn BlobClient> =
+            Arc::new(BlobHttpClient::new("https://api.sepolia.blobscan.com/blobs/").unwrap());
         let functions = L1Fetcher::commit_functions().unwrap();
         let blocks =
             L1Fetcher::process_tx_data(&functions, &blob_provider, tx, &sepolia_versioning())

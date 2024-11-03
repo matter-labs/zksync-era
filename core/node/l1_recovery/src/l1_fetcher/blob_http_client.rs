@@ -1,10 +1,7 @@
-use std::str::FromStr;
+use std::fmt;
 
-use clap::builder::Str;
-use reqwest::Url;
 use serde::Deserialize;
 use tokio::time::{sleep, Duration};
-use zksync_basic_types::url::SensitiveUrl;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::eth_sender::EthTxBlobSidecar;
 
@@ -21,10 +18,11 @@ struct JsonResponse {
 }
 
 #[async_trait::async_trait]
-pub trait BlobClient {
+pub trait BlobClient: 'static + fmt::Debug + Send + Sync {
     async fn get_blob(&self, kzg_commitment: &[u8]) -> Result<Vec<u8>, ParseError>;
 }
 
+#[derive(Debug)]
 pub struct LocalDbBlobSource {
     pool: ConnectionPool<Core>,
 }
@@ -64,6 +62,7 @@ impl BlobClient for LocalDbBlobSource {
     }
 }
 
+#[derive(Debug)]
 pub struct BlobHttpClient {
     url: String,
     client: reqwest::Client,

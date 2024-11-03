@@ -452,8 +452,6 @@ pub(crate) struct OptionalENConfig {
     #[serde(default)]
     pub snapshots_recovery_enabled: bool,
 
-    #[serde(default)]
-    pub recover_from_l1: bool,
     /// Maximum concurrency factor for the concurrent parts of snapshot recovery for Postgres. It may be useful to
     /// reduce this factor to about 5 if snapshot recovery overloads I/O capacity of the node. Conversely,
     /// if I/O capacity of your infra is high, you may increase concurrency to speed up Postgres recovery.
@@ -667,11 +665,6 @@ impl OptionalENConfig {
             l1_batch_commit_data_generator_mode: enconfig.l1_batch_commit_data_generator_mode,
             snapshots_recovery_enabled: general_config
                 .snapshot_recovery
-                .as_ref()
-                .map(|a| a.enabled)
-                .unwrap_or_default(),
-            recover_from_l1: general_config
-                .l1_recovery
                 .as_ref()
                 .map(|a| a.enabled)
                 .unwrap_or_default(),
@@ -1124,6 +1117,8 @@ pub(crate) struct ExperimentalENConfig {
     // Snapshot recovery
     /// L1 batch number of the snapshot to use during recovery. Specifying this parameter is mostly useful for testing.
     pub snapshots_recovery_l1_batch: Option<L1BatchNumber>,
+    #[serde(default)]
+    pub snapshots_recovery_recover_from_l1: bool,
     /// Enables dropping storage key preimages when recovering storage logs from a snapshot with version 0.
     /// This is a temporary flag that will eventually be removed together with version 0 snapshot support.
     #[serde(default)]
@@ -1205,6 +1200,11 @@ impl ExperimentalENConfig {
                 .commitment_generator
                 .as_ref()
                 .map(|a| a.max_parallelism),
+            snapshots_recovery_recover_from_l1: general_config
+                .snapshot_recovery
+                .as_ref()
+                .map(|a| a.recover_from_l1)
+                .unwrap_or_default(),
         })
     }
 }

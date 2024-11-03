@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr};
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use ethabi;
 use indexmap::IndexMap;
@@ -9,10 +9,7 @@ use zksync_utils::bytecode::hash_bytecode;
 
 use self::{v1::V1, v2::V2, v3::V3};
 use crate::{
-    l1_fetcher::{
-        blob_http_client::{BlobClient, BlobHttpClient},
-        types::common::read_next_n_bytes,
-    },
+    l1_fetcher::{blob_http_client::BlobClient, types::common::read_next_n_bytes},
     storage::PackingType,
 };
 
@@ -110,7 +107,7 @@ impl CommitBlock {
 
     pub async fn try_from_token_resolve<'a>(
         value: &'a ethabi::Token,
-        client: &Box<dyn BlobClient>,
+        client: &Arc<dyn BlobClient>,
     ) -> Result<Self, ParseError> {
         let commit_block_info = V3::try_from(value)?;
         Self::from_commit_block_resolve(commit_block_info, client).await
@@ -227,7 +224,7 @@ impl CommitBlock {
 
     pub async fn from_commit_block_resolve(
         block: V3,
-        client: &Box<dyn BlobClient>,
+        client: &Arc<dyn BlobClient>,
     ) -> Result<Self, ParseError> {
         let total_l2_to_l1_pubdata = block.parse_pubdata(client).await?;
         let mut initial_storage_changes = IndexMap::new();

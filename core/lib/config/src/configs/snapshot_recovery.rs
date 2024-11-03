@@ -45,4 +45,5 @@ pub struct SnapshotRecoveryConfig {
     pub tree: TreeRecoveryConfig,
     pub postgres: PostgresRecoveryConfig,
     pub object_store: Option<ObjectStoreConfig>,
+    pub recover_from_l1: bool,
 }

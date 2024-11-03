@@ -80,7 +80,7 @@ impl StateCompressor {
 
         for entry in initial_entries {
             let mut buffer = [0; 32];
-            entry.key.to_big_endian(&mut buffer);
+            entry.key.to_little_endian(&mut buffer);
             self.database
                 .insert_storage_log(&mut SnapshotStorageLog {
                     key: H256::from(buffer),
@@ -112,7 +112,7 @@ impl StateCompressor {
                 .process_value(*key, *value)
                 .expect("failed to get key from database");
             let mut hashed_key = [0_u8; 32];
-            key.to_big_endian(&mut hashed_key);
+            key.to_little_endian(&mut hashed_key);
             self.database
                 .insert_storage_log(&mut SnapshotStorageLog {
                     key: hashed_key.into(),

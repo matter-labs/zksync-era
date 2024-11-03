@@ -24,7 +24,6 @@ use crate::{
             DAClientConfig::Avail,
         },
         external_price_api_client::ForcedPriceClientConfig,
-        l1_recovery::L1RecoveryConfig,
     },
     AvailConfig,
 };
@@ -1049,6 +1048,7 @@ impl Distribution<configs::snapshot_recovery::SnapshotRecoveryConfig> for Encode
             tree,
             postgres: self.sample(rng),
             object_store: self.sample(rng),
+            recover_from_l1: self.sample(rng),
         }
     }
 }
@@ -1145,14 +1145,6 @@ impl Distribution<configs::prover_job_monitor::ProverJobMonitorConfig> for Encod
     }
 }
 
-impl Distribution<configs::l1_recovery::L1RecoveryConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::l1_recovery::L1RecoveryConfig {
-        L1RecoveryConfig {
-            enabled: self.sample(rng),
-        }
-    }
-}
-
 impl Distribution<configs::GeneralConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::GeneralConfig {
         configs::GeneralConfig {
@@ -1191,7 +1183,6 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             experimental_vm_config: self.sample(rng),
             prover_job_monitor_config: self.sample(rng),
             timestamp_asserter_config: self.sample(rng),
-            l1_recovery: self.sample(rng),
         }
     }
 }

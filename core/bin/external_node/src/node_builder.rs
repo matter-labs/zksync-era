@@ -543,6 +543,7 @@ impl ExternalNodeBuilder {
                 .optional
                 .snapshots_recovery_enabled
                 .then_some(SnapshotRecoveryConfig {
+                    recover_from_l1: config.experimental.snapshots_recovery_recover_from_l1,
                     snapshot_l1_batch_override: config.experimental.snapshots_recovery_l1_batch,
                     drop_storage_key_preimages: config
                         .experimental

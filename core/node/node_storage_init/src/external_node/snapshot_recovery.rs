@@ -4,27 +4,73 @@ use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::AppHealthCheck;
+use zksync_l1_recovery::{create_l1_snapshot, L1RecoveryMainNodeClient, LocalDbBlobSource};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_shared_metrics::{SnapshotRecoveryStage, APP_METRICS};
 use zksync_snapshots_applier::{
-    RecoveryCompletionStatus, SnapshotsApplierConfig, SnapshotsApplierTask,
+    RecoveryCompletionStatus, SnapshotsApplierConfig, SnapshotsApplierMainNodeClient,
+    SnapshotsApplierTask,
 };
-use zksync_web3_decl::client::{DynClient, L2};
+use zksync_types::Address;
+use zksync_web3_decl::client::{DynClient, L1, L2};
 
 use crate::{InitializeStorage, SnapshotRecoveryConfig};
 
 #[derive(Debug)]
 pub struct ExternalNodeSnapshotRecovery {
-    pub client: Box<DynClient<L2>>,
+    pub main_node_client: Box<DynClient<L2>>,
+    pub l1_client: Box<DynClient<L1>>,
     pub pool: ConnectionPool<Core>,
     pub max_concurrency: NonZeroUsize,
     pub recovery_config: SnapshotRecoveryConfig,
     pub app_health: Arc<AppHealthCheck>,
+    pub diamond_proxy_addr: Address,
 }
 
 #[async_trait::async_trait]
 impl InitializeStorage for ExternalNodeSnapshotRecovery {
     async fn initialize_storage(&self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let object_store_config =
+            self.recovery_config.object_store_config.clone().context(
+                "Snapshot object store must be presented if snapshot recovery is activated",
+            )?;
+        let object_store = ObjectStoreFactory::new(object_store_config)
+            .create_store()
+            .await?;
+
+        let mut main_node_client: Box<dyn SnapshotsApplierMainNodeClient> = Box::new(
+            self.main_node_client
+                .clone()
+                .for_component("snapshot_recovery"),
+        );
+
+        if self.recovery_config.recover_from_l1 {
+            let main_node_connection_pool = ConnectionPool::<Core>::builder(
+                "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
+                    .parse()
+                    .unwrap(),
+                10,
+            )
+            .build()
+            .await?;
+            let blob_client = Arc::new(LocalDbBlobSource::new(main_node_connection_pool));
+            let (l1_batch_number, hash) = create_l1_snapshot(
+                self.l1_client.clone(),
+                blob_client,
+                &object_store,
+                self.diamond_proxy_addr,
+            )
+            .await;
+            main_node_client = Box::new(L1RecoveryMainNodeClient {
+                newest_l1_batch_number: l1_batch_number,
+                root_hash: hash,
+                main_node_client: self
+                    .main_node_client
+                    .clone()
+                    .for_component("snapshot_recovery"),
+            });
+        }
+
         tracing::warn!("Proceeding with snapshot recovery. This is an experimental feature; use at your own risk");
 
         let pool_size = self.pool.max_size() as usize;
@@ -36,24 +82,12 @@ impl InitializeStorage for ExternalNodeSnapshotRecovery {
             );
         }
 
-        let object_store_config =
-            self.recovery_config.object_store_config.clone().context(
-                "Snapshot object store must be presented if snapshot recovery is activated",
-            )?;
-        let object_store = ObjectStoreFactory::new(object_store_config)
-            .create_store()
-            .await?;
-
         let config = SnapshotsApplierConfig {
             max_concurrency: self.max_concurrency,
             ..SnapshotsApplierConfig::default()
         };
-        let mut snapshots_applier_task = SnapshotsApplierTask::new(
-            config,
-            self.pool.clone(),
-            Box::new(self.client.clone().for_component("snapshot_recovery")),
-            object_store,
-        );
+        let mut snapshots_applier_task =
+            SnapshotsApplierTask::new(config, self.pool.clone(), main_node_client, object_store);
         if let Some(snapshot_l1_batch) = self.recovery_config.snapshot_l1_batch_override {
             tracing::info!(
                 "Using a specific snapshot with L1 batch #{snapshot_l1_batch}; this may not work \
@@ -87,7 +121,8 @@ impl InitializeStorage for ExternalNodeSnapshotRecovery {
     async fn is_initialized(&self) -> anyhow::Result<bool> {
         let mut storage = self.pool.connection_tagged("en").await?;
         let completed = matches!(
-            SnapshotsApplierTask::is_recovery_completed(&mut storage, &self.client).await?,
+            SnapshotsApplierTask::is_recovery_completed(&mut storage, &self.main_node_client)
+                .await?,
             RecoveryCompletionStatus::Completed
         );
         Ok(completed)
@@ -123,16 +158,32 @@ mod tests {
                 }])
             })
             .build();
+        let l1_client = MockClient::builder(L1::default())
+            .method("en_syncTokens", |_number: Option<L2BlockNumber>| {
+                Ok(vec![TokenInfo {
+                    l1_address: Address::repeat_byte(1),
+                    l2_address: Address::repeat_byte(2),
+                    metadata: TokenMetadata {
+                        name: "test".to_string(),
+                        symbol: "TEST".to_string(),
+                        decimals: 18,
+                    },
+                }])
+            })
+            .build();
         let recovery = ExternalNodeSnapshotRecovery {
-            client: Box::new(client),
+            main_node_client: Box::new(client),
+            l1_client: Box::new(l1_client),
             pool,
             max_concurrency: NonZeroUsize::new(4).unwrap(),
             recovery_config: SnapshotRecoveryConfig {
+                recover_from_l1: false,
                 snapshot_l1_batch_override: None,
                 drop_storage_key_preimages: false,
                 object_store_config: None,
             },
             app_health,
+            diamond_proxy_addr: Address::repeat_byte(1),
         };
 
         // Emulate recovery by indefinitely holding onto `max_concurrency` connections. In practice,

@@ -375,7 +375,7 @@ async fn health_status_immediately_after_task_start() {
         async fn fetch_l1_batch_details(
             &self,
             _number: L1BatchNumber,
-        ) -> EnrichedClientResult<Option<L1BatchDetails>> {
+        ) -> EnrichedClientResult<Option<L1BlockMetadata>> {
             self.0.wait().await;
             future::pending().await
         }
@@ -383,7 +383,7 @@ async fn health_status_immediately_after_task_start() {
         async fn fetch_l2_block_details(
             &self,
             _number: L2BlockNumber,
-        ) -> EnrichedClientResult<Option<BlockDetails>> {
+        ) -> EnrichedClientResult<Option<L2BlockMetadata>> {
             self.0.wait().await;
             future::pending().await
         }

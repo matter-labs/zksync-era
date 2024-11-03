@@ -13,6 +13,7 @@ mod traits;
 
 #[derive(Debug)]
 pub struct SnapshotRecoveryConfig {
+    pub recover_from_l1: bool,
     /// If not specified, the latest snapshot will be used.
     pub snapshot_l1_batch_override: Option<L1BatchNumber>,
     pub drop_storage_key_preimages: bool,
@@ -25,15 +26,12 @@ enum InitDecision {
     Genesis,
     /// Perform or check snapshot recovery.
     SnapshotRecovery,
-    /// Perform or check L1 recovery.
-    L1Recovery,
 }
 
 #[derive(Debug, Clone)]
 pub struct NodeInitializationStrategy {
     pub genesis: Arc<dyn InitializeStorage>,
     pub snapshot_recovery: Option<Arc<dyn InitializeStorage>>,
-    pub l1_recovery: Option<Arc<dyn InitializeStorage>>,
     pub block_reverter: Option<Arc<dyn RevertStorage>>,
 }
 
@@ -70,28 +68,26 @@ impl NodeStorageInitializer {
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
             .await?;
-        let l1_recovery = self.strategy.l1_recovery.is_some();
         drop(storage);
 
-        let decision = match (genesis_l1_batch, snapshot_recovery, l1_recovery) {
-            (_, _, true) => InitDecision::L1Recovery,
-            (Some(batch), Some(snapshot_recovery), _) => {
+        let decision = match (genesis_l1_batch, snapshot_recovery) {
+            (Some(batch), Some(snapshot_recovery)) => {
                 anyhow::bail!(
                 "Node has both genesis L1 batch: {batch:?} and snapshot recovery information: {snapshot_recovery:?}. \
                  This is not supported and can be caused by broken snapshot recovery."
             );
             }
-            (Some(batch), None, false) => {
+            (Some(batch), None) => {
                 tracing::info!(
                     "Node has a genesis L1 batch: {batch:?} and no snapshot recovery info"
                 );
                 InitDecision::Genesis
             }
-            (None, Some(snapshot_recovery), false) => {
+            (None, Some(snapshot_recovery)) => {
                 tracing::info!("Node has no genesis L1 batch and snapshot recovery information: {snapshot_recovery:?}");
                 InitDecision::SnapshotRecovery
             }
-            (None, None, false) => {
+            (None, None) => {
                 tracing::info!("Node has neither genesis L1 batch, nor snapshot recovery info");
                 if self.strategy.snapshot_recovery.is_some() {
                     InitDecision::SnapshotRecovery
@@ -124,16 +120,6 @@ impl NodeStorageInitializer {
                 } else {
                     anyhow::bail!(
                         "Snapshot recovery should be performed, but the strategy is not provided"
-                    );
-                }
-            }
-            InitDecision::L1Recovery => {
-                tracing::info!("Performing L1 recovery initialization");
-                if let Some(recovery) = &self.strategy.l1_recovery {
-                    recovery.initialize_storage(stop_receiver.clone()).await?;
-                } else {
-                    anyhow::bail!(
-                        "L1 recovery should be performed, but the strategy is not provided"
                     );
                 }
             }

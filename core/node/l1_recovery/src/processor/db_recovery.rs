@@ -6,27 +6,23 @@ use zksync_basic_types::{
     protocol_version::ProtocolVersionId, Address, L1BatchNumber, L2BlockNumber, H256,
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_eth_client::EnrichedClientResult;
 use zksync_object_store::ObjectStore;
 use zksync_snapshots_applier::{L1BlockMetadata, L2BlockMetadata, SnapshotsApplierMainNodeClient};
 use zksync_types::{
-    api::{BlockDetails, BlockDetailsBase, BlockStatus, L1BatchDetails},
     snapshots::{
         SnapshotFactoryDependencies, SnapshotHeader, SnapshotRecoveryStatus,
         SnapshotStorageLogsChunk, SnapshotStorageLogsChunkMetadata, SnapshotStorageLogsStorageKey,
         SnapshotVersion,
     },
     tokens::TokenInfo,
-    ProtocolVersion,
 };
 use zksync_utils::bytecode::hash_bytecode;
-use zksync_web3_decl::{
-    client::{DynClient, L1},
-    error::EnrichedClientResult,
-};
+use zksync_web3_decl::client::{DynClient, L1};
 
 use crate::{
     l1_fetcher::{
-        blob_http_client::LocalDbBlobSource,
+        blob_http_client::BlobClient,
         l1_fetcher::{L1Fetcher, L1FetcherConfig, ProtocolVersioning::OnlyV3},
     },
     processor::snapshot::StateCompressor,
@@ -35,6 +31,7 @@ use crate::{
 pub async fn recover_db(
     connection_pool: ConnectionPool<Core>,
     l1_client: Box<DynClient<L1>>,
+    blob_client: Arc<dyn BlobClient>,
     diamond_proxy_addr: Address,
 ) {
     let temp_dir = TempDir::new().unwrap().into_path().join("db");
@@ -46,7 +43,7 @@ pub async fn recover_db(
             versioning: OnlyV3,
         },
         l1_client,
-        Box::new(LocalDbBlobSource::new(connection_pool.clone())),
+        blob_client,
     );
     let blocks = l1_fetcher.unwrap().get_all_blocks_to_process().await;
     let last_l1_batch_number = blocks.last().unwrap().l1_batch_number;
@@ -105,9 +102,9 @@ pub async fn recover_db(
 
 pub async fn create_l1_snapshot(
     l1_client: Box<DynClient<L1>>,
-    diamond_proxy_addr: Address,
+    blob_client: Arc<dyn BlobClient>,
     object_store: &Arc<dyn ObjectStore>,
-    connection_pool: ConnectionPool<Core>,
+    diamond_proxy_addr: Address,
 ) -> (L1BatchNumber, H256) {
     let temp_dir = TempDir::new().unwrap().into_path().join("db");
 
@@ -118,13 +115,18 @@ pub async fn create_l1_snapshot(
             versioning: OnlyV3,
         },
         l1_client,
-        Box::new(LocalDbBlobSource::new(connection_pool)),
+        blob_client,
     );
     let blocks = l1_fetcher.unwrap().get_all_blocks_to_process().await;
     let last_l1_batch_number = L1BatchNumber(blocks.last().unwrap().l1_batch_number as u32);
     let mut processor = StateCompressor::new(temp_dir).await;
     processor.process_genesis_state(None).await;
     processor.process_blocks(blocks).await;
+
+    tracing::info!(
+        "Processing L1 data finished, recovered tree root hash {:?}",
+        processor.get_root_hash()
+    );
 
     let key = SnapshotStorageLogsStorageKey {
         l1_batch_number: last_l1_batch_number,
@@ -133,11 +135,13 @@ pub async fn create_l1_snapshot(
     let storage_logs = SnapshotStorageLogsChunk {
         storage_logs: processor.export_storage_logs().await,
     };
+    tracing::info!("Dumping {} storage logs", storage_logs.storage_logs.len());
     object_store.put(key, &storage_logs).await.unwrap();
 
     let factory_deps = SnapshotFactoryDependencies {
         factory_deps: processor.export_factory_deps().await,
     };
+    tracing::info!("Dumping {} factory deps", factory_deps.factory_deps.len());
     object_store
         .put(last_l1_batch_number, &factory_deps)
         .await
@@ -211,7 +215,7 @@ impl SnapshotsApplierMainNodeClient for FakeClient {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    use std::{str::FromStr, sync::Arc};
 
     use tokio::sync::watch;
     use zksync_basic_types::url::SensitiveUrl;
@@ -221,19 +225,29 @@ mod tests {
     use zksync_web3_decl::client::Client;
 
     use crate::{
-        l1_fetcher::constants::local_diamond_proxy_addr,
+        l1_fetcher::{blob_http_client::LocalDbBlobSource, constants::local_diamond_proxy_addr},
         processor::db_recovery::{create_l1_snapshot, FakeClient},
         recover_db,
     };
 
     #[test_log::test(tokio::test)]
     async fn test_process_blocks() {
-        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let connection_pool = ConnectionPool::<Core>::builder(
+            "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
+                .parse()
+                .unwrap(),
+            10,
+        )
+        .build()
+        .await
+        .unwrap();
         let url = SensitiveUrl::from_str(&"http://127.0.0.1:8545").unwrap();
         let eth_client = Client::http(url).unwrap().build();
+        let blob_client = Arc::new(LocalDbBlobSource::new(connection_pool.clone()));
         recover_db(
-            connection_pool,
+            ConnectionPool::test_pool().await,
             Box::new(eth_client),
+            blob_client,
             local_diamond_proxy_addr().parse().unwrap(),
         )
         .await;
@@ -241,15 +255,24 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn test_export_storage_logs() {
-        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let connection_pool = ConnectionPool::<Core>::builder(
+            "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
+                .parse()
+                .unwrap(),
+            10,
+        )
+        .build()
+        .await
+        .unwrap();
+        let blob_client = Arc::new(LocalDbBlobSource::new(connection_pool.clone()));
         let url = SensitiveUrl::from_str(&"http://127.0.0.1:8545").unwrap();
         let eth_client = Client::http(url).unwrap().build();
         let object_store = MockObjectStore::arc();
         let (newest_l1_batch_number, root_hash) = create_l1_snapshot(
             Box::new(eth_client),
-            local_diamond_proxy_addr().parse().unwrap(),
+            blob_client,
             &object_store,
-            connection_pool.clone(),
+            local_diamond_proxy_addr().parse().unwrap(),
         )
         .await;
 

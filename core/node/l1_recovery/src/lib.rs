@@ -8,4 +8,10 @@ mod l1_fetcher;
 
 mod utils;
 
-pub use crate::processor::db_recovery::recover_db;
+pub use crate::{
+    l1_fetcher::{
+        blob_http_client::{BlobClient, LocalDbBlobSource},
+        main_node_client::L1RecoveryMainNodeClient,
+    },
+    processor::db_recovery::{create_l1_snapshot, recover_db},
+};

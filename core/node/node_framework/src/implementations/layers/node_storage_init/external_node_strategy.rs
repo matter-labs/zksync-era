@@ -3,10 +3,7 @@ use std::{num::NonZeroUsize, sync::Arc};
 // Re-export to initialize the layer without having to depend on the crate directly.
 pub use zksync_node_storage_init::SnapshotRecoveryConfig;
 use zksync_node_storage_init::{
-    external_node::{
-        ExternalNodeGenesis, ExternalNodeL1Recovery, ExternalNodeReverter,
-        ExternalNodeSnapshotRecovery,
-    },
+    external_node::{ExternalNodeGenesis, ExternalNodeReverter, ExternalNodeSnapshotRecovery},
     InitializeStorage, NodeInitializationStrategy, RevertStorage,
 };
 use zksync_types::{Address, L2ChainId};
@@ -88,11 +85,13 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
                     .get_custom(self.max_postgres_concurrency.get() as u32 + 1)
                     .await?;
                 let recovery: Arc<dyn InitializeStorage> = Arc::new(ExternalNodeSnapshotRecovery {
-                    client: client.clone(),
+                    main_node_client: client.clone(),
+                    l1_client: input.l1_client.0.clone(),
                     pool: recovery_pool,
                     max_concurrency: self.max_postgres_concurrency,
                     recovery_config,
                     app_health,
+                    diamond_proxy_addr: self.diamond_proxy_addr,
                 });
                 Some(recovery)
             }
@@ -104,16 +103,9 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
             pool: pool.clone(),
             reverter: block_reverter,
         }) as Arc<dyn RevertStorage>);
-        let l1_recovery: Option<Arc<dyn InitializeStorage>> =
-            Some(Arc::new(ExternalNodeL1Recovery {
-                l1_client: input.l1_client.0,
-                pool: pool.clone(),
-                diamond_proxy_address: self.diamond_proxy_addr,
-            }));
         let strategy = NodeInitializationStrategy {
             genesis,
             snapshot_recovery,
-            l1_recovery,
             block_reverter,
         };
 

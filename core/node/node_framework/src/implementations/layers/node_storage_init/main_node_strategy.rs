@@ -56,7 +56,6 @@ impl WiringLayer for MainNodeInitStrategyLayer {
             genesis,
             snapshot_recovery: None,
             block_reverter: None,
-            l1_recovery: None,
         };
 
         Ok(Output {

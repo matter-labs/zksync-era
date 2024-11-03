@@ -196,6 +196,5 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         experimental_vm_config: ExperimentalVmConfig::from_env().ok(),
         prover_job_monitor_config: None,
         timestamp_asserter_config: TimestampAsserterConfig::from_env().ok(),
-        l1_recovery: None,
     })
 }
