@@ -184,10 +184,7 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     PROVER_BINARY_METRICS.run_time.observe(time.elapsed());
-    println!("hello");
-    tasks.complete(Duration::from_secs(25)).await;
-    tokio::time::sleep(Duration::from_secs(10)).await;
-    println!("bye!");
+    tasks.complete(Duration::from_secs(30)).await;
     Ok(())
 }
 

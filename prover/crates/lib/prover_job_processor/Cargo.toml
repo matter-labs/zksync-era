@@ -1,5 +1,6 @@
 [package]
 name = "zksync_prover_job_processor"
+description.workspace = true
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -8,13 +9,14 @@ repository.workspace = true
 license.workspace = true
 keywords.workspace = true
 categories.workspace = true
+publish = false
 
 [dependencies]
 async-trait.workspace = true
 anyhow.workspace = true
-futures.workspace = true # = "0.3.31"
-tokio.workspace = true # "1.40.0"
-tokio-stream.workspace = true # "0.1.16"
+futures.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
 
