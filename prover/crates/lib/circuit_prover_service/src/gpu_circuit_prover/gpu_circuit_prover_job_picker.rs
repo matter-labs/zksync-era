@@ -2,10 +2,11 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context;
 use async_trait::async_trait;
+use zksync_types::prover_dal::FriProverJobMetadata;
+
 use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_prover_job_processor::JobPicker;
 use zksync_prover_keystore::GoldilocksGpuProverSetupData;
-use zksync_types::prover_dal::FriProverJobMetadata;
 
 use crate::{
     gpu_circuit_prover::GpuCircuitProverExecutor,
@@ -43,6 +44,7 @@ impl JobPicker for GpuCircuitProverJobPicker {
     async fn pick_job(
         &mut self,
     ) -> anyhow::Result<Option<(GpuCircuitProverPayload, FriProverJobMetadata)>> {
+        tracing::info!("Started picking gpu circuit prover job");
         let (wvg_output, metadata) = self
             .receiver
             .recv()
@@ -57,7 +59,7 @@ impl JobPicker for GpuCircuitProverJobPicker {
             circuit_id: metadata.circuit_id,
             round: metadata.aggregation_round,
         }
-        .crypto_setup_key();
+            .crypto_setup_key();
         let setup_data = self
             .setup_data_cache
             .get(&key)
@@ -65,6 +67,7 @@ impl JobPicker for GpuCircuitProverJobPicker {
             .clone();
 
         let payload = GpuCircuitProverPayload::new(circuit, witness_vector, setup_data);
+        tracing::info!("Finished picking gpu circuit prover job");
         Ok(Some((payload, metadata)))
     }
 }

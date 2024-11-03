@@ -42,6 +42,7 @@ impl JobSaver for WitnessVectorGeneratorJobSaver {
             FriProverJobMetadata,
         ),
     ) -> anyhow::Result<()> {
+        tracing::info!("Started saving witness vector generator job");
         let (result, metadata) = data;
         match result {
             Ok(payload) => {
@@ -70,6 +71,7 @@ impl JobSaver for WitnessVectorGeneratorJobSaver {
                     .await;
             }
         }
+        tracing::info!("Finished saving witness vector generator job");
         Ok(())
     }
 }

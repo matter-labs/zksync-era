@@ -1,9 +1,10 @@
 use anyhow::Context;
+use zksync_types::prover_dal::FriProverJobMetadata;
+
 // use zksync_prover_fri_types::circuit_definitions::boojum::{
 //     cs::implementations::witness::WitnessVec, field::goldilocks::GoldilocksField,
 // };
 use zksync_prover_job_processor::Executor;
-use zksync_types::prover_dal::FriProverJobMetadata;
 
 use crate::types::{
     witness_vector_generator_execution_output::WitnessVectorGeneratorExecutionOutput,
@@ -18,11 +19,13 @@ impl Executor for WitnessVectorGeneratorExecutor {
     type Metadata = FriProverJobMetadata;
 
     fn execute(&self, input: Self::Input) -> anyhow::Result<Self::Output> {
+        tracing::info!("Started executing witness vector generator job");
         let inner_circuit = input.circuit();
         let finalization_hints = input.finalization_hints();
         let vector = inner_circuit
             .synthesize_vector(finalization_hints)
             .context("failed to generate witness vector")?;
+        tracing::info!("Started executing witness vector generator job");
         Ok(WitnessVectorGeneratorExecutionOutput::new(
             input.into_circuit(),
             vector,
@@ -35,16 +38,18 @@ mod tests {
     use std::sync::Arc;
 
     use zksync_object_store::bincode;
+    use zksync_types::basic_fri_types::AggregationRound;
+
     use zksync_prover_fri_types::{
         circuit_definitions::boojum::cs::implementations::setup::FinalizationHintsForProver,
         CircuitWrapper, ProverServiceDataKey,
     };
     use zksync_prover_job_processor::Executor;
     use zksync_prover_keystore::keystore::Keystore;
-    use zksync_types::basic_fri_types::AggregationRound;
+
+    use crate::types::circuit::Circuit;
 
     use super::*;
-    use crate::types::circuit::Circuit;
 
     #[tokio::test]
     async fn test_success() -> anyhow::Result<()> {

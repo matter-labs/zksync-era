@@ -1,6 +1,6 @@
 [package]
 name = "zksync_prover_job_processor"
-description.workspace = true
+description = "ZKsync Prover Job Processor"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

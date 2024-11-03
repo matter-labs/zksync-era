@@ -105,6 +105,7 @@ impl<ML: WitnessVectorMetadataLoader> JobPicker for WitnessVectorGeneratorJobPic
     async fn pick_job(
         &mut self,
     ) -> anyhow::Result<Option<(WitnessVectorGeneratorPayload, FriProverJobMetadata)>> {
+        tracing::info!("Started picking witness vector generator job");
         let connection = self
             .connection_pool
             .connection()
@@ -141,6 +142,7 @@ impl<ML: WitnessVectorMetadataLoader> JobPicker for WitnessVectorGeneratorJobPic
             .clone();
 
         let payload = WitnessVectorGeneratorPayload::new(circuit, finalization_hints);
+        tracing::info!("Finished picking witness vector generator job");
         Ok(Some((payload, metadata)))
     }
 }

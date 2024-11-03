@@ -1,6 +1,6 @@
 [package]
 name = "zksync_circuit_prover"
-description.workspace = true
+description = "ZKsync Circuit Prover binary"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

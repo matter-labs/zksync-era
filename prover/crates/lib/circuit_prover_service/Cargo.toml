@@ -1,6 +1,6 @@
 [package]
 name = "zksync_circuit_prover_service"
-description.workspace = true
+description = "ZKsync circuit prover service implementation"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

@@ -3,10 +3,11 @@ use std::{sync::Arc, time::Instant};
 use anyhow::Context;
 use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
+use zksync_types::{protocol_version::ProtocolSemanticVersion, prover_dal::FriProverJobMetadata};
+
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::FriProofWrapper;
 use zksync_prover_job_processor::JobSaver;
-use zksync_types::{protocol_version::ProtocolSemanticVersion, prover_dal::FriProverJobMetadata};
 
 use crate::gpu_circuit_prover::GpuCircuitProverExecutor;
 
@@ -38,6 +39,7 @@ impl JobSaver for GpuCircuitProverJobSaver {
         &self,
         data: (anyhow::Result<FriProofWrapper>, FriProverJobMetadata),
     ) -> anyhow::Result<()> {
+        tracing::info!("Started saving gpu circuit prover job");
         let (result, metadata) = data;
 
         match result {
@@ -101,6 +103,7 @@ impl JobSaver for GpuCircuitProverJobSaver {
                     .await;
             }
         };
+        tracing::info!("Finished saving gpu circuit prover job");
         Ok(())
     }
 }

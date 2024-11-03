@@ -1,8 +1,9 @@
 use anyhow::Context;
 use shivini::ProverContext;
+use zksync_types::prover_dal::FriProverJobMetadata;
+
 use zksync_prover_fri_types::FriProofWrapper;
 use zksync_prover_job_processor::Executor;
-use zksync_types::prover_dal::FriProverJobMetadata;
 
 use crate::types::circuit_prover_payload::GpuCircuitProverPayload;
 
@@ -22,6 +23,7 @@ impl Executor for GpuCircuitProverExecutor {
     type Metadata = FriProverJobMetadata;
 
     fn execute(&self, input: Self::Input) -> anyhow::Result<Self::Output> {
+        tracing::info!("Started executing gpu circuit prover job");
         let GpuCircuitProverPayload {
             circuit,
             witness_vector,
@@ -31,6 +33,7 @@ impl Executor for GpuCircuitProverExecutor {
         let proof_wrapper = circuit
             .prove(witness_vector, setup_data)
             .context("failed to gpu prove circuit")?;
+        tracing::info!("Finished executing gpu circuit prover job");
         Ok(proof_wrapper)
     }
 }
