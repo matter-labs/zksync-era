@@ -1,4 +1,7 @@
-use std::{fmt, path::PathBuf};
+use std::{
+    fmt,
+    path::{Path, PathBuf},
+};
 
 use anyhow::Context as _;
 use tokio::fs;
@@ -10,6 +13,58 @@ use crate::{
     compilers::{Solc, SolcInput, ZkSolc, ZkSolcInput, ZkVyper, ZkVyperInput},
     error::ContractVerifierError,
 };
+
+#[derive(Debug, Clone, Copy)]
+enum CompilerType {
+    Solc,
+    ZkSolc,
+    Vyper,
+    ZkVyper,
+}
+
+impl CompilerType {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Solc => "solc",
+            Self::ZkSolc => "zksolc",
+            Self::Vyper => "vyper",
+            Self::ZkVyper => "zkvyper",
+        }
+    }
+
+    /// Returns the absolute path to the compiler binary.
+    fn bin_path_unchecked(self, home_dir: &Path, version: &str) -> PathBuf {
+        let compiler_dir = match self {
+            Self::Solc => "solc-bin",
+            Self::ZkSolc => "zksolc-bin",
+            Self::Vyper => "vyper-bin",
+            Self::ZkVyper => "zkvyper-bin",
+        };
+        home_dir
+            .join("etc")
+            .join(compiler_dir)
+            .join(version)
+            .join(self.as_str())
+    }
+
+    async fn bin_path(
+        self,
+        home_dir: &Path,
+        version: &str,
+    ) -> Result<PathBuf, ContractVerifierError> {
+        let path = self.bin_path_unchecked(home_dir, version);
+        if !fs::try_exists(&path)
+            .await
+            .with_context(|| format!("failed accessing `{}`", self.as_str()))?
+        {
+            return Err(ContractVerifierError::UnknownCompilerVersion(
+                self.as_str(),
+                version.to_owned(),
+            ));
+        }
+        Ok(path)
+    }
+}
 
 /// Compiler versions supported by a [`CompilerResolver`].
 #[derive(Debug)]
@@ -108,28 +163,6 @@ impl EnvCompilerResolver {
         }
         Ok(versions)
     }
-
-    async fn resolve_solc_path(
-        &self,
-        solc_version: &str,
-    ) -> Result<PathBuf, ContractVerifierError> {
-        let solc_path = self
-            .home_dir
-            .join("etc")
-            .join("solc-bin")
-            .join(solc_version)
-            .join("solc");
-        if !fs::try_exists(&solc_path)
-            .await
-            .context("failed accessing solc")?
-        {
-            return Err(ContractVerifierError::UnknownCompilerVersion(
-                "solc",
-                solc_version.to_owned(),
-            ));
-        }
-        Ok(solc_path)
-    }
 }
 
 #[async_trait]
@@ -159,7 +192,7 @@ impl CompilerResolver for EnvCompilerResolver {
         &self,
         version: &str,
     ) -> Result<Box<dyn Compiler<SolcInput>>, ContractVerifierError> {
-        let solc_path = self.resolve_solc_path(version).await?;
+        let solc_path = CompilerType::Solc.bin_path(&self.home_dir, version).await?;
         Ok(Box::new(Solc::new(solc_path)))
     }
 
@@ -167,69 +200,33 @@ impl CompilerResolver for EnvCompilerResolver {
         &self,
         versions: &CompilerVersions,
     ) -> Result<Box<dyn Compiler<ZkSolcInput>>, ContractVerifierError> {
-        let zksolc_version = versions.zk_compiler_version().to_owned();
-        let zksolc_path = self
-            .home_dir
-            .join("etc")
-            .join("zksolc-bin")
-            .join(&zksolc_version)
-            .join("zksolc");
-        if !fs::try_exists(&zksolc_path)
-            .await
-            .context("failed accessing zksolc")?
-        {
-            return Err(ContractVerifierError::UnknownCompilerVersion(
-                "zksolc",
-                zksolc_version.to_owned(),
-            ));
-        }
-
-        let solc_path = self.resolve_solc_path(versions.compiler_version()).await?;
+        let zksolc_version = versions.zk_compiler_version();
+        let zksolc_path = CompilerType::ZkSolc
+            .bin_path(&self.home_dir, zksolc_version)
+            .await?;
+        let solc_path = CompilerType::Solc
+            .bin_path(&self.home_dir, versions.compiler_version())
+            .await?;
         let compiler_paths = CompilerPaths {
             base: solc_path,
             zk: zksolc_path,
         };
-        Ok(Box::new(ZkSolc::new(compiler_paths, zksolc_version)))
+        Ok(Box::new(ZkSolc::new(
+            compiler_paths,
+            zksolc_version.to_owned(),
+        )))
     }
 
     async fn resolve_zkvyper(
         &self,
         versions: &CompilerVersions,
     ) -> Result<Box<dyn Compiler<ZkVyperInput>>, ContractVerifierError> {
-        let zkvyper_version = versions.zk_compiler_version();
-        let zkvyper_path = self
-            .home_dir
-            .join("etc")
-            .join("zkvyper-bin")
-            .join(zkvyper_version)
-            .join("zkvyper");
-        if !fs::try_exists(&zkvyper_path)
-            .await
-            .context("failed accessing zkvyper")?
-        {
-            return Err(ContractVerifierError::UnknownCompilerVersion(
-                "zkvyper",
-                zkvyper_version.to_owned(),
-            ));
-        }
-
-        let vyper_version = versions.compiler_version();
-        let vyper_path = self
-            .home_dir
-            .join("etc")
-            .join("vyper-bin")
-            .join(vyper_version)
-            .join("vyper");
-        if !fs::try_exists(&vyper_path)
-            .await
-            .context("failed accessing vyper")?
-        {
-            return Err(ContractVerifierError::UnknownCompilerVersion(
-                "vyper",
-                vyper_version.to_owned(),
-            ));
-        }
-
+        let zkvyper_path = CompilerType::ZkVyper
+            .bin_path(&self.home_dir, versions.zk_compiler_version())
+            .await?;
+        let vyper_path = CompilerType::Vyper
+            .bin_path(&self.home_dir, versions.compiler_version())
+            .await?;
         let compiler_paths = CompilerPaths {
             base: vyper_path,
             zk: zkvyper_path,
