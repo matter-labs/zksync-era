@@ -1,6 +1,6 @@
-sudo rm -rf ./volumes && zk_supervisor clean containers && zk_inception up -o false
+sudo rm -rf ./volumes && zk_supervisor clean containers && zkstack up -o false
 
-zk_inception ecosystem init --deploy-paymaster --deploy-erc20 \
+zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
             --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
             --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
             --server-db-name=zksync_server_localhost_era \
@@ -10,11 +10,11 @@ zk_inception ecosystem init --deploy-paymaster --deploy-erc20 \
             --chain era \
             --verbose
 
-zk_inception server --ignore-prerequisites --chain era &> ./era.log & 
+zkstack server --ignore-prerequisites --chain era &> ./era.log & 
 
 sleep 20
 
-zk_inception chain deploy-and-bridge-zk --chain era --verbose     
+zkstack chain deploy-and-bridge-zk --chain era --verbose     
 
 # Define the path to the TOML file
 TOML_FILE="contracts/l1-contracts/script-out/output-deploy-zk-token.toml"
@@ -30,7 +30,7 @@ fi
 # Output the extracted and sliced l1Address (for debugging purposes)
 echo "Sliced l1Address: $zkL1Address"
   
-zk_inception chain create \
+zkstack chain create \
         --chain-name gateway \
         --chain-id 505 \
         --prover-mode no-proofs \
@@ -42,7 +42,7 @@ zk_inception chain create \
         --set-as-default false \
         --ignore-prerequisites --skip-submodules-checkout --skip-contract-compilation-override
 
-zk_inception chain init \
+zkstack chain init \
             --deploy-paymaster \
             --l1-rpc-url=http://localhost:8545 \
             --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
@@ -51,23 +51,23 @@ zk_inception chain init \
             --prover-db-name=zksync_prover_localhost_gateway \
             --chain gateway --skip-submodules-checkout
 
-zk_inception chain convert-to-gateway --chain gateway --ignore-prerequisites
+zkstack chain convert-to-gateway --chain gateway --ignore-prerequisites
 
 SERVER_PID=$(lsof -t -i :3075)
 
 kill -2 $SERVER_PID
 
-zk_inception server --ignore-prerequisites --chain gateway &> ./gateway.log & 
+zkstack server --ignore-prerequisites --chain gateway &> ./gateway.log & 
 
 sleep 20
 
-zk_inception chain migrate-to-gateway --chain era --gateway-chain-name gateway 
+zkstack chain migrate-to-gateway --chain era --gateway-chain-name gateway 
 
-zk_inception chain migrate-from-gateway --chain era --gateway-chain-name gateway
+zkstack chain migrate-from-gateway --chain era --gateway-chain-name gateway
 
-zk_inception chain migrate-to-gateway --chain era --gateway-chain-name gateway
+zkstack chain migrate-to-gateway --chain era --gateway-chain-name gateway
 
-zk_inception server --ignore-prerequisites --chain era &> ./rollup.log &
+zkstack server --ignore-prerequisites --chain era &> ./rollup.log &
 
 sleep 20
 

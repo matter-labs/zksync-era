@@ -251,7 +251,7 @@ jobs:
           ci_run sleep 20  # Wait for server to start
       
       - name: Deploy and bridge ZK token on Era chain
-        run: ci_run zk_inception chain deploy-and-bridge-zk --chain era --verbose
+        run: ci_run zkstack chain deploy-and-bridge-zk --chain era --verbose
 
       - name: Extract ZK token L1 address
         run: |
@@ -290,7 +290,7 @@ jobs:
           --server-db-name=zksync_server_localhost_validium \
           --chain validium
 
-          ci_run zk_inception chain deploy-and-bridge-zk --chain era --only-funding-tx --verbose
+          ci_run zkstack chain deploy-and-bridge-zk --chain era --only-funding-tx --verbose
 
       - name: Create and initialize chain with Custom Token
         run: |
