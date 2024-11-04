@@ -350,6 +350,29 @@ jobs:
 #              exit 1
 #          fi
 
+      - name: Create and initialize Consensus chain
+        run: |
+          ci_run zkstack chain create \
+            --chain-name consensus \
+            --chain-id sequential \
+            --prover-mode no-proofs \
+            --wallet-creation localhost \
+            --l1-batch-commit-data-generator-mode validium \
+            --base-token-address ${{ env.CUSTOM_TOKEN_ADDRESS }} \
+            --base-token-price-nominator 3 \
+            --base-token-price-denominator 2 \
+            --set-as-default false \
+            --ignore-prerequisites
+
+          ci_run zkstack chain init \
+            --deploy-paymaster \
+            --l1-rpc-url=http://localhost:8545 \
+            --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+            --server-db-name=zksync_server_localhost_consensus \
+            --chain consensus
+      
+          ci_run zkstack chain deploy-and-bridge-zk --chain era --only-funding-tx --verbose
+
       - name: Shut down Era server (sends the kill command to all era zksync_server proccesses)
         run: |
           # Find the PID using ports 3071 or 3075
@@ -376,27 +399,6 @@ jobs:
 
           # Ensure the script always exits successfully
           exit 0
-      
-      - name: Create and initialize Consensus chain
-        run: |
-          ci_run zkstack chain create \
-            --chain-name consensus \
-            --chain-id sequential \
-            --prover-mode no-proofs \
-            --wallet-creation localhost \
-            --l1-batch-commit-data-generator-mode validium \
-            --base-token-address ${{ env.CUSTOM_TOKEN_ADDRESS }} \
-            --base-token-price-nominator 3 \
-            --base-token-price-denominator 2 \
-            --set-as-default false \
-            --ignore-prerequisites
-
-          ci_run zkstack chain init \
-            --deploy-paymaster \
-            --l1-rpc-url=http://localhost:8545 \
-            --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-            --server-db-name=zksync_server_localhost_consensus \
-            --chain consensus
       
       - name: Export chain list to environment variable
         run: |
