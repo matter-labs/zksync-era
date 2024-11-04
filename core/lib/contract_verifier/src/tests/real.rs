@@ -53,12 +53,22 @@ fn assert_no_compilers_expected() {
     println!("No compilers found, skipping the test");
 }
 
+/// Simplifies initializing real compiler resolver in tests.
+macro_rules! real_resolver {
+    () => {
+        match checked_env_resolver().await {
+            Some(resolver_and_versions) => resolver_and_versions,
+            None => {
+                assert_no_compilers_expected();
+                return;
+            }
+        }
+    };
+}
+
 #[tokio::test]
 async fn using_real_compiler() {
-    let Some((compiler_resolver, supported_compilers)) = checked_env_resolver().await else {
-        assert_no_compilers_expected();
-        return;
-    };
+    let (compiler_resolver, supported_compilers) = real_resolver!();
 
     let versions = supported_compilers.for_zksolc();
     let compiler = compiler_resolver.resolve_zksolc(&versions).await.unwrap();
@@ -75,10 +85,7 @@ async fn using_real_compiler() {
 
 #[tokio::test]
 async fn using_standalone_solc() {
-    let Some((compiler_resolver, supported_compilers)) = checked_env_resolver().await else {
-        assert_no_compilers_expected();
-        return;
-    };
+    let (compiler_resolver, supported_compilers) = real_resolver!();
 
     let version = &supported_compilers.solc;
     let compiler = compiler_resolver.resolve_solc(version).await.unwrap();
@@ -99,10 +106,7 @@ async fn using_standalone_solc() {
 #[test_casing(2, BYTECODE_KINDS)]
 #[tokio::test]
 async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker) {
-    let Some((compiler_resolver, supported_compilers)) = checked_env_resolver().await else {
-        assert_no_compilers_expected();
-        return;
-    };
+    let (compiler_resolver, supported_compilers) = real_resolver!();
 
     let versions = supported_compilers.for_zksolc();
     let req = VerificationIncomingRequest {
@@ -168,10 +172,7 @@ async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker) {
 #[test_casing(2, BYTECODE_KINDS)]
 #[tokio::test]
 async fn compilation_errors(bytecode_kind: BytecodeMarker) {
-    let Some((compiler_resolver, supported_compilers)) = checked_env_resolver().await else {
-        assert_no_compilers_expected();
-        return;
-    };
+    let (compiler_resolver, supported_compilers) = real_resolver!();
 
     let versions = supported_compilers.for_zksolc();
     let address = Address::repeat_byte(1);
