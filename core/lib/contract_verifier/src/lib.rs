@@ -247,7 +247,7 @@ impl ContractVerifier {
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let solc = self
             .compiler_resolver
-            .resolve_solc(&req.compiler_versions.compiler_version())
+            .resolve_solc(req.compiler_versions.compiler_version())
             .await?;
         tracing::debug!(?solc, ?req.compiler_versions, "resolved compiler");
         let input = Solc::build_input(req)?;

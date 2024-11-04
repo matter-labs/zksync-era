@@ -111,21 +111,21 @@ impl EnvCompilerResolver {
 
     async fn resolve_solc_path(
         &self,
-        solc_version: String,
+        solc_version: &str,
     ) -> Result<PathBuf, ContractVerifierError> {
         let solc_path = self
             .home_dir
             .join("etc")
             .join("solc-bin")
-            .join(&solc_version)
+            .join(solc_version)
             .join("solc");
         if !fs::try_exists(&solc_path)
             .await
             .context("failed accessing solc")?
         {
             return Err(ContractVerifierError::UnknownCompilerVersion(
-                "solc".to_owned(),
-                solc_version,
+                "solc",
+                solc_version.to_owned(),
             ));
         }
         Ok(solc_path)
@@ -159,7 +159,7 @@ impl CompilerResolver for EnvCompilerResolver {
         &self,
         version: &str,
     ) -> Result<Box<dyn Compiler<SolcInput>>, ContractVerifierError> {
-        let solc_path = self.resolve_solc_path(version.to_owned()).await?;
+        let solc_path = self.resolve_solc_path(version).await?;
         Ok(Box::new(Solc::new(solc_path)))
     }
 
@@ -167,7 +167,7 @@ impl CompilerResolver for EnvCompilerResolver {
         &self,
         versions: &CompilerVersions,
     ) -> Result<Box<dyn Compiler<ZkSolcInput>>, ContractVerifierError> {
-        let zksolc_version = versions.zk_compiler_version();
+        let zksolc_version = versions.zk_compiler_version().to_owned();
         let zksolc_path = self
             .home_dir
             .join("etc")
@@ -179,8 +179,8 @@ impl CompilerResolver for EnvCompilerResolver {
             .context("failed accessing zksolc")?
         {
             return Err(ContractVerifierError::UnknownCompilerVersion(
-                "zksolc".to_owned(),
-                zksolc_version,
+                "zksolc",
+                zksolc_version.to_owned(),
             ));
         }
 
@@ -201,15 +201,15 @@ impl CompilerResolver for EnvCompilerResolver {
             .home_dir
             .join("etc")
             .join("zkvyper-bin")
-            .join(&zkvyper_version)
+            .join(zkvyper_version)
             .join("zkvyper");
         if !fs::try_exists(&zkvyper_path)
             .await
             .context("failed accessing zkvyper")?
         {
             return Err(ContractVerifierError::UnknownCompilerVersion(
-                "zkvyper".to_owned(),
-                zkvyper_version,
+                "zkvyper",
+                zkvyper_version.to_owned(),
             ));
         }
 
@@ -218,15 +218,15 @@ impl CompilerResolver for EnvCompilerResolver {
             .home_dir
             .join("etc")
             .join("vyper-bin")
-            .join(&vyper_version)
+            .join(vyper_version)
             .join("vyper");
         if !fs::try_exists(&vyper_path)
             .await
             .context("failed accessing vyper")?
         {
             return Err(ContractVerifierError::UnknownCompilerVersion(
-                "vyper".to_owned(),
-                vyper_version,
+                "vyper",
+                vyper_version.to_owned(),
             ));
         }
 

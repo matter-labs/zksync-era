@@ -121,7 +121,7 @@ async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker) {
         }
         BytecodeMarker::Evm => {
             let solc_version = req.compiler_versions.compiler_version();
-            let compiler = compiler_resolver.resolve_solc(&solc_version).await.unwrap();
+            let compiler = compiler_resolver.resolve_solc(solc_version).await.unwrap();
             let input = Solc::build_input(req.clone()).unwrap();
             compiler.compile(input).await.unwrap()
         }

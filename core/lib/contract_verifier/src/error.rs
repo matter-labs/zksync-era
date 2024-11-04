@@ -17,7 +17,7 @@ pub enum ContractVerifierError {
     #[error("Compilation error")]
     CompilationError(serde_json::Value),
     #[error("Unknown {0} version: {1}")]
-    UnknownCompilerVersion(String, String),
+    UnknownCompilerVersion(&'static str, String),
     #[error("Contract with {0} name is missing in sources")]
     MissingContract(String),
     #[error("There is no {0} source file")]

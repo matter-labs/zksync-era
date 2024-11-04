@@ -157,7 +157,7 @@ pub enum CompilerType {
 pub enum CompilerVersions {
     #[serde(rename_all = "camelCase")]
     Solc {
-        compiler_zksolc_version: String,
+        compiler_zksolc_version: String, // FIXME: optional?
         compiler_solc_version: String,
     },
     #[serde(rename_all = "camelCase")]
@@ -175,29 +175,29 @@ impl CompilerVersions {
         }
     }
 
-    pub fn zk_compiler_version(&self) -> String {
+    pub fn zk_compiler_version(&self) -> &str {
         match self {
-            CompilerVersions::Solc {
+            Self::Solc {
                 compiler_zksolc_version,
                 ..
-            } => compiler_zksolc_version.clone(),
-            CompilerVersions::Vyper {
+            } => compiler_zksolc_version,
+            Self::Vyper {
                 compiler_zkvyper_version,
                 ..
-            } => compiler_zkvyper_version.clone(),
+            } => compiler_zkvyper_version,
         }
     }
 
-    pub fn compiler_version(&self) -> String {
+    pub fn compiler_version(&self) -> &str {
         match self {
-            CompilerVersions::Solc {
+            Self::Solc {
                 compiler_solc_version,
                 ..
-            } => compiler_solc_version.clone(),
-            CompilerVersions::Vyper {
+            } => compiler_solc_version,
+            Self::Vyper {
                 compiler_vyper_version,
                 ..
-            } => compiler_vyper_version.clone(),
+            } => compiler_vyper_version,
         }
     }
 }

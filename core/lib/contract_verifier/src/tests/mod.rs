@@ -271,7 +271,7 @@ impl CompilerResolver for MockCompilerResolver {
     ) -> Result<Box<dyn Compiler<SolcInput>>, ContractVerifierError> {
         if version != SOLC_VERSION {
             return Err(ContractVerifierError::UnknownCompilerVersion(
-                "solc".to_owned(),
+                "solc",
                 version.to_owned(),
             ));
         }
@@ -284,14 +284,14 @@ impl CompilerResolver for MockCompilerResolver {
     ) -> Result<Box<dyn Compiler<ZkSolcInput>>, ContractVerifierError> {
         if versions.compiler_version() != SOLC_VERSION {
             return Err(ContractVerifierError::UnknownCompilerVersion(
-                "solc".to_owned(),
-                versions.compiler_version(),
+                "solc",
+                versions.compiler_version().to_owned(),
             ));
         }
         if versions.zk_compiler_version() != ZKSOLC_VERSION {
             return Err(ContractVerifierError::UnknownCompilerVersion(
-                "zksolc".to_owned(),
-                versions.zk_compiler_version(),
+                "zksolc",
+                versions.zk_compiler_version().to_owned(),
             ));
         }
         Ok(Box::new(self.clone()))
