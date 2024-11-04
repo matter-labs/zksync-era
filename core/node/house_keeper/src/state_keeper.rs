@@ -2,13 +2,14 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater};
+use zksync_types::L2BlockNumber;
 
 use crate::periodic_job::PeriodicJob;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StateKeeperInfo {
     last_miniblock_protocol_upgrade: Option<()>,
-    last_miniblock: Option<()>,
+    last_miniblock: Option<L2BlockNumber>,
     batch_number: Option<()>,
 }
 
@@ -34,12 +35,16 @@ impl PeriodicJob for StateKeeperHealthTask {
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let mut conn = self.connection_pool.connection().await.unwrap();
-        let _last_migration = conn.system_dal().get_last_migration().await.unwrap();
+        let last_miniblock = conn
+            .blocks_web3_dal()
+            .get_last_miniblock_number()
+            .await
+            .unwrap();
 
         self.state_keeper_health_updater.update(
             StateKeeperInfo {
                 last_miniblock_protocol_upgrade: None,
-                last_miniblock: None,
+                last_miniblock,
                 batch_number: None,
             }
             .into(),

@@ -32,6 +32,30 @@ pub struct BlocksWeb3Dal<'a, 'c> {
 }
 
 impl BlocksWeb3Dal<'_, '_> {
+    pub async fn get_last_miniblock_number(&mut self) -> DalResult<Option<L2BlockNumber>> {
+        let record = sqlx::query!(
+            r#"
+            SELECT max(number) FROM miniblocks
+            "#
+        )
+        .instrument("get_last_miniblock_number")
+        .fetch_one(self.storage)
+        .await?;
+
+        // the database stores the miniblock numbers as i64, so we could safely unwrap here.
+        // Instead, we log the error to catch inconsistent states of the database.
+        let last_miniblock = record.max.and_then(|n| {
+            u32::try_from(n)
+                .map_err(|e| {
+                    tracing::error!("Failed to convert i64 to u32 for miniblock number: {}", e);
+                    e
+                })
+                .ok()
+        });
+
+        Ok(last_miniblock.map(L2BlockNumber::from))
+    }
+
     pub async fn get_api_block(
         &mut self,
         block_number: L2BlockNumber,
