@@ -522,8 +522,8 @@ impl MainNodeBuilder {
                 self.node.add_layer(EigenWiringLayer::new(config, secret));
             }
 
-            (DAClientConfig::Near(config), _) => {
-                self.node.add_layer(NearWiringLayer::new(config));
+            (DAClientConfig::Near(config), DataAvailabilitySecrets::Near(secret)) => {
+                self.node.add_layer(NearWiringLayer::new(config, secret));
             }
 
             (DAClientConfig::ObjectStore(config), _) => {

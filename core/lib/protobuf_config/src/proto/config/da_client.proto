@@ -47,7 +47,6 @@ message NearConfig {
   optional string blob_contract = 3;
   optional string bridge_contract = 4;
   optional string account_id = 5;
-  optional string secret_key = 6;
 }
 
 message DataAvailabilityClient {

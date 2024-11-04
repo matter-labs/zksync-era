@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use zksync_basic_types::secrets::PrivateKey;
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct NearConfig {
@@ -7,5 +8,9 @@ pub struct NearConfig {
     pub blob_contract: String,
     pub bridge_contract: String,
     pub account_id: String,
-    pub secret_key: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct NearSecrets {
+    pub secret_key: PrivateKey,
 }

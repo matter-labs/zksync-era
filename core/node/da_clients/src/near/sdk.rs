@@ -22,11 +22,12 @@ use near_primitives::{
         TxExecutionStatus,
     },
 };
-use zksync_config::NearConfig;
+use subxt_signer::ExposeSecret;
+use zksync_config::{configs::da_client::near::NearSecrets, NearConfig};
 use zksync_da_client::types::{self, DAError};
 
-use super::{types::LatestHeaderResponse, NearClient};
-use crate::utils::to_non_retriable_da_error;
+use super::types::LatestHeaderResponse;
+use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
 
 const GAS_LIMIT: u64 = 20_000_000_000_000;
 
@@ -39,11 +40,11 @@ pub(crate) struct DAClient {
 }
 
 impl DAClient {
-    pub(crate) async fn new(config: &NearConfig) -> anyhow::Result<Self> {
+    pub(crate) async fn new(config: &NearConfig, secrets: NearSecrets) -> anyhow::Result<Self> {
         let client = JsonRpcClient::connect(&config.rpc_client_url);
         let contract: AccountId = config.blob_contract.parse()?;
         let account_id: AccountId = config.account_id.parse()?;
-        let secret_key = SecretKey::from_str(&config.secret_key)?;
+        let secret_key = SecretKey::from_str(secrets.secret_key.0.expose_secret())?;
         Ok(Self {
             client,
             contract,
@@ -162,10 +163,7 @@ impl DAClient {
             .json(&rpc_payload)
             .send()
             .await
-            .map_err(|e| DAError {
-                error: anyhow!(e),
-                is_retriable: true,
-            })?;
+            .map_err(to_retriable_da_error)?;
 
         let resp = response.text().await.map_err(to_non_retriable_da_error)?;
 
@@ -191,10 +189,7 @@ impl DAClient {
             .client
             .call(req)
             .await
-            .map_err(|e| DAError {
-                error: anyhow!(e),
-                is_retriable: true,
-            })
+            .map_err(to_retriable_da_error)
             .map(|x| x.header)
             .map(BlockHeader::from)
             .map(Into::into)?;
@@ -217,10 +212,7 @@ impl DAClient {
             light_client_head: latest_header,
         };
 
-        let proof = self.client.call(req).await.map_err(|e| DAError {
-            error: anyhow!(e),
-            is_retriable: true,
-        })?;
+        let proof = self.client.call(req).await.map_err(to_retriable_da_error)?;
 
         Ok(proof)
     }

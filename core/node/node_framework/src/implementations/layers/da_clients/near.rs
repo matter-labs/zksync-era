@@ -1,4 +1,4 @@
-use zksync_config::NearConfig;
+use zksync_config::{configs::da_client::near::NearSecrets, NearConfig};
 use zksync_da_client::DataAvailabilityClient;
 use zksync_da_clients::near::NearClient;
 
@@ -11,11 +11,12 @@ use crate::{
 #[derive(Debug)]
 pub struct NearWiringLayer {
     config: NearConfig,
+    secrets: NearSecrets,
 }
 
 impl NearWiringLayer {
-    pub fn new(config: NearConfig) -> Self {
-        Self { config }
+    pub fn new(config: NearConfig, secrets: NearSecrets) -> Self {
+        Self { config, secrets }
     }
 }
 
@@ -35,7 +36,8 @@ impl WiringLayer for NearWiringLayer {
     }
 
     async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
-        let client: Box<dyn DataAvailabilityClient> = Box::new(NearClient::new(self.config).await?);
+        let client: Box<dyn DataAvailabilityClient> =
+            Box::new(NearClient::new(self.config, self.secrets).await?);
 
         Ok(Self::Output {
             client: DAClientResource(client),

@@ -3,7 +3,7 @@ use std::{fmt::Debug, sync::Arc};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use near_primitives::borsh;
-use zksync_config::NearConfig;
+use zksync_config::{configs::da_client::near::NearSecrets, NearConfig};
 use zksync_da_client::{
     types::{self, DAError},
     DataAvailabilityClient,
@@ -33,8 +33,8 @@ impl Debug for NearClient {
 }
 
 impl NearClient {
-    pub async fn new(config: NearConfig) -> anyhow::Result<Self> {
-        let da_rpc_client = DAClient::new(&config)
+    pub async fn new(config: NearConfig, secrets: NearSecrets) -> anyhow::Result<Self> {
+        let da_rpc_client = DAClient::new(&config, secrets)
             .await
             .map_err(to_non_retriable_da_error)?;
 

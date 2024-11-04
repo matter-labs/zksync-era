@@ -74,7 +74,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     .context("bridge_contract")?
                     .clone(),
                 account_id: required(&conf.account_id).context("account_id")?.clone(),
-                secret_key: required(&conf.secret_key).context("secret_key")?.clone(),
             }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
@@ -122,7 +121,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 blob_contract: Some(config.blob_contract.clone()),
                 bridge_contract: Some(config.bridge_contract.clone()),
                 account_id: Some(config.account_id.clone()),
-                secret_key: Some(config.secret_key.clone()),
             }),
             ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
                 object_store_proto::ObjectStore::build(config),

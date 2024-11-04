@@ -297,7 +297,6 @@ mod tests {
             DA_BLOB_CONTRACT="blob-store-contract.near"
             DA_BRIDGE_CONTRACT="0x0000000000000000000000000000000000000001"
             DA_ACCOUNT_ID="acount-id.near"
-            DA_SECRET_KEY="YOUR_SECRET_KEY"
         "#;
 
         lock.set_env(config);
@@ -311,7 +310,6 @@ mod tests {
                 blob_contract: "blob-store-contract.near".to_string(),
                 bridge_contract: "0x0000000000000000000000000000000000000001".to_string(),
                 account_id: "acount-id.near".to_string(),
-                secret_key: "YOUR_SECRET_KEY".to_string(),
             })
         );
     }
