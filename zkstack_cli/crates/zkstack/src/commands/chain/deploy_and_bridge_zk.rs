@@ -5,6 +5,7 @@ use clap::Parser;
 use common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
+    wallets::Wallet,
     withdraw::ZKSProvider,
 };
 use config::{forge_interface::script_params::ZK_PREPARATION, EcosystemConfig};
@@ -122,7 +123,7 @@ pub async fn run(args: DeployAndBridgeZKArgs, shell: &Shell) -> anyhow::Result<(
                 .encode("fundChainGovernor", ())
                 .unwrap(),
             &ecosystem_config,
-            chain_config.get_wallets_config()?.governor_private_key(),
+            &chain_config.get_wallets_config()?.governor,
             l1_url.clone(),
         )
         .await;
@@ -143,7 +144,7 @@ pub async fn run(args: DeployAndBridgeZKArgs, shell: &Shell) -> anyhow::Result<(
             )
             .unwrap(),
         &ecosystem_config,
-        chain_config.get_wallets_config()?.governor_private_key(),
+        &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
     .await;
@@ -162,7 +163,7 @@ pub async fn run(args: DeployAndBridgeZKArgs, shell: &Shell) -> anyhow::Result<(
         args.forge_args.clone(),
         &calldata,
         &ecosystem_config,
-        chain_config.get_wallets_config()?.governor_private_key(),
+        &chain_config.get_wallets_config()?.governor,
         era_provider.url().to_string(),
     )
     .await;
@@ -215,7 +216,7 @@ pub async fn run(args: DeployAndBridgeZKArgs, shell: &Shell) -> anyhow::Result<(
         args.forge_args.clone(),
         &calldata,
         &ecosystem_config,
-        chain_config.get_wallets_config()?.governor_private_key(),
+        &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
     .await;
@@ -231,7 +232,7 @@ pub async fn run(args: DeployAndBridgeZKArgs, shell: &Shell) -> anyhow::Result<(
         args.forge_args,
         &calldata,
         &ecosystem_config,
-        chain_config.get_wallets_config()?.governor_private_key(),
+        &chain_config.get_wallets_config()?.governor,
         l1_url,
     )
     .await;
@@ -246,7 +247,7 @@ async fn call_script(
     forge_args: ForgeScriptArgs,
     data: &Bytes,
     config: &EcosystemConfig,
-    private_key: Option<H256>,
+    account: &Wallet,
     rpc_url: String,
 ) {
     let mut forge = Forge::new(&config.path_to_l1_foundry())
@@ -257,7 +258,7 @@ async fn call_script(
         .with_calldata(data);
 
     // Governor private key is required for this script
-    forge = fill_forge_private_key(forge, private_key).expect("private key signing failed");
+    forge = fill_forge_private_key(forge, Some(account)).expect("private key signing failed");
     let _ = check_the_balance(&forge).await;
     let _ = forge.run(shell);
 }
@@ -267,7 +268,7 @@ async fn call_script_era(
     forge_args: ForgeScriptArgs,
     data: &Bytes,
     config: &EcosystemConfig,
-    private_key: Option<H256>,
+    account: &Wallet,
     rpc_url: String,
 ) {
     let mut forge = Forge::new(&config.path_to_l1_foundry())
@@ -280,7 +281,7 @@ async fn call_script_era(
         .with_calldata(data);
 
     // Governor private key is required for this script
-    forge = fill_forge_private_key(forge, private_key).expect("private key signing failed");
+    forge = fill_forge_private_key(forge, Some(account)).expect("private key signing failed");
     let _ = check_the_balance(&forge).await;
     let _ = forge.run(shell);
 }
