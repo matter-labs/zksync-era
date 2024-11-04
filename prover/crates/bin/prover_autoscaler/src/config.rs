@@ -27,8 +27,6 @@ pub struct ProverAutoscalerAgentConfig {
     /// List of namespaces to watch.
     #[serde(default = "ProverAutoscalerAgentConfig::default_namespaces")]
     pub namespaces: Vec<String>,
-    /// Watched cluster name. Also can be set via flag.
-    pub cluster_name: Option<String>,
     /// If dry-run enabled don't do any k8s updates, just report success.
     #[serde(default = "ProverAutoscalerAgentConfig::default_dry_run")]
     pub dry_run: bool,
