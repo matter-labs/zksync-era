@@ -64,7 +64,7 @@ async fn using_real_compiler() {
     let compiler = compiler_resolver.resolve_zksolc(&versions).await.unwrap();
     let req = VerificationIncomingRequest {
         compiler_versions: versions,
-        ..test_request(Address::repeat_byte(1))
+        ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
     };
     let input = ZkSolc::build_input(req).unwrap();
     let output = compiler.compile(input).await.unwrap();
@@ -85,9 +85,9 @@ async fn using_standalone_solc() {
     let req = VerificationIncomingRequest {
         compiler_versions: CompilerVersions::Solc {
             compiler_solc_version: version.clone(),
-            compiler_zksolc_version: "1000.0.0".to_owned(), // doesn't matter
+            compiler_zksolc_version: "1000.0.0".to_owned(), // not used
         },
-        ..test_request(Address::repeat_byte(1))
+        ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
     };
     let input = Solc::build_input(req).unwrap();
     let output = compiler.compile(input).await.unwrap();
@@ -96,27 +96,55 @@ async fn using_standalone_solc() {
     assert_eq!(output.abi, counter_contract_abi());
 }
 
+#[test_casing(2, BYTECODE_KINDS)]
 #[tokio::test]
-async fn using_real_compiler_in_verifier() {
+async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker) {
     let Some((compiler_resolver, supported_compilers)) = checked_env_resolver().await else {
         assert_no_compilers_expected();
         return;
     };
 
     let versions = supported_compilers.for_zksolc();
-    let address = Address::repeat_byte(1);
-    let compiler = compiler_resolver.resolve_zksolc(&versions).await.unwrap();
     let req = VerificationIncomingRequest {
         compiler_versions: versions,
-        ..test_request(Address::repeat_byte(1))
+        ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
     };
-    let input = ZkSolc::build_input(req.clone()).unwrap();
-    let output = compiler.compile(input).await.unwrap();
+    let address = Address::repeat_byte(1);
+    let output = match bytecode_kind {
+        BytecodeMarker::EraVm => {
+            let compiler = compiler_resolver
+                .resolve_zksolc(&req.compiler_versions)
+                .await
+                .unwrap();
+            let input = ZkSolc::build_input(req.clone()).unwrap();
+            compiler.compile(input).await.unwrap()
+        }
+        BytecodeMarker::Evm => {
+            let solc_version = req.compiler_versions.compiler_version();
+            let compiler = compiler_resolver.resolve_solc(&solc_version).await.unwrap();
+            let input = Solc::build_input(req.clone()).unwrap();
+            compiler.compile(input).await.unwrap()
+        }
+    };
 
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
     prepare_storage(&mut storage).await;
-    mock_deployment(&mut storage, address, output.bytecode.clone()).await;
+    match bytecode_kind {
+        BytecodeMarker::EraVm => {
+            mock_deployment(&mut storage, address, output.bytecode.clone(), &[]).await;
+        }
+        BytecodeMarker::Evm => {
+            mock_evm_deployment(
+                &mut storage,
+                address,
+                output.bytecode.clone(),
+                output.deployed_bytecode(),
+                &[],
+            )
+            .await;
+        }
+    }
     let request_id = storage
         .contract_verification_dal()
         .add_contract_verification_request(req)
@@ -137,8 +165,9 @@ async fn using_real_compiler_in_verifier() {
     assert_request_success(&mut storage, request_id, address, &output.bytecode).await;
 }
 
+#[test_casing(2, BYTECODE_KINDS)]
 #[tokio::test]
-async fn compilation_errors() {
+async fn compilation_errors(bytecode_kind: BytecodeMarker) {
     let Some((compiler_resolver, supported_compilers)) = checked_env_resolver().await else {
         assert_no_compilers_expected();
         return;
@@ -149,13 +178,20 @@ async fn compilation_errors() {
     let req = VerificationIncomingRequest {
         compiler_versions: versions,
         source_code_data: SourceCodeData::SolSingleFile("contract ???".to_owned()),
-        ..test_request(Address::repeat_byte(1))
+        ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
     };
 
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
     prepare_storage(&mut storage).await;
-    mock_deployment(&mut storage, address, vec![0; 32]).await;
+    match bytecode_kind {
+        BytecodeMarker::EraVm => {
+            mock_deployment(&mut storage, address, vec![0; 32], &[]).await;
+        }
+        BytecodeMarker::Evm => {
+            mock_evm_deployment(&mut storage, address, vec![3; 20], &[5; 10], &[]).await;
+        }
+    }
 
     let request_id = storage
         .contract_verification_dal()
