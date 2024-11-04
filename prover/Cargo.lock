@@ -8496,9 +8496,9 @@ dependencies = [
  "serde",
  "serde_with",
  "strum",
- "zksync_multivm",
  "zksync_object_store",
  "zksync_types",
+ "zksync_vm_interface",
 ]
 
 [[package]]
@@ -8685,7 +8685,7 @@ dependencies = [
 [[package]]
 name = "zksync_vm2"
 version = "0.2.1"
-source = "git+https://github.com/matter-labs/vm2.git?rev=df5bec3d04d64d434f9b0ccb285ba4681008f7b3#df5bec3d04d64d434f9b0ccb285ba4681008f7b3"
+source = "git+https://github.com/matter-labs/vm2.git?rev=457d8a7eea9093af9440662e33e598c13ba41633#457d8a7eea9093af9440662e33e598c13ba41633"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
@@ -8697,7 +8697,7 @@ dependencies = [
 [[package]]
 name = "zksync_vm2_interface"
 version = "0.2.1"
-source = "git+https://github.com/matter-labs/vm2.git?rev=df5bec3d04d64d434f9b0ccb285ba4681008f7b3#df5bec3d04d64d434f9b0ccb285ba4681008f7b3"
+source = "git+https://github.com/matter-labs/vm2.git?rev=457d8a7eea9093af9440662e33e598c13ba41633#457d8a7eea9093af9440662e33e598c13ba41633"
 dependencies = [
  "primitive-types",
 ]

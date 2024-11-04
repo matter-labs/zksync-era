@@ -1,5 +1,5 @@
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, Core};
-use zksync_multivm::interface::TransactionExecutionMetrics;
+use zksync_multivm::interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
 use zksync_types::{
     api::{Transaction, TransactionDetails, TransactionId},
     l2::L2Tx,
@@ -28,6 +28,7 @@ pub trait TxSink: std::fmt::Debug + Send + Sync + 'static {
         &self,
         tx: &L2Tx,
         execution_metrics: TransactionExecutionMetrics,
+        validation_traces: ValidationTraces,
     ) -> Result<L2TxSubmissionResult, SubmitTxError>;
 
     /// Attempts to look up the pending nonce for the account in the sink-specific storage.
