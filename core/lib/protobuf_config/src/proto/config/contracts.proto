@@ -23,6 +23,7 @@ message L2 {
   optional string testnet_paymaster_addr = 1; // optional; H160
   optional string da_validator_addr = 2; // optional; H160
   optional string legacy_shared_bridge_addr = 3; // optional; H160
+  optional string timestamp_asserter_addr = 4; // optional; H160
 }
 
 message Bridge {
