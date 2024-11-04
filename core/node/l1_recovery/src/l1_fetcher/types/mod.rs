@@ -130,7 +130,6 @@ impl CommitBlock {
                 read_next_n_bytes::<8>(&dictionary_bytes, &mut index_of_encoded_chunk).to_vec();
             result.append(&mut decoded);
         }
-        tracing::info!("bytecode_hash: {:?}", hash_bytecode(&result));
         result
     }
 

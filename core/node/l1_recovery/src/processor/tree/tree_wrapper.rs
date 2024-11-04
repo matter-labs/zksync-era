@@ -53,7 +53,7 @@ impl TreeWrapper {
             .into_iter()
             .map(|log| {
                 let entry = TreeEntry::new(
-                    U256::from_big_endian(log.key.as_bytes()),
+                    U256::from_little_endian(log.key.as_bytes()),
                     log.enumeration_index,
                     log.value,
                 );

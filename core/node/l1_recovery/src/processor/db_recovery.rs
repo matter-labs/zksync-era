@@ -100,6 +100,29 @@ pub async fn recover_db(
         .unwrap()
 }
 
+async fn recover_eth_watch(
+    l1_client: Box<DynClient<L1>>,
+    blob_client: Arc<dyn BlobClient>,
+    diamond_proxy_addr: Address,
+) {
+    let l1_fetcher = L1Fetcher::new(
+        L1FetcherConfig {
+            block_step: 10000,
+            diamond_proxy_addr,
+            versioning: OnlyV3,
+        },
+        l1_client,
+        blob_client,
+    )
+    .unwrap();
+    let blocks = l1_fetcher.get_all_blocks_to_process().await;
+    let last_l1_batch_number = L1BatchNumber(blocks.last().unwrap().l1_batch_number as u32);
+    let block = l1_fetcher
+        .calculate_last_processed_priority_transaction_eth_block(last_l1_batch_number)
+        .await;
+    //panic!("{:?}", block)
+}
+
 pub async fn create_l1_snapshot(
     l1_client: Box<DynClient<L1>>,
     blob_client: Arc<dyn BlobClient>,
@@ -116,8 +139,9 @@ pub async fn create_l1_snapshot(
         },
         l1_client,
         blob_client,
-    );
-    let blocks = l1_fetcher.unwrap().get_all_blocks_to_process().await;
+    )
+    .unwrap();
+    let blocks = l1_fetcher.get_all_blocks_to_process().await;
     let last_l1_batch_number = L1BatchNumber(blocks.last().unwrap().l1_batch_number as u32);
     let mut processor = StateCompressor::new(temp_dir).await;
     processor.process_genesis_state(None).await;
@@ -226,12 +250,73 @@ mod tests {
 
     use crate::{
         l1_fetcher::{blob_http_client::LocalDbBlobSource, constants::local_diamond_proxy_addr},
-        processor::db_recovery::{create_l1_snapshot, FakeClient},
+        processor::db_recovery::{create_l1_snapshot, recover_eth_watch, FakeClient},
         recover_db,
     };
 
+    // #[test_log::test(tokio::test)]
+    // async fn test_process_blocks() {
+    //     let connection_pool = ConnectionPool::<Core>::builder(
+    //         "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
+    //             .parse()
+    //             .unwrap(),
+    //         10,
+    //     )
+    //     .build()
+    //     .await
+    //     .unwrap();
+    //     let url = SensitiveUrl::from_str(&"http://127.0.0.1:8545").unwrap();
+    //     let eth_client = Client::http(url).unwrap().build();
+    //     let blob_client = Arc::new(LocalDbBlobSource::new(connection_pool.clone()));
+    //     recover_db(
+    //         ConnectionPool::test_pool().await,
+    //         Box::new(eth_client),
+    //         blob_client,
+    //         local_diamond_proxy_addr().parse().unwrap(),
+    //     )
+    //     .await;
+    // }
+
+    // #[test_log::test(tokio::test)]
+    // async fn test_export_storage_logs() {
+    //     let connection_pool = ConnectionPool::<Core>::builder(
+    //         "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
+    //             .parse()
+    //             .unwrap(),
+    //         10,
+    //     )
+    //     .build()
+    //     .await
+    //     .unwrap();
+    //     let blob_client = Arc::new(LocalDbBlobSource::new(connection_pool.clone()));
+    //     let url = SensitiveUrl::from_str(&"http://127.0.0.1:8545").unwrap();
+    //     let eth_client = Client::http(url).unwrap().build();
+    //     let object_store = MockObjectStore::arc();
+    //     let (newest_l1_batch_number, root_hash) = create_l1_snapshot(
+    //         Box::new(eth_client),
+    //         blob_client,
+    //         &object_store,
+    //         local_diamond_proxy_addr().parse().unwrap(),
+    //     )
+    //     .await;
+    //
+    //     let applier_config = SnapshotsApplierConfig::default();
+    //     let (_, stop_rx) = watch::channel(false);
+    //     let mut applier = SnapshotsApplierTask::new(
+    //         applier_config,
+    //         connection_pool,
+    //         Box::new(FakeClient {
+    //             newest_l1_batch_number,
+    //             root_hash,
+    //         }),
+    //         object_store,
+    //     );
+    //     applier.set_snapshot_l1_batch(newest_l1_batch_number);
+    //     applier.run(stop_rx).await.unwrap();
+    // }
+
     #[test_log::test(tokio::test)]
-    async fn test_process_blocks() {
+    async fn test_recover_eth_watch() {
         let connection_pool = ConnectionPool::<Core>::builder(
             "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
                 .parse()
@@ -241,53 +326,14 @@ mod tests {
         .build()
         .await
         .unwrap();
+        let blob_client = Arc::new(LocalDbBlobSource::new(connection_pool.clone()));
         let url = SensitiveUrl::from_str(&"http://127.0.0.1:8545").unwrap();
         let eth_client = Client::http(url).unwrap().build();
-        let blob_client = Arc::new(LocalDbBlobSource::new(connection_pool.clone()));
-        recover_db(
-            ConnectionPool::test_pool().await,
+        recover_eth_watch(
             Box::new(eth_client),
             blob_client,
             local_diamond_proxy_addr().parse().unwrap(),
         )
         .await;
-    }
-
-    #[test_log::test(tokio::test)]
-    async fn test_export_storage_logs() {
-        let connection_pool = ConnectionPool::<Core>::builder(
-            "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
-                .parse()
-                .unwrap(),
-            10,
-        )
-        .build()
-        .await
-        .unwrap();
-        let blob_client = Arc::new(LocalDbBlobSource::new(connection_pool.clone()));
-        let url = SensitiveUrl::from_str(&"http://127.0.0.1:8545").unwrap();
-        let eth_client = Client::http(url).unwrap().build();
-        let object_store = MockObjectStore::arc();
-        let (newest_l1_batch_number, root_hash) = create_l1_snapshot(
-            Box::new(eth_client),
-            blob_client,
-            &object_store,
-            local_diamond_proxy_addr().parse().unwrap(),
-        )
-        .await;
-
-        let applier_config = SnapshotsApplierConfig::default();
-        let (_, stop_rx) = watch::channel(false);
-        let mut applier = SnapshotsApplierTask::new(
-            applier_config,
-            connection_pool,
-            Box::new(FakeClient {
-                newest_l1_batch_number,
-                root_hash,
-            }),
-            object_store,
-        );
-        applier.set_snapshot_l1_batch(newest_l1_batch_number);
-        applier.run(stop_rx).await.unwrap();
     }
 }

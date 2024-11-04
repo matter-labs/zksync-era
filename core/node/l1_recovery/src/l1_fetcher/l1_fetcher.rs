@@ -1,17 +1,18 @@
 use std::{cmp, collections::HashMap, fs::File, future::Future, sync::Arc};
 
 use anyhow::{anyhow, Result};
-use ethabi::{Contract, Event, Function};
+use ethabi::{Contract, Event, Function, Token};
 use rand::random;
 use thiserror::Error;
 use tokio::time::{sleep, Duration};
 use zksync_basic_types::{
-    web3::{BlockId, BlockNumber, FilterBuilder, Transaction},
-    Address, H256, U64,
+    web3::{BlockId, BlockNumber, CallRequest, FilterBuilder, Log, Transaction},
+    Address, L1BatchNumber, L1BlockNumber, H256, U256, U64,
 };
-use zksync_eth_client::EthInterface;
-use zksync_types::l1::L1Tx;
-use zksync_utils::{bytecode::hash_bytecode, env::Workspace};
+use zksync_contracts::eth_contract;
+use zksync_eth_client::{CallFunctionArgs, EthInterface};
+use zksync_types::{l1::L1Tx, L2_BASE_TOKEN_ADDRESS};
+use zksync_utils::{address_to_u256, bytecode::hash_bytecode, env::Workspace};
 use zksync_web3_decl::client::{DynClient, L1};
 
 use crate::l1_fetcher::{
@@ -75,25 +76,31 @@ impl L1Fetcher {
     fn v1_contract() -> Result<Contract> {
         let base_path = Workspace::locate().core();
         let path = base_path.join("core/node/l1_recovery/abi/IZkSync.json");
-        tracing::info!("Loading contract from {path:?}");
         Ok(Contract::load(File::open(path)?)?)
     }
 
     fn v2_contract() -> Result<Contract> {
         let base_path = Workspace::locate().core();
         let path = base_path.join("core/node/l1_recovery/abi/IZkSyncV2.json");
-        tracing::info!("Loading contract from {path:?}");
         Ok(Contract::load(File::open(path)?)?)
     }
     fn commit_functions() -> Result<Vec<Function>> {
-        let v2_contract = L1Fetcher::v2_contract()?;
+        let contract = L1Fetcher::v2_contract()?;
         Ok(vec![
-            v2_contract.functions_by_name("commitBatches").unwrap()[0].clone(),
-            v2_contract
+            contract.functions_by_name("commitBatches").unwrap()[0].clone(),
+            contract
                 .functions_by_name("commitBatchesSharedBridge")
                 .unwrap()[0]
                 .clone(),
         ])
+    }
+
+    fn get_first_unprocessed_priority_tx_function() -> Result<Function> {
+        let contract = L1Fetcher::v1_contract()?;
+        Ok(contract
+            .functions_by_name("getFirstUnprocessedPriorityTx")
+            .unwrap()[0]
+            .clone())
     }
 
     fn block_commit_event() -> Result<Event> {
@@ -105,21 +112,41 @@ impl L1Fetcher {
     }
 
     pub async fn get_all_blocks_to_process(&self) -> Vec<CommitBlock> {
-        let start_block = self.get_first_commit_batch_block_number().await;
+        let start_block = U64::zero();
         let end_block = L1Fetcher::get_last_l1_block_number(&self.eth_client)
             .await
             .unwrap();
         self.get_blocks_to_process(start_block, end_block).await
     }
 
-    pub async fn get_first_commit_batch_block_number(&self) -> U64 {
-        // TODO Binary search for the first block with a commitBatch event.
-        return U64::zero();
+    pub async fn get_commit_event_eth_block(&self, l1_batch_number: L1BatchNumber) -> Option<u64> {
+        let end_block = L1Fetcher::get_last_l1_block_number(&self.eth_client)
+            .await
+            .unwrap();
+        let mut current_block = end_block;
+        let event = Self::block_commit_event().unwrap();
+        loop {
+            let filter_from_block = current_block
+                .checked_sub(U64::from(self.config.block_step - 1))
+                .unwrap_or_default();
+            tracing::info!("checking {} - {}", filter_from_block, current_block);
+            let logs = self
+                .get_logs(filter_from_block, current_block, &event)
+                .await;
+            for log in &logs {
+                if log.topics[1].to_low_u64_be() as u32 == l1_batch_number.0 {
+                    return Some(log.block_number.unwrap().as_u64());
+                }
+            }
+            if filter_from_block == U64::zero() {
+                return None;
+            }
+            current_block = filter_from_block - 1;
+        }
     }
 
-    async fn fetch_priority_txs(&self, start_block: U64, end_block: U64) -> Vec<L1Tx> {
+    async fn get_logs(&self, start_block: U64, end_block: U64, event: &Event) -> Vec<Log> {
         assert!(end_block - start_block <= U64::from(self.config.block_step));
-        let event = L1Fetcher::priority_tx_event().unwrap();
         let filter = FilterBuilder::default()
             .address(vec![self.config.diamond_proxy_addr])
             .topics(Some(vec![event.signature()]), None, None, None)
@@ -127,13 +154,74 @@ impl L1Fetcher {
             .to_block(BlockNumber::Number(end_block))
             .build();
 
-        // Grab all relevant logs.
-        let logs = L1Fetcher::retry_call(
+        L1Fetcher::retry_call(
             || L1Fetcher::query_client(&self.eth_client).logs(&filter),
             L1FetchError::GetLogs,
         )
         .await
-        .unwrap();
+        .unwrap()
+    }
+    pub async fn calculate_last_processed_priority_transaction_eth_block(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> L1BlockNumber {
+        // TODO we shouldn't just take next block as there may be multiple commit transactions in the same block
+        let commit_eth_block = self
+            .get_commit_event_eth_block(l1_batch_number)
+            .await
+            .unwrap()
+            + 1;
+        tracing::info!(
+            "Found commit event for block {l1_batch_number} on eth block {commit_eth_block}"
+        );
+
+        let first_unprocessed_priority_id: U256 =
+            CallFunctionArgs::new("getFirstUnprocessedPriorityTx", ())
+                .with_block(BlockId::Number(BlockNumber::Number(U64::from(
+                    commit_eth_block,
+                ))))
+                .for_contract(
+                    self.config.diamond_proxy_addr,
+                    &Self::v1_contract().unwrap(),
+                )
+                .call(&self.eth_client)
+                .await
+                .unwrap();
+        let first_unprocessed_priority_id = first_unprocessed_priority_id.as_u64();
+
+        tracing::info!(
+            "First unprocessed priority tx id: {:?}",
+            first_unprocessed_priority_id
+        );
+
+        let end_block = U64::from(commit_eth_block);
+        let mut current_block = end_block;
+        //We're looking for last processed priority transaction, it's okay to do a simple
+        // linear search here as the tx must be in 50k preceding commit event anyway
+        loop {
+            let filter_from_block = current_block
+                .checked_sub(U64::from(self.config.block_step - 1))
+                .unwrap_or_default();
+
+            for tx in self.fetch_priority_txs(filter_from_block, end_block).await {
+                if tx.serial_id().0 == first_unprocessed_priority_id - 1 {
+                    return tx.eth_block();
+                }
+            }
+
+            if filter_from_block == U64::zero() {
+                panic!(
+                    "Unable to find priority tx with id {}",
+                    first_unprocessed_priority_id - 1
+                )
+            }
+            current_block = filter_from_block - 1;
+        }
+    }
+
+    async fn fetch_priority_txs(&self, start_block: U64, end_block: U64) -> Vec<L1Tx> {
+        let event = L1Fetcher::priority_tx_event().unwrap();
+        let logs = self.get_logs(start_block, end_block, &event).await;
         logs.iter()
             .map(|log| L1Tx::try_from(log.clone()).unwrap())
             .collect()
@@ -163,30 +251,14 @@ impl L1Fetcher {
                 self.fetch_priority_txs(current_block, filter_to_block)
                     .await,
             );
-            tracing::info!(
-                "Found {} priority txs for blocks: {current_block}-{filter_to_block}",
-                priority_txs.len() - priority_txs_so_far
-            );
-            priority_txs_so_far += priority_txs.len();
-
-            let filter = FilterBuilder::default()
-                .address(vec![self.config.diamond_proxy_addr])
-                .topics(Some(vec![event.signature()]), None, None, None)
-                .from_block(BlockNumber::Number(current_block))
-                .to_block(BlockNumber::Number(filter_to_block))
-                .build();
 
             // Grab all relevant logs.
-            let logs = L1Fetcher::retry_call(
-                || L1Fetcher::query_client(&self.eth_client).logs(&filter),
-                L1FetchError::GetLogs,
-            )
-            .await
-            .unwrap();
+            let logs = self.get_logs(current_block, filter_to_block, &event).await;
             tracing::info!(
-                "Found {} logs for blocks: {current_block}-{filter_to_block}",
-                logs.len()
+                "Found {} committed blocks and {} priority txs for blocks: {current_block}-{filter_to_block}",
+                logs.len(), priority_txs.len() - priority_txs_so_far
             );
+            priority_txs_so_far = priority_txs.len();
 
             for log in logs {
                 let hash = log.transaction_hash.unwrap();
@@ -218,7 +290,6 @@ impl L1Fetcher {
                             if factory_deps_hashes.contains_key(&hashed) {
                                 continue;
                             } else {
-                                tracing::info!("Factory dep: {:?}", hashed);
                                 factory_deps_hashes.insert(hashed, ());
                                 block.factory_deps.push(factory_dep.clone());
                             }
@@ -230,7 +301,6 @@ impl L1Fetcher {
             }
 
             if filter_to_block == end_block {
-                tracing::info!("Fetching finished...");
                 break;
             }
             current_block = filter_to_block + 1;
@@ -244,12 +314,6 @@ impl L1Fetcher {
         tx: Transaction,
         protocol_versioning: &ProtocolVersioning,
     ) -> Result<Vec<CommitBlock>, ParseError> {
-        tracing::info!(
-            "Processing commit transactions from ethereum block: {:?}, tx_hash: {:?}",
-            tx.block_number,
-            tx.hash
-        );
-
         let block_number = tx.block_number.unwrap().as_u64();
         loop {
             match parse_calldata(
@@ -383,7 +447,6 @@ pub async fn parse_calldata(
         ));
     };
 
-    // Parse blocks using [`CommitBlockInfoV1`] or [`CommitBlockInfoV2`]
     let block_infos = parse_commit_block_info(
         protocol_versioning,
         &new_blocks_data,
@@ -561,7 +624,7 @@ mod tests {
     async fn test_recovery_without_initial_state_file() {
         get_genesis_factory_deps();
         get_genesis_state();
-        //panic![""];
+        //TODO compare those with actual expected values
     }
 
     #[test_log::test(tokio::test)]

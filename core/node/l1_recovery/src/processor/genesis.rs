@@ -1,5 +1,6 @@
 use std::{collections::HashSet, fs, path::PathBuf, str::FromStr};
 
+use serde_json::Value;
 use zksync_basic_types::{Address, H160, H256, U256};
 use zksync_contracts::BaseSystemContracts;
 use zksync_merkle_tree::TreeEntry;
@@ -65,36 +66,31 @@ pub fn process_raw_entries(block_batched_accesses: Vec<(H160, U256, U256, u32)>)
     tree_entries
 }
 pub fn reconstruct_genesis_state(path: PathBuf) -> Vec<TreeEntry> {
-    fn cleanup_encoding(input: &'_ str) -> &'_ str {
-        input
-            .strip_prefix("E'\\\\x")
-            .unwrap()
-            .strip_suffix('\'')
-            .unwrap()
-    }
-
     let mut block_batched_accesses = vec![];
 
     let input = fs::read_to_string(path).unwrap();
-    for line in input.lines() {
-        let mut separated = line.split(',');
-        let _derived_key = separated.next().unwrap();
-        let address = separated.next().unwrap();
-        let key = separated.next().unwrap();
-        let value = separated.next().unwrap();
-        let op_number: u32 = separated.next().unwrap().parse().unwrap();
-        let miniblock_number: u32 = separated.next().unwrap().parse().unwrap();
+    let data: Value = serde_json::from_str(&input).unwrap();
+    let storage_logs = data.get("storage_logs").unwrap();
 
-        if miniblock_number != 0 {
-            break;
-        }
+    for storage_log in storage_logs.as_array().unwrap() {
+        let op_number: u32 = storage_log
+            .get("operation_number")
+            .unwrap()
+            .as_number()
+            .unwrap()
+            .as_u64()
+            .unwrap() as u32;
 
-        let address = Address::from_str(cleanup_encoding(address)).unwrap();
-        let key = U256::from_str_radix(cleanup_encoding(key), 16).unwrap();
-        let value = U256::from_str_radix(cleanup_encoding(value), 16).unwrap();
+        let address = storage_log.get("address").unwrap().as_str().unwrap();
+        let address = Address::from_str(address).unwrap();
 
-        let record = (address, key, value, op_number);
-        block_batched_accesses.push(record);
+        let key = storage_log.get("key").unwrap().as_str().unwrap();
+        let key = U256::from_str_radix(key, 16).unwrap();
+
+        let value = storage_log.get("value").unwrap().as_str().unwrap();
+        let value = U256::from_str_radix(value, 16).unwrap();
+
+        block_batched_accesses.push((address, key, value, op_number));
     }
 
     process_raw_entries(block_batched_accesses)

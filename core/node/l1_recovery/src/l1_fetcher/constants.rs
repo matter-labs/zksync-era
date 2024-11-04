@@ -25,18 +25,18 @@ pub mod zksync {
 #[allow(unused)] // only used in tests
 pub fn sepolia_initial_state_path() -> PathBuf {
     let base_path = Workspace::locate().core();
-    base_path.join("core/node/l1_recovery/InitialStateSepolia.csv")
+    base_path.join("core/node/l1_recovery/InitialStateSepolia.json")
 }
 #[allow(unused)] // only used in tests
 pub fn mainnet_initial_state_path() -> PathBuf {
     let base_path = Workspace::locate().core();
-    base_path.join("core/node/l1_recovery/InitialState.csv")
+    base_path.join("core/node/l1_recovery/InitialStateMainnet.json")
 }
 
 #[allow(unused)]
 pub fn local_initial_state_path() -> PathBuf {
     let base_path = Workspace::locate().core();
-    base_path.join("core/node/l1_recovery/InitialStateLocal.csv")
+    base_path.join("core/node/l1_recovery/InitialStateLocal.json")
 }
 
 #[allow(unused)]
@@ -62,5 +62,5 @@ pub fn sepolia_diamond_proxy_addr() -> &'static str {
 
 #[allow(unused)] // only used in tests
 pub fn local_diamond_proxy_addr() -> &'static str {
-    "0x1cf41905d6829cfb3136ec10c7589ebb92bdd7e7"
+    "0x426441939896362df986285b116051a9ed350baa"
 }
