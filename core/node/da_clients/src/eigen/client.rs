@@ -30,7 +30,7 @@ impl EigenClient {
                     config.disperser_rpc,
                     config.status_query_interval,
                     private_key,
-                    config.authenticaded,
+                    config.authenticated,
                 )
                 .await?;
                 Ok(EigenClient {
@@ -114,7 +114,7 @@ mod tests {
             status_query_timeout: 1800,       // 30 minutes
             status_query_interval: 5,         // 5 seconds
             wait_for_finalization: false,
-            authenticaded: false,
+            authenticated: false,
         });
         let secrets = EigenSecrets {
             private_key: PrivateKey::from_str(
@@ -151,7 +151,7 @@ mod tests {
             status_query_timeout: 1800,       // 30 minutes
             status_query_interval: 5,         // 5 seconds
             wait_for_finalization: false,
-            authenticaded: true,
+            authenticated: true,
         });
         let secrets = EigenSecrets {
             private_key: PrivateKey::from_str(

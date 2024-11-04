@@ -1,17 +1,21 @@
 use std::env;
 
-use zksync_config::configs::{
-    da_client::{
-        avail::{
-            AvailClientConfig, AvailSecrets, AVAIL_FULL_CLIENT_NAME, AVAIL_GAS_RELAY_CLIENT_NAME,
+use zksync_config::{
+    configs::{
+        da_client::{
+            avail::{
+                AvailClientConfig, AvailSecrets, AVAIL_FULL_CLIENT_NAME,
+                AVAIL_GAS_RELAY_CLIENT_NAME,
+            },
+            celestia::CelestiaSecrets,
+            eigen::{EigenSecrets, EIGEN_DISPERSER_CLIENT_NAME, EIGEN_MEMSTORE_CLIENT_NAME},
+            DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, CELESTIA_CLIENT_CONFIG_NAME,
+            EIGEN_CLIENT_CONFIG_NAME, OBJECT_STORE_CLIENT_CONFIG_NAME,
         },
-        celestia::CelestiaSecrets,
-        eigen::EigenSecrets,
-        DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, CELESTIA_CLIENT_CONFIG_NAME,
-        EIGEN_CLIENT_CONFIG_NAME, OBJECT_STORE_CLIENT_CONFIG_NAME,
+        secrets::DataAvailabilitySecrets,
+        AvailConfig,
     },
-    secrets::DataAvailabilitySecrets,
-    AvailConfig,
+    EigenConfig,
 };
 
 use crate::{envy_load, FromEnv};
@@ -34,7 +38,17 @@ impl FromEnv for DAClientConfig {
                 },
             }),
             CELESTIA_CLIENT_CONFIG_NAME => Self::Celestia(envy_load("da_celestia_config", "DA_")?),
-            EIGEN_CLIENT_CONFIG_NAME => Self::Eigen(envy_load("da_eigen_config", "DA_")?),
+            EIGEN_CLIENT_CONFIG_NAME => match env::var("DA_EIGEN_CLIENT_TYPE")?.as_str() {
+                EIGEN_DISPERSER_CLIENT_NAME => Self::Eigen(EigenConfig::Disperser(envy_load(
+                    "da_eigen_config_disperser",
+                    "DA_",
+                )?)),
+                EIGEN_MEMSTORE_CLIENT_NAME => Self::Eigen(EigenConfig::MemStore(envy_load(
+                    "da_eigen_config_memstore",
+                    "DA_",
+                )?)),
+                _ => anyhow::bail!("Unknown Eigen DA client type"),
+            },
             OBJECT_STORE_CLIENT_CONFIG_NAME => {
                 Self::ObjectStore(envy_load("da_object_store", "DA_")?)
             }
@@ -94,6 +108,7 @@ mod tests {
         configs::{
             da_client::{
                 avail::{AvailClientConfig, AvailDefaultConfig},
+                eigen::{DisperserConfig, MemStoreConfig},
                 DAClientConfig::{self, ObjectStore},
             },
             object_store::ObjectStoreMode::GCS,
@@ -244,24 +259,63 @@ mod tests {
     }
 
     #[test]
-    fn from_env_eigen_client() {
+    fn from_env_eigen_client_memstore() {
         let mut lock = MUTEX.lock();
         let config = r#"
             DA_CLIENT="Eigen"
-            DA_RPC_NODE_URL="localhost:12345"
-            DA_INCLUSION_POLLING_INTERVAL_MS="1000"
-            DA_AUTHENTICATED_DISPERSAL="true"
+            DA_EIGEN_CLIENT_TYPE="MemStore"
+            DA_MAX_BLOB_SIZE_BYTES=10
+            DA_BLOB_EXPIRATION=20
+            DA_GET_LATENCY=30
+            DA_PUT_LATENCY=40
         "#;
         lock.set_env(config);
 
         let actual = DAClientConfig::from_env().unwrap();
         assert_eq!(
             actual,
-            DAClientConfig::Eigen(EigenConfig {
-                rpc_node_url: "localhost:12345".to_string(),
-                inclusion_polling_interval_ms: 1000,
-                authenticated_dispersal: true,
-            })
+            DAClientConfig::Eigen(EigenConfig::MemStore(MemStoreConfig {
+                max_blob_size_bytes: 10,
+                blob_expiration: 20,
+                get_latency: 30,
+                put_latency: 40,
+            }))
+        );
+    }
+
+    #[test]
+    fn from_env_eigen_client_remote() {
+        let mut lock = MUTEX.lock();
+        let config = r#"
+            DA_CLIENT="Eigen"
+            DA_EIGEN_CLIENT_TYPE="Disperser"
+            DA_DISPERSER_RPC="http://localhost:8080"
+            DA_ETH_CONFIRMATION_DEPTH=0
+            DA_EIGENDA_ETH_RPC="http://localhost:8545"
+            DA_EIGENDA_SVC_MANAGER_ADDRESS="0x123"
+            DA_BLOB_SIZE_LIMIT=1000
+            DA_STATUS_QUERY_TIMEOUT=2
+            DA_STATUS_QUERY_INTERVAL=3
+            DA_WAIT_FOR_FINALIZATION=true
+            DA_AUTHENTICATED=false
+        "#;
+        lock.set_env(config);
+
+        let actual = DAClientConfig::from_env().unwrap();
+        assert_eq!(
+            actual,
+            DAClientConfig::Eigen(EigenConfig::Disperser(DisperserConfig {
+                custom_quorum_numbers: None,
+                disperser_rpc: "http://localhost:8080".to_string(),
+                eth_confirmation_depth: 0,
+                eigenda_eth_rpc: "http://localhost:8545".to_string(),
+                eigenda_svc_manager_address: "0x123".to_string(),
+                blob_size_limit: 1000,
+                status_query_timeout: 2,
+                status_query_interval: 3,
+                wait_for_finalization: true,
+                authenticated: false,
+            }))
         );
     }
 
