@@ -20,14 +20,13 @@ use commitment_generator::read_and_update_contract_toml;
 use indicatif::{ProgressBar, ProgressStyle};
 use shivini::cs::GpuSetup;
 use tracing::level_filters::LevelFilter;
-use zkevm_test_harness::data_source::BlockDataSource;
 use zkevm_test_harness::{
     boojum::worker::Worker,
     compute_setups::{
         basic_vk_count, generate_base_layer_vks, generate_recursive_layer_vks,
         recursive_layer_vk_count,
     },
-    data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource},
+    data_source::{in_memory_data_source::InMemoryDataSource, BlockDataSource, SetupDataSource},
     proof_wrapper_utils::{
         check_trusted_setup_file_existace, get_vk_for_previous_circuit,
         get_wrapper_setup_and_vk_from_scheduler_vk, WrapperConfig,
