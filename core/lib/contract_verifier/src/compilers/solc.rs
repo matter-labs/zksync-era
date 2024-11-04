@@ -160,7 +160,7 @@ impl Compiler<SolcInput> for Solc {
             parse_standard_json_output(&output, input.contract_name, input.file_name, true)
         } else {
             Err(ContractVerifierError::CompilerError(
-                "zksolc".to_string(),
+                "solc",
                 String::from_utf8_lossy(&output.stderr).to_string(),
             ))
         }

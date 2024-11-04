@@ -13,7 +13,7 @@ pub enum ContractVerifierError {
     #[error("Compilation takes too much time")]
     CompilationTimeout,
     #[error("{0} error: {1}")]
-    CompilerError(String, String),
+    CompilerError(&'static str, String),
     #[error("Compilation error")]
     CompilationError(serde_json::Value),
     #[error("Unknown {0} version: {1}")]

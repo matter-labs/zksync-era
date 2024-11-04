@@ -251,7 +251,7 @@ impl Compiler<ZkSolcInput> for ZkSolc {
                     parse_standard_json_output(&output, contract_name, file_name, false)
                 } else {
                     Err(ContractVerifierError::CompilerError(
-                        "zksolc".to_string(),
+                        "zksolc",
                         String::from_utf8_lossy(&output.stderr).to_string(),
                     ))
                 }
@@ -280,7 +280,7 @@ impl Compiler<ZkSolcInput> for ZkSolc {
                     Self::parse_single_file_yul_output(&output)
                 } else {
                     Err(ContractVerifierError::CompilerError(
-                        "zksolc".to_string(),
+                        "zksolc",
                         String::from_utf8_lossy(&output.stderr).to_string(),
                     ))
                 }

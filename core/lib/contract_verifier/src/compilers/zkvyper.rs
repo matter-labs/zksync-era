@@ -122,7 +122,7 @@ impl Compiler<ZkVyperInput> for ZkVyper {
             Self::parse_output(&output, input.contract_name)
         } else {
             Err(ContractVerifierError::CompilerError(
-                "zkvyper".to_string(),
+                "zkvyper",
                 String::from_utf8_lossy(&output.stderr).to_string(),
             ))
         }
