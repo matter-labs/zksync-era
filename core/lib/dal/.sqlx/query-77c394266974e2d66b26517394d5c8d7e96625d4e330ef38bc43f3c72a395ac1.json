@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT *\n            FROM _sqlx_migrations\n            ORDER BY version DESC\n            LIMIT 1;\n            ",
+  "query": "\n            SELECT *\n            FROM _sqlx_migrations\n            WHERE _sqlx_migrations.version = (\n                SELECT MAX(_sqlx_migrations.version)\n                FROM _sqlx_migrations\n            );\n            ",
   "describe": {
     "columns": [
       {
@@ -46,5 +46,5 @@
       false
     ]
   },
-  "hash": "ee1bfbbbed5f28c8a30743770b55c0ad2579709ae355234811e09fdf5c40e3d2"
+  "hash": "77c394266974e2d66b26517394d5c8d7e96625d4e330ef38bc43f3c72a395ac1"
 }

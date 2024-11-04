@@ -104,8 +104,10 @@ impl SystemDal<'_, '_> {
             r#"
             SELECT *
             FROM _sqlx_migrations
-            ORDER BY version DESC
-            LIMIT 1;
+            WHERE _sqlx_migrations.version = (
+                SELECT MAX(_sqlx_migrations.version)
+                FROM _sqlx_migrations
+            );
             "#
         )
         .instrument("get_last_migration")
