@@ -213,9 +213,11 @@ pub struct VerificationRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompilationArtifacts {
-    /// In case of EVM contracts, this is the original bytecode (`bytecode` in `solc` output).
+    /// In case of EVM contracts, this is the creation bytecode (`bytecode` in `solc` output).
     pub bytecode: Vec<u8>,
-    /// Only set for EVM contracts.
+    /// Deployed bytecode (`deployedBytecode` in `solc` output). Only set for EVM contracts; for EraVM contracts, the deployed bytecode
+    /// is always `bytecode` (i.e., there's no distinction between creation and deployed bytecodes).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deployed_bytecode: Option<Vec<u8>>,
     pub abi: serde_json::Value,
 }

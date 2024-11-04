@@ -11,18 +11,19 @@ use zksync_types::contract_verification_api::{
 use super::{parse_standard_json_output, Source};
 use crate::{error::ContractVerifierError, resolver::Compiler};
 
+// Here and below, fields are public for testing purposes.
 #[derive(Debug)]
 pub(crate) struct SolcInput {
-    standard_json: StandardJson,
-    contract_name: String,
-    file_name: String,
+    pub standard_json: StandardJson,
+    pub contract_name: String,
+    pub file_name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct StandardJson {
-    language: String,
-    sources: HashMap<String, Source>,
+pub(crate) struct StandardJson {
+    pub language: String,
+    pub sources: HashMap<String, Source>,
     settings: Settings,
 }
 

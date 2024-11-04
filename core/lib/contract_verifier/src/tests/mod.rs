@@ -1,6 +1,6 @@
 //! Tests for the contract verifier.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, iter};
 
 use tokio::sync::watch;
 use zksync_dal::Connection;
@@ -11,9 +11,12 @@ use zksync_types::{
     l2::L2Tx,
     tx::IncludedTxLocation,
     Execute, L1BatchNumber, L2BlockNumber, ProtocolVersion, StorageLog, CONTRACT_DEPLOYER_ADDRESS,
-    H256,
+    H256, U256,
 };
-use zksync_utils::{address_to_h256, bytecode::hash_bytecode};
+use zksync_utils::{
+    address_to_h256,
+    bytecode::{hash_bytecode, hash_evm_bytecode},
+};
 use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics, VmEvent};
 
 use super::*;
@@ -27,8 +30,58 @@ mod real;
 const SOLC_VERSION: &str = "0.8.27";
 const ZKSOLC_VERSION: &str = "1.5.4";
 
+/// Pads an EVM bytecode in the same ways it's done by system contracts.
+fn pad_evm_bytecode(deployed_bytecode: &[u8]) -> Vec<u8> {
+    let mut padded = Vec::with_capacity(deployed_bytecode.len() + 32);
+    let len = U256::from(deployed_bytecode.len());
+    padded.extend_from_slice(&[0; 32]);
+    len.to_big_endian(&mut padded);
+    padded.extend_from_slice(deployed_bytecode);
+
+    // Pad to the 32-byte word boundary.
+    if padded.len() % 32 != 0 {
+        padded.extend(iter::repeat(0).take(32 - padded.len() % 32));
+    }
+    assert_eq!(padded.len() % 32, 0);
+
+    // Pad to contain the odd number of words.
+    if (padded.len() / 32) % 2 != 1 {
+        padded.extend_from_slice(&[0; 32]);
+    }
+    assert_eq!((padded.len() / 32) % 2, 1);
+    padded
+}
+
 async fn mock_deployment(storage: &mut Connection<'_, Core>, address: Address, bytecode: Vec<u8>) {
     let bytecode_hash = hash_bytecode(&bytecode);
+    let deployment = Execute::for_deploy(H256::zero(), bytecode.clone(), &[]);
+    mock_deployment_inner(storage, address, bytecode_hash, bytecode, deployment).await;
+}
+
+async fn mock_evm_deployment(
+    storage: &mut Connection<'_, Core>,
+    address: Address,
+    original_bytecode: Vec<u8>,
+    deployed_bytecode: &[u8],
+) {
+    let deployment = Execute {
+        contract_address: None,
+        calldata: original_bytecode, // FIXME: check
+        value: 0.into(),
+        factory_deps: vec![],
+    };
+    let bytecode = pad_evm_bytecode(deployed_bytecode);
+    let bytecode_hash = hash_evm_bytecode(&bytecode);
+    mock_deployment_inner(storage, address, bytecode_hash, bytecode, deployment).await;
+}
+
+async fn mock_deployment_inner(
+    storage: &mut Connection<'_, Core>,
+    address: Address,
+    bytecode_hash: H256,
+    bytecode: Vec<u8>,
+    execute: Execute,
+) {
     let logs = [
         StorageLog::new_write_log(get_code_key(&address), bytecode_hash),
         StorageLog::new_write_log(get_known_code_key(&bytecode_hash), H256::from_low_u64_be(1)),
@@ -48,7 +101,7 @@ async fn mock_deployment(storage: &mut Connection<'_, Core>, address: Address, b
         .unwrap();
 
     let mut deploy_tx = L2Tx {
-        execute: Execute::for_deploy(H256::zero(), bytecode, &[]),
+        execute,
         common_data: Default::default(),
         received_timestamp_ms: 0,
         raw_bytes: Some(vec![0; 128].into()),
@@ -88,11 +141,13 @@ async fn mock_deployment(storage: &mut Connection<'_, Core>, address: Address, b
         .unwrap();
 }
 
+type SharedMockFn<In> =
+    Arc<dyn Fn(In) -> Result<CompilationArtifacts, ContractVerifierError> + Send + Sync>;
+
 #[derive(Clone)]
 struct MockCompilerResolver {
-    zksolc: Arc<
-        dyn Fn(ZkSolcInput) -> Result<CompilationArtifacts, ContractVerifierError> + Send + Sync,
-    >,
+    zksolc: SharedMockFn<ZkSolcInput>,
+    solc: SharedMockFn<SolcInput>,
 }
 
 impl fmt::Debug for MockCompilerResolver {
@@ -107,6 +162,14 @@ impl MockCompilerResolver {
     fn new(zksolc: impl Fn(ZkSolcInput) -> CompilationArtifacts + 'static + Send + Sync) -> Self {
         Self {
             zksolc: Arc::new(move |input| Ok(zksolc(input))),
+            solc: Arc::new(|input| panic!("unexpected solc call: {input:?}")),
+        }
+    }
+
+    fn solc(solc: impl Fn(SolcInput) -> CompilationArtifacts + 'static + Send + Sync) -> Self {
+        Self {
+            solc: Arc::new(move |input| Ok(solc(input))),
+            zksolc: Arc::new(|input| panic!("unexpected zksolc call: {input:?}")),
         }
     }
 }
@@ -118,6 +181,16 @@ impl Compiler<ZkSolcInput> for MockCompilerResolver {
         input: ZkSolcInput,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         (self.zksolc)(input)
+    }
+}
+
+#[async_trait]
+impl Compiler<SolcInput> for MockCompilerResolver {
+    async fn compile(
+        self: Box<Self>,
+        input: SolcInput,
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        (self.solc)(input)
     }
 }
 
@@ -142,7 +215,7 @@ impl CompilerResolver for MockCompilerResolver {
                 version.to_owned(),
             ));
         }
-        todo!()
+        Ok(Box::new(self.clone()))
     }
 
     async fn resolve_zksolc(
@@ -314,6 +387,56 @@ async fn assert_request_success(
         .expect("no verification info");
     assert_eq!(verification_info.artifacts.bytecode, *expected_bytecode);
     assert_eq!(verification_info.artifacts.abi, counter_contract_abi());
+}
+
+#[tokio::test]
+async fn verifying_evm_bytecode() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    let creation_bytecode = vec![3_u8; 20];
+    let deployed_bytecode = vec![5_u8; 10];
+
+    prepare_storage(&mut storage).await;
+    let address = Address::repeat_byte(1);
+    mock_evm_deployment(
+        &mut storage,
+        address,
+        creation_bytecode.clone(),
+        &deployed_bytecode,
+    )
+    .await;
+    let req = test_request(address);
+    let request_id = storage
+        .contract_verification_dal()
+        .add_contract_verification_request(req)
+        .await
+        .unwrap();
+
+    let artifacts = CompilationArtifacts {
+        bytecode: creation_bytecode.clone(),
+        deployed_bytecode: Some(deployed_bytecode),
+        abi: counter_contract_abi(),
+    };
+    let mock_resolver = MockCompilerResolver::solc(move |input| {
+        assert_eq!(input.standard_json.language, "Solidity");
+        assert_eq!(input.standard_json.sources.len(), 1);
+        let source = input.standard_json.sources.values().next().unwrap();
+        assert!(source.content.contains("contract Counter"), "{source:?}");
+
+        artifacts.clone()
+    });
+    let verifier = ContractVerifier::with_resolver(
+        Duration::from_secs(60),
+        pool.clone(),
+        Arc::new(mock_resolver),
+    )
+    .await
+    .unwrap();
+
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    verifier.run(stop_receiver, Some(1)).await.unwrap();
+
+    assert_request_success(&mut storage, request_id, address, &creation_bytecode).await;
 }
 
 #[tokio::test]

@@ -570,7 +570,7 @@ mod tests {
         tx::IncludedTxLocation, Execute, L1BatchNumber, L2BlockNumber, ProtocolVersion,
     };
     use zksync_utils::bytecode::hash_bytecode;
-    use zksync_vm_interface::TransactionExecutionMetrics;
+    use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
 
     use super::*;
     use crate::{
@@ -599,7 +599,11 @@ mod tests {
         let bytecode_hash = hash_bytecode(&bytecode);
         tx.execute = Execute::for_deploy(H256::zero(), bytecode.clone(), &[]);
         conn.transactions_dal()
-            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         conn.factory_deps_dal()
