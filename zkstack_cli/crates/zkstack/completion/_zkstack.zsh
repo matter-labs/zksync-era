@@ -662,6 +662,25 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
 ;;
+(deploy-and-bridge-zk)
+_arguments "${_arguments_options[@]}" : \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'--zksync[]' \
+'--only-funding-tx[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_zkstack__chain__help_commands" \
@@ -771,6 +790,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (migrate-from-gateway)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(deploy-and-bridge-zk)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2619,6 +2642,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(deploy-and-bridge-zk)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
         esac
     ;;
 esac
@@ -3105,6 +3132,7 @@ _zkstack__chain_commands() {
 'convert-to-gateway:Prepare chain to be an eligible gateway' \
 'migrate-to-gateway:Migrate chain to gateway' \
 'migrate-from-gateway:Migrate chain from gateway' \
+'deploy-and-bridge-zk:Deploy ZK token on Era and bridge it to L1' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack chain commands' commands "$@"
@@ -3128,6 +3156,11 @@ _zkstack__chain__convert-to-gateway_commands() {
 _zkstack__chain__create_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain create commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__deploy-and-bridge-zk_commands] )) ||
+_zkstack__chain__deploy-and-bridge-zk_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain deploy-and-bridge-zk commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__deploy-consensus-registry_commands] )) ||
 _zkstack__chain__deploy-consensus-registry_commands() {
@@ -3216,6 +3249,7 @@ _zkstack__chain__help_commands() {
 'convert-to-gateway:Prepare chain to be an eligible gateway' \
 'migrate-to-gateway:Migrate chain to gateway' \
 'migrate-from-gateway:Migrate chain from gateway' \
+'deploy-and-bridge-zk:Deploy ZK token on Era and bridge it to L1' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack chain help commands' commands "$@"
@@ -3239,6 +3273,11 @@ _zkstack__chain__help__convert-to-gateway_commands() {
 _zkstack__chain__help__create_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help create commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__deploy-and-bridge-zk_commands] )) ||
+_zkstack__chain__help__deploy-and-bridge-zk_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help deploy-and-bridge-zk commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__help__deploy-consensus-registry_commands] )) ||
 _zkstack__chain__help__deploy-consensus-registry_commands() {
@@ -4496,6 +4535,7 @@ _zkstack__help__chain_commands() {
 'convert-to-gateway:Prepare chain to be an eligible gateway' \
 'migrate-to-gateway:Migrate chain to gateway' \
 'migrate-from-gateway:Migrate chain from gateway' \
+'deploy-and-bridge-zk:Deploy ZK token on Era and bridge it to L1' \
     )
     _describe -t commands 'zkstack help chain commands' commands "$@"
 }
@@ -4518,6 +4558,11 @@ _zkstack__help__chain__convert-to-gateway_commands() {
 _zkstack__help__chain__create_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain create commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__deploy-and-bridge-zk_commands] )) ||
+_zkstack__help__chain__deploy-and-bridge-zk_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain deploy-and-bridge-zk commands' commands "$@"
 }
 (( $+functions[_zkstack__help__chain__deploy-consensus-registry_commands] )) ||
 _zkstack__help__chain__deploy-consensus-registry_commands() {

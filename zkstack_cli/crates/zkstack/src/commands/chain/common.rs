@@ -53,7 +53,13 @@ pub async fn mint_base_token(
         let wallets = ecosystem_config.get_wallets()?;
         let chain_wallets = chain_config.get_wallets_config()?;
         let base_token = &chain_config.base_token;
-        let addresses = vec![wallets.governor.address, chain_wallets.governor.address];
+        let addresses = vec![
+            wallets.governor.address,
+            wallets.deployer.unwrap().address,
+            chain_wallets.governor.address,
+            chain_wallets.deployer.unwrap().address,
+        ];
+
         let amount = AMOUNT_FOR_DISTRIBUTION_TO_WALLETS * base_token.nominator as u128
             / base_token.denominator as u128;
         common::ethereum::mint_token(

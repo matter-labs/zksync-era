@@ -34,7 +34,7 @@ jobs:
           echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
           echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
           echo "RUSTC_WRAPPER=sccache" >> .env
-
+      
       # TODO: Remove when we after upgrade of hardhat-plugins
       - name: pre-download compilers
         run: |
@@ -176,6 +176,10 @@ jobs:
           submodules: "recursive"
           fetch-depth: 0
 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lsof
 
       - name: Setup environment
         run: |
@@ -234,12 +238,31 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
-          --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
-          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --server-db-name=zksync_server_localhost_era \
-          --ignore-prerequisites --verbose \
-          --observability=false
+            --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
+            --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+            --server-db-name=zksync_server_localhost_era \
+            --ignore-prerequisites --verbose \
+            --observability=false
+      
+      - name: Start Era server
+        run: |
+          ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
 
+          ci_run sleep 20  # Wait for server to start
+      
+      - name: Deploy and bridge ZK token on Era chain
+        run: ci_run zkstack chain deploy-and-bridge-zk --chain era --verbose
+
+      - name: Extract ZK token L1 address
+        run: |
+          TOML_FILE="contracts/l1-contracts/script-out/output-deploy-zk-token.toml"
+          zkL1Address=$(grep -A 1 "\[ZK.l1Address\]" "$TOML_FILE" | grep "l1Address" | awk -F' = ' '{print $2}' | tr -d '"' | tr -d ' ' | tr -d '\n')
+          if [[ $zkL1Address == 0x* ]]; then
+              zkL1Address="${zkL1Address:2}"
+          fi
+          echo "ZK_L1_ADDRESS=$zkL1Address" >> $GITHUB_ENV
+          echo "Extracted ZK L1 Address: $zkL1Address"
+      
       - name: Read Custom Token address and set as environment variable
         run: |
           CUSTOM_TOKEN_ADDRESS=$(awk -F": " '/tokens:/ {found_tokens=1} found_tokens && /DAI:/ {found_dai=1} found_dai && /address:/ {print $2; exit}' ./configs/erc20.yaml)
@@ -267,6 +290,8 @@ jobs:
           --server-db-name=zksync_server_localhost_validium \
           --chain validium
 
+          ci_run zkstack chain deploy-and-bridge-zk --chain era --only-funding-tx --verbose
+
       - name: Create and initialize chain with Custom Token
         run: |
           ci_run zkstack chain create \
@@ -287,6 +312,8 @@ jobs:
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_custom_token \
           --chain custom_token
+
+          ci_run zkstack chain deploy-and-bridge-zk --chain era --only-funding-tx --verbose
 
 #      - name: Create and register chain with transactions signed "offline"
 #        run: |
@@ -326,24 +353,53 @@ jobs:
       - name: Create and initialize Consensus chain
         run: |
           ci_run zkstack chain create \
-          --chain-name consensus \
-          --chain-id sequential \
-          --prover-mode no-proofs \
-          --wallet-creation localhost \
-          --l1-batch-commit-data-generator-mode validium \
-          --base-token-address ${{ env.CUSTOM_TOKEN_ADDRESS }} \
-          --base-token-price-nominator 3 \
-          --base-token-price-denominator 2 \
-          --set-as-default false \
-          --ignore-prerequisites
+            --chain-name consensus \
+            --chain-id sequential \
+            --prover-mode no-proofs \
+            --wallet-creation localhost \
+            --l1-batch-commit-data-generator-mode validium \
+            --base-token-address ${{ env.CUSTOM_TOKEN_ADDRESS }} \
+            --base-token-price-nominator 3 \
+            --base-token-price-denominator 2 \
+            --set-as-default false \
+            --ignore-prerequisites
 
           ci_run zkstack chain init \
-          --deploy-paymaster \
-          --l1-rpc-url=http://localhost:8545 \
-          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --server-db-name=zksync_server_localhost_consensus \
-          --chain consensus
+            --deploy-paymaster \
+            --l1-rpc-url=http://localhost:8545 \
+            --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+            --server-db-name=zksync_server_localhost_consensus \
+            --chain consensus
+      
+          ci_run zkstack chain deploy-and-bridge-zk --chain era --only-funding-tx --verbose
 
+      - name: Shut down Era server (sends the kill command to all era zksync_server proccesses)
+        run: |
+          # Find the PID using ports 3071 or 3075
+          PIDS=$(sudo lsof -ti :3071 -ti :3075 || true)
+
+          # If any PIDs are found, kill them
+          if [ -n "$PIDS" ]; then
+              echo "Killing process(es) on ports 3071 or 3075 with PID(s): $PIDS"
+              for PID in $PIDS; do
+                  # Attempt graceful shutdown
+                  sudo kill -2 "$PID" || true
+                  sleep 10
+
+                  # Check if still running, then force kill
+                  if sudo kill -0 "$PID" 2>/dev/null; then
+                      echo "Process $PID still running, forcing termination."
+                      sudo kill -9 "$PID" || true
+                  fi
+                  # sudo kill -9 "$PID" || true  # Use SIGKILL to ensure termination
+              done
+          else
+              echo "No processes found on ports 3071 or 3075."
+          fi
+
+          # Ensure the script always exits successfully
+          exit 0
+      
       - name: Export chain list to environment variable
         run: |
           CHAINS="era,validium,custom_token,consensus"
@@ -352,24 +408,24 @@ jobs:
       - name: Initialize gateway chain
         run: |
           ci_run zkstack chain create \
-          --chain-name gateway \
-          --chain-id 505 \
-          --prover-mode no-proofs \
-          --wallet-creation localhost \
-          --l1-batch-commit-data-generator-mode rollup \
-          --base-token-address 0x0000000000000000000000000000000000000001 \
-          --base-token-price-nominator 1 \
-          --base-token-price-denominator 1 \
-          --set-as-default false \
-          --ignore-prerequisites
-          
+            --chain-name gateway \
+            --chain-id 505 \
+            --prover-mode no-proofs \
+            --wallet-creation localhost \
+            --l1-batch-commit-data-generator-mode rollup \
+            --base-token-address ${{ env.ZK_L1_ADDRESS }} \
+            --base-token-price-nominator 1 \
+            --base-token-price-denominator 1 \
+            --set-as-default false \
+            --ignore-prerequisites
+
           ci_run zkstack chain init \
-          --deploy-paymaster \
-          --l1-rpc-url=http://localhost:8545 \
-          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --server-db-name=zksync_server_localhost_gateway \
-          --chain gateway
-          
+            --deploy-paymaster \
+            --l1-rpc-url=http://localhost:8545 \
+            --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+            --server-db-name=zksync_server_localhost_gateway \
+            --chain gateway
+
           ci_run zkstack chain convert-to-gateway --chain gateway --ignore-prerequisites
 
       - name: Run gateway
