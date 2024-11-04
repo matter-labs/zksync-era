@@ -18,9 +18,9 @@ use circuit_definitions::{
 use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
 use indicatif::{ProgressBar, ProgressStyle};
-use proof_compression_gpu::{CompressionInput, CompressionMode};
-use shivini::cs::{GpuProverSetupData, GpuSetup};
+use shivini::cs::GpuSetup;
 use tracing::level_filters::LevelFilter;
+use zkevm_test_harness::data_source::BlockDataSource;
 use zkevm_test_harness::{
     boojum::worker::Worker,
     compute_setups::{
@@ -120,9 +120,9 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
     keystore.save_commitments(&commitments)
 }
 
-fn generate_compression_vks(
+fn generate_compression_vks<DS: SetupDataSource + BlockDataSource>(
     config: WrapperConfig,
-    source: &mut dyn SetupDataSource,
+    source: &mut DS,
     worker: &Worker,
 ) {
     let compression_for_wrapper_type = config.get_compression_for_wrapper_type();
@@ -156,9 +156,9 @@ fn generate_compression_vks(
         ))
         .unwrap();
 }
-fn generate_compression_for_wrapper_vks(
+fn generate_compression_for_wrapper_vks<DS: SetupDataSource + BlockDataSource>(
     config: WrapperConfig,
-    source: &mut dyn SetupDataSource,
+    source: &mut DS,
     worker: &Worker,
 ) {
     let compression_for_wrapper_type = config.get_compression_for_wrapper_type();
