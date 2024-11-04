@@ -227,16 +227,26 @@ pub fn read_bytecode_from_path(
 ) -> Option<Vec<u8>> {
     let artifact = read_file_to_json_value(&artifact_path)?;
 
-    let bytecode = if let Some(bytecode) = artifact["bytecode"].as_str() {
-        bytecode
-            .strip_prefix("0x")
-            .unwrap_or_else(|| panic!("Bytecode in {:?} is not hex", artifact_path))
-    } else {
-        artifact["bytecode"]["object"]
-            .as_str()
-            .unwrap_or_else(|| panic!("Bytecode not found in {:?}", artifact_path))
-    };
+    let bytecode = artifact["bytecode"]
+        .as_str()
+        .or_else(|| artifact["bytecode"]["object"].as_str())
+        .unwrap_or_else(|| panic!("Bytecode not found in {:?}", artifact_path));
+    // Strip an optional `0x` prefix.
+    let bytecode = bytecode.strip_prefix("0x").unwrap_or(bytecode);
+    Some(
+        hex::decode(bytecode)
+            .unwrap_or_else(|err| panic!("Can't decode bytecode in {:?}: {}", artifact_path, err)),
+    )
+}
 
+pub fn read_deployed_bytecode_from_path(artifact_path: &Path) -> Option<Vec<u8>> {
+    let artifact = read_file_to_json_value(artifact_path)?;
+    let bytecode = artifact["deployedBytecode"]
+        .as_str()
+        .or_else(|| artifact["deployedBytecode"]["object"].as_str())
+        .unwrap_or_else(|| panic!("Deployed bytecode not found in {:?}", artifact_path));
+    // Strip an optional `0x` prefix.
+    let bytecode = bytecode.strip_prefix("0x").unwrap_or(bytecode);
     Some(
         hex::decode(bytecode)
             .unwrap_or_else(|err| panic!("Can't decode bytecode in {:?}: {}", artifact_path, err)),
