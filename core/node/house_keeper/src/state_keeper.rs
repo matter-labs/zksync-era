@@ -2,14 +2,30 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater};
-use zksync_types::L2BlockNumber;
+use zksync_types::{block::L2BlockHeader, L2BlockNumber, ProtocolVersionId};
 
 use crate::periodic_job::PeriodicJob;
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct L2BlockHeaderInfo {
+    pub number: L2BlockNumber,
+    pub timestamp: u64,
+    pub protocol_version: Option<ProtocolVersionId>,
+}
+
+impl From<L2BlockHeader> for L2BlockHeaderInfo {
+    fn from(header: L2BlockHeader) -> Self {
+        Self {
+            number: header.number,
+            timestamp: header.timestamp,
+            protocol_version: header.protocol_version,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct StateKeeperInfo {
-    last_miniblock_protocol_upgrade: Option<()>,
-    last_miniblock: Option<L2BlockNumber>,
+    last_sealed_miniblock: Option<L2BlockHeaderInfo>,
     batch_number: Option<()>,
 }
 
@@ -35,16 +51,11 @@ impl PeriodicJob for StateKeeperHealthTask {
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let mut conn = self.connection_pool.connection().await.unwrap();
-        let last_miniblock = conn
-            .blocks_web3_dal()
-            .get_last_miniblock_number()
-            .await
-            .unwrap();
+        let last_sealed_miniblock = conn.blocks_dal().get_last_sealed_l2_block_header().await?;
 
         self.state_keeper_health_updater.update(
             StateKeeperInfo {
-                last_miniblock_protocol_upgrade: None,
-                last_miniblock,
+                last_sealed_miniblock: last_sealed_miniblock.map(L2BlockHeaderInfo::from),
                 batch_number: None,
             }
             .into(),
