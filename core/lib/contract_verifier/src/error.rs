@@ -1,7 +1,9 @@
-#[derive(Debug, Clone, thiserror::Error)]
+use zksync_dal::DalError;
+
+#[derive(Debug, thiserror::Error)]
 pub enum ContractVerifierError {
     #[error("Internal error")]
-    InternalError,
+    Internal(#[from] anyhow::Error),
     #[error("Deployed bytecode is not equal to generated one from given source")]
     BytecodeMismatch,
     #[error("Constructor arguments are not correct")]
@@ -22,4 +24,10 @@ pub enum ContractVerifierError {
     AbstractContract(String),
     #[error("Failed to deserialize standard JSON input")]
     FailedToDeserializeInput,
+}
+
+impl From<DalError> for ContractVerifierError {
+    fn from(err: DalError) -> Self {
+        Self::Internal(err.generalize())
+    }
 }
