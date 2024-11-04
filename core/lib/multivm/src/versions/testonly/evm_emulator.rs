@@ -1,13 +1,17 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, iter};
 
+use assert_matches::assert_matches;
 use ethabi::Token;
-use zksync_contracts::{load_contract, read_bytecode, SystemContractCode};
+use zksync_contracts::{
+    load_contract, read_bytecode, read_deployed_bytecode_from_path, SystemContractCode,
+};
 use zksync_system_constants::{
     CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L2_BASE_TOKEN_ADDRESS,
 };
 use zksync_test_account::TxType;
 use zksync_types::{
-    get_code_key, get_known_code_key,
+    get_code_key, get_deployer_key, get_known_code_key,
+    system_contracts::get_system_smart_contracts,
     utils::{key_for_eth_balance, storage_key_for_eth_balance},
     AccountTreeId, Address, Execute, StorageKey, H256, U256,
 };
@@ -18,7 +22,8 @@ use zksync_utils::{
 
 use super::{default_system_env, TestedVm, VmTester, VmTesterBuilder};
 use crate::interface::{
-    storage::InMemoryStorage, TxExecutionMode, VmExecutionResultAndLogs, VmInterfaceExt,
+    storage::InMemoryStorage, ExecutionResult, TxExecutionMode, VmExecutionResultAndLogs,
+    VmInterfaceExt, VmRevertReason,
 };
 
 const MOCK_DEPLOYER_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/MockContractDeployer.json";
@@ -27,6 +32,10 @@ const MOCK_EMULATOR_PATH: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/MockEvmEmulator.json";
 const RECURSIVE_CONTRACT_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/NativeRecursiveContract.json";
 const INCREMENTING_CONTRACT_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/IncrementingContract.json";
+
+const EVM_TEST_CONTRACT_PATH: &str =
+    "etc/contracts-test-data/artifacts/evm.sol/EvmEmulationTest.json";
+//const EVM_RECURSIVE_CONTRACT_PATH: &str = "etc/contracts-test-data/artifacts/evm.sol/EvmRecursiveContract.json";
 
 fn override_system_contracts(storage: &mut InMemoryStorage) {
     let mock_deployer = read_bytecode(MOCK_DEPLOYER_PATH);
@@ -172,6 +181,134 @@ pub(crate) fn test_mock_emulator_basics<VM: TestedVm>() {
         .vm
         .execute_transaction_with_bytecode_compression(tx, true);
     assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+}
+
+fn pad_evm_bytecode(deployed_bytecode: &[u8]) -> Vec<u8> {
+    let mut padded = Vec::with_capacity(deployed_bytecode.len() + 32);
+    let len = U256::from(deployed_bytecode.len());
+    padded.extend_from_slice(&[0; 32]);
+    len.to_big_endian(&mut padded);
+    padded.extend_from_slice(deployed_bytecode);
+
+    // Pad to the 32-byte word boundary.
+    if padded.len() % 32 != 0 {
+        padded.extend(iter::repeat(0).take(32 - padded.len() % 32));
+    }
+    assert_eq!(padded.len() % 32, 0);
+
+    // Pad to contain the odd number of words.
+    if (padded.len() / 32) % 2 != 1 {
+        padded.extend_from_slice(&[0; 32]);
+    }
+    assert_eq!((padded.len() / 32) % 2, 1);
+    padded
+}
+
+const EVM_ADDRESS: Address = Address::repeat_byte(1);
+
+fn prepare_tester_with_real_emulator<VM: TestedVm>() -> VmTester<VM> {
+    let deployed_evm_bytecode =
+        read_deployed_bytecode_from_path(EVM_TEST_CONTRACT_PATH.as_ref()).unwrap();
+    let deployed_evm_bytecode = pad_evm_bytecode(&deployed_evm_bytecode);
+    let evm_bytecode_hash = hash_evm_bytecode(&deployed_evm_bytecode);
+
+    let mut system_env = default_system_env();
+    system_env.base_system_smart_contracts = system_env
+        .base_system_smart_contracts
+        .with_latest_evm_emulator();
+    let mut storage = InMemoryStorage::with_custom_system_contracts_and_chain_id(
+        system_env.chain_id,
+        hash_bytecode,
+        get_system_smart_contracts(true),
+    );
+    let evm_emulator_hash = system_env
+        .base_system_smart_contracts
+        .hashes()
+        .evm_emulator
+        .unwrap();
+    storage.set_value(
+        get_deployer_key(H256::from_low_u64_be(1)),
+        evm_emulator_hash,
+    );
+    // Mark the EVM contract as deployed.
+    storage.set_value(
+        get_known_code_key(&evm_bytecode_hash),
+        H256::from_low_u64_be(1),
+    );
+    storage.set_value(get_code_key(&EVM_ADDRESS), evm_bytecode_hash);
+    storage.store_factory_dep(evm_bytecode_hash, deployed_evm_bytecode);
+
+    VmTesterBuilder::new()
+        .with_system_env(system_env)
+        .with_storage(storage)
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_rich_accounts(1)
+        .build::<VM>()
+}
+
+pub(crate) fn test_real_emulator_basics<VM: TestedVm>() {
+    let mut vm = prepare_tester_with_real_emulator::<VM>();
+    let account = &mut vm.rich_accounts[0];
+    let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
+    let test_fn = evm_abi.function("testCall").unwrap();
+
+    let success_call = Execute {
+        contract_address: Some(EVM_ADDRESS),
+        calldata: test_fn.encode_input(&[Token::Bool(false)]).unwrap(),
+        value: 0.into(),
+        factory_deps: vec![],
+    };
+    let tx = account.get_l2_tx_for_execute(success_call, None);
+
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(tx, true);
+    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+    let new_known_factory_deps = vm_result.new_known_factory_deps.unwrap();
+    assert!(new_known_factory_deps.is_empty());
+
+    let reverting_call = Execute {
+        contract_address: Some(EVM_ADDRESS),
+        calldata: test_fn.encode_input(&[Token::Bool(true)]).unwrap(),
+        value: 0.into(),
+        factory_deps: vec![],
+    };
+    let tx = account.get_l2_tx_for_execute(reverting_call, None);
+
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(tx, true);
+
+    assert_matches!(
+        &vm_result.result,
+        ExecutionResult::Revert { output: VmRevertReason::General { msg, .. } }
+            if msg == "requested revert"
+    );
+}
+
+// FIXME: stipend overflow for far call recursion
+pub(crate) fn test_real_emulator_recursion<VM: TestedVm>() {
+    let mut vm = prepare_tester_with_real_emulator::<VM>();
+    let account = &mut vm.rich_accounts[0];
+    let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
+    let test_fn = evm_abi.function("testRecursion").unwrap();
+
+    for use_far_calls in [false, true] {
+        println!("use_far_calls = {use_far_calls:?}");
+        let test_execute = Execute {
+            contract_address: Some(EVM_ADDRESS),
+            calldata: test_fn.encode_input(&[Token::Bool(use_far_calls)]).unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        };
+        let tx = account.get_l2_tx_for_execute(test_execute, None);
+        let (_, vm_result) = vm
+            .vm
+            .execute_transaction_with_bytecode_compression(tx, true);
+        assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+        let new_known_factory_deps = vm_result.new_known_factory_deps.unwrap();
+        assert!(new_known_factory_deps.is_empty());
+    }
 }
 
 const RECIPIENT_ADDRESS: Address = Address::repeat_byte(0x12);

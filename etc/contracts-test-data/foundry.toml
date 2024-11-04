@@ -1,0 +1,6 @@
+[profile.default]
+src = "evm-contracts"
+out = "artifacts"
+cache_path = "cache-evm"
+evm_version = "cancun"
+solc_version = "0.8.24"
