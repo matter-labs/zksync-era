@@ -6,6 +6,8 @@ pub enum ContractVerifierError {
     Internal(#[from] anyhow::Error),
     #[error("Deployed bytecode is not equal to generated one from given source")]
     BytecodeMismatch,
+    #[error("Creation bytecode is not equal to generated one from given source")]
+    CreationBytecodeMismatch,
     #[error("Constructor arguments are not correct")]
     IncorrectConstructorArguments,
     #[error("Compilation takes too much time")]

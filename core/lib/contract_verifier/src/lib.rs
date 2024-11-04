@@ -160,10 +160,13 @@ impl ContractVerifier {
         let bytecode_marker = BytecodeMarker::new(deployed_contract.bytecode_hash)
             .context("unknown bytecode kind")?;
         let artifacts = self.compile(request.req.clone(), bytecode_marker).await?;
-
-        // FIXME: extract constructor args / check bytecode for EVM contracts
-        let constructor_args =
-            self.decode_constructor_args(&deployed_contract, request.req.contract_address)?;
+        let constructor_args = match bytecode_marker {
+            BytecodeMarker::EraVm => self
+                .decode_era_vm_constructor_args(&deployed_contract, request.req.contract_address)?,
+            BytecodeMarker::Evm => {
+                Self::decode_evm_constructor_args(&deployed_contract, &artifacts.bytecode)?
+            }
+        };
 
         let deployed_bytecode = match bytecode_marker {
             BytecodeMarker::EraVm => deployed_contract.bytecode.as_slice(),
@@ -271,7 +274,7 @@ impl ContractVerifier {
 
     /// All returned errors are internal.
     #[tracing::instrument(level = "trace", skip_all, ret, err)]
-    fn decode_constructor_args(
+    fn decode_era_vm_constructor_args(
         &self,
         contract: &DeployedContractData,
         contract_address_to_verify: Address,
@@ -283,7 +286,6 @@ impl ContractVerifier {
         if contract.contract_address == Some(CONTRACT_DEPLOYER_ADDRESS) {
             self.decode_contract_deployer_call(calldata, contract_address_to_verify)
         } else {
-            // FIXME: handle EVM contracts
             Ok(ConstructorArgs::Ignore)
         }
     }
@@ -393,6 +395,25 @@ impl ContractVerifier {
             }
         }
         anyhow::bail!("couldn't find force deployment for address {contract_address_to_verify:?}");
+    }
+
+    fn decode_evm_constructor_args(
+        contract: &DeployedContractData,
+        creation_bytecode: &[u8],
+    ) -> Result<ConstructorArgs, ContractVerifierError> {
+        let Some(calldata) = &contract.calldata else {
+            return Ok(ConstructorArgs::Ignore);
+        };
+        if contract.contract_address.is_some() {
+            // Not a deployment transaction
+            return Ok(ConstructorArgs::Ignore);
+        }
+
+        dbg!(&calldata, creation_bytecode);
+        let args = calldata
+            .strip_prefix(creation_bytecode)
+            .ok_or(ContractVerifierError::CreationBytecodeMismatch)?;
+        Ok(ConstructorArgs::Check(args.to_vec()))
     }
 
     #[tracing::instrument(level = "debug", skip_all, err, fields(id = request_id))]
