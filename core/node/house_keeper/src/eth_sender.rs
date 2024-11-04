@@ -1,19 +1,26 @@
+use std::cmp::max;
+
+use anyhow::Ok;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater};
+use zksync_types::{aggregated_operations::AggregatedActionType, L1BatchNumber};
 
 use crate::periodic_job::PeriodicJob;
 
 #[derive(Debug, Serialize, Deserialize)]
+struct LastBatchIndex {
+    commit: Option<L1BatchNumber>,
+    prove: Option<L1BatchNumber>,
+    execute: Option<L1BatchNumber>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct EthSenderInfo {
     failed_l1_txns: i64,
-    last_created_commit_batch: Option<()>,
-    last_created_prove_batch: Option<()>,
-    last_created_execute_batch: Option<()>,
-    last_executed_commit_batch: Option<()>,
-    last_executed_prove_batch: Option<()>,
-    last_executed_execute_batch: Option<()>,
+    last_saved_batches: LastBatchIndex,
+    last_mined_batches: LastBatchIndex,
     next_nonce: Option<u64>,
 }
 
@@ -44,18 +51,16 @@ impl PeriodicJob for EthSenderHealthTask {
             .get_number_of_failed_transactions()
             .await?;
 
+        let eth_stats = conn.eth_sender_dal().get_eth_l1_batches().await?;
+
         // TODO retrieve SettlementMode from config
         let next_nonce = conn.eth_sender_dal().get_next_nonce(None, false).await?;
 
         self.eth_sender_health_updater.update(
             EthSenderInfo {
                 failed_l1_txns,
-                last_created_commit_batch: None,
-                last_created_prove_batch: None,
-                last_created_execute_batch: None,
-                last_executed_commit_batch: None,
-                last_executed_prove_batch: None,
-                last_executed_execute_batch: None,
+                last_saved_batches: get_latest_batches(eth_stats.saved),
+                last_mined_batches: get_latest_batches(eth_stats.mined),
                 next_nonce,
             }
             .into(),
@@ -65,5 +70,24 @@ impl PeriodicJob for EthSenderHealthTask {
 
     fn polling_interval_ms(&self) -> u64 {
         Self::POLLING_INTERVAL_MS
+    }
+}
+
+fn get_latest_batches(batches: Vec<(AggregatedActionType, L1BatchNumber)>) -> LastBatchIndex {
+    let (commit_batch, prove_batch, execute_batch) = batches.into_iter().fold(
+        (None, None, None),
+        |(commit, prove, execute), (action_type, batch_number)| match action_type {
+            AggregatedActionType::Commit => (max(commit, Some(batch_number)), prove, execute),
+            AggregatedActionType::PublishProofOnchain => {
+                (commit, max(prove, Some(batch_number)), execute)
+            }
+            AggregatedActionType::Execute => (commit, prove, max(execute, Some(batch_number))),
+        },
+    );
+
+    LastBatchIndex {
+        commit: commit_batch,
+        prove: prove_batch,
+        execute: execute_batch,
     }
 }
