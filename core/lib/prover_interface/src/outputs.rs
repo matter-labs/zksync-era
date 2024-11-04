@@ -16,6 +16,22 @@ pub enum L1BatchProofForL1 {
     Plonk(PlonkL1BatchProofForL1),
 }
 
+impl L1BatchProofForL1 {
+    pub fn protocol_version(&self) -> ProtocolSemanticVersion {
+        match self {
+            L1BatchProofForL1::Fflonk(proof) => proof.protocol_version,
+            L1BatchProofForL1::Plonk(proof) => proof.protocol_version,
+        }
+    }
+
+    pub fn aggregation_result_coords(&self) -> [[u8; 32]; 4] {
+        match self {
+            L1BatchProofForL1::Fflonk(proof) => proof.aggregation_result_coords,
+            L1BatchProofForL1::Plonk(proof) => proof.aggregation_result_coords,
+        }
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct FflonkL1BatchProofForL1 {
     pub aggregation_result_coords: [[u8; 32]; 4],

@@ -20,7 +20,7 @@ use zksync_prover_fri_types::{
         },
     },
     queue::FixedSizeQueue,
-    CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
+    CircuitWrapper, FriProofWrapper, ProverServiceDataKey, ProvingStage, WitnessVectorArtifacts,
 };
 use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
@@ -149,19 +149,19 @@ pub fn setup_metadata_to_setup_data_key(
             // For node aggregation only one key exist for all circuit types
             ProverServiceDataKey {
                 circuit_id: ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
-                stage: round,
+                stage: round.into(),
             }
         }
         _ => ProverServiceDataKey {
             circuit_id: setup_metadata.circuit_id,
-            stage: round,
+            stage: round.into(),
         },
     }
 }
 
 pub fn get_setup_data_key(key: ProverServiceDataKey) -> ProverServiceDataKey {
     match key.stage {
-        AggregationRound::NodeAggregation => {
+        ProvingStage::NodeAggregation => {
             // For node aggregation only one key exist for all circuit types
             ProverServiceDataKey {
                 circuit_id: ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,

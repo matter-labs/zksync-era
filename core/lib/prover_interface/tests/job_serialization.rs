@@ -163,11 +163,11 @@ fn test_proof_request_serialization() {
     let decoded_json: SubmitProofRequest = serde_json::from_str(encoded_json).unwrap();
     match (decoded_obj, decoded_json) {
         (SubmitProofRequest::Proof(decoded_obj), SubmitProofRequest::Proof(decoded_json)) => {
-            let obj_coords = match decoded_obj {
+            let obj_coords = match *decoded_obj {
                 L1BatchProofForL1::Fflonk(obj) => obj.aggregation_result_coords,
                 L1BatchProofForL1::Plonk(obj) => obj.aggregation_result_coords,
             };
-            let json_coords = match decoded_json {
+            let json_coords = match *decoded_json {
                 L1BatchProofForL1::Fflonk(obj) => obj.aggregation_result_coords,
                 L1BatchProofForL1::Plonk(obj) => obj.aggregation_result_coords,
             };
