@@ -266,6 +266,16 @@ impl ContractVerifier {
         bytecode_marker: BytecodeMarker,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let compiler_type = req.source_code_data.compiler_type();
+        let compiler_type_by_versions = req.compiler_versions.compiler_type();
+        if compiler_type != compiler_type_by_versions {
+            // Should be checked when receiving a request, so here it's more of a sanity check
+            let err = anyhow::anyhow!(
+                "specified compiler versions {:?} belong to a differing toolchain than source code ({compiler_type:?})",
+                req.compiler_versions
+            );
+            return Err(err.into());
+        }
+
         match (bytecode_marker, compiler_type) {
             (BytecodeMarker::EraVm, CompilerType::Solc) => self.compile_zksolc(req).await,
             (BytecodeMarker::EraVm, CompilerType::Vyper) => self.compile_zkvyper(req).await,
