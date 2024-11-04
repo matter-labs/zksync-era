@@ -39,7 +39,6 @@ use zksync_prover_fri_types::{
     },
     get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper,
 };
-
 #[cfg(feature = "fflonk")]
 use zksync_prover_interface::outputs::FflonkL1BatchProofForL1;
 use zksync_prover_interface::outputs::L1BatchProofForL1;

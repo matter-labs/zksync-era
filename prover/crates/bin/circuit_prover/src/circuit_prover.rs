@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Instant};
+use std::{alloc::Global, sync::Arc, time::Instant};
 
 use anyhow::Context;
 use shivini::{
@@ -220,17 +220,21 @@ impl CircuitProver {
             }
         };
 
-        let proof =
-            gpu_prove_from_external_witness_data::<DefaultTranscript, DefaultTreeHasher, NoPow, _>(
-                &gpu_proof_config,
-                &witness_vector,
-                proof_config,
-                &setup_data.setup,
-                &setup_data.vk,
-                (),
-                &worker,
-            )
-            .context("crypto primitive: failed to generate proof")?;
+        let proof = gpu_prove_from_external_witness_data::<
+            DefaultTranscript,
+            DefaultTreeHasher,
+            NoPow,
+            Global,
+        >(
+            &gpu_proof_config,
+            &witness_vector,
+            proof_config,
+            &setup_data.setup,
+            &setup_data.vk,
+            (),
+            &worker,
+        )
+        .context("crypto primitive: failed to generate proof")?;
         CIRCUIT_PROVER_METRICS
             .generate_proof_time
             .observe(time.elapsed());

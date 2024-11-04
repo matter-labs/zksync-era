@@ -1,5 +1,7 @@
 #![allow(incomplete_features)] // We have to use generic const exprs.
 #![feature(generic_const_exprs)]
+#![feature(allocator_api)]
+
 pub use backoff::Backoff;
 pub use circuit_prover::CircuitProver;
 pub use metrics::PROVER_BINARY_METRICS;
