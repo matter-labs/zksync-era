@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater};
-use zksync_types::{block::L2BlockHeader, L2BlockNumber, ProtocolVersionId};
+use zksync_types::{block::L2BlockHeader, L1BatchNumber, L2BlockNumber, ProtocolVersionId};
 
 use crate::periodic_job::PeriodicJob;
 
@@ -26,7 +26,7 @@ impl From<L2BlockHeader> for L2BlockHeaderInfo {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StateKeeperInfo {
     last_sealed_miniblock: Option<L2BlockHeaderInfo>,
-    batch_number: Option<()>,
+    last_processed_l1_batch: L1BatchNumber,
 }
 
 impl From<StateKeeperInfo> for Health {
@@ -52,11 +52,15 @@ impl PeriodicJob for StateKeeperHealthTask {
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let mut conn = self.connection_pool.connection().await.unwrap();
         let last_sealed_miniblock = conn.blocks_dal().get_last_sealed_l2_block_header().await?;
+        let last_processed_l1_batch = conn
+            .blocks_dal()
+            .get_consistency_checker_last_processed_l1_batch()
+            .await?;
 
         self.state_keeper_health_updater.update(
             StateKeeperInfo {
                 last_sealed_miniblock: last_sealed_miniblock.map(L2BlockHeaderInfo::from),
-                batch_number: None,
+                last_processed_l1_batch,
             }
             .into(),
         );
