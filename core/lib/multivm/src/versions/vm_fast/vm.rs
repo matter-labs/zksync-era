@@ -212,6 +212,16 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
                     };
                     break (ExecutionResult::Halt { reason }, true);
                 }
+                ExecutionEnd::StoppedByTracer => {
+                    break (
+                        ExecutionResult::Halt {
+                            reason: Halt::TracerCustom(
+                                "Unexpectedly stopped by tracer".to_string(),
+                            ),
+                        },
+                        false,
+                    );
+                }
             };
 
             match Hook::from_u32(hook) {
