@@ -163,9 +163,11 @@ impl ContractVerifier {
         let constructor_args = match bytecode_marker {
             BytecodeMarker::EraVm => self
                 .decode_era_vm_constructor_args(&deployed_contract, request.req.contract_address)?,
-            BytecodeMarker::Evm => {
-                Self::decode_evm_constructor_args(&deployed_contract, &artifacts.bytecode)?
-            }
+            BytecodeMarker::Evm => Self::decode_evm_constructor_args(
+                request.id,
+                &deployed_contract,
+                &artifacts.bytecode,
+            )?,
         };
 
         let deployed_bytecode = match bytecode_marker {
@@ -176,10 +178,10 @@ impl ContractVerifier {
 
         if artifacts.deployed_bytecode() != deployed_bytecode {
             tracing::info!(
-                "Bytecode mismatch req {}, deployed: 0x{}, compiled: 0x{}",
-                request.id,
-                hex::encode(deployed_bytecode),
-                hex::encode(artifacts.deployed_bytecode())
+                request_id = request.id,
+                deployed = hex::encode(deployed_bytecode),
+                compiled = hex::encode(artifacts.deployed_bytecode()),
+                "Deployed (runtime) bytecode mismatch",
             );
             return Err(ContractVerifierError::BytecodeMismatch);
         }
@@ -268,7 +270,11 @@ impl ContractVerifier {
             (BytecodeMarker::EraVm, CompilerType::Solc) => self.compile_zksolc(req).await,
             (BytecodeMarker::EraVm, CompilerType::Vyper) => self.compile_zkvyper(req).await,
             (BytecodeMarker::Evm, CompilerType::Solc) => self.compile_solc(req).await,
-            (BytecodeMarker::Evm, CompilerType::Vyper) => todo!(),
+            (BytecodeMarker::Evm, CompilerType::Vyper) => {
+                // TODO: add vyper support
+                let err = anyhow::anyhow!("vyper toolchain is not yet supported for EVM contracts");
+                return Err(err.into());
+            }
         }
     }
 
@@ -398,6 +404,7 @@ impl ContractVerifier {
     }
 
     fn decode_evm_constructor_args(
+        request_id: usize,
         contract: &DeployedContractData,
         creation_bytecode: &[u8],
     ) -> Result<ConstructorArgs, ContractVerifierError> {
@@ -405,14 +412,19 @@ impl ContractVerifier {
             return Ok(ConstructorArgs::Ignore);
         };
         if contract.contract_address.is_some() {
-            // Not a deployment transaction
+            // Not an EVM deployment transaction
             return Ok(ConstructorArgs::Ignore);
         }
 
-        dbg!(&calldata, creation_bytecode);
-        let args = calldata
-            .strip_prefix(creation_bytecode)
-            .ok_or(ContractVerifierError::CreationBytecodeMismatch)?;
+        let args = calldata.strip_prefix(creation_bytecode).ok_or_else(|| {
+            tracing::info!(
+                request_id,
+                calldata = hex::encode(calldata),
+                compiled = hex::encode(creation_bytecode),
+                "Creation bytecode mismatch"
+            );
+            ContractVerifierError::CreationBytecodeMismatch
+        })?;
         Ok(ConstructorArgs::Check(args.to_vec()))
     }
 
