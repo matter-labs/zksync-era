@@ -289,13 +289,6 @@ impl ProverServiceDataKey {
             results.push(ProverServiceDataKey::new_recursive(numeric_circuit))
         }
 
-        // TODO: Using hardcoded circuits is nasty
-        for numeric_circuit in 1..6 {
-            results.push(ProverServiceDataKey::new_compression(numeric_circuit))
-        }
-
-        // Don't include snark, as it uses the old proving system.
-
         results
     }
 
