@@ -10833,6 +10833,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "test-casing",
  "thiserror",
  "tokio",
  "tracing",
