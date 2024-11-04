@@ -10,7 +10,7 @@ use zksync_types::{aggregated_operations::AggregatedActionType, L1BatchNumber};
 use crate::periodic_job::PeriodicJob;
 
 #[derive(Debug, Serialize, Deserialize)]
-struct LastBatchIndex {
+struct BatchNumbers {
     commit: Option<L1BatchNumber>,
     prove: Option<L1BatchNumber>,
     execute: Option<L1BatchNumber>,
@@ -19,8 +19,8 @@ struct LastBatchIndex {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EthSenderInfo {
     failed_l1_txns: i64,
-    last_saved_batches: LastBatchIndex,
-    last_mined_batches: LastBatchIndex,
+    last_saved_batches: BatchNumbers,
+    last_mined_batches: BatchNumbers,
     next_nonce: Option<u64>,
 }
 
@@ -43,6 +43,9 @@ impl EthSenderHealthTask {
 #[async_trait]
 impl PeriodicJob for EthSenderHealthTask {
     const SERVICE_NAME: &'static str = "EthSenderHealth";
+    async fn run(&mut self) -> anyhow::Result<()> {
+        self.run_routine_task().await
+    }
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let mut conn = self.connection_pool.connection().await?;
@@ -73,7 +76,7 @@ impl PeriodicJob for EthSenderHealthTask {
     }
 }
 
-fn get_latest_batches(batches: Vec<(AggregatedActionType, L1BatchNumber)>) -> LastBatchIndex {
+fn get_latest_batches(batches: Vec<(AggregatedActionType, L1BatchNumber)>) -> BatchNumbers {
     let (commit_batch, prove_batch, execute_batch) = batches.into_iter().fold(
         (None, None, None),
         |(commit, prove, execute), (action_type, batch_number)| match action_type {
@@ -85,7 +88,7 @@ fn get_latest_batches(batches: Vec<(AggregatedActionType, L1BatchNumber)>) -> La
         },
     );
 
-    LastBatchIndex {
+    BatchNumbers {
         commit: commit_batch,
         prove: prove_batch,
         execute: execute_batch,
