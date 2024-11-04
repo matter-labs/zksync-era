@@ -519,7 +519,7 @@ pub async fn load_wrapped_fri_proofs_for_range(
             .get::<L1BatchProofForL1>((l1_batch_number, *version))
             .await
         {
-            Ok(proof) => return Some(proof.into()),
+            Ok(proof) => return Some(proof),
             Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet
             Err(err) => panic!(
                 "Failed to load proof for batch {}: {}",

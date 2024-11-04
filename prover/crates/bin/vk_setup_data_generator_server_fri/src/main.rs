@@ -3,22 +3,15 @@
 //! Tool to generate different types of keys used by the proving system.
 //!
 //! It can generate verification keys, setup keys, and also commitments.
-use std::{alloc::Global, collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Context as _;
-use circuit_definitions::{
-    boojum::config::SetupCSConfig,
-    circuit_definitions::aux_layer::{
-        compression_modes::{CompressionTranscriptForWrapper, CompressionTreeHasherForWrapper},
-        ZkSyncCompressionForWrapperCircuit, ZkSyncCompressionLayerStorage, ZkSyncCompressionProof,
-        ZkSyncCompressionVerificationKey,
-    },
-    snark_wrapper::franklin_crypto,
+use circuit_definitions::circuit_definitions::aux_layer::{
+    ZkSyncCompressionForWrapperCircuit, ZkSyncCompressionLayerStorage,
 };
 use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
 use indicatif::{ProgressBar, ProgressStyle};
-use shivini::cs::GpuSetup;
 use tracing::level_filters::LevelFilter;
 use zkevm_test_harness::{
     boojum::worker::Worker,
@@ -137,7 +130,7 @@ fn generate_compression_vks<DS: SetupDataSource + BlockDataSource>(
 
     let (_, _, vk, _, _, _, finalization_hint) = create_compression_for_wrapper_setup_data(
         circuit,
-        &worker,
+        worker,
         proof_config.fri_lde_factor,
         proof_config.merkle_tree_cap_size,
     );
@@ -173,7 +166,7 @@ fn generate_compression_for_wrapper_vks<DS: SetupDataSource + BlockDataSource>(
 
     let (_, _, vk, _, _, _, finalization_hint) = create_compression_for_wrapper_setup_data(
         circuit,
-        &worker,
+        worker,
         proof_config.fri_lde_factor,
         proof_config.merkle_tree_cap_size,
     );

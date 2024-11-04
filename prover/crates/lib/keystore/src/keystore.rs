@@ -6,7 +6,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{anyhow, Context as _};
+use anyhow::Context as _;
 use circuit_definitions::{
     boojum::cs::implementations::setup::FinalizationHintsForProver,
     circuit_definitions::{
@@ -21,7 +21,6 @@ use circuit_definitions::{
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
-use zksync_basic_types::basic_fri_types::AggregationRound;
 use zksync_prover_fri_types::{ProverServiceDataKey, ProvingStage};
 use zksync_utils::env::Workspace;
 

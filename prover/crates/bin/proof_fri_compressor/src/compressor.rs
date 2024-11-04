@@ -18,6 +18,10 @@ use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 #[cfg(feature = "fflonk")]
 use zksync_prover_fri_types::circuit_definitions::circuit_definitions::aux_layer::wrapper::ZkSyncCompressionWrapper;
 #[cfg(feature = "fflonk")]
+use zksync_prover_fri_types::circuit_definitions::circuit_definitions::aux_layer::{
+    ZkSyncCompressionForWrapperCircuit, ZkSyncCompressionLayerCircuit,
+};
+#[cfg(feature = "fflonk")]
 use zksync_prover_fri_types::circuit_definitions::circuit_definitions::{
     aux_layer::{
         ZkSyncCompressionProof, ZkSyncCompressionProofForWrapper,
@@ -28,14 +32,14 @@ use zksync_prover_fri_types::circuit_definitions::circuit_definitions::{
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
-        circuit_definitions::{
-            aux_layer::{ZkSyncCompressionForWrapperCircuit, ZkSyncCompressionLayerCircuit},
-            recursion_layer::{ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType},
+        circuit_definitions::recursion_layer::{
+            ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
         },
         zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
     },
     get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper,
 };
+
 #[cfg(feature = "fflonk")]
 use zksync_prover_interface::outputs::FflonkL1BatchProofForL1;
 use zksync_prover_interface::outputs::L1BatchProofForL1;

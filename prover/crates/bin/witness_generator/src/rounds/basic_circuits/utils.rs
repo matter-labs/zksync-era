@@ -130,7 +130,7 @@ pub(super) async fn generate_witness(
             geometry_config,
             storage_oracle,
             tree,
-            path,
+            path.to_string(),
             input.eip_4844_blobs.blobs(),
             artifacts_sender,
         );

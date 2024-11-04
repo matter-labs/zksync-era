@@ -2,6 +2,8 @@
 
 use boojum_cuda::poseidon2::GLHasher;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "gpu")]
+use shivini::cs::GpuSetup;
 use zkevm_test_harness::compute_setups::CircuitSetupData;
 use zksync_prover_fri_types::circuit_definitions::boojum::{
     algebraic_props::{round_function::AbsorptionModeOverwrite, sponge::GenericAlgebraicSponge},
@@ -20,8 +22,6 @@ use zksync_prover_fri_types::circuit_definitions::boojum::{
     },
     implementations::poseidon2::Poseidon2Goldilocks,
 };
-#[cfg(feature = "gpu")]
-use {shivini::cs::GpuSetup, std::alloc::Global};
 
 pub mod commitment_utils;
 pub mod keystore;
