@@ -541,8 +541,8 @@ async fn bytecode_mismatch_error() {
         .expect("no status");
     assert_eq!(status.status, "failed");
     assert!(status.compilation_errors.is_none(), "{status:?}");
-    let error = status.error.unwrap();
-    assert!(error.contains("bytecode"), "{error}");
+    let err = status.error.unwrap();
+    assert_eq!(err, ContractVerifierError::BytecodeMismatch.to_string());
 }
 
 #[test_casing(4, Product((TestContract::ALL, BYTECODE_KINDS)))]
@@ -624,8 +624,66 @@ async fn assert_constructor_args_mismatch(storage: &mut Connection<'_, Core>, re
         .expect("no status");
     assert_eq!(status.status, "failed");
     assert_eq!(status.compilation_errors, None);
-    let err = status.error.unwrap().to_lowercase();
-    assert!(err.contains("constructor arguments"), "{err}");
+    let err = status.error.unwrap();
+    assert_eq!(
+        err,
+        ContractVerifierError::IncorrectConstructorArguments.to_string()
+    );
+}
+
+#[tokio::test]
+async fn creation_bytecode_mismatch() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    prepare_storage(&mut storage).await;
+
+    let address = Address::repeat_byte(1);
+    let creation_bytecode = vec![3; 20];
+    let deployed_bytecode = vec![5; 10];
+    mock_evm_deployment(
+        &mut storage,
+        address,
+        creation_bytecode,
+        &deployed_bytecode,
+        &[],
+    )
+    .await;
+    let req = test_request(address, COUNTER_CONTRACT);
+    let request_id = storage
+        .contract_verification_dal()
+        .add_contract_verification_request(req)
+        .await
+        .unwrap();
+
+    let mock_resolver = MockCompilerResolver::solc(move |_| CompilationArtifacts {
+        bytecode: vec![4; 20], // differs from `creation_bytecode`
+        deployed_bytecode: Some(deployed_bytecode.clone()),
+        abi: counter_contract_abi(),
+    });
+    let verifier = ContractVerifier::with_resolver(
+        Duration::from_secs(60),
+        pool.clone(),
+        Arc::new(mock_resolver),
+    )
+    .await
+    .unwrap();
+
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    verifier.run(stop_receiver, Some(1)).await.unwrap();
+
+    let status = storage
+        .contract_verification_dal()
+        .get_verification_request_status(request_id)
+        .await
+        .unwrap()
+        .expect("no status");
+    assert_eq!(status.status, "failed");
+    assert!(status.compilation_errors.is_none(), "{status:?}");
+    let err = status.error.unwrap();
+    assert_eq!(
+        err,
+        ContractVerifierError::CreationBytecodeMismatch.to_string()
+    );
 }
 
 #[tokio::test]
