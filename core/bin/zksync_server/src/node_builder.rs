@@ -29,7 +29,8 @@ use zksync_node_framework::{
         contract_verification_api::ContractVerificationApiLayer,
         da_clients::{
             avail::AvailWiringLayer, celestia::CelestiaWiringLayer, eigen::EigenWiringLayer,
-            no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
+            near::NearWiringLayer, no_da::NoDAClientWiringLayer,
+            object_store::ObjectStorageClientWiringLayer,
         },
         da_dispatcher::DataAvailabilityDispatcherLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
@@ -538,10 +539,15 @@ impl MainNodeBuilder {
                 self.node.add_layer(EigenWiringLayer::new(config, secret));
             }
 
+            (DAClientConfig::Near(config), DataAvailabilitySecrets::Near(secret)) => {
+                self.node.add_layer(NearWiringLayer::new(config, secret));
+            }
+
             (DAClientConfig::ObjectStore(config), _) => {
                 self.node
                     .add_layer(ObjectStorageClientWiringLayer::new(config));
             }
+
             _ => bail!("invalid pair of da_client and da_secrets"),
         }
 

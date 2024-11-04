@@ -3,7 +3,9 @@ use zksync_basic_types::url::SensitiveUrl;
 
 use crate::configs::{
     consensus::ConsensusSecrets,
-    da_client::{avail::AvailSecrets, celestia::CelestiaSecrets, eigen::EigenSecrets},
+    da_client::{
+        avail::AvailSecrets, celestia::CelestiaSecrets, eigen::EigenSecrets, near::NearSecrets,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -23,6 +25,7 @@ pub enum DataAvailabilitySecrets {
     Avail(AvailSecrets),
     Celestia(CelestiaSecrets),
     Eigen(EigenSecrets),
+    Near(NearSecrets),
 }
 
 #[derive(Debug, Clone, PartialEq)]

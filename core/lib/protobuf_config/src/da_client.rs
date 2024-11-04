@@ -5,7 +5,8 @@ use zksync_config::configs::{
         avail::{AvailClientConfig, AvailConfig, AvailDefaultConfig, AvailGasRelayConfig},
         celestia::CelestiaConfig,
         eigen::EigenConfig,
-        DAClientConfig::{Avail, Celestia, Eigen, ObjectStore},
+        near::NearConfig,
+        DAClientConfig::{Avail, Celestia, Eigen, Near, ObjectStore},
     },
 };
 use zksync_protobuf::{required, ProtoRepr};
@@ -59,6 +60,21 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 inclusion_polling_interval_ms: *required(&conf.inclusion_polling_interval_ms)
                     .context("inclusion_polling_interval_ms")?,
             }),
+            proto::data_availability_client::Config::Near(conf) => Near(NearConfig {
+                evm_provider_url: required(&conf.evm_provider_url)
+                    .context("evm_provider_url")?
+                    .clone(),
+                rpc_client_url: required(&conf.rpc_client_url)
+                    .context("rpc_client_url")?
+                    .clone(),
+                blob_contract: required(&conf.blob_contract)
+                    .context("blob_contract")?
+                    .clone(),
+                bridge_contract: required(&conf.bridge_contract)
+                    .context("bridge_contract")?
+                    .clone(),
+                account_id: required(&conf.account_id).context("account_id")?.clone(),
+            }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
             }
@@ -98,6 +114,13 @@ impl ProtoRepr for proto::DataAvailabilityClient {
             Eigen(config) => proto::data_availability_client::Config::Eigen(proto::EigenConfig {
                 rpc_node_url: Some(config.rpc_node_url.clone()),
                 inclusion_polling_interval_ms: Some(config.inclusion_polling_interval_ms),
+            }),
+            Near(config) => proto::data_availability_client::Config::Near(proto::NearConfig {
+                evm_provider_url: Some(config.evm_provider_url.clone()),
+                rpc_client_url: Some(config.rpc_client_url.clone()),
+                blob_contract: Some(config.blob_contract.clone()),
+                bridge_contract: Some(config.bridge_contract.clone()),
+                account_id: Some(config.account_id.clone()),
             }),
             ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
                 object_store_proto::ObjectStore::build(config),

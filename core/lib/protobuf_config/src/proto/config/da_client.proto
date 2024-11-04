@@ -41,6 +41,14 @@ message EigenConfig {
   optional uint64 inclusion_polling_interval_ms = 2;
 }
 
+message NearConfig {
+  optional string evm_provider_url = 1;
+  optional string rpc_client_url = 2;
+  optional string blob_contract = 3;
+  optional string bridge_contract = 4;
+  optional string account_id = 5;
+}
+
 message DataAvailabilityClient {
   // oneof in protobuf allows for None
   oneof config {
@@ -48,5 +56,6 @@ message DataAvailabilityClient {
     object_store.ObjectStore object_store = 2;
     CelestiaConfig celestia = 3;
     EigenConfig eigen = 4;
+    NearConfig near = 5;
   }
 }

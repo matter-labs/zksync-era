@@ -8,7 +8,7 @@ use zksync_config::configs::{
         celestia::CelestiaSecrets,
         eigen::EigenSecrets,
         DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, CELESTIA_CLIENT_CONFIG_NAME,
-        EIGEN_CLIENT_CONFIG_NAME, OBJECT_STORE_CLIENT_CONFIG_NAME,
+        EIGEN_CLIENT_CONFIG_NAME, NEAR_CLIENT_CONFIG_NAME, OBJECT_STORE_CLIENT_CONFIG_NAME,
     },
     secrets::DataAvailabilitySecrets,
     AvailConfig,
@@ -35,6 +35,7 @@ impl FromEnv for DAClientConfig {
             }),
             CELESTIA_CLIENT_CONFIG_NAME => Self::Celestia(envy_load("da_celestia_config", "DA_")?),
             EIGEN_CLIENT_CONFIG_NAME => Self::Eigen(envy_load("da_eigen_config", "DA_")?),
+            NEAR_CLIENT_CONFIG_NAME => Self::Near(envy_load("da_near_config", "DA_")?),
             OBJECT_STORE_CLIENT_CONFIG_NAME => {
                 Self::ObjectStore(envy_load("da_object_store", "DA_")?)
             }
@@ -98,7 +99,7 @@ mod tests {
             },
             object_store::ObjectStoreMode::GCS,
         },
-        AvailConfig, CelestiaConfig, EigenConfig, ObjectStoreConfig,
+        AvailConfig, CelestiaConfig, EigenConfig, NearConfig, ObjectStoreConfig,
     };
 
     use super::*;
@@ -283,6 +284,33 @@ mod tests {
             "f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
                 .parse()
                 .unwrap()
+        );
+    }
+
+    #[test]
+    fn from_env_near_client() {
+        let mut lock = MUTEX.lock();
+        let config = r#"
+            DA_CLIENT="Near"
+            DA_EVM_PROVIDER_URL="https://sepolia-rollup.arbitrum.io/rpc"
+            DA_RPC_CLIENT_URL="https://rpc.testnet.near.org"
+            DA_BLOB_CONTRACT="blob-store-contract.near"
+            DA_BRIDGE_CONTRACT="0x0000000000000000000000000000000000000001"
+            DA_ACCOUNT_ID="acount-id.near"
+        "#;
+
+        lock.set_env(config);
+        let actual = DAClientConfig::from_env().unwrap();
+
+        assert_eq!(
+            actual,
+            DAClientConfig::Near(NearConfig {
+                evm_provider_url: "https://sepolia-rollup.arbitrum.io/rpc".to_string(),
+                rpc_client_url: "https://rpc.testnet.near.org".to_string(),
+                blob_contract: "blob-store-contract.near".to_string(),
+                bridge_contract: "0x0000000000000000000000000000000000000001".to_string(),
+                account_id: "acount-id.near".to_string(),
+            })
         );
     }
 }

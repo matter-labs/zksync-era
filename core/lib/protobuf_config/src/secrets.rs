@@ -8,14 +8,16 @@ use zksync_basic_types::{
 };
 use zksync_config::configs::{
     consensus::{AttesterSecretKey, ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
-    da_client::{avail::AvailSecrets, celestia::CelestiaSecrets, eigen::EigenSecrets},
+    da_client::{
+        avail::AvailSecrets, celestia::CelestiaSecrets, eigen::EigenSecrets, near::NearSecrets,
+    },
     secrets::{DataAvailabilitySecrets, Secrets},
     DatabaseSecrets, L1Secrets,
 };
 use zksync_protobuf::{required, ProtoRepr};
 
 use crate::{
-    proto::{secrets as proto, secrets::data_availability_secrets::DaSecrets},
+    proto::secrets::{self as proto, data_availability_secrets::DaSecrets},
     read_optional_repr,
 };
 
@@ -138,13 +140,18 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                     required(&eigen.private_key).context("private_key")?,
                 )?,
             }),
+            DaSecrets::Near(near) => DataAvailabilitySecrets::Near(NearSecrets {
+                secret_key: PrivateKey::from_str(
+                    required(&near.secret_key).context("secret_key")?,
+                )?,
+            }),
         };
 
         Ok(client)
     }
 
     fn build(this: &Self::Type) -> Self {
-        let secrets = match &this {
+        let secrets = match this {
             DataAvailabilitySecrets::Avail(config) => {
                 let seed_phrase = if config.seed_phrase.is_some() {
                     Some(
@@ -186,6 +193,9 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
             }
             DataAvailabilitySecrets::Eigen(config) => Some(DaSecrets::Eigen(proto::EigenSecret {
                 private_key: Some(config.private_key.0.expose_secret().to_string()),
+            })),
+            DataAvailabilitySecrets::Near(config) => Some(DaSecrets::Near(proto::NearSecret {
+                secret_key: Some(config.secret_key.0.expose_secret().to_string()),
             })),
         };
 

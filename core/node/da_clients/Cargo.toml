@@ -17,6 +17,7 @@ async-trait.workspace = true
 anyhow.workspace = true
 flate2.workspace = true
 tokio.workspace = true
+reqwest.workspace = true
 
 zksync_config.workspace = true
 zksync_types.workspace = true
@@ -34,10 +35,17 @@ base58.workspace = true
 serde_json.workspace = true
 hex.workspace = true
 blake2b_simd.workspace = true
+
+# Near dependencies
+near-jsonrpc-client.workspace = true
+near-jsonrpc-primitives.workspace = true
+near-primitives.workspace = true
+near-crypto.workspace = true
+borsh.workspace = true
+
+jsonrpsee = { workspace = true, features = ["ws-client"] }
 parity-scale-codec = { workspace = true, features = ["derive"] }
 subxt-signer = { workspace = true, features = ["sr25519", "native"] }
-jsonrpsee = { workspace = true, features = ["ws-client"] }
-reqwest = { workspace = true }
 bytes = { workspace = true }
 backon.workspace = true
 
