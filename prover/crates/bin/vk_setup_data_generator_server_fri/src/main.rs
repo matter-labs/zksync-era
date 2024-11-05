@@ -13,7 +13,7 @@ use circuit_definitions::circuit_definitions::aux_layer::{
 use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
 use indicatif::{ProgressBar, ProgressStyle};
-use shivini::cs::gpu_setup_and_vk_from_base_setup_vk_params_and_hints;
+use shivini::{cs::gpu_setup_and_vk_from_base_setup_vk_params_and_hints, ProverContext};
 use tracing::level_filters::LevelFilter;
 use zkevm_test_harness::{
     boojum::worker::Worker,
@@ -88,6 +88,10 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
     let config = WrapperConfig::new(5);
 
     let worker = Worker::new();
+
+    tracing::info!("Creating prover context");
+
+    let _context = ProverContext::create().context("failed initializing gpu prover context")?;
 
     tracing::info!("Generating verification keys for compression layers.");
     generate_compression_vks(config, &mut in_memory_source, &worker);
