@@ -2,13 +2,14 @@ use ethabi::Token;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
 use zksync_test_account::{DeployContractsTx, TxType};
 use zksync_types::{get_nonce_key, U256};
+use zksync_vm_interface::InspectExecutionMode;
 
 use super::TestedLatestVm;
 use crate::{
     interface::{
         storage::WriteStorage,
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
-        TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
+        TxExecutionMode, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
     versions::testonly::{
@@ -80,7 +81,7 @@ fn test_layered_rollback() {
         TxType::L2,
     );
     vm.vm.push_transaction(deploy_tx);
-    let deployment_res = vm.vm.execute(VmExecutionMode::OneTx);
+    let deployment_res = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!deployment_res.result.is_failed(), "transaction failed");
 
     let loadnext_transaction = account.get_loadnext_transaction(
@@ -107,7 +108,8 @@ fn test_layered_rollback() {
         max_recursion_depth: 15,
     }
     .into_tracer_pointer();
-    vm.vm.inspect(&mut tracer.into(), VmExecutionMode::OneTx);
+    vm.vm
+        .inspect(&mut tracer.into(), InspectExecutionMode::OneTx);
 
     let nonce_val2 = vm
         .vm
@@ -134,7 +136,7 @@ fn test_layered_rollback() {
     );
 
     vm.vm.push_transaction(loadnext_transaction);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "transaction must not fail");
 }
 

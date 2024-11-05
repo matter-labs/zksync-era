@@ -6,7 +6,7 @@ use zksync_types::{utils::deployed_address_create, Execute, U256};
 
 use super::TestedLatestVm;
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
+    interface::{InspectExecutionMode, TxExecutionMode, VmInterface, VmInterfaceExt},
     tracers::PrestateTracer,
     versions::testonly::{read_simple_transfer_contract, VmTesterBuilder},
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, ToTracerPointer},
@@ -38,7 +38,7 @@ fn test_prestate_tracer() {
     let prestate_tracer = PrestateTracer::new(false, prestate_tracer_result.clone());
     let tracer_ptr = prestate_tracer.into_tracer_pointer();
     vm.vm
-        .inspect(&mut tracer_ptr.into(), VmExecutionMode::Batch);
+        .inspect(&mut tracer_ptr.into(), InspectExecutionMode::OneTx);
 
     let prestate_result = Arc::try_unwrap(prestate_tracer_result)
         .unwrap()
@@ -61,7 +61,7 @@ fn test_prestate_tracer_diff_mode() {
     let tx = account.get_deploy_tx(&contract, None, TxType::L2).tx;
     let nonce = tx.nonce().unwrap().0.into();
     vm.vm.push_transaction(tx);
-    vm.vm.execute(VmExecutionMode::OneTx);
+    vm.vm.execute(InspectExecutionMode::OneTx);
     let deployed_address = deployed_address_create(account.address, nonce);
     vm.test_contract = Some(deployed_address);
 
@@ -69,7 +69,7 @@ fn test_prestate_tracer_diff_mode() {
     let tx2 = account.get_deploy_tx(&contract, None, TxType::L2).tx;
     let nonce2 = tx2.nonce().unwrap().0.into();
     vm.vm.push_transaction(tx2);
-    vm.vm.execute(VmExecutionMode::OneTx);
+    vm.vm.execute(InspectExecutionMode::OneTx);
     let deployed_address2 = deployed_address_create(account.address, nonce2);
 
     let account = &mut vm.rich_accounts[0];
@@ -98,7 +98,7 @@ fn test_prestate_tracer_diff_mode() {
     let prestate_tracer = PrestateTracer::new(true, prestate_tracer_result.clone());
     let tracer_ptr = prestate_tracer.into_tracer_pointer();
     vm.vm
-        .inspect(&mut tracer_ptr.into(), VmExecutionMode::Bootloader);
+        .inspect(&mut tracer_ptr.into(), InspectExecutionMode::Bootloader);
 
     let prestate_result = Arc::try_unwrap(prestate_tracer_result)
         .unwrap()

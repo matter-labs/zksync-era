@@ -1,14 +1,15 @@
 //! Unit tests from the `testonly` test suite.
 
-use std::collections::HashSet;
+use std::{collections::HashSet, rc::Rc};
 
 use zksync_types::{writes::StateDiffRecord, StorageKey, Transaction, H256, U256};
+use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use super::ShadowedFastVm;
 use crate::{
     interface::{
         utils::{ShadowMut, ShadowRef},
-        CurrentExecutionState, L2BlockEnv, VmExecutionMode, VmExecutionResultAndLogs,
+        CurrentExecutionState, L2BlockEnv, VmExecutionResultAndLogs,
     },
     versions::testonly::TestedVm,
 };
@@ -41,14 +42,25 @@ impl TestedVm for ShadowedFastVm {
         })
     }
 
-    fn execute_with_state_diffs(
+    fn finish_batch_with_state_diffs(
         &mut self,
         diffs: Vec<StateDiffRecord>,
-        mode: VmExecutionMode,
+        pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> VmExecutionResultAndLogs {
-        self.get_custom_mut("execute_with_state_diffs", |r| match r {
-            ShadowMut::Main(vm) => vm.execute_with_state_diffs(diffs.clone(), mode),
-            ShadowMut::Shadow(vm) => vm.execute_with_state_diffs(diffs.clone(), mode),
+        self.get_custom_mut("finish_batch_with_state_diffs", |r| match r {
+            ShadowMut::Main(vm) => {
+                vm.finish_batch_with_state_diffs(diffs.clone(), pubdata_builder.clone())
+            }
+            ShadowMut::Shadow(vm) => {
+                vm.finish_batch_with_state_diffs(diffs.clone(), pubdata_builder.clone())
+            }
+        })
+    }
+
+    fn finish_batch_without_pubdata(&mut self) -> VmExecutionResultAndLogs {
+        self.get_custom_mut("finish_batch_without_pubdata", |r| match r {
+            ShadowMut::Main(vm) => vm.finish_batch_without_pubdata(),
+            ShadowMut::Shadow(vm) => vm.finish_batch_without_pubdata(),
         })
     }
 
@@ -182,6 +194,54 @@ mod default_aa {
     #[test]
     fn default_aa_interaction() {
         test_default_aa_interaction::<super::ShadowedFastVm>();
+    }
+}
+
+mod evm_emulator {
+    use test_casing::{test_casing, Product};
+
+    use crate::versions::testonly::evm_emulator::*;
+
+    #[test]
+    fn tracing_evm_contract_deployment() {
+        test_tracing_evm_contract_deployment::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn mock_emulator_basics() {
+        test_mock_emulator_basics::<super::ShadowedFastVm>();
+    }
+
+    #[test_casing(2, [false, true])]
+    #[test]
+    fn mock_emulator_with_payment(deploy_emulator: bool) {
+        test_mock_emulator_with_payment::<super::ShadowedFastVm>(deploy_emulator);
+    }
+
+    #[test_casing(4, Product(([false, true], [false, true])))]
+    #[test]
+    fn mock_emulator_with_recursion(deploy_emulator: bool, is_external: bool) {
+        test_mock_emulator_with_recursion::<super::ShadowedFastVm>(deploy_emulator, is_external);
+    }
+
+    #[test]
+    fn calling_to_mock_emulator_from_native_contract() {
+        test_calling_to_mock_emulator_from_native_contract::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn mock_emulator_with_deployment() {
+        test_mock_emulator_with_deployment::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn mock_emulator_with_delegate_call() {
+        test_mock_emulator_with_delegate_call::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn mock_emulator_with_static_call() {
+        test_mock_emulator_with_static_call::<super::ShadowedFastVm>();
     }
 }
 

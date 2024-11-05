@@ -16,16 +16,15 @@ zksync_utils.workspace = true
 zksync_types.workspace = true
 zksync_config = { workspace = true, features = ["observability_ext"] }
 zksync_prover_job_monitor.workspace = true
-zksync_protobuf_config.workspace = true
 
 debug-map-sorted.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 chrono.workspace = true
-clap = { workspace = true, features = ["derive"] }
 ctrlc = { workspace = true, features = ["termination"] }
 futures.workspace = true
+humantime-serde.workspace = true
 k8s-openapi = { workspace = true, features = ["v1_30"] }
 kube = { workspace = true, features = ["runtime", "derive"] }
 once_cell.workspace = true
@@ -35,9 +34,10 @@ ring.workspace = true
 rustls = { workspace = true, features = ["ring"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
+serde_yaml.workspace = true
 structopt.workspace = true
 strum.workspace = true
-time.workspace = true
+strum_macros.workspace = true
 tokio = { workspace = true, features = ["time", "macros"] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 tracing.workspace = true

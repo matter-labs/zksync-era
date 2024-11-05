@@ -251,7 +251,7 @@ impl StateKeeperIO for ExternalIO {
             pending_l2_block_header.set_protocol_version(protocol_version);
         }
 
-        let (system_env, l1_batch_env) = self
+        let (system_env, l1_batch_env, pubdata_params) = self
             .l1_batch_params_provider
             .load_l1_batch_params(
                 &mut storage,
@@ -274,7 +274,7 @@ impl StateKeeperIO for ExternalIO {
                     .into_unsealed_header(Some(system_env.version)),
             )
             .await?;
-        let data = load_pending_batch(&mut storage, system_env, l1_batch_env)
+        let data = load_pending_batch(&mut storage, system_env, l1_batch_env, pubdata_params)
             .await
             .with_context(|| {
                 format!(
@@ -362,6 +362,7 @@ impl StateKeeperIO for ExternalIO {
     async fn wait_for_next_tx(
         &mut self,
         max_wait: Duration,
+        _l2_block_timestamp: u64,
     ) -> anyhow::Result<Option<Transaction>> {
         tracing::debug!(
             "Waiting for the new tx, next action is {:?}",
@@ -529,6 +530,7 @@ mod tests {
                 timestamp: 1,
                 virtual_blocks: 1,
             },
+            pubdata_params: Default::default(),
         };
         actions_sender
             .push_action_unchecked(SyncAction::OpenBatch {

@@ -8,6 +8,10 @@ on:
         required: false
         default: '[{ "zksolc": ["1.3.14", "1.3.16", "1.3.17", "1.3.1", "1.3.7", "1.3.18", "1.3.19", "1.3.21"] } , { "zkvyper": ["1.3.13"] }]'
 
+env:
+  RUST_BACKTRACE: 1
+  PASSED_ENV_VARS: RUST_BACKTRACE
+
 jobs:
   lint:
     name: lint
@@ -30,6 +34,7 @@ jobs:
           echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
           echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
           echo "RUSTC_WRAPPER=sccache" >> .env
+          echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
 
       # TODO: Remove when we after upgrade of hardhat-plugins
       - name: pre-download compilers
@@ -69,6 +74,9 @@ jobs:
       - name: Contracts unit tests
         run: ci_run yarn l1-contracts test
 
+      - name: Download compilers for contract verifier tests
+        run: ci_run zkstack contract-verifier init --zksolc-version=v1.5.3 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
+
       - name: Rust unit tests
         run: |
           ci_run zkstack dev test rust
@@ -101,7 +109,7 @@ jobs:
 
       - name: Loadtest configuration
         run: |
-          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'NEW' && 21000 || 16000 }} >> .env
+          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'NEW' && 30000 || 16000 }} >> .env
           echo ACCOUNTS_AMOUNT="100" >> .env
           echo MAX_INFLIGHT_TXS="10" >> .env
           echo SYNC_API_REQUESTS_LIMIT="15" >> .env
@@ -272,8 +280,8 @@ jobs:
           --wallet-creation localhost \
           --l1-batch-commit-data-generator-mode rollup \
           --base-token-address ${{ env.CUSTOM_TOKEN_ADDRESS }} \
-          --base-token-price-nominator 3 \
-          --base-token-price-denominator 2 \
+          --base-token-price-nominator 314 \
+          --base-token-price-denominator 1000 \
           --set-as-default false \
           --ignore-prerequisites
 
@@ -328,8 +336,8 @@ jobs:
           --wallet-creation localhost \
           --l1-batch-commit-data-generator-mode validium \
           --base-token-address ${{ env.CUSTOM_TOKEN_ADDRESS }} \
-          --base-token-price-nominator 3 \
-          --base-token-price-denominator 2 \
+          --base-token-price-nominator 314 \
+          --base-token-price-denominator 1000 \
           --set-as-default false \
           --ignore-prerequisites
 
@@ -356,12 +364,16 @@ jobs:
 
       - name: Run servers
         run: |
+          # Override config for part of chains to test the default config as well
+          ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain era
+          ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain validium
+          
           ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
           ci_run zkstack server --ignore-prerequisites --chain validium &> ${{ env.SERVER_LOGS_DIR }}/validium.log &
           ci_run zkstack server --ignore-prerequisites --chain custom_token &> ${{ env.SERVER_LOGS_DIR }}/custom_token.log &
           ci_run zkstack server --ignore-prerequisites --chain consensus \
-          --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,vm_playground,da_dispatcher,consensus \
-          &> ${{ env.SERVER_LOGS_DIR }}/consensus.log &
+            --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,vm_playground,da_dispatcher,consensus \
+            &> ${{ env.SERVER_LOGS_DIR }}/consensus.log &
 
           ci_run sleep 5
 

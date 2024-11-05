@@ -30,9 +30,11 @@ fn create(
     let tokens = ecosystem_config.get_erc20_tokens();
     let args = args
         .fill_values_with_prompt(
+            shell,
             ecosystem_config.list_of_chains().len() as u32,
             &ecosystem_config.l1_network,
             tokens,
+            &ecosystem_config.link_to_code,
         )
         .context(MSG_ARGS_VALIDATOR_ERR)?;
 
@@ -89,6 +91,7 @@ pub(crate) fn create_chain_inner(
         wallet_creation: args.wallet_creation,
         shell: OnceCell::from(shell.clone()),
         legacy_bridge,
+        evm_emulator: args.evm_emulator,
     };
 
     create_wallets(

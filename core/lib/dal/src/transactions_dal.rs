@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, time::Duration};
+use std::{cmp::min, collections::HashMap, fmt, time::Duration};
 
 use bigdecimal::BigDecimal;
 use itertools::Itertools;
@@ -12,12 +12,13 @@ use zksync_db_connection::{
 use zksync_types::{
     block::L2BlockExecutionData, debug_flat_call::CallTraceMeta, l1::L1Tx, l2::L2Tx,
     protocol_upgrade::ProtocolUpgradeTx, Address, ExecuteTransactionCommon, L1BatchNumber,
-    L1BlockNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction, H256,
-    PROTOCOL_UPGRADE_TX_TYPE, U256,
+    L1BlockNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction,
+    TransactionTimeRangeConstraint, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_utils::u256_to_big_decimal;
 use zksync_vm_interface::{
-    Call, TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus,
+    tracer::ValidationTraces, Call, TransactionExecutionMetrics, TransactionExecutionResult,
+    TxExecutionStatus,
 };
 
 use crate::{
@@ -264,6 +265,7 @@ impl TransactionsDal<'_, '_> {
         &mut self,
         tx: &L2Tx,
         exec_info: TransactionExecutionMetrics,
+        validation_traces: ValidationTraces,
     ) -> DalResult<L2TxSubmissionResult> {
         let tx_hash = tx.hash();
         let is_duplicate = sqlx::query!(
@@ -314,6 +316,16 @@ impl TransactionsDal<'_, '_> {
         let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
         #[allow(deprecated)]
         let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
+        let max_timestamp = NaiveDateTime::MAX.and_utc().timestamp() as u64;
+        #[allow(deprecated)]
+        let timestamp_asserter_range_start =
+            validation_traces.timestamp_asserter_range.clone().map(|x| {
+                NaiveDateTime::from_timestamp_opt(min(x.start, max_timestamp) as i64, 0).unwrap()
+            });
+        #[allow(deprecated)]
+        let timestamp_asserter_range_end = validation_traces.timestamp_asserter_range.map(|x| {
+            NaiveDateTime::from_timestamp_opt(min(x.end, max_timestamp) as i64, 0).unwrap()
+        });
         // Besides just adding or updating(on conflict) the record, we want to extract some info
         // from the query below, to indicate what actually happened:
         // 1) transaction is added
@@ -346,6 +358,8 @@ impl TransactionsDal<'_, '_> {
                 paymaster_input,
                 execution_info,
                 received_at,
+                timestamp_asserter_range_start,
+                timestamp_asserter_range_end,
                 created_at,
                 updated_at
             )
@@ -376,6 +390,8 @@ impl TransactionsDal<'_, '_> {
                     $18::INT
                 ),
                 $19,
+                $20,
+                $21,
                 NOW(),
                 NOW()
             )
@@ -406,6 +422,8 @@ impl TransactionsDal<'_, '_> {
             ),
             in_mempool = FALSE,
             received_at = $19,
+            timestamp_asserter_range_start = $20,
+            timestamp_asserter_range_end = $21,
             created_at = NOW(),
             updated_at = NOW(),
             error = NULL
@@ -441,7 +459,9 @@ impl TransactionsDal<'_, '_> {
             exec_info.gas_used as i64,
             (exec_info.initial_storage_writes + exec_info.repeated_storage_writes) as i32,
             exec_info.contracts_used as i32,
-            received_at
+            received_at,
+            timestamp_asserter_range_start,
+            timestamp_asserter_range_end,
         )
         .instrument("insert_transaction_l2")
         .with_arg("tx_hash", &tx_hash)
@@ -1728,7 +1748,7 @@ impl TransactionsDal<'_, '_> {
         gas_per_pubdata: u32,
         fee_per_gas: u64,
         limit: usize,
-    ) -> DalResult<Vec<Transaction>> {
+    ) -> DalResult<Vec<(Transaction, TransactionTimeRangeConstraint)>> {
         let stashed_addresses: Vec<_> = stashed_accounts.iter().map(Address::as_bytes).collect();
         sqlx::query!(
             r#"
@@ -1819,8 +1839,14 @@ impl TransactionsDal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        let transactions = transactions.into_iter().map(|tx| tx.into()).collect();
-        Ok(transactions)
+        let transactions_with_constraints = transactions
+            .into_iter()
+            .map(|tx| {
+                let constraint = TransactionTimeRangeConstraint::from(&tx);
+                (tx.into(), constraint)
+            })
+            .collect();
+        Ok(transactions_with_constraints)
     }
 
     pub async fn reset_mempool(&mut self) -> DalResult<()> {
@@ -2212,6 +2238,29 @@ impl TransactionsDal<'_, '_> {
         .fetch_optional(self.storage)
         .await
     }
+
+    pub async fn get_storage_tx_by_hash(
+        &mut self,
+        hash: H256,
+    ) -> DalResult<Option<StorageTransaction>> {
+        sqlx::query_as!(
+            StorageTransaction,
+            r#"
+            SELECT
+                *
+            FROM
+                transactions
+            WHERE
+                hash = $1
+            "#,
+            hash.as_bytes()
+        )
+        .map(Into::into)
+        .instrument("get_storage_tx_by_hash")
+        .with_arg("hash", &hash)
+        .fetch_optional(self.storage)
+        .await
+    }
 }
 
 #[cfg(test)]
@@ -2240,7 +2289,11 @@ mod tests {
         let tx = mock_l2_transaction();
         let tx_hash = tx.hash();
         conn.transactions_dal()
-            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         let mut tx_result = mock_execution_result(tx);

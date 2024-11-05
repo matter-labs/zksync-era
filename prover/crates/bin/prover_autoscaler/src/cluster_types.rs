@@ -30,10 +30,18 @@ where
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct ScaleEvent {
+    pub name: String,
+    pub time: DateTime<Utc>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Namespace {
     #[serde(serialize_with = "ordered_map")]
     pub deployments: HashMap<String, Deployment>,
     pub pods: HashMap<String, Pod>,
+    #[serde(default)]
+    pub scale_errors: Vec<ScaleEvent>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -57,4 +65,5 @@ pub enum PodStatus {
     Pending,
     LongPending,
     NeedToMove,
+    Failed,
 }

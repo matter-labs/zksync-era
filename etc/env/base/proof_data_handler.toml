@@ -1,4 +1,5 @@
 [proof_data_handler]
 http_port = 3320
 proof_generation_timeout_in_secs = 18000
+tee_proof_generation_timeout_in_secs = 600
 tee_support = true
