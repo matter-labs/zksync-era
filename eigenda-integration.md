@@ -44,6 +44,8 @@ da_client:
       status_query_interval: 5 # ms
       wait_for_finalization: false
       authenticated: false
+      verify_cert: true
+      path_to_points: ./resources
 ```
 
 2. (optional) for using pubdata with 2MiB (as per specification), modify `etc/env/file_based/general.yaml`:

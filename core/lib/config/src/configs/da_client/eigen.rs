@@ -28,11 +28,13 @@ pub struct DisperserConfig {
     pub eth_confirmation_depth: i32,
     pub eigenda_eth_rpc: String,
     pub eigenda_svc_manager_address: String,
-    pub blob_size_limit: u64,
+    pub blob_size_limit: u32,
     pub status_query_timeout: u64,
     pub status_query_interval: u64,
     pub wait_for_finalization: bool,
     pub authenticated: bool,
+    pub verify_cert: bool,
+    pub path_to_points: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]

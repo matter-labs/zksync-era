@@ -298,6 +298,8 @@ mod tests {
             DA_STATUS_QUERY_INTERVAL=3
             DA_WAIT_FOR_FINALIZATION=true
             DA_AUTHENTICATED=false
+            DA_VERIFY_CERT=false
+            DA_PATH_TO_POINTS="resources"
         "#;
         lock.set_env(config);
 
@@ -315,6 +317,8 @@ mod tests {
                 status_query_interval: 3,
                 wait_for_finalization: true,
                 authenticated: false,
+                verify_cert: false,
+                path_to_points: "resources".to_string(),
             }))
         );
     }

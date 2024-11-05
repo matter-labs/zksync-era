@@ -1,7 +1,9 @@
 mod blob_info;
 mod client;
+mod generated;
 mod memstore;
 mod sdk;
+mod verifier;
 
 use std::sync::Arc;
 

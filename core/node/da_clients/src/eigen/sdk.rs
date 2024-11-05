@@ -11,7 +11,10 @@ use zksync_config::configs::da_client::eigen::DisperserConfig;
 #[cfg(test)]
 use zksync_da_client::types::DAError;
 
-use super::disperser::BlobInfo;
+use super::{
+    disperser::BlobInfo,
+    verifier::{Verifier, VerifierConfig},
+};
 use crate::eigen::{
     blob_info,
     disperser::{
@@ -27,6 +30,7 @@ pub struct RawEigenClient {
     client: DisperserClient<Channel>,
     private_key: SecretKey,
     pub config: DisperserConfig,
+    verifier: Verifier,
 }
 
 pub(crate) const DATA_CHUNK_SIZE: usize = 32;
@@ -41,10 +45,20 @@ impl RawEigenClient {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to connect to Disperser server: {}", e))?;
 
+        let verifier_config = VerifierConfig {
+            verify_certs: true,
+            rpc_url: config.eigenda_eth_rpc.clone(),
+            svc_manager_addr: config.eigenda_svc_manager_address.clone(),
+            max_blob_size: config.blob_size_limit,
+            path_to_points: config.path_to_points.clone(),
+        };
+        let verifier = Verifier::new(verifier_config)
+            .map_err(|e| anyhow::anyhow!(format!("Failed to create verifier {:?}", e)))?;
         Ok(RawEigenClient {
             client,
             private_key,
             config,
+            verifier,
         })
     }
 
@@ -63,20 +77,23 @@ impl RawEigenClient {
             .await_for_inclusion(client_clone, disperse_reply)
             .await?;
 
-        let verification_proof = blob_info
-            .blob_verification_proof
-            .clone()
-            .ok_or_else(|| anyhow::anyhow!("No blob verification proof in response"))?;
+        let blob_info = blob_info::BlobInfo::try_from(blob_info)
+            .map_err(|e| anyhow::anyhow!("Failed to convert blob info: {}", e))?;
+        self.verifier
+            .verify_commitment(blob_info.blob_header.commitment.clone(), data)
+            .map_err(|_| anyhow::anyhow!("Failed to verify commitment"))?;
+        self.verifier
+            .verify_certificate(blob_info.clone())
+            .await
+            .map_err(|_| anyhow::anyhow!("Failed to validate certificate"))?;
+        let verification_proof = blob_info.blob_verification_proof.clone();
         let blob_id = format!(
             "{}:{}",
             verification_proof.batch_id, verification_proof.blob_index
         );
         tracing::info!("Blob dispatch confirmed, blob id: {}", blob_id);
 
-        let blob_id = blob_info::BlobInfo::try_from(blob_info)
-            .map_err(|e| anyhow::anyhow!("Failed to convert blob info: {}", e))?;
-
-        Ok(hex::encode(rlp::encode(&blob_id)))
+        Ok(hex::encode(rlp::encode(&blob_info)))
     }
 
     async fn dispatch_blob_authenticated(&self, data: Vec<u8>) -> anyhow::Result<String> {
@@ -117,19 +134,24 @@ impl RawEigenClient {
             .await_for_inclusion(client_clone, disperse_reply)
             .await?;
 
-        let verification_proof = blob_info
-            .blob_verification_proof
-            .clone()
-            .ok_or_else(|| anyhow::anyhow!("No blob verification proof in response"))?;
+        let blob_info = blob_info::BlobInfo::try_from(blob_info)
+            .map_err(|e| anyhow::anyhow!("Failed to convert blob info: {}", e))?;
+
+        self.verifier
+            .verify_commitment(blob_info.blob_header.commitment.clone(), data)
+            .map_err(|_| anyhow::anyhow!("Failed to verify commitment"))?;
+        self.verifier
+            .verify_certificate(blob_info.clone())
+            .await
+            .map_err(|_| anyhow::anyhow!("Failed to validate certificate"))?;
+
+        let verification_proof = blob_info.blob_verification_proof.clone();
         let blob_id = format!(
             "{}:{}",
             verification_proof.batch_id, verification_proof.blob_index
         );
         tracing::info!("Blob dispatch confirmed, blob id: {}", blob_id);
-
-        let blob_id = blob_info::BlobInfo::try_from(blob_info)
-            .map_err(|e| anyhow::anyhow!("Failed to convert blob info: {}", e))?;
-        Ok(hex::encode(rlp::encode(&blob_id)))
+        Ok(hex::encode(rlp::encode(&blob_info)))
     }
 
     pub async fn dispatch_blob(&self, data: Vec<u8>) -> anyhow::Result<String> {

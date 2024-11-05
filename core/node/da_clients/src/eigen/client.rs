@@ -117,13 +117,15 @@ mod tests {
             custom_quorum_numbers: None,
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
             eth_confirmation_depth: -1,
-            eigenda_eth_rpc: String::default(),
+            eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             blob_size_limit: 2 * 1024 * 1024, // 2MB
             status_query_timeout: 1800000,    // 30 minutes
             status_query_interval: 5,         // 5 ms
             wait_for_finalization: false,
             authenticated: false,
+            verify_cert: true,
+            path_to_points: "../../../resources".to_string(),
         });
         let secrets = EigenSecrets {
             private_key: PrivateKey::from_str(
@@ -154,13 +156,15 @@ mod tests {
             custom_quorum_numbers: None,
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
             eth_confirmation_depth: -1,
-            eigenda_eth_rpc: String::default(),
+            eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             blob_size_limit: 2 * 1024 * 1024, // 2MB
             status_query_timeout: 1800000,    // 30 minutes
             status_query_interval: 5,         // 5 ms
             wait_for_finalization: false,
             authenticated: true,
+            verify_cert: true,
+            path_to_points: "../../../resources".to_string(),
         });
         let secrets = EigenSecrets {
             private_key: PrivateKey::from_str(
@@ -217,20 +221,21 @@ mod tests {
         let retrieved_data = client.get_blob_data(&result.blob_id).await.unwrap();
         assert_eq!(retrieved_data.unwrap(), data);
     }
-
     #[tokio::test]
     async fn test_wait_for_finalization() {
         let config = EigenConfig::Disperser(DisperserConfig {
             custom_quorum_numbers: None,
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
-            eth_confirmation_depth: -1,
-            eigenda_eth_rpc: String::default(),
-            eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             blob_size_limit: 2 * 1024 * 1024, // 2MB
             status_query_timeout: 1800000,    // 30 minutes
             status_query_interval: 5000,      // 5000 ms
             wait_for_finalization: true,
             authenticated: true,
+            verify_cert: true,
+            path_to_points: "../../../resources".to_string(),
+            eth_confirmation_depth: 0,
+            eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
+            eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
         });
         let secrets = EigenSecrets {
             private_key: PrivateKey::from_str(

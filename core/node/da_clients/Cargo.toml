@@ -59,3 +59,9 @@ rlp.workspace = true
 kzgpad-rs = { git = "https://github.com/Layr-Labs/kzgpad-rs.git", tag = "v0.1.0" }
 rand.workspace = true
 sha3.workspace = true
+tiny-keccak.workspace = true
+alloy = { version = "0.3", features = ["full"] }
+ethabi = "16.0.0"
+rust-kzg-bn254 = {git = "https://github.com/lambdaclass/rust-kzg-bn254", branch = "bump-ark"}
+ark-bn254 = "0.5.0-alpha.0"
+num-bigint = "0.4.6"
