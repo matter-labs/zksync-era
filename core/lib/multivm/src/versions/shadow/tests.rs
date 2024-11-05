@@ -197,10 +197,10 @@ mod default_aa {
     }
 }
 
-mod evm_emulator {
+mod mock_evm {
     use test_casing::{test_casing, Product};
 
-    use crate::versions::testonly::evm_emulator::*;
+    use crate::versions::testonly::mock_evm::*;
 
     #[test]
     fn tracing_evm_contract_deployment() {

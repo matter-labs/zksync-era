@@ -1,7 +1,7 @@
 use test_casing::{test_casing, Product};
 
 use crate::{
-    versions::testonly::evm_emulator::{
+    versions::testonly::mock_evm::{
         test_calling_to_mock_emulator_from_native_contract, test_mock_emulator_basics,
         test_mock_emulator_with_delegate_call, test_mock_emulator_with_deployment,
         test_mock_emulator_with_payment, test_mock_emulator_with_recursion,
