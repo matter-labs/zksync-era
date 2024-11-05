@@ -18,16 +18,13 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
 # All necessary stuff
 sudo apt-get update
-sudo apt-get install build-essential pkg-config cmake clang lldb lld libssl-dev postgresql apt-transport-https ca-certificates curl software-properties-common
+sudo apt-get install build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates curl software-properties-common
 # Install docker
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
 sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
 sudo apt install docker-ce
 sudo usermod -aG docker ${USER}
 
-# Stop default postgres (as we'll use the docker one)
-sudo systemctl stop postgresql
-sudo systemctl disable postgresql
 # Start docker.
 sudo systemctl start docker
 
