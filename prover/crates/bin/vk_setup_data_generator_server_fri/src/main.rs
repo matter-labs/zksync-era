@@ -13,6 +13,7 @@ use circuit_definitions::circuit_definitions::aux_layer::{
 use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
 use indicatif::{ProgressBar, ProgressStyle};
+use shivini::cs::gpu_setup_and_vk_from_base_setup_vk_params_and_hints;
 use tracing::level_filters::LevelFilter;
 use zkevm_test_harness::{
     boojum::worker::Worker,
@@ -26,7 +27,7 @@ use zkevm_test_harness::{
         get_wrapper_setup_and_vk_from_scheduler_vk, WrapperConfig,
     },
     prover_utils::light::{
-        create_compression_for_wrapper_setup_data, create_compression_layer_setup_data,
+        create_light_compression_for_wrapper_setup_data, create_light_compression_layer_setup_data,
     },
 };
 use zksync_prover_fri_types::{
@@ -135,12 +136,22 @@ fn generate_compression_vks<DS: SetupDataSource + BlockDataSource>(
             ZkSyncCompressionLayerCircuit::from_witness_and_vk(None, vk, circuit_type);
         let proof_config = compression_circuit.proof_config_for_compression_step();
 
-        let (_, _, vk, _, _, _, finalization_hint) = create_compression_layer_setup_data(
-            compression_circuit,
+        let (setup_base, vk_geometry, vars_hint, witness_hint, finalization_hint) =
+            create_light_compression_layer_setup_data(
+                compression_circuit,
+                &worker,
+                proof_config.fri_lde_factor,
+                proof_config.merkle_tree_cap_size,
+            );
+
+        let (_, vk) = gpu_setup_and_vk_from_base_setup_vk_params_and_hints(
+            setup_base,
+            vk_geometry,
+            vars_hint.clone(),
+            witness_hint,
             &worker,
-            proof_config.fri_lde_factor,
-            proof_config.merkle_tree_cap_size,
-        );
+        )
+        .context("failed creating GPU base layer setup data")?;
 
         source
             .set_compression_vk(ZkSyncCompressionLayerStorage::from_inner(
@@ -172,12 +183,22 @@ fn generate_compression_for_wrapper_vks<DS: SetupDataSource + BlockDataSource>(
 
     let proof_config = circuit.proof_config_for_compression_step();
 
-    let (_, _, vk, _, _, _, finalization_hint) = create_compression_for_wrapper_setup_data(
-        circuit,
-        worker,
-        proof_config.fri_lde_factor,
-        proof_config.merkle_tree_cap_size,
-    );
+    let (setup_base, vk_geometry, vars_hint, witness_hint, finalization_hint) =
+        create_light_compression_for_wrapper_setup_data(
+            circuit,
+            worker,
+            proof_config.fri_lde_factor,
+            proof_config.merkle_tree_cap_size,
+        );
+
+    let (_, vk) = gpu_setup_and_vk_from_base_setup_vk_params_and_hints(
+        setup_base,
+        vk_geometry,
+        vars_hint.clone(),
+        witness_hint,
+        &worker,
+    )
+    .context("failed creating GPU base layer setup data")?;
 
     source
         .set_compression_for_wrapper_vk(ZkSyncCompressionLayerStorage::from_inner(
