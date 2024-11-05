@@ -151,7 +151,7 @@ fn generate_compression_vks<DS: SetupDataSource + BlockDataSource>(
             witness_hint,
             &worker,
         )
-        .context("failed creating GPU base layer setup data")?;
+        .expect("failed creating GPU compression layer setup data");
 
         source
             .set_compression_vk(ZkSyncCompressionLayerStorage::from_inner(
@@ -198,7 +198,7 @@ fn generate_compression_for_wrapper_vks<DS: SetupDataSource + BlockDataSource>(
         witness_hint,
         &worker,
     )
-    .context("failed creating GPU base layer setup data")?;
+    .expect("failed creating GPU compression for wrapper layer setup data");
 
     source
         .set_compression_for_wrapper_vk(ZkSyncCompressionLayerStorage::from_inner(
