@@ -1,7 +1,7 @@
 use std::{str::FromStr, time::Duration};
 
 use secp256k1::{ecdsa::RecoverableSignature, SecretKey};
-use tokio::sync::mpsc;
+use tokio::{sync::mpsc, time::Instant};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::{
     transport::{Channel, ClientTlsConfig, Endpoint},
@@ -221,7 +221,9 @@ impl RawEigenClient {
             request_id: disperse_blob_reply.request_id,
         };
 
-        loop {
+        let start_time = Instant::now();
+        while Instant::now() - start_time < Duration::from_millis(self.config.status_query_timeout)
+        {
             tokio::time::sleep(Duration::from_millis(self.config.status_query_interval)).await;
             let resp = client
                 .get_blob_status(polling_request.clone())
@@ -236,7 +238,15 @@ impl RawEigenClient {
                 disperser::BlobStatus::InsufficientSignatures => {
                     return Err(anyhow::anyhow!("Insufficient signatures"))
                 }
-                disperser::BlobStatus::Confirmed | disperser::BlobStatus::Finalized => {
+                disperser::BlobStatus::Confirmed => {
+                    if !self.config.wait_for_finalization {
+                        let blob_info = resp
+                            .info
+                            .ok_or_else(|| anyhow::anyhow!("No blob header in response"))?;
+                        return Ok(blob_info);
+                    }
+                }
+                disperser::BlobStatus::Finalized => {
                     let blob_info = resp
                         .info
                         .ok_or_else(|| anyhow::anyhow!("No blob header in response"))?;
@@ -246,6 +256,8 @@ impl RawEigenClient {
                 _ => return Err(anyhow::anyhow!("Received unknown blob status")),
             }
         }
+
+        Err(anyhow::anyhow!("Failed to disperse blob (timeout)"))
     }
 
     #[cfg(test)]
