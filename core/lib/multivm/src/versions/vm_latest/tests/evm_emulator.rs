@@ -6,6 +6,7 @@ use crate::{
         test_mock_emulator_with_delegate_call, test_mock_emulator_with_deployment,
         test_mock_emulator_with_payment, test_mock_emulator_with_recursion,
         test_mock_emulator_with_static_call, test_real_emulator_basics,
+        test_real_emulator_block_info, test_real_emulator_code_hash, test_real_emulator_msg_info,
         test_real_emulator_recursion, test_tracing_evm_contract_deployment,
     },
     vm_latest::{HistoryEnabled, Vm},
@@ -24,6 +25,21 @@ fn mock_emulator_basics() {
 #[test]
 fn real_emulator_basics() {
     test_real_emulator_basics::<Vm<_, HistoryEnabled>>();
+}
+
+#[test]
+fn real_emulator_code_hash() {
+    test_real_emulator_code_hash::<Vm<_, HistoryEnabled>>();
+}
+
+#[test]
+fn real_emulator_block_info() {
+    test_real_emulator_block_info::<Vm<_, HistoryEnabled>>();
+}
+
+#[test]
+fn real_emulator_msg_info() {
+    test_real_emulator_msg_info::<Vm<_, HistoryEnabled>>();
 }
 
 #[test]
