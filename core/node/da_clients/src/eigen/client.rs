@@ -41,6 +41,15 @@ impl DataAvailabilityClient for EigenClient {
         _: u32, // batch number
         data: Vec<u8>,
     ) -> Result<DispatchResponse, DAError> {
+        if let Some(blob_size_limit) = self.blob_size_limit() {
+            if data.len() > blob_size_limit {
+                return Err(DAError {
+                    error: anyhow!("Blob size limit exceeded"),
+                    is_retriable: false,
+                });
+            }
+        }
+
         let blob_id = match &self.client {
             Disperser::Remote(remote_disperser) => remote_disperser
                 .dispatch_blob(data)
@@ -76,7 +85,12 @@ impl DataAvailabilityClient for EigenClient {
     }
 
     fn blob_size_limit(&self) -> Option<usize> {
-        Some(1920 * 1024) // 2mb - 128kb as a buffer
+        match self.client.clone() {
+            Disperser::Memory(mem_store) => Some(mem_store.config.max_blob_size_bytes as usize),
+            Disperser::Remote(raw_eigen_client) => {
+                Some(raw_eigen_client.config.blob_size_limit as usize)
+            }
+        }
     }
 }
 
@@ -202,5 +216,31 @@ mod tests {
 
         let retrieved_data = client.get_blob_data(&result.blob_id).await.unwrap();
         assert_eq!(retrieved_data.unwrap(), data);
+    }
+
+    #[tokio::test]
+    async fn test_eigenda_dispatch_blob_too_large() {
+        let config = EigenConfig::MemStore(MemStoreConfig {
+            max_blob_size_bytes: 99,
+            blob_expiration: 60 * 2,
+            get_latency: 0,
+            put_latency: 0,
+        });
+        let secrets = EigenSecrets {
+            private_key: PrivateKey::from_str(
+                "d08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6",
+            )
+            .unwrap(),
+        };
+        let client = EigenClient::new(config, secrets).await.unwrap();
+        let data = vec![1u8; 100];
+        let actual_error = client
+            .dispatch_blob(0, data.clone())
+            .await
+            .err()
+            .unwrap()
+            .error;
+        let expected_error = anyhow!("Blob size limit exceeded");
+        assert_eq!(format!("{}", actual_error), format!("{}", expected_error));
     }
 }

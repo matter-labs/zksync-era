@@ -44,7 +44,7 @@ struct MemStoreData {
 /// It should be used for testing purposes only.
 #[derive(Clone, Debug)]
 pub struct MemStore {
-    config: MemStoreConfig,
+    pub config: MemStoreConfig,
     data: Arc<RwLock<MemStoreData>>,
 }
 

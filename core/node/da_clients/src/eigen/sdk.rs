@@ -26,7 +26,7 @@ use crate::eigen::{
 pub struct RawEigenClient {
     client: DisperserClient<Channel>,
     private_key: SecretKey,
-    config: DisperserConfig,
+    pub config: DisperserConfig,
 }
 
 pub(crate) const DATA_CHUNK_SIZE: usize = 32;
