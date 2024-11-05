@@ -190,20 +190,20 @@ If you see `x86_64` mentioned in the output, probably you're running (or used to
 that's the case, you should probably change the way you run terminal, and/or reinstall your IDE, and then reinstall the
 Rust toolchain as well.
 
-## Postgres
+## PostgreSQL Client Library
 
-Install the latest postgres:
+For development purposes, you typically only need the PostgreSQL client library, not the full server installation. Here's how to install it:
 
 On macOS:
 
 ```bash
-brew install postgresql@14
+brew install libpq
 ```
 
-On Debian-based linux:
+On Debian-based Linux:
 
 ```bash
-sudo apt-get install postgresql
+sudo apt-get install libpq-dev
 ```
 
 ### Cargo nextest
