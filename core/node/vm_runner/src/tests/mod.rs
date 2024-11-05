@@ -20,7 +20,9 @@ use zksync_types::{
     StorageLog, StorageLogKind, StorageValue, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
-use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TransactionExecutionMetrics};
+use zksync_vm_interface::{
+    tracer::ValidationTraces, L1BatchEnv, L2BlockEnv, SystemEnv, TransactionExecutionMetrics,
+};
 
 use super::*;
 
@@ -242,7 +244,11 @@ async fn store_l1_batches(
         let account = accounts.choose_mut(&mut rng).unwrap();
         let tx = create_l2_transaction(account, 1000000, 100);
         conn.transactions_dal()
-            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await?;
         let mut logs = Vec::new();
         let mut written_keys = Vec::new();

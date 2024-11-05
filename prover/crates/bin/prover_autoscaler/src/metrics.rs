@@ -1,5 +1,6 @@
 use vise::{Counter, Gauge, LabeledFamily, Metrics};
-use zksync_config::configs::prover_autoscaler::Gpu;
+
+use crate::config::Gpu;
 
 pub const DEFAULT_ERROR_CODE: u16 = 500;
 

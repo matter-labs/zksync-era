@@ -589,11 +589,10 @@ impl ZkSyncStateKeeper {
                 Self::start_next_l2_block(new_l2_block_params, updates_manager, batch_executor)
                     .await?;
             }
-
             let waiting_latency = KEEPER_METRICS.waiting_for_tx.start();
             let Some(tx) = self
                 .io
-                .wait_for_next_tx(POLL_WAIT_DURATION)
+                .wait_for_next_tx(POLL_WAIT_DURATION, updates_manager.l2_block.timestamp)
                 .instrument(info_span!("wait_for_next_tx"))
                 .await
                 .context("error waiting for next transaction")?

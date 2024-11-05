@@ -2,11 +2,13 @@ use std::{collections::HashMap, ops::Deref};
 
 use anyhow::{Context, Ok};
 use reqwest::Method;
-use zksync_config::configs::prover_autoscaler::QueueReportFields;
 use zksync_prover_job_monitor::autoscaler_queue_reporter::{QueueReport, VersionedQueueReport};
 use zksync_utils::http_with_retries::send_request_with_retries;
 
-use crate::metrics::{AUTOSCALER_METRICS, DEFAULT_ERROR_CODE};
+use crate::{
+    config::QueueReportFields,
+    metrics::{AUTOSCALER_METRICS, DEFAULT_ERROR_CODE},
+};
 
 const MAX_RETRIES: usize = 5;
 

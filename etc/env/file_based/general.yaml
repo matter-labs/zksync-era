@@ -79,11 +79,8 @@ operations_manager:
   delay_interval: 100
 contract_verifier:
   compilation_timeout: 240
-  polling_interval: 1000
   prometheus_port: 3318
   port: 3070
-  url: http://127.0.0.1:3070
-  threads_per_server: 128
 
 circuit_breaker:
   sync_interval_ms: 120000
@@ -376,6 +373,9 @@ da_dispatcher:
 
 external_proof_integration_api:
   http_port: 3073
+
+timestamp_asserter:
+  min_time_till_end_sec: 60
 
 consensus:
   port: 3054
