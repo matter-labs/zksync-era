@@ -192,7 +192,8 @@ Rust toolchain as well.
 
 ## PostgreSQL Client Library
 
-For development purposes, you typically only need the PostgreSQL client library, not the full server installation. Here's how to install it:
+For development purposes, you typically only need the PostgreSQL client library, not the full server installation.
+Here's how to install it:
 
 On macOS:
 
