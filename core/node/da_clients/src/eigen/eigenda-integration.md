@@ -48,6 +48,14 @@ da_client:
       path_to_points: ./resources
 ```
 
+Also set the private key in `etc/env/file_based/secrets.yaml`:
+
+```yaml
+da:
+  eigen:
+    private_key: '<your_private_key>'
+```
+
 2. (optional) for using pubdata with 2MiB (as per specification), modify `etc/env/file_based/general.yaml`:
 
 ```yaml
@@ -66,12 +74,6 @@ cargo install --path zkstack_cli/crates/zkstack --force --locked
 
 ```bash
 zkstack containers --observability true
-```
-
-3. Add EigenDA Dashboard
-
-```bash
-mv era-observability/additional_dashboards/EigenDA.json era-observability/dashboards/EigenDA.json
 ```
 
 3. Create `eigen_da` chain
@@ -126,10 +128,6 @@ following command:
 zkstack dev test --chain eigen_da
 ```
 
-### Metrics
-
-Access Grafana at [http://localhost:3000/](http://localhost:3000/), go to dashboards and select `EigenDA`.
-
 ## Mainnet/Testnet setup
 
 ### Modify localhost chain id number
@@ -140,7 +138,7 @@ Modify line 32 in `zk_toolbox/crates/types/src/l1_network.rs`:
 L1Network::Localhost => 17000,
 ```
 
-Then recompile the zk toolbox:
+Then recompile the zkstack:
 
 ```bash
 cargo install --path zkstack_cli/crates/zkstack --force --locked
@@ -190,41 +188,4 @@ zkstack ecosystem init \
 
 ```bash
 zkstack server --chain holesky_eigen_da
-```
-
-## Backup and restoration
-
-It's possible to run the zk stack on one computer, and then migrate it to another, this is specially useful for holesky
-testing.
-
-### Backup
-
-Suppose that you want to make a backup of `holesky_eigen_da` ecosystem, you only need to run:
-
-```bash
-./backup-ecosystem.sh holesky_eigen_da
-```
-
-This will generate a directory inside of `ecosystem_backups` with the name `holesky_eigen_da`.
-
-### Restoration
-
-1. Move the `ecoystem_backups/holesky_eigen_da` directory to the other computer, it should be placed in the root of the
-   project.
-
-2. Restore the ecosystem with:
-
-```bash
-./restore-ecosystem.sh holesky_eigen_da
-```
-
-Note that:
-
-- The `postgres` container has to be running.
-- The `chain_id` can't be already in use.
-- If you are restoring a local ecosystem, you have to use the same `reth` container as before.
-- If no ecosystem has been `init`ialized on this computer before, run this command:
-
-```bash
-git submodule update --init --recursive && zkstack dev contracts
 ```
