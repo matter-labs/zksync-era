@@ -14,7 +14,6 @@ use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
 use indicatif::{ProgressBar, ProgressStyle};
 use tracing::level_filters::LevelFilter;
-use zkevm_test_harness::prover_utils::create_compression_layer_setup_data;
 use zkevm_test_harness::{
     boojum::worker::Worker,
     compute_setups::{
@@ -26,7 +25,9 @@ use zkevm_test_harness::{
         check_trusted_setup_file_existace, get_vk_for_previous_circuit,
         get_wrapper_setup_and_vk_from_scheduler_vk, WrapperConfig,
     },
-    prover_utils::create_compression_for_wrapper_setup_data,
+    prover_utils::{
+        create_compression_for_wrapper_setup_data, create_compression_layer_setup_data,
+    },
 };
 use zksync_prover_fri_types::{
     circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
@@ -83,21 +84,26 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
     })
     .map_err(|err| anyhow::anyhow!("Failed generating recursive vk's: {err}"))?;
 
+    let config = WrapperConfig::new(5);
+
+    let worker = Worker::new();
+
+    tracing::info!("Generating verification keys for compression layers.");
+    generate_compression_vks(config, &mut in_memory_source, &worker);
+
+    tracing::info!("Generating verification keys for compression for wrapper.");
+
+    generate_compression_for_wrapper_vks(config, &mut in_memory_source, &worker);
+
     tracing::info!("Saving keys & hints");
+
+    keystore.save_keys_from_data_source(&in_memory_source)?;
+
     // Generate snark VK
     let scheduler_vk = in_memory_source
         .get_recursion_layer_vk(ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8)
         .map_err(|err| anyhow::anyhow!("Failed to get scheduler vk: {err}"))?;
     tracing::info!("Generating verification keys for snark wrapper.");
-
-    let config = WrapperConfig::new(5);
-
-    let worker = Worker::new();
-
-    generate_compression_vks(config, &mut in_memory_source, &worker);
-    generate_compression_for_wrapper_vks(config, &mut in_memory_source, &worker);
-
-    keystore.save_keys_from_data_source(&in_memory_source)?;
 
     let (_, vk) = get_wrapper_setup_and_vk_from_scheduler_vk(scheduler_vk, config);
 
