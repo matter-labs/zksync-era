@@ -23,7 +23,6 @@ use crate::{
 
 pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
         .build::<VM>();
@@ -109,7 +108,6 @@ fn execute_proxy_counter<VM: TestedVm>(
     let counter_address = Address::repeat_byte(0x23);
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_custom_contracts(vec![ContractToDeploy::new(
             counter_bytecode,
             counter_address,

@@ -74,7 +74,6 @@ fn run_nonce_test(
 
 pub(crate) fn test_nonce_holder<VM: TestedVm>() {
     let builder = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1);
     let account_address = builder.rich_account(0).address;

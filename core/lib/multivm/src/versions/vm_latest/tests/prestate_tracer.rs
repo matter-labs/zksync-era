@@ -15,7 +15,6 @@ use crate::{
 #[test]
 fn test_prestate_tracer() {
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_rich_accounts(1)
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
@@ -51,7 +50,6 @@ fn test_prestate_tracer() {
 #[test]
 fn test_prestate_tracer_diff_mode() {
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_rich_accounts(1)
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)

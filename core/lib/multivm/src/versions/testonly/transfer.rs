@@ -140,7 +140,6 @@ fn test_reentrancy_protection_send_or_transfer<VM: TestedVm>(test_option: TestOp
     };
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
         .with_custom_contracts(vec![

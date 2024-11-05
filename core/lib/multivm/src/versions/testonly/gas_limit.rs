@@ -10,7 +10,6 @@ use crate::{
 /// Checks that `TX_GAS_LIMIT_OFFSET` constant is correct.
 pub(crate) fn test_tx_gas_limit_offset<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
         .build::<VM>();

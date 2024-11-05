@@ -51,7 +51,6 @@ pub(crate) fn test_l2_block_initialization_timestamp<VM: TestedVm>() {
     // of the current batch.
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
         .build::<VM>();
@@ -88,7 +87,6 @@ pub(crate) fn test_l2_block_initialization_number_non_zero<VM: TestedVm>() {
     };
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_l1_batch_env(l1_batch)
         .with_rich_accounts(1)
@@ -120,7 +118,6 @@ fn test_same_l2_block<VM: TestedVm>(
     let mut l1_batch = default_l1_batch(L1BatchNumber(1));
     l1_batch.timestamp = 1;
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_l1_batch_env(l1_batch)
         .with_rich_accounts(1)
@@ -193,7 +190,6 @@ fn test_new_l2_block<VM: TestedVm>(
     l1_batch.first_l2_block = first_l2_block;
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_l1_batch_env(l1_batch)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
@@ -292,7 +288,6 @@ fn test_first_in_batch<VM: TestedVm>(
     l1_batch.timestamp = new_batch_timestamp;
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_l1_batch_env(l1_batch)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
