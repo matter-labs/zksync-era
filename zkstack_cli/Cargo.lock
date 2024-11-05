@@ -1088,7 +1088,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b42b6fa04a440b495c8b04d0e71b707c585f83cb9cb28cf8cd0d976c315e31b4"
 dependencies = [
  "powerfmt",
- "serde",
 ]
 
 [[package]]
@@ -6799,11 +6798,6 @@ dependencies = [
  "rand",
  "secrecy",
  "serde",
- "strum",
- "strum_macros",
- "time",
- "url",
- "vise",
  "zksync_basic_types",
  "zksync_concurrency",
  "zksync_consensus_utils",
@@ -6953,7 +6947,6 @@ dependencies = [
  "secrecy",
  "serde_json",
  "serde_yaml",
- "time",
  "tracing",
  "zksync_basic_types",
  "zksync_config",
