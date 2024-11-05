@@ -10,12 +10,12 @@ use zksync_da_client::{
     DataAvailabilityClient,
 };
 
-use super::{blob_info::BlobInfo, sdk::RawEigenClient};
+use super::{blob_info::BlobInfo, memstore::MemStore, sdk::RawEigenClient, Disperser};
 use crate::utils::to_non_retriable_da_error;
 
 #[derive(Debug, Clone)]
 pub struct EigenClient {
-    client: Arc<RawEigenClient>,
+    client: Disperser,
 }
 
 impl EigenClient {
@@ -23,24 +23,14 @@ impl EigenClient {
         let private_key = SecretKey::from_str(secrets.private_key.0.expose_secret().as_str())
             .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;
 
-        match config {
+        let disperser: Disperser = match config.clone() {
             EigenConfig::Disperser(config) => {
-                // TODO: add complete config
-                let client = RawEigenClient::new(
-                    config.disperser_rpc,
-                    config.status_query_interval,
-                    private_key,
-                    config.authenticated,
-                )
-                .await?;
-                Ok(EigenClient {
-                    client: Arc::new(client),
-                })
+                let client = RawEigenClient::new(private_key, config).await?;
+                Disperser::Remote(Arc::new(client))
             }
-            EigenConfig::MemStore(_) => {
-                todo!()
-            }
-        }
+            EigenConfig::MemStore(config) => Disperser::Memory(MemStore::new(config)),
+        };
+        Ok(Self { client: disperser })
     }
 }
 
@@ -51,11 +41,17 @@ impl DataAvailabilityClient for EigenClient {
         _: u32, // batch number
         data: Vec<u8>,
     ) -> Result<DispatchResponse, DAError> {
-        let blob_id = self
-            .client
-            .dispatch_blob(data)
-            .await
-            .map_err(to_non_retriable_da_error)?;
+        let blob_id = match &self.client {
+            Disperser::Remote(remote_disperser) => remote_disperser
+                .dispatch_blob(data)
+                .await
+                .map_err(to_non_retriable_da_error)?,
+            Disperser::Memory(memstore) => memstore
+                .clone()
+                .put_blob(data)
+                .await
+                .map_err(to_non_retriable_da_error)?,
+        };
 
         Ok(DispatchResponse::from(blob_id))
     }
@@ -87,16 +83,15 @@ impl DataAvailabilityClient for EigenClient {
 #[cfg(test)]
 impl EigenClient {
     pub async fn get_blob_data(&self, blob_id: &str) -> anyhow::Result<Option<Vec<u8>>, DAError> {
-        self.client.get_blob_data(blob_id).await
-        /*match &self.disperser {
+        match &self.client {
             Disperser::Remote(remote_client) => remote_client.get_blob_data(blob_id).await,
             Disperser::Memory(memstore) => memstore.clone().get_blob_data(blob_id).await,
-        }*/
+        }
     }
 }
 #[cfg(test)]
 mod tests {
-    use zksync_config::configs::da_client::eigen::DisperserConfig;
+    use zksync_config::configs::da_client::eigen::{DisperserConfig, MemStoreConfig};
     use zksync_types::secrets::PrivateKey;
 
     use super::*;
@@ -172,6 +167,39 @@ mod tests {
             .unwrap()
             .data;
         assert_eq!(expected_inclusion_data, actual_inclusion_data);
+        let retrieved_data = client.get_blob_data(&result.blob_id).await.unwrap();
+        assert_eq!(retrieved_data.unwrap(), data);
+    }
+
+    #[tokio::test]
+    async fn test_eigenda_memory_disperser() {
+        let config = EigenConfig::MemStore(MemStoreConfig {
+            max_blob_size_bytes: 2 * 1024 * 1024, // 2MB,
+            blob_expiration: 60 * 2,
+            get_latency: 0,
+            put_latency: 0,
+        });
+        let secrets = EigenSecrets {
+            private_key: PrivateKey::from_str(
+                "d08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6",
+            )
+            .unwrap(),
+        };
+        let client = EigenClient::new(config, secrets).await.unwrap();
+        let data = vec![1u8; 100];
+        let result = client.dispatch_blob(0, data.clone()).await.unwrap();
+
+        let blob_info: BlobInfo =
+            rlp::decode(&hex::decode(result.blob_id.clone()).unwrap()).unwrap();
+        let expected_inclusion_data = blob_info.blob_verification_proof.inclusion_proof;
+        let actual_inclusion_data = client
+            .get_inclusion_data(&result.blob_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .data;
+        assert_eq!(expected_inclusion_data, actual_inclusion_data);
+
         let retrieved_data = client.get_blob_data(&result.blob_id).await.unwrap();
         assert_eq!(retrieved_data.unwrap(), data);
     }
