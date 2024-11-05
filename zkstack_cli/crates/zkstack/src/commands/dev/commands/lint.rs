@@ -96,18 +96,20 @@ fn lint_rs(shell: &Shell, ecosystem: &EcosystemConfig, check: bool) -> anyhow::R
     Ok(())
 }
 
-fn check_rust_toolchain(_shell: &Shell) -> anyhow::Result<()> {
-    // read rust-toolchain.toml
-    let mut file = File::open("rust-toolchain")?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)?;
-    let zksync_era_toolchain: toml::Value = toml::from_str(&contents)?;
+fn check_rust_toolchain(shell: &Shell) -> anyhow::Result<()> {
+    // deserialize /zkstack_cli/rust-toolchain as TOML
+    let path = Path::new("zkstack_cli/rust-toolchain");
+    if !path.exists() {
+        logger::info("WARNING: Please run this command from the project's root folder");
+        return Ok(());
+    }
+    let contents = shell.read_file(path)?;
+    let zkstack_cli_toolchain: toml::Value = toml::from_str(&contents)?;
 
-    // deserialize rust-toolchain.toml in zkstack_cli as TOML
-    let mut file = File::open("zkstack_cli/rust-toolchain")?;
-    let mut zkstack_contents = String::new();
-    file.read_to_string(&mut zkstack_contents)?;
-    let zkstack_cli_toolchain: toml::Value = toml::from_str(&zkstack_contents)?;
+    // deserialize /rust-toolchain as TOML
+    let path = Path::new("rust-toolchain");
+    let contents = shell.read_file(path)?;
+    let zksync_era_toolchain: toml::Value = toml::from_str(&contents)?;
 
     // check if the toolchains are the same
     if zksync_era_toolchain["toolchain"]["channel"] != zkstack_cli_toolchain["toolchain"]["channel"]
