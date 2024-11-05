@@ -1,68 +1,100 @@
-use std::{collections::HashMap, fs::File, io::Write, path::PathBuf, process::Stdio};
+use std::{collections::HashMap, fs::File, io::Write, path::Path, process::Stdio};
 
-use crate::error::ContractVerifierError;
+use anyhow::Context as _;
+use zksync_queued_job_processor::async_trait;
+use zksync_types::contract_verification_api::CompilationArtifacts;
+
+use crate::{
+    error::ContractVerifierError,
+    resolver::{Compiler, CompilerPaths},
+};
 
 #[derive(Debug)]
-pub struct ZkVyperInput {
+pub(crate) struct ZkVyperInput {
+    pub contract_name: String,
     pub sources: HashMap<String, String>,
     pub optimizer_mode: Option<String>,
 }
 
-pub struct ZkVyper {
-    zkvyper_path: PathBuf,
-    vyper_path: PathBuf,
+#[derive(Debug)]
+pub(crate) struct ZkVyper {
+    paths: CompilerPaths,
 }
 
 impl ZkVyper {
-    pub fn new(zkvyper_path: impl Into<PathBuf>, vyper_path: impl Into<PathBuf>) -> Self {
-        ZkVyper {
-            zkvyper_path: zkvyper_path.into(),
-            vyper_path: vyper_path.into(),
-        }
+    pub fn new(paths: CompilerPaths) -> Self {
+        Self { paths }
     }
 
-    pub async fn async_compile(
-        &self,
+    fn parse_output(
+        output: &serde_json::Value,
+        contract_name: String,
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        let file_name = format!("{contract_name}.vy");
+        let object = output
+            .as_object()
+            .context("Vyper output is not an object")?;
+        for (path, artifact) in object {
+            let path = Path::new(&path);
+            if path.file_name().unwrap().to_str().unwrap() == file_name {
+                let bytecode_str = artifact["bytecode"]
+                    .as_str()
+                    .context("bytecode is not a string")?;
+                let bytecode_without_prefix =
+                    bytecode_str.strip_prefix("0x").unwrap_or(bytecode_str);
+                let bytecode =
+                    hex::decode(bytecode_without_prefix).context("failed decoding bytecode")?;
+                return Ok(CompilationArtifacts {
+                    abi: artifact["abi"].clone(),
+                    bytecode,
+                });
+            }
+        }
+        Err(ContractVerifierError::MissingContract(contract_name))
+    }
+}
+
+#[async_trait]
+impl Compiler<ZkVyperInput> for ZkVyper {
+    async fn compile(
+        self: Box<Self>,
         input: ZkVyperInput,
-    ) -> Result<serde_json::Value, ContractVerifierError> {
-        let mut command = tokio::process::Command::new(&self.zkvyper_path);
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        let mut command = tokio::process::Command::new(&self.paths.zk);
         if let Some(o) = input.optimizer_mode.as_ref() {
             command.arg("-O").arg(o);
         }
         command
             .arg("--vyper")
-            .arg(self.vyper_path.to_str().unwrap())
+            .arg(&self.paths.base)
             .arg("-f")
             .arg("combined_json")
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        let temp_dir = tempfile::tempdir().map_err(|_err| ContractVerifierError::InternalError)?;
+        let temp_dir = tempfile::tempdir().context("failed creating temporary dir")?;
         for (mut name, content) in input.sources {
             if !name.ends_with(".vy") {
                 name += ".vy";
             }
-            let path = temp_dir.path().join(name);
+            let path = temp_dir.path().join(&name);
             if let Some(prefix) = path.parent() {
                 std::fs::create_dir_all(prefix)
-                    .map_err(|_err| ContractVerifierError::InternalError)?;
+                    .with_context(|| format!("failed creating parent dir for `{name}`"))?;
             }
-            let mut file =
-                File::create(&path).map_err(|_err| ContractVerifierError::InternalError)?;
+            let mut file = File::create(&path)
+                .with_context(|| format!("failed creating file for `{name}`"))?;
             file.write_all(content.as_bytes())
-                .map_err(|_err| ContractVerifierError::InternalError)?;
+                .with_context(|| format!("failed writing to `{name}`"))?;
             command.arg(path.into_os_string());
         }
 
-        let child = command
-            .spawn()
-            .map_err(|_err| ContractVerifierError::InternalError)?;
-        let output = child
-            .wait_with_output()
-            .await
-            .map_err(|_err| ContractVerifierError::InternalError)?;
+        let child = command.spawn().context("cannot spawn zkvyper")?;
+        let output = child.wait_with_output().await.context("zkvyper failed")?;
         if output.status.success() {
-            Ok(serde_json::from_slice(&output.stdout).expect("Compiler output must be valid JSON"))
+            let output = serde_json::from_slice(&output.stdout)
+                .context("zkvyper output is not valid JSON")?;
+            Self::parse_output(&output, input.contract_name)
         } else {
             Err(ContractVerifierError::CompilerError(
                 "zkvyper".to_string(),

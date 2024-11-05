@@ -115,6 +115,7 @@ pub struct InternalApiConfig {
     pub filters_disabled: bool,
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
+    pub timestamp_asserter_address: Option<Address>,
 }
 
 impl InternalApiConfig {
@@ -168,6 +169,7 @@ impl InternalApiConfig {
             filters_disabled: web3_config.filters_disabled,
             dummy_verifier: genesis_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
+            timestamp_asserter_address: contracts_config.l2_timestamp_asserter_addr,
         }
     }
 }
