@@ -41,6 +41,7 @@ pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
             Target::Ts,
             Target::Contracts,
             Target::Autocompletion,
+            Target::RustToolchain,
         ]
     } else {
         args.targets.clone()
@@ -55,6 +56,7 @@ pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
             Target::Rs => lint_rs(shell, &ecosystem, args.check)?,
             Target::Contracts => lint_contracts(shell, &ecosystem, args.check)?,
             Target::Autocompletion => lint_autocompletion_files(shell, args.check)?,
+            Target::RustToolchain => check_rust_toolchain(shell)?,
             ext => lint(shell, &ecosystem, &ext, args.check)?,
         }
     }
@@ -76,12 +78,45 @@ fn lint_rs(shell: &Shell, ecosystem: &EcosystemConfig, check: bool) -> anyhow::R
     for path in paths {
         let _dir_guard = shell.push_dir(path);
         let mut cmd = cmd!(shell, "cargo clippy");
-        let common_args = &["--locked", "--", "-D", "warnings"];
+        let common_args = &[
+            "--locked",
+            "--",
+            "-D",
+            "warnings",
+            "-D",
+            "unstable-features",
+        ];
         if !check {
             cmd = cmd.args(&["--fix", "--allow-dirty"]);
         }
         cmd = cmd.args(common_args);
         Cmd::new(cmd).with_force_run().run()?;
+    }
+
+    Ok(())
+}
+
+fn check_rust_toolchain(_shell: &Shell) -> anyhow::Result<()> {
+    // read rust-toolchain.toml
+    let mut file = File::open("rust-toolchain")?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+    let zksync_era_toolchain: toml::Value = toml::from_str(&contents)?;
+
+    // deserialize rust-toolchain.toml in zkstack_cli as TOML
+    let mut file = File::open("zkstack_cli/rust-toolchain")?;
+    let mut zkstack_contents = String::new();
+    file.read_to_string(&mut zkstack_contents)?;
+    let zkstack_cli_toolchain: toml::Value = toml::from_str(&zkstack_contents)?;
+
+    // check if the toolchains are the same
+    if zksync_era_toolchain["toolchain"]["channel"] != zkstack_cli_toolchain["toolchain"]["channel"]
+    {
+        bail!(
+            "The Rust toolchains are not the same: ZKsync Era: {} - ZK Stack CLI: {}",
+            zksync_era_toolchain["toolchain"]["channel"],
+            zkstack_cli_toolchain["toolchain"]["channel"]
+        );
     }
 
     Ok(())
@@ -96,6 +131,7 @@ fn get_linter(target: &Target) -> Vec<String> {
         Target::Ts => vec!["eslint".to_string(), "--ext".to_string(), "ts".to_string()],
         Target::Contracts => vec![],
         Target::Autocompletion => vec![],
+        Target::RustToolchain => vec![],
     }
 }
 
