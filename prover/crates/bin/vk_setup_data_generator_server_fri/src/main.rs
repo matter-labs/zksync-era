@@ -7,12 +7,14 @@ use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Context as _;
 use circuit_definitions::circuit_definitions::aux_layer::{
-    ZkSyncCompressionForWrapperCircuit, ZkSyncCompressionLayerStorage,
+    ZkSyncCompressionForWrapperCircuit, ZkSyncCompressionLayerCircuit,
+    ZkSyncCompressionLayerStorage,
 };
 use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
 use indicatif::{ProgressBar, ProgressStyle};
 use tracing::level_filters::LevelFilter;
+use zkevm_test_harness::prover_utils::create_compression_layer_setup_data;
 use zkevm_test_harness::{
     boojum::worker::Worker,
     compute_setups::{
@@ -117,36 +119,36 @@ fn generate_compression_vks<DS: SetupDataSource + BlockDataSource>(
     source: &mut DS,
     worker: &Worker,
 ) {
-    let compression_for_wrapper_type = config.get_compression_for_wrapper_type();
-    let vk = get_vk_for_previous_circuit(source, compression_for_wrapper_type).unwrap();
+    for circuit_type in config.get_compression_types() {
+        let vk = get_vk_for_previous_circuit(source, circuit_type).expect(&format!(
+            "VK of previous circuit should be present. Current circuit type: {}",
+            circuit_type
+        ));
 
-    let circuit = ZkSyncCompressionForWrapperCircuit::from_witness_and_vk(
-        None,
-        vk,
-        compression_for_wrapper_type,
-    );
+        let compression_circuit =
+            ZkSyncCompressionLayerCircuit::from_witness_and_vk(None, vk, circuit_type);
+        let proof_config = compression_circuit.proof_config_for_compression_step();
 
-    let proof_config = circuit.proof_config_for_compression_step();
+        let (_, _, vk, _, _, _, finalization_hint) = create_compression_layer_setup_data(
+            compression_circuit,
+            &worker,
+            proof_config.fri_lde_factor,
+            proof_config.merkle_tree_cap_size,
+        );
 
-    let (_, _, vk, _, _, _, finalization_hint) = create_compression_for_wrapper_setup_data(
-        circuit,
-        worker,
-        proof_config.fri_lde_factor,
-        proof_config.merkle_tree_cap_size,
-    );
-
-    source
-        .set_compression_for_wrapper_vk(ZkSyncCompressionLayerStorage::from_inner(
-            compression_for_wrapper_type,
-            vk.clone(),
-        ))
-        .unwrap();
-    source
-        .set_compression_for_wrapper_hint(ZkSyncCompressionLayerStorage::from_inner(
-            compression_for_wrapper_type,
-            finalization_hint.clone(),
-        ))
-        .unwrap();
+        source
+            .set_compression_vk(ZkSyncCompressionLayerStorage::from_inner(
+                circuit_type,
+                vk.clone(),
+            ))
+            .unwrap();
+        source
+            .set_compression_hint(ZkSyncCompressionLayerStorage::from_inner(
+                circuit_type,
+                finalization_hint.clone(),
+            ))
+            .unwrap();
+    }
 }
 fn generate_compression_for_wrapper_vks<DS: SetupDataSource + BlockDataSource>(
     config: WrapperConfig,
