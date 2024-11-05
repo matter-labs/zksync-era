@@ -4,14 +4,12 @@ use chrono::Utc;
 use debug_map_sorted::SortedOutputExt;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use zksync_config::configs::prover_autoscaler::{
-    Gpu, ProverAutoscalerScalerConfig, QueueReportFields, ScalerTarget,
-};
 
 use super::{queuer, watcher};
 use crate::{
     agent::{ScaleDeploymentRequest, ScaleRequest},
     cluster_types::{Cluster, Clusters, Pod, PodStatus},
+    config::{Gpu, ProverAutoscalerScalerConfig, QueueReportFields, ScalerTarget},
     metrics::AUTOSCALER_METRICS,
     task_wiring::Task,
 };
@@ -128,7 +126,7 @@ impl Scaler {
             simple_scalers.push(SimpleScaler::new(
                 c,
                 config.cluster_priorities.clone(),
-                chrono::Duration::seconds(config.long_pending_duration.whole_seconds()),
+                chrono::Duration::seconds(config.long_pending_duration.as_secs() as i64),
             ))
         }
         Self {
@@ -150,7 +148,7 @@ impl GpuScaler {
             max_provers: config.max_provers,
             prover_speed: config.prover_speed,
             long_pending_duration: chrono::Duration::seconds(
-                config.long_pending_duration.whole_seconds(),
+                config.long_pending_duration.as_secs() as i64,
             ),
         }
     }

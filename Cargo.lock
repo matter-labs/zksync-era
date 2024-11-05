@@ -10632,12 +10632,7 @@ dependencies = [
  "secrecy",
  "serde",
  "serde_json",
- "strum",
- "strum_macros",
- "time",
  "tracing",
- "url",
- "vise",
  "zksync_basic_types",
  "zksync_concurrency",
  "zksync_consensus_utils",
@@ -11167,7 +11162,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "25.0.0"
+version = "25.1.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -11897,7 +11892,6 @@ dependencies = [
  "secrecy",
  "serde_json",
  "serde_yaml",
- "time",
  "tracing",
  "zksync_basic_types",
  "zksync_config",
