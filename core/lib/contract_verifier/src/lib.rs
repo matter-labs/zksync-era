@@ -88,7 +88,7 @@ impl ContractVerifier {
         Ok(this)
     }
 
-    /// Synchronizes compiler versions.
+    /// Synchronizes compiler version.
     #[tracing::instrument(level = "debug", skip_all)]
     async fn sync_compiler_versions(&self) -> anyhow::Result<()> {
         let supported_versions = self
