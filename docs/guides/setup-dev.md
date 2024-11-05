@@ -14,11 +14,14 @@ git config --global url."https://".insteadOf git://
 
 # Rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
 # NVM
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+
 # All necessary stuff
 sudo apt-get update
-sudo apt-get install build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates curl software-properties-common
+sudo apt-get install -y build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates curl software-properties-common
+
 # Install docker
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
 sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
@@ -61,20 +64,20 @@ Don't forget to look at [tips](#tips).
 
 ## Supported operating systems
 
-ZKsync currently can be launched on any \*nix operating system (e.g. any linux distribution or MacOS).
+ZKsync currently can be launched on any \*nix operating system (e.g. any linux distribution or macOS).
 
 If you're using Windows, then make sure to use WSL 2.
 
 Additionally, if you are going to use WSL 2, make sure that your project is located in the _linux filesystem_, since
 accessing NTFS partitions from within WSL is very slow.
 
-If you're using MacOS with an ARM processor (e.g. M1/M2), make sure that you are working in the _native_ environment
+If you're using macOS with an ARM processor (e.g. M1/M2), make sure that you are working in the _native_ environment
 (e.g., your terminal and IDE don't run in Rosetta, and your toolchain is native). Trying to work with ZKsync code via
 Rosetta may cause problems that are hard to spot and debug, so make sure to check everything before you start.
 
 If you are a NixOS user or would like to have a reproducible environment, skip to the section about `nix`.
 
-## `Docker`
+## Docker
 
 Install `docker`. It is recommended to follow the instructions from the
 [official site](https://docs.docker.com/install/).
@@ -114,13 +117,13 @@ at this step.
 
 If logging out does not resolve the issue, restarting the computer should.
 
-## `Node` & `Yarn`
+## Node.js & Yarn
 
 1. Install `Node` (requires version `v20`). The recommended way is via [nvm](https://github.com/nvm-sh/nvm).
 2. Install `yarn`. Can be done via `npm install -g yarn`. Make sure to get version 1.22.19 - you can change the version
    by running `yarn set version 1.22.19`.
 
-## `clang`
+## clang
 
 In order to compile RocksDB, you must have LLVM available. On debian-based linux it can be installed as follows:
 
@@ -130,12 +133,12 @@ On debian-based linux:
 sudo apt-get install build-essential pkg-config cmake clang lldb lld
 ```
 
-On mac:
+On macOS:
 
 You need to have an up-to-date `Xcode`. You can install it directly from `App Store`. With Xcode command line tools, you
 get the Clang compiler installed by default. Thus, having XCode you don't need to install `clang`.
 
-## `OpenSSL`
+## OpenSSL
 
 Install OpenSSL:
 
@@ -151,7 +154,7 @@ On debian-based linux:
 sudo apt-get install libssl-dev
 ```
 
-## `Rust`
+## Rust
 
 Install `Rust`'s toolchain version reported in `/rust-toolchain.toml` (also a later stable version should work).
 
@@ -164,7 +167,7 @@ rustc --version
 rustc 1.xx.y (xxxxxx 20xx-yy-zz) # Output may vary depending on actual version of rust
 ```
 
-If you are using MacOS with ARM processor (e.g. M1/M2), make sure that you use an `aarch64` toolchain. For example, when
+If you are using macOS with ARM processor (e.g. M1/M2), make sure that you use an `aarch64` toolchain. For example, when
 you run `rustup show`, you should see a similar input:
 
 ```bash
