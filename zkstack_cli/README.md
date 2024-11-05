@@ -214,13 +214,13 @@ For `witness-generator`, specify the round with `--round <round>`. Rounds:
 Download required binaries (`solc`, `zksolc`, `vyper`, `zkvyper`):
 
 ```bash
-zkstack contract-verifier init
+zkstack chain contract-verifier init
 ```
 
 Run the contract verifier:
 
 ```bash
-zkstack contract-verifier run
+zkstack chain contract-verifier run
 ```
 
 ### External Node
