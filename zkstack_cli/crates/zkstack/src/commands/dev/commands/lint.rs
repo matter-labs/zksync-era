@@ -94,7 +94,7 @@ fn lint_rs(shell: &Shell, ecosystem: &EcosystemConfig, check: bool) -> anyhow::R
     Ok(())
 }
 
-fn check_rust_toolchain(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::Result<()> {
+fn check_rust_toolchain(shell: &Shell) -> anyhow::Result<()> {
     // deserialize /zkstack_cli/rust-toolchain as TOML
     let path = Path::new("zkstack_cli/rust-toolchain");
     if !path.exists() {
