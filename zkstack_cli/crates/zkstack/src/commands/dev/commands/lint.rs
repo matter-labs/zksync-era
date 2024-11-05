@@ -72,20 +72,18 @@ fn lint_rs(shell: &Shell, ecosystem: &EcosystemConfig, check: bool) -> anyhow::R
     let link_to_code = &ecosystem.link_to_code;
     let lint_to_prover = &ecosystem.link_to_code.join("prover");
     let link_to_zkstack = &ecosystem.link_to_code.join("zkstack_cli");
-    let paths = vec![link_to_code, lint_to_prover, link_to_zkstack];
 
     spinner.freeze();
-    for path in paths {
+    for path in [link_to_code, lint_to_prover, link_to_zkstack] {
         let _dir_guard = shell.push_dir(path);
         let mut cmd = cmd!(shell, "cargo clippy");
-        let common_args = &[
-            "--locked",
-            "--",
-            "-D",
-            "warnings",
-            "-D",
-            "unstable-features",
-        ];
+        let mut common_args = vec!["--locked", "--", "-D", "warnings"];
+
+        if path.ends_with("zkstack_cli") {
+            common_args.push("-D");
+            common_args.push("unstable-features");
+        }
+
         if !check {
             cmd = cmd.args(&["--fix", "--allow-dirty"]);
         }
@@ -96,7 +94,7 @@ fn lint_rs(shell: &Shell, ecosystem: &EcosystemConfig, check: bool) -> anyhow::R
     Ok(())
 }
 
-fn check_rust_toolchain(shell: &Shell) -> anyhow::Result<()> {
+fn check_rust_toolchain(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::Result<()> {
     // deserialize /zkstack_cli/rust-toolchain as TOML
     let path = Path::new("zkstack_cli/rust-toolchain");
     if !path.exists() {
