@@ -58,4 +58,47 @@ contract EvmEmulationTest {
             return (_depth <= 1) ? 1 : recurse(_depth - 1, _useFarCalls) * _depth;
         }
     }
+
+    ICounter counter;
+
+    function testDeploymentAndCall(bytes32 _expectedCodeHash) external validEvmCall {
+        counter = new Counter(1);
+        require(address(counter) != address(0), "address(0)");
+        require(address(counter) != address(this), "address");
+        require(address(counter).codehash == _expectedCodeHash, "code hash");
+        require(address(counter).code.length != 0, "code");
+
+        require(counter.get() == 1, "counter.get()");
+        counter.increment(2);
+        require(counter.get() == 3, "counter.get() after");
+    }
+
+    function testCounterCall(uint _expectedInitialValue) external validEvmCall {
+        require(address(counter) != address(0), "counter not deployed");
+
+        require(counter.get() == _expectedInitialValue, "counter.get()");
+        counter.increment(3);
+        require(counter.get() == _expectedInitialValue + 3, "counter.get() after");
+    }
+}
+
+interface ICounter {
+    function increment(uint256 _increment) external;
+    function get() external view returns (uint256);
+}
+
+contract Counter is ICounter {
+    uint value;
+
+    constructor(uint _initialValue) {
+        value = _initialValue;
+    }
+
+    function increment(uint256 _increment) external override {
+        value += _increment;
+    }
+
+    function get() external view override returns (uint256) {
+        return value;
+    }
 }

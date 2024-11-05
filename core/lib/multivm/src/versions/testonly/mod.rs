@@ -70,6 +70,10 @@ pub(crate) fn read_test_contract() -> Vec<u8> {
     read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json")
 }
 
+fn load_test_contract_abi() -> Contract {
+    load_contract("etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json")
+}
+
 fn get_complex_upgrade_abi() -> Contract {
     load_contract(
         "etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json"
