@@ -4,6 +4,8 @@ pragma solidity ^0.8.0;
 
 /// Tests for real EVM emulation (as opposed to mock EVM emulation from `../mock-evm`).
 contract EvmEmulationTest {
+    event SimpleEvent();
+
     modifier validEvmCall() {
         require(address(this).code.length > 0, "contract code length");
         require(gasleft() < (1 << 30), "too much gas");
@@ -44,6 +46,133 @@ contract EvmEmulationTest {
         require(msg.value == 1 ether, "msg.value");
         require(tx.gasprice == 250000000 wei, "tx.gasprice");
         require(tx.origin == msg.sender, "tx.origin");
+    }
+
+    /// Only expensive opcodes are checked to eliminate noise.
+    function testGasManagement(uint _gasLimit) external validEvmCall returns(bytes32 dummyHash) {
+        uint initialGas = gasleft();
+        require(initialGas > 0, "initial gas == 0");
+        require(initialGas <= _gasLimit, "initial gas");
+
+        // Balance, self-balance
+        initialGas = gasleft();
+        uint value = address(0x11111111).balance;
+        uint gasCost = initialGas - gasleft();
+        _requireGasCost(gasCost, 2600, "cold balance");
+        dummyHash = keccak256(abi.encode(dummyHash, value));
+
+        initialGas = gasleft();
+        value = address(0x11111111).balance;
+        gasCost = initialGas - gasleft();
+        _requireGasCost(gasCost, 100, "warm balance");
+        dummyHash = keccak256(abi.encode(dummyHash, value));
+
+        initialGas = gasleft();
+        value = address(this).balance;
+        gasCost = initialGas - gasleft();
+        _requireGasCost(gasCost, 5, "self balance");
+        dummyHash = keccak256(abi.encode(dummyHash, value));
+
+        // code hash, code size
+        initialGas = gasleft();
+        value = address(0x11111112).code.length;
+        gasCost = initialGas - gasleft();
+        _requireGasCost(gasCost, 2600, "cold code size");
+        dummyHash = keccak256(abi.encode(dummyHash, value));
+
+        initialGas = gasleft();
+        value = address(0x11111112).code.length;
+        gasCost = initialGas - gasleft();
+        _requireGasCost(gasCost, 100, "warm code size");
+        dummyHash = keccak256(abi.encode(dummyHash, value));
+
+        initialGas = gasleft();
+        bytes32 hash = address(0x11111113).codehash;
+        gasCost = initialGas - gasleft();
+        _requireGasCost(gasCost, 2600, "cold code hash");
+        dummyHash = keccak256(abi.encode(dummyHash, hash));
+
+        initialGas = gasleft();
+        hash = address(0x11111113).codehash;
+        gasCost = initialGas - gasleft();
+        _requireGasCost(gasCost, 100, "warm code hash");
+        dummyHash = keccak256(abi.encode(dummyHash, hash));
+
+        // Storage load
+        initialGas = gasleft();
+        assembly {
+            value := sload(0x123456)
+        }
+        gasCost = initialGas - gasleft();
+        _requireGasCost(gasCost, 2100, "cold sload");
+        dummyHash = keccak256(abi.encode(dummyHash, value));
+
+        initialGas = gasleft();
+        assembly {
+            value := sload(0x123456)
+        }
+        gasCost = initialGas - gasleft();
+        _requireGasCost(gasCost, 100, "warm sload");
+        dummyHash = keccak256(abi.encode(dummyHash, value));
+
+        // Storage store
+        initialGas = gasleft();
+        assembly {
+            sstore(0x654321, 1)
+        }
+        gasCost = initialGas - gasleft();
+        _requireGasCost(gasCost, 2100 /* cold */ + 20000 /* 0 -> non-zero */, "cold sstore");
+
+        initialGas = gasleft();
+        assembly {
+            sstore(0x654321, 2)
+        }
+        gasCost = initialGas - gasleft();
+        _requireGasCost(gasCost, 100 /* dirty slot */, "non-zero warm sstore");
+
+        initialGas = gasleft();
+        assembly {
+            sstore(0x1234, 0)
+        }
+        gasCost = initialGas - gasleft();
+        _requireGasCost(gasCost, 2100 /* cold */ + 100 /* 0 -> 0 */, "cold no-op sstore");
+
+        // Transient load / store
+        initialGas = gasleft();
+        assembly {
+            value := tload(0x1234)
+        }
+        gasCost = initialGas - gasleft();
+        _requireGasCost(gasCost, 100, "tload");
+        dummyHash = keccak256(abi.encode(dummyHash, value));
+
+        initialGas = gasleft();
+        assembly {
+            tstore(0x1234, 1)
+        }
+        gasCost = initialGas - gasleft();
+        _requireGasCost(gasCost, 100, "tstore");
+
+        // Events
+        initialGas = gasleft();
+        emit SimpleEvent();
+        gasCost = initialGas - gasleft();
+        _requireGasCost(gasCost, 375 + 375 * 1 /* topic count */ + 10 /* additional PUSH* cost? */, "event");
+
+        // keccak256
+        bytes memory data = bytes("test string.............................................................");
+        initialGas = gasleft();
+        hash = keccak256(data);
+        gasCost = initialGas - gasleft();
+        _requireGasCost(gasCost, 30 + 6 * (data.length + 31) / 32 + 10 /* additional PUSH* cost? */, "keccak256");
+        dummyHash = keccak256(abi.encode(dummyHash, value));
+    }
+
+    uint private constant GAS_TOLERANCE = 20;
+
+    function _requireGasCost(uint _actualCost, uint _expectedCost, string memory op) internal pure {
+        require(_actualCost >= _expectedCost, string.concat(op, " cost too low"));
+        require(_actualCost <= _expectedCost + GAS_TOLERANCE, string.concat(op, " cost too high"));
     }
 
     function testRecursion(bool _useFarCalls) external validEvmCall {

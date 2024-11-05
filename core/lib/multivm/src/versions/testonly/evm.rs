@@ -264,6 +264,27 @@ pub(crate) fn test_real_emulator_msg_info<VM: TestedVm>() {
     assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
 }
 
+pub(crate) fn test_real_emulator_gas_management<VM: TestedVm>() {
+    let mut vm = prepare_tester_with_real_emulator().0.build::<VM>();
+    let account = &mut vm.rich_accounts[0];
+    let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
+
+    let test_fn = evm_abi.function("testGasManagement").unwrap();
+    let fee = Account::default_fee();
+    let execute = Execute {
+        contract_address: Some(EVM_ADDRESS),
+        calldata: test_fn.encode_input(&[Token::Uint(fee.gas_limit)]).unwrap(),
+        value: 0.into(),
+        factory_deps: vec![],
+    };
+
+    let tx = account.get_l2_tx_for_execute(execute, Some(fee));
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(tx, true);
+    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+}
+
 pub(crate) fn test_real_emulator_recursion<VM: TestedVm>() {
     let mut vm = prepare_tester_with_real_emulator().0.build::<VM>();
     let account = &mut vm.rich_accounts[0];
