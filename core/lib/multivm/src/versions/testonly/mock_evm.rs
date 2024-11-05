@@ -7,9 +7,9 @@ use zksync_system_constants::{
 };
 use zksync_test_account::TxType;
 use zksync_types::{
-    get_code_key, get_known_code_key,
+    get_code_key, get_evm_code_hash_key, get_known_code_key,
     utils::{key_for_eth_balance, storage_key_for_eth_balance},
-    AccountTreeId, Address, Execute, StorageKey, H256, U256,
+    web3, AccountTreeId, Address, Execute, StorageKey, H256, U256,
 };
 use zksync_utils::{
     bytecode::{hash_bytecode, hash_evm_bytecode},
@@ -84,12 +84,14 @@ impl EvmTestBuilder {
         if self.deploy_emulator {
             let evm_bytecode: Vec<_> = (0..32).collect();
             let evm_bytecode_hash = hash_evm_bytecode(&evm_bytecode);
+            let keccak_bytecode_hash = H256(web3::keccak256(&evm_bytecode));
             storage.set_value(
                 get_known_code_key(&evm_bytecode_hash),
                 H256::from_low_u64_be(1),
             );
             for evm_address in self.evm_contract_addresses {
                 storage.set_value(get_code_key(&evm_address), evm_bytecode_hash);
+                storage.set_value(get_evm_code_hash_key(&evm_address), keccak_bytecode_hash);
             }
 
             system_env.base_system_smart_contracts.evm_emulator = Some(SystemContractCode {
