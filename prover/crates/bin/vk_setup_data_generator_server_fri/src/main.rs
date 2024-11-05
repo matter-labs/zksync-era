@@ -25,7 +25,7 @@ use zkevm_test_harness::{
         check_trusted_setup_file_existace, get_vk_for_previous_circuit,
         get_wrapper_setup_and_vk_from_scheduler_vk, WrapperConfig,
     },
-    prover_utils::{
+    prover_utils::light::{
         create_compression_for_wrapper_setup_data, create_compression_layer_setup_data,
     },
 };
