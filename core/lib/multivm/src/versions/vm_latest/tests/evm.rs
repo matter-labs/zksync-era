@@ -1,9 +1,9 @@
 use crate::{
     versions::testonly::evm::{
-        test_calling_era_contract_from_evm, test_era_vm_deployment_after_evm_deployment,
-        test_era_vm_deployment_after_evm_execution, test_real_emulator_basics,
-        test_real_emulator_block_info, test_real_emulator_code_hash, test_real_emulator_deployment,
-        test_real_emulator_msg_info, test_real_emulator_recursion,
+        test_calling_era_contract_from_evm, test_deployment_with_partial_reverts,
+        test_era_vm_deployment_after_evm_deployment, test_era_vm_deployment_after_evm_execution,
+        test_real_emulator_basics, test_real_emulator_block_info, test_real_emulator_code_hash,
+        test_real_emulator_deployment, test_real_emulator_msg_info, test_real_emulator_recursion,
     },
     vm_latest::{HistoryEnabled, Vm},
 };
@@ -37,6 +37,11 @@ fn real_emulator_recursion() {
 #[test]
 fn real_emulator_deployment() {
     test_real_emulator_deployment::<Vm<_, HistoryEnabled>>();
+}
+
+#[test]
+fn deployment_with_partial_reverts() {
+    test_deployment_with_partial_reverts::<Vm<_, HistoryEnabled>>();
 }
 
 #[ignore] // FIXME: doesn't deploy the EraVM contract (doesn't store address -> code hash mapping)

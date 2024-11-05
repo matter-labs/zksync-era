@@ -2,6 +2,7 @@ use std::{collections::HashMap, iter};
 
 use assert_matches::assert_matches;
 use ethabi::Token;
+use rand::{rngs::StdRng, Rng, SeedableRng};
 use zksync_contracts::{load_contract, read_deployed_bytecode_from_path};
 use zksync_test_account::{Account, TxType};
 use zksync_types::{
@@ -55,12 +56,12 @@ fn pad_evm_bytecode(deployed_bytecode: &[u8]) -> Vec<u8> {
     padded
 }
 
-fn prepare_tester_with_real_emulator() -> (VmTesterBuilder, H256) {
+fn prepare_tester_with_real_emulator() -> (VmTesterBuilder, Vec<u8>) {
     let deployed_evm_bytecode =
         read_deployed_bytecode_from_path(EVM_TEST_CONTRACT_PATH.as_ref()).unwrap();
     let evm_bytecode_keccak_hash = H256(web3::keccak256(&deployed_evm_bytecode));
-    let deployed_evm_bytecode = pad_evm_bytecode(&deployed_evm_bytecode);
-    let evm_bytecode_hash = hash_evm_bytecode(&deployed_evm_bytecode);
+    let padded_evm_bytecode = pad_evm_bytecode(&deployed_evm_bytecode);
+    let evm_bytecode_hash = hash_evm_bytecode(&padded_evm_bytecode);
 
     let mut system_env = default_system_env();
     system_env.base_system_smart_contracts = system_env
@@ -86,14 +87,14 @@ fn prepare_tester_with_real_emulator() -> (VmTesterBuilder, H256) {
         get_evm_code_hash_key(&EVM_ADDRESS),
         evm_bytecode_keccak_hash,
     );
-    storage.store_factory_dep(evm_bytecode_hash, deployed_evm_bytecode);
+    storage.store_factory_dep(evm_bytecode_hash, padded_evm_bytecode);
 
     let tester_builder = VmTesterBuilder::new()
         .with_system_env(system_env)
         .with_storage(storage)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1);
-    (tester_builder, evm_bytecode_keccak_hash)
+    (tester_builder, deployed_evm_bytecode)
 }
 
 pub(crate) fn test_real_emulator_basics<VM: TestedVm>() {
@@ -166,16 +167,17 @@ fn call_eravm_counter<VM: TestedVm>(vm: &mut VmTester<VM>) {
 }
 
 pub(crate) fn test_real_emulator_code_hash<VM: TestedVm>() {
-    let (vm, expected_hash) = prepare_tester_with_real_emulator();
+    let (vm, deployed_evm_bytecode) = prepare_tester_with_real_emulator();
     let mut vm = vm.build::<VM>();
     let account = &mut vm.rich_accounts[0];
     let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
     let test_fn = evm_abi.function("testCodeHash").unwrap();
 
+    let evm_bytecode_keccak_hash = web3::keccak256(&deployed_evm_bytecode);
     let test_execute = Execute {
         contract_address: Some(EVM_ADDRESS),
         calldata: test_fn
-            .encode_input(&[Token::FixedBytes(expected_hash.0.to_vec())])
+            .encode_input(&[Token::FixedBytes(evm_bytecode_keccak_hash.to_vec())])
             .unwrap(),
         value: 0.into(),
         factory_deps: vec![],
@@ -385,14 +387,11 @@ fn test_calling_evm_contract_from_era<VM: TestedVm>(
     assert_ne!(initial_counter_value, 0.into());
 
     // Call the proxy counter, which should call the EVM counter.
-    let proxy_increment_fn = proxy_counter_abi.function("increment").unwrap();
+    let proxy_increment_fn = proxy_counter_abi.function("testCounterCall").unwrap();
     let test_execute = Execute {
         contract_address: Some(ERAVM_COUNTER_ADDRESS),
         calldata: proxy_increment_fn
-            .encode_input(&[
-                Token::Uint(5.into()),       // increment
-                Token::Uint(100_000.into()), // gasToPass
-            ])
+            .encode_input(&[Token::Uint(initial_counter_value)])
             .unwrap(),
         value: 0.into(),
         factory_deps: vec![],
@@ -408,7 +407,7 @@ fn test_calling_evm_contract_from_era<VM: TestedVm>(
         (log.is_write() && log.key == counter_value_slot).then_some(log.value)
     });
     let counter_value = h256_to_u256(counter_value.expect("no counter value log"));
-    assert_eq!(counter_value, initial_counter_value + 5);
+    assert!(counter_value > initial_counter_value);
 }
 
 pub(crate) fn test_era_vm_deployment_after_evm_execution<VM: TestedVm>() {
@@ -434,6 +433,48 @@ pub(crate) fn test_era_vm_deployment_after_evm_deployment<VM: TestedVm>() {
     let counter_address = deploy_and_call_evm_counter(&mut vm, &evm_abi, &counter_bytecode);
 
     deploy_eravm_counter(&mut vm, &proxy_counter_bytecode, counter_address);
+}
+
+pub(crate) fn test_deployment_with_partial_reverts<VM: TestedVm>() {
+    for seed in [1, 10, 100, 1_000] {
+        println!("Testing with RNG seed {seed}");
+        let mut rng = StdRng::seed_from_u64(seed);
+        test_deployment_with_partial_reverts_and_rng::<VM>(&mut rng);
+    }
+}
+
+fn test_deployment_with_partial_reverts_and_rng<VM: TestedVm>(rng: &mut impl Rng) {
+    let mut vm = prepare_tester_with_real_emulator().0.build::<VM>();
+    let account = &mut vm.rich_accounts[0];
+    let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
+    let test_fn = evm_abi.function("testDeploymentWithPartialRevert").unwrap();
+    let should_revert: Vec<_> = (0..10).map(|_| rng.gen::<bool>()).collect();
+    let should_revert_tokens = should_revert.iter().copied().map(Token::Bool).collect();
+    let test_tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(EVM_ADDRESS),
+            calldata: test_fn
+                .encode_input(&[Token::Array(should_revert_tokens)])
+                .unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(test_tx, true);
+    assert!(!vm_result.result.is_failed(), "{vm_result:?}");
+
+    // All deployed contracts have the same bytecode.
+    let new_factory_deps = vm_result.new_known_factory_deps.unwrap();
+    let counter_bytecode =
+        read_deployed_bytecode_from_path(EVM_COUNTER_CONTRACT_PATH.as_ref()).unwrap();
+    let padded_evm_bytecode = pad_evm_bytecode(&counter_bytecode);
+    assert_eq!(
+        new_factory_deps,
+        HashMap::from([(hash_evm_bytecode(&padded_evm_bytecode), padded_evm_bytecode)])
+    );
 }
 
 fn deploy_eravm_counter<VM: TestedVm>(

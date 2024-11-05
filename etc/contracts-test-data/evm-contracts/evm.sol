@@ -79,11 +79,50 @@ contract EvmEmulationTest {
         require(counter.get() == _expectedInitialValue, "counter.get()");
         counter.increment(3);
         require(counter.get() == _expectedInitialValue + 3, "counter.get() after");
+
+        // Test catching reverts from EVM and EraVM contracts.
+        try counter.incrementWithRevert(4, true) returns (uint) {
+            revert("expected revert");
+        } catch Error(string memory reason) {
+            require(keccak256(bytes(reason)) == keccak256("This method always reverts"), "unexpected error");
+        }
+        require(counter.get() == _expectedInitialValue + 3, "counter.get() after revert");
+    }
+
+    function testDeploymentWithPartialRevert(
+        bool[] calldata _shouldRevert
+    ) external validEvmCall {
+        for (uint i = 0; i < _shouldRevert.length; i++) {
+            try this.deployThenRevert(
+                bytes32(i),
+                _shouldRevert[i]
+            ) returns(address newAddress) {
+                require(!_shouldRevert[i], "unexpected deploy success");
+                require(newAddress.code.length > 0, "contract code length");
+                require(newAddress.codehash != bytes32(0), "contract code hash");
+            } catch Error(string memory reason) {
+                require(_shouldRevert[i], "unexpected revert");
+                require(keccak256(bytes(reason)) == keccak256("requested revert"), "unexpected error");
+            }
+        }
+    }
+
+    function deployThenRevert(
+        bytes32 _salt,
+        bool _shouldRevert
+    ) external validEvmCall returns (address newAddress) {
+        newAddress = address(new Counter{salt: _salt}(0));
+        require(newAddress.code.length > 0, "code length");
+        require(newAddress.codehash != bytes32(0), "code hash");
+
+        require(!_shouldRevert, "requested revert");
     }
 }
 
+/// Counter interface shared with an EraVM counter.
 interface ICounter {
     function increment(uint256 _increment) external;
+    function incrementWithRevert(uint256 _increment, bool _shouldRevert) external returns (uint256);
     function get() external view returns (uint256);
 }
 
@@ -96,6 +135,12 @@ contract Counter is ICounter {
 
     function increment(uint256 _increment) external override {
         value += _increment;
+    }
+
+    function incrementWithRevert(uint256 _increment, bool _shouldRevert) external override returns (uint256) {
+        value += _increment;
+        require(!_shouldRevert, "This method always reverts");
+        return value;
     }
 
     function get() external view override returns (uint256) {
