@@ -8,13 +8,15 @@ use std::{collections::HashMap, path::PathBuf};
 use anyhow::Context as _;
 use circuit_definitions::circuit_definitions::aux_layer::{
     ZkSyncCompressionForWrapperCircuit, ZkSyncCompressionLayerCircuit,
-    ZkSyncCompressionLayerStorage,
+    ZkSyncCompressionLayerStorage, ZkSyncSnarkWrapperSetup, ZkSyncSnarkWrapperVK,
 };
+use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerVerificationKey;
 use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
 use indicatif::{ProgressBar, ProgressStyle};
 use shivini::{cs::gpu_setup_and_vk_from_base_setup_vk_params_and_hints, ProverContext};
 use tracing::level_filters::LevelFilter;
+use zkevm_test_harness::proof_wrapper_utils::get_wrapper_setup_and_vk_from_compression_vk;
 use zkevm_test_harness::{
     boojum::worker::Worker,
     compute_setups::{
@@ -23,8 +25,7 @@ use zkevm_test_harness::{
     },
     data_source::{in_memory_data_source::InMemoryDataSource, BlockDataSource, SetupDataSource},
     proof_wrapper_utils::{
-        check_trusted_setup_file_existace, get_vk_for_previous_circuit,
-        get_wrapper_setup_and_vk_from_scheduler_vk, WrapperConfig,
+        check_trusted_setup_file_existace, get_vk_for_previous_circuit, WrapperConfig,
     },
     prover_utils::light::{
         create_light_compression_for_wrapper_setup_data, create_light_compression_layer_setup_data,
@@ -110,7 +111,8 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
         .map_err(|err| anyhow::anyhow!("Failed to get scheduler vk: {err}"))?;
     tracing::info!("Generating verification keys for snark wrapper.");
 
-    let (_, vk) = get_wrapper_setup_and_vk_from_scheduler_vk(scheduler_vk, config);
+    let (_, vk) =
+        get_wrapper_setup_and_vk_from_scheduler_vk(&mut in_memory_source, scheduler_vk, config);
 
     keystore
         .save_snark_verification_key(vk)
@@ -216,6 +218,27 @@ fn generate_compression_for_wrapper_vks<DS: SetupDataSource + BlockDataSource>(
             finalization_hint.clone(),
         ))
         .unwrap();
+}
+
+/// Computes wrapper vk from scheduler vk
+/// We store all vks in the RAM
+pub fn get_wrapper_setup_and_vk_from_scheduler_vk<DS: SetupDataSource + BlockDataSource>(
+    source: &mut DS,
+    vk: ZkSyncRecursionLayerVerificationKey,
+    config: WrapperConfig,
+) -> (ZkSyncSnarkWrapperSetup, ZkSyncSnarkWrapperVK) {
+    // Check trusted setup file for later
+    check_trusted_setup_file_existace();
+
+    // Check circuit type correctness
+    assert_eq!(
+        vk.numeric_circuit_type(),
+        ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8
+    );
+
+    let wrapper_type = config.get_wrapper_type();
+    let wrapper_vk = source.get_compression_for_wrapper_vk(wrapper_type).unwrap();
+    get_wrapper_setup_and_vk_from_compression_vk(wrapper_vk, config)
 }
 
 #[derive(Debug, Parser)]
