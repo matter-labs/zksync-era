@@ -592,13 +592,13 @@ impl Keystore {
         // Compression wrapper
         let vk = source
             .get_compression_for_wrapper_vk(5)
-            .map_err(|err| anyhow::anyhow!("No vk exist for circuit type: {circuit}: {err}"))?;
+            .map_err(|err| anyhow::anyhow!("No vk exist for circuit type: 5: {err}"))?;
 
         self.save_compression_for_wrapper_vk(vk)
             .context("save_compression_wrapper_vk()")?;
 
         let hint = source.get_compression_for_wrapper_hint(5).map_err(|err| {
-            anyhow::anyhow!("No finalization hint exist for circuit type: {circuit}: {err}")
+            anyhow::anyhow!("No finalization hint exist for circuit type: 5: {err}")
         })?;
 
         self.save_finalization_hints(
