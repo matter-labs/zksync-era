@@ -183,7 +183,7 @@ fn lint_autocompletion_files(_shell: &Shell, check: bool) -> anyhow::Result<()> 
                 let mut autocomplete_file = File::create(path).context("Failed to create file")?;
                 autocomplete_file.write_all(new.as_bytes())?;
             } else {
-                bail!("Autocompletion files need to be regenerated. Run `zkstack dev lint -t autocompletion` to fix this issue.")
+                bail!("Autocompletion files need to be regenerated. To fix this issue, follow these steps: 1) Build an updated ZK Stack CLI using `zkstackup --local`, 2) Run `zkstack dev lint -t autocompletion` to generate the updated files, and 3) Commit the newly generated files.")
             }
         }
     }
