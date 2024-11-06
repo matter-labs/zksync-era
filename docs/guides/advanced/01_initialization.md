@@ -31,7 +31,9 @@ VM.
 
 #### Ecosystem
 
-Then, running `zkstack ecosystem init`:.
+The next step is to run the command `zkstack ecosystem init`.
+
+This command:
 
 - Collects and finalize the ecosystem configuration.
 - Builds and deploys L1 & L2 contracts.
