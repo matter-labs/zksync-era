@@ -220,6 +220,74 @@ async fn submitting_request_with_invalid_compiler_type(bytecode_kind: BytecodeMa
     assert_eq!(error_message, expected_message);
 }
 
+#[test_casing(2, [BytecodeMarker::EraVm, BytecodeMarker::Evm])]
+#[tokio::test]
+async fn submitting_request_with_unsupported_solc(bytecode_kind: BytecodeMarker) {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    prepare_storage(&mut storage).await;
+
+    let address = Address::repeat_byte(0x23);
+    mock_deploy_contract(&mut storage, address, bytecode_kind).await;
+
+    let verification_request = serde_json::json!({
+        "contractAddress": address,
+        "sourceCode": "contract Test {}",
+        "contractName": "Test",
+        "compilerZksolcVersion": match bytecode_kind {
+            BytecodeMarker::Evm => None,
+            BytecodeMarker::EraVm => Some(ZKSOLC_VERSION),
+        },
+        "compilerSolcVersion": "1.0.0",
+        "optimizationUsed": true,
+    });
+    let router = RestApi::new(pool.clone(), pool).into_router();
+    let response = router
+        .oneshot(post_request(&verification_request))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let error_message = response.collect().await.unwrap().to_bytes();
+    let error_message = str::from_utf8(&error_message).unwrap();
+    assert_eq!(
+        error_message,
+        ApiError::UnsupportedCompilerVersions.message()
+    );
+}
+
+#[tokio::test]
+async fn submitting_request_with_unsupported_zksolc() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    prepare_storage(&mut storage).await;
+
+    let address = Address::repeat_byte(0x23);
+    mock_deploy_contract(&mut storage, address, BytecodeMarker::EraVm).await;
+
+    let verification_request = serde_json::json!({
+        "contractAddress": address,
+        "sourceCode": "contract Test {}",
+        "contractName": "Test",
+        "compilerZksolcVersion": "1000.0.0",
+        "compilerSolcVersion": SOLC_VERSION,
+        "optimizationUsed": true,
+    });
+    let router = RestApi::new(pool.clone(), pool).into_router();
+    let response = router
+        .oneshot(post_request(&verification_request))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let error_message = response.collect().await.unwrap().to_bytes();
+    let error_message = str::from_utf8(&error_message).unwrap();
+    assert_eq!(
+        error_message,
+        ApiError::UnsupportedCompilerVersions.message()
+    );
+}
+
 #[tokio::test]
 async fn querying_missing_request() {
     let pool = ConnectionPool::test_pool().await;
