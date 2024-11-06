@@ -621,6 +621,31 @@ pub(crate) fn test_far_calls_from_evm_contract<VM: TestedVm>() {
     // call_far_call_test(&mut vm, &evm_abi, ERAVM_ADDRESS, EVM_ADDRESS);
 }
 
+fn call_far_call_test<VM: TestedVm>(
+    vm: &mut VmTester<VM>,
+    evm_abi: &ethabi::Contract,
+    tester: Address,
+    target: Address,
+) {
+    let test_fn = evm_abi.function("testFarCalls").unwrap();
+    let is_evm_target = target == EVM_ADDRESS;
+    let test_tx = vm.rich_accounts[0].get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(tester),
+            calldata: test_fn
+                .encode_input(&[Token::Address(target), Token::Bool(is_evm_target)])
+                .unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(test_tx, true);
+    GasError::assert_success(&vm_result.result);
+}
+
 #[derive(Debug)]
 #[allow(dead_code)] // fields are output in panic messages via `Debug`
 enum GasError {
@@ -654,42 +679,21 @@ impl GasError {
             _ => panic!("unexpected tokens"),
         }
     }
-}
 
-fn call_far_call_test<VM: TestedVm>(
-    vm: &mut VmTester<VM>,
-    evm_abi: &ethabi::Contract,
-    tester: Address,
-    target: Address,
-) {
-    let test_fn = evm_abi.function("testFarCalls").unwrap();
-    let is_evm_target = target == EVM_ADDRESS;
-    let test_tx = vm.rich_accounts[0].get_l2_tx_for_execute(
-        Execute {
-            contract_address: Some(tester),
-            calldata: test_fn
-                .encode_input(&[Token::Address(target), Token::Bool(is_evm_target)])
-                .unwrap(),
-            value: 0.into(),
-            factory_deps: vec![],
-        },
-        None,
-    );
-    let (_, vm_result) = vm
-        .vm
-        .execute_transaction_with_bytecode_compression(test_tx, true);
-
-    match &vm_result.result {
-        ExecutionResult::Success { .. } => { /* OK */ }
-        ExecutionResult::Revert {
-            output: VmRevertReason::Unknown { data, .. },
-        } => {
-            if let Some(err) = GasError::parse(data) {
-                panic!("{err:?}");
+    fn assert_success(result: &ExecutionResult) {
+        match result {
+            ExecutionResult::Success { .. } => { /* OK */ }
+            ExecutionResult::Revert {
+                output: VmRevertReason::Unknown { data, .. },
+            } => {
+                if let Some(err) = Self::parse(data) {
+                    panic!("{err:?}");
+                }
+                panic!("unexpected result: {result:?}");
             }
-        }
-        ExecutionResult::Revert { .. } | ExecutionResult::Halt { .. } => {
-            panic!("unexpected result")
+            ExecutionResult::Revert { .. } | ExecutionResult::Halt { .. } => {
+                panic!("unexpected result: {result:?}");
+            }
         }
     }
 }
