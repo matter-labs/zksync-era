@@ -17,6 +17,7 @@ use crate::{
 #[derive(Debug)]
 pub struct ConsistencyCheckerLayer {
     l1_diamond_proxy_addr: Address,
+    gateway_diamond_proxy_addr: Option<Address>,
     max_batches_to_recheck: u32,
     commitment_mode: L1BatchCommitmentMode,
 }
@@ -41,11 +42,13 @@ pub struct Output {
 impl ConsistencyCheckerLayer {
     pub fn new(
         l1_diamond_proxy_addr: Address,
+        gateway_diamond_proxy_addr: Option<Address>,
         max_batches_to_recheck: u32,
         commitment_mode: L1BatchCommitmentMode,
     ) -> ConsistencyCheckerLayer {
         Self {
             l1_diamond_proxy_addr,
+            gateway_diamond_proxy_addr,
             max_batches_to_recheck,
             commitment_mode,
         }
@@ -68,7 +71,7 @@ impl WiringLayer for ConsistencyCheckerLayer {
 
         let singleton_pool = input.master_pool.get_singleton().await?;
 
-        let consistency_checker = ConsistencyChecker::new(
+        let mut consistency_checker = ConsistencyChecker::new(
             l1_client,
             gateway_client,
             self.max_batches_to_recheck,
@@ -77,7 +80,10 @@ impl WiringLayer for ConsistencyCheckerLayer {
         )
         .await
         .map_err(WiringError::Internal)?
-        .with_l1_diamond_proxy_addr(self.l1_diamond_proxy_addr); // TODO add gateway diamond proxy
+        .with_l1_diamond_proxy_addr(self.l1_diamond_proxy_addr);
+        if let Some(addr) = self.gateway_diamond_proxy_addr {
+            consistency_checker = consistency_checker.with_gateway_diamond_proxy_addr(addr);
+        }
 
         input
             .app_health

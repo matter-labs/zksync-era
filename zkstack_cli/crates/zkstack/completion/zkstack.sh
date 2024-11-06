@@ -5300,7 +5300,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__external__node__configs)
-            opts="-u -v -h --db-url --db-name --l1-rpc-url --use-default --verbose --chain --ignore-prerequisites --help"
+            opts="-u -v -h --db-url --db-name --l1-rpc-url --gateway-rpc-url --use-default --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5315,6 +5315,10 @@ _zkstack() {
                     return 0
                     ;;
                 --l1-rpc-url)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --gateway-rpc-url)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;

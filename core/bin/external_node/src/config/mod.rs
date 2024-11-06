@@ -460,14 +460,19 @@ pub(crate) struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_pruning_data_retention_sec")]
     pruning_data_retention_sec: u64,
     /// Gateway RPC URL, needed for operating during migration.
-    #[allow(dead_code)]
     pub gateway_url: Option<SensitiveUrl>,
     /// Interval for bridge addresses refreshing in seconds.
     bridge_addresses_refresh_interval_sec: Option<NonZeroU64>,
+    /// Chain's diamond proxy on gateway.
+    pub gateway_diamond_proxy_addr: Option<Address>,
 }
 
 impl OptionalENConfig {
-    fn from_configs(general_config: &GeneralConfig, enconfig: &ENConfig) -> anyhow::Result<Self> {
+    fn from_configs(
+        general_config: &GeneralConfig,
+        enconfig: &ENConfig,
+        secrets: &Secrets,
+    ) -> anyhow::Result<Self> {
         let api_namespaces = load_config!(general_config.api_config, web3_json_rpc.api_namespaces)
             .map(|a: Vec<String>| a.iter().map(|a| a.parse()).collect::<Result<_, _>>())
             .transpose()?;
@@ -693,8 +698,9 @@ impl OptionalENConfig {
                 .unwrap_or_else(Self::default_main_node_rate_limit_rps),
             api_namespaces,
             contracts_diamond_proxy_addr: None,
-            gateway_url: enconfig.gateway_url.clone(),
+            gateway_url: secrets.l1.as_ref().and_then(|l1| l1.gateway_url.clone()),
             bridge_addresses_refresh_interval_sec: enconfig.bridge_addresses_refresh_interval_sec,
+            gateway_diamond_proxy_addr: enconfig.gateway_diamond_proxy,
         })
     }
 
@@ -1303,7 +1309,11 @@ impl ExternalNodeConfig<()> {
             &external_node_config,
             &secrets_config,
         )?;
-        let optional = OptionalENConfig::from_configs(&general_config, &external_node_config)?;
+        let optional = OptionalENConfig::from_configs(
+            &general_config,
+            &external_node_config,
+            &secrets_config,
+        )?;
         let postgres = PostgresConfig {
             database_url: secrets_config
                 .database

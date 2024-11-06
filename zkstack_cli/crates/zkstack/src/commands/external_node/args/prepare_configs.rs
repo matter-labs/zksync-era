@@ -6,7 +6,9 @@ use slugify_rs::slugify;
 use url::Url;
 
 use crate::{
-    defaults::{generate_external_node_db_name, DATABASE_SERVER_URL, LOCAL_RPC_URL},
+    defaults::{
+        generate_external_node_db_name, DATABASE_SERVER_URL, LOCAL_GATEWAY_RPC_URL, LOCAL_RPC_URL,
+    },
     messages::{
         msg_external_node_db_name_prompt, msg_external_node_db_url_prompt, MSG_L1_RPC_URL_PROMPT,
         MSG_USE_DEFAULT_DATABASES_HELP,
@@ -21,6 +23,8 @@ pub struct PrepareConfigArgs {
     pub db_name: Option<String>,
     #[clap(long)]
     pub l1_rpc_url: Option<String>,
+    #[clap(long)]
+    pub gateway_rpc_url: Option<String>,
     #[clap(long, short, help = MSG_USE_DEFAULT_DATABASES_HELP)]
     pub use_default: bool,
 }
@@ -33,6 +37,7 @@ impl PrepareConfigArgs {
             PrepareConfigFinal {
                 db: DatabaseConfig::new(DATABASE_SERVER_URL.clone(), db_name),
                 l1_rpc_url: LOCAL_RPC_URL.to_string(),
+                gateway_rpc_url: Some(LOCAL_GATEWAY_RPC_URL.to_string()),
             }
         } else {
             let db_url = self.db_url.unwrap_or_else(|| {
@@ -57,6 +62,7 @@ impl PrepareConfigArgs {
             PrepareConfigFinal {
                 db: DatabaseConfig::new(db_url, db_name),
                 l1_rpc_url,
+                gateway_rpc_url: self.gateway_rpc_url,
             }
         }
     }
@@ -66,4 +72,5 @@ impl PrepareConfigArgs {
 pub struct PrepareConfigFinal {
     pub db: DatabaseConfig,
     pub l1_rpc_url: String,
+    pub gateway_rpc_url: Option<String>,
 }

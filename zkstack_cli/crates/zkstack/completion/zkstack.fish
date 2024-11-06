@@ -595,6 +595,7 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and not _
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from configs" -l db-url -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from configs" -l db-name -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from configs" -l l1-rpc-url -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from configs" -l gateway-rpc-url -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from configs" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from configs" -s u -l use-default -d 'Use default database urls and names'
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from configs" -s v -l verbose -d 'Verbose mode'

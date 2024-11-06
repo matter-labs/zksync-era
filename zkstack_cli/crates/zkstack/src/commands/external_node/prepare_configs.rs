@@ -60,6 +60,7 @@ fn prepare_configs(
     let mut ports = EcosystemPortsScanner::scan(shell)?;
     let genesis = config.get_genesis_config()?;
     let general = config.get_general_config()?;
+    let gateway_chain = config.get_gateway_chain_config().ok();
     let en_config = ENConfig {
         l2_chain_id: genesis.l2_chain_id,
         l1_chain_id: genesis.l1_chain_id,
@@ -74,8 +75,8 @@ fn prepare_configs(
                 .http_url,
         )?,
         main_node_rate_limit_rps: None,
-        gateway_url: None,
         bridge_addresses_refresh_interval_sec: None,
+        gateway_diamond_proxy: gateway_chain.map(|g| g.diamond_proxy_addr),
     };
     let mut general_en = general.clone();
     general_en.consensus_config = None;
@@ -103,6 +104,12 @@ fn prepare_configs(
         attester_key: None,
         node_key: Some(NodeSecretKey(Secret::new(node_key))),
     };
+
+    let gateway_url = if let Some(url) = args.gateway_rpc_url {
+        Some(SensitiveUrl::from_str(&url).context("gateway_url")?)
+    } else {
+        None
+    };
     let secrets = SecretsConfig {
         consensus: Some(consensus_secrets),
         database: Some(DatabaseSecrets {
@@ -112,7 +119,7 @@ fn prepare_configs(
         }),
         l1: Some(L1Secrets {
             l1_rpc_url: SensitiveUrl::from_str(&args.l1_rpc_url).context("l1_rpc_url")?,
-            gateway_url: None,
+            gateway_url,
         }),
         data_availability: None,
     };

@@ -2108,6 +2108,7 @@ _arguments "${_arguments_options[@]}" : \
 '--db-url=[]:DB_URL:_default' \
 '--db-name=[]:DB_NAME:_default' \
 '--l1-rpc-url=[]:L1_RPC_URL:_default' \
+'--gateway-rpc-url=[]:GATEWAY_RPC_URL:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-u[Use default database urls and names]' \
 '--use-default[Use default database urls and names]' \

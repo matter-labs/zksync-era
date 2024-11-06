@@ -17,7 +17,8 @@ use crate::{
 /// Wiring layer for [`TreeDataFetcher`].
 #[derive(Debug)]
 pub struct TreeDataFetcherLayer {
-    diamond_proxy_addr: Address,
+    l1_diamond_proxy_addr: Address,
+    gateway_diamond_proxy_addr: Option<Address>,
 }
 
 #[derive(Debug, FromContext)]
@@ -39,8 +40,14 @@ pub struct Output {
 }
 
 impl TreeDataFetcherLayer {
-    pub fn new(diamond_proxy_addr: Address) -> Self {
-        Self { diamond_proxy_addr }
+    pub fn new(
+        l1_diamond_proxy_addr: Address,
+        gateway_diamond_proxy_addr: Option<Address>,
+    ) -> Self {
+        Self {
+            l1_diamond_proxy_addr,
+            gateway_diamond_proxy_addr,
+        }
     }
 }
 
@@ -66,9 +73,9 @@ impl WiringLayer for TreeDataFetcherLayer {
         let task = TreeDataFetcher::new(client, pool.clone())
             .with_l1_data(
                 l1_client,
-                self.diamond_proxy_addr,
+                self.l1_diamond_proxy_addr,
                 gateway_client,
-                Some(Default::default()), // TODO
+                self.gateway_diamond_proxy_addr,
                 pool,
             )
             .await?;

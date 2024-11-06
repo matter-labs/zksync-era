@@ -57,7 +57,7 @@ use zksync_node_framework::{
     service::{ZkStackService, ZkStackServiceBuilder},
 };
 use zksync_state::RocksdbStorageOptions;
-use zksync_types::L2_NATIVE_TOKEN_VAULT_ADDRESS;
+use zksync_types::L2_ASSET_ROUTER_ADDRESS;
 
 use crate::{config::ExternalNodeConfig, metrics::framework::ExternalNodeMetricsLayer, Component};
 
@@ -199,12 +199,11 @@ impl ExternalNodeBuilder {
             .remote
             .l2_shared_bridge_addr
             .context("Missing `l2_shared_bridge_addr`")?;
-        let l2_legacy_shared_bridge_addr = if l2_shared_bridge_addr == L2_NATIVE_TOKEN_VAULT_ADDRESS
-        {
-            // System has migrated to `L2_NATIVE_TOKEN_VAULT_ADDRESS`, use legacy shared bridge address from main node.
+        let l2_legacy_shared_bridge_addr = if l2_shared_bridge_addr == L2_ASSET_ROUTER_ADDRESS {
+            // System has migrated to `L2_ASSET_ROUTER_ADDRESS`, use legacy shared bridge address from main node.
             self.config.remote.l2_legacy_shared_bridge_addr
         } else {
-            // System hasn't migrated on `L2_NATIVE_TOKEN_VAULT_ADDRESS`, we can safely use `l2_shared_bridge_addr`.
+            // System hasn't migrated on `L2_ASSET_ROUTER_ADDRESS`, we can safely use `l2_shared_bridge_addr`.
             Some(l2_shared_bridge_addr)
         };
 
@@ -297,6 +296,7 @@ impl ExternalNodeBuilder {
         let max_batches_to_recheck = 10; // TODO (BFT-97): Make it a part of a proper EN config
         let layer = ConsistencyCheckerLayer::new(
             self.config.remote.user_facing_diamond_proxy,
+            self.config.optional.gateway_diamond_proxy_addr,
             max_batches_to_recheck,
             self.config.optional.l1_batch_commit_data_generator_mode,
         );
@@ -323,7 +323,10 @@ impl ExternalNodeBuilder {
     }
 
     fn add_tree_data_fetcher_layer(mut self) -> anyhow::Result<Self> {
-        let layer = TreeDataFetcherLayer::new(self.config.remote.user_facing_diamond_proxy);
+        let layer = TreeDataFetcherLayer::new(
+            self.config.remote.user_facing_diamond_proxy,
+            self.config.optional.gateway_diamond_proxy_addr,
+        );
         self.node.add_layer(layer);
         Ok(self)
     }

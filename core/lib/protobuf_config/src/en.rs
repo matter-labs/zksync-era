@@ -8,7 +8,7 @@ use zksync_basic_types::{url::SensitiveUrl, L1ChainId, L2ChainId};
 use zksync_config::configs::en_config::ENConfig;
 use zksync_protobuf::{required, ProtoRepr};
 
-use crate::proto::en as proto;
+use crate::{parse_h160, proto::en as proto};
 
 impl ProtoRepr for proto::ExternalNode {
     type Type = ENConfig;
@@ -34,14 +34,15 @@ impl ProtoRepr for proto::ExternalNode {
             main_node_rate_limit_rps: self
                 .main_node_rate_limit_rps
                 .and_then(|a| NonZeroUsize::new(a as usize)),
-            gateway_url: self
-                .gateway_url
-                .as_ref()
-                .map(|a| a.parse().context("gateway_url"))
-                .transpose()?,
             bridge_addresses_refresh_interval_sec: self
                 .bridge_addresses_refresh_interval_sec
                 .and_then(NonZeroU64::new),
+            gateway_diamond_proxy: self
+                .gateway_diamond_proxy
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("gateway_diamond_proxy")?,
         })
     }
 
@@ -57,13 +58,10 @@ impl ProtoRepr for proto::ExternalNode {
                 .into(),
             ),
             main_node_rate_limit_rps: this.main_node_rate_limit_rps.map(|a| a.get() as u64),
-            gateway_url: this
-                .gateway_url
-                .as_ref()
-                .map(|a| a.expose_str().to_string()),
             bridge_addresses_refresh_interval_sec: this
                 .bridge_addresses_refresh_interval_sec
                 .map(|a| a.get()),
+            gateway_diamond_proxy: this.gateway_diamond_proxy.map(|x| format!("{:?}", x)),
         }
     }
 }
