@@ -1,7 +1,6 @@
 //! Contract verifier able to verify contracts created with `zksolc` or `zkvyper` toolchains.
 
 use std::{
-    collections::HashMap,
     fmt,
     sync::Arc,
     time::{Duration, Instant},
@@ -11,31 +10,30 @@ use anyhow::Context as _;
 use chrono::Utc;
 use ethabi::{Contract, Token};
 use tokio::time;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{contract_verification_dal::DeployedContractData, ConnectionPool, Core, CoreDal};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
     contract_verification_api::{
-        CompilationArtifacts, CompilerType, DeployContractCalldata, SourceCodeData,
-        VerificationIncomingRequest, VerificationInfo, VerificationRequest,
+        CompilationArtifacts, CompilerType, VerificationIncomingRequest, VerificationInfo,
+        VerificationRequest,
     },
-    Address,
+    Address, CONTRACT_DEPLOYER_ADDRESS,
 };
+use zksync_utils::bytecode::{prepare_evm_bytecode, BytecodeMarker};
 
 use crate::{
+    compilers::{Solc, ZkSolc, ZkVyper},
     error::ContractVerifierError,
     metrics::API_CONTRACT_VERIFIER_METRICS,
     resolver::{CompilerResolver, EnvCompilerResolver},
-    zksolc_utils::{Optimizer, Settings, Source, StandardJson, ZkSolcInput},
-    zkvyper_utils::ZkVyperInput,
 };
 
+mod compilers;
 pub mod error;
 mod metrics;
 mod resolver;
 #[cfg(test)]
 mod tests;
-mod zksolc_utils;
-mod zkvyper_utils;
 
 enum ConstructorArgs {
     Check(Vec<u8>),
@@ -142,14 +140,12 @@ impl ContractVerifier {
         &self,
         mut request: VerificationRequest,
     ) -> Result<VerificationInfo, ContractVerifierError> {
-        let artifacts = self.compile(request.req.clone()).await?;
-
         // Bytecode should be present because it is checked when accepting request.
         let mut storage = self
             .connection_pool
             .connection_tagged("contract_verifier")
             .await?;
-        let (deployed_bytecode, creation_tx_calldata) = storage
+        let deployed_contract = storage
             .contract_verification_dal()
             .get_contract_info_for_verification(request.req.contract_address)
             .await?
@@ -161,15 +157,31 @@ impl ContractVerifier {
             })?;
         drop(storage);
 
-        let constructor_args =
-            self.decode_constructor_args(creation_tx_calldata, request.req.contract_address)?;
-
-        if artifacts.bytecode != deployed_bytecode {
-            tracing::info!(
-                "Bytecode mismatch req {}, deployed: 0x{}, compiled: 0x{}",
+        let bytecode_marker = BytecodeMarker::new(deployed_contract.bytecode_hash)
+            .context("unknown bytecode kind")?;
+        let artifacts = self.compile(request.req.clone(), bytecode_marker).await?;
+        let constructor_args = match bytecode_marker {
+            BytecodeMarker::EraVm => self
+                .decode_era_vm_constructor_args(&deployed_contract, request.req.contract_address)?,
+            BytecodeMarker::Evm => Self::decode_evm_constructor_args(
                 request.id,
-                hex::encode(deployed_bytecode),
-                hex::encode(artifacts.bytecode)
+                &deployed_contract,
+                &artifacts.bytecode,
+            )?,
+        };
+
+        let deployed_bytecode = match bytecode_marker {
+            BytecodeMarker::EraVm => deployed_contract.bytecode.as_slice(),
+            BytecodeMarker::Evm => prepare_evm_bytecode(&deployed_contract.bytecode)
+                .context("invalid stored EVM bytecode")?,
+        };
+
+        if artifacts.deployed_bytecode() != deployed_bytecode {
+            tracing::info!(
+                request_id = request.id,
+                deployed = hex::encode(deployed_bytecode),
+                compiled = hex::encode(artifacts.deployed_bytecode()),
+                "Deployed (runtime) bytecode mismatch",
             );
             return Err(ContractVerifierError::BytecodeMismatch);
         }
@@ -206,10 +218,10 @@ impl ContractVerifier {
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let zksolc = self
             .compiler_resolver
-            .resolve_solc(&req.compiler_versions)
+            .resolve_zksolc(&req.compiler_versions)
             .await?;
         tracing::debug!(?zksolc, ?req.compiler_versions, "resolved compiler");
-        let input = Self::build_zksolc_input(req)?;
+        let input = ZkSolc::build_input(req)?;
 
         time::timeout(self.compilation_timeout, zksolc.compile(input))
             .await
@@ -222,11 +234,27 @@ impl ContractVerifier {
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let zkvyper = self
             .compiler_resolver
-            .resolve_vyper(&req.compiler_versions)
+            .resolve_zkvyper(&req.compiler_versions)
             .await?;
         tracing::debug!(?zkvyper, ?req.compiler_versions, "resolved compiler");
-        let input = Self::build_zkvyper_input(req)?;
+        let input = ZkVyper::build_input(req)?;
         time::timeout(self.compilation_timeout, zkvyper.compile(input))
+            .await
+            .map_err(|_| ContractVerifierError::CompilationTimeout)?
+    }
+
+    async fn compile_solc(
+        &self,
+        req: VerificationIncomingRequest,
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        let solc = self
+            .compiler_resolver
+            .resolve_solc(req.compiler_versions.compiler_version())
+            .await?;
+        tracing::debug!(?solc, ?req.compiler_versions, "resolved compiler");
+        let input = Solc::build_input(req)?;
+
+        time::timeout(self.compilation_timeout, solc.compile(input))
             .await
             .map_err(|_| ContractVerifierError::CompilationTimeout)?
     }
@@ -235,181 +263,113 @@ impl ContractVerifier {
     async fn compile(
         &self,
         req: VerificationIncomingRequest,
+        bytecode_marker: BytecodeMarker,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        match req.source_code_data.compiler_type() {
-            CompilerType::Solc => self.compile_zksolc(req).await,
-            CompilerType::Vyper => self.compile_zkvyper(req).await,
+        let compiler_type = req.source_code_data.compiler_type();
+        let compiler_type_by_versions = req.compiler_versions.compiler_type();
+        if compiler_type != compiler_type_by_versions {
+            // Should be checked when receiving a request, so here it's more of a sanity check
+            let err = anyhow::anyhow!(
+                "specified compiler versions {:?} belong to a differing toolchain than source code ({compiler_type:?})",
+                req.compiler_versions
+            );
+            return Err(err.into());
         }
-    }
 
-    fn build_zksolc_input(
-        req: VerificationIncomingRequest,
-    ) -> Result<ZkSolcInput, ContractVerifierError> {
-        // Users may provide either just contract name or
-        // source file name and contract name joined with ":".
-        let (file_name, contract_name) =
-            if let Some((file_name, contract_name)) = req.contract_name.rsplit_once(':') {
-                (file_name.to_string(), contract_name.to_string())
-            } else {
-                (
-                    format!("{}.sol", req.contract_name),
-                    req.contract_name.clone(),
-                )
-            };
-        let default_output_selection = serde_json::json!({
-            "*": {
-                "*": [ "abi" ],
-                 "": [ "abi" ]
+        match (bytecode_marker, compiler_type) {
+            (BytecodeMarker::EraVm, CompilerType::Solc) => self.compile_zksolc(req).await,
+            (BytecodeMarker::EraVm, CompilerType::Vyper) => self.compile_zkvyper(req).await,
+            (BytecodeMarker::Evm, CompilerType::Solc) => self.compile_solc(req).await,
+            (BytecodeMarker::Evm, CompilerType::Vyper) => {
+                // TODO: add vyper support
+                let err = anyhow::anyhow!("vyper toolchain is not yet supported for EVM contracts");
+                return Err(err.into());
             }
-        });
-
-        match req.source_code_data {
-            SourceCodeData::SolSingleFile(source_code) => {
-                let source = Source {
-                    content: source_code,
-                };
-                let sources = HashMap::from([(file_name.clone(), source)]);
-                let optimizer = Optimizer {
-                    enabled: req.optimization_used,
-                    mode: req.optimizer_mode.and_then(|s| s.chars().next()),
-                };
-                let optimizer_value = serde_json::to_value(optimizer).unwrap();
-
-                let settings = Settings {
-                    output_selection: Some(default_output_selection),
-                    is_system: req.is_system,
-                    force_evmla: req.force_evmla,
-                    other: serde_json::Value::Object(
-                        vec![("optimizer".to_string(), optimizer_value)]
-                            .into_iter()
-                            .collect(),
-                    ),
-                };
-
-                Ok(ZkSolcInput::StandardJson {
-                    input: StandardJson {
-                        language: "Solidity".to_string(),
-                        sources,
-                        settings,
-                    },
-                    contract_name,
-                    file_name,
-                })
-            }
-            SourceCodeData::StandardJsonInput(map) => {
-                let mut compiler_input: StandardJson =
-                    serde_json::from_value(serde_json::Value::Object(map))
-                        .map_err(|_| ContractVerifierError::FailedToDeserializeInput)?;
-                // Set default output selection even if it is different in request.
-                compiler_input.settings.output_selection = Some(default_output_selection);
-                Ok(ZkSolcInput::StandardJson {
-                    input: compiler_input,
-                    contract_name,
-                    file_name,
-                })
-            }
-            SourceCodeData::YulSingleFile(source_code) => Ok(ZkSolcInput::YulSingleFile {
-                source_code,
-                is_system: req.is_system,
-            }),
-            other => unreachable!("Unexpected `SourceCodeData` variant: {other:?}"),
         }
-    }
-
-    fn build_zkvyper_input(
-        req: VerificationIncomingRequest,
-    ) -> Result<ZkVyperInput, ContractVerifierError> {
-        // Users may provide either just contract name or
-        // source file name and contract name joined with ":".
-        let contract_name = if let Some((_, contract_name)) = req.contract_name.rsplit_once(':') {
-            contract_name.to_owned()
-        } else {
-            req.contract_name.clone()
-        };
-
-        let sources = match req.source_code_data {
-            SourceCodeData::VyperMultiFile(s) => s,
-            other => unreachable!("unexpected `SourceCodeData` variant: {other:?}"),
-        };
-        Ok(ZkVyperInput {
-            contract_name,
-            sources,
-            optimizer_mode: req.optimizer_mode,
-        })
     }
 
     /// All returned errors are internal.
     #[tracing::instrument(level = "trace", skip_all, ret, err)]
-    fn decode_constructor_args(
+    fn decode_era_vm_constructor_args(
         &self,
-        calldata: DeployContractCalldata,
+        contract: &DeployedContractData,
         contract_address_to_verify: Address,
     ) -> anyhow::Result<ConstructorArgs> {
-        match calldata {
-            DeployContractCalldata::Deploy(calldata) => {
-                anyhow::ensure!(
-                    calldata.len() >= 4,
-                    "calldata doesn't include Solidity function selector"
-                );
+        let Some(calldata) = &contract.calldata else {
+            return Ok(ConstructorArgs::Ignore);
+        };
 
-                let contract_deployer = &self.contract_deployer;
-                let create = contract_deployer
-                    .function("create")
-                    .context("no `create` in contract deployer ABI")?;
-                let create2 = contract_deployer
-                    .function("create2")
-                    .context("no `create2` in contract deployer ABI")?;
-                let create_acc = contract_deployer
-                    .function("createAccount")
-                    .context("no `createAccount` in contract deployer ABI")?;
-                let create2_acc = contract_deployer
-                    .function("create2Account")
-                    .context("no `create2Account` in contract deployer ABI")?;
-                let force_deploy = contract_deployer
-                    .function("forceDeployOnAddresses")
-                    .context("no `forceDeployOnAddresses` in contract deployer ABI")?;
-
-                let (selector, token_data) = calldata.split_at(4);
-                // It's assumed that `create` and `create2` methods have the same parameters
-                // and the same for `createAccount` and `create2Account`.
-                Ok(match selector {
-                    selector
-                        if selector == create.short_signature()
-                            || selector == create2.short_signature() =>
-                    {
-                        let tokens = create
-                            .decode_input(token_data)
-                            .context("failed to decode `create` / `create2` input")?;
-                        // Constructor arguments are in the third parameter.
-                        ConstructorArgs::Check(tokens[2].clone().into_bytes().context(
-                            "third parameter of `create/create2` should be of type `bytes`",
-                        )?)
-                    }
-                    selector
-                        if selector == create_acc.short_signature()
-                            || selector == create2_acc.short_signature() =>
-                    {
-                        let tokens = create
-                            .decode_input(token_data)
-                            .context("failed to decode `createAccount` / `create2Account` input")?;
-                        // Constructor arguments are in the third parameter.
-                        ConstructorArgs::Check(tokens[2].clone().into_bytes().context(
-                            "third parameter of `createAccount/create2Account` should be of type `bytes`",
-                        )?)
-                    }
-                    selector if selector == force_deploy.short_signature() => {
-                        Self::decode_force_deployment(
-                            token_data,
-                            force_deploy,
-                            contract_address_to_verify,
-                        )
-                        .context("failed decoding force deployment")?
-                    }
-                    _ => ConstructorArgs::Ignore,
-                })
-            }
-            DeployContractCalldata::Ignore => Ok(ConstructorArgs::Ignore),
+        if contract.contract_address == Some(CONTRACT_DEPLOYER_ADDRESS) {
+            self.decode_contract_deployer_call(calldata, contract_address_to_verify)
+        } else {
+            Ok(ConstructorArgs::Ignore)
         }
+    }
+
+    fn decode_contract_deployer_call(
+        &self,
+        calldata: &[u8],
+        contract_address_to_verify: Address,
+    ) -> anyhow::Result<ConstructorArgs> {
+        anyhow::ensure!(
+            calldata.len() >= 4,
+            "calldata doesn't include Solidity function selector"
+        );
+
+        let contract_deployer = &self.contract_deployer;
+        let create = contract_deployer
+            .function("create")
+            .context("no `create` in contract deployer ABI")?;
+        let create2 = contract_deployer
+            .function("create2")
+            .context("no `create2` in contract deployer ABI")?;
+        let create_acc = contract_deployer
+            .function("createAccount")
+            .context("no `createAccount` in contract deployer ABI")?;
+        let create2_acc = contract_deployer
+            .function("create2Account")
+            .context("no `create2Account` in contract deployer ABI")?;
+        let force_deploy = contract_deployer
+            .function("forceDeployOnAddresses")
+            .context("no `forceDeployOnAddresses` in contract deployer ABI")?;
+
+        let (selector, token_data) = calldata.split_at(4);
+        // It's assumed that `create` and `create2` methods have the same parameters
+        // and the same for `createAccount` and `create2Account`.
+        Ok(match selector {
+            selector
+                if selector == create.short_signature()
+                    || selector == create2.short_signature() =>
+            {
+                let tokens = create
+                    .decode_input(token_data)
+                    .context("failed to decode `create` / `create2` input")?;
+                // Constructor arguments are in the third parameter.
+                ConstructorArgs::Check(
+                    tokens[2]
+                        .clone()
+                        .into_bytes()
+                        .context("third parameter of `create/create2` should be of type `bytes`")?,
+                )
+            }
+            selector
+                if selector == create_acc.short_signature()
+                    || selector == create2_acc.short_signature() =>
+            {
+                let tokens = create
+                    .decode_input(token_data)
+                    .context("failed to decode `createAccount` / `create2Account` input")?;
+                // Constructor arguments are in the third parameter.
+                ConstructorArgs::Check(tokens[2].clone().into_bytes().context(
+                    "third parameter of `createAccount/create2Account` should be of type `bytes`",
+                )?)
+            }
+            selector if selector == force_deploy.short_signature() => {
+                Self::decode_force_deployment(token_data, force_deploy, contract_address_to_verify)
+                    .context("failed decoding force deployment")?
+            }
+            _ => ConstructorArgs::Ignore,
+        })
     }
 
     fn decode_force_deployment(
@@ -453,6 +413,31 @@ impl ContractVerifier {
         anyhow::bail!("couldn't find force deployment for address {contract_address_to_verify:?}");
     }
 
+    fn decode_evm_constructor_args(
+        request_id: usize,
+        contract: &DeployedContractData,
+        creation_bytecode: &[u8],
+    ) -> Result<ConstructorArgs, ContractVerifierError> {
+        let Some(calldata) = &contract.calldata else {
+            return Ok(ConstructorArgs::Ignore);
+        };
+        if contract.contract_address.is_some() {
+            // Not an EVM deployment transaction
+            return Ok(ConstructorArgs::Ignore);
+        }
+
+        let args = calldata.strip_prefix(creation_bytecode).ok_or_else(|| {
+            tracing::info!(
+                request_id,
+                calldata = hex::encode(calldata),
+                compiled = hex::encode(creation_bytecode),
+                "Creation bytecode mismatch"
+            );
+            ContractVerifierError::CreationBytecodeMismatch
+        })?;
+        Ok(ConstructorArgs::Check(args.to_vec()))
+    }
+
     #[tracing::instrument(level = "debug", skip_all, err, fields(id = request_id))]
     async fn process_result(
         &self,
@@ -488,7 +473,7 @@ impl ContractVerifier {
                 };
                 storage
                     .contract_verification_dal()
-                    .save_verification_error(request_id, error_message, compilation_errors, None)
+                    .save_verification_error(request_id, &error_message, &compilation_errors, None)
                     .await?;
                 tracing::info!("Request with id = {request_id} was failed");
             }
@@ -535,9 +520,9 @@ impl JobProcessor for ContractVerifier {
             .contract_verification_dal()
             .save_verification_error(
                 job_id,
-                "Internal error".to_string(),
-                serde_json::Value::Array(Vec::new()),
-                Some(error),
+                "Internal error",
+                &serde_json::Value::Array(Vec::new()),
+                Some(&error),
             )
             .await
             .unwrap();
