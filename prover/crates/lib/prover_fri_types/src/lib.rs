@@ -288,6 +288,11 @@ impl ProverServiceDataKey {
         for numeric_circuit in ZkSyncRecursionLayerStorageType::as_iter_u8() {
             results.push(ProverServiceDataKey::new_recursive(numeric_circuit))
         }
+        // todo: don't use hardcoded values
+        for numeric_circuit in 1..5 {
+            results.push(ProverServiceDataKey::new_compression(numeric_circuit));
+        }
+        results.push(ProverServiceDataKey::new_compression_wrapper(5));
 
         results
     }

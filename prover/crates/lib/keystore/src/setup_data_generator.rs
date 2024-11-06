@@ -113,6 +113,7 @@ pub trait SetupDataGenerator {
         Ok(ProverServiceDataKey::all_boojum()
             .iter()
             .map(|circuit| {
+                tracing::info!("Generating setup data for {:?}", circuit.name());
                 let digest = self
                     .generate_and_write_setup_data(*circuit, dry_run, recompute_if_missing)
                     .context(circuit.name())
