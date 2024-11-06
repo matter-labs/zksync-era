@@ -3,11 +3,11 @@
 use std::fmt;
 
 use async_trait::async_trait;
-use zksync_types::{l2::L2Tx, Transaction};
+use zksync_types::{commitment::PubdataParams, l2::L2Tx, Transaction};
 
 use crate::{
     storage::{ReadStorage, StorageView},
-    tracer::{ValidationError, ValidationParams},
+    tracer::{ValidationError, ValidationParams, ValidationTraces},
     BatchTransactionExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, OneshotEnv,
     OneshotTracingParams, OneshotTransactionExecutionResult, SystemEnv, TxExecutionArgs,
 };
@@ -20,6 +20,7 @@ pub trait BatchExecutorFactory<S: Send + 'static>: 'static + Send + fmt::Debug {
         storage: S,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
+        pubdata_params: PubdataParams,
     ) -> Box<dyn BatchExecutor<S>>;
 }
 
@@ -68,5 +69,5 @@ pub trait TransactionValidator<S: ReadStorage>: OneshotExecutor<S> {
         env: OneshotEnv,
         tx: L2Tx,
         validation_params: ValidationParams,
-    ) -> anyhow::Result<Result<(), ValidationError>>;
+    ) -> anyhow::Result<Result<ValidationTraces, ValidationError>>;
 }

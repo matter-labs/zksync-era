@@ -9,6 +9,8 @@
 //! - Tests use [`VmTester`] built using [`VmTesterBuilder`] to create a VM instance. This allows to set up storage for the VM,
 //!   custom [`SystemEnv`] / [`L1BatchEnv`], deployed contracts, pre-funded accounts etc.
 
+use std::{collections::HashSet, rc::Rc};
+
 use once_cell::sync::Lazy;
 use zksync_contracts::{
     read_bootloader_code, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
@@ -18,12 +20,15 @@ use zksync_types::{
     utils::storage_key_for_eth_balance, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersionId, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, u256_to_h256};
-use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
+use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
+use zksync_vm_interface::{
+    pubdata::PubdataBuilder, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
+};
 
 pub(super) use self::tester::{TestedVm, VmTester, VmTesterBuilder};
 use crate::{
-    interface::storage::InMemoryStorage, vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
+    interface::storage::InMemoryStorage, pubdata_builders::RollupPubdataBuilder,
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
 pub(super) mod block_tip;
@@ -32,6 +37,7 @@ pub(super) mod bytecode_publishing;
 pub(super) mod circuits;
 pub(super) mod code_oracle;
 pub(super) mod default_aa;
+pub(super) mod evm_emulator;
 pub(super) mod gas_limit;
 pub(super) mod get_used_contracts;
 pub(super) mod is_write_initial;
@@ -43,7 +49,6 @@ pub(super) mod refunds;
 pub(super) mod require_eip712;
 pub(super) mod rollbacks;
 pub(super) mod secp256r1;
-mod shadow;
 pub(super) mod simple_execution;
 pub(super) mod storage;
 mod tester;
@@ -70,6 +75,13 @@ pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {
     SystemContractCode {
         code: bytes_to_be_words(bootloader_code),
         hash: bootloader_hash,
+    }
+}
+
+pub(crate) fn filter_out_base_system_contracts(all_bytecode_hashes: &mut HashSet<U256>) {
+    all_bytecode_hashes.remove(&h256_to_u256(BASE_SYSTEM_CONTRACTS.default_aa.hash));
+    if let Some(evm_emulator) = &BASE_SYSTEM_CONTRACTS.evm_emulator {
+        all_bytecode_hashes.remove(&h256_to_u256(evm_emulator.hash));
     }
 }
 
@@ -105,6 +117,10 @@ pub(super) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
             max_virtual_blocks_to_create: 100,
         },
     }
+}
+
+pub(super) fn default_pubdata_builder() -> Rc<dyn PubdataBuilder> {
+    Rc::new(RollupPubdataBuilder::new(Address::zero()))
 }
 
 pub(super) fn make_address_rich(storage: &mut InMemoryStorage, address: Address) {

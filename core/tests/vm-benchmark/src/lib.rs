@@ -6,7 +6,7 @@ pub use crate::{
         get_load_test_deploy_tx, get_load_test_tx, get_realistic_load_test_tx, get_transfer_tx,
         LoadTestParams,
     },
-    vm::{BenchmarkingVm, BenchmarkingVmFactory, Fast, Legacy, VmLabel},
+    vm::{BenchmarkingVm, BenchmarkingVmFactory, CountInstructions, Fast, Legacy, VmLabel},
 };
 
 pub mod criterion;

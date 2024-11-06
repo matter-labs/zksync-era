@@ -2,7 +2,9 @@ use zksync_test_contracts::{TestContract, TxType};
 use zksync_types::get_nonce_key;
 
 use super::{tester::VmTesterBuilder, TestedVm};
-use crate::interface::{storage::ReadStorage, TxExecutionMode, VmExecutionMode, VmInterfaceExt};
+use crate::interface::{
+    storage::ReadStorage, InspectExecutionMode, TxExecutionMode, VmInterfaceExt,
+};
 
 pub(crate) fn test_is_write_initial_behaviour<VM: TestedVm>() {
     // In this test, we check result of `is_write_initial` at different stages.
@@ -28,7 +30,7 @@ pub(crate) fn test_is_write_initial_behaviour<VM: TestedVm>() {
         .tx;
 
     vm.vm.push_transaction(tx);
-    vm.vm.execute(VmExecutionMode::OneTx);
+    vm.vm.execute(InspectExecutionMode::OneTx);
 
     // Check that `is_write_initial` still returns true for the nonce key.
     assert!(vm

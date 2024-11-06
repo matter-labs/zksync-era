@@ -610,6 +610,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap_complete"
+version = "4.5.33"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9646e2e245bf62f45d39a0f3f36f1171ad1ea0d6967fd114bca72cb02a8fcdfb"
+dependencies = [
+ "clap",
+]
+
+[[package]]
 name = "clap_derive"
 version = "4.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6709,11 +6718,12 @@ dependencies = [
  "chrono",
  "clap",
  "clap-markdown",
+ "clap_complete",
  "cliclack",
  "common",
  "config",
+ "dirs",
  "ethers",
- "eyre",
  "futures",
  "human-panic",
  "lazy_static",
@@ -6977,7 +6987,6 @@ dependencies = [
  "once_cell",
  "prost 0.12.6",
  "rlp",
- "secp256k1",
  "serde",
  "serde_json",
  "serde_with",
@@ -6985,7 +6994,6 @@ dependencies = [
  "thiserror",
  "tracing",
  "zksync_basic_types",
- "zksync_config",
  "zksync_contracts",
  "zksync_crypto_primitives",
  "zksync_mini_merkle_tree",

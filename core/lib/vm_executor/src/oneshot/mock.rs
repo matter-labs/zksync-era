@@ -4,18 +4,21 @@ use async_trait::async_trait;
 use zksync_multivm::interface::{
     executor::{OneshotExecutor, TransactionValidator},
     storage::ReadStorage,
-    tracer::{ValidationError, ValidationParams},
+    tracer::{ValidationError, ValidationParams, ValidationTraces},
     ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
     TxExecutionArgs, TxExecutionMode, VmExecutionResultAndLogs,
 };
 use zksync_types::{l2::L2Tx, Transaction};
 
 type TxResponseFn = dyn Fn(&Transaction, &OneshotEnv) -> VmExecutionResultAndLogs + Send + Sync;
+type TxValidationTracesResponseFn =
+    dyn Fn(&Transaction, &OneshotEnv) -> ValidationTraces + Send + Sync;
 
 /// Mock [`OneshotExecutor`] implementation.
 pub struct MockOneshotExecutor {
     call_responses: Box<TxResponseFn>,
     tx_responses: Box<TxResponseFn>,
+    tx_validation_traces_responses: Box<TxValidationTracesResponseFn>,
 }
 
 impl fmt::Debug for MockOneshotExecutor {
@@ -35,6 +38,7 @@ impl Default for MockOneshotExecutor {
             tx_responses: Box::new(|tx, _| {
                 panic!("Unexpect transaction call: {tx:?}");
             }),
+            tx_validation_traces_responses: Box::new(|_, _| ValidationTraces::default()),
         }
     }
 }
@@ -55,6 +59,13 @@ impl MockOneshotExecutor {
         F: Fn(&Transaction, &OneshotEnv) -> ExecutionResult + 'static + Send + Sync,
     {
         self.tx_responses = self.wrap_responses(responses);
+    }
+
+    pub fn set_tx_validation_traces_responses<F>(&mut self, responses: F)
+    where
+        F: Fn(&Transaction, &OneshotEnv) -> ValidationTraces + 'static + Send + Sync,
+    {
+        self.tx_validation_traces_responses = Box::new(responses);
     }
 
     fn wrap_responses<F>(&mut self, responses: F) -> Box<TxResponseFn>
@@ -82,11 +93,11 @@ impl MockOneshotExecutor {
         self.tx_responses = Box::new(responses);
     }
 
-    fn mock_inspect(&self, env: OneshotEnv, args: TxExecutionArgs) -> VmExecutionResultAndLogs {
+    fn mock_inspect(&self, env: &OneshotEnv, args: TxExecutionArgs) -> VmExecutionResultAndLogs {
         match env.system.execution_mode {
-            TxExecutionMode::EthCall => (self.call_responses)(&args.transaction, &env),
+            TxExecutionMode::EthCall => (self.call_responses)(&args.transaction, env),
             TxExecutionMode::VerifyExecute | TxExecutionMode::EstimateFee => {
-                (self.tx_responses)(&args.transaction, &env)
+                (self.tx_responses)(&args.transaction, env)
             }
         }
     }
@@ -105,7 +116,7 @@ where
         _params: OneshotTracingParams,
     ) -> anyhow::Result<OneshotTransactionExecutionResult> {
         Ok(OneshotTransactionExecutionResult {
-            tx_result: Box::new(self.mock_inspect(env, args)),
+            tx_result: Box::new(self.mock_inspect(&env, args)),
             compression_result: Ok(()),
             call_traces: vec![],
         })
@@ -123,14 +134,16 @@ where
         env: OneshotEnv,
         tx: L2Tx,
         _validation_params: ValidationParams,
-    ) -> anyhow::Result<Result<(), ValidationError>> {
+    ) -> anyhow::Result<Result<ValidationTraces, ValidationError>> {
         Ok(
             match self
-                .mock_inspect(env, TxExecutionArgs::for_validation(tx))
+                .mock_inspect(&env, TxExecutionArgs::for_validation(tx.clone()))
                 .result
             {
                 ExecutionResult::Halt { reason } => Err(ValidationError::FailedTx(reason)),
-                ExecutionResult::Success { .. } | ExecutionResult::Revert { .. } => Ok(()),
+                ExecutionResult::Success { .. } | ExecutionResult::Revert { .. } => {
+                    Ok((self.tx_validation_traces_responses)(&tx.into(), &env))
+                }
             },
         )
     }

@@ -71,7 +71,6 @@ pub(super) struct ConfigSet {
     net: network::Config,
     pub(super) config: config::ConsensusConfig,
     pub(super) secrets: config::ConsensusSecrets,
-    pub(super) enable_pregenesis: bool,
 }
 
 impl ConfigSet {
@@ -81,17 +80,11 @@ impl ConfigSet {
             config: make_config(&net, None),
             secrets: make_secrets(&net, None),
             net,
-            enable_pregenesis: self.enable_pregenesis,
         }
     }
 }
 
-pub(super) fn new_configs(
-    rng: &mut impl Rng,
-    setup: &Setup,
-    seed_peers: usize,
-    pregenesis: bool,
-) -> Vec<ConfigSet> {
+pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) -> Vec<ConfigSet> {
     let net_cfgs = network::testonly::new_configs(rng, setup, 0);
     let genesis_spec = config::GenesisSpec {
         chain_id: setup.genesis.chain_id.0.try_into().unwrap(),
@@ -131,7 +124,6 @@ pub(super) fn new_configs(
             config: make_config(&net, Some(genesis_spec.clone())),
             secrets: make_secrets(&net, setup.attester_keys.get(i).cloned()),
             net,
-            enable_pregenesis: pregenesis,
         })
         .collect()
 }
@@ -217,11 +209,10 @@ impl StateKeeper {
             .wait(IoCursor::for_fetcher(&mut conn.0))
             .await?
             .context("IoCursor::new()")?;
-        let batch_sealed = ctx
-            .wait(conn.0.blocks_dal().get_unsealed_l1_batch())
+        let pending_batch = ctx
+            .wait(conn.0.blocks_dal().pending_batch_exists())
             .await?
-            .context("get_unsealed_l1_batch()")?
-            .is_none();
+            .context("pending_batch_exists()")?;
         let (actions_sender, actions_queue) = ActionQueue::new();
         let addr = sync::watch::channel(None).0;
         let sync_state = SyncState::default();
@@ -257,7 +248,7 @@ impl StateKeeper {
                 last_batch: cursor.l1_batch,
                 last_block: cursor.next_l2_block - 1,
                 last_timestamp: cursor.prev_l2_block_timestamp,
-                batch_sealed,
+                batch_sealed: !pending_batch,
                 next_priority_op: PriorityOpId(1),
                 actions_sender,
                 sync_state: sync_state.clone(),
@@ -294,6 +285,7 @@ impl StateKeeper {
                         timestamp: self.last_timestamp,
                         virtual_blocks: 1,
                     },
+                    pubdata_params: Default::default(),
                 },
                 number: self.last_batch,
                 first_l2_block_number: self.last_block,
@@ -474,7 +466,6 @@ impl StateKeeper {
             cfgs.config,
             cfgs.secrets,
             cfgs.net.build_version,
-            cfgs.enable_pregenesis,
         )
         .await
     }
@@ -570,9 +561,11 @@ impl StateKeeperRunner {
             let (stop_send, stop_recv) = sync::watch::channel(false);
             let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
                 self.pool.0.clone(),
-                ethabi::Address::repeat_byte(11),
+                Some(ethabi::Address::repeat_byte(11)),
                 5,
-            );
+            )
+            .await
+            .unwrap();
 
             let io = ExternalIO::new(
                 self.pool.0.clone(),
@@ -677,9 +670,11 @@ impl StateKeeperRunner {
             let (stop_send, stop_recv) = sync::watch::channel(false);
             let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
                 self.pool.0.clone(),
-                ethabi::Address::repeat_byte(11),
+                Some(ethabi::Address::repeat_byte(11)),
                 5,
-            );
+            )
+            .await
+            .unwrap();
             let tree_writes_persistence = TreeWritesPersistence::new(self.pool.0.clone());
 
             let io = ExternalIO::new(

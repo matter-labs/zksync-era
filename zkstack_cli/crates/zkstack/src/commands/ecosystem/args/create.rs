@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::bail;
-use clap::Parser;
+use clap::{Parser, ValueHint};
 use common::{cmd::Cmd, logger, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
@@ -26,7 +26,7 @@ pub struct EcosystemCreateArgs {
     pub ecosystem_name: Option<String>,
     #[clap(long, help = MSG_L1_NETWORK_HELP, value_enum)]
     pub l1_network: Option<L1Network>,
-    #[clap(long, help = MSG_LINK_TO_CODE_HELP)]
+    #[clap(long, help = MSG_LINK_TO_CODE_HELP, value_hint = ValueHint::DirPath)]
     pub link_to_code: Option<String>,
     #[clap(flatten)]
     #[serde(flatten)]
@@ -71,7 +71,13 @@ impl EcosystemCreateArgs {
         // Make the only chain as a default one
         self.chain.set_as_default = Some(true);
 
-        let chain = self.chain.fill_values_with_prompt(0, &l1_network, vec![])?;
+        let chain = self.chain.fill_values_with_prompt(
+            shell,
+            0,
+            &l1_network,
+            vec![],
+            Path::new(&link_to_code),
+        )?;
 
         let start_containers = self.start_containers.unwrap_or_else(|| {
             PromptConfirm::new(MSG_START_CONTAINERS_PROMPT)

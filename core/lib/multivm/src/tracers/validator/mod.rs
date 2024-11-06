@@ -1,4 +1,8 @@
-use std::{collections::HashSet, marker::PhantomData, sync::Arc};
+use std::{
+    collections::{BTreeSet, HashSet},
+    marker::PhantomData,
+    sync::{Arc, Mutex},
+};
 
 use once_cell::sync::OnceCell;
 use zksync_system_constants::{
@@ -8,7 +12,11 @@ use zksync_system_constants::{
 use zksync_types::{
     vm::VmVersion, web3::keccak256, AccountTreeId, Address, StorageKey, H256, U256,
 };
-use zksync_utils::{be_bytes_to_safe_address, u256_to_account_address, u256_to_h256};
+use zksync_utils::{address_to_u256, be_bytes_to_safe_address, u256_to_h256};
+use zksync_vm_interface::{
+    tracer::{TimestampAsserterParams, ValidationTraces},
+    L1BatchEnv,
+};
 
 use self::types::{NewTrustedValidationItems, ValidationTracerMode};
 use crate::{
@@ -32,7 +40,7 @@ mod vm_virtual_blocks;
 #[derive(Debug, Clone)]
 pub struct ValidationTracer<H> {
     validation_mode: ValidationTracerMode,
-    auxilary_allowed_slots: HashSet<H256>,
+    auxilary_allowed_slots: BTreeSet<H256>,
 
     user_address: Address,
     #[allow(dead_code)]
@@ -43,38 +51,47 @@ pub struct ValidationTracer<H> {
     trusted_address_slots: HashSet<(Address, U256)>,
     computational_gas_used: u32,
     computational_gas_limit: u32,
+    timestamp_asserter_params: Option<TimestampAsserterParams>,
     vm_version: VmVersion,
+    l1_batch_env: L1BatchEnv,
     pub result: Arc<OnceCell<ViolatedValidationRule>>,
+    pub traces: Arc<Mutex<ValidationTraces>>,
     _marker: PhantomData<fn(H) -> H>,
 }
 
 type ValidationRoundResult = Result<NewTrustedValidationItems, ViolatedValidationRule>;
 
 impl<H> ValidationTracer<H> {
-    pub fn new(
-        params: ValidationParams,
-        vm_version: VmVersion,
-    ) -> (Self, Arc<OnceCell<ViolatedValidationRule>>) {
-        let result = Arc::new(OnceCell::new());
-        (
-            Self {
-                validation_mode: ValidationTracerMode::NoValidation,
-                auxilary_allowed_slots: Default::default(),
+    const MAX_ALLOWED_SLOT_OFFSET: u32 = 127;
 
-                should_stop_execution: false,
-                user_address: params.user_address,
-                paymaster_address: params.paymaster_address,
-                trusted_slots: params.trusted_slots,
-                trusted_addresses: params.trusted_addresses,
-                trusted_address_slots: params.trusted_address_slots,
-                computational_gas_used: 0,
-                computational_gas_limit: params.computational_gas_limit,
-                vm_version,
-                result: result.clone(),
-                _marker: Default::default(),
-            },
-            result,
-        )
+    pub fn new(params: ValidationParams, vm_version: VmVersion, l1_batch_env: L1BatchEnv) -> Self {
+        Self {
+            validation_mode: ValidationTracerMode::NoValidation,
+            auxilary_allowed_slots: Default::default(),
+
+            should_stop_execution: false,
+            user_address: params.user_address,
+            paymaster_address: params.paymaster_address,
+            trusted_slots: params.trusted_slots,
+            trusted_addresses: params.trusted_addresses,
+            trusted_address_slots: params.trusted_address_slots,
+            computational_gas_used: 0,
+            computational_gas_limit: params.computational_gas_limit,
+            timestamp_asserter_params: params.timestamp_asserter_params.clone(),
+            vm_version,
+            result: Arc::new(OnceCell::new()),
+            traces: Arc::new(Mutex::new(ValidationTraces::default())),
+            _marker: Default::default(),
+            l1_batch_env,
+        }
+    }
+
+    pub fn get_result(&self) -> Arc<OnceCell<ViolatedValidationRule>> {
+        self.result.clone()
+    }
+
+    pub fn get_traces(&self) -> Arc<Mutex<ValidationTraces>> {
+        self.traces.clone()
     }
 
     fn process_validation_round_result(&mut self, result: ValidationRoundResult) {
@@ -131,14 +148,25 @@ impl<H> ValidationTracer<H> {
         }
 
         // The user is allowed to touch its own slots or slots semantically related to him.
+        let from = u256_to_h256(key.saturating_sub(Self::MAX_ALLOWED_SLOT_OFFSET.into()));
+        let to = u256_to_h256(key);
         let valid_users_slot = address == self.user_address
-            || u256_to_account_address(&key) == self.user_address
-            || self.auxilary_allowed_slots.contains(&u256_to_h256(key));
+            || key == address_to_u256(&self.user_address)
+            || self
+                .auxilary_allowed_slots
+                .range(from..=to)
+                .next()
+                .is_some();
         if valid_users_slot {
             return true;
         }
 
         if is_constant_code_hash(address, key, storage) {
+            return true;
+        }
+
+        // Allow to read any storage slot from the timesttamp asserter contract
+        if self.timestamp_asserter_params.as_ref().map(|x| x.address) == Some(msg_sender) {
             return true;
         }
 
@@ -189,6 +217,7 @@ impl<H> ValidationTracer<H> {
             trusted_addresses: self.trusted_addresses.clone(),
             trusted_address_slots: self.trusted_address_slots.clone(),
             computational_gas_limit: self.computational_gas_limit,
+            timestamp_asserter_params: self.timestamp_asserter_params.clone(),
         }
     }
 }

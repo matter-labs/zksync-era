@@ -5,7 +5,7 @@
 
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
-use std::fmt;
+use std::{fmt, ops::Range};
 
 use anyhow::Context as _;
 use fee::encoding_len;
@@ -43,7 +43,6 @@ pub mod l2;
 pub mod l2_to_l1_log;
 pub mod priority_op_onchain_data;
 pub mod protocol_upgrade;
-pub mod pubdata_da;
 pub mod snapshots;
 pub mod storage;
 pub mod system_contracts;
@@ -416,4 +415,9 @@ impl Transaction {
             }
         })
     }
+}
+
+#[derive(Clone, Serialize, Debug, Default, Eq, PartialEq, Hash)]
+pub struct TransactionTimeRangeConstraint {
+    pub timestamp_asserter_range: Option<Range<u64>>,
 }

@@ -109,7 +109,7 @@ async fn fetch_base_system_contracts(
         let bytes = client
             .fetch_system_contract_by_hash(hash)
             .await?
-            .context("EVM Simulator bytecode is missing on main node")?;
+            .context("EVM emulator bytecode is missing on main node")?;
         Some(SystemContractCode {
             code: zksync_utils::bytes_to_be_words(bytes),
             hash,

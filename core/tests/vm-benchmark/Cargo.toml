@@ -22,7 +22,7 @@ tokio.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true
-iai.workspace = true
+yab.workspace = true
 
 [[bench]]
 name = "oneshot"
@@ -33,5 +33,5 @@ name = "batch"
 harness = false
 
 [[bench]]
-name = "iai"
+name = "instructions"
 harness = false

@@ -19,10 +19,9 @@ use zksync_config::{
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, CoreDal};
 use zksync_multivm::interface::{
-    TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmEvent,
-    VmExecutionMetrics,
+    tracer::ValidationTraces, TransactionExecutionMetrics, TransactionExecutionResult,
+    TxExecutionStatus, VmEvent, VmExecutionMetrics,
 };
-use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch, create_l1_batch_metadata, create_l2_block, create_l2_transaction,
@@ -365,7 +364,11 @@ async fn store_custom_l2_block(
         let l2_tx = result.transaction.clone().try_into().unwrap();
         let tx_submission_result = storage
             .transactions_dal()
-            .insert_transaction_l2(&l2_tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &l2_tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         assert_matches!(tx_submission_result, L2TxSubmissionResult::Added);
@@ -476,11 +479,7 @@ async fn store_events(
 }
 
 fn scaled_sensible_fee_input(scale: f64) -> BatchFeeInput {
-    <dyn BatchFeeModelInputProvider>::default_batch_fee_input_scaled(
-        FeeParams::sensible_v1_default(),
-        scale,
-        scale,
-    )
+    FeeParams::sensible_v1_default().scale(scale, scale)
 }
 
 #[derive(Debug)]
@@ -776,7 +775,11 @@ impl HttpTest for TransactionCountTest {
         pending_tx.common_data.nonce = Nonce(2);
         storage
             .transactions_dal()
-            .insert_transaction_l2(&pending_tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &pending_tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
 
@@ -856,7 +859,11 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
         let mut storage = pool.connection().await?;
         storage
             .transactions_dal()
-            .insert_transaction_l2(&pending_tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &pending_tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
 

@@ -4,7 +4,7 @@ use zksync_types::{Address, Execute};
 
 use super::{tester::VmTesterBuilder, TestedVm};
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterfaceExt},
+    interface::{InspectExecutionMode, TxExecutionMode, VmInterfaceExt},
     versions::testonly::ContractToDeploy,
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
@@ -37,7 +37,7 @@ pub(crate) fn test_keccak<VM: TestedVm>() {
     );
     vm.vm.push_transaction(tx);
 
-    let exec_result = vm.vm.execute(VmExecutionMode::OneTx);
+    let exec_result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
     let keccak_count = exec_result.statistics.circuit_statistic.keccak256
@@ -73,7 +73,7 @@ pub(crate) fn test_sha256<VM: TestedVm>() {
     );
     vm.vm.push_transaction(tx);
 
-    let exec_result = vm.vm.execute(VmExecutionMode::OneTx);
+    let exec_result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
     let sha_count = exec_result.statistics.circuit_statistic.sha256
@@ -102,7 +102,7 @@ pub(crate) fn test_ecrecover<VM: TestedVm>() {
     );
     vm.vm.push_transaction(tx);
 
-    let exec_result = vm.vm.execute(VmExecutionMode::OneTx);
+    let exec_result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
     let ecrecover_count = exec_result.statistics.circuit_statistic.ecrecover

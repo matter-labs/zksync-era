@@ -1,18 +1,18 @@
-use std::{any::Any, collections::HashSet, fmt};
+use std::{any::Any, collections::HashSet, fmt, rc::Rc};
 
 use zksync_types::{writes::StateDiffRecord, StorageKey, Transaction, H160, H256, U256};
 use zksync_utils::h256_to_u256;
 use zksync_vm2::interface::{Event, HeapId, StateInterface};
 use zksync_vm_interface::{
-    storage::ReadStorage, CurrentExecutionState, L2BlockEnv, VmExecutionMode,
-    VmExecutionResultAndLogs, VmInterfaceExt,
+    pubdata::PubdataBuilder, storage::ReadStorage, CurrentExecutionState, L2BlockEnv,
+    VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
 };
 
-use super::Vm;
+use super::{circuits_tracer::CircuitsTracer, Vm};
 use crate::{
     interface::storage::{ImmutableStorageView, InMemoryStorage},
     versions::testonly::TestedVm,
-    vm_fast::CircuitsTracer,
+    vm_fast::evm_deploy_tracer::{DynamicBytecodes, EvmDeployTracer},
 };
 
 mod block_tip;
@@ -21,6 +21,7 @@ mod bytecode_publishing;
 mod circuits;
 mod code_oracle;
 mod default_aa;
+mod evm_emulator;
 mod gas_limit;
 mod get_used_contracts;
 mod is_write_initial;
@@ -99,13 +100,18 @@ impl TestedVm for Vm<ImmutableStorageView<InMemoryStorage>> {
         self.decommitted_hashes().collect()
     }
 
-    fn execute_with_state_diffs(
+    fn finish_batch_with_state_diffs(
         &mut self,
         diffs: Vec<StateDiffRecord>,
-        mode: VmExecutionMode,
+        pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> VmExecutionResultAndLogs {
         self.enforce_state_diffs(diffs);
-        self.execute(mode)
+        self.finish_batch(pubdata_builder)
+            .block_tip_execution_result
+    }
+
+    fn finish_batch_without_pubdata(&mut self) -> VmExecutionResultAndLogs {
+        self.inspect_inner(&mut Default::default(), VmExecutionMode::Batch)
     }
 
     fn insert_bytecodes(&mut self, bytecodes: &[&[u8]]) {
@@ -117,9 +123,13 @@ impl TestedVm for Vm<ImmutableStorageView<InMemoryStorage>> {
     }
 
     fn manually_decommit(&mut self, code_hash: H256) -> bool {
+        let mut tracer = (
+            ((), CircuitsTracer::default()),
+            EvmDeployTracer::new(DynamicBytecodes::default()),
+        );
         let (_, is_fresh) = self.inner.world_diff_mut().decommit_opcode(
             &mut self.world,
-            &mut ((), CircuitsTracer::default()),
+            &mut tracer,
             h256_to_u256(code_hash),
         );
         is_fresh

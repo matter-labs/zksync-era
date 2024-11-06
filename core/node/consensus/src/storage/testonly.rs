@@ -73,7 +73,8 @@ impl ConnectionPool {
                     L1BatchNumber(23),
                     L2BlockNumber(87),
                     vec![],
-                    mock_genesis_params(protocol_version),
+                    &BaseSystemContracts::load_from_disk(),
+                    protocol_version,
                 ))
                 .await
             }
