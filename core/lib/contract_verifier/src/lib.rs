@@ -171,19 +171,19 @@ impl ContractVerifier {
         let mut transaction = storage.start_transaction().await?;
         transaction
             .contract_verification_dal()
-            .set_zksolc_versions(supported_versions.zksolc)
+            .set_zksolc_versions(&supported_versions.zksolc)
             .await?;
         transaction
             .contract_verification_dal()
-            .set_solc_versions(supported_versions.solc)
+            .set_solc_versions(&supported_versions.solc)
             .await?;
         transaction
             .contract_verification_dal()
-            .set_zkvyper_versions(supported_versions.zkvyper)
+            .set_zkvyper_versions(&supported_versions.zkvyper)
             .await?;
         transaction
             .contract_verification_dal()
-            .set_vyper_versions(supported_versions.vyper)
+            .set_vyper_versions(&supported_versions.vyper)
             .await?;
         transaction.commit().await?;
         Ok(())

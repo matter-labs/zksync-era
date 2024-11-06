@@ -10784,14 +10784,16 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum 0.7.7",
- "serde",
+ "http-body-util",
  "serde_json",
+ "test-casing",
  "tokio",
+ "tower 0.4.13",
  "tower-http",
  "tracing",
  "vise",
- "zksync_config",
  "zksync_dal",
+ "zksync_node_test_utils",
  "zksync_types",
  "zksync_utils",
 ]

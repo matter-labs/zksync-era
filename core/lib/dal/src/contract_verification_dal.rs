@@ -441,7 +441,7 @@ impl ContractVerificationDal<'_, '_> {
     async fn set_compiler_versions(
         &mut self,
         compiler: Compiler,
-        versions: Vec<String>,
+        versions: &[String],
     ) -> DalResult<()> {
         let mut transaction = self.storage.start_transaction().await?;
         let compiler = format!("{compiler}");
@@ -472,7 +472,7 @@ impl ContractVerificationDal<'_, '_> {
                 UNNEST($1::TEXT []) AS u (version)
             ON CONFLICT (version, compiler) DO NOTHING
             "#,
-            &versions,
+            versions,
             &compiler,
         )
         .instrument("set_compiler_versions#insert")
@@ -484,20 +484,20 @@ impl ContractVerificationDal<'_, '_> {
         transaction.commit().await
     }
 
-    pub async fn set_zksolc_versions(&mut self, versions: Vec<String>) -> DalResult<()> {
+    pub async fn set_zksolc_versions(&mut self, versions: &[String]) -> DalResult<()> {
         self.set_compiler_versions(Compiler::ZkSolc, versions).await
     }
 
-    pub async fn set_solc_versions(&mut self, versions: Vec<String>) -> DalResult<()> {
+    pub async fn set_solc_versions(&mut self, versions: &[String]) -> DalResult<()> {
         self.set_compiler_versions(Compiler::Solc, versions).await
     }
 
-    pub async fn set_zkvyper_versions(&mut self, versions: Vec<String>) -> DalResult<()> {
+    pub async fn set_zkvyper_versions(&mut self, versions: &[String]) -> DalResult<()> {
         self.set_compiler_versions(Compiler::ZkVyper, versions)
             .await
     }
 
-    pub async fn set_vyper_versions(&mut self, versions: Vec<String>) -> DalResult<()> {
+    pub async fn set_vyper_versions(&mut self, versions: &[String]) -> DalResult<()> {
         self.set_compiler_versions(Compiler::Vyper, versions).await
     }
 
