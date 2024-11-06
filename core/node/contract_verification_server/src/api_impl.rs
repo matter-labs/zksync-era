@@ -97,7 +97,7 @@ impl RestApi {
 
         let request_id = storage
             .contract_verification_dal()
-            .add_contract_verification_request(request)
+            .add_contract_verification_request(&request)
             .await?;
         method_latency.observe();
         Ok(Json(request_id))
