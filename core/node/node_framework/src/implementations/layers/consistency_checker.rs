@@ -3,7 +3,7 @@ use zksync_types::{commitment::L1BatchCommitmentMode, Address};
 
 use crate::{
     implementations::resources::{
-        eth_interface::EthInterfaceResource,
+        eth_interface::{EthInterfaceResource, GatewayEthInterfaceResource},
         healthcheck::AppHealthCheckResource,
         pools::{MasterPool, PoolResource},
     },
@@ -16,7 +16,7 @@ use crate::{
 /// Wiring layer for the `ConsistencyChecker` (used by the external node).
 #[derive(Debug)]
 pub struct ConsistencyCheckerLayer {
-    diamond_proxy_addr: Address,
+    l1_diamond_proxy_addr: Address,
     max_batches_to_recheck: u32,
     commitment_mode: L1BatchCommitmentMode,
 }
@@ -25,6 +25,7 @@ pub struct ConsistencyCheckerLayer {
 #[context(crate = crate)]
 pub struct Input {
     pub l1_client: EthInterfaceResource,
+    pub gateway_client: Option<GatewayEthInterfaceResource>,
     pub master_pool: PoolResource<MasterPool>,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
@@ -39,12 +40,12 @@ pub struct Output {
 
 impl ConsistencyCheckerLayer {
     pub fn new(
-        diamond_proxy_addr: Address,
+        l1_diamond_proxy_addr: Address,
         max_batches_to_recheck: u32,
         commitment_mode: L1BatchCommitmentMode,
     ) -> ConsistencyCheckerLayer {
         Self {
-            diamond_proxy_addr,
+            l1_diamond_proxy_addr,
             max_batches_to_recheck,
             commitment_mode,
         }
@@ -63,17 +64,20 @@ impl WiringLayer for ConsistencyCheckerLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         // Get resources.
         let l1_client = input.l1_client.0;
+        let gateway_client = input.gateway_client.map(|c| c.0);
 
         let singleton_pool = input.master_pool.get_singleton().await?;
 
         let consistency_checker = ConsistencyChecker::new(
             l1_client,
+            gateway_client,
             self.max_batches_to_recheck,
             singleton_pool,
             self.commitment_mode,
         )
+        .await
         .map_err(WiringError::Internal)?
-        .with_diamond_proxy_addr(self.diamond_proxy_addr);
+        .with_l1_diamond_proxy_addr(self.l1_diamond_proxy_addr); // TODO add gateway diamond proxy
 
         input
             .app_health

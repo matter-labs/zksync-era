@@ -7,4 +7,10 @@ pub const SUPPORTED_ENCODING_VERSION: u8 = 0;
 #[cfg(test)]
 mod tests;
 
-pub use self::{commit_batch_info::CommitBatchInfo, stored_batch_info::StoredBatchInfo};
+pub use self::{
+    commit_batch_info::{
+        CommitBatchInfo, PUBDATA_SOURCE_BLOBS, PUBDATA_SOURCE_CALLDATA,
+        PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY,
+    },
+    stored_batch_info::StoredBatchInfo,
+};

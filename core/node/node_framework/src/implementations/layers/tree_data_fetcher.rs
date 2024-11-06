@@ -3,7 +3,7 @@ use zksync_types::Address;
 
 use crate::{
     implementations::resources::{
-        eth_interface::EthInterfaceResource,
+        eth_interface::{EthInterfaceResource, GatewayEthInterfaceResource},
         healthcheck::AppHealthCheckResource,
         main_node_client::MainNodeClientResource,
         pools::{MasterPool, PoolResource},
@@ -25,7 +25,8 @@ pub struct TreeDataFetcherLayer {
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub main_node_client: MainNodeClientResource,
-    pub eth_client: EthInterfaceResource,
+    pub l1_client: EthInterfaceResource,
+    pub gateway_client: Option<GatewayEthInterfaceResource>,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
 }
@@ -55,14 +56,22 @@ impl WiringLayer for TreeDataFetcherLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let pool = input.master_pool.get().await?;
         let MainNodeClientResource(client) = input.main_node_client;
-        let EthInterfaceResource(eth_client) = input.eth_client;
+        let EthInterfaceResource(l1_client) = input.l1_client;
+        let gateway_client = input.gateway_client.map(|c| c.0);
 
         tracing::warn!(
             "Running tree data fetcher (allows a node to operate w/o a Merkle tree or w/o waiting the tree to catch up). \
              This is an experimental feature; do not use unless you know what you're doing"
         );
-        let task =
-            TreeDataFetcher::new(client, pool).with_l1_data(eth_client, self.diamond_proxy_addr)?;
+        let task = TreeDataFetcher::new(client, pool.clone())
+            .with_l1_data(
+                l1_client,
+                self.diamond_proxy_addr,
+                gateway_client,
+                Some(Default::default()), // TODO
+                pool,
+            )
+            .await?;
 
         // Insert healthcheck
         input
