@@ -199,8 +199,7 @@ trybuild = "1.0"
 # "Internal" dependencies
 vise = "0.2.0"
 vise-exporter = "0.2.0"
-# FIXME: use the `Moonsong-Labs` repo once the relevant functionality is merged
-foundry-compilers = { version = "0.11.4", git = "https://github.com/slowli/foundry-compilers.git", rev = "afe2718237d423d268bacc13fc5f0dbf01587cf7" }
+foundry-compilers = { version = "0.11.6", git = "https://github.com/Moonsong-Labs/compilers.git", rev = "7c69695e5c75451f158dd2456bf8c94a7492ea0b" }
 
 # DA clients' dependencies
 # Avail

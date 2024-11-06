@@ -94,10 +94,10 @@ fn compiler_settings() -> ZkSolcSettings {
             // Required by optimizer
             via_ir: Some(true),
             output_selection: OutputSelection {
-                all: Some(FileOutputSelection {
-                    per_file: None,
-                    per_contract: Some(HashSet::from([OutputSelectionFlag::ABI])),
-                }),
+                all: FileOutputSelection {
+                    per_file: HashSet::from([OutputSelectionFlag::ABI]),
+                    per_contract: HashSet::from([OutputSelectionFlag::ABI]),
+                },
             },
             enable_eravm_extensions: true,
             suppressed_errors: HashSet::from([ZkSolcError::SendTransfer]),

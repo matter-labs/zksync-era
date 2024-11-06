@@ -3137,8 +3137,8 @@ dependencies = [
 
 [[package]]
 name = "foundry-compilers"
-version = "0.11.4"
-source = "git+https://github.com/slowli/foundry-compilers.git?rev=afe2718237d423d268bacc13fc5f0dbf01587cf7#afe2718237d423d268bacc13fc5f0dbf01587cf7"
+version = "0.11.6"
+source = "git+https://github.com/Moonsong-Labs/compilers.git?rev=7c69695e5c75451f158dd2456bf8c94a7492ea0b#7c69695e5c75451f158dd2456bf8c94a7492ea0b"
 dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
@@ -3177,8 +3177,8 @@ dependencies = [
 
 [[package]]
 name = "foundry-compilers-artifacts"
-version = "0.11.4"
-source = "git+https://github.com/slowli/foundry-compilers.git?rev=afe2718237d423d268bacc13fc5f0dbf01587cf7#afe2718237d423d268bacc13fc5f0dbf01587cf7"
+version = "0.11.6"
+source = "git+https://github.com/Moonsong-Labs/compilers.git?rev=7c69695e5c75451f158dd2456bf8c94a7492ea0b#7c69695e5c75451f158dd2456bf8c94a7492ea0b"
 dependencies = [
  "foundry-compilers-artifacts-solc",
  "foundry-compilers-artifacts-vyper",
@@ -3187,8 +3187,8 @@ dependencies = [
 
 [[package]]
 name = "foundry-compilers-artifacts-solc"
-version = "0.11.4"
-source = "git+https://github.com/slowli/foundry-compilers.git?rev=afe2718237d423d268bacc13fc5f0dbf01587cf7#afe2718237d423d268bacc13fc5f0dbf01587cf7"
+version = "0.11.6"
+source = "git+https://github.com/Moonsong-Labs/compilers.git?rev=7c69695e5c75451f158dd2456bf8c94a7492ea0b#7c69695e5c75451f158dd2456bf8c94a7492ea0b"
 dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
@@ -3210,8 +3210,8 @@ dependencies = [
 
 [[package]]
 name = "foundry-compilers-artifacts-vyper"
-version = "0.11.4"
-source = "git+https://github.com/slowli/foundry-compilers.git?rev=afe2718237d423d268bacc13fc5f0dbf01587cf7#afe2718237d423d268bacc13fc5f0dbf01587cf7"
+version = "0.11.6"
+source = "git+https://github.com/Moonsong-Labs/compilers.git?rev=7c69695e5c75451f158dd2456bf8c94a7492ea0b#7c69695e5c75451f158dd2456bf8c94a7492ea0b"
 dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
@@ -3224,8 +3224,8 @@ dependencies = [
 
 [[package]]
 name = "foundry-compilers-artifacts-zksolc"
-version = "0.11.4"
-source = "git+https://github.com/slowli/foundry-compilers.git?rev=afe2718237d423d268bacc13fc5f0dbf01587cf7#afe2718237d423d268bacc13fc5f0dbf01587cf7"
+version = "0.11.6"
+source = "git+https://github.com/Moonsong-Labs/compilers.git?rev=7c69695e5c75451f158dd2456bf8c94a7492ea0b#7c69695e5c75451f158dd2456bf8c94a7492ea0b"
 dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
@@ -3245,8 +3245,8 @@ dependencies = [
 
 [[package]]
 name = "foundry-compilers-core"
-version = "0.11.4"
-source = "git+https://github.com/slowli/foundry-compilers.git?rev=afe2718237d423d268bacc13fc5f0dbf01587cf7#afe2718237d423d268bacc13fc5f0dbf01587cf7"
+version = "0.11.6"
+source = "git+https://github.com/Moonsong-Labs/compilers.git?rev=7c69695e5c75451f158dd2456bf8c94a7492ea0b#7c69695e5c75451f158dd2456bf8c94a7492ea0b"
 dependencies = [
  "alloy-primitives",
  "cfg-if",
