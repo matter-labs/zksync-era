@@ -2,8 +2,44 @@
 
 pragma solidity ^0.8.0;
 
+/// Counter interface shared with an EraVM counter.
+interface ICounter {
+    function increment(uint256 _increment) external;
+    function incrementWithRevert(uint256 _increment, bool _shouldRevert) external returns (uint256);
+    function get() external view returns (uint256);
+}
+
+contract Counter is ICounter {
+    uint value;
+
+    constructor(uint _initialValue) {
+        value = _initialValue;
+    }
+
+    function increment(uint256 _increment) external override {
+        value += _increment;
+    }
+
+    function incrementWithRevert(uint256 _increment, bool _shouldRevert) external override returns (uint256) {
+        value += _increment;
+        require(!_shouldRevert, "This method always reverts");
+        return value;
+    }
+
+    function get() external view override returns (uint256) {
+        return value;
+    }
+}
+
+interface IGasTester {
+    error TooMuchGas(uint expected, uint actual);
+    error TooFewGas(uint expected, uint actual);
+
+    function testGas(uint _expectedGas, bool _consumeAllGas) external view;
+}
+
 /// Tests for real EVM emulation (as opposed to mock EVM emulation from `../mock-evm`).
-contract EvmEmulationTest {
+contract EvmEmulationTest is IGasTester {
     event SimpleEvent();
 
     modifier validEvmCall() {
@@ -210,12 +246,55 @@ contract EvmEmulationTest {
         require(counter.get() == _expectedInitialValue + 3, "counter.get() after");
 
         // Test catching reverts from EVM and EraVM contracts.
-        try counter.incrementWithRevert(4, true) returns (uint) {
+        try counter.incrementWithRevert(4, true) {
             revert("expected revert");
         } catch Error(string memory reason) {
             require(keccak256(bytes(reason)) == keccak256("This method always reverts"), "unexpected error");
         }
         require(counter.get() == _expectedInitialValue + 3, "counter.get() after revert");
+    }
+
+    uint private constant GAS_TO_SEND = 100000;
+
+    function testFarCalls(IGasTester _tester, bool _isEvmTester) external view validEvmCall {
+        uint gasMultiplier = _isEvmTester ? 1 : 5;
+        uint currentGas = gasleft();
+        if (_isEvmTester) {
+            // FIXME: doesn't work for EraVM tester (~115k less gas is passed)
+            _tester.testGas((currentGas * 63 / 64) * gasMultiplier, false);
+        }
+
+        currentGas = gasleft();
+        require(currentGas > 2 * GAS_TO_SEND, "too few gas left");
+        _tester.testGas{gas: GAS_TO_SEND}(GAS_TO_SEND * gasMultiplier, false);
+
+        // Attempt to send "infinite" gas from the stipend (shouldn't work)
+        currentGas = gasleft();
+        if (_isEvmTester) {
+            // FIXME: doesn't work for EraVM tester (~115k less gas is passed)
+            _tester.testGas{gas: 1 << 30}((currentGas * 63 / 64) * gasMultiplier, false);
+        }
+
+        currentGas = gasleft();
+        require(currentGas > 2 * GAS_TO_SEND, "too few gas left");
+        try _tester.testGas{gas: GAS_TO_SEND}(GAS_TO_SEND * gasMultiplier, true) {
+            revert("expected out-of-gas");
+        } catch {
+            require(currentGas - gasleft() > GAS_TO_SEND, "gas consumed");
+        }
+    }
+
+    function testGas(uint _expectedGas, bool _consumeAllGas) external view override validEvmCall {
+        uint currentGas = gasleft();
+        if (currentGas > _expectedGas) revert TooMuchGas(_expectedGas, currentGas);
+        if (currentGas < _expectedGas - 1500) revert TooFewGas(_expectedGas, currentGas);
+
+        if (_consumeAllGas) {
+            bytes32 hash;
+            while (uint(hash) != 1) {
+                hash = keccak256(bytes.concat(hash));
+            }
+        }
     }
 
     function testDeploymentWithPartialRevert(
@@ -245,34 +324,5 @@ contract EvmEmulationTest {
         require(newAddress.codehash != bytes32(0), "code hash");
 
         require(!_shouldRevert, "requested revert");
-    }
-}
-
-/// Counter interface shared with an EraVM counter.
-interface ICounter {
-    function increment(uint256 _increment) external;
-    function incrementWithRevert(uint256 _increment, bool _shouldRevert) external returns (uint256);
-    function get() external view returns (uint256);
-}
-
-contract Counter is ICounter {
-    uint value;
-
-    constructor(uint _initialValue) {
-        value = _initialValue;
-    }
-
-    function increment(uint256 _increment) external override {
-        value += _increment;
-    }
-
-    function incrementWithRevert(uint256 _increment, bool _shouldRevert) external override returns (uint256) {
-        value += _increment;
-        require(!_shouldRevert, "This method always reverts");
-        return value;
-    }
-
-    function get() external view override returns (uint256) {
-        return value;
     }
 }

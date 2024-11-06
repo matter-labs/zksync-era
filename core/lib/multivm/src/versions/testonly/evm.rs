@@ -1,9 +1,9 @@
 use std::{collections::HashMap, iter};
 
 use assert_matches::assert_matches;
-use ethabi::Token;
+use ethabi::{ParamType, Token};
 use rand::{rngs::StdRng, Rng, SeedableRng};
-use zksync_contracts::{load_contract, read_deployed_bytecode_from_path};
+use zksync_contracts::{load_contract, read_bytecode, read_deployed_bytecode_from_path};
 use zksync_test_account::{Account, TxType};
 use zksync_types::{
     block::L2BlockHasher, get_code_key, get_deployer_key, get_evm_code_hash_key,
@@ -31,9 +31,11 @@ use crate::{
 const EVM_TEST_CONTRACT_PATH: &str =
     "etc/contracts-test-data/artifacts/evm.sol/EvmEmulationTest.json";
 const EVM_COUNTER_CONTRACT_PATH: &str = "etc/contracts-test-data/artifacts/evm.sol/Counter.json";
+const ERAVM_TESTER_CONTRACT_PATH: &str =
+    "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/evm.sol/EraVmTester.json";
 
 const EVM_ADDRESS: Address = Address::repeat_byte(1);
-const ERAVM_COUNTER_ADDRESS: Address = Address::repeat_byte(2);
+const ERAVM_ADDRESS: Address = Address::repeat_byte(2);
 
 fn pad_evm_bytecode(deployed_bytecode: &[u8]) -> Vec<u8> {
     let mut padded = Vec::with_capacity(deployed_bytecode.len() + 32);
@@ -103,7 +105,7 @@ pub(crate) fn test_real_emulator_basics<VM: TestedVm>() {
         .0
         .with_custom_contracts(vec![ContractToDeploy::new(
             eravm_counter_bytecode,
-            ERAVM_COUNTER_ADDRESS,
+            ERAVM_ADDRESS,
         )])
         .build::<VM>();
     let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
@@ -145,14 +147,13 @@ fn call_simple_evm_method<VM: TestedVm>(
 }
 
 fn call_eravm_counter<VM: TestedVm>(vm: &mut VmTester<VM>) {
-    let eravm_counter_slot =
-        StorageKey::new(AccountTreeId::new(ERAVM_COUNTER_ADDRESS), H256::zero());
+    let eravm_counter_slot = StorageKey::new(AccountTreeId::new(ERAVM_ADDRESS), H256::zero());
     let initial_value = vm.vm.read_storage(eravm_counter_slot);
 
     let eravm_counter_abi = load_test_contract_abi();
     let test_fn = eravm_counter_abi.function("increment").unwrap();
     let eravm_call = Execute {
-        contract_address: Some(ERAVM_COUNTER_ADDRESS),
+        contract_address: Some(ERAVM_ADDRESS),
         calldata: test_fn.encode_input(&[Token::Uint(3.into())]).unwrap(),
         value: 0.into(),
         factory_deps: vec![],
@@ -318,14 +319,14 @@ pub(crate) fn test_real_emulator_deployment<VM: TestedVm>() {
         .0
         .with_custom_contracts(vec![ContractToDeploy::new(
             proxy_counter_bytecode,
-            ERAVM_COUNTER_ADDRESS,
+            ERAVM_ADDRESS,
         )])
         .build::<VM>();
 
     let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
     let counter_address = deploy_and_call_evm_counter(&mut vm, &evm_abi, &counter_bytecode);
     // Manually set the `counter` address in `ProxyCounter` to the created contract.
-    let counter_slot = StorageKey::new(AccountTreeId::new(ERAVM_COUNTER_ADDRESS), H256::zero());
+    let counter_slot = StorageKey::new(AccountTreeId::new(ERAVM_ADDRESS), H256::zero());
     vm.storage
         .borrow_mut()
         .inner_mut()
@@ -410,7 +411,7 @@ fn test_calling_evm_contract_from_era<VM: TestedVm>(
     // Call the proxy counter, which should call the EVM counter.
     let proxy_increment_fn = proxy_counter_abi.function("testCounterCall").unwrap();
     let test_execute = Execute {
-        contract_address: Some(ERAVM_COUNTER_ADDRESS),
+        contract_address: Some(ERAVM_ADDRESS),
         calldata: proxy_increment_fn
             .encode_input(&[Token::Uint(initial_counter_value)])
             .unwrap(),
@@ -521,11 +522,11 @@ fn deploy_eravm_counter<VM: TestedVm>(
 
 pub(crate) fn test_calling_era_contract_from_evm<VM: TestedVm>() {
     let (vm, _) = prepare_tester_with_real_emulator();
-    let era_counter = ContractToDeploy::new(read_test_contract(), ERAVM_COUNTER_ADDRESS);
+    let era_counter = ContractToDeploy::new(read_test_contract(), ERAVM_ADDRESS);
     let counter_slot = StorageKey::new(AccountTreeId::new(EVM_ADDRESS), H256::zero());
     let mut vm = vm
         .with_custom_contracts(vec![era_counter])
-        .with_storage_slots([(counter_slot, address_to_h256(&ERAVM_COUNTER_ADDRESS))])
+        .with_storage_slots([(counter_slot, address_to_h256(&ERAVM_ADDRESS))])
         .build::<VM>();
 
     let account = &mut vm.rich_accounts[0];
@@ -542,4 +543,97 @@ pub(crate) fn test_calling_era_contract_from_evm<VM: TestedVm>() {
         .vm
         .execute_transaction_with_bytecode_compression(tx, true);
     assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+}
+
+pub(crate) fn test_far_calls_from_evm_contract<VM: TestedVm>() {
+    let era_tester = read_bytecode(ERAVM_TESTER_CONTRACT_PATH);
+    let mut vm = prepare_tester_with_real_emulator()
+        .0
+        .with_custom_contracts(vec![ContractToDeploy::new(era_tester, ERAVM_ADDRESS)])
+        .build::<VM>();
+    let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
+
+    println!("Testing EVM -> EVM far calls");
+    call_far_call_test(&mut vm, &evm_abi, EVM_ADDRESS, EVM_ADDRESS);
+    println!("Testing EVM -> EraVM far calls");
+    call_far_call_test(&mut vm, &evm_abi, EVM_ADDRESS, ERAVM_ADDRESS);
+    println!("Testing EraVM -> EraVM far calls (sanity check)");
+    call_far_call_test(&mut vm, &evm_abi, ERAVM_ADDRESS, ERAVM_ADDRESS);
+    // FIXME: doesn't work; too much gas is passed to EVM (seems independent of the `{gas: _}` spec;
+    //   does the EVM emulator not respect the 80M gas limit per tx?)
+    // println!("Testing EraVM -> EVM far calls");
+    // call_far_call_test(&mut vm, &evm_abi, ERAVM_ADDRESS, EVM_ADDRESS);
+}
+
+#[derive(Debug)]
+#[allow(dead_code)] // fields are output in panic messages via `Debug`
+enum GasError {
+    TooMuchGas { expected: U256, actual: U256 },
+    TooFewGas { expected: U256, actual: U256 },
+}
+
+impl GasError {
+    fn parse(raw: &[u8]) -> Option<Self> {
+        let too_much_gas_signature =
+            ethabi::short_signature("TooMuchGas", &[ParamType::Uint(256), ParamType::Uint(256)]);
+        let too_few_gas_signature =
+            ethabi::short_signature("TooFewGas", &[ParamType::Uint(256), ParamType::Uint(256)]);
+
+        let (signature, data) = raw.split_at(4);
+        if signature == too_much_gas_signature {
+            let (expected, actual) = Self::decode_two_ints(data);
+            Some(Self::TooMuchGas { expected, actual })
+        } else if signature == too_few_gas_signature {
+            let (expected, actual) = Self::decode_two_ints(data);
+            Some(Self::TooFewGas { expected, actual })
+        } else {
+            None
+        }
+    }
+
+    fn decode_two_ints(data: &[u8]) -> (U256, U256) {
+        let tokens = ethabi::decode(&[ParamType::Uint(256), ParamType::Uint(256)], data).unwrap();
+        match tokens.as_slice() {
+            [Token::Uint(x), Token::Uint(y)] => (*x, *y),
+            _ => panic!("unexpected tokens"),
+        }
+    }
+}
+
+fn call_far_call_test<VM: TestedVm>(
+    vm: &mut VmTester<VM>,
+    evm_abi: &ethabi::Contract,
+    tester: Address,
+    target: Address,
+) {
+    let test_fn = evm_abi.function("testFarCalls").unwrap();
+    let is_evm_target = target == EVM_ADDRESS;
+    let test_tx = vm.rich_accounts[0].get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(tester),
+            calldata: test_fn
+                .encode_input(&[Token::Address(target), Token::Bool(is_evm_target)])
+                .unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(test_tx, true);
+
+    match &vm_result.result {
+        ExecutionResult::Success { .. } => { /* OK */ }
+        ExecutionResult::Revert {
+            output: VmRevertReason::Unknown { data, .. },
+        } => {
+            if let Some(err) = GasError::parse(data) {
+                panic!("{err:?}");
+            }
+        }
+        ExecutionResult::Revert { .. } | ExecutionResult::Halt { .. } => {
+            panic!("unexpected result")
+        }
+    }
 }
