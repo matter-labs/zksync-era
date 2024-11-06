@@ -4,6 +4,7 @@ use assert_matches::assert_matches;
 use ethabi::{ParamType, Token};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use zksync_contracts::{load_contract, read_bytecode, read_deployed_bytecode_from_path};
+use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_test_account::{Account, TxType};
 use zksync_types::{
     block::L2BlockHasher, get_code_key, get_deployer_key, get_evm_code_hash_key,
@@ -15,6 +16,7 @@ use zksync_utils::{
     bytecode::{hash_bytecode, hash_evm_bytecode},
     h256_to_account_address, h256_to_u256,
 };
+use zksync_vm_interface::VmEvent;
 
 use super::{
     default_system_env, load_test_contract_abi, read_proxy_counter_contract, read_test_contract,
@@ -457,6 +459,7 @@ pub(crate) fn test_era_vm_deployment_after_evm_deployment<VM: TestedVm>() {
     deploy_eravm_counter(&mut vm, &proxy_counter_bytecode, counter_address);
 }
 
+/// Also checks `CREATE2` address computation.
 pub(crate) fn test_deployment_with_partial_reverts<VM: TestedVm>() {
     for seed in [1, 10, 100, 1_000] {
         println!("Testing with RNG seed {seed}");
@@ -465,8 +468,25 @@ pub(crate) fn test_deployment_with_partial_reverts<VM: TestedVm>() {
     }
 }
 
+fn evm_create2_address(
+    sender: Address,
+    salt: H256,
+    creation_bytecode: &[u8],
+    constructor_args: &[Token],
+) -> Address {
+    let mut creation_bytecode_and_args = creation_bytecode.to_vec();
+    creation_bytecode_and_args.extend_from_slice(&ethabi::encode(constructor_args));
+
+    let mut buffer = vec![0xff_u8];
+    buffer.extend_from_slice(sender.as_bytes());
+    buffer.extend_from_slice(salt.as_bytes());
+    buffer.extend_from_slice(&web3::keccak256(&creation_bytecode_and_args));
+    let hash_digest = web3::keccak256(&buffer);
+    Address::from_slice(&hash_digest[12..])
+}
+
 fn test_deployment_with_partial_reverts_and_rng<VM: TestedVm>(rng: &mut impl Rng) {
-    let mut vm = prepare_tester_with_real_emulator().0.build::<VM>();
+    let mut vm: VmTester<VM> = prepare_tester_with_real_emulator().0.build::<VM>();
     let account = &mut vm.rich_accounts[0];
     let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
     let test_fn = evm_abi.function("testDeploymentWithPartialRevert").unwrap();
@@ -493,10 +513,46 @@ fn test_deployment_with_partial_reverts_and_rng<VM: TestedVm>(rng: &mut impl Rng
     let counter_bytecode =
         read_deployed_bytecode_from_path(EVM_COUNTER_CONTRACT_PATH.as_ref()).unwrap();
     let padded_evm_bytecode = pad_evm_bytecode(&counter_bytecode);
+    let evm_bytecode_hash = hash_evm_bytecode(&padded_evm_bytecode);
     assert_eq!(
         new_factory_deps,
-        HashMap::from([(hash_evm_bytecode(&padded_evm_bytecode), padded_evm_bytecode)])
+        HashMap::from([(evm_bytecode_hash, padded_evm_bytecode)])
     );
+
+    // Check deployment events.
+    let counter_creation_bytecode = read_bytecode(EVM_COUNTER_CONTRACT_PATH);
+    let expected_addresses: Vec<_> = should_revert
+        .iter()
+        .enumerate()
+        .filter_map(|(i, &should_revert)| {
+            if should_revert {
+                return None;
+            }
+            // **Important.* Should correspond to contract creation logic in Solidity
+            let salt = H256::from_low_u64_be(i as u64);
+            Some(evm_create2_address(
+                EVM_ADDRESS,
+                salt,
+                &counter_creation_bytecode,
+                &[Token::Uint(0.into())],
+            ))
+        })
+        .collect();
+
+    let deploy_events = vm_result.logs.events.iter().filter(|event| {
+        event.indexed_topics.first() == Some(&VmEvent::DEPLOY_EVENT_SIGNATURE)
+            && event.address == CONTRACT_DEPLOYER_ADDRESS
+    });
+    let deployed_addresses = deploy_events.map(|event| {
+        assert_eq!(event.indexed_topics.len(), 4);
+        let deployer_address = h256_to_account_address(&event.indexed_topics[1]);
+        assert_eq!(deployer_address, EVM_ADDRESS);
+        let bytecode_hash = event.indexed_topics[2];
+        assert_eq!(bytecode_hash, evm_bytecode_hash);
+        h256_to_account_address(&event.indexed_topics[3])
+    });
+    let deployed_addresses: Vec<_> = deployed_addresses.collect();
+    assert_eq!(deployed_addresses, expected_addresses);
 }
 
 fn deploy_eravm_counter<VM: TestedVm>(
