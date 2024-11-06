@@ -19,9 +19,10 @@ re-running any `zkstack` command.
 
 #### Containers
 
-The first step to initialize a ZK Stack ecosystem is to run the command `zkstack containers`. This command gets the docker images for `postgres` and `reth`. If the `--observability`
-option is passed to the command, or the corresponding option is selected in the interactive prompt, then Prometheus,
-Grafana and other observability-related images are downloaded and run.
+The first step to initialize a ZK Stack ecosystem is to run the command `zkstack containers`. This command gets the
+docker images for `postgres` and `reth`. If the `--observability` option is passed to the command, or the corresponding
+option is selected in the interactive prompt, then Prometheus, Grafana and other observability-related images are
+downloaded and run.
 
 Reth (one of the Ethereum clients) will be used to setup our own copy of L1 chain (that our local ZKsync would use).
 
