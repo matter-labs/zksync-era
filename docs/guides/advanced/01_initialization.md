@@ -131,7 +131,7 @@ In order to communicate with L2 (our ZKsync) - we have to deploy multiple contra
 Ethereum). You can look on the `deployL1.log` file - to see the list of contracts that were deployed and their accounts.
 
 First thing in the file, is the deployer/governor wallet - this is the account that can change, freeze and unfreeze the
-contracts (basically the owner). You can also verify (using the getBalance method above), that has a lot of tokens.
+contracts (basically the owner). You can verify the token balance using the `getBalance` method above.
 
 Then, there are a bunch of contracts (CRATE2_FACTOR, DIAMOND_PROXY, L1_ALLOW_LIST etc etc) - for each one, the file
 contains the address.
