@@ -18,6 +18,7 @@ use zksync_types::{
 use zksync_utils::bytecode::{hash_bytecode, hash_evm_bytecode, BytecodeMarker};
 
 use super::*;
+use crate::api_impl::ApiError;
 
 const SOLC_VERSION: &str = "0.8.27";
 const ZKSOLC_VERSION: &str = "1.5.6";
@@ -138,10 +139,7 @@ async fn submitting_request(bytecode_kind: BytecodeMarker) {
     assert_eq!(response.status(), StatusCode::BAD_REQUEST); // the address is not deployed to
     let error_message = response.collect().await.unwrap().to_bytes();
     let error_message = str::from_utf8(&error_message).unwrap();
-    assert!(
-        error_message.contains("no deployed contract"),
-        "{error_message}"
-    );
+    assert_eq!(error_message, ApiError::NoDeployedContract.message());
 
     mock_deploy_contract(&mut storage, address, bytecode_kind).await;
 
@@ -179,9 +177,112 @@ async fn submitting_request(bytecode_kind: BytecodeMarker) {
         .uri("/contract_verification/1")
         .body(Body::empty())
         .unwrap();
-    let response = router.clone().oneshot(req).await.unwrap();
+    let response = router.oneshot(req).await.unwrap();
     let request_status = json_response(response).await;
     assert_eq!(request_status["status"], "in_progress");
 }
 
-// FIXME: test other errors
+#[test_casing(2, [BytecodeMarker::EraVm, BytecodeMarker::Evm])]
+#[tokio::test]
+async fn submitting_request_with_invalid_compiler_type(bytecode_kind: BytecodeMarker) {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    prepare_storage(&mut storage).await;
+
+    let address = Address::repeat_byte(0x23);
+    mock_deploy_contract(&mut storage, address, bytecode_kind).await;
+
+    let verification_request = serde_json::json!({
+        "contractAddress": address,
+        "sourceCode": "contract Test {}",
+        "contractName": "Test",
+        // Intentionally incorrect versions "shape"
+        "compilerZksolcVersion": match bytecode_kind {
+            BytecodeMarker::Evm => Some(ZKSOLC_VERSION),
+            BytecodeMarker::EraVm => None,
+        },
+        "compilerSolcVersion": SOLC_VERSION,
+        "optimizationUsed": true,
+    });
+    let router = RestApi::new(pool.clone(), pool).into_router();
+    let response = router
+        .oneshot(post_request(&verification_request))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let error_message = response.collect().await.unwrap().to_bytes();
+    let error_message = str::from_utf8(&error_message).unwrap();
+    let expected_message = match bytecode_kind {
+        BytecodeMarker::Evm => ApiError::BogusZkCompilerVersion.message(),
+        BytecodeMarker::EraVm => ApiError::MissingZkCompilerVersion.message(),
+    };
+    assert_eq!(error_message, expected_message);
+}
+
+#[tokio::test]
+async fn querying_missing_request() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    prepare_storage(&mut storage).await;
+    let router = RestApi::new(pool.clone(), pool).into_router();
+
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri("/contract_verification/1")
+        .body(Body::empty())
+        .unwrap();
+    let response = router.oneshot(req).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let error_message = response.collect().await.unwrap().to_bytes();
+    let error_message = str::from_utf8(&error_message).unwrap();
+    assert_eq!(error_message, ApiError::RequestNotFound.message());
+}
+
+#[tokio::test]
+async fn querying_missing_verification_info() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    prepare_storage(&mut storage).await;
+    let router = RestApi::new(pool.clone(), pool).into_router();
+
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri("/contract_verification/info/0x2323232323232323232323232323232323232323")
+        .body(Body::empty())
+        .unwrap();
+    let response = router.oneshot(req).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let error_message = response.collect().await.unwrap().to_bytes();
+    let error_message = str::from_utf8(&error_message).unwrap();
+    assert_eq!(error_message, ApiError::VerificationInfoNotFound.message());
+}
+
+#[tokio::test]
+async fn mismatched_compiler_type() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    prepare_storage(&mut storage).await;
+    let address = Address::repeat_byte(0x23);
+    mock_deploy_contract(&mut storage, address, BytecodeMarker::EraVm).await;
+
+    let verification_request = serde_json::json!({
+        "contractAddress": address,
+        "sourceCode": "contract Test {}",
+        "contractName": "Test",
+        "compilerVyperVersion": "1.0.1",
+        "optimizationUsed": true,
+    });
+
+    let router = RestApi::new(pool.clone(), pool).into_router();
+    let response = router
+        .oneshot(post_request(&verification_request))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let error_message = response.collect().await.unwrap().to_bytes();
+    let error_message = str::from_utf8(&error_message).unwrap();
+    assert_eq!(error_message, ApiError::IncorrectCompilerVersions.message());
+}

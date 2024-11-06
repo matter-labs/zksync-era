@@ -41,36 +41,35 @@ impl From<DalError> for ApiError {
     }
 }
 
+impl ApiError {
+    pub fn message(&self) -> &'static str {
+        match self {
+            Self::IncorrectCompilerVersions => "incorrect compiler versions",
+            Self::MissingZkCompilerVersion => "missing zk compiler version for EraVM bytecode",
+            Self::BogusZkCompilerVersion => "zk compiler version specified for EVM bytecode",
+            Self::NoDeployedContract => "There is no deployed contract on this address",
+            Self::RequestNotFound => "request not found",
+            Self::VerificationInfoNotFound => "verification info not found for address",
+            Self::Internal(_) => "internal server error",
+        }
+    }
+}
+
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let (status_code, message) = match self {
-            Self::IncorrectCompilerVersions => {
-                (StatusCode::BAD_REQUEST, "incorrect compiler versions")
-            }
-            Self::MissingZkCompilerVersion => (
-                StatusCode::BAD_REQUEST,
-                "missing zk compiler version for EraVM bytecode",
-            ),
-            Self::BogusZkCompilerVersion => (
-                StatusCode::BAD_REQUEST,
-                "zk compiler version specified for EVM bytecode",
-            ),
-            Self::NoDeployedContract => (
-                StatusCode::BAD_REQUEST,
-                "There is no deployed contract on this address",
-            ),
-            Self::RequestNotFound => (StatusCode::NOT_FOUND, "request not found"),
-            Self::VerificationInfoNotFound => (
-                StatusCode::NOT_FOUND,
-                "verification info not found for address",
-            ),
+        let status_code = match &self {
+            Self::IncorrectCompilerVersions
+            | Self::MissingZkCompilerVersion
+            | Self::BogusZkCompilerVersion
+            | Self::NoDeployedContract => StatusCode::BAD_REQUEST,
+            Self::RequestNotFound | Self::VerificationInfoNotFound => StatusCode::NOT_FOUND,
             Self::Internal(err) => {
                 // Do not expose the error details to the client, but log it.
                 tracing::warn!("Internal error: {err:#}");
-                (StatusCode::INTERNAL_SERVER_ERROR, "internal server error")
+                StatusCode::INTERNAL_SERVER_ERROR
             }
         };
-        (status_code, message).into_response()
+        (status_code, self.message()).into_response()
     }
 }
 
