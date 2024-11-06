@@ -57,7 +57,7 @@ access it at `http://127.0.0.1:3000/` under credentials `admin/admin`.
 
 ## Ecosystem Configuration
 
-Ecosystem configuration can be found in:
+The ecosystem configurations can be found in the following folders:
 
 - `/ZkStack.yaml`
 - `/configs` folder
