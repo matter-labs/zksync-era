@@ -77,6 +77,26 @@ zkstack server
 The server's configuration files can be found in `/chains/<chain_name>/configs` directory. These files are created when
 running `zkstack chain init` command.
 
+### Modifying configuration files manually
+
+To manually modify configuration files:
+
+1. Locate the relevant config file in `/chains/<chain_name>/configs`
+2. Open the file in a text editor
+3. Make necessary changes, following the existing format
+4. Save the file
+5. Restart the relevant services for changes to take effect:
+
+```bash
+zkstack server
+```
+
+> NOTE: Manual changes to configuration files may be overwritten if the ecosystem is reinitialized or the chain is
+> reinitialized.
+
+> WARNING: Some properties, such as ports, may require manual modification across different configuration files to
+> ensure consistency and avoid conflicts.
+
 ## Running server using Google cloud storage object store instead of default In memory store
 
 Get the `service_account.json` file containing the GCP credentials from kubernetes secret for relevant
