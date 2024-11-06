@@ -1,4 +1,4 @@
-use std::{iter, sync::Arc};
+use std::{collections::HashSet, iter, sync::Arc};
 
 use anyhow::Context as _;
 use axum::{
@@ -21,6 +21,7 @@ use super::{api_decl::RestApi, metrics::METRICS};
 #[derive(Debug)]
 pub(crate) enum ApiError {
     IncorrectCompilerVersions,
+    UnsupportedCompilerVersions,
     MissingZkCompilerVersion,
     BogusZkCompilerVersion,
     NoDeployedContract,
@@ -45,6 +46,7 @@ impl ApiError {
     pub fn message(&self) -> &'static str {
         match self {
             Self::IncorrectCompilerVersions => "incorrect compiler versions",
+            Self::UnsupportedCompilerVersions => "unsupported compiler versions",
             Self::MissingZkCompilerVersion => "missing zk compiler version for EraVM bytecode",
             Self::BogusZkCompilerVersion => "zk compiler version specified for EVM bytecode",
             Self::NoDeployedContract => "There is no deployed contract on this address",
@@ -59,10 +61,13 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let status_code = match &self {
             Self::IncorrectCompilerVersions
+            | Self::UnsupportedCompilerVersions
             | Self::MissingZkCompilerVersion
             | Self::BogusZkCompilerVersion
             | Self::NoDeployedContract => StatusCode::BAD_REQUEST,
+
             Self::RequestNotFound | Self::VerificationInfoNotFound => StatusCode::NOT_FOUND,
+
             Self::Internal(err) => {
                 // Do not expose the error details to the client, but log it.
                 tracing::warn!("Internal error: {err:#}");
@@ -111,6 +116,14 @@ impl RestApi {
         let method_latency = METRICS.call[&"contract_verification"].start();
         Self::validate_contract_verification_query(&request)?;
 
+        let is_compilation_supported = self_
+            .supported_compilers
+            .get(|supported| supported.contain(&request.compiler_versions))
+            .await?;
+        if !is_compilation_supported {
+            return Err(ApiError::UnsupportedCompilerVersions);
+        }
+
         let mut storage = self_
             .master_connection_pool
             .connection_tagged("api")
@@ -158,56 +171,44 @@ impl RestApi {
     }
 
     #[tracing::instrument(skip(self_))]
-    pub async fn zksolc_versions(State(self_): State<Arc<Self>>) -> ApiResult<Vec<String>> {
+    pub async fn zksolc_versions(State(self_): State<Arc<Self>>) -> ApiResult<HashSet<String>> {
         let method_latency = METRICS.call[&"contract_verification_zksolc_versions"].start();
         let versions = self_
-            .replica_connection_pool
-            .connection_tagged("api")
-            .await?
-            .contract_verification_dal()
-            .get_zksolc_versions()
+            .supported_compilers
+            .get(|supported| supported.zksolc.clone())
             .await?;
         method_latency.observe();
         Ok(Json(versions))
     }
 
     #[tracing::instrument(skip(self_))]
-    pub async fn solc_versions(State(self_): State<Arc<Self>>) -> ApiResult<Vec<String>> {
+    pub async fn solc_versions(State(self_): State<Arc<Self>>) -> ApiResult<HashSet<String>> {
         let method_latency = METRICS.call[&"contract_verification_solc_versions"].start();
         let versions = self_
-            .replica_connection_pool
-            .connection_tagged("api")
-            .await?
-            .contract_verification_dal()
-            .get_solc_versions()
+            .supported_compilers
+            .get(|supported| supported.solc.clone())
             .await?;
         method_latency.observe();
         Ok(Json(versions))
     }
 
     #[tracing::instrument(skip(self_))]
-    pub async fn zkvyper_versions(State(self_): State<Arc<Self>>) -> ApiResult<Vec<String>> {
+    pub async fn zkvyper_versions(State(self_): State<Arc<Self>>) -> ApiResult<HashSet<String>> {
         let method_latency = METRICS.call[&"contract_verification_zkvyper_versions"].start();
         let versions = self_
-            .replica_connection_pool
-            .connection_tagged("api")
-            .await?
-            .contract_verification_dal()
-            .get_zkvyper_versions()
+            .supported_compilers
+            .get(|supported| supported.zkvyper.clone())
             .await?;
         method_latency.observe();
         Ok(Json(versions))
     }
 
     #[tracing::instrument(skip(self_))]
-    pub async fn vyper_versions(State(self_): State<Arc<Self>>) -> ApiResult<Vec<String>> {
+    pub async fn vyper_versions(State(self_): State<Arc<Self>>) -> ApiResult<HashSet<String>> {
         let method_latency = METRICS.call[&"contract_verification_vyper_versions"].start();
         let versions = self_
-            .replica_connection_pool
-            .connection_tagged("api")
-            .await?
-            .contract_verification_dal()
-            .get_vyper_versions()
+            .supported_compilers
+            .get(|supported| supported.vyper.clone())
             .await?;
         method_latency.observe();
         Ok(Json(versions))

@@ -8,6 +8,7 @@ use self::api_decl::RestApi;
 
 mod api_decl;
 mod api_impl;
+mod cache;
 mod metrics;
 #[cfg(test)]
 mod tests;
