@@ -731,6 +731,7 @@ impl StateKeeperIO for TestIO {
     async fn wait_for_next_tx(
         &mut self,
         max_wait: Duration,
+        _l2_block_timestamp: u64,
     ) -> anyhow::Result<Option<Transaction>> {
         let action = self.pop_next_item("wait_for_next_tx");
 
