@@ -8,7 +8,7 @@ use zksync_utils::bytecode::validate_bytecode;
 
 use super::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct TestCompilerVersions {
     solc: String,
     zksolc: String,
@@ -26,10 +26,20 @@ impl TestCompilerVersions {
         })
     }
 
-    fn for_zksolc(self) -> CompilerVersions {
+    fn zksolc(self) -> ZkCompilerVersions {
+        ZkCompilerVersions {
+            base: self.solc,
+            zk: self.zksolc,
+        }
+    }
+
+    fn solc_for_api(self, bytecode_kind: BytecodeMarker) -> CompilerVersions {
         CompilerVersions::Solc {
             compiler_solc_version: self.solc,
-            compiler_zksolc_version: self.zksolc,
+            compiler_zksolc_version: match bytecode_kind {
+                BytecodeMarker::Evm => None,
+                BytecodeMarker::EraVm => Some(self.zksolc),
+            },
         }
     }
 }
@@ -70,10 +80,12 @@ macro_rules! real_resolver {
 async fn using_real_compiler() {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
-    let versions = supported_compilers.for_zksolc();
-    let compiler = compiler_resolver.resolve_zksolc(&versions).await.unwrap();
+    let compiler = compiler_resolver
+        .resolve_zksolc(&supported_compilers.clone().zksolc())
+        .await
+        .unwrap();
     let req = VerificationIncomingRequest {
-        compiler_versions: versions,
+        compiler_versions: supported_compilers.solc_for_api(BytecodeMarker::EraVm),
         ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
     };
     let input = ZkSolc::build_input(req).unwrap();
@@ -92,7 +104,7 @@ async fn using_standalone_solc() {
     let req = VerificationIncomingRequest {
         compiler_versions: CompilerVersions::Solc {
             compiler_solc_version: version.clone(),
-            compiler_zksolc_version: "1000.0.0".to_owned(), // not used
+            compiler_zksolc_version: None,
         },
         ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
     };
@@ -108,23 +120,22 @@ async fn using_standalone_solc() {
 async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker) {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
-    let versions = supported_compilers.for_zksolc();
     let req = VerificationIncomingRequest {
-        compiler_versions: versions,
+        compiler_versions: supported_compilers.clone().solc_for_api(bytecode_kind),
         ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
     };
     let address = Address::repeat_byte(1);
     let output = match bytecode_kind {
         BytecodeMarker::EraVm => {
             let compiler = compiler_resolver
-                .resolve_zksolc(&req.compiler_versions)
+                .resolve_zksolc(&supported_compilers.zksolc())
                 .await
                 .unwrap();
             let input = ZkSolc::build_input(req.clone()).unwrap();
             compiler.compile(input).await.unwrap()
         }
         BytecodeMarker::Evm => {
-            let solc_version = req.compiler_versions.compiler_version();
+            let solc_version = &supported_compilers.solc;
             let compiler = compiler_resolver.resolve_solc(solc_version).await.unwrap();
             let input = Solc::build_input(req.clone()).unwrap();
             compiler.compile(input).await.unwrap()
@@ -151,7 +162,7 @@ async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker) {
     }
     let request_id = storage
         .contract_verification_dal()
-        .add_contract_verification_request(req)
+        .add_contract_verification_request(&req)
         .await
         .unwrap();
 
@@ -174,10 +185,9 @@ async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker) {
 async fn compilation_errors(bytecode_kind: BytecodeMarker) {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
-    let versions = supported_compilers.for_zksolc();
     let address = Address::repeat_byte(1);
     let req = VerificationIncomingRequest {
-        compiler_versions: versions,
+        compiler_versions: supported_compilers.solc_for_api(bytecode_kind),
         source_code_data: SourceCodeData::SolSingleFile("contract ???".to_owned()),
         ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
     };
@@ -196,7 +206,7 @@ async fn compilation_errors(bytecode_kind: BytecodeMarker) {
 
     let request_id = storage
         .contract_verification_dal()
-        .add_contract_verification_request(req)
+        .add_contract_verification_request(&req)
         .await
         .unwrap();
 
