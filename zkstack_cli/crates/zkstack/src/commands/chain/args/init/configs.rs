@@ -1,6 +1,8 @@
+use std::path::PathBuf;
+
 use clap::Parser;
 use common::Prompt;
-use config::ChainConfig;
+use config::{ChainConfig, EcosystemConfig};
 use serde::{Deserialize, Serialize};
 use types::L1Network;
 use url::Url;
@@ -33,10 +35,15 @@ pub struct InitConfigsArgsFinal {
     pub genesis_args: GenesisArgsFinal,
     pub l1_rpc_url: String,
     pub no_port_reallocation: bool,
+    pub contracts_path: PathBuf,
 }
 
 impl InitConfigsArgs {
-    pub fn fill_values_with_prompt(self, config: &ChainConfig) -> InitConfigsArgsFinal {
+    pub fn fill_values_with_prompt(
+        self,
+        ecosystem: Option<EcosystemConfig>,
+        config: &ChainConfig,
+    ) -> InitConfigsArgsFinal {
         let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
             let mut prompt = Prompt::new(MSG_L1_RPC_URL_PROMPT);
             if config.l1_network == L1Network::Localhost {
@@ -51,20 +58,25 @@ impl InitConfigsArgs {
                 .ask()
         });
 
+        let contracts_path = ecosystem.unwrap().get_contracts_path();
+
         InitConfigsArgsFinal {
             genesis_args: self.genesis_args.fill_values_with_prompt(config),
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
+            contracts_path,
         }
     }
 }
 
 impl InitConfigsArgsFinal {
     pub fn from_chain_init_args(init_args: &InitArgsFinal) -> InitConfigsArgsFinal {
+        let contracts_path = PathBuf::new();
         InitConfigsArgsFinal {
             genesis_args: init_args.genesis_args.clone(),
             l1_rpc_url: init_args.l1_rpc_url.clone(),
             no_port_reallocation: init_args.no_port_reallocation,
+            contracts_path,
         }
     }
 }

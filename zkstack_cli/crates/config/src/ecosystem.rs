@@ -211,7 +211,7 @@ impl EcosystemConfig {
     }
 
     pub fn get_contracts_config(&self) -> anyhow::Result<ContractsConfig> {
-        ContractsConfig::read(self.get_shell(), self.config.join(CONTRACTS_FILE))
+        ContractsConfig::read(self.get_shell(), self.get_contracts_path())
     }
 
     pub fn path_to_foundry(&self) -> PathBuf {
@@ -271,6 +271,10 @@ impl EcosystemConfig {
             prover_version: self.prover_version,
             wallet_creation: self.wallet_creation,
         }
+    }
+
+    pub fn get_contracts_path(&self) -> PathBuf {
+        self.config.join(CONTRACTS_FILE)
     }
 }
 

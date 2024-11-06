@@ -1,8 +1,9 @@
 use anyhow::Context;
 use common::logger;
 use config::{
-    copy_configs, set_l1_rpc_url, traits::SaveConfigWithBasePath, update_from_chain_config,
-    ChainConfig, ContractsConfig, EcosystemConfig,
+    copy_configs, set_l1_rpc_url,
+    traits::{ReadConfig, SaveConfigWithBasePath},
+    update_from_chain_config, ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use ethers::types::Address;
 use xshell::Shell;
@@ -30,9 +31,9 @@ pub async fn run(args: InitConfigsArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    let args = args.fill_values_with_prompt(&chain_config);
+    let args = args.fill_values_with_prompt(Some(ecosystem_config), &chain_config);
 
-    init_configs(&args, shell, &ecosystem_config, &chain_config).await?;
+    init_configs(&args, shell, &chain_config).await?;
     logger::outro(MSG_CHAIN_CONFIGS_INITIALIZED);
 
     Ok(())
@@ -41,7 +42,6 @@ pub async fn run(args: InitConfigsArgs, shell: &Shell) -> anyhow::Result<()> {
 pub async fn init_configs(
     init_args: &InitConfigsArgsFinal,
     shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
     chain_config: &ChainConfig,
 ) -> anyhow::Result<ContractsConfig> {
     // Port scanner should run before copying configs to avoid marking initial ports as assigned
@@ -85,7 +85,7 @@ pub async fn init_configs(
     genesis_config.save_with_base_path(shell, &chain_config.configs)?;
 
     // Initialize contracts config
-    let mut contracts_config = ecosystem_config.get_contracts_config()?;
+    let mut contracts_config = ContractsConfig::read(shell, &init_args.contracts_path)?;
     contracts_config.l1.diamond_proxy_addr = Address::zero();
     contracts_config.l1.governance_addr = Address::zero();
     contracts_config.l1.chain_admin_addr = Address::zero();
