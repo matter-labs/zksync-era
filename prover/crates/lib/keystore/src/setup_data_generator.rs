@@ -4,6 +4,9 @@
 use std::collections::HashMap;
 
 use anyhow::Context as _;
+#[cfg(feature = "gpu")]
+use boojum_cuda::poseidon2::GLHasher;
+use circuit_definitions::circuit_definitions::aux_layer::CompressionProofsTreeHasherForWrapper;
 use shivini::cs::gpu_setup_and_vk_from_base_setup_vk_params_and_hints;
 use zkevm_test_harness::{
     compute_setups::{
@@ -168,33 +171,69 @@ impl SetupDataGenerator for GPUSetupDataGenerator {
             .unwrap();
 
             let worker = Worker::new();
-            let (gpu_setup_data, verification_key) =
-                gpu_setup_and_vk_from_base_setup_vk_params_and_hints(
-                    circuit_setup_data.setup_base,
-                    circuit_setup_data.vk_geometry,
-                    circuit_setup_data.vars_hint.clone(),
-                    circuit_setup_data.wits_hint,
-                    &worker,
-                )
-                .context("failed creating GPU base layer setup data")?;
 
-            let gpu_prover_setup_data = GpuProverSetupData {
-                setup: gpu_setup_data,
-                vk: verification_key.clone(),
-                finalization_hint: circuit_setup_data.finalization_hint,
-            };
+            if circuit.stage != ProvingStage::CompressionWrapper {
+                let (gpu_setup_data, verification_key) =
+                    gpu_setup_and_vk_from_base_setup_vk_params_and_hints::<GLHasher, _>(
+                        circuit_setup_data.setup_base,
+                        circuit_setup_data.vk_geometry,
+                        circuit_setup_data.vars_hint.clone(),
+                        circuit_setup_data.wits_hint,
+                        &worker,
+                    )
+                    .context("failed creating GPU base layer setup data")?;
 
-            let serialized_vk = get_vk_by_circuit(self.keystore.clone(), circuit)?;
+                let gpu_prover_setup_data = GpuProverSetupData {
+                    setup: gpu_setup_data,
+                    vk: verification_key.clone(),
+                    finalization_hint: circuit_setup_data.finalization_hint,
+                };
 
-            assert_eq!(
-                bincode::serialize(&verification_key).expect("Failed serializing setup data"),
-                serialized_vk,
-                "Verification key mismatch for circuit: {:?}",
-                circuit.name()
-            );
+                let serialized_vk = get_vk_by_circuit(self.keystore.clone(), circuit)?;
 
-            // Serialization should always succeed.
-            Ok(bincode::serialize(&gpu_prover_setup_data).expect("Failed serializing setup data"))
+                assert_eq!(
+                    bincode::serialize(&verification_key).expect("Failed serializing setup data"),
+                    serialized_vk,
+                    "Verification key mismatch for circuit: {:?}",
+                    circuit.name()
+                );
+
+                // Serialization should always succeed.
+                Ok(bincode::serialize(&gpu_prover_setup_data)
+                    .expect("Failed serializing setup data"))
+            } else {
+                let (gpu_setup_data, verification_key) =
+                    gpu_setup_and_vk_from_base_setup_vk_params_and_hints::<
+                        CompressionProofsTreeHasherForWrapper,
+                        _,
+                    >(
+                        circuit_setup_data.setup_base,
+                        circuit_setup_data.vk_geometry,
+                        circuit_setup_data.vars_hint.clone(),
+                        circuit_setup_data.wits_hint,
+                        &worker,
+                    )
+                    .context("failed creating GPU base layer setup data")?;
+
+                let gpu_prover_setup_data = GpuProverSetupData {
+                    setup: gpu_setup_data,
+                    vk: verification_key.clone(),
+                    finalization_hint: circuit_setup_data.finalization_hint,
+                };
+
+                let serialized_vk = get_vk_by_circuit(self.keystore.clone(), circuit)?;
+
+                assert_eq!(
+                    bincode::serialize(&verification_key).expect("Failed serializing setup data"),
+                    serialized_vk,
+                    "Verification key mismatch for circuit: {:?}",
+                    circuit.name()
+                );
+
+                // Serialization should always succeed.
+                Ok(bincode::serialize(&gpu_prover_setup_data)
+                    .expect("Failed serializing setup data"))
+            }
         }
     }
 

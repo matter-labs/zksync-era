@@ -6,17 +6,18 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Context as _;
-use circuit_definitions::circuit_definitions::aux_layer::{
-    ZkSyncCompressionForWrapperCircuit, ZkSyncCompressionLayerCircuit,
-    ZkSyncCompressionLayerStorage, ZkSyncSnarkWrapperSetup, ZkSyncSnarkWrapperVK,
+use circuit_definitions::circuit_definitions::{
+    aux_layer::{
+        ZkSyncCompressionForWrapperCircuit, ZkSyncCompressionLayerCircuit,
+        ZkSyncCompressionLayerStorage, ZkSyncSnarkWrapperSetup, ZkSyncSnarkWrapperVK,
+    },
+    recursion_layer::ZkSyncRecursionLayerVerificationKey,
 };
-use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerVerificationKey;
 use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
 use indicatif::{ProgressBar, ProgressStyle};
 use shivini::{cs::gpu_setup_and_vk_from_base_setup_vk_params_and_hints, ProverContext};
 use tracing::level_filters::LevelFilter;
-use zkevm_test_harness::proof_wrapper_utils::get_wrapper_setup_and_vk_from_compression_vk;
 use zkevm_test_harness::{
     boojum::worker::Worker,
     compute_setups::{
@@ -25,7 +26,8 @@ use zkevm_test_harness::{
     },
     data_source::{in_memory_data_source::InMemoryDataSource, BlockDataSource, SetupDataSource},
     proof_wrapper_utils::{
-        check_trusted_setup_file_existace, get_vk_for_previous_circuit, WrapperConfig,
+        check_trusted_setup_file_existace, get_vk_for_previous_circuit,
+        get_wrapper_setup_and_vk_from_compression_vk, WrapperConfig,
     },
     prover_utils::light::{
         create_light_compression_for_wrapper_setup_data, create_light_compression_layer_setup_data,
@@ -173,6 +175,7 @@ fn generate_compression_vks<DS: SetupDataSource + BlockDataSource>(
             .unwrap();
     }
 }
+
 fn generate_compression_for_wrapper_vks<DS: SetupDataSource + BlockDataSource>(
     config: WrapperConfig,
     source: &mut DS,
@@ -262,6 +265,7 @@ enum CircuitSelector {
     /// Select circuits from basic group.
     Basic,
     Compression,
+    CompressionWrapper,
 }
 
 #[derive(Debug, Parser)]
@@ -369,6 +373,11 @@ fn generate_setup_keys(
                 .expect("--numeric-circuit must be provided"),
         ),
         CircuitSelector::Compression => ProverServiceDataKey::new_compression(
+            options
+                .numeric_circuit
+                .expect("--numeric-circuit must be provided"),
+        ),
+        CircuitSelector::CompressionWrapper => ProverServiceDataKey::new_compression_wrapper(
             options
                 .numeric_circuit
                 .expect("--numeric-circuit must be provided"),

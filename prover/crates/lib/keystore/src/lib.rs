@@ -85,11 +85,12 @@ impl From<CircuitSetupData> for GoldilocksProverSetupData {
 #[cfg(feature = "gpu")]
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "F: serde::Serialize + serde::de::DeserializeOwned")]
-pub struct GpuProverSetupData<F: PrimeField + SmallField, H: TreeHasher<F>> {
-    pub setup: GpuSetup<GLHasher>,
+pub struct GpuProverSetupData<F: PrimeField + SmallField, H: shivini::GpuTreeHasher + TreeHasher<F>>
+{
+    pub setup: GpuSetup<H>,
     #[serde(bound(
-        serialize = "H::Output: serde::Serialize",
-        deserialize = "H::Output: serde::de::DeserializeOwned"
+        serialize = "<H as TreeHasher<F>>::Output: serde::Serialize",
+        deserialize = "<H as TreeHasher<F>>::Output: serde::de::DeserializeOwned"
     ))]
     pub vk: VerificationKey<F, H>,
     pub finalization_hint: FinalizationHintsForProver,
