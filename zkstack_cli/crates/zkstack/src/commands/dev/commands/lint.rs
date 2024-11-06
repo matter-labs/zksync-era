@@ -79,7 +79,7 @@ fn lint_rs(shell: &Shell, ecosystem: &EcosystemConfig, check: bool) -> anyhow::R
         let mut cmd = cmd!(shell, "cargo clippy");
         let mut common_args = vec!["--locked", "--", "-D", "warnings"];
 
-        if path.ends_with("zkstack_cli") {
+        if !path.ends_with("prover") {
             common_args.push("-D");
             common_args.push("unstable-features");
         }
