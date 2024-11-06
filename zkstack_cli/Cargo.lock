@@ -796,6 +796,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "const-decoder"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b381abde2cdc1bc3817e394b24e05667a2dc89f37570cbd34d9c397d99e56e3f"
+dependencies = [
+ "compile-fmt",
+]
+
+[[package]]
 name = "const-hex"
 version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7002,6 +7011,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bigdecimal",
+ "const-decoder",
  "futures",
  "hex",
  "num",
