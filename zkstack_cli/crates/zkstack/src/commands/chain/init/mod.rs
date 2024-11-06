@@ -1,7 +1,9 @@
 use anyhow::Context;
 use clap::{command, Parser, Subcommand};
 use common::{git, logger, spinner::Spinner};
-use config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
+use config::{
+    traits::SaveConfigWithBasePath, zkstack_config::ZkStackConfig, ChainConfig, EcosystemConfig,
+};
 use types::BaseToken;
 use xshell::Shell;
 
@@ -54,17 +56,15 @@ pub(crate) async fn run(args: ChainInitCommand, shell: &Shell) -> anyhow::Result
 }
 
 async fn run_init(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
-    let config = EcosystemConfig::from_file(shell)?;
-    let chain_config = config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    let args = args.fill_values_with_prompt(&chain_config);
+    let ecosystem = EcosystemConfig::from_file(shell).ok();
+    let chain_config = ZkStackConfig::load_current_chain(shell).context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    let args = args.fill_values_with_prompt(ecosystem.clone(), &chain_config)?;
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));
     logger::info(msg_initializing_chain(""));
-    git::submodule_update(shell, config.link_to_code.clone())?;
+    git::submodule_update(shell, chain_config.link_to_code.clone())?;
 
-    init(&args, shell, &config, &chain_config).await?;
+    init(&args, shell, &ecosystem.unwrap(), &chain_config).await?;
 
     logger::success(MSG_CHAIN_INITIALIZED);
     Ok(())

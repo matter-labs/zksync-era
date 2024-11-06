@@ -347,6 +347,8 @@ async fn init_chains(
     if list_of_chains.len() > 1 {
         genesis_args.reset_db_names();
     }
+    let ecosystem_contracts_path =
+        Some(ecosystem_config.get_contracts_path().display().to_string());
     // Initialize chains
     for chain_name in &list_of_chains {
         logger::info(msg_initializing_chain(chain_name));
@@ -363,8 +365,10 @@ async fn init_chains(
             l1_rpc_url: Some(final_init_args.ecosystem.l1_rpc_url.clone()),
             no_port_reallocation: final_init_args.no_port_reallocation,
             dev: final_init_args.dev,
+            ecosystem_contracts_path: ecosystem_contracts_path.clone(),
         };
-        let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
+        let final_chain_init_args = chain_init_args
+            .fill_values_with_prompt(Some(ecosystem_config.clone()), &chain_config)?;
 
         chain::init::init(
             &final_chain_init_args,

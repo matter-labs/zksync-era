@@ -31,7 +31,7 @@ use crate::{
 pub async fn run(args: InitConfigsArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ZkStackConfig::load_current_chain(shell).context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    let args = args.fill_values_with_prompt(Some(&ecosystem_config), &chain_config);
+    let args = args.fill_values_with_prompt(Some(ecosystem_config), &chain_config)?;
 
     init_configs(&args, shell, &chain_config).await?;
     logger::outro(MSG_CHAIN_CONFIGS_INITIALIZED);
@@ -85,7 +85,7 @@ pub async fn init_configs(
     genesis_config.save_with_base_path(shell, &chain_config.configs)?;
 
     // Initialize contracts config
-    let mut contracts_config = ContractsConfig::read(shell, &init_args.contracts_path)?;
+    let mut contracts_config = ContractsConfig::read(shell, &init_args.ecosystem_contracts_path)?;
     contracts_config.l1.diamond_proxy_addr = Address::zero();
     contracts_config.l1.governance_addr = Address::zero();
     contracts_config.l1.chain_admin_addr = Address::zero();
