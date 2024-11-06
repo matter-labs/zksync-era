@@ -427,19 +427,19 @@ jobs:
       - name: Init external nodes
         run: |
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_rollup --l1-rpc-url=http://localhost:8545 --gateway-rpc-url=http://localhost:3150 --chain era
+          --db-name=zksync_en_localhost_era_rollup --l1-rpc-url=http://localhost:8545 --gateway-rpc-url=http://localhost:3450 --chain era
           ci_run zkstack external-node init --ignore-prerequisites --chain era
 
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_validium1 --l1-rpc-url=http://localhost:8545 --gateway-rpc-url=http://localhost:3150 --chain validium
+          --db-name=zksync_en_localhost_era_validium1 --l1-rpc-url=http://localhost:8545 --gateway-rpc-url=http://localhost:3450 --chain validium
           ci_run zkstack external-node init --ignore-prerequisites --chain validium
 
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_custom_token --l1-rpc-url=http://localhost:8545 --gateway-rpc-url=http://localhost:3150 --chain custom_token
+          --db-name=zksync_en_localhost_era_custom_token --l1-rpc-url=http://localhost:8545 --gateway-rpc-url=http://localhost:3450 --chain custom_token
           ci_run zkstack external-node init --ignore-prerequisites --chain custom_token
 
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_consensus --l1-rpc-url=http://localhost:8545 --gateway-rpc-url=http://localhost:3150 --chain consensus
+          --db-name=zksync_en_localhost_era_consensus --l1-rpc-url=http://localhost:8545 --gateway-rpc-url=http://localhost:3450 --chain consensus
           ci_run zkstack external-node init --ignore-prerequisites --chain consensus
 
       - name: Run recovery tests (from snapshot)

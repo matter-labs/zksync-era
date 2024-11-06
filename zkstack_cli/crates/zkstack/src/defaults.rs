@@ -28,8 +28,6 @@ pub const L2_CHAIN_ID: u32 = 271;
 /// Path to base chain configuration inside zksync-era
 /// Local RPC url
 pub(super) const LOCAL_RPC_URL: &str = "http://127.0.0.1:8545";
-/// Default local gateway url
-pub(super) const LOCAL_GATEWAY_RPC_URL: &str = "http://127.0.0.1:3150";
 
 pub struct DBNames {
     pub server_name: String,
