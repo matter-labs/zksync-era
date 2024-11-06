@@ -17,7 +17,7 @@ jobs:
       - name: Setup environment
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo BELLMAN_CUDA_DIR=($pwd)/era-bellman-cuda >> $GITHUB_ENV
+          echo BELLMAN_CUDA_DIR=$(pwd)/era-bellman-cuda >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
           echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
