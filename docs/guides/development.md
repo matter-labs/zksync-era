@@ -28,7 +28,7 @@ zkstackup --local
 
 This command installs `zkstack` from the current source directory.
 
-You can proceed to verify the installation and start familiarizing qith the CLI by running:
+You can proceed to verify the installation and start familiarizing with the CLI by running:
 
 ```bash
 zkstack --help
