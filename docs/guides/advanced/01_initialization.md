@@ -19,7 +19,7 @@ re-running any `zkstack` command.
 
 #### Containers
 
-As first step, running `zkstack containers` gets the docker images for postgres and reth. If the `--observability`
+The first step to initialize a ZK Stack ecosystem is to run the command `zkstack containers`. This command gets the docker images for `postgres` and `reth`. If the `--observability`
 option is passed to the command, or the corresponding option is selected in the interactive prompt, then Prometheus,
 Grafana and other observability-related images are downloaded and run.
 
