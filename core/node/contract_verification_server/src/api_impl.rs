@@ -1,5 +1,6 @@
-use std::sync::Arc;
+use std::{iter, sync::Arc};
 
+use anyhow::Context as _;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -9,20 +10,29 @@ use axum::{
 use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
     contract_verification_api::{
-        VerificationIncomingRequest, VerificationInfo, VerificationRequestStatus,
+        CompilerVersions, VerificationIncomingRequest, VerificationInfo, VerificationRequestStatus,
     },
     Address,
 };
+use zksync_utils::bytecode::BytecodeMarker;
 
 use super::{api_decl::RestApi, metrics::METRICS};
 
 #[derive(Debug)]
 pub(crate) enum ApiError {
     IncorrectCompilerVersions,
+    MissingZkCompilerVersion,
+    BogusZkCompilerVersion,
     NoDeployedContract,
     RequestNotFound,
     VerificationInfoNotFound,
     Internal(anyhow::Error),
+}
+
+impl From<anyhow::Error> for ApiError {
+    fn from(err: anyhow::Error) -> Self {
+        Self::Internal(err)
+    }
 }
 
 impl From<DalError> for ApiError {
@@ -34,26 +44,30 @@ impl From<DalError> for ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status_code, message) = match self {
-            Self::IncorrectCompilerVersions => (
+            Self::IncorrectCompilerVersions => {
+                (StatusCode::BAD_REQUEST, "incorrect compiler versions")
+            }
+            Self::MissingZkCompilerVersion => (
                 StatusCode::BAD_REQUEST,
-                "incorrect compiler versions".to_owned(),
+                "missing zk compiler version for EraVM bytecode",
+            ),
+            Self::BogusZkCompilerVersion => (
+                StatusCode::BAD_REQUEST,
+                "zk compiler version specified for EVM bytecode",
             ),
             Self::NoDeployedContract => (
                 StatusCode::BAD_REQUEST,
-                "There is no deployed contract on this address".to_owned(),
+                "There is no deployed contract on this address",
             ),
-            Self::RequestNotFound => (StatusCode::NOT_FOUND, "request not found".to_owned()),
+            Self::RequestNotFound => (StatusCode::NOT_FOUND, "request not found"),
             Self::VerificationInfoNotFound => (
                 StatusCode::NOT_FOUND,
-                "verification info not found for address".to_owned(),
+                "verification info not found for address",
             ),
             Self::Internal(err) => {
                 // Do not expose the error details to the client, but log it.
                 tracing::warn!("Internal error: {err:#}");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "internal server error".to_owned(),
-                )
+                (StatusCode::INTERNAL_SERVER_ERROR, "internal server error")
             }
         };
         (status_code, message).into_response()
@@ -73,7 +87,23 @@ impl RestApi {
         Ok(())
     }
 
+    fn validate_compilers(
+        versions: &CompilerVersions,
+        bytecode_kind: BytecodeMarker,
+    ) -> Result<(), ApiError> {
+        match bytecode_kind {
+            BytecodeMarker::EraVm if versions.zk_compiler_version().is_none() => {
+                Err(ApiError::MissingZkCompilerVersion)
+            }
+            BytecodeMarker::Evm if versions.zk_compiler_version().is_some() => {
+                Err(ApiError::BogusZkCompilerVersion)
+            }
+            _ => Ok(()),
+        }
+    }
+
     /// Add a contract verification job to the queue if the requested contract wasn't previously verified.
+    // FIXME: this doesn't seem to check that the contract isn't verified; should it?
     #[tracing::instrument(skip(self_, request))]
     pub async fn verification(
         State(self_): State<Arc<Self>>,
@@ -81,19 +111,25 @@ impl RestApi {
     ) -> ApiResult<usize> {
         let method_latency = METRICS.call[&"contract_verification"].start();
         Self::validate_contract_verification_query(&request)?;
+
         let mut storage = self_
             .master_connection_pool
             .connection_tagged("api")
             .await?;
-
-        // FIXME: check bytecode kind vs versions
-        if !storage
+        let deployment_info = storage
             .storage_logs_dal()
-            .is_contract_deployed_at_address(request.contract_address)
-            .await
-        {
-            return Err(ApiError::NoDeployedContract);
-        }
+            .filter_deployed_contracts(iter::once(request.contract_address), None)
+            .await?;
+        let &(_, bytecode_hash) = deployment_info
+            .get(&request.contract_address)
+            .ok_or(ApiError::NoDeployedContract)?;
+        let bytecode_marker = BytecodeMarker::new(bytecode_hash).with_context(|| {
+            format!(
+                "unknown bytecode marker for bytecode hash {bytecode_hash:?} at address {:?}",
+                request.contract_address
+            )
+        })?;
+        Self::validate_compilers(&request.compiler_versions, bytecode_marker)?;
 
         let request_id = storage
             .contract_verification_dal()

@@ -14,6 +14,7 @@ categories.workspace = true
 zksync_config.workspace = true
 zksync_dal.workspace = true
 zksync_types.workspace = true
+zksync_utils.workspace = true
 vise.workspace = true
 
 anyhow.workspace = true

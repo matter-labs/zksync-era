@@ -10793,6 +10793,7 @@ dependencies = [
  "zksync_config",
  "zksync_dal",
  "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
