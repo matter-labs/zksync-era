@@ -445,15 +445,15 @@ impl Keystore {
             )?)
             .unwrap();
 
-        for circuit in 1..=5 {
+        for circuit in 1..5 {
             data_source
                 .set_compression_vk(self.load_compression_vk(circuit)?)
                 .unwrap();
-
-            data_source
-                .set_compression_for_wrapper_vk(self.load_compression_for_wrapper_vk(circuit)?)
-                .unwrap();
         }
+
+        data_source
+            .set_compression_for_wrapper_vk(self.load_compression_for_wrapper_vk(5)?)
+            .unwrap();
 
         Ok(data_source)
     }
