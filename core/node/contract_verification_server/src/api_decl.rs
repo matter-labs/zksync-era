@@ -4,9 +4,9 @@ use tower_http::cors::CorsLayer;
 use zksync_dal::{ConnectionPool, Core};
 
 #[derive(Debug, Clone)]
-pub struct RestApi {
-    pub(super) master_connection_pool: ConnectionPool<Core>,
-    pub(super) replica_connection_pool: ConnectionPool<Core>,
+pub(crate) struct RestApi {
+    pub(crate) master_connection_pool: ConnectionPool<Core>,
+    pub(crate) replica_connection_pool: ConnectionPool<Core>,
 }
 
 impl RestApi {

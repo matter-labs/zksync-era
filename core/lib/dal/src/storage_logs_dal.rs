@@ -225,6 +225,7 @@ impl StorageLogsDal<'_, '_> {
         Ok(())
     }
 
+    // FIXME: propagate errors
     pub async fn is_contract_deployed_at_address(&mut self, address: Address) -> bool {
         let hashed_key = get_code_key(&address).hashed_key();
         let row = sqlx::query!(
