@@ -43,12 +43,12 @@ pub(super) struct ExecutorMetrics {
     pub computational_gas_per_nanosecond: Histogram<f64>,
     /// Computational gas used, per transaction.
     #[metrics(buckets = GAS_USED_BUCKETS)]
-    pub computational_gas_used: Histogram<usize>,
+    pub computational_gas_used: Histogram<u64>,
     #[metrics(buckets = GAS_PER_NANOSECOND_BUCKETS)]
     pub failed_tx_gas_limit_per_nanosecond: Histogram<f64>,
     /// Gas limit, per failed transaction.
     #[metrics(buckets = GAS_USED_BUCKETS)]
-    pub failed_tx_gas_limit: Histogram<usize>,
+    pub failed_tx_gas_limit: Histogram<u64>,
     /// Cumulative latency of interacting with the storage when executing a transaction
     /// in the batch executor.
     #[metrics(buckets = Buckets::LATENCIES)]

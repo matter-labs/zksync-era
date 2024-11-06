@@ -105,7 +105,7 @@ where
                 .observe(gas_used as f64 / elapsed.as_nanos() as f64);
             EXECUTOR_METRICS
                 .computational_gas_used
-                .observe(gas_used as usize);
+                .observe(gas_used.into());
         } else {
             // The amount of computational gas paid for failed transactions is hard to get
             // but comparing to the gas limit makes sense, since we can burn all gas
@@ -115,7 +115,7 @@ where
                 .observe(tx_gas_limit as f64 / elapsed.as_nanos() as f64);
             EXECUTOR_METRICS
                 .failed_tx_gas_limit
-                .observe(tx_gas_limit as usize);
+                .observe(tx_gas_limit);
         }
         Ok(res)
     }
