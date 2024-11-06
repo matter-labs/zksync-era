@@ -43,9 +43,6 @@ impl EthSenderHealthTask {
 #[async_trait]
 impl PeriodicJob for EthSenderHealthTask {
     const SERVICE_NAME: &'static str = "EthSenderHealth";
-    async fn run(&mut self) -> anyhow::Result<()> {
-        self.run_routine_task().await
-    }
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let mut conn = self.connection_pool.connection().await?;
