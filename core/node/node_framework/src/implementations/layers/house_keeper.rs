@@ -87,6 +87,7 @@ impl WiringLayer for HouseKeeperLayer {
             .map_err(WiringError::internal)?;
 
         let database_health_task = DatabaseHealthTask {
+            polling_interval_ms: self.house_keeper_config.database_health_polling_interval_ms,
             connection_pool: replica_pool.clone(),
             database_health_updater,
         };
@@ -99,6 +100,9 @@ impl WiringLayer for HouseKeeperLayer {
             .map_err(WiringError::internal)?;
 
         let eth_sender_health_task = EthSenderHealthTask {
+            polling_interval_ms: self
+                .house_keeper_config
+                .eth_sender_health_polling_interval_ms,
             connection_pool: replica_pool.clone(),
             eth_sender_health_updater,
         };
@@ -111,6 +115,9 @@ impl WiringLayer for HouseKeeperLayer {
             .map_err(WiringError::internal)?;
 
         let state_keeper_health_task = StateKeeperHealthTask {
+            polling_interval_ms: self
+                .house_keeper_config
+                .state_keeper_health_polling_interval_ms,
             connection_pool: replica_pool.clone(),
             state_keeper_health_updater,
         };

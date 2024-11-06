@@ -17,4 +17,7 @@ message HouseKeeper {
     reserved 15; reserved "prover_job_archiver_archive_after_secs";
     reserved 16; reserved "fri_gpu_prover_archiver_archiving_interval_ms";
     reserved 17; reserved "fri_gpu_prover_archiver_archive_after_secs";
+    optional uint64 database_health_polling_interval_ms = 18; // required; ms
+    optional uint64 eth_sender_health_polling_interval_ms = 19; // required; ms
+    optional uint64 state_keeper_health_polling_interval_ms = 20; // required; ms
 }

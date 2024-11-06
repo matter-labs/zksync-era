@@ -32,12 +32,9 @@ impl From<EthSenderInfo> for Health {
 
 #[derive(Debug)]
 pub struct EthSenderHealthTask {
+    pub polling_interval_ms: u64,
     pub connection_pool: ConnectionPool<Core>,
     pub eth_sender_health_updater: HealthUpdater,
-}
-
-impl EthSenderHealthTask {
-    pub const POLLING_INTERVAL_MS: u64 = 10_000;
 }
 
 #[async_trait]
@@ -69,7 +66,7 @@ impl PeriodicJob for EthSenderHealthTask {
     }
 
     fn polling_interval_ms(&self) -> u64 {
-        Self::POLLING_INTERVAL_MS
+        self.polling_interval_ms
     }
 }
 

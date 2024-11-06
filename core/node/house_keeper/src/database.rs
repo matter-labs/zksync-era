@@ -18,12 +18,9 @@ impl From<DatabaseInfo> for Health {
 
 #[derive(Debug)]
 pub struct DatabaseHealthTask {
+    pub polling_interval_ms: u64,
     pub connection_pool: ConnectionPool<Core>,
     pub database_health_updater: HealthUpdater,
-}
-
-impl DatabaseHealthTask {
-    pub const POLLING_INTERVAL_MS: u64 = 10_000;
 }
 
 #[async_trait]
@@ -40,6 +37,6 @@ impl PeriodicJob for DatabaseHealthTask {
     }
 
     fn polling_interval_ms(&self) -> u64 {
-        Self::POLLING_INTERVAL_MS
+        self.polling_interval_ms
     }
 }

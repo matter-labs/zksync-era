@@ -12,6 +12,21 @@ impl ProtoRepr for proto::HouseKeeper {
                 &self.l1_batch_metrics_reporting_interval_ms,
             )
             .context("l1_batch_metrics_reporting_interval_ms")?,
+
+            database_health_polling_interval_ms: *required(
+                &self.database_health_polling_interval_ms,
+            )
+            .context("database_health_polling_interval_ms")?,
+
+            eth_sender_health_polling_interval_ms: *required(
+                &self.eth_sender_health_polling_interval_ms,
+            )
+            .context("eth_sender_health_polling_interval_ms")?,
+
+            state_keeper_health_polling_interval_ms: *required(
+                &self.state_keeper_health_polling_interval_ms,
+            )
+            .context("state_keeper_health_polling_interval_ms")?,
         })
     }
 
@@ -19,6 +34,11 @@ impl ProtoRepr for proto::HouseKeeper {
         Self {
             l1_batch_metrics_reporting_interval_ms: Some(
                 this.l1_batch_metrics_reporting_interval_ms,
+            ),
+            database_health_polling_interval_ms: Some(this.database_health_polling_interval_ms),
+            eth_sender_health_polling_interval_ms: Some(this.eth_sender_health_polling_interval_ms),
+            state_keeper_health_polling_interval_ms: Some(
+                this.state_keeper_health_polling_interval_ms,
             ),
         }
     }

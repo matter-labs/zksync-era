@@ -37,12 +37,9 @@ impl From<StateKeeperInfo> for Health {
 
 #[derive(Debug)]
 pub struct StateKeeperHealthTask {
+    pub polling_interval_ms: u64,
     pub connection_pool: ConnectionPool<Core>,
     pub state_keeper_health_updater: HealthUpdater,
-}
-
-impl StateKeeperHealthTask {
-    pub const POLLING_INTERVAL_MS: u64 = 10_000;
 }
 
 #[async_trait]
@@ -68,6 +65,6 @@ impl PeriodicJob for StateKeeperHealthTask {
     }
 
     fn polling_interval_ms(&self) -> u64 {
-        Self::POLLING_INTERVAL_MS
+        self.polling_interval_ms
     }
 }

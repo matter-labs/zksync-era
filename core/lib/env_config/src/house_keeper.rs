@@ -18,6 +18,9 @@ mod tests {
     fn expected_config() -> HouseKeeperConfig {
         HouseKeeperConfig {
             l1_batch_metrics_reporting_interval_ms: 10_000,
+            database_health_polling_interval_ms: 10_000,
+            eth_sender_health_polling_interval_ms: 10_000,
+            state_keeper_health_polling_interval_ms: 10_000,
         }
     }
 
