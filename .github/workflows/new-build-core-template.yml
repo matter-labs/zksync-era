@@ -190,7 +190,7 @@ jobs:
         shell: bash
         run: |
           if [ -f "/setup_2^26.key" ]; then
-            mv "/setup_2^26.key" ./setup_2^26.key
+            cp "/setup_2^26.key" ./setup_2^26.key
           else
             run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
           fi
