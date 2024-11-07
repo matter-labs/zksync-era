@@ -59,12 +59,6 @@ or not running it when initializing a node.
 > (order of 2–3 hours for the mainnet) because the node no longer needs to recover the Merkle tree before starting
 > catching up.
 
-> [!WARNING]
->
-> In contrast to the tree fetcher, the Merkle tree cannot be safely switched on after a significant delay if pruning is
-> enabled (some data necessary for tree update may have been pruned while the tree was off). We plan to fix this flaw in
-> the future. If pruning is disabled, the Merkle tree _can_ be freely switched on / off.
-
 ## Monitoring tree fetcher
 
 Tree fetcher information is logged with the `zksync_node_sync::tree_data_fetcher` target.
