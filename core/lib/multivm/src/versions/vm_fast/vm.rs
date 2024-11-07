@@ -844,7 +844,7 @@ impl<S: ReadStorage, T: Tracer> World<S, T> {
     ) -> (U256, Program<T, Self>) {
         (
             h256_to_u256(code.hash),
-            Program::from_words(code.code.clone(), is_bootloader),
+            Program::new(&code.code, is_bootloader),
         )
     }
 

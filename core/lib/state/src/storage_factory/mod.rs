@@ -201,10 +201,7 @@ impl CommonStorage<'static> {
 
         let factory_deps = bytecodes
             .into_iter()
-            .map(|(hash_u256, words)| {
-                let bytes: Vec<u8> = words.into_iter().flatten().collect();
-                (u256_to_h256(hash_u256), bytes)
-            })
+            .map(|(hash_u256, bytes)| (u256_to_h256(hash_u256), bytes))
             .collect();
 
         let storage = previous_values.into_iter().map(|(key, prev_value)| {

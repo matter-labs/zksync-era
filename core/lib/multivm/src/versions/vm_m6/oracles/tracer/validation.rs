@@ -12,21 +12,22 @@ use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_types::{get_code_key, web3::keccak256, AccountTreeId, Address, StorageKey, H256, U256};
-use zksync_utils::{
-    be_bytes_to_safe_address, h256_to_account_address, u256_to_account_address, u256_to_h256,
-};
+use zksync_utils::{h256_to_account_address, u256_to_account_address, u256_to_h256};
 
-use crate::vm_m6::{
-    errors::VmRevertReasonParsingResult,
-    history_recorder::HistoryMode,
-    memory::SimpleMemory,
-    oracles::tracer::{
-        utils::{
-            computational_gas_price, get_calldata_page_via_abi, print_debug_if_needed, VmHook,
+use crate::{
+    utils::bytecode::be_bytes_to_safe_address,
+    vm_m6::{
+        errors::VmRevertReasonParsingResult,
+        history_recorder::HistoryMode,
+        memory::SimpleMemory,
+        oracles::tracer::{
+            utils::{
+                computational_gas_price, get_calldata_page_via_abi, print_debug_if_needed, VmHook,
+            },
+            ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer, StorageInvocationTracer,
         },
-        ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer, StorageInvocationTracer,
+        storage::{Storage, StoragePtr},
     },
-    storage::{Storage, StoragePtr},
 };
 
 #[derive(Debug, Clone, Eq, PartialEq, Copy)]

@@ -13,7 +13,7 @@ use zksync_types::{
 };
 use zksync_utils::{
     bytecode::{hash_bytecode, hash_evm_bytecode},
-    bytes_to_be_words, h256_to_u256,
+    h256_to_u256,
 };
 
 use super::{default_system_env, TestedVm, VmTester, VmTesterBuilder};
@@ -94,7 +94,7 @@ impl EvmTestBuilder {
 
             system_env.base_system_smart_contracts.evm_emulator = Some(SystemContractCode {
                 hash: hash_bytecode(&mock_emulator),
-                code: bytes_to_be_words(mock_emulator),
+                code: mock_emulator,
             });
         } else {
             let emulator_hash = hash_bytecode(&mock_emulator);

@@ -6,7 +6,7 @@ use zksync_types::{
     vm::VmVersion,
     Transaction, H256,
 };
-use zksync_utils::{be_words_to_bytes, h256_to_u256, u256_to_h256};
+use zksync_utils::{h256_to_u256, u256_to_h256};
 use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
         VmTrackingContracts,
     },
-    utils::events::extract_l2tol1logs_from_l1_messenger,
+    utils::{bytecode::be_words_to_bytes, events::extract_l2tol1logs_from_l1_messenger},
     vm_latest::{
         bootloader_state::BootloaderState,
         old_vm::{events::merge_events, history_recorder::HistoryEnabled},

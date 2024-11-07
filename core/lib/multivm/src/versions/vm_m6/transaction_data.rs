@@ -6,13 +6,14 @@ use zksync_types::{
     l2::TransactionType,
     ExecuteTransactionCommon, Transaction, MAX_L2_TX_GAS_LIMIT, U256,
 };
-use zksync_utils::{
-    address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, ceil_div_u256, h256_to_u256,
-};
+use zksync_utils::{address_to_h256, bytecode::hash_bytecode, ceil_div_u256, h256_to_u256};
 
 use super::vm_with_bootloader::{MAX_GAS_PER_PUBDATA_BYTE, MAX_TXS_IN_BLOCK};
-use crate::vm_m6::vm_with_bootloader::{
-    BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE,
+use crate::{
+    utils::bytecode::bytes_to_be_words,
+    vm_m6::vm_with_bootloader::{
+        BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE,
+    },
 };
 
 pub(crate) const L1_TX_TYPE: u8 = 255;
@@ -198,10 +199,7 @@ impl TransactionData {
     }
 
     pub fn into_tokens(self) -> Vec<U256> {
-        let bytes = self.abi_encode();
-        assert!(bytes.len() % 32 == 0);
-
-        bytes_to_be_words(bytes)
+        bytes_to_be_words(&self.abi_encode())
     }
 
     pub(crate) fn effective_gas_price_per_pubdata(&self, block_gas_price_per_pubdata: u32) -> u32 {

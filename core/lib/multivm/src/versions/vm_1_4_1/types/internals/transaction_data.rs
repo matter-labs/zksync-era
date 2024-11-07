@@ -9,11 +9,14 @@ use zksync_types::{
     web3::Bytes,
     Execute, ExecuteTransactionCommon, L2ChainId, L2TxCommonData, Nonce, Transaction, H256, U256,
 };
-use zksync_utils::{address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
+use zksync_utils::{address_to_h256, bytecode::hash_bytecode, h256_to_u256};
 
-use crate::vm_1_4_1::{
-    constants::{L1_TX_TYPE, MAX_GAS_PER_PUBDATA_BYTE, PRIORITY_TX_MAX_GAS_LIMIT},
-    utils::overhead::derive_overhead,
+use crate::{
+    utils::bytecode::bytes_to_be_words,
+    vm_1_4_1::{
+        constants::{L1_TX_TYPE, MAX_GAS_PER_PUBDATA_BYTE, PRIORITY_TX_MAX_GAS_LIMIT},
+        utils::overhead::derive_overhead,
+    },
 };
 
 /// This structure represents the data that is used by
@@ -196,10 +199,7 @@ impl TransactionData {
     }
 
     pub(crate) fn into_tokens(self) -> Vec<U256> {
-        let bytes = self.abi_encode();
-        assert!(bytes.len() % 32 == 0);
-
-        bytes_to_be_words(bytes)
+        bytes_to_be_words(&self.abi_encode())
     }
 
     pub(crate) fn overhead_gas(&self) -> u32 {

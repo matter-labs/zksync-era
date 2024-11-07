@@ -12,12 +12,11 @@ use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_types::{get_code_key, web3::keccak256, AccountTreeId, Address, StorageKey, H256, U256};
-use zksync_utils::{
-    be_bytes_to_safe_address, h256_to_account_address, u256_to_account_address, u256_to_h256,
-};
+use zksync_utils::{h256_to_account_address, u256_to_account_address, u256_to_h256};
 
 use crate::{
     interface::storage::{StoragePtr, WriteStorage},
+    utils::bytecode::be_bytes_to_safe_address,
     vm_1_3_2::{
         errors::VmRevertReasonParsingResult,
         history_recorder::HistoryMode,

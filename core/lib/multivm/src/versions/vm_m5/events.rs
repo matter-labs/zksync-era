@@ -1,8 +1,8 @@
 use zk_evm_1_3_1::{ethereum_types::Address, reference_impls::event_sink::EventMessage};
 use zksync_types::{L1BatchNumber, EVENT_WRITER_ADDRESS, H256};
-use zksync_utils::{be_chunks_to_h256_words, h256_to_account_address};
+use zksync_utils::h256_to_account_address;
 
-use crate::interface::VmEvent;
+use crate::{interface::VmEvent, utils::bytecode::be_chunks_to_h256_words};
 
 #[derive(Clone)]
 pub struct SolidityLikeEvent {

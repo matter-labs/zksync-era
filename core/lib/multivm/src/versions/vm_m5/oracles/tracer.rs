@@ -21,17 +21,18 @@ use zksync_types::{
     KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
     L2_BASE_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, SYSTEM_CONTEXT_ADDRESS, U256,
 };
-use zksync_utils::{
-    be_bytes_to_safe_address, h256_to_account_address, u256_to_account_address, u256_to_h256,
-};
+use zksync_utils::{h256_to_account_address, u256_to_account_address, u256_to_h256};
 
-use crate::vm_m5::{
-    errors::VmRevertReasonParsingResult,
-    memory::SimpleMemory,
-    storage::{Storage, StoragePtr},
-    utils::{aux_heap_page_from_base, heap_page_from_base},
-    vm_instance::{get_vm_hook_params, VM_HOOK_POSITION},
-    vm_with_bootloader::BOOTLOADER_HEAP_PAGE,
+use crate::{
+    utils::bytecode::be_bytes_to_safe_address,
+    vm_m5::{
+        errors::VmRevertReasonParsingResult,
+        memory::SimpleMemory,
+        storage::{Storage, StoragePtr},
+        utils::{aux_heap_page_from_base, heap_page_from_base},
+        vm_instance::{get_vm_hook_params, VM_HOOK_POSITION},
+        vm_with_bootloader::BOOTLOADER_HEAP_PAGE,
+    },
 };
 
 pub trait ExecutionEndTracer: Tracer<SupportedMemory = SimpleMemory> {
