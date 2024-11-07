@@ -11,6 +11,7 @@ use circuit_definitions::{
     boojum::cs::implementations::setup::FinalizationHintsForProver,
     circuit_definitions::{
         aux_layer::{
+            CompressionProofsTreeHasher, CompressionProofsTreeHasherForWrapper,
             ZkSyncCompressionForWrapperVerificationKey, ZkSyncCompressionLayerVerificationKey,
             ZkSyncSnarkWrapperVK,
         },
@@ -20,13 +21,14 @@ use circuit_definitions::{
     zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use shivini::boojum::field::goldilocks::GoldilocksField;
 use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
 use zksync_prover_fri_types::{ProverServiceDataKey, ProvingStage};
 use zksync_utils::env::Workspace;
 
 #[cfg(feature = "gpu")]
 use crate::GoldilocksGpuProverSetupData;
-use crate::{GoldilocksProverSetupData, VkCommitments};
+use crate::{GoldilocksProverSetupData, GpuProverSetupData, VkCommitments};
 
 #[derive(Debug, Clone, Copy)]
 pub enum ProverServiceDataType {
@@ -355,53 +357,60 @@ impl Keystore {
         })
     }
 
-    // pub fn load_compression_setup_data(
-    //     &self,
-    // ) -> anyhow::Result<GpuProverSetupData<CompressionTreeHasherForWrapper>> {
-    //     let filepath = self.get_file_path(
-    //         ProverServiceDataKey::snark(),
-    //         ProverServiceDataType::SetupData,
-    //     );
-    //
-    //     let mut file = File::open(filepath.clone())
-    //         .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
-    //     let mut buffer = Vec::new();
-    //     file.read_to_end(&mut buffer).with_context(|| {
-    //         format!("Failed reading setup-data to buffer from path: {filepath:?}")
-    //     })?;
-    //     tracing::info!(
-    //         "loading compression wrapper setup data from path: {:?}",
-    //         filepath
-    //     );
-    //     bincode::deserialize::<GpuProverSetupData<CompressionTreeHasherForWrapper>>(&buffer)
-    //         .with_context(|| {
-    //             format!("Failed deserializing compression wrapper setup data at path: {filepath:?}")
-    //         })
-    // }
-    //
-    // pub fn load_compression_wrapper_setup_data(
-    //     &self,
-    // ) -> anyhow::Result<GpuProverSetupData<CompressionTreeHasherForWrapper>> {
-    //     let filepath = self.get_file_path(
-    //         ProverServiceDataKey::snark(),
-    //         ProverServiceDataType::SetupData,
-    //     );
-    //
-    //     let mut file = File::open(filepath.clone())
-    //         .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
-    //     let mut buffer = Vec::new();
-    //     file.read_to_end(&mut buffer).with_context(|| {
-    //         format!("Failed reading setup-data to buffer from path: {filepath:?}")
-    //     })?;
-    //     tracing::info!(
-    //         "loading compression wrapper setup data from path: {:?}",
-    //         filepath
-    //     );
-    //     bincode::deserialize::<GpuProverSetupData<CompressionTreeHasherForWrapper>>(&buffer)
-    //         .with_context(|| {
-    //             format!("Failed deserializing compression wrapper setup data at path: {filepath:?}")
-    //         })
-    // }
+    pub fn load_compression_setup_data(
+        &self,
+        circuit: u8,
+    ) -> anyhow::Result<GpuProverSetupData<GoldilocksField, CompressionProofsTreeHasher>> {
+        let filepath = self.get_file_path(
+            ProverServiceDataKey::new_compression(circuit),
+            ProverServiceDataType::SetupData,
+        );
+
+        let mut file = File::open(filepath.clone())
+            .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer).with_context(|| {
+            format!("Failed reading setup-data to buffer from path: {filepath:?}")
+        })?;
+        tracing::info!(
+            "loading compression wrapper setup data from path: {:?}",
+            filepath
+        );
+        bincode::deserialize::<GpuProverSetupData<GoldilocksField, CompressionProofsTreeHasher>>(
+            &buffer,
+        )
+        .with_context(|| {
+            format!("Failed deserializing compression wrapper setup data at path: {filepath:?}")
+        })
+    }
+
+    pub fn load_compression_wrapper_setup_data(
+        &self,
+        circuit: u8,
+    ) -> anyhow::Result<GpuProverSetupData<GoldilocksField, CompressionProofsTreeHasherForWrapper>>
+    {
+        let filepath = self.get_file_path(
+            ProverServiceDataKey::new_compression_wrapper(circuit),
+            ProverServiceDataType::SetupData,
+        );
+
+        let mut file = File::open(filepath.clone())
+            .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer).with_context(|| {
+            format!("Failed reading setup-data to buffer from path: {filepath:?}")
+        })?;
+        tracing::info!(
+            "loading compression wrapper setup data from path: {:?}",
+            filepath
+        );
+        bincode::deserialize::<
+            GpuProverSetupData<GoldilocksField, CompressionProofsTreeHasherForWrapper>,
+        >(&buffer)
+        .with_context(|| {
+            format!("Failed deserializing compression wrapper setup data at path: {filepath:?}")
+        })
+    }
 
     pub fn is_setup_data_present(&self, key: &ProverServiceDataKey) -> bool {
         Path::new(&self.get_file_path(*key, ProverServiceDataType::SetupData)).exists()

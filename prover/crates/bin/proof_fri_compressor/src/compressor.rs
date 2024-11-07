@@ -144,6 +144,7 @@ impl ProofCompressor {
 
         // compress proof step by step: 1 -> 2 -> 3 -> 4 -> 5(wrapper)
         let (compression_wrapper_proof, compression_wrapper_vk) = Self::fflonk_compress_proof(
+            &keystore,
             proof.into_inner(),
             scheduler_vk.into_inner(),
             compression_mode - 1,
@@ -168,6 +169,7 @@ impl ProofCompressor {
 
     #[cfg(feature = "fflonk")]
     pub fn fflonk_compress_proof(
+        keystore: &Keystore,
         proof: ZkSyncCompressionProof,
         vk: ZkSyncRecursionVerificationKey,
         compression_steps: u8,
@@ -180,12 +182,17 @@ impl ProofCompressor {
             ZkSyncCompressionLayerCircuit::from_witness_and_vk(Some(proof), vk, 1);
         let mut compression_wrapper_circuit = None;
 
-        for step_idx in 0..compression_steps {
+        for step_idx in 1..compression_steps {
             tracing::info!("Proving compression {:?}", step_idx);
-            let (proof, vk) = proof_compression_gpu::prove_compression_layer_circuit(
-                compression_circuit.clone(),
-                &worker,
-            );
+            let setup_data = keystore.load_compression_setup_data(step_idx)?;
+            let (proof, vk) =
+                proof_compression_gpu::prove_compression_layer_circuit_with_precomputations(
+                    compression_circuit.clone(),
+                    &setup_data.setup,
+                    setup_data.finalization_hint,
+                    setup_data.vk,
+                    &worker,
+                );
             tracing::info!("Proof for compression {:?} is generated!", step_idx);
 
             if step_idx + 1 == compression_steps {
@@ -193,26 +200,29 @@ impl ProofCompressor {
                     Some(ZkSyncCompressionForWrapperCircuit::from_witness_and_vk(
                         Some(proof),
                         vk,
-                        compression_steps + 1,
+                        compression_steps,
                     ));
             } else {
-                compression_circuit = ZkSyncCompressionLayerCircuit::from_witness_and_vk(
-                    Some(proof),
-                    vk,
-                    step_idx + 1,
-                );
+                compression_circuit =
+                    ZkSyncCompressionLayerCircuit::from_witness_and_vk(Some(proof), vk, step_idx);
             }
         }
 
         // last wrapping step
-        tracing::info!("Proving compression {} for wrapper", compression_steps + 1);
-        let (proof, vk) = proof_compression_gpu::prove_compression_wrapper_circuit(
-            compression_wrapper_circuit.unwrap(),
-            &worker,
-        );
+        tracing::info!("Proving compression {} for wrapper", compression_steps);
+
+        let setup_data = keystore.load_compression_wrapper_setup_data(compression_steps)?;
+        let (proof, vk) =
+            proof_compression_gpu::prove_compression_wrapper_circuit_with_precomputations(
+                compression_wrapper_circuit.unwrap(),
+                &setup_data.setup,
+                setup_data.finalization_hint,
+                setup_data.vk,
+                &worker,
+            );
         tracing::info!(
             "Proof for compression wrapper {} is generated!",
-            compression_steps + 1
+            compression_steps
         );
         Ok((proof, vk))
     }
