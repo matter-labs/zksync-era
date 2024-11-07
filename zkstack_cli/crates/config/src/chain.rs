@@ -151,6 +151,10 @@ impl ChainConfig {
         config.save_with_base_path(shell, path)
     }
 
+    pub fn get_preexisting_ecosystem_contracts_path(&self) -> PathBuf {
+        get_preexisting_ecosystem_contracts_path(&self.link_to_code, self.l1_network)
+    }
+
     fn get_internal(&self) -> ChainConfigInternal {
         ChainConfigInternal {
             id: self.id,
@@ -169,10 +173,6 @@ impl ChainConfig {
             legacy_bridge: self.legacy_bridge,
             evm_emulator: self.evm_emulator,
         }
-    }
-
-    pub fn get_preexisting_ecosystem_contracts_path(&self) -> PathBuf {
-        get_preexisting_ecosystem_contracts_path(&self.link_to_code, self.l1_network)
     }
 
     pub fn from_internal(
