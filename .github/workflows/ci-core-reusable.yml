@@ -86,7 +86,6 @@ jobs:
 
   loadtest:
     runs-on: [ matterlabs-ci-runner-high-performance ]
-    # test
     strategy:
       fail-fast: false
       matrix:

@@ -41,7 +41,6 @@ jobs:
   get-protocol-version:
     name: Get protocol version
     runs-on: [matterlabs-ci-runner-high-performance]
-    # test
     outputs:
       protocol_version: ${{ steps.protocolversion.outputs.protocol_version }}
     steps:
@@ -88,7 +87,6 @@ jobs:
     env:
       PROTOCOL_VERSION: ${{ needs.get-protocol-version.outputs.protocol_version }}
     runs-on: [matterlabs-ci-runner-high-performance]
-    # test
     strategy:
       matrix:
         components:
