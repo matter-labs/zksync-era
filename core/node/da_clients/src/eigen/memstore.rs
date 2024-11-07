@@ -9,7 +9,7 @@ use rand::{rngs::OsRng, Rng, RngCore};
 use sha3::{Digest, Keccak256};
 use tokio::time::interval;
 use zksync_config::configs::da_client::eigen::MemStoreConfig;
-use zksync_da_client::types::{DAError, DispatchResponse, InclusionData};
+use zksync_da_client::types::{DAError, InclusionData};
 
 use super::blob_info::{self, BlobInfo};
 

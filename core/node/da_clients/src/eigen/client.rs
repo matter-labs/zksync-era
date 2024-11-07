@@ -13,6 +13,10 @@ use zksync_da_client::{
 use super::{blob_info::BlobInfo, memstore::MemStore, sdk::RawEigenClient, Disperser};
 use crate::utils::to_non_retriable_da_error;
 
+/// EigenClient is a client for the Eigen DA service.
+/// It can be configured to use one of two dispersal methods:
+/// - Remote: Dispatch blobs to a remote Eigen service.
+/// - Memstore: Stores blobs in memory, used for testing purposes.
 #[derive(Debug, Clone)]
 pub struct EigenClient {
     client: Disperser,
@@ -105,12 +109,12 @@ impl EigenClient {
 }
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
     use zksync_config::configs::da_client::eigen::{DisperserConfig, MemStoreConfig};
     use zksync_types::secrets::PrivateKey;
 
     use super::*;
     use crate::eigen::blob_info::BlobInfo;
-    use serial_test::serial;
 
     #[tokio::test]
     #[serial]

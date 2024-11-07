@@ -30,6 +30,7 @@ pub enum VerificationError {
     CommitmentNotOnCorrectSubgroup,
 }
 
+/// Configuration for the verifier used for authenticated dispersals
 #[derive(Debug, Clone)]
 pub struct VerifierConfig {
     pub verify_certs: bool,

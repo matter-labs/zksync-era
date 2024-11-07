@@ -27,7 +27,7 @@ use crate::eigen::{
 };
 
 #[derive(Debug, Clone)]
-pub struct RawEigenClient {
+pub(crate) struct RawEigenClient {
     client: DisperserClient<Channel>,
     private_key: SecretKey,
     pub config: DisperserConfig,
