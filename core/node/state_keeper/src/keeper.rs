@@ -243,9 +243,6 @@ impl ZkSyncStateKeeper {
             } else {
                 None
             };
-
-            self.health_updater
-                .update(StateKeeperHealthDetails::from(&cursor).into());
         }
         Err(Error::Canceled)
     }
@@ -408,6 +405,9 @@ impl ZkSyncStateKeeper {
                 .await
                 .context("error waiting for new L2 block params")?
             {
+                self.health_updater
+                    .update(StateKeeperHealthDetails::from(&cursor).into());
+
                 latency.observe();
                 return Ok(params);
             }
