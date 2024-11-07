@@ -285,4 +285,82 @@ mod tests {
         let expected_error = anyhow!("Blob size limit exceeded");
         assert_eq!(format!("{}", actual_error), format!("{}", expected_error));
     }
+
+    #[tokio::test]
+    async fn test_eth_confirmation_depth() {
+        let config = EigenConfig::Disperser(DisperserConfig {
+            custom_quorum_numbers: None,
+            disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
+            eth_confirmation_depth: 5,
+            eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
+            eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
+            blob_size_limit: 2 * 1024 * 1024, // 2MB
+            status_query_timeout: 1800000,    // 30 minutes
+            status_query_interval: 5,         // 5 ms
+            wait_for_finalization: false,
+            authenticated: false,
+            verify_cert: true,
+            path_to_points: "../../../resources".to_string(),
+        });
+        let secrets = EigenSecrets {
+            private_key: PrivateKey::from_str(
+                "d08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6",
+            )
+            .unwrap(),
+        };
+        let client = EigenClient::new(config, secrets).await.unwrap();
+        let data = vec![1; 20];
+        let result = client.dispatch_blob(0, data.clone()).await.unwrap();
+        let blob_info: BlobInfo =
+            rlp::decode(&hex::decode(result.blob_id.clone()).unwrap()).unwrap();
+        let expected_inclusion_data = blob_info.blob_verification_proof.inclusion_proof;
+        let actual_inclusion_data = client
+            .get_inclusion_data(&result.blob_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .data;
+        assert_eq!(expected_inclusion_data, actual_inclusion_data);
+        let retrieved_data = client.get_blob_data(&result.blob_id).await.unwrap();
+        assert_eq!(retrieved_data.unwrap(), data);
+    }
+
+    #[tokio::test]
+    async fn test_auth_dispersal_eth_confirmation_depth() {
+        let config = EigenConfig::Disperser(DisperserConfig {
+            custom_quorum_numbers: None,
+            disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
+            eth_confirmation_depth: 5,
+            eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
+            eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
+            blob_size_limit: 2 * 1024 * 1024, // 2MB
+            status_query_timeout: 1800000,    // 30 minutes
+            status_query_interval: 5,         // 5 ms
+            wait_for_finalization: false,
+            authenticated: true,
+            verify_cert: true,
+            path_to_points: "../../../resources".to_string(),
+        });
+        let secrets = EigenSecrets {
+            private_key: PrivateKey::from_str(
+                "d08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6",
+            )
+            .unwrap(),
+        };
+        let client = EigenClient::new(config, secrets).await.unwrap();
+        let data = vec![1; 20];
+        let result = client.dispatch_blob(0, data.clone()).await.unwrap();
+        let blob_info: BlobInfo =
+            rlp::decode(&hex::decode(result.blob_id.clone()).unwrap()).unwrap();
+        let expected_inclusion_data = blob_info.blob_verification_proof.inclusion_proof;
+        let actual_inclusion_data = client
+            .get_inclusion_data(&result.blob_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .data;
+        assert_eq!(expected_inclusion_data, actual_inclusion_data);
+        let retrieved_data = client.get_blob_data(&result.blob_id).await.unwrap();
+        assert_eq!(retrieved_data.unwrap(), data);
+    }
 }
