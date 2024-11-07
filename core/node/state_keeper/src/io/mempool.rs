@@ -20,8 +20,6 @@ use zksync_types::{
     utils::display_timestamp,
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
 };
-// TODO (SMA-1206): use seconds instead of milliseconds.
-use zksync_utils::time::millis_since_epoch;
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
 use crate::{
@@ -36,6 +34,7 @@ use crate::{
         IoSealCriteria, L2BlockMaxPayloadSizeSealer, TimeoutSealer, UnexecutableReason,
     },
     updates::UpdatesManager,
+    utils::millis_since_epoch,
     MempoolGuard,
 };
 
@@ -531,9 +530,9 @@ impl MempoolIO {
 #[cfg(test)]
 mod tests {
     use tokio::time::timeout_at;
-    use zksync_utils::time::seconds_since_epoch;
 
     use super::*;
+    use crate::tests::seconds_since_epoch;
 
     // This test defensively uses large deadlines in order to account for tests running in parallel etc.
     #[tokio::test]
