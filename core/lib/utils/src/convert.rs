@@ -41,7 +41,7 @@ pub fn u256_to_h256(num: U256) -> H256 {
 }
 
 /// Converts `U256` value into the Address
-pub fn u256_to_account_address(value: &U256) -> Address {
+pub fn u256_to_address(value: &U256) -> Address {
     let mut bytes = [0u8; 32];
     value.to_big_endian(&mut bytes);
 
@@ -49,6 +49,6 @@ pub fn u256_to_account_address(value: &U256) -> Address {
 }
 
 /// Converts `H256` value into the Address
-pub fn h256_to_account_address(value: &H256) -> Address {
+pub fn h256_to_address(value: &H256) -> Address {
     Address::from_slice(&value.as_bytes()[12..])
 }

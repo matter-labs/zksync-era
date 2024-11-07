@@ -9,7 +9,7 @@ use zksync_types::{
     tokens::{TokenInfo, TokenMetadata},
     Address, L2BlockNumber, H256,
 };
-use zksync_utils::h256_to_account_address;
+use zksync_utils::h256_to_address;
 
 use crate::{
     io::seal_logic::SealStrategy,
@@ -28,9 +28,9 @@ fn extract_added_tokens(
             event.address == CONTRACT_DEPLOYER_ADDRESS
                 && event.indexed_topics.len() == 4
                 && event.indexed_topics[0] == VmEvent::DEPLOY_EVENT_SIGNATURE
-                && h256_to_account_address(&event.indexed_topics[1]) == l2_token_deployer_addr
+                && h256_to_address(&event.indexed_topics[1]) == l2_token_deployer_addr
         })
-        .map(|event| h256_to_account_address(&event.indexed_topics[3]));
+        .map(|event| h256_to_address(&event.indexed_topics[3]));
 
     extract_added_token_info_from_addresses(all_generated_events, deployed_tokens)
 }
@@ -73,7 +73,7 @@ fn extract_added_token_info_from_addresses(
                             || event.indexed_topics[0] == *BRIDGE_INITIALIZATION_SIGNATURE_OLD)
                 })
                 .map(|event| {
-                    let l1_token_address = h256_to_account_address(&event.indexed_topics[1]);
+                    let l1_token_address = h256_to_address(&event.indexed_topics[1]);
                     let mut dec_ev = ethabi::decode(
                         &[
                             ethabi::ParamType::String,

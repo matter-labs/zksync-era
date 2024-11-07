@@ -16,7 +16,7 @@ use zksync_types::{
     TransactionTimeRangeConstraint, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160,
     H256, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
 };
-use zksync_utils::h256_to_account_address;
+use zksync_utils::h256_to_address;
 use zksync_vm_interface::Call;
 
 use super::call::{LegacyCall, LegacyMixedCall};
@@ -403,7 +403,7 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
             ),
             contract_address: storage_receipt
                 .contract_address
-                .map(|addr| h256_to_account_address(&H256::from_slice(&addr))),
+                .map(|addr| h256_to_address(&H256::from_slice(&addr))),
             logs: vec![],
             l2_to_l1_logs: vec![],
             status,

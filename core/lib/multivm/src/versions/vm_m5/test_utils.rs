@@ -18,9 +18,7 @@ use zksync_types::{
     web3::keccak256,
     Execute, Nonce, StorageKey, StorageValue, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
-use zksync_utils::{
-    address_to_h256, bytecode::hash_bytecode, h256_to_account_address, u256_to_h256,
-};
+use zksync_utils::{address_to_h256, bytecode::hash_bytecode, h256_to_address, u256_to_h256};
 
 use super::utils::StorageLogQuery;
 use crate::vm_m5::{
@@ -172,5 +170,5 @@ pub fn get_create_zksync_address(sender_address: Address, sender_nonce: Nonce) -
 
     let hash = keccak256(&digest);
 
-    h256_to_account_address(&H256(hash))
+    h256_to_address(&H256(hash))
 }

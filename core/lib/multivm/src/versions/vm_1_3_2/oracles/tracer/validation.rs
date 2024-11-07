@@ -12,7 +12,7 @@ use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_types::{get_code_key, web3::keccak256, AccountTreeId, Address, StorageKey, H256, U256};
-use zksync_utils::{h256_to_account_address, u256_to_account_address, u256_to_h256};
+use zksync_utils::{h256_to_address, u256_to_address, u256_to_h256};
 
 use crate::{
     interface::storage::{StoragePtr, WriteStorage},
@@ -241,7 +241,7 @@ impl<S: WriteStorage, H: HistoryMode> ValidationTracer<S, H> {
 
         // The user is allowed to touch its own slots or slots semantically related to him.
         let valid_users_slot = address == self.user_address
-            || u256_to_account_address(&key) == self.user_address
+            || u256_to_address(&key) == self.user_address
             || self.auxilary_allowed_slots.contains(&u256_to_h256(key));
         if valid_users_slot {
             return true;
@@ -308,7 +308,7 @@ impl<S: WriteStorage, H: HistoryMode> ValidationTracer<S, H> {
                 let packed_abi = data.src0_value.value;
                 let call_destination_value = data.src1_value.value;
 
-                let called_address = u256_to_account_address(&call_destination_value);
+                let called_address = u256_to_address(&call_destination_value);
                 let far_call_abi = FarCallABI::from_u256(packed_abi);
 
                 if called_address == KECCAK256_PRECOMPILE_ADDRESS
@@ -375,7 +375,7 @@ impl<S: WriteStorage, H: HistoryMode> ValidationTracer<S, H> {
                     let value = self.storage.borrow_mut().read_value(&storage_key);
 
                     return Ok(NewTrustedValidationItems {
-                        new_trusted_addresses: vec![h256_to_account_address(&value)],
+                        new_trusted_addresses: vec![h256_to_address(&value)],
                         ..Default::default()
                     });
                 }
