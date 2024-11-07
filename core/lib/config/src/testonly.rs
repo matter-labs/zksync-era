@@ -639,7 +639,6 @@ impl Distribution<configs::house_keeper::HouseKeeperConfig> for EncodeDist {
             l1_batch_metrics_reporting_interval_ms: self.sample(rng),
             database_health_polling_interval_ms: self.sample(rng),
             eth_sender_health_polling_interval_ms: self.sample(rng),
-            state_keeper_health_polling_interval_ms: self.sample(rng),
         }
     }
 }

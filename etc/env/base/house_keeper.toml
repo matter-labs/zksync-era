@@ -2,4 +2,3 @@
 l1_batch_metrics_reporting_interval_ms = 10000
 database_health_polling_interval_ms = 10000
 eth_sender_health_polling_interval_ms = 10000
-state_keeper_health_polling_interval_ms = 10000

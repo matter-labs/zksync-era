@@ -4,8 +4,7 @@ use zksync_config::configs::house_keeper::HouseKeeperConfig;
 use zksync_health_check::ReactiveHealthCheck;
 use zksync_house_keeper::{
     blocks_state_reporter::L1BatchMetricsReporter, database::DatabaseHealthTask,
-    eth_sender::EthSenderHealthTask, periodic_job::PeriodicJob,
-    state_keeper::StateKeeperHealthTask, version::NodeVersionInfo,
+    eth_sender::EthSenderHealthTask, periodic_job::PeriodicJob, version::NodeVersionInfo,
 };
 
 use crate::{
@@ -43,8 +42,6 @@ pub struct Output {
     pub database_health_task: DatabaseHealthTask,
     #[context(task)]
     pub eth_sender_health_task: EthSenderHealthTask,
-    #[context(task)]
-    pub state_keeper_health_task: StateKeeperHealthTask,
 }
 
 impl HouseKeeperLayer {
@@ -107,26 +104,10 @@ impl WiringLayer for HouseKeeperLayer {
             eth_sender_health_updater,
         };
 
-        let (state_keeper_health_check, state_keeper_health_updater) =
-            ReactiveHealthCheck::new("state_keeper");
-
-        app_health
-            .insert_component(state_keeper_health_check)
-            .map_err(WiringError::internal)?;
-
-        let state_keeper_health_task = StateKeeperHealthTask {
-            polling_interval_ms: self
-                .house_keeper_config
-                .state_keeper_health_polling_interval_ms,
-            connection_pool: replica_pool.clone(),
-            state_keeper_health_updater,
-        };
-
         Ok(Output {
             l1_batch_metrics_reporter,
             database_health_task,
             eth_sender_health_task,
-            state_keeper_health_task,
         })
     }
 }
@@ -165,21 +146,6 @@ impl Task for EthSenderHealthTask {
 
     fn id(&self) -> TaskId {
         "eth_sender_health".into()
-    }
-
-    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        (*self).run(stop_receiver.0).await
-    }
-}
-
-#[async_trait::async_trait]
-impl Task for StateKeeperHealthTask {
-    fn kind(&self) -> TaskKind {
-        TaskKind::UnconstrainedTask
-    }
-
-    fn id(&self) -> TaskId {
-        "state_keeper_health".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

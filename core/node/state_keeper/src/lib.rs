@@ -12,6 +12,7 @@ pub use self::{
 };
 
 pub mod executor;
+pub mod health;
 pub mod io;
 mod keeper;
 mod mempool_actor;
