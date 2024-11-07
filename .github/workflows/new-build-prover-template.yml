@@ -128,7 +128,11 @@ jobs:
       - name: download CRS for GPU compressor
         if: matrix.components == 'proof-fri-gpu-compressor'
         run: |
-          run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
+          if [ -f "/setup_2^26.key" ]; then
+            mv "/setup_2^26.key" ./setup_2^26.key
+          else
+            run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+          fi
 
       # We need to run this only when ERA_BELLMAN_CUDA_RELEASE is not available
       # In our case it happens only when PR is created from fork
