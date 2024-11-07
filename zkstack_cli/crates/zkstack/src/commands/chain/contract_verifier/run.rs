@@ -1,16 +1,11 @@
 use anyhow::Context;
 use common::{cmd::Cmd, logger};
-use config::zkstack_config::ZkStackConfig;
+use config::ChainConfig;
 use xshell::{cmd, Shell};
 
-use crate::messages::{
-    MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_RUN_CONTRACT_VERIFIER_ERR,
-    MSG_RUNNING_CONTRACT_VERIFIER,
-};
+use crate::messages::{MSG_FAILED_TO_RUN_CONTRACT_VERIFIER_ERR, MSG_RUNNING_CONTRACT_VERIFIER};
 
-pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
-    let chain = ZkStackConfig::load_current_chain(shell).context(MSG_CHAIN_NOT_INITIALIZED)?;
-
+pub(crate) async fn run(shell: &Shell, chain: ChainConfig) -> anyhow::Result<()> {
     let config_path = chain.path_to_general_config();
     let secrets_path = chain.path_to_secrets_config();
 

@@ -45,7 +45,10 @@ use zksync_types::{
     U256, U64,
 };
 use zksync_utils::{
-    bytecode::{hash_bytecode, hash_evm_bytecode},
+    bytecode::{
+        hash_bytecode, hash_evm_bytecode,
+        testonly::{PROCESSED_EVM_BYTECODE, RAW_EVM_BYTECODE},
+    },
     u256_to_h256,
 };
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
@@ -64,11 +67,7 @@ use zksync_web3_decl::{
 };
 
 use super::*;
-use crate::{
-    testonly::{PROCESSED_EVM_BYTECODE, RAW_EVM_BYTECODE},
-    tx_sender::SandboxExecutorOptions,
-    web3::testonly::TestServerBuilder,
-};
+use crate::{tx_sender::SandboxExecutorOptions, web3::testonly::TestServerBuilder};
 
 mod debug;
 mod filters;
