@@ -1,29 +1,4 @@
-use bigdecimal::BigDecimal;
-use num::BigUint;
 use zksync_basic_types::{Address, H256, U256};
-
-pub fn u256_to_big_decimal(value: U256) -> BigDecimal {
-    let mut u32_digits = vec![0_u32; 8];
-    // `u64_digit`s from `U256` are little-endian
-    for (i, &u64_digit) in value.0.iter().enumerate() {
-        u32_digits[2 * i] = u64_digit as u32;
-        u32_digits[2 * i + 1] = (u64_digit >> 32) as u32;
-    }
-    let value = BigUint::new(u32_digits);
-    BigDecimal::new(value.into(), 0)
-}
-
-/// Converts `BigUint` value into the corresponding `U256` value.
-fn biguint_to_u256(value: BigUint) -> U256 {
-    let bytes = value.to_bytes_le();
-    U256::from_little_endian(&bytes)
-}
-
-/// Converts `BigDecimal` value into the corresponding `U256` value.
-pub fn bigdecimal_to_u256(value: BigDecimal) -> U256 {
-    let bigint = value.with_scale(0).into_bigint_and_exponent().0;
-    biguint_to_u256(bigint.to_biguint().unwrap())
-}
 
 fn ensure_chunkable(bytes: &[u8]) {
     assert!(
@@ -46,6 +21,7 @@ pub fn address_to_u256(address: &Address) -> U256 {
     h256_to_u256(address_to_h256(address))
 }
 
+// FIXME: remove
 pub fn bytes_to_chunks(bytes: &[u8]) -> Vec<[u8; 32]> {
     ensure_chunkable(bytes);
     bytes
@@ -75,55 +51,4 @@ pub fn u256_to_account_address(value: &U256) -> Address {
 /// Converts `H256` value into the Address
 pub fn h256_to_account_address(value: &H256) -> Address {
     Address::from_slice(&value.as_bytes()[12..])
-}
-
-#[cfg(test)]
-mod test {
-    use num::BigInt;
-    use rand::{rngs::StdRng, Rng, SeedableRng};
-
-    use super::*;
-
-    #[test]
-    fn test_u256_to_bigdecimal() {
-        const RNG_SEED: u64 = 123;
-
-        let mut rng = StdRng::seed_from_u64(RNG_SEED);
-        // Small values.
-        for _ in 0..10_000 {
-            let value: u64 = rng.gen();
-            let expected = BigDecimal::from(value);
-            assert_eq!(u256_to_big_decimal(value.into()), expected);
-        }
-
-        // Arbitrary values
-        for _ in 0..10_000 {
-            let u64_digits: [u64; 4] = rng.gen();
-            let value = u64_digits
-                .iter()
-                .enumerate()
-                .map(|(i, &digit)| U256::from(digit) << (i * 64))
-                .fold(U256::zero(), |acc, x| acc + x);
-            let expected_value = u64_digits
-                .iter()
-                .enumerate()
-                .map(|(i, &digit)| BigInt::from(digit) << (i * 64))
-                .fold(BigInt::from(0), |acc, x| acc + x);
-            assert_eq!(
-                u256_to_big_decimal(value),
-                BigDecimal::new(expected_value, 0)
-            );
-        }
-    }
-
-    #[test]
-    fn test_bigdecimal_to_u256() {
-        let value = BigDecimal::from(100u32);
-        let expected = U256::from(100u32);
-        assert_eq!(bigdecimal_to_u256(value), expected);
-
-        let value = BigDecimal::new(BigInt::from(100), -2);
-        let expected = U256::from(10000u32);
-        assert_eq!(bigdecimal_to_u256(value), expected);
-    }
 }

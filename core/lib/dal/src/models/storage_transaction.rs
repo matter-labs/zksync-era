@@ -16,11 +16,11 @@ use zksync_types::{
     TransactionTimeRangeConstraint, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160,
     H256, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
 };
-use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
+use zksync_utils::h256_to_account_address;
 use zksync_vm_interface::Call;
 
 use super::call::{LegacyCall, LegacyMixedCall};
-use crate::BigDecimal;
+use crate::{models::bigdecimal_to_u256, BigDecimal};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 #[cfg_attr(test, derive(Default))]
