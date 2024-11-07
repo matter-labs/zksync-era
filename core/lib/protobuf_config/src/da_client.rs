@@ -73,7 +73,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     }
                     proto::eigen_config::Config::Disperser(conf) => {
                         EigenConfig::Disperser(DisperserConfig {
-                            custom_quorum_numbers: Some(conf.custom_quorum_numbers.clone()),
                             disperser_rpc: required(&conf.disperser_rpc)
                                 .context("disperser_rpc")?
                                 .clone(),
@@ -167,10 +166,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     proto::data_availability_client::Config::Eigen(proto::EigenConfig {
                         config: Some(proto::eigen_config::Config::Disperser(
                             proto::DisperserConfig {
-                                custom_quorum_numbers: config
-                                    .custom_quorum_numbers
-                                    .clone()
-                                    .unwrap_or_default(),
                                 disperser_rpc: Some(config.disperser_rpc.clone()),
                                 eth_confirmation_depth: Some(config.eth_confirmation_depth),
                                 eigenda_eth_rpc: Some(config.eigenda_eth_rpc.clone()),

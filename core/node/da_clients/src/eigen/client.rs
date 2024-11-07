@@ -110,11 +110,12 @@ mod tests {
 
     use super::*;
     use crate::eigen::blob_info::BlobInfo;
+    use serial_test::serial;
 
     #[tokio::test]
+    #[serial]
     async fn test_non_auth_dispersal() {
         let config = EigenConfig::Disperser(DisperserConfig {
-            custom_quorum_numbers: None,
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
             eth_confirmation_depth: -1,
             eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
@@ -151,9 +152,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_auth_dispersal() {
         let config = EigenConfig::Disperser(DisperserConfig {
-            custom_quorum_numbers: None,
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
             eth_confirmation_depth: -1,
             eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
@@ -222,9 +223,9 @@ mod tests {
         assert_eq!(retrieved_data.unwrap(), data);
     }
     #[tokio::test]
+    #[serial]
     async fn test_wait_for_finalization() {
         let config = EigenConfig::Disperser(DisperserConfig {
-            custom_quorum_numbers: None,
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
             blob_size_limit: 2 * 1024 * 1024, // 2MB
             status_query_timeout: 1800000,    // 30 minutes
@@ -287,9 +288,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_eth_confirmation_depth() {
         let config = EigenConfig::Disperser(DisperserConfig {
-            custom_quorum_numbers: None,
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
             eth_confirmation_depth: 5,
             eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
@@ -326,9 +327,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_auth_dispersal_eth_confirmation_depth() {
         let config = EigenConfig::Disperser(DisperserConfig {
-            custom_quorum_numbers: None,
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
             eth_confirmation_depth: 5,
             eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),

@@ -307,7 +307,6 @@ mod tests {
         assert_eq!(
             actual,
             DAClientConfig::Eigen(EigenConfig::Disperser(DisperserConfig {
-                custom_quorum_numbers: None,
                 disperser_rpc: "http://localhost:8080".to_string(),
                 eth_confirmation_depth: 0,
                 eigenda_eth_rpc: "http://localhost:8545".to_string(),
