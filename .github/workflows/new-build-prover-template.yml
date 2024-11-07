@@ -125,7 +125,6 @@ jobs:
 
       - name: download CRS for GPU compressor
         if: matrix.components == 'proof-fri-gpu-compressor'
-        #
         run: |
           run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
       # We need to run this only when ERA_BELLMAN_CUDA_RELEASE is not available
