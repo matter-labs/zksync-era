@@ -1,15 +1,20 @@
 use ::common::forge::ForgeScriptArgs;
+use anyhow::Context;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use args::{build_transactions::BuildTransactionsArgs, run_server::RunServerArgs};
 use clap::{command, Subcommand};
+use config::zkstack_config::ZkStackConfig;
 use consensus::ConsensusCommand;
 use contract_verifier::ContractVerifierCommands;
 pub(crate) use create::create_chain_inner;
 use xshell::Shell;
 
-use crate::commands::chain::{
-    args::create::ChainCreateArgs, deploy_l2_contracts::Deploy2ContractsOption,
-    genesis::GenesisCommand, init::ChainInitCommand,
+use crate::{
+    commands::chain::{
+        args::create::ChainCreateArgs, deploy_l2_contracts::Deploy2ContractsOption,
+        genesis::GenesisCommand, init::ChainInitCommand,
+    },
+    messages::MSG_CHAIN_NOT_FOUND_ERR,
 };
 
 mod accept_chain_ownership;
@@ -78,11 +83,17 @@ pub enum ChainCommands {
 }
 
 pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()> {
+    if let ChainCommands::Create(args) = cmd {
+        return create::run(args, shell);
+    }
+
+    let chain = ZkStackConfig::load_current_chain(shell).context(MSG_CHAIN_NOT_FOUND_ERR)?;
+
     match cmd {
         ChainCommands::Create(args) => create::run(args, shell),
         ChainCommands::Init(args) => init::run(*args, shell).await,
         ChainCommands::BuildTransactions(args) => build_transactions::run(args, shell).await,
-        ChainCommands::Genesis(args) => genesis::run(args, shell).await,
+        ChainCommands::Genesis(args) => genesis::run(args, shell, chain).await,
         ChainCommands::RegisterChain(args) => register_chain::run(args, shell).await,
         ChainCommands::DeployL2Contracts(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::All).await
@@ -100,12 +111,12 @@ pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()>
         ChainCommands::InitializeBridges(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::InitiailizeBridges).await
         }
-        ChainCommands::DeployPaymaster(args) => deploy_paymaster::run(args, shell).await,
+        ChainCommands::DeployPaymaster(args) => deploy_paymaster::run(args, shell, chain).await,
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
             set_token_multiplier_setter::run(args, shell).await
         }
-        ChainCommands::Server(args) => server::run(shell, args),
-        ChainCommands::ContractVerifier(args) => contract_verifier::run(shell, args).await,
+        ChainCommands::Server(args) => server::run(shell, args, chain),
+        ChainCommands::ContractVerifier(args) => contract_verifier::run(shell, args, chain).await,
         ChainCommands::Consensus(cmd) => cmd.run(shell).await,
     }
 }

@@ -8,7 +8,7 @@ use common::{
 };
 use config::{
     override_config, set_file_artifacts, set_rocks_db_config, set_server_database,
-    traits::SaveConfigWithBasePath, zkstack_config::ZkStackConfig, ChainConfig, FileArtifacts,
+    traits::SaveConfigWithBasePath, ChainConfig, FileArtifacts,
 };
 use types::ProverMode;
 use xshell::Shell;
@@ -27,18 +27,16 @@ use crate::{
     utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
 };
 
-pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
-    let chain_config = ZkStackConfig::load_current_chain(shell)?;
-
-    let mut secrets = chain_config.get_secrets_config()?;
-    let args = args.fill_values_with_secrets(&chain_config)?;
+pub async fn run(args: GenesisArgs, shell: &Shell, chain: ChainConfig) -> anyhow::Result<()> {
+    let mut secrets = chain.get_secrets_config()?;
+    let args = args.fill_values_with_secrets(&chain)?;
     set_server_database(&mut secrets, &args.server_db)?;
-    secrets.save_with_base_path(shell, &chain_config.configs)?;
+    secrets.save_with_base_path(shell, &chain.configs)?;
 
     initialize_server_database(
         shell,
         &args.server_db,
-        chain_config.link_to_code.clone(),
+        chain.link_to_code.clone(),
         args.dont_drop,
     )
     .await?;
