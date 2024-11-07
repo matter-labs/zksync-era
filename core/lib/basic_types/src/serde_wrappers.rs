@@ -1,3 +1,5 @@
+//! Generic `serde` helpers.
+
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 /// Trait for specifying prefix for bytes to hex serialization
@@ -61,9 +63,7 @@ pub type ZeroPrefixHexSerde = BytesToHexSerde<ZeroxPrefix>;
 
 #[cfg(test)]
 mod tests {
-    use serde::{Deserialize, Serialize};
-
-    use crate::ZeroPrefixHexSerde;
+    use super::*;
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
     struct Execute {

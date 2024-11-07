@@ -36,6 +36,7 @@ pub mod protocol_version;
 pub mod prover_dal;
 pub mod pubdata_da;
 pub mod secrets;
+pub mod serde_wrappers;
 pub mod settlement;
 pub mod tee_types;
 pub mod url;
