@@ -17,6 +17,6 @@ pub enum ContractVerifierCommands {
 pub(crate) async fn run(shell: &Shell, args: ContractVerifierCommands) -> anyhow::Result<()> {
     match args {
         ContractVerifierCommands::Run => run::run(shell).await,
-        ContractVerifierCommands::Init(args) => init::run(shell, args),
+        ContractVerifierCommands::Init(args) => init::run(shell, args).await,
     }
 }
