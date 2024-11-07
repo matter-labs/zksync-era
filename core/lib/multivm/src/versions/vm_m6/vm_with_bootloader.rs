@@ -17,7 +17,7 @@ use zksync_types::{
     address_to_u256, fee_model::L1PeggedBatchFeeModelInput, h256_to_u256, Address, Transaction,
     BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, misc::ceil_div};
+use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{
     interface::{CompressedBytecodeInfo, L1BatchEnv},
@@ -83,7 +83,7 @@ pub(crate) fn eth_price_per_pubdata_byte(l1_gas_price: u64) -> u64 {
 pub(crate) fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
     let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
 
-    ceil_div(eth_price_per_pubdata_byte, base_fee)
+    eth_price_per_pubdata_byte.div_ceil(base_fee)
 }
 
 pub(crate) fn derive_base_fee_and_gas_per_pubdata(
@@ -100,7 +100,7 @@ pub(crate) fn derive_base_fee_and_gas_per_pubdata(
     // publish enough public data while compensating us for it.
     let base_fee = std::cmp::max(
         fair_l2_gas_price,
-        ceil_div(eth_price_per_pubdata_byte, MAX_GAS_PER_PUBDATA_BYTE),
+        eth_price_per_pubdata_byte.div_ceil(MAX_GAS_PER_PUBDATA_BYTE),
     );
 
     (

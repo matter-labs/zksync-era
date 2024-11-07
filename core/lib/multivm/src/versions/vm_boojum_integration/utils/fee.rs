@@ -1,6 +1,5 @@
 //! Utility functions for vm
 use zksync_types::fee_model::L1PeggedBatchFeeModelInput;
-use zksync_utils::ceil_div;
 
 use crate::{
     interface::L1BatchEnv,
@@ -13,7 +12,7 @@ use crate::{
 pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
     let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
 
-    ceil_div(eth_price_per_pubdata_byte, base_fee)
+    eth_price_per_pubdata_byte.div_ceil(base_fee)
 }
 
 /// Calculates the base fee and gas per pubdata for the given L1 gas price.
@@ -30,7 +29,7 @@ pub(crate) fn derive_base_fee_and_gas_per_pubdata(
     // publish enough public data while compensating us for it.
     let base_fee = std::cmp::max(
         fair_l2_gas_price,
-        ceil_div(eth_price_per_pubdata_byte, MAX_GAS_PER_PUBDATA_BYTE),
+        eth_price_per_pubdata_byte.div_ceil(MAX_GAS_PER_PUBDATA_BYTE),
     );
 
     (
