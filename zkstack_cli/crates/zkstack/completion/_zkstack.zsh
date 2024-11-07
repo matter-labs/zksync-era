@@ -2039,6 +2039,16 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
+(build)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
 (run)
 _arguments "${_arguments_options[@]}" : \
 '*--components=[Components of server to run]:COMPONENTS:_default' \
@@ -2071,6 +2081,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (init)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(build)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2120,7 +2134,17 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:zkstack-contract-verifier-command-$line[1]:"
         case $line[1] in
-            (run)
+            (build)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(run)
 _arguments "${_arguments_options[@]}" : \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
@@ -2158,7 +2182,11 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:zkstack-contract-verifier-help-command-$line[1]:"
         case $line[1] in
-            (run)
+            (build)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(run)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2846,6 +2874,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(build)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (run)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -2870,7 +2902,11 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:zkstack-help-contract-verifier-command-$line[1]:"
         case $line[1] in
-            (run)
+            (build)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(run)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -3295,20 +3331,32 @@ _zkstack__containers_commands() {
 (( $+functions[_zkstack__contract-verifier_commands] )) ||
 _zkstack__contract-verifier_commands() {
     local commands; commands=(
+'build:Build contract verifier binary' \
 'run:Run contract verifier' \
 'init:Download required binaries for contract verifier' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack contract-verifier commands' commands "$@"
 }
+(( $+functions[_zkstack__contract-verifier__build_commands] )) ||
+_zkstack__contract-verifier__build_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack contract-verifier build commands' commands "$@"
+}
 (( $+functions[_zkstack__contract-verifier__help_commands] )) ||
 _zkstack__contract-verifier__help_commands() {
     local commands; commands=(
+'build:Build contract verifier binary' \
 'run:Run contract verifier' \
 'init:Download required binaries for contract verifier' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack contract-verifier help commands' commands "$@"
+}
+(( $+functions[_zkstack__contract-verifier__help__build_commands] )) ||
+_zkstack__contract-verifier__help__build_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack contract-verifier help build commands' commands "$@"
 }
 (( $+functions[_zkstack__contract-verifier__help__help_commands] )) ||
 _zkstack__contract-verifier__help__help_commands() {
@@ -4264,10 +4312,16 @@ _zkstack__external-node_commands() {
     local commands; commands=(
 'configs:Prepare configs for EN' \
 'init:Init databases' \
+'build:Build external node' \
 'run:Run external node' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack external-node commands' commands "$@"
+}
+(( $+functions[_zkstack__external-node__build_commands] )) ||
+_zkstack__external-node__build_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack external-node build commands' commands "$@"
 }
 (( $+functions[_zkstack__external-node__configs_commands] )) ||
 _zkstack__external-node__configs_commands() {
@@ -4279,10 +4333,16 @@ _zkstack__external-node__help_commands() {
     local commands; commands=(
 'configs:Prepare configs for EN' \
 'init:Init databases' \
+'build:Build external node' \
 'run:Run external node' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack external-node help commands' commands "$@"
+}
+(( $+functions[_zkstack__external-node__help__build_commands] )) ||
+_zkstack__external-node__help__build_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack external-node help build commands' commands "$@"
 }
 (( $+functions[_zkstack__external-node__help__configs_commands] )) ||
 _zkstack__external-node__help__configs_commands() {
@@ -4470,10 +4530,16 @@ _zkstack__help__containers_commands() {
 (( $+functions[_zkstack__help__contract-verifier_commands] )) ||
 _zkstack__help__contract-verifier_commands() {
     local commands; commands=(
+'build:Build contract verifier binary' \
 'run:Run contract verifier' \
 'init:Download required binaries for contract verifier' \
     )
     _describe -t commands 'zkstack help contract-verifier commands' commands "$@"
+}
+(( $+functions[_zkstack__help__contract-verifier__build_commands] )) ||
+_zkstack__help__contract-verifier__build_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help contract-verifier build commands' commands "$@"
 }
 (( $+functions[_zkstack__help__contract-verifier__init_commands] )) ||
 _zkstack__help__contract-verifier__init_commands() {
@@ -4809,9 +4875,15 @@ _zkstack__help__external-node_commands() {
     local commands; commands=(
 'configs:Prepare configs for EN' \
 'init:Init databases' \
+'build:Build external node' \
 'run:Run external node' \
     )
     _describe -t commands 'zkstack help external-node commands' commands "$@"
+}
+(( $+functions[_zkstack__help__external-node__build_commands] )) ||
+_zkstack__help__external-node__build_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help external-node build commands' commands "$@"
 }
 (( $+functions[_zkstack__help__external-node__configs_commands] )) ||
 _zkstack__help__external-node__configs_commands() {

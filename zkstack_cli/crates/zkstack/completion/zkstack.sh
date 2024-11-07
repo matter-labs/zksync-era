@@ -198,6 +198,9 @@ _zkstack() {
             zkstack__consensus__help,set-attester-committee)
                 cmd="zkstack__consensus__help__set__attester__committee"
                 ;;
+            zkstack__contract__verifier,build)
+                cmd="zkstack__contract__verifier__build"
+                ;;
             zkstack__contract__verifier,help)
                 cmd="zkstack__contract__verifier__help"
                 ;;
@@ -206,6 +209,9 @@ _zkstack() {
                 ;;
             zkstack__contract__verifier,run)
                 cmd="zkstack__contract__verifier__run"
+                ;;
+            zkstack__contract__verifier__help,build)
+                cmd="zkstack__contract__verifier__help__build"
                 ;;
             zkstack__contract__verifier__help,help)
                 cmd="zkstack__contract__verifier__help__help"
@@ -657,6 +663,9 @@ _zkstack() {
             zkstack__explorer__help,run-backend)
                 cmd="zkstack__explorer__help__run__backend"
                 ;;
+            zkstack__external__node,build)
+                cmd="zkstack__external__node__build"
+                ;;
             zkstack__external__node,configs)
                 cmd="zkstack__external__node__configs"
                 ;;
@@ -668,6 +677,9 @@ _zkstack() {
                 ;;
             zkstack__external__node,run)
                 cmd="zkstack__external__node__run"
+                ;;
+            zkstack__external__node__help,build)
+                cmd="zkstack__external__node__help__build"
                 ;;
             zkstack__external__node__help,configs)
                 cmd="zkstack__external__node__help__configs"
@@ -779,6 +791,9 @@ _zkstack() {
                 ;;
             zkstack__help__consensus,set-attester-committee)
                 cmd="zkstack__help__consensus__set__attester__committee"
+                ;;
+            zkstack__help__contract__verifier,build)
+                cmd="zkstack__help__contract__verifier__build"
                 ;;
             zkstack__help__contract__verifier,init)
                 cmd="zkstack__help__contract__verifier__init"
@@ -932,6 +947,9 @@ _zkstack() {
                 ;;
             zkstack__help__explorer,run-backend)
                 cmd="zkstack__help__explorer__run__backend"
+                ;;
+            zkstack__help__external__node,build)
+                cmd="zkstack__help__external__node__build"
                 ;;
             zkstack__help__external__node,configs)
                 cmd="zkstack__help__external__node__configs"
@@ -2219,7 +2237,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__contract__verifier)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help run init help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --help build run init help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2236,9 +2254,41 @@ _zkstack() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        zkstack__contract__verifier__help)
-            opts="run init help"
+        zkstack__contract__verifier__build)
+            opts="-v -h --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --chain)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__contract__verifier__help)
+            opts="build run init help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__contract__verifier__help__build)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
@@ -5075,8 +5125,26 @@ _zkstack() {
             return 0
             ;;
         zkstack__external__node)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help configs init run help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --help configs init build run help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --chain)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__external__node__build)
+            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
@@ -5123,8 +5191,22 @@ _zkstack() {
             return 0
             ;;
         zkstack__external__node__help)
-            opts="configs init run help"
+            opts="configs init build run help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__external__node__help__build)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
@@ -5567,8 +5649,22 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__contract__verifier)
-            opts="run init"
+            opts="build run init"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__help__contract__verifier__build)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
@@ -6337,8 +6433,22 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__external__node)
-            opts="configs init run"
+            opts="configs init build run"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__help__external__node__build)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
