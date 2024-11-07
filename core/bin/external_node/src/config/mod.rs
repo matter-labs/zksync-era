@@ -463,8 +463,6 @@ pub(crate) struct OptionalENConfig {
     pub gateway_url: Option<SensitiveUrl>,
     /// Interval for bridge addresses refreshing in seconds.
     bridge_addresses_refresh_interval_sec: Option<NonZeroU64>,
-    /// Chain's diamond proxy on gateway.
-    pub gateway_diamond_proxy_addr: Option<Address>,
 }
 
 impl OptionalENConfig {
@@ -700,7 +698,6 @@ impl OptionalENConfig {
             contracts_diamond_proxy_addr: None,
             gateway_url: secrets.l1.as_ref().and_then(|l1| l1.gateway_url.clone()),
             bridge_addresses_refresh_interval_sec: enconfig.bridge_addresses_refresh_interval_sec,
-            gateway_diamond_proxy_addr: enconfig.gateway_diamond_proxy,
         })
     }
 

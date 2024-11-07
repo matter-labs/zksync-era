@@ -1,5 +1,5 @@
 use zksync_consistency_checker::ConsistencyChecker;
-use zksync_types::{commitment::L1BatchCommitmentMode, Address};
+use zksync_types::{commitment::L1BatchCommitmentMode, Address, L2ChainId};
 
 use crate::{
     implementations::resources::{
@@ -17,9 +17,9 @@ use crate::{
 #[derive(Debug)]
 pub struct ConsistencyCheckerLayer {
     l1_diamond_proxy_addr: Address,
-    gateway_diamond_proxy_addr: Option<Address>,
     max_batches_to_recheck: u32,
     commitment_mode: L1BatchCommitmentMode,
+    l2_chain_id: L2ChainId,
 }
 
 #[derive(Debug, FromContext)]
@@ -42,15 +42,15 @@ pub struct Output {
 impl ConsistencyCheckerLayer {
     pub fn new(
         l1_diamond_proxy_addr: Address,
-        gateway_diamond_proxy_addr: Option<Address>,
         max_batches_to_recheck: u32,
         commitment_mode: L1BatchCommitmentMode,
+        l2_chain_id: L2ChainId,
     ) -> ConsistencyCheckerLayer {
         Self {
             l1_diamond_proxy_addr,
-            gateway_diamond_proxy_addr,
             max_batches_to_recheck,
             commitment_mode,
+            l2_chain_id,
         }
     }
 }
@@ -71,19 +71,17 @@ impl WiringLayer for ConsistencyCheckerLayer {
 
         let singleton_pool = input.master_pool.get_singleton().await?;
 
-        let mut consistency_checker = ConsistencyChecker::new(
+        let consistency_checker = ConsistencyChecker::new(
             l1_client,
             gateway_client,
             self.max_batches_to_recheck,
             singleton_pool,
             self.commitment_mode,
+            self.l2_chain_id,
         )
         .await
         .map_err(WiringError::Internal)?
         .with_l1_diamond_proxy_addr(self.l1_diamond_proxy_addr);
-        if let Some(addr) = self.gateway_diamond_proxy_addr {
-            consistency_checker = consistency_checker.with_gateway_diamond_proxy_addr(addr);
-        }
 
         input
             .app_health

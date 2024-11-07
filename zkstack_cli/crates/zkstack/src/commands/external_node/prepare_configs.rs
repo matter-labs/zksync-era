@@ -60,7 +60,6 @@ fn prepare_configs(
     let mut ports = EcosystemPortsScanner::scan(shell)?;
     let genesis = config.get_genesis_config()?;
     let general = config.get_general_config()?;
-    let gateway_chain = config.get_gateway_chain_config().ok();
     let en_config = ENConfig {
         l2_chain_id: genesis.l2_chain_id,
         l1_chain_id: genesis.l1_chain_id,
@@ -76,7 +75,6 @@ fn prepare_configs(
         )?,
         main_node_rate_limit_rps: None,
         bridge_addresses_refresh_interval_sec: None,
-        gateway_diamond_proxy: gateway_chain.map(|g| g.diamond_proxy_addr),
     };
     let mut general_en = general.clone();
     general_en.consensus_config = None;

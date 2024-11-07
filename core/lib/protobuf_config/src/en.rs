@@ -8,7 +8,7 @@ use zksync_basic_types::{url::SensitiveUrl, L1ChainId, L2ChainId};
 use zksync_config::configs::en_config::ENConfig;
 use zksync_protobuf::{required, ProtoRepr};
 
-use crate::{parse_h160, proto::en as proto};
+use crate::proto::en as proto;
 
 impl ProtoRepr for proto::ExternalNode {
     type Type = ENConfig;
@@ -37,12 +37,6 @@ impl ProtoRepr for proto::ExternalNode {
             bridge_addresses_refresh_interval_sec: self
                 .bridge_addresses_refresh_interval_sec
                 .and_then(NonZeroU64::new),
-            gateway_diamond_proxy: self
-                .gateway_diamond_proxy
-                .as_ref()
-                .map(|x| parse_h160(x))
-                .transpose()
-                .context("gateway_diamond_proxy")?,
         })
     }
 
@@ -61,7 +55,6 @@ impl ProtoRepr for proto::ExternalNode {
             bridge_addresses_refresh_interval_sec: this
                 .bridge_addresses_refresh_interval_sec
                 .map(|a| a.get()),
-            gateway_diamond_proxy: this.gateway_diamond_proxy.map(|x| format!("{:?}", x)),
         }
     }
 }

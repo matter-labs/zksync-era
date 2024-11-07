@@ -4,7 +4,8 @@ use anyhow::Context as _;
 use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::{
-    POST_BOOJUM_COMMIT_FUNCTION, POST_SHARED_BRIDGE_COMMIT_FUNCTION, PRE_BOOJUM_COMMIT_FUNCTION,
+    bridgehub_contract, POST_BOOJUM_COMMIT_FUNCTION, POST_SHARED_BRIDGE_COMMIT_FUNCTION,
+    PRE_BOOJUM_COMMIT_FUNCTION,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
@@ -28,7 +29,8 @@ use zksync_types::{
     ethabi,
     ethabi::{ParamType, Token},
     pubdata_da::PubdataSendingMode,
-    Address, L1BatchNumber, ProtocolVersionId, SLChainId, H256, U256,
+    Address, L1BatchNumber, L2ChainId, ProtocolVersionId, SLChainId, H256, L2_BRIDGEHUB_ADDRESS,
+    U256,
 };
 
 #[cfg(test)]
@@ -393,6 +395,7 @@ impl ConsistencyChecker {
         max_batches_to_recheck: u32,
         pool: ConnectionPool<Core>,
         commitment_mode: L1BatchCommitmentMode,
+        l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         let l1_chain_id = l1_client.fetch_chain_id().await?;
@@ -403,11 +406,16 @@ impl ConsistencyChecker {
         };
 
         let gateway_chain_data = if let Some(client) = gateway_client {
+            let gateway_diamond_proxy =
+                CallFunctionArgs::new("getZKChain", Token::Uint(l2_chain_id.0.into()))
+                    .for_contract(L2_BRIDGEHUB_ADDRESS, &bridgehub_contract())
+                    .call(&client)
+                    .await?;
             let chain_id = client.fetch_chain_id().await?;
             Some(SLChainData {
                 client: client.for_component("consistency_checker"),
                 chain_id,
-                diamond_proxy_addr: None,
+                diamond_proxy_addr: Some(gateway_diamond_proxy),
             })
         } else {
             None
@@ -428,13 +436,6 @@ impl ConsistencyChecker {
 
     pub fn with_l1_diamond_proxy_addr(mut self, address: Address) -> Self {
         self.l1_chain_data.diamond_proxy_addr = Some(address);
-        self
-    }
-
-    pub fn with_gateway_diamond_proxy_addr(mut self, address: Address) -> Self {
-        if let Some(d) = &mut self.gateway_chain_data {
-            d.diamond_proxy_addr = Some(address)
-        }
         self
     }
 

@@ -117,34 +117,44 @@ pub(crate) async fn create_mock_checker(
     }
 }
 
-fn create_mock_sl(chain_id: u64) -> MockSettlementLayer {
+fn create_mock_sl(chain_id: u64, with_get_zk_chain: bool) -> MockSettlementLayer {
     let mock = MockSettlementLayer::builder()
-        .with_call_handler(|call, _block_id| {
-            assert!(
-                call.to == Some(L1_DIAMOND_PROXY_ADDR)
-                    || call.to == Some(GATEWAY_DIAMOND_PROXY_ADDR)
-            );
-            let packed_semver = ProtocolVersionId::latest().into_packed_semver_with_patch(0);
-            let contract = zksync_contracts::hyperchain_contract();
-            let expected_input = contract
-                .function("getProtocolVersion")
-                .unwrap()
-                .encode_input(&[])
-                .unwrap();
-            assert_eq!(call.data, Some(expected_input.into()));
+        .with_call_handler(move |call, _block_id| match call.to {
+            Some(addr) if addr == L1_DIAMOND_PROXY_ADDR || addr == GATEWAY_DIAMOND_PROXY_ADDR => {
+                let packed_semver = ProtocolVersionId::latest().into_packed_semver_with_patch(0);
+                let contract = zksync_contracts::hyperchain_contract();
+                let expected_input = contract
+                    .function("getProtocolVersion")
+                    .unwrap()
+                    .encode_input(&[])
+                    .unwrap();
+                assert_eq!(call.data, Some(expected_input.into()));
 
-            ethabi::Token::Uint(packed_semver)
+                ethabi::Token::Uint(packed_semver)
+            }
+            Some(addr) if with_get_zk_chain && addr == L2_BRIDGEHUB_ADDRESS => {
+                let contract = zksync_contracts::bridgehub_contract();
+                let expected_input = contract
+                    .function("getZKChain")
+                    .unwrap()
+                    .encode_input(&[Token::Uint(ERA_CHAIN_ID.into())])
+                    .unwrap();
+                assert_eq!(call.data, Some(expected_input.into()));
+
+                ethabi::Token::Address(GATEWAY_DIAMOND_PROXY_ADDR)
+            }
+            _ => panic!("Received unexpected call"),
         })
         .with_chain_id(chain_id);
     mock.build()
 }
 
 fn create_mock_ethereum() -> MockSettlementLayer {
-    create_mock_sl(L1_CHAIN_ID)
+    create_mock_sl(L1_CHAIN_ID, false)
 }
 
 fn create_mock_gateway() -> MockSettlementLayer {
-    create_mock_sl(GATEWAY_CHAIN_ID)
+    create_mock_sl(GATEWAY_CHAIN_ID, true)
 }
 
 impl HandleConsistencyCheckerEvent for mpsc::UnboundedSender<L1BatchNumber> {
@@ -548,15 +558,19 @@ async fn checker_works_with_different_settlement_layers() {
     }
 
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
-    let checker = ConsistencyChecker {
-        event_handler: Box::new(l1_batch_updates_sender),
-        gateway_chain_data: Some(SLChainData {
-            client: Box::new(clients[1].clone().into_client()),
-            chain_id: GATEWAY_CHAIN_ID.into(),
-            diamond_proxy_addr: Some(GATEWAY_DIAMOND_PROXY_ADDR),
-        }),
-        ..create_mock_checker(clients[0].clone(), pool.clone(), commitment_mode).await
-    };
+    let mut checker = ConsistencyChecker::new(
+        Box::new(clients[0].clone().into_client()),
+        Some(Box::new(clients[1].clone().into_client())),
+        100,
+        pool.clone(),
+        commitment_mode,
+        L2ChainId(ERA_CHAIN_ID),
+    )
+    .await
+    .unwrap();
+    checker.sleep_interval = Duration::from_millis(10);
+    checker.event_handler = Box::new(l1_batch_updates_sender);
+    checker.l1_data_mismatch_behavior = L1DataMismatchBehavior::Bail;
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let checker_task = tokio::spawn(checker.run(stop_receiver));

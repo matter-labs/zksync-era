@@ -1,5 +1,5 @@
 use zksync_node_sync::tree_data_fetcher::TreeDataFetcher;
-use zksync_types::Address;
+use zksync_types::{Address, L2ChainId};
 
 use crate::{
     implementations::resources::{
@@ -18,7 +18,7 @@ use crate::{
 #[derive(Debug)]
 pub struct TreeDataFetcherLayer {
     l1_diamond_proxy_addr: Address,
-    gateway_diamond_proxy_addr: Option<Address>,
+    l2_chain_id: L2ChainId,
 }
 
 #[derive(Debug, FromContext)]
@@ -40,13 +40,10 @@ pub struct Output {
 }
 
 impl TreeDataFetcherLayer {
-    pub fn new(
-        l1_diamond_proxy_addr: Address,
-        gateway_diamond_proxy_addr: Option<Address>,
-    ) -> Self {
+    pub fn new(l1_diamond_proxy_addr: Address, l2_chain_id: L2ChainId) -> Self {
         Self {
             l1_diamond_proxy_addr,
-            gateway_diamond_proxy_addr,
+            l2_chain_id,
         }
     }
 }
@@ -75,8 +72,8 @@ impl WiringLayer for TreeDataFetcherLayer {
                 l1_client,
                 self.l1_diamond_proxy_addr,
                 gateway_client,
-                self.gateway_diamond_proxy_addr,
                 pool,
+                self.l2_chain_id,
             )
             .await?;
 

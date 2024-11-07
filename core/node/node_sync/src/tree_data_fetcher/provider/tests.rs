@@ -7,7 +7,10 @@ use zksync_dal::{Connection, ConnectionPool, Core};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::create_l2_block;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, api, L2BlockNumber, ProtocolVersionId,
+    aggregated_operations::AggregatedActionType,
+    api, ethabi,
+    web3::{BlockId, CallRequest},
+    L2BlockNumber, ProtocolVersionId,
 };
 use zksync_web3_decl::client::MockClient;
 
@@ -20,6 +23,7 @@ const L1_DIAMOND_PROXY_ADDRESS: Address = Address::repeat_byte(0x22);
 const GATEWAY_DIAMOND_PROXY_ADDRESS: Address = Address::repeat_byte(0x33);
 const L1_CHAIN_ID: u64 = 9;
 const GATEWAY_CHAIN_ID: u64 = 505;
+const ERA_CHAIN_ID: u64 = 270;
 
 static BLOCK_COMMIT_SIGNATURE: Lazy<H256> = Lazy::new(|| {
     zksync_contracts::hyperchain_contract()
@@ -250,6 +254,19 @@ fn mock_l1_client(block_number: U64, logs: Vec<web3::Log>, chain_id: SLChainId) 
             Ok(filter_logs(&logs, filter))
         })
         .method("eth_chainId", move || Ok(U64::from(chain_id.0)))
+        .method("eth_call", move |req: CallRequest, _block_id: BlockId| {
+            let contract = bridgehub_contract();
+            let expected_input = contract
+                .function("getZKChain")
+                .unwrap()
+                .encode_input(&[ethabi::Token::Uint(ERA_CHAIN_ID.into())])
+                .unwrap();
+            assert_eq!(req.to, Some(L2_BRIDGEHUB_ADDRESS));
+            assert_eq!(req.data, Some(expected_input.into()));
+            Ok(web3::Bytes(ethabi::encode(&[ethabi::Token::Address(
+                GATEWAY_DIAMOND_PROXY_ADDRESS,
+            )])))
+        })
         .build()
 }
 
@@ -295,9 +312,15 @@ async fn create_l1_data_provider(
     l1_client: Box<DynClient<L1>>,
     pool: ConnectionPool<Core>,
 ) -> L1DataProvider {
-    L1DataProvider::new(l1_client, L1_DIAMOND_PROXY_ADDRESS, None, None, pool)
-        .await
-        .unwrap()
+    L1DataProvider::new(
+        l1_client,
+        L1_DIAMOND_PROXY_ADDRESS,
+        None,
+        pool,
+        L2ChainId(ERA_CHAIN_ID),
+    )
+    .await
+    .unwrap()
 }
 
 async fn test_using_l1_data_provider(l1_batch_timestamps: &[u64]) {
@@ -379,8 +402,8 @@ async fn using_different_settlement_layers() {
         Box::new(params_array[0].client()),
         L1_DIAMOND_PROXY_ADDRESS,
         Some(Box::new(params_array[1].client())),
-        Some(GATEWAY_DIAMOND_PROXY_ADDRESS),
         pool,
+        L2ChainId(ERA_CHAIN_ID),
     )
     .await
     .unwrap();

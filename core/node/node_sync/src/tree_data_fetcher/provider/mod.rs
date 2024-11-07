@@ -2,10 +2,12 @@ use std::fmt;
 
 use anyhow::Context;
 use async_trait::async_trait;
+use zksync_contracts::bridgehub_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_eth_client::EthInterface;
+use zksync_eth_client::{CallFunctionArgs, EthInterface};
+use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_types::{
-    block::L2BlockHeader, web3, Address, L1BatchNumber, SLChainId, H256, U256, U64,
+    block::L2BlockHeader, web3, Address, L1BatchNumber, L2ChainId, SLChainId, H256, U256, U64,
 };
 use zksync_web3_decl::{
     client::{DynClient, L1, L2},
@@ -132,8 +134,8 @@ impl L1DataProvider {
         l1_client: Box<DynClient<L1>>,
         l1_diamond_proxy_addr: Address,
         gateway_client: Option<Box<DynClient<L1>>>,
-        gateway_diamond_proxy_addr: Option<Address>,
         pool: ConnectionPool<Core>,
+        l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         let l1_chain_id = l1_client.fetch_chain_id().await?;
         let l1_chain_data = SLChainData {
@@ -142,12 +144,18 @@ impl L1DataProvider {
             diamond_proxy_addr: l1_diamond_proxy_addr,
         };
         let gateway_chain_data = if let Some(client) = gateway_client {
+            let gateway_diamond_proxy = CallFunctionArgs::new(
+                "getZKChain",
+                zksync_types::ethabi::Token::Uint(l2_chain_id.0.into()),
+            )
+            .for_contract(L2_BRIDGEHUB_ADDRESS, &bridgehub_contract())
+            .call(&client)
+            .await?;
             let chain_id = client.fetch_chain_id().await?;
             Some(SLChainData {
                 client,
                 chain_id,
-                diamond_proxy_addr: gateway_diamond_proxy_addr
-                    .context("Missing `gateway_diamond_proxy_addr`")?,
+                diamond_proxy_addr: gateway_diamond_proxy,
             })
         } else {
             None
