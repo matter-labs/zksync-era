@@ -19,10 +19,7 @@ use xshell::Shell;
 use zksync_consensus_crypto::ByteFmt;
 use zksync_consensus_roles::{attester, validator};
 
-use crate::{
-    messages::{self},
-    utils::consensus::parse_attester_committee,
-};
+use crate::{messages, utils::consensus::parse_attester_committee};
 
 mod conv;
 mod proto;
