@@ -351,6 +351,8 @@ pub(super) const MSG_CONSENSUS_CONFIG_MISSING_ERR: &str = "Consensus config is m
 pub(super) const MSG_CONSENSUS_SECRETS_MISSING_ERR: &str = "Consensus secrets config is missing";
 pub(super) const MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR: &str = "Consensus node key is missing";
 
+pub(super) const MSG_BUILDING_EN: &str = "Building external node";
+pub(super) const MSG_FAILED_TO_BUILD_EN_ERR: &str = "Failed to build external node";
 pub(super) const MSG_STARTING_EN: &str = "Starting external node";
 
 /// Prover related messages
@@ -429,7 +431,10 @@ pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
 }
 
 /// Contract verifier related messages
+pub(super) const MSG_BUILDING_CONTRACT_VERIFIER: &str = "Building contract verifier";
 pub(super) const MSG_RUNNING_CONTRACT_VERIFIER: &str = "Running contract verifier";
+pub(super) const MSG_FAILED_TO_BUILD_CONTRACT_VERIFIER_ERR: &str =
+    "Failed to build contract verifier";
 pub(super) const MSG_FAILED_TO_RUN_CONTRACT_VERIFIER_ERR: &str = "Failed to run contract verifier";
 pub(super) const MSG_INVALID_ARCH_ERR: &str = "Invalid arch";
 pub(super) const MSG_GET_ZKSOLC_RELEASES_ERR: &str = "Failed to get zksolc releases";
