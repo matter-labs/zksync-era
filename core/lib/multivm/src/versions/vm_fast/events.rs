@@ -1,5 +1,4 @@
-use zksync_types::{L1BatchNumber, H256};
-use zksync_utils::h256_to_address;
+use zksync_types::{h256_to_address, L1BatchNumber, H256};
 use zksync_vm2::interface::Event;
 
 use crate::interface::VmEvent;

@@ -1,3 +1,5 @@
+// FIXME: probably remove entirely
+
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub fn seconds_since_epoch() -> u64 {

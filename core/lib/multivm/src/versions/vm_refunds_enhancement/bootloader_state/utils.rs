@@ -1,5 +1,4 @@
-use zksync_types::U256;
-use zksync_utils::h256_to_u256;
+use zksync_types::{h256_to_u256, U256};
 
 use super::tx::BootloaderTx;
 use crate::{

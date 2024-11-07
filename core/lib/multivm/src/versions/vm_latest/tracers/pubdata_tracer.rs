@@ -5,8 +5,10 @@ use zk_evm_1_5_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
-use zksync_types::{writes::StateDiffRecord, AccountTreeId, StorageKey, L1_MESSENGER_ADDRESS};
-use zksync_utils::{h256_to_u256, u256_to_h256};
+use zksync_types::{
+    h256_to_u256, u256_to_h256, writes::StateDiffRecord, AccountTreeId, StorageKey,
+    L1_MESSENGER_ADDRESS,
+};
 use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use crate::{

@@ -8,11 +8,11 @@ use zksync_types::{
     api,
     block::{unpack_block_info, L2BlockHasher},
     fee_model::BatchFeeInput,
-    AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, H256,
+    h256_to_u256, AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, H256,
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, ZKPORTER_IS_AVAILABLE,
 };
-use zksync_utils::{h256_to_u256, time::seconds_since_epoch};
+use zksync_utils::time::seconds_since_epoch;
 
 use super::{env::OneshotEnvParameters, ContractsKind};
 

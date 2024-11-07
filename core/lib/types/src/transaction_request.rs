@@ -7,7 +7,7 @@ use zksync_basic_types::H256;
 use zksync_system_constants::{DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE, MAX_ENCODED_TX_SIZE};
 use zksync_utils::{
     bytecode::{hash_bytecode, validate_bytecode, InvalidBytecodeError},
-    concat_and_hash, u256_to_h256,
+    concat_and_hash,
 };
 
 use super::{EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE};
@@ -15,6 +15,7 @@ use crate::{
     fee::Fee,
     l1::L1Tx,
     l2::{L2Tx, TransactionType},
+    u256_to_h256,
     web3::{keccak256, AccessList, Bytes},
     Address, EIP712TypedStructure, Eip712Domain, L1TxCommonData, L2ChainId, Nonce,
     PackedEthSignature, StructBuilder, LEGACY_TX_TYPE, U256, U64,

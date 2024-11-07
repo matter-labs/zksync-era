@@ -18,11 +18,11 @@ use zksync_contracts::{
     SystemContractCode,
 };
 use zksync_types::{
-    block::L2BlockHasher, fee_model::BatchFeeInput, get_code_key, get_is_account_key,
-    utils::storage_key_for_eth_balance, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
-    ProtocolVersionId, U256,
+    block::L2BlockHasher, fee_model::BatchFeeInput, get_code_key, get_is_account_key, h256_to_u256,
+    u256_to_h256, utils::storage_key_for_eth_balance, Address, L1BatchNumber, L2BlockNumber,
+    L2ChainId, ProtocolVersionId, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
+use zksync_utils::bytecode::hash_bytecode;
 use zksync_vm_interface::{
     pubdata::PubdataBuilder, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
 };

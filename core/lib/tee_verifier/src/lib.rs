@@ -23,10 +23,9 @@ use zksync_prover_interface::inputs::{
     StorageLogMetadata, V1TeeVerifierInput, WitnessInputMerklePaths,
 };
 use zksync_types::{
-    block::L2BlockExecutionData, commitment::PubdataParams, L1BatchNumber, StorageLog,
-    StorageValue, Transaction, H256,
+    block::L2BlockExecutionData, commitment::PubdataParams, u256_to_h256, L1BatchNumber,
+    StorageLog, StorageValue, Transaction, H256,
 };
-use zksync_utils::u256_to_h256;
 
 /// A structure to hold the result of verification.
 pub struct VerificationResult {

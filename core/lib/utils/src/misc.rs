@@ -1,5 +1,6 @@
 use zksync_basic_types::{web3::keccak256, H256, U256};
 
+// FIXME: replace with std fn
 pub const fn ceil_div(a: u64, b: u64) -> u64 {
     if a == 0 {
         a
@@ -8,6 +9,7 @@ pub const fn ceil_div(a: u64, b: u64) -> u64 {
     }
 }
 
+// FIXME: to basic_types
 pub fn ceil_div_u256(a: U256, b: U256) -> U256 {
     (a + b - U256::from(1)) / b
 }
@@ -19,6 +21,7 @@ pub fn concat_and_hash(hash1: H256, hash2: H256) -> H256 {
     H256(keccak256(&bytes))
 }
 
+// FIXME: to commitment generator
 pub fn expand_memory_contents(packed: &[(usize, U256)], memory_size_bytes: usize) -> Vec<u8> {
     let mut result: Vec<u8> = vec![0; memory_size_bytes];
 

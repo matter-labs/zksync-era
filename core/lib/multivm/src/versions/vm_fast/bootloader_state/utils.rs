@@ -1,5 +1,4 @@
-use zksync_types::{ethabi, U256};
-use zksync_utils::h256_to_u256;
+use zksync_types::{ethabi, h256_to_u256, U256};
 
 use super::{l2_block::BootloaderL2Block, tx::BootloaderTx};
 use crate::{

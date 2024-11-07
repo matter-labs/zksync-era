@@ -4,17 +4,18 @@ use std::convert::TryFrom;
 
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{web3::Log, Address, L1BlockNumber, PriorityOpId, H256, U256};
-use zksync_utils::{address_to_u256, bytecode::hash_bytecode, h256_to_u256, u256_to_address};
+use zksync_utils::bytecode::hash_bytecode;
 
 use super::Transaction;
 use crate::{
-    abi, ethabi,
+    abi, address_to_u256, ethabi, h256_to_u256,
     helpers::unix_timestamp_ms,
     l1::error::L1TxParseError,
     l2::TransactionType,
     priority_op_onchain_data::{PriorityOpOnchainData, PriorityOpOnchainMetadata},
     tx::Execute,
-    ExecuteTransactionCommon, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE,
+    u256_to_address, ExecuteTransactionCommon, PRIORITY_OPERATION_L2_TX_TYPE,
+    PROTOCOL_UPGRADE_TX_TYPE,
 };
 
 pub mod error;

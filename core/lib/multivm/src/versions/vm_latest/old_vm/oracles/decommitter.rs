@@ -7,8 +7,7 @@ use zk_evm_1_5_0::{
     },
     zkevm_opcode_defs::{VersionedHashHeader, VersionedHashNormalizedPreimage},
 };
-use zksync_types::{H256, U256};
-use zksync_utils::{h256_to_u256, u256_to_h256};
+use zksync_types::{h256_to_u256, u256_to_h256, H256, U256};
 
 use super::OracleWithHistory;
 use crate::{

@@ -7,6 +7,7 @@ use tokio::sync::watch;
 use zksync_dal::Connection;
 use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_types::{
+    address_to_h256,
     contract_verification_api::{CompilerVersions, SourceCodeData, VerificationIncomingRequest},
     get_code_key, get_known_code_key,
     l2::L2Tx,
@@ -14,10 +15,7 @@ use zksync_types::{
     Execute, L1BatchNumber, L2BlockNumber, ProtocolVersion, StorageLog, CONTRACT_DEPLOYER_ADDRESS,
     H256, U256,
 };
-use zksync_utils::{
-    address_to_h256,
-    bytecode::{hash_bytecode, hash_evm_bytecode},
-};
+use zksync_utils::bytecode::{hash_bytecode, hash_evm_bytecode};
 use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics, VmEvent};
 
 use super::*;

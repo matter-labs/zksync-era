@@ -11,10 +11,9 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_interface::inputs::VMRunWitnessInputData;
 use zksync_state::OwnedStorage;
 use zksync_types::{
-    block::StorageOracleInfo, witness_block_state::WitnessStorageState, L1BatchNumber, L2ChainId,
-    H256,
+    block::StorageOracleInfo, h256_to_u256, u256_to_h256, witness_block_state::WitnessStorageState,
+    L1BatchNumber, L2ChainId, H256,
 };
-use zksync_utils::{h256_to_u256, u256_to_h256};
 use zksync_vm_interface::{executor::BatchExecutorFactory, L1BatchEnv, L2BlockEnv, SystemEnv};
 
 use crate::{

@@ -11,8 +11,10 @@ use zksync_system_constants::{
     KECCAK256_PRECOMPILE_ADDRESS, L2_BASE_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS,
     SYSTEM_CONTEXT_ADDRESS,
 };
-use zksync_types::{get_code_key, web3::keccak256, AccountTreeId, Address, StorageKey, H256, U256};
-use zksync_utils::{h256_to_address, u256_to_address, u256_to_h256};
+use zksync_types::{
+    get_code_key, h256_to_address, u256_to_address, u256_to_h256, web3::keccak256, AccountTreeId,
+    Address, StorageKey, H256, U256,
+};
 
 use crate::{
     interface::storage::{StoragePtr, WriteStorage},

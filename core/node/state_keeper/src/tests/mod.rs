@@ -20,11 +20,10 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L2BlockExecutionData, L2BlockHasher},
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
-    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, StorageKey,
-    StorageLog, StorageLogKind, StorageLogWithPreviousValue, Transaction, H256, U256,
-    ZKPORTER_IS_AVAILABLE,
+    u256_to_h256, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
+    ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
+    Transaction, H256, U256, ZKPORTER_IS_AVAILABLE,
 };
-use zksync_utils::u256_to_h256;
 
 use crate::{
     io::PendingBatchData,

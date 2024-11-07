@@ -6,8 +6,8 @@ use zk_evm_1_4_0::{
         DecommittmentQuery, MemoryIndex, MemoryLocation, MemoryPage, MemoryQuery, Timestamp,
     },
 };
-use zksync_types::U256;
-use zksync_utils::{bytecode::bytecode_len_in_words, u256_to_h256};
+use zksync_types::{u256_to_h256, U256};
+use zksync_utils::bytecode::bytecode_len_in_words;
 
 use super::OracleWithHistory;
 use crate::{

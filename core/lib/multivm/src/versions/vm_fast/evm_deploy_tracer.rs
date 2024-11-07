@@ -3,8 +3,8 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use zksync_system_constants::{CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS};
-use zksync_types::U256;
-use zksync_utils::{bytecode::hash_evm_bytecode, h256_to_u256};
+use zksync_types::{h256_to_u256, U256};
+use zksync_utils::bytecode::hash_evm_bytecode;
 use zksync_vm2::interface::{
     CallframeInterface, CallingMode, GlobalStateInterface, Opcode, OpcodeType, ShouldStop, Tracer,
 };

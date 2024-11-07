@@ -16,10 +16,9 @@ use zksync_multivm::interface::{
 };
 use zksync_types::{
     api::ApiStorageLog, fee_model::BatchFeeInput, get_intrinsic_constants,
-    transaction_request::CallRequest, vm::FastVmMode, K256PrivateKey, L2ChainId,
+    transaction_request::CallRequest, u256_to_h256, vm::FastVmMode, K256PrivateKey, L2ChainId,
     PackedEthSignature, StorageLogKind, StorageLogWithPreviousValue, Transaction, U256,
 };
-use zksync_utils::u256_to_h256;
 use zksync_vm_executor::oneshot::{
     BaseSystemContractsProvider, ContractsKind, MockOneshotExecutor, OneshotEnvParameters,
     ResolvedBlockInfo,

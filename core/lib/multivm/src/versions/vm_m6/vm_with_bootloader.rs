@@ -14,10 +14,10 @@ use zk_evm_1_3_1::{
 use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{
-    fee_model::L1PeggedBatchFeeModelInput, Address, Transaction, BOOTLOADER_ADDRESS,
-    L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
+    address_to_u256, fee_model::L1PeggedBatchFeeModelInput, h256_to_u256, Address, Transaction,
+    BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
 };
-use zksync_utils::{address_to_u256, bytecode::hash_bytecode, h256_to_u256, misc::ceil_div};
+use zksync_utils::{bytecode::hash_bytecode, misc::ceil_div};
 
 use crate::{
     interface::{CompressedBytecodeInfo, L1BatchEnv},

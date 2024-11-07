@@ -7,14 +7,11 @@ use zksync_system_constants::{
 };
 use zksync_test_account::TxType;
 use zksync_types::{
-    get_code_key, get_known_code_key,
+    get_code_key, get_known_code_key, h256_to_u256,
     utils::{key_for_eth_balance, storage_key_for_eth_balance},
     AccountTreeId, Address, Execute, StorageKey, H256, U256,
 };
-use zksync_utils::{
-    bytecode::{hash_bytecode, hash_evm_bytecode},
-    h256_to_u256,
-};
+use zksync_utils::bytecode::{hash_bytecode, hash_evm_bytecode};
 
 use super::{default_system_env, TestedVm, VmTester, VmTesterBuilder};
 use crate::interface::{

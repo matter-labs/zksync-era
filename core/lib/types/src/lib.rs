@@ -17,7 +17,7 @@ pub use storage::*;
 pub use tx::Execute;
 pub use zksync_basic_types::{protocol_version::ProtocolVersionId, vm, *};
 pub use zksync_crypto_primitives::*;
-use zksync_utils::{address_to_u256, bytecode::hash_bytecode, h256_to_u256, u256_to_address};
+use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{
     l2::{L2Tx, TransactionType},

@@ -6,6 +6,7 @@ use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use zksync_types::{
     api::{self, TransactionDetails, TransactionReceipt, TransactionStatus},
     fee::Fee,
+    h256_to_address,
     l1::{OpProcessingType, PriorityQueueType},
     l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTxCommonData,
@@ -16,7 +17,6 @@ use zksync_types::{
     TransactionTimeRangeConstraint, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160,
     H256, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
 };
-use zksync_utils::h256_to_address;
 use zksync_vm_interface::Call;
 
 use super::call::{LegacyCall, LegacyMixedCall};

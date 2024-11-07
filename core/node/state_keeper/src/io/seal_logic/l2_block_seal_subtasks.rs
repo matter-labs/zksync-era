@@ -5,11 +5,10 @@ use zksync_dal::{Connection, Core, CoreDal};
 use zksync_multivm::interface::VmEvent;
 use zksync_system_constants::{CONTRACT_DEPLOYER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 use zksync_types::{
-    ethabi,
+    ethabi, h256_to_address,
     tokens::{TokenInfo, TokenMetadata},
     Address, L2BlockNumber, H256,
 };
-use zksync_utils::h256_to_address;
 
 use crate::{
     io::seal_logic::SealStrategy,
@@ -467,11 +466,11 @@ mod tests {
     use zksync_types::{
         block::L2BlockHeader,
         commitment::PubdataParams,
+        h256_to_u256,
         l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
         AccountTreeId, Address, L1BatchNumber, ProtocolVersionId, StorageKey, StorageLog,
         StorageLogKind, StorageLogWithPreviousValue,
     };
-    use zksync_utils::h256_to_u256;
 
     use super::*;
     use crate::updates::L2BlockUpdates;

@@ -8,8 +8,10 @@ use zk_evm_1_5_0::{
     vm_state::VmLocalState,
     zkevm_opcode_defs::{ContractCodeSha256Format, VersionedHashLen32},
 };
-use zksync_types::{writes::StateDiffRecord, StorageKey, StorageValue, Transaction, H256, U256};
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
+use zksync_types::{
+    h256_to_u256, writes::StateDiffRecord, StorageKey, StorageValue, Transaction, H256, U256,
+};
+use zksync_utils::bytecode::hash_bytecode;
 use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use super::{HistoryEnabled, Vm};

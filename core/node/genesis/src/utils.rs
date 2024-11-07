@@ -11,12 +11,13 @@ use zksync_system_constants::{DEFAULT_ERA_CHAIN_ID, ETHEREUM_ADDRESS};
 use zksync_types::{
     block::{DeployedContract, L1BatchTreeData},
     commitment::L1BatchCommitment,
-    get_code_key, get_known_code_key, get_system_context_init_logs,
+    get_code_key, get_known_code_key, get_system_context_init_logs, h256_to_u256,
     tokens::{TokenInfo, TokenMetadata},
+    u256_to_h256,
     zk_evm_types::{LogQuery, Timestamp},
     AccountTreeId, L1BatchNumber, L2BlockNumber, L2ChainId, StorageKey, StorageLog, H256,
 };
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
+use zksync_utils::bytecode::hash_bytecode;
 
 use crate::GenesisError;
 

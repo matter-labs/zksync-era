@@ -8,13 +8,13 @@ use std::{
 use sqlx::postgres::types::PgInterval;
 use zksync_db_connection::{error::SqlxContext, instrument::InstrumentExt};
 use zksync_types::{
+    address_to_h256,
     contract_verification_api::{
         VerificationIncomingRequest, VerificationInfo, VerificationRequest,
         VerificationRequestStatus,
     },
     web3, Address, CONTRACT_DEPLOYER_ADDRESS, H256,
 };
-use zksync_utils::address_to_h256;
 use zksync_vm_interface::VmEvent;
 
 use crate::{
