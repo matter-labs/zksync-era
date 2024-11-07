@@ -5,7 +5,7 @@ pub use log::*;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{web3::keccak256, L2ChainId};
 pub use zksync_system_constants::*;
-use zksync_utils::{address_to_h256, u256_to_h256};
+use zksync_utils::address_to_h256;
 
 use crate::{AccountTreeId, Address, H160, H256, U256};
 
@@ -79,7 +79,10 @@ pub fn get_code_key(account: &Address) -> StorageKey {
 }
 
 pub fn get_evm_code_hash_key(account: &Address) -> StorageKey {
-    get_deployer_key(get_address_mapping_key(account, u256_to_h256(1.into())))
+    let mut slot = address_to_h256(account);
+    slot.0[0] |= 64;
+    // Equivalent to `slot = (1 << 254) + address`
+    get_deployer_key(slot)
 }
 
 pub fn get_known_code_key(hash: &H256) -> StorageKey {

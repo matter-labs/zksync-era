@@ -88,7 +88,26 @@ contract MockContractDeployer {
         KNOWN_CODE_STORAGE_CONTRACT.publishEVMBytecode(_input);
         address newAddress = address(uint160(msg.sender) + 1);
         ACCOUNT_CODE_STORAGE_CONTRACT.storeAccountConstructedCodeHash(newAddress, _salt);
+
+        bytes32 evmBytecodeHash = keccak256(_input);
+        _setEvmCodeHash(newAddress, evmBytecodeHash);
         return newAddress;
+    }
+
+    uint256 private constant EVM_HASHES_PREFIX = 1 << 254;
+
+    function _setEvmCodeHash(address _address, bytes32 _hash) internal {
+        assembly {
+            let slot := or(EVM_HASHES_PREFIX, _address)
+            sstore(slot, _hash)
+        }
+    }
+
+    function evmCodeHash(address _address) external returns (bytes32 _evmBytecodeHash) {
+        assembly {
+            let slot := or(EVM_HASHES_PREFIX, _address)
+            _evmBytecodeHash := sload(slot)
+        }
     }
 }
 
@@ -163,7 +182,7 @@ contract MockEvmEmulator is IRecursiveContract, IncrementingContract {
     modifier validEvmEntry() {
         if (!isUserSpace) {
             require(gasleft() >= EVM_EMULATOR_STIPEND, "no stipend");
-            // Fetch bytecode for the executed contract.
+            // Fetch versioned bytecode hash for the executed contract. Note that it's **not** equal to the `codehash` obtained below.
             bytes32 bytecodeHash = ACCOUNT_CODE_STORAGE_CONTRACT.getRawCodeHash(address(this));
             require(bytecodeHash != bytes32(0), "called contract not deployed");
             uint bytecodeVersion = uint(bytecodeHash) >> 248;
@@ -171,7 +190,9 @@ contract MockEvmEmulator is IRecursiveContract, IncrementingContract {
 
             // Check that members of the current address are well-defined.
             require(address(this).code.length != 0, "invalid code");
-            require(address(this).codehash == bytecodeHash, "bytecode hash mismatch");
+            bytes32 codeHash = address(this).codehash;
+            require(codeHash != bytes32(0), "zero bytecode hash");
+            require(codeHash != bytecodeHash, "bytecode hash match");
         }
         _;
     }

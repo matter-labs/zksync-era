@@ -68,7 +68,7 @@ impl<VM: TestedVm> VmTester<VM> {
 /// Builder for [`VmTester`].
 #[derive(Debug)]
 pub(crate) struct VmTesterBuilder {
-    storage: Option<InMemoryStorage>,
+    storage: InMemoryStorage,
     l1_batch_env: Option<L1BatchEnv>,
     system_env: SystemEnv,
     rich_accounts: Vec<Account>,
@@ -78,7 +78,7 @@ pub(crate) struct VmTesterBuilder {
 impl VmTesterBuilder {
     pub(crate) fn new() -> Self {
         Self {
-            storage: None,
+            storage: get_empty_storage(),
             l1_batch_env: None,
             system_env: default_system_env(),
             rich_accounts: vec![],
@@ -97,7 +97,17 @@ impl VmTesterBuilder {
     }
 
     pub(crate) fn with_storage(mut self, storage: InMemoryStorage) -> Self {
-        self.storage = Some(storage);
+        self.storage = storage;
+        self
+    }
+
+    pub(crate) fn with_storage_slots(
+        mut self,
+        slots: impl IntoIterator<Item = (StorageKey, H256)>,
+    ) -> Self {
+        for (key, value) in slots {
+            self.storage.set_value(key, value);
+        }
         self
     }
 
@@ -116,11 +126,6 @@ impl VmTesterBuilder {
 
     pub(crate) fn with_execution_mode(mut self, execution_mode: TxExecutionMode) -> Self {
         self.system_env.execution_mode = execution_mode;
-        self
-    }
-
-    pub(crate) fn with_empty_in_memory_storage(mut self) -> Self {
-        self.storage = Some(get_empty_storage());
         self
     }
 
@@ -149,7 +154,7 @@ impl VmTesterBuilder {
             .l1_batch_env
             .unwrap_or_else(|| default_l1_batch(L1BatchNumber(1)));
 
-        let mut raw_storage = self.storage.unwrap_or_else(get_empty_storage);
+        let mut raw_storage = self.storage;
         ContractToDeploy::insert_all(&self.custom_contracts, &mut raw_storage);
         let storage = StorageView::new(raw_storage).to_rc_ptr();
         for account in &self.rich_accounts {

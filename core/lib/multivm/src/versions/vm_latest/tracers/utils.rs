@@ -169,6 +169,7 @@ pub(crate) fn print_debug_if_needed<H: HistoryMode>(
         VmHook::DebugReturnData => get_debug_returndata(memory, latest_returndata_ptr),
         _ => return,
     };
+    dbg!(&log);
     tracing::trace!("{log}");
 }
 

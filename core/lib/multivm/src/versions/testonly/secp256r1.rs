@@ -10,7 +10,6 @@ pub(crate) fn test_secp256r1<VM: TestedVm>() {
     // In this test, we aim to test whether a simple account interaction (without any fee logic)
     // will work. The account will try to deploy a simple contract from integration tests.
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_execution_mode(TxExecutionMode::EthCall)
         .with_rich_accounts(1)
