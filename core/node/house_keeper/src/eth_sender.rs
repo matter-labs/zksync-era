@@ -55,7 +55,7 @@ impl PeriodicJob for EthSenderHealthTask {
 
         self.eth_sender_health_updater.update(
             EthSenderInfo {
-                failed_l1_txns: failed_l1_txns as u64,
+                failed_l1_txns,
                 last_saved_batches: get_latest_batches(eth_stats.saved),
                 last_mined_batches: get_latest_batches(eth_stats.mined),
                 next_nonce,
