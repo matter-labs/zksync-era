@@ -113,9 +113,7 @@ where
             EXECUTOR_METRICS
                 .failed_tx_gas_limit_per_nanosecond
                 .observe(tx_gas_limit as f64 / elapsed.as_nanos() as f64);
-            EXECUTOR_METRICS
-                .failed_tx_gas_limit
-                .observe(tx_gas_limit);
+            EXECUTOR_METRICS.failed_tx_gas_limit.observe(tx_gas_limit);
         }
         Ok(res)
     }
