@@ -357,10 +357,17 @@ jobs:
         run: |
           ci_run zkstack dev test build
 
+      - name: Build tested binaries
+        run: |
+          ci_run zkstack server --build
+          ci_run zkstack external-node build
+          ci_run zkstack contract-verifier build
+
       - name: Initialize Contract verifier
         run: |
           ci_run zkstack contract-verifier init --zksolc-version=v1.5.3 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
           ci_run zkstack contract-verifier run --chain era &> ${{ env.SERVER_LOGS_DIR }}/contract-verifier-rollup.log &
+          ci_run sleep 5
 
       - name: Run servers
         run: |
