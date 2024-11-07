@@ -127,6 +127,7 @@ jobs:
 
       - name: download CRS for GPU compressor
         if: matrix.components == 'proof-fri-gpu-compressor'
+        #
         run: |
           if [ -f "/setup_2^26.key" ]; then
             cp "/setup_2^26.key" ./setup_2^26.key
