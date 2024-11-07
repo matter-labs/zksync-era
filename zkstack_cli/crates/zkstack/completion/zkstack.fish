@@ -368,7 +368,7 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_sub
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from snapshot" -s h -l help -d 'Print help'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from snapshot" -f -a "create"
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from snapshot" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from lint" -s t -l targets -r -f -a "{md\t'',sol\t'',js\t'',ts\t'',rs\t'',contracts\t'',autocompletion\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from lint" -s t -l targets -r -f -a "{md\t'',sol\t'',js\t'',ts\t'',rs\t'',contracts\t'',autocompletion\t'',rust-toolchain\t''}"
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from lint" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from lint" -s c -l check
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from lint" -s v -l verbose -d 'Verbose mode'
