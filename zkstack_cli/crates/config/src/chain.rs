@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::bail;
+use anyhow::{bail, Context};
 use serde::{Deserialize, Serialize, Serializer};
 use types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
@@ -169,6 +169,38 @@ impl ChainConfig {
             legacy_bridge: self.legacy_bridge,
             evm_emulator: self.evm_emulator,
         }
+    }
+
+    pub fn from_internal(
+        chain_internal: ChainConfigInternal,
+        shell: Shell,
+    ) -> anyhow::Result<Self> {
+        let l1_network = chain_internal.l1_network.context("L1 Network not found")?;
+        let link_to_code = chain_internal
+            .link_to_code
+            .context("Link to code not found")?;
+        let artifacts = chain_internal
+            .artifacts_path
+            .context("Artifacts path not found")?;
+
+        Ok(Self {
+            id: chain_internal.id,
+            name: chain_internal.name,
+            chain_id: chain_internal.chain_id,
+            prover_version: chain_internal.prover_version,
+            configs: chain_internal.configs,
+            rocks_db_path: chain_internal.rocks_db_path,
+            external_node_config_path: chain_internal.external_node_config_path,
+            l1_network,
+            l1_batch_commit_data_generator_mode: chain_internal.l1_batch_commit_data_generator_mode,
+            base_token: chain_internal.base_token,
+            wallet_creation: chain_internal.wallet_creation,
+            legacy_bridge: chain_internal.legacy_bridge,
+            link_to_code,
+            artifacts,
+            evm_emulator: chain_internal.evm_emulator,
+            shell: shell.into(),
+        })
     }
 }
 
