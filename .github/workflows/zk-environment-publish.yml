@@ -80,6 +80,7 @@ jobs:
     name: Build and optionally push zk-environment Docker images to Docker Hub
     strategy:
       fail-fast: false
+      # test
       matrix:
         include:
           - runner: matterlabs-ci-runner-high-performance
@@ -196,6 +197,7 @@ jobs:
       contents: read
     needs: changed_files
     runs-on: [matterlabs-ci-runner-high-performance]
+    # test
     strategy:
       matrix:
         cuda_version: ['11_8', '12_0']

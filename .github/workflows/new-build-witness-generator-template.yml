@@ -36,6 +36,7 @@ jobs:
   get-protocol-version:
     name: Get protocol version
     runs-on: [ matterlabs-ci-runner-high-performance ]
+    # test
     outputs:
       protocol_version: ${{ steps.protocolversion.outputs.protocol_version }}
     steps:

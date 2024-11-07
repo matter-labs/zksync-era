@@ -18,7 +18,7 @@ on:
 
 jobs:
   build:
-    name: Build prover FRI GPU GAR
+    name: Build prover FRI GPU GAR # test
     runs-on: [matterlabs-ci-runner-high-performance]
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4

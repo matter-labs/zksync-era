@@ -27,6 +27,7 @@ jobs:
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
     runs-on: [matterlabs-ci-runner-high-performance]
+    # test
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         if: ${{ github.event_name == 'workflow_dispatch' }}
@@ -76,4 +77,3 @@ jobs:
               docker push "${repo}/${tag}"
             done
           done
-

@@ -27,6 +27,7 @@ jobs:
   prepare-contracts:
     name: Prepare contracts
     runs-on: matterlabs-ci-runner-high-performance
+    # test
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
@@ -147,6 +148,7 @@ jobs:
   build-images:
     name: Build and Push Docker Images
     needs: prepare-contracts
+    # test
     runs-on: ${{ fromJSON('["matterlabs-ci-runner-high-performance", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
     strategy:
       matrix:

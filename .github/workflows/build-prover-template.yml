@@ -45,6 +45,7 @@ jobs:
       RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
       ERA_BELLMAN_CUDA_RELEASE: ${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
       CUDA_ARCH: ${{ inputs.CUDA_ARCH }}
+      # test
     runs-on: [matterlabs-ci-runner-high-performance]
     strategy:
       matrix:

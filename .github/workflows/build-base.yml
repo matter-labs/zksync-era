@@ -8,7 +8,7 @@ on:
         default: main
 jobs:
   build-images:
-    name: Build and Push Docker Images
+    name: Build and Push Docker Images # test
     runs-on: ${{ fromJSON('["matterlabs-ci-runner-high-performance", "matterlabs-ci-runner-arm"]')[contains(matrix.arch, 'arm')] }}
     outputs:
       image_tag_sha: ${{ steps.get-sha.outputs.image_tag_sha }}
@@ -79,6 +79,7 @@ jobs:
     needs: [ build-images ]
     env:
       IMAGE_TAG_SUFFIX: ${{ needs.build-images.outputs.image_tag_sha }}
+    # test
     runs-on: [ matterlabs-ci-runner-high-performance ]
     steps:
       - name: Set up Docker Buildx
