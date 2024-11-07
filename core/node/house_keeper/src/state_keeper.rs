@@ -47,7 +47,11 @@ impl PeriodicJob for StateKeeperHealthTask {
     const SERVICE_NAME: &'static str = "StateKeeperHealth";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
-        let mut conn = self.connection_pool.connection().await.unwrap();
+        let mut conn = self
+            .connection_pool
+            .connection_tagged("house_keeper")
+            .await
+            .unwrap();
         let last_sealed_miniblock = conn.blocks_dal().get_last_sealed_l2_block_header().await?;
         let last_processed_l1_batch = conn
             .blocks_dal()

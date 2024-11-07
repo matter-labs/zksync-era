@@ -42,7 +42,10 @@ impl PeriodicJob for EthSenderHealthTask {
     const SERVICE_NAME: &'static str = "EthSenderHealth";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
-        let mut conn = self.connection_pool.connection().await?;
+        let mut conn = self
+            .connection_pool
+            .connection_tagged("house_keeper")
+            .await?;
         let failed_l1_txns = conn
             .eth_sender_dal()
             .get_number_of_failed_transactions()

@@ -28,7 +28,10 @@ impl PeriodicJob for DatabaseHealthTask {
     const SERVICE_NAME: &'static str = "DatabaseHealth";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
-        let mut conn = self.connection_pool.connection().await?;
+        let mut conn = self
+            .connection_pool
+            .connection_tagged("house_keeper")
+            .await?;
         let last_migration = conn.system_dal().get_last_migration().await?;
 
         self.database_health_updater
