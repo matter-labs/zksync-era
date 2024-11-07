@@ -10803,16 +10803,13 @@ name = "zksync_contract_verifier"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "ctrlc",
- "futures 0.3.31",
- "structopt",
+ "clap 4.5.20",
  "tokio",
  "tracing",
  "zksync_config",
  "zksync_contract_verifier_lib",
  "zksync_core_leftovers",
  "zksync_dal",
- "zksync_env_config",
  "zksync_queued_job_processor",
  "zksync_utils",
  "zksync_vlog",
