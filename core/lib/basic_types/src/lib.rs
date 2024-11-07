@@ -42,6 +42,11 @@ pub mod url;
 pub mod vm;
 pub mod web3;
 
+/// Computes `ceil(a / b)`.
+pub fn ceil_div_u256(a: U256, b: U256) -> U256 {
+    (a + b - U256::from(1)) / b
+}
+
 /// Parses H256 from a slice of bytes.
 pub fn parse_h256(bytes: &[u8]) -> anyhow::Result<H256> {
     Ok(<[u8; 32]>::try_from(bytes).context("invalid size")?.into())

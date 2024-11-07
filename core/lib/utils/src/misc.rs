@@ -1,10 +1,5 @@
 use zksync_basic_types::{web3::keccak256, H256, U256};
 
-// FIXME: to basic_types
-pub fn ceil_div_u256(a: U256, b: U256) -> U256 {
-    (a + b - U256::from(1)) / b
-}
-
 pub fn concat_and_hash(hash1: H256, hash2: H256) -> H256 {
     let mut bytes = [0_u8; 64];
     bytes[..32].copy_from_slice(&hash1.0);
