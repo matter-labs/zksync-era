@@ -6,22 +6,19 @@ use config::{
         script_params::DEPLOY_PAYMASTER_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    zkstack_config::ZkStackConfig,
     ChainConfig, ContractsConfig,
 };
 use xshell::Shell;
 
 use crate::{
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
+    messages::MSG_L1_SECRETS_MUST_BE_PRESENTED,
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
-pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
-    let chain_config =
-        ZkStackConfig::load_current_chain(shell).context(MSG_CHAIN_NOT_INITIALIZED)?;
-    let mut contracts = chain_config.get_contracts_config()?;
-    deploy_paymaster(shell, &chain_config, &mut contracts, args, None, true).await?;
-    contracts.save_with_base_path(shell, chain_config.configs)
+pub async fn run(args: ForgeScriptArgs, shell: &Shell, chain: ChainConfig) -> anyhow::Result<()> {
+    let mut contracts = chain.get_contracts_config()?;
+    deploy_paymaster(shell, &chain, &mut contracts, args, None, true).await?;
+    contracts.save_with_base_path(shell, chain.configs)
 }
 
 pub async fn deploy_paymaster(

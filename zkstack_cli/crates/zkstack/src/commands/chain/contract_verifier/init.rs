@@ -1,15 +1,18 @@
 use std::path::{Path, PathBuf};
 
 use common::{cmd::Cmd, logger, spinner::Spinner};
-use config::zkstack_config::ZkStackConfig;
+use config::ChainConfig;
 use xshell::{cmd, Shell};
 
 use super::args::{init::InitContractVerifierArgs, releases::Version};
 use crate::messages::{msg_binary_already_exists, msg_downloading_binary_spinner};
 
-pub(crate) async fn run(shell: &Shell, args: InitContractVerifierArgs) -> anyhow::Result<()> {
+pub(crate) async fn run(
+    shell: &Shell,
+    args: InitContractVerifierArgs,
+    chain: ChainConfig,
+) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt(shell)?;
-    let chain = ZkStackConfig::load_current_chain(shell)?;
     let link_to_code = chain.link_to_code;
 
     download_binaries(

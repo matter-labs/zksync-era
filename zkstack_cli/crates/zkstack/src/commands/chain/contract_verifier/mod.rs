@@ -1,5 +1,6 @@
 use args::init::InitContractVerifierArgs;
 use clap::Subcommand;
+use config::ChainConfig;
 use xshell::Shell;
 
 mod args;
@@ -14,9 +15,13 @@ pub enum ContractVerifierCommands {
     Init(InitContractVerifierArgs),
 }
 
-pub(crate) async fn run(shell: &Shell, args: ContractVerifierCommands) -> anyhow::Result<()> {
+pub(crate) async fn run(
+    shell: &Shell,
+    args: ContractVerifierCommands,
+    chain: ChainConfig,
+) -> anyhow::Result<()> {
     match args {
-        ContractVerifierCommands::Run => run::run(shell).await,
-        ContractVerifierCommands::Init(args) => init::run(shell, args).await,
+        ContractVerifierCommands::Run => run::run(shell, chain).await,
+        ContractVerifierCommands::Init(args) => init::run(shell, args, chain).await,
     }
 }
