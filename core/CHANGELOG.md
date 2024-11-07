@@ -1,5 +1,41 @@
 # Changelog
 
+## [25.1.0](https://github.com/matter-labs/zksync-era/compare/core-v25.0.0...core-v25.1.0) (2024-11-04)
+
+
+### Features
+
+* add `block.timestamp` asserter for AA ([#3031](https://github.com/matter-labs/zksync-era/issues/3031)) ([069d38d](https://github.com/matter-labs/zksync-era/commit/069d38d6c9ddd8b6c404596c479f94b9fc86db40))
+* allow vm2 tracers to stop execution ([#3183](https://github.com/matter-labs/zksync-era/issues/3183)) ([9dae839](https://github.com/matter-labs/zksync-era/commit/9dae839935d82a1e73be220d17567f3382131039))
+* **api:** get rid of tx receipt root ([#3187](https://github.com/matter-labs/zksync-era/issues/3187)) ([6c034f6](https://github.com/matter-labs/zksync-era/commit/6c034f6e180cc92e99766f14c8840c90efa56cec))
+* **api:** Integrate new VM into API server (no tracers) ([#3033](https://github.com/matter-labs/zksync-era/issues/3033)) ([8e75d4b](https://github.com/matter-labs/zksync-era/commit/8e75d4b812b21bc26e2c38ceeb711a8a530d7bc2))
+* base token integration tests ([#2509](https://github.com/matter-labs/zksync-era/issues/2509)) ([8db7e93](https://github.com/matter-labs/zksync-era/commit/8db7e9306e5fa23f066be106363e6455531bbc09))
+* **consensus:** enabled syncing pregenesis blocks over p2p ([#3192](https://github.com/matter-labs/zksync-era/issues/3192)) ([6adb224](https://github.com/matter-labs/zksync-era/commit/6adb2249ff0946ec6d02f25437c9f71b1079ad79))
+* **da-clients:** add Celestia client ([#2983](https://github.com/matter-labs/zksync-era/issues/2983)) ([d88b875](https://github.com/matter-labs/zksync-era/commit/d88b875464ec5ac7e54aba0cc7c0a68c01969782))
+* **da-clients:** add EigenDA client ([#3155](https://github.com/matter-labs/zksync-era/issues/3155)) ([5161eed](https://github.com/matter-labs/zksync-era/commit/5161eeda5905d33f4d038a2a04ced3e06f39d593))
+* gateway preparation ([#3006](https://github.com/matter-labs/zksync-era/issues/3006)) ([16f2757](https://github.com/matter-labs/zksync-era/commit/16f275756cd28024a6b11ac1ac327eb5b8b446e1))
+* Implement gas relay mode and inclusion data for data attestation ([#3070](https://github.com/matter-labs/zksync-era/issues/3070)) ([561fc1b](https://github.com/matter-labs/zksync-era/commit/561fc1bddfc79061dab9d8d150baa06acfa90692))
+* **metadata-calculator:** Add debug endpoints for tree API ([#3167](https://github.com/matter-labs/zksync-era/issues/3167)) ([3815252](https://github.com/matter-labs/zksync-era/commit/3815252790fd0e9094f308b58dfde3a8b1a82277))
+* **proof-data-handler:** add first processed batch option ([#3112](https://github.com/matter-labs/zksync-era/issues/3112)) ([1eb69d4](https://github.com/matter-labs/zksync-era/commit/1eb69d467802d07f3fc6502de97ff04a69f952fc))
+* **proof-data-handler:** add tee_proof_generation_timeout_in_secs param ([#3128](https://github.com/matter-labs/zksync-era/issues/3128)) ([f3724a7](https://github.com/matter-labs/zksync-era/commit/f3724a71c7466451d380981b05d68d8afd70cdca))
+* **prover:** Add queue metric to report autoscaler view of the queue. ([#3206](https://github.com/matter-labs/zksync-era/issues/3206)) ([2721396](https://github.com/matter-labs/zksync-era/commit/272139690e028d3bdebdb6bcb1824fec23cefd0f))
+* **prover:** Add sending scale requests for Scaler targets ([#3194](https://github.com/matter-labs/zksync-era/issues/3194)) ([767c5bc](https://github.com/matter-labs/zksync-era/commit/767c5bc6a62c402c099abe93b7dbecbb59e4acb7))
+* **prover:** Add support for scaling WGs and compressor ([#3179](https://github.com/matter-labs/zksync-era/issues/3179)) ([c41db9e](https://github.com/matter-labs/zksync-era/commit/c41db9ecec1c21b80969604f703ac6990f6f3434))
+* **vm:** Support EVM emulation in fast VM ([#3163](https://github.com/matter-labs/zksync-era/issues/3163)) ([9ad1f0d](https://github.com/matter-labs/zksync-era/commit/9ad1f0d77e5a5b411f7866ef6a1819373c07f91b))
+
+
+### Bug Fixes
+
+* **consensus:** better logging of errors ([#3170](https://github.com/matter-labs/zksync-era/issues/3170)) ([a5028da](https://github.com/matter-labs/zksync-era/commit/a5028da65608898ad41c6a4fd5c6ec4c28a45703))
+* **consensus:** made attestation controller non-critical ([#3180](https://github.com/matter-labs/zksync-era/issues/3180)) ([6ee9f1f](https://github.com/matter-labs/zksync-era/commit/6ee9f1f431f95514d58db87a4562e09df9d09f86))
+* **consensus:** payload encoding protected by protocol_version ([#3168](https://github.com/matter-labs/zksync-era/issues/3168)) ([8089b78](https://github.com/matter-labs/zksync-era/commit/8089b78b3f2cdbe8d0a23e9b8412a8022d78ada2))
+* **da-clients:** add padding to the data within EigenDA blob ([#3203](https://github.com/matter-labs/zksync-era/issues/3203)) ([8ae06b2](https://github.com/matter-labs/zksync-era/commit/8ae06b237647715937fb3656d881c0fd460f2a07))
+* **da-clients:** enable tls-roots feature for tonic ([#3201](https://github.com/matter-labs/zksync-era/issues/3201)) ([42f177a](https://github.com/matter-labs/zksync-era/commit/42f177ac43b86cd24321ad9222121fc8a91c49e0))
+* extend allowed storage slots for validation as per EIP-7562 ([#3166](https://github.com/matter-labs/zksync-era/issues/3166)) ([c76da16](https://github.com/matter-labs/zksync-era/commit/c76da16efc769243a02c6e859376182d95ab941d))
+* **merkle-tree:** Fix tree truncation ([#3178](https://github.com/matter-labs/zksync-era/issues/3178)) ([9654097](https://github.com/matter-labs/zksync-era/commit/96540975d917761d8e464ebbdf52704955bcd898))
+* **tee_prover:** add prometheus pull listener ([#3169](https://github.com/matter-labs/zksync-era/issues/3169)) ([1ffd22f](https://github.com/matter-labs/zksync-era/commit/1ffd22ffbe710469de0e7f27c6aae29453ec6d3e))
+* update logging in cbt l1 behaviour ([#3149](https://github.com/matter-labs/zksync-era/issues/3149)) ([d0f61b0](https://github.com/matter-labs/zksync-era/commit/d0f61b0552dcacc2e8e33fdbcae6f1e5fbb43820))
+
 ## [25.0.0](https://github.com/matter-labs/zksync-era/compare/core-v24.29.0...core-v25.0.0) (2024-10-23)
 
 

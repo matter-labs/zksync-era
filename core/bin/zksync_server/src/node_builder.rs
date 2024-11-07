@@ -1,6 +1,8 @@
 //! This module provides a "builder" for the main node,
 //! as well as an interface to run the node with the specified components.
 
+use std::time::Duration;
+
 use anyhow::{bail, Context};
 use zksync_config::{
     configs::{
@@ -12,7 +14,7 @@ use zksync_config::{
 use zksync_core_leftovers::Component;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
-    tx_sender::TxSenderConfig,
+    tx_sender::{TimestampAsserterParams, TxSenderConfig},
     web3::{state::InternalApiConfig, Namespace},
 };
 use zksync_node_framework::{
@@ -303,6 +305,20 @@ impl MainNodeBuilder {
     fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
+
+        let timestamp_asserter_params = match self.contracts_config.l2_timestamp_asserter_addr {
+            Some(address) => {
+                let timestamp_asserter_config =
+                    try_load_config!(self.configs.timestamp_asserter_config);
+                Some(TimestampAsserterParams {
+                    address,
+                    min_time_till_end: Duration::from_secs(
+                        timestamp_asserter_config.min_time_till_end_sec.into(),
+                    ),
+                })
+            }
+            None => None,
+        };
         let postgres_storage_caches_config = PostgresStorageCachesConfig {
             factory_deps_cache_size: rpc_config.factory_deps_cache_size() as u64,
             initial_writes_cache_size: rpc_config.initial_writes_cache_size() as u64,
@@ -322,6 +338,7 @@ impl MainNodeBuilder {
                     .fee_account
                     .address(),
                 self.genesis_config.l2_chain_id,
+                timestamp_asserter_params,
             ),
             postgres_storage_caches_config,
             rpc_config.vm_concurrency_limit(),

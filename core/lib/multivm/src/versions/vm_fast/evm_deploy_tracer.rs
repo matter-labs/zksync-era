@@ -6,7 +6,7 @@ use zksync_system_constants::{CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADD
 use zksync_types::U256;
 use zksync_utils::{bytecode::hash_evm_bytecode, h256_to_u256};
 use zksync_vm2::interface::{
-    CallframeInterface, CallingMode, GlobalStateInterface, Opcode, OpcodeType, Tracer,
+    CallframeInterface, CallingMode, GlobalStateInterface, Opcode, OpcodeType, ShouldStop, Tracer,
 };
 
 use super::utils::read_fat_pointer;
@@ -76,9 +76,13 @@ impl EvmDeployTracer {
 
 impl Tracer for EvmDeployTracer {
     #[inline(always)]
-    fn after_instruction<OP: OpcodeType, S: GlobalStateInterface>(&mut self, state: &mut S) {
+    fn after_instruction<OP: OpcodeType, S: GlobalStateInterface>(
+        &mut self,
+        state: &mut S,
+    ) -> ShouldStop {
         if matches!(OP::VALUE, Opcode::FarCall(CallingMode::Normal)) {
             self.handle_far_call(state);
         }
+        ShouldStop::Continue
     }
 }

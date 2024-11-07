@@ -11833,12 +11833,7 @@ dependencies = [
  "secrecy",
  "serde",
  "serde_json",
- "strum",
- "strum_macros",
- "time",
  "tracing",
- "url",
- "vise",
  "zksync_basic_types",
  "zksync_concurrency",
  "zksync_consensus_utils",
@@ -12072,22 +12067,23 @@ dependencies = [
  "chrono",
  "ethabi 18.0.0",
  "hex",
- "lazy_static",
  "regex",
  "semver 1.0.23",
  "serde",
  "serde_json",
  "tempfile",
+ "test-casing",
  "thiserror",
  "tokio",
  "tracing",
  "vise",
- "zksync_config",
  "zksync_contracts",
  "zksync_dal",
+ "zksync_node_test_utils",
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_interface",
 ]
 
 [[package]]
@@ -12379,7 +12375,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "25.0.0"
+version = "25.1.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -12706,7 +12702,6 @@ dependencies = [
  "async-trait",
  "axum 0.7.7",
  "chrono",
- "const-decoder",
  "futures 0.3.31",
  "governor",
  "hex",
@@ -12988,11 +12983,10 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_merkle_tree",
- "zksync_multivm",
- "zksync_node_genesis",
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_interface",
 ]
 
 [[package]]
@@ -13108,7 +13102,6 @@ dependencies = [
  "secrecy",
  "serde_json",
  "serde_yaml",
- "time",
  "tracing",
  "zksync_basic_types",
  "zksync_config",
@@ -13129,9 +13122,9 @@ dependencies = [
  "serde_with",
  "strum",
  "tokio",
- "zksync_multivm",
  "zksync_object_store",
  "zksync_types",
+ "zksync_vm_interface",
 ]
 
 [[package]]
@@ -13437,6 +13430,7 @@ dependencies = [
  "assert_matches",
  "bigdecimal",
  "bincode",
+ "const-decoder",
  "futures 0.3.31",
  "hex",
  "num",
@@ -13481,7 +13475,7 @@ dependencies = [
 [[package]]
 name = "zksync_vm2"
 version = "0.2.1"
-source = "git+https://github.com/matter-labs/vm2.git?rev=df5bec3d04d64d434f9b0ccb285ba4681008f7b3#df5bec3d04d64d434f9b0ccb285ba4681008f7b3"
+source = "git+https://github.com/matter-labs/vm2.git?rev=457d8a7eea9093af9440662e33e598c13ba41633#457d8a7eea9093af9440662e33e598c13ba41633"
 dependencies = [
  "enum_dispatch",
  "primitive-types 0.12.2",
@@ -13493,7 +13487,7 @@ dependencies = [
 [[package]]
 name = "zksync_vm2_interface"
 version = "0.2.1"
-source = "git+https://github.com/matter-labs/vm2.git?rev=df5bec3d04d64d434f9b0ccb285ba4681008f7b3#df5bec3d04d64d434f9b0ccb285ba4681008f7b3"
+source = "git+https://github.com/matter-labs/vm2.git?rev=457d8a7eea9093af9440662e33e598c13ba41633#457d8a7eea9093af9440662e33e598c13ba41633"
 dependencies = [
  "primitive-types 0.12.2",
 ]
