@@ -40,8 +40,8 @@ impl RawEigenClient {
     pub(crate) const BUFFER_SIZE: usize = 1000;
 
     pub async fn new(private_key: SecretKey, config: DisperserConfig) -> anyhow::Result<Self> {
-        let endpoint = Endpoint::from_str(&config.disperser_rpc.as_str())?
-            .tls_config(ClientTlsConfig::new())?;
+        let endpoint =
+            Endpoint::from_str(config.disperser_rpc.as_str())?.tls_config(ClientTlsConfig::new())?;
         let client = DisperserClient::connect(endpoint)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to connect to Disperser server: {}", e))?;
@@ -338,7 +338,7 @@ impl RawEigenClient {
             })?
             .into_inner();
 
-        if get_response.data.len() == 0 {
+        if get_response.data.is_empty() {
             return Err(DAError {
                 error: anyhow!("Failed to get blob data"),
                 is_retriable: false,
@@ -346,7 +346,7 @@ impl RawEigenClient {
         }
         //TODO: remove zkgpad_rs
         let data = kzgpad_rs::remove_empty_byte_from_padded_bytes(&get_response.data);
-        return Ok(Some(data));
+        Ok(Some(data))
     }
 }
 
