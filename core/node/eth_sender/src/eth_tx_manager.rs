@@ -6,6 +6,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     encode_blob_tx_with_sidecar, BoundEthInterface, ExecutedTxStatus, RawTransactionBytes,
 };
+use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{eth_sender::EthTx, Address, L1BlockNumber, H256, U256};
@@ -17,6 +18,7 @@ use crate::{
         AbstractL1Interface, L1BlockNumbers, OperatorNonce, OperatorType, RealL1Interface,
     },
     eth_fees_oracle::{EthFees, EthFeesOracle, GasAdjusterFeesOracle},
+    health::EthTxManagerHealthDetails,
     metrics::TransactionType,
 };
 
@@ -31,6 +33,7 @@ pub struct EthTxManager {
     config: SenderConfig,
     fees_oracle: Box<dyn EthFeesOracle>,
     pool: ConnectionPool<Core>,
+    health_updater: HealthUpdater,
 }
 
 impl EthTxManager {
@@ -65,6 +68,7 @@ impl EthTxManager {
             config,
             fees_oracle: Box::new(fees_oracle),
             pool,
+            health_updater: ReactiveHealthCheck::new("eth_tx_manager").1,
         }
     }
 
@@ -415,6 +419,15 @@ impl EthTxManager {
     ) {
         let receipt_block_number = tx_status.receipt.block_number.unwrap().as_u32();
         if receipt_block_number <= finalized_block.0 {
+            self.health_updater.update(
+                EthTxManagerHealthDetails {
+                    last_mined_tx: tx.into(),
+                    tx_status: (&tx_status).into(),
+                    finalized_block: finalized_block,
+                }
+                .into(),
+            );
+
             if tx_status.success {
                 self.confirm_tx(storage, tx, tx_status).await;
             } else {
@@ -516,6 +529,9 @@ impl EthTxManager {
     }
 
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        self.health_updater
+            .update(Health::from(HealthStatus::Ready));
+
         let pool = self.pool.clone();
 
         loop {
@@ -523,6 +539,8 @@ impl EthTxManager {
 
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, eth_tx_manager is shutting down");
+                self.health_updater
+                    .update(Health::from(HealthStatus::ShuttingDown));
                 break;
             }
             let operator_to_track = self.l1_interface.supported_operator_types()[0];
@@ -675,5 +693,10 @@ impl EthTxManager {
                 }
             }
         }
+    }
+
+    /// Returns the health check for eth tx manager.
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.health_updater.subscribe()
     }
 }

@@ -19,7 +19,6 @@ mod tests {
         HouseKeeperConfig {
             l1_batch_metrics_reporting_interval_ms: 10_000,
             database_health_polling_interval_ms: 10_000,
-            eth_sender_health_polling_interval_ms: 10_000,
         }
     }
 
@@ -29,7 +28,6 @@ mod tests {
         let config = r#"
             HOUSE_KEEPER_L1_BATCH_METRICS_REPORTING_INTERVAL_MS="10000"
             HOUSE_KEEPER_DATABASE_HEALTH_POLLING_INTERVAL_MS="10000"
-            HOUSE_KEEPER_ETH_SENDER_HEALTH_POLLING_INTERVAL_MS="10000"
         "#;
         lock.set_env(config);
 
