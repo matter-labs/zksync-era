@@ -483,6 +483,10 @@ pub(super) const MSG_DIFF_EN_GENERAL_CONFIG: &str =
     "Added the following fields to the external node generalconfig:";
 pub(super) const MSG_UPDATING_ERA_OBSERVABILITY_SPINNER: &str = "Updating era observability...";
 
+/// Wait-related messages
+pub(super) const MSG_WAIT_TIMEOUT_HELP: &str = "Wait timeout in seconds";
+pub(super) const MSG_WAIT_POLL_INTERVAL_HELP: &str = "Poll interval in milliseconds";
+
 pub(super) fn msg_diff_genesis_config(chain: &str) -> String {
     format!(
         "Found differences between chain {chain} and era genesis configs. Consider updating the chain {chain} genesis config and re-running genesis. Diff:"
