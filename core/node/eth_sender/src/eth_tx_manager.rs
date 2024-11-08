@@ -423,7 +423,7 @@ impl EthTxManager {
                 EthTxManagerHealthDetails {
                     last_mined_tx: tx.into(),
                     tx_status: (&tx_status).into(),
-                    finalized_block: finalized_block,
+                    finalized_block,
                 }
                 .into(),
             );
