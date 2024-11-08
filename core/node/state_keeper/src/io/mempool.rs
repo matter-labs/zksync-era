@@ -278,6 +278,7 @@ impl StateKeeperIO for MempoolIO {
     async fn wait_for_next_tx(
         &mut self,
         max_wait: Duration,
+        l2_block_timestamp: u64,
     ) -> anyhow::Result<Option<Transaction>> {
         let started_at = Instant::now();
         while started_at.elapsed() <= max_wait {
@@ -285,7 +286,7 @@ impl StateKeeperIO for MempoolIO {
             let maybe_tx = self.mempool.next_transaction(&self.filter);
             get_latency.observe();
 
-            if let Some(tx) = maybe_tx {
+            if let Some((tx, constraint)) = maybe_tx {
                 // Reject transactions with too big gas limit. They are also rejected on the API level, but
                 // we need to secure ourselves in case some tx will somehow get into mempool.
                 if tx.gas_limit() > self.max_allowed_tx_gas_limit {
@@ -298,6 +299,23 @@ impl StateKeeperIO for MempoolIO {
                         .await?;
                     continue;
                 }
+
+                // Reject transactions that violate block.timestamp constraints. Such transactions should be
+                // rejected at the API level, but we need to protect ourselves in case if a transaction
+                // goes outside of the allowed range while being in the mempool
+                let matches_range = constraint
+                    .timestamp_asserter_range
+                    .map_or(true, |x| x.contains(&l2_block_timestamp));
+
+                if !matches_range {
+                    self.reject(
+                        &tx,
+                        UnexecutableReason::Halt(Halt::FailedBlockTimestampAssertion),
+                    )
+                    .await?;
+                    continue;
+                }
+
                 return Ok(Some(tx));
             } else {
                 tokio::time::sleep(self.delay_interval).await;
@@ -309,9 +327,9 @@ impl StateKeeperIO for MempoolIO {
 
     async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()> {
         // Reset nonces in the mempool.
-        self.mempool.rollback(&tx);
+        let constraint = self.mempool.rollback(&tx);
         // Insert the transaction back.
-        self.mempool.insert(vec![tx], HashMap::new());
+        self.mempool.insert(vec![(tx, constraint)], HashMap::new());
         Ok(())
     }
 

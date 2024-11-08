@@ -157,7 +157,7 @@ pub enum CompilerType {
 pub enum CompilerVersions {
     #[serde(rename_all = "camelCase")]
     Solc {
-        compiler_zksolc_version: String,
+        compiler_zksolc_version: String, // FIXME: optional?
         compiler_solc_version: String,
     },
     #[serde(rename_all = "camelCase")]
@@ -175,29 +175,29 @@ impl CompilerVersions {
         }
     }
 
-    pub fn zk_compiler_version(&self) -> String {
+    pub fn zk_compiler_version(&self) -> &str {
         match self {
-            CompilerVersions::Solc {
+            Self::Solc {
                 compiler_zksolc_version,
                 ..
-            } => compiler_zksolc_version.clone(),
-            CompilerVersions::Vyper {
+            } => compiler_zksolc_version,
+            Self::Vyper {
                 compiler_zkvyper_version,
                 ..
-            } => compiler_zkvyper_version.clone(),
+            } => compiler_zkvyper_version,
         }
     }
 
-    pub fn compiler_version(&self) -> String {
+    pub fn compiler_version(&self) -> &str {
         match self {
-            CompilerVersions::Solc {
+            Self::Solc {
                 compiler_solc_version,
                 ..
-            } => compiler_solc_version.clone(),
-            CompilerVersions::Vyper {
+            } => compiler_solc_version,
+            Self::Vyper {
                 compiler_vyper_version,
                 ..
-            } => compiler_vyper_version.clone(),
+            } => compiler_vyper_version,
         }
     }
 }
@@ -213,8 +213,19 @@ pub struct VerificationRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompilationArtifacts {
+    /// In case of EVM contracts, this is the creation bytecode (`bytecode` in `solc` output).
     pub bytecode: Vec<u8>,
+    /// Deployed bytecode (`deployedBytecode` in `solc` output). Only set for EVM contracts; for EraVM contracts, the deployed bytecode
+    /// is always `bytecode` (i.e., there's no distinction between creation and deployed bytecodes).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deployed_bytecode: Option<Vec<u8>>,
     pub abi: serde_json::Value,
+}
+
+impl CompilationArtifacts {
+    pub fn deployed_bytecode(&self) -> &[u8] {
+        self.deployed_bytecode.as_deref().unwrap_or(&self.bytecode)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -233,12 +244,6 @@ pub struct VerificationRequestStatus {
     pub error: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub compilation_errors: Option<Vec<String>>,
-}
-
-#[derive(Debug)]
-pub enum DeployContractCalldata {
-    Deploy(Vec<u8>),
-    Ignore,
 }
 
 #[cfg(test)]
