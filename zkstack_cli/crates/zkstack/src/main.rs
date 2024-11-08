@@ -15,7 +15,7 @@ use config::EcosystemConfig;
 use xshell::Shell;
 
 use crate::commands::{
-    args::RunServerArgs, chain::ChainCommands, consensus, ecosystem::EcosystemCommands,
+    args::ServerArgs, chain::ChainCommands, consensus, ecosystem::EcosystemCommands,
     explorer::ExplorerCommands, external_node::ExternalNodeCommands, prover::ProverCommands,
 };
 
@@ -57,7 +57,7 @@ pub enum ZkStackSubcommands {
     #[command(subcommand, alias = "p")]
     Prover(ProverCommands),
     /// Run server
-    Server(RunServerArgs),
+    Server(ServerArgs),
     /// External Node related commands
     #[command(subcommand, alias = "en")]
     ExternalNode(ExternalNodeCommands),

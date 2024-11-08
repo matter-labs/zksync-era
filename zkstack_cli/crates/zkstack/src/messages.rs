@@ -264,7 +264,6 @@ pub(super) const MSG_ENABLE_CONSENSUS_HELP: &str = "Enable consensus";
 pub(super) const MSG_SERVER_GENESIS_HELP: &str = "Run server in genesis mode";
 pub(super) const MSG_SERVER_ADDITIONAL_ARGS_HELP: &str =
     "Additional arguments that can be passed through the CLI";
-pub(super) const MSG_SERVER_BUILD_HELP: &str = "Build server but don't run it";
 pub(super) const MSG_SERVER_URING_HELP: &str = "Enables uring support for RocksDB";
 
 /// Accept ownership related messages
@@ -284,6 +283,8 @@ pub(super) const MSG_OBSERVABILITY_RUN_PROMPT: &str = "Do you want to run observ
 pub(super) const MSG_STARTING_SERVER: &str = "Starting server";
 pub(super) const MSG_FAILED_TO_RUN_SERVER_ERR: &str = "Failed to start server";
 pub(super) const MSG_PREPARING_EN_CONFIGS: &str = "Preparing External Node config";
+pub(super) const MSG_BUILDING_SERVER: &str = "Building server";
+pub(super) const MSG_FAILED_TO_BUILD_SERVER_ERR: &str = "Failed to build server";
 
 /// Portal related messages
 pub(super) const MSG_PORTAL_FAILED_TO_FIND_ANY_CHAIN_ERR: &str =

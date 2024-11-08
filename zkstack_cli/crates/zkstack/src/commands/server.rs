@@ -1,5 +1,6 @@
 use anyhow::Context;
 use common::{
+    cmd::Cmd,
     logger,
     server::{Server, ServerMode},
 };
@@ -7,25 +8,36 @@ use config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
     GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
-use xshell::Shell;
+use xshell::{cmd, Shell};
 
 use crate::{
-    commands::args::RunServerArgs,
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER},
+    commands::args::{RunServerArgs, ServerArgs, ServerCommand},
+    messages::{
+        MSG_BUILDING_SERVER, MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_BUILD_SERVER_ERR,
+        MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER,
+    },
 };
 
-pub fn run(shell: &Shell, args: RunServerArgs) -> anyhow::Result<()> {
+pub fn run(shell: &Shell, args: ServerArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
-
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
-    logger::info(MSG_STARTING_SERVER);
+    match ServerCommand::from(args) {
+        ServerCommand::Run(args) => run_server(args, &chain_config, shell),
+        ServerCommand::Build => build_server(&chain_config, shell),
+    }
+}
 
-    run_server(args, &chain_config, shell)?;
+fn build_server(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
+    let _dir_guard = shell.push_dir(&chain_config.link_to_code);
 
-    Ok(())
+    logger::info(MSG_BUILDING_SERVER);
+
+    let mut cmd = Cmd::new(cmd!(shell, "cargo build --release --bin zksync_server"));
+    cmd = cmd.with_force_run();
+    cmd.run().context(MSG_FAILED_TO_BUILD_SERVER_ERR)
 }
 
 fn run_server(
@@ -33,16 +45,12 @@ fn run_server(
     chain_config: &ChainConfig,
     shell: &Shell,
 ) -> anyhow::Result<()> {
+    logger::info(MSG_STARTING_SERVER);
     let server = Server::new(
         args.components.clone(),
         chain_config.link_to_code.clone(),
         args.uring,
     );
-
-    if args.build {
-        server.build(shell)?;
-        return Ok(());
-    }
 
     let mode = if args.genesis {
         ServerMode::Genesis
