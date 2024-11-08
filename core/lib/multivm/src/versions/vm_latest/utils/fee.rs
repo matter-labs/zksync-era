@@ -20,8 +20,11 @@ pub(crate) fn derive_base_fee_and_gas_per_pubdata(
         fair_pubdata_price.div_ceil(MAX_GAS_PER_PUBDATA_BYTE),
     );
 
-    let gas_per_pubdata = fair_pubdata_price.div_ceil(base_fee);
-
+    let gas_per_pubdata = if fair_pubdata_price == 0 {
+        0
+    } else {
+        fair_pubdata_price.div_ceil(base_fee)
+    };
     (base_fee, gas_per_pubdata)
 }
 

@@ -82,8 +82,11 @@ pub(crate) fn eth_price_per_pubdata_byte(l1_gas_price: u64) -> u64 {
 
 pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
     let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
-
-    eth_price_per_pubdata_byte.div_ceil(base_fee)
+    if eth_price_per_pubdata_byte == 0 {
+        0
+    } else {
+        eth_price_per_pubdata_byte.div_ceil(base_fee)
+    }
 }
 
 pub(crate) fn derive_base_fee_and_gas_per_pubdata(
