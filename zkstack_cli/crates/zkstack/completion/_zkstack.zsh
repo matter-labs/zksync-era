@@ -2455,6 +2455,19 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
+(wait-for-registry)
+_arguments "${_arguments_options[@]}" : \
+'-t+[Wait timeout in seconds]:SECONDS:_default' \
+'--timeout=[Wait timeout in seconds]:SECONDS:_default' \
+'--poll-interval=[Poll interval in milliseconds]:MILLIS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_zkstack__consensus__help_commands" \
@@ -2472,6 +2485,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (get-attester-committee)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(wait-for-registry)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -3117,6 +3134,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(wait-for-registry)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
         esac
     ;;
 esac
@@ -3432,6 +3453,7 @@ _zkstack__consensus_commands() {
     local commands; commands=(
 'set-attester-committee:Sets the attester committee in the consensus registry contract to \`consensus.genesis_spec.attesters\` in general.yaml' \
 'get-attester-committee:Fetches the attester committee from the consensus registry contract' \
+'wait-for-registry:Wait until the consensus registry contract is deployed to L2' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack consensus commands' commands "$@"
@@ -3446,6 +3468,7 @@ _zkstack__consensus__help_commands() {
     local commands; commands=(
 'set-attester-committee:Sets the attester committee in the consensus registry contract to \`consensus.genesis_spec.attesters\` in general.yaml' \
 'get-attester-committee:Fetches the attester committee from the consensus registry contract' \
+'wait-for-registry:Wait until the consensus registry contract is deployed to L2' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack consensus help commands' commands "$@"
@@ -3465,10 +3488,20 @@ _zkstack__consensus__help__set-attester-committee_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack consensus help set-attester-committee commands' commands "$@"
 }
+(( $+functions[_zkstack__consensus__help__wait-for-registry_commands] )) ||
+_zkstack__consensus__help__wait-for-registry_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack consensus help wait-for-registry commands' commands "$@"
+}
 (( $+functions[_zkstack__consensus__set-attester-committee_commands] )) ||
 _zkstack__consensus__set-attester-committee_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack consensus set-attester-committee commands' commands "$@"
+}
+(( $+functions[_zkstack__consensus__wait-for-registry_commands] )) ||
+_zkstack__consensus__wait-for-registry_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack consensus wait-for-registry commands' commands "$@"
 }
 (( $+functions[_zkstack__containers_commands] )) ||
 _zkstack__containers_commands() {
@@ -4680,6 +4713,7 @@ _zkstack__help__consensus_commands() {
     local commands; commands=(
 'set-attester-committee:Sets the attester committee in the consensus registry contract to \`consensus.genesis_spec.attesters\` in general.yaml' \
 'get-attester-committee:Fetches the attester committee from the consensus registry contract' \
+'wait-for-registry:Wait until the consensus registry contract is deployed to L2' \
     )
     _describe -t commands 'zkstack help consensus commands' commands "$@"
 }
@@ -4692,6 +4726,11 @@ _zkstack__help__consensus__get-attester-committee_commands() {
 _zkstack__help__consensus__set-attester-committee_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help consensus set-attester-committee commands' commands "$@"
+}
+(( $+functions[_zkstack__help__consensus__wait-for-registry_commands] )) ||
+_zkstack__help__consensus__wait-for-registry_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help consensus wait-for-registry commands' commands "$@"
 }
 (( $+functions[_zkstack__help__containers_commands] )) ||
 _zkstack__help__containers_commands() {

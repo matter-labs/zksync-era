@@ -664,13 +664,14 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand explorer; and __fish_see
 complete -c zkstack -n "__fish_zkstack_using_subcommand explorer; and __fish_seen_subcommand_from help" -f -a "run-backend" -d 'Start explorer backend services (api, data_fetcher, worker) for a given chain. Uses default chain, unless --chain is passed'
 complete -c zkstack -n "__fish_zkstack_using_subcommand explorer; and __fish_seen_subcommand_from help" -f -a "run" -d 'Run explorer app'
 complete -c zkstack -n "__fish_zkstack_using_subcommand explorer; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and not __fish_seen_subcommand_from set-attester-committee get-attester-committee help" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and not __fish_seen_subcommand_from set-attester-committee get-attester-committee help" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and not __fish_seen_subcommand_from set-attester-committee get-attester-committee help" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and not __fish_seen_subcommand_from set-attester-committee get-attester-committee help" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and not __fish_seen_subcommand_from set-attester-committee get-attester-committee help" -f -a "set-attester-committee" -d 'Sets the attester committee in the consensus registry contract to `consensus.genesis_spec.attesters` in general.yaml'
-complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and not __fish_seen_subcommand_from set-attester-committee get-attester-committee help" -f -a "get-attester-committee" -d 'Fetches the attester committee from the consensus registry contract'
-complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and not __fish_seen_subcommand_from set-attester-committee get-attester-committee help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
+complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and not __fish_seen_subcommand_from set-attester-committee get-attester-committee wait-for-registry help" -l chain -d 'Chain to use' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and not __fish_seen_subcommand_from set-attester-committee get-attester-committee wait-for-registry help" -s v -l verbose -d 'Verbose mode'
+complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and not __fish_seen_subcommand_from set-attester-committee get-attester-committee wait-for-registry help" -l ignore-prerequisites -d 'Ignores prerequisites checks'
+complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and not __fish_seen_subcommand_from set-attester-committee get-attester-committee wait-for-registry help" -s h -l help -d 'Print help'
+complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and not __fish_seen_subcommand_from set-attester-committee get-attester-committee wait-for-registry help" -f -a "set-attester-committee" -d 'Sets the attester committee in the consensus registry contract to `consensus.genesis_spec.attesters` in general.yaml'
+complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and not __fish_seen_subcommand_from set-attester-committee get-attester-committee wait-for-registry help" -f -a "get-attester-committee" -d 'Fetches the attester committee from the consensus registry contract'
+complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and not __fish_seen_subcommand_from set-attester-committee get-attester-committee wait-for-registry help" -f -a "wait-for-registry" -d 'Wait until the consensus registry contract is deployed to L2'
+complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and not __fish_seen_subcommand_from set-attester-committee get-attester-committee wait-for-registry help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and __fish_seen_subcommand_from set-attester-committee" -l from-file -d 'Sets the attester committee in the consensus registry contract to the committee in the yaml file. File format is definied in `commands/consensus/proto/mod.proto`' -r -F
 complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and __fish_seen_subcommand_from set-attester-committee" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and __fish_seen_subcommand_from set-attester-committee" -l from-genesis -d 'Sets the attester committee in the consensus registry contract to `consensus.genesis_spec.attesters` in general.yaml'
@@ -681,8 +682,15 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and __fish_se
 complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and __fish_seen_subcommand_from get-attester-committee" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and __fish_seen_subcommand_from get-attester-committee" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and __fish_seen_subcommand_from get-attester-committee" -s h -l help -d 'Print help'
+complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and __fish_seen_subcommand_from wait-for-registry" -s t -l timeout -d 'Wait timeout in seconds' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and __fish_seen_subcommand_from wait-for-registry" -l poll-interval -d 'Poll interval in milliseconds' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and __fish_seen_subcommand_from wait-for-registry" -l chain -d 'Chain to use' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and __fish_seen_subcommand_from wait-for-registry" -s v -l verbose -d 'Verbose mode'
+complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and __fish_seen_subcommand_from wait-for-registry" -l ignore-prerequisites -d 'Ignores prerequisites checks'
+complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and __fish_seen_subcommand_from wait-for-registry" -s h -l help -d 'Print help'
 complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and __fish_seen_subcommand_from help" -f -a "set-attester-committee" -d 'Sets the attester committee in the consensus registry contract to `consensus.genesis_spec.attesters` in general.yaml'
 complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and __fish_seen_subcommand_from help" -f -a "get-attester-committee" -d 'Fetches the attester committee from the consensus registry contract'
+complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and __fish_seen_subcommand_from help" -f -a "wait-for-registry" -d 'Wait until the consensus registry contract is deployed to L2'
 complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand update" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand update" -s c -l only-config -d 'Update only the config files'
@@ -760,3 +768,4 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_su
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from explorer" -f -a "run" -d 'Run explorer app'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from consensus" -f -a "set-attester-committee" -d 'Sets the attester committee in the consensus registry contract to `consensus.genesis_spec.attesters` in general.yaml'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from consensus" -f -a "get-attester-committee" -d 'Fetches the attester committee from the consensus registry contract'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from consensus" -f -a "wait-for-registry" -d 'Wait until the consensus registry contract is deployed to L2'

@@ -189,6 +189,9 @@ _zkstack() {
             zkstack__consensus,set-attester-committee)
                 cmd="zkstack__consensus__set__attester__committee"
                 ;;
+            zkstack__consensus,wait-for-registry)
+                cmd="zkstack__consensus__wait__for__registry"
+                ;;
             zkstack__consensus__help,get-attester-committee)
                 cmd="zkstack__consensus__help__get__attester__committee"
                 ;;
@@ -197,6 +200,9 @@ _zkstack() {
                 ;;
             zkstack__consensus__help,set-attester-committee)
                 cmd="zkstack__consensus__help__set__attester__committee"
+                ;;
+            zkstack__consensus__help,wait-for-registry)
+                cmd="zkstack__consensus__help__wait__for__registry"
                 ;;
             zkstack__contract__verifier,build)
                 cmd="zkstack__contract__verifier__build"
@@ -803,6 +809,9 @@ _zkstack() {
                 ;;
             zkstack__help__consensus,set-attester-committee)
                 cmd="zkstack__help__consensus__set__attester__committee"
+                ;;
+            zkstack__help__consensus,wait-for-registry)
+                cmd="zkstack__help__consensus__wait__for__registry"
                 ;;
             zkstack__help__contract__verifier,build)
                 cmd="zkstack__help__contract__verifier__build"
@@ -2148,7 +2157,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__consensus)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help set-attester-committee get-attester-committee help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --help set-attester-committee get-attester-committee wait-for-registry help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2184,7 +2193,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__consensus__help)
-            opts="set-attester-committee get-attester-committee help"
+            opts="set-attester-committee get-attester-committee wait-for-registry help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2239,6 +2248,20 @@ _zkstack() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        zkstack__consensus__help__wait__for__registry)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         zkstack__consensus__set__attester__committee)
             opts="-v -h --from-genesis --from-file --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
@@ -2247,6 +2270,36 @@ _zkstack() {
             fi
             case "${prev}" in
                 --from-file)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --chain)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__consensus__wait__for__registry)
+            opts="-t -v -h --timeout --poll-interval --verbose --chain --ignore-prerequisites --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -t)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --poll-interval)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -5732,7 +5785,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__consensus)
-            opts="set-attester-committee get-attester-committee"
+            opts="set-attester-committee get-attester-committee wait-for-registry"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5760,6 +5813,20 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__consensus__set__attester__committee)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__help__consensus__wait__for__registry)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
