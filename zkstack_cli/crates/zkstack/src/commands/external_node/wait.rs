@@ -1,7 +1,8 @@
 use anyhow::Context as _;
 use common::{config::global_config, logger};
-use config::EcosystemConfig;
+use config::{traits::ReadConfigWithBasePath, EcosystemConfig};
 use xshell::Shell;
+use zksync_config::configs::GeneralConfig;
 
 use crate::{
     commands::args::WaitArgs,
@@ -15,8 +16,12 @@ pub async fn wait(shell: &Shell, args: WaitArgs) -> anyhow::Result<()> {
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let verbose = global_config().verbose;
 
-    let health_check_port = chain_config
-        .get_general_config()?
+    let en_path = chain_config
+        .external_node_config_path
+        .clone()
+        .context("External node is not initialized")?;
+    let general_config = GeneralConfig::read_with_base_path(shell, &en_path)?;
+    let health_check_port = general_config
         .api_config
         .as_ref()
         .context("no API config")?
