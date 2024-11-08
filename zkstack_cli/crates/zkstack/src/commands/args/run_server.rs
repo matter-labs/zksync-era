@@ -1,9 +1,12 @@
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 
-use crate::messages::{
-    MSG_SERVER_ADDITIONAL_ARGS_HELP, MSG_SERVER_COMPONENTS_HELP, MSG_SERVER_GENESIS_HELP,
-    MSG_SERVER_URING_HELP,
+use crate::{
+    commands::args::WaitArgs,
+    messages::{
+        MSG_SERVER_ADDITIONAL_ARGS_HELP, MSG_SERVER_COMPONENTS_HELP, MSG_SERVER_GENESIS_HELP,
+        MSG_SERVER_URING_HELP,
+    },
 };
 
 #[derive(Debug, Parser)]
@@ -21,6 +24,8 @@ pub enum ServerCommand {
     Build,
     /// Runs server
     Run(RunServerArgs),
+    /// Waits for server to start
+    Wait(WaitArgs),
 }
 
 impl From<ServerArgs> for ServerCommand {

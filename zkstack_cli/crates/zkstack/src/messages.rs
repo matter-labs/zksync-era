@@ -285,6 +285,7 @@ pub(super) const MSG_FAILED_TO_RUN_SERVER_ERR: &str = "Failed to start server";
 pub(super) const MSG_PREPARING_EN_CONFIGS: &str = "Preparing External Node config";
 pub(super) const MSG_BUILDING_SERVER: &str = "Building server";
 pub(super) const MSG_FAILED_TO_BUILD_SERVER_ERR: &str = "Failed to build server";
+pub(super) const MSG_WAITING_FOR_SERVER: &str = "Waiting for server to start";
 
 /// Portal related messages
 pub(super) const MSG_PORTAL_FAILED_TO_FIND_ANY_CHAIN_ERR: &str =
