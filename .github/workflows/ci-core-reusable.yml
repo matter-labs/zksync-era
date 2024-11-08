@@ -271,6 +271,7 @@ jobs:
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_validium \
+          --ecosystem-contracts-path="" \
           --chain validium
 
       - name: Create and initialize chain with Custom Token
@@ -293,6 +294,7 @@ jobs:
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_custom_token \
+          --ecosystem-contracts-path="" \
           --chain custom_token
 
       - name: Create and register chain with transactions signed "offline"
@@ -351,6 +353,7 @@ jobs:
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_consensus \
+          --ecosystem-contracts-path="" \
           --chain consensus
 
       - name: Export chain list to environment variable

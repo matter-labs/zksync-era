@@ -81,14 +81,14 @@ pub fn get_ecosystem_contracts_path(
     ecosystem: Option<EcosystemConfig>,
     chain: &ChainConfig,
 ) -> anyhow::Result<PathBuf> {
-    let ecosystem_contracts_path = ecosystem_contracts_path.map_or_else(
-        || prompt_ecosystem_contracts_path(),
-        |path| Some(PathBuf::from(path)),
-    );
-
     let ecosystem_preexisting_configs_path = ecosystem.map_or_else(
         || chain.get_preexisting_ecosystem_contracts_path(),
         |e| e.get_preexisting_ecosystem_contracts_path(),
+    );
+
+    let ecosystem_contracts_path = ecosystem_contracts_path.map_or_else(
+        || prompt_ecosystem_contracts_path(),
+        |path| Some(PathBuf::from(path)),
     );
 
     if ecosystem_contracts_path.is_none() && !ecosystem_preexisting_configs_path.exists() {
