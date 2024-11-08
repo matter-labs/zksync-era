@@ -126,6 +126,7 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                 DataAvailabilitySecrets::Avail(AvailSecrets {
                     seed_phrase,
                     gas_relay_api_key,
+                    private_key: None,
                 })
             }
             DaSecrets::Celestia(celestia) => DataAvailabilitySecrets::Celestia(CelestiaSecrets {

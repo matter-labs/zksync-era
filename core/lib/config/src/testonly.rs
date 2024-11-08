@@ -963,6 +963,7 @@ impl Distribution<configs::secrets::DataAvailabilitySecrets> for EncodeDist {
         configs::secrets::DataAvailabilitySecrets::Avail(configs::da_client::avail::AvailSecrets {
             seed_phrase: Some(SeedPhrase(Secret::new(self.sample(rng)))),
             gas_relay_api_key: Some(APIKey(Secret::new(self.sample(rng)))),
+            private_key: None,
         })
     }
 }

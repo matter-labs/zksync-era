@@ -14,7 +14,7 @@ use zksync_config::configs::{
     AvailConfig,
 };
 
-use crate::{envy_load, FromEnv};
+use crate::{envy_load, gcloud_encrypted_seed::retrieve_seed_from_gcloud, FromEnv};
 
 impl FromEnv for DAClientConfig {
     fn from_env() -> anyhow::Result<Self> {
@@ -50,6 +50,26 @@ impl FromEnv for DataAvailabilitySecrets {
         let client_tag = std::env::var("DA_CLIENT")?;
         let secrets = match client_tag.as_str() {
             AVAIL_CLIENT_CONFIG_NAME => {
+                let from_gcs = if let Some(secrets_from_gcs_tag) = env::var("DA_SECRETS_FROM_GCS").ok() {
+                    secrets_from_gcs_tag == "true"
+                } else {
+                    false
+                };
+
+                let _seed = match from_gcs {
+                    true => {
+                       let gcs_bucket_name = std::env::var("DA_SECRETS_GCS_BUCKET_NAME")
+                       .ok()
+                       .expect("Failed to get DA client secrets from GCS bucket");
+                       let decrypt_key_name = std::env::var("DA_SECRETS_KMS_DECRYPT_KEY_NAME")
+                       .ok()
+                       .expect("Failed to get DA client secrets KMS decrypt key");
+        
+                       Some(retrieve_seed_from_gcloud(decrypt_key_name, gcs_bucket_name))
+                    },
+                    false => None,
+                };
+
                 let seed_phrase: Option<zksync_basic_types::secrets::SeedPhrase> =
                     env::var("DA_SECRETS_SEED_PHRASE")
                         .ok()
@@ -58,12 +78,14 @@ impl FromEnv for DataAvailabilitySecrets {
                     env::var("DA_SECRETS_GAS_RELAY_API_KEY")
                         .ok()
                         .map(|s| s.parse().unwrap());
-                if seed_phrase.is_none() && gas_relay_api_key.is_none() {
+                if seed_phrase.is_none() && gas_relay_api_key.is_none() && _seed.is_none() {
                     anyhow::bail!("No secrets provided for Avail DA client");
                 }
+
                 Self::Avail(AvailSecrets {
                     seed_phrase,
                     gas_relay_api_key,
+                    private_key: _seed,
                 })
             }
             CELESTIA_CLIENT_CONFIG_NAME => {
