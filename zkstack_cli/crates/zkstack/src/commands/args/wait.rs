@@ -33,6 +33,10 @@ pub struct WaitArgs {
 }
 
 impl WaitArgs {
+    pub fn poll_interval(&self) -> Duration {
+        Duration::from_millis(self.poll_interval)
+    }
+
     pub async fn poll_prometheus(&self, port: u16, verbose: bool) -> anyhow::Result<()> {
         let component = PolledComponent::Prometheus;
         let url = format!("http://127.0.0.1:{port}/metrics");
@@ -47,16 +51,16 @@ impl WaitArgs {
             .await
     }
 
-    async fn poll_with_timeout(
+    pub async fn poll_with_timeout(
         &self,
-        component: PolledComponent,
+        component: impl fmt::Display,
         action: impl Future<Output = anyhow::Result<()>>,
     ) -> anyhow::Result<()> {
         match self.timeout {
             None => action.await,
             Some(timeout) => tokio::time::timeout(Duration::from_secs(timeout), action)
                 .await
-                .map_err(|_| anyhow::anyhow!("timed out connecting to {component}"))?,
+                .map_err(|_| anyhow::anyhow!("timed out polling {component}"))?,
         }
     }
 
