@@ -277,8 +277,6 @@ impl L2BlockMaxPayloadSizeSealer {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use super::*;
     use crate::tests::{
         create_execution_result, create_transaction, create_updates_manager, seconds_since_epoch,
@@ -289,7 +287,6 @@ mod tests {
             tx,
             create_execution_result([]),
             vec![],
-            HashMap::new(),
             BlockGasCount::default(),
             VmExecutionMetrics::default(),
             vec![],

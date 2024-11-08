@@ -8,8 +8,8 @@ use zksync_dal::{ConnectionPool, Core, CoreDal as _};
 use zksync_multivm::interface::{
     executor::{BatchExecutor, BatchExecutorFactory},
     storage::{InMemoryStorage, StorageView},
-    BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-    SystemEnv, VmExecutionResultAndLogs,
+    BatchTransactionExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
+    VmExecutionResultAndLogs,
 };
 use zksync_state::OwnedStorage;
 use zksync_test_account::Account;
@@ -28,13 +28,7 @@ pub(super) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
 /// Creates a `TxExecutionResult` object denoting a successful tx execution.
 pub(crate) fn successful_exec() -> BatchTransactionExecutionResult {
     BatchTransactionExecutionResult {
-        tx_result: Box::new(VmExecutionResultAndLogs {
-            result: ExecutionResult::Success { output: vec![] },
-            logs: Default::default(),
-            statistics: Default::default(),
-            refunds: Default::default(),
-            new_known_factory_deps: None,
-        }),
+        tx_result: Box::new(VmExecutionResultAndLogs::mock_success()),
         compressed_bytecodes: vec![],
         call_traces: vec![],
     }

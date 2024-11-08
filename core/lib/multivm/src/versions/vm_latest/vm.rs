@@ -86,16 +86,24 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         self.state.local_state.callstack.current.ergs_remaining
     }
 
-    pub(crate) fn decommit_bytecodes(&self, hashes: &[H256]) -> HashMap<H256, Vec<u8>> {
-        let bytecodes = hashes.iter().map(|&hash| {
-            let bytecode_words = self
-                .state
-                .decommittment_processor
+    pub(crate) fn decommit_dynamic_bytecodes(
+        &self,
+        candidate_hashes: impl Iterator<Item = H256>,
+    ) -> HashMap<H256, Vec<u8>> {
+        let decommitter = &self.state.decommittment_processor;
+        let bytecodes = candidate_hashes.filter_map(|hash| {
+            let int_hash = h256_to_u256(hash);
+            if !decommitter.dynamic_bytecode_hashes.contains(&int_hash) {
+                return None;
+            }
+            let bytecode = decommitter
                 .known_bytecodes
                 .inner()
-                .get(&h256_to_u256(hash))
-                .unwrap_or_else(|| panic!("Bytecode with hash {hash:?} not found"));
-            (hash, be_words_to_bytes(bytecode_words))
+                .get(&int_hash)
+                .unwrap_or_else(|| {
+                    panic!("Bytecode with hash {hash:?} not found");
+                });
+            Some((hash, be_words_to_bytes(bytecode)))
         });
         bytecodes.collect()
     }
