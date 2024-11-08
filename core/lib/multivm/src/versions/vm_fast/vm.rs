@@ -509,7 +509,6 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
         self.write_to_bootloader_heap(memory);
     }
 
-    // FIXME: restore this function once fast vm is enabled
     #[cfg(test)]
     pub(super) fn enforce_state_diffs(&mut self, diffs: Vec<StateDiffRecord>) {
         self.enforced_state_diffs = Some(diffs);
