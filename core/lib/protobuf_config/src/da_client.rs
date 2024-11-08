@@ -57,18 +57,12 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 let eigen_config = match config {
                     proto::eigen_config::Config::MemStore(conf) => {
                         EigenConfig::MemStore(MemStoreConfig {
-                            max_blob_size_bytes: required(&conf.max_blob_size_bytes)
-                                .context("max_blob_size_bytes")?
-                                .clone(),
-                            blob_expiration: required(&conf.blob_expiration)
-                                .context("blob_expiration")?
-                                .clone(),
-                            get_latency: required(&conf.get_latency)
-                                .context("get_latency")?
-                                .clone(),
-                            put_latency: required(&conf.put_latency)
-                                .context("put_latency")?
-                                .clone(),
+                            max_blob_size_bytes: *required(&conf.max_blob_size_bytes)
+                                .context("max_blob_size_bytes")?,
+                            blob_expiration: *required(&conf.blob_expiration)
+                                .context("blob_expiration")?,
+                            get_latency: *required(&conf.get_latency).context("get_latency")?,
+                            put_latency: *required(&conf.put_latency).context("put_latency")?,
                         })
                     }
                     proto::eigen_config::Config::Disperser(conf) => {
@@ -76,9 +70,8 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                             disperser_rpc: required(&conf.disperser_rpc)
                                 .context("disperser_rpc")?
                                 .clone(),
-                            eth_confirmation_depth: required(&conf.eth_confirmation_depth)
-                                .context("eth_confirmation_depth")?
-                                .clone(),
+                            eth_confirmation_depth: *required(&conf.eth_confirmation_depth)
+                                .context("eth_confirmation_depth")?,
                             eigenda_eth_rpc: required(&conf.eigenda_eth_rpc)
                                 .context("eigenda_eth_rpc")?
                                 .clone(),
@@ -87,24 +80,17 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                             )
                             .context("eigenda_svc_manager_address")?
                             .clone(),
-                            blob_size_limit: required(&conf.blob_size_limit)
-                                .context("blob_size_limit")?
-                                .clone(),
-                            status_query_timeout: required(&conf.status_query_timeout)
-                                .context("status_query_timeout")?
-                                .clone(),
-                            status_query_interval: required(&conf.status_query_interval)
-                                .context("status_query_interval")?
-                                .clone(),
-                            wait_for_finalization: required(&conf.wait_for_finalization)
-                                .context("wait_for_finalization")?
-                                .clone(),
-                            authenticated: required(&conf.authenticated)
-                                .context("authenticated")?
-                                .clone(),
-                            verify_cert: required(&conf.verify_cert)
-                                .context("verify_cert")?
-                                .clone(),
+                            blob_size_limit: *required(&conf.blob_size_limit)
+                                .context("blob_size_limit")?,
+                            status_query_timeout: *required(&conf.status_query_timeout)
+                                .context("status_query_timeout")?,
+                            status_query_interval: *required(&conf.status_query_interval)
+                                .context("status_query_interval")?,
+                            wait_for_finalization: *required(&conf.wait_for_finalization)
+                                .context("wait_for_finalization")?,
+                            authenticated: *required(&conf.authenticated)
+                                .context("authenticated")?,
+                            verify_cert: *required(&conf.verify_cert).context("verify_cert")?,
                             path_to_points: required(&conf.path_to_points)
                                 .context("path_to_points")?
                                 .clone(),

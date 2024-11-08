@@ -9,7 +9,7 @@ use rand::{rngs::OsRng, Rng, RngCore};
 use sha3::{Digest, Keccak256};
 use tokio::time::interval;
 use zksync_config::configs::da_client::eigen::MemStoreConfig;
-use zksync_da_client::types::{DAError, DispatchResponse, InclusionData};
+use zksync_da_client::types::{DAError, InclusionData};
 
 use super::blob_info::{self, BlobInfo};
 
@@ -22,9 +22,9 @@ pub enum MemStoreError {
     BlobNotFound,
 }
 
-impl Into<Error> for MemStoreError {
-    fn into(self) -> Error {
-        match self {
+impl From<MemStoreError> for Error {
+    fn from(val: MemStoreError) -> Self {
+        match val {
             MemStoreError::BlobToLarge => Error::msg("Blob too large"),
             MemStoreError::BlobAlreadyExists => Error::msg("Blob already exists"),
             MemStoreError::IncorrectCommitment => Error::msg("Incorrect commitment"),
@@ -68,14 +68,14 @@ impl MemStore {
     pub async fn put_blob(self: Arc<Self>, value: Vec<u8>) -> Result<String, MemStoreError> {
         tokio::time::sleep(Duration::from_millis(self.config.put_latency)).await;
         if value.len() as u64 > self.config.max_blob_size_bytes {
-            return Err(MemStoreError::BlobToLarge.into());
+            return Err(MemStoreError::BlobToLarge);
         }
 
         let mut entropy = [0u8; 10];
         OsRng.fill_bytes(&mut entropy);
 
         let mut hasher = Keccak256::new();
-        hasher.update(&entropy);
+        hasher.update(entropy);
         let mock_batch_root = hasher.finalize().to_vec();
 
         let block_num = OsRng.gen_range(0u32..1000);

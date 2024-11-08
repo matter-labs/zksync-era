@@ -30,6 +30,7 @@ pub enum VerificationError {
     CommitmentNotOnCorrectSubgroup,
 }
 
+/// Configuration for the verifier used for authenticated dispersals
 #[derive(Debug, Clone)]
 pub struct VerifierConfig {
     pub verify_certs: bool,
@@ -153,7 +154,7 @@ impl Verifier {
         index: u32,
     ) -> Result<Vec<u8>, VerificationError> {
         let mut index = index;
-        if proof.len() == 0 || proof.len() % 32 != 0 {
+        if proof.is_empty() || proof.len() % 32 != 0 {
             return Err(VerificationError::WrongProof);
         }
         let mut computed_hash = leaf.to_vec();
@@ -256,7 +257,7 @@ impl Verifier {
         if self.cfg.eth_confirmation_depth == 0 {
             return Ok(latest);
         }
-        return Ok(latest - (self.cfg.eth_confirmation_depth as u64 - 1));
+        Ok(latest - (self.cfg.eth_confirmation_depth as u64 - 1))
     }
 
     /// Verifies the certificate batch hash
@@ -405,7 +406,7 @@ mod test {
         };
         let blob = vec![1u8; 100]; // Actual blob sent was this blob but kzg-padded, but Blob::from_bytes_and_pad padds it inside, so we don't need to pad it here.
         let result = verifier.verify_commitment(commitment, blob);
-        assert_eq!(result.is_ok(), true);
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -492,7 +493,7 @@ mod test {
             },
         };
         let result = verifier.verify_merkle_proof(cert);
-        assert_eq!(result.is_ok(), true);
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -648,7 +649,7 @@ mod test {
             },
         };
         let result = verifier.verify_batch(cert).await;
-        assert_eq!(result.is_ok(), true);
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
@@ -735,6 +736,6 @@ mod test {
             },
         };
         let result = verifier.verify_security_params(cert).await;
-        assert_eq!(result.is_ok(), true);
+        assert!(result.is_ok());
     }
 }
