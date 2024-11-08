@@ -60,7 +60,6 @@ pub mod house_keeper;
 pub mod object_store;
 pub mod observability;
 pub mod proof_data_handler;
-pub mod prover_autoscaler;
 pub mod prover_job_monitor;
 pub mod pruning;
 pub mod secrets;

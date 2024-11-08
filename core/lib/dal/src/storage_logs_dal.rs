@@ -727,7 +727,7 @@ impl StorageLogsDal<'_, '_> {
                         FROM
                             storage_logs
                         WHERE
-                            storage_logs.miniblock_number = $1
+                            storage_logs.miniblock_number <= $1
                             AND storage_logs.hashed_key >= u.start_key
                             AND storage_logs.hashed_key <= u.end_key
                         ORDER BY
@@ -784,7 +784,7 @@ impl StorageLogsDal<'_, '_> {
                 storage_logs
             INNER JOIN initial_writes ON storage_logs.hashed_key = initial_writes.hashed_key
             WHERE
-                storage_logs.miniblock_number = $1
+                storage_logs.miniblock_number <= $1
                 AND storage_logs.hashed_key >= $2::bytea
                 AND storage_logs.hashed_key <= $3::bytea
             ORDER BY

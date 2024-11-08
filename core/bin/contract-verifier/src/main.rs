@@ -7,104 +7,10 @@ use tokio::sync::watch;
 use zksync_config::configs::PrometheusConfig;
 use zksync_contract_verifier_lib::ContractVerifier;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{ConnectionPool, Core};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_utils::{env::Workspace, wait_for_tasks::ManagedTasks};
+use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
-
-async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
-    let mut storage = connection_pool.connection().await.unwrap();
-    let mut transaction = storage.start_transaction().await.unwrap();
-
-    let zksync_home = Workspace::locate().core();
-
-    let zksolc_path = zksync_home.join("etc/zksolc-bin/");
-    let zksolc_versions: Vec<String> = std::fs::read_dir(zksolc_path)
-        .unwrap()
-        .filter_map(|file| {
-            let file = file.unwrap();
-            let Ok(file_type) = file.file_type() else {
-                return None;
-            };
-            if file_type.is_dir() {
-                file.file_name().into_string().ok()
-            } else {
-                None
-            }
-        })
-        .collect();
-    transaction
-        .contract_verification_dal()
-        .set_zksolc_versions(zksolc_versions)
-        .await
-        .unwrap();
-
-    let solc_path = zksync_home.join("etc/solc-bin/");
-    let solc_versions: Vec<String> = std::fs::read_dir(solc_path)
-        .unwrap()
-        .filter_map(|file| {
-            let file = file.unwrap();
-            let Ok(file_type) = file.file_type() else {
-                return None;
-            };
-            if file_type.is_dir() {
-                file.file_name().into_string().ok()
-            } else {
-                None
-            }
-        })
-        .collect();
-    transaction
-        .contract_verification_dal()
-        .set_solc_versions(solc_versions)
-        .await
-        .unwrap();
-
-    let zkvyper_path = zksync_home.join("etc/zkvyper-bin/");
-    let zkvyper_versions: Vec<String> = std::fs::read_dir(zkvyper_path)
-        .unwrap()
-        .filter_map(|file| {
-            let file = file.unwrap();
-            let Ok(file_type) = file.file_type() else {
-                return None;
-            };
-            if file_type.is_dir() {
-                file.file_name().into_string().ok()
-            } else {
-                None
-            }
-        })
-        .collect();
-    transaction
-        .contract_verification_dal()
-        .set_zkvyper_versions(zkvyper_versions)
-        .await
-        .unwrap();
-
-    let vyper_path = zksync_home.join("etc/vyper-bin/");
-    let vyper_versions: Vec<String> = std::fs::read_dir(vyper_path)
-        .unwrap()
-        .filter_map(|file| {
-            let file = file.unwrap();
-            let Ok(file_type) = file.file_type() else {
-                return None;
-            };
-            if file_type.is_dir() {
-                file.file_name().into_string().ok()
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    transaction
-        .contract_verification_dal()
-        .set_vyper_versions(vyper_versions)
-        .await
-        .unwrap();
-
-    transaction.commit().await.unwrap();
-}
 
 #[derive(StructOpt)]
 #[structopt(name = "ZKsync contract code verifier", author = "Matter Labs")]
@@ -160,9 +66,9 @@ async fn main() -> anyhow::Result<()> {
         .expect("Error setting Ctrl+C handler");
     }
 
-    update_compiler_versions(&pool).await;
-
-    let contract_verifier = ContractVerifier::new(verifier_config, pool);
+    let contract_verifier = ContractVerifier::new(verifier_config.compilation_timeout(), pool)
+        .await
+        .context("failed initializing contract verifier")?;
     let tasks = vec![
         // TODO PLA-335: Leftovers after the prover DB split.
         // The prover connection pool is not used by the contract verifier, but we need to pass it

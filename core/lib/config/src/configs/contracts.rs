@@ -41,6 +41,7 @@ pub struct ContractsConfig {
     pub l1_weth_bridge_proxy_addr: Option<Address>,
     pub l2_weth_bridge_addr: Option<Address>,
     pub l2_testnet_paymaster_addr: Option<Address>,
+    pub l2_timestamp_asserter_addr: Option<Address>,
     pub l1_multicall3_addr: Address,
     pub ecosystem_contracts: Option<EcosystemContracts>,
     // Used by the RPC API and by the node builder in wiring the BaseTokenRatioProvider layer.
@@ -65,6 +66,7 @@ impl ContractsConfig {
             l2_weth_bridge_addr: Some(Address::repeat_byte(0x0c)),
             l2_testnet_paymaster_addr: Some(Address::repeat_byte(0x11)),
             l1_multicall3_addr: Address::repeat_byte(0x12),
+            l2_timestamp_asserter_addr: Some(Address::repeat_byte(0x19)),
             governance_addr: Address::repeat_byte(0x13),
             base_token_addr: Some(Address::repeat_byte(0x14)),
             ecosystem_contracts: Some(EcosystemContracts::for_tests()),
