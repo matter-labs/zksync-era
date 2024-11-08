@@ -638,11 +638,8 @@ impl HttpTest for SendTransactionWithDetailedOutputTest {
             assert_eq!(env.l1_batch.first_l2_block.number, 1);
 
             VmExecutionResultAndLogs {
-                result: ExecutionResult::Success { output: vec![] },
                 logs: vm_execution_logs.clone(),
-                statistics: Default::default(),
-                refunds: Default::default(),
-                new_known_factory_deps: None,
+                ..VmExecutionResultAndLogs::mock_success()
             }
         });
         tx_executor
