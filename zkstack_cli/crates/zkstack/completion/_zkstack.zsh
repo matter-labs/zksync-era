@@ -1987,7 +1987,39 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--genesis[Run server in genesis mode]' \
-'--build[Build server but don'\''t run it]' \
+'--uring[Enables uring support for RocksDB]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_zkstack__server_commands" \
+"*::: :->server" \
+&& ret=0
+
+    case $state in
+    (server)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-server-command-$line[1]:"
+        case $line[1] in
+            (build)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+'*--components=[Components of server to run]:COMPONENTS:_default' \
+'*-a+[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--genesis[Run server in genesis mode]' \
 '--uring[Enables uring support for RocksDB]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
@@ -1995,6 +2027,55 @@ _arguments "${_arguments_options[@]}" : \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
+;;
+(wait)
+_arguments "${_arguments_options[@]}" : \
+'-t+[Wait timeout in seconds]:SECONDS:_default' \
+'--timeout=[Wait timeout in seconds]:SECONDS:_default' \
+'--poll-interval=[Poll interval in milliseconds]:MILLIS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_zkstack__server__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-server-help-command-$line[1]:"
+        case $line[1] in
+            (build)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(wait)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
 ;;
 (external-node)
 _arguments "${_arguments_options[@]}" : \
@@ -2064,6 +2145,19 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
+(wait)
+_arguments "${_arguments_options[@]}" : \
+'-t+[Wait timeout in seconds]:SECONDS:_default' \
+'--timeout=[Wait timeout in seconds]:SECONDS:_default' \
+'--poll-interval=[Poll interval in milliseconds]:MILLIS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_zkstack__external-node__help_commands" \
@@ -2089,6 +2183,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(wait)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2154,6 +2252,19 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
+(wait)
+_arguments "${_arguments_options[@]}" : \
+'-t+[Wait timeout in seconds]:SECONDS:_default' \
+'--timeout=[Wait timeout in seconds]:SECONDS:_default' \
+'--poll-interval=[Poll interval in milliseconds]:MILLIS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
 (init)
 _arguments "${_arguments_options[@]}" : \
 '--zksolc-version=[Version of zksolc to install]:ZKSOLC_VERSION:_default' \
@@ -2187,6 +2298,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(wait)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2852,7 +2967,31 @@ esac
 ;;
 (server)
 _arguments "${_arguments_options[@]}" : \
+":: :_zkstack__help__server_commands" \
+"*::: :->server" \
 && ret=0
+
+    case $state in
+    (server)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-help-server-command-$line[1]:"
+        case $line[1] in
+            (build)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(wait)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
 ;;
 (external-node)
 _arguments "${_arguments_options[@]}" : \
@@ -2882,6 +3021,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(wait)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
         esac
     ;;
 esac
@@ -2907,6 +3050,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(wait)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -3333,6 +3480,7 @@ _zkstack__contract-verifier_commands() {
     local commands; commands=(
 'build:Build contract verifier binary' \
 'run:Run contract verifier' \
+'wait:Wait for contract verifier to start' \
 'init:Download required binaries for contract verifier' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
@@ -3348,6 +3496,7 @@ _zkstack__contract-verifier__help_commands() {
     local commands; commands=(
 'build:Build contract verifier binary' \
 'run:Run contract verifier' \
+'wait:Wait for contract verifier to start' \
 'init:Download required binaries for contract verifier' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
@@ -3373,6 +3522,11 @@ _zkstack__contract-verifier__help__run_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack contract-verifier help run commands' commands "$@"
 }
+(( $+functions[_zkstack__contract-verifier__help__wait_commands] )) ||
+_zkstack__contract-verifier__help__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack contract-verifier help wait commands' commands "$@"
+}
 (( $+functions[_zkstack__contract-verifier__init_commands] )) ||
 _zkstack__contract-verifier__init_commands() {
     local commands; commands=()
@@ -3382,6 +3536,11 @@ _zkstack__contract-verifier__init_commands() {
 _zkstack__contract-verifier__run_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack contract-verifier run commands' commands "$@"
+}
+(( $+functions[_zkstack__contract-verifier__wait_commands] )) ||
+_zkstack__contract-verifier__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack contract-verifier wait commands' commands "$@"
 }
 (( $+functions[_zkstack__dev_commands] )) ||
 _zkstack__dev_commands() {
@@ -4314,6 +4473,7 @@ _zkstack__external-node_commands() {
 'init:Init databases' \
 'build:Build external node' \
 'run:Run external node' \
+'wait:Wait for external node to start' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack external-node commands' commands "$@"
@@ -4335,6 +4495,7 @@ _zkstack__external-node__help_commands() {
 'init:Init databases' \
 'build:Build external node' \
 'run:Run external node' \
+'wait:Wait for external node to start' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack external-node help commands' commands "$@"
@@ -4364,6 +4525,11 @@ _zkstack__external-node__help__run_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack external-node help run commands' commands "$@"
 }
+(( $+functions[_zkstack__external-node__help__wait_commands] )) ||
+_zkstack__external-node__help__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack external-node help wait commands' commands "$@"
+}
 (( $+functions[_zkstack__external-node__init_commands] )) ||
 _zkstack__external-node__init_commands() {
     local commands; commands=()
@@ -4373,6 +4539,11 @@ _zkstack__external-node__init_commands() {
 _zkstack__external-node__run_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack external-node run commands' commands "$@"
+}
+(( $+functions[_zkstack__external-node__wait_commands] )) ||
+_zkstack__external-node__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack external-node wait commands' commands "$@"
 }
 (( $+functions[_zkstack__help_commands] )) ||
 _zkstack__help_commands() {
@@ -4532,6 +4703,7 @@ _zkstack__help__contract-verifier_commands() {
     local commands; commands=(
 'build:Build contract verifier binary' \
 'run:Run contract verifier' \
+'wait:Wait for contract verifier to start' \
 'init:Download required binaries for contract verifier' \
     )
     _describe -t commands 'zkstack help contract-verifier commands' commands "$@"
@@ -4550,6 +4722,11 @@ _zkstack__help__contract-verifier__init_commands() {
 _zkstack__help__contract-verifier__run_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help contract-verifier run commands' commands "$@"
+}
+(( $+functions[_zkstack__help__contract-verifier__wait_commands] )) ||
+_zkstack__help__contract-verifier__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help contract-verifier wait commands' commands "$@"
 }
 (( $+functions[_zkstack__help__dev_commands] )) ||
 _zkstack__help__dev_commands() {
@@ -4877,6 +5054,7 @@ _zkstack__help__external-node_commands() {
 'init:Init databases' \
 'build:Build external node' \
 'run:Run external node' \
+'wait:Wait for external node to start' \
     )
     _describe -t commands 'zkstack help external-node commands' commands "$@"
 }
@@ -4899,6 +5077,11 @@ _zkstack__help__external-node__init_commands() {
 _zkstack__help__external-node__run_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help external-node run commands' commands "$@"
+}
+(( $+functions[_zkstack__help__external-node__wait_commands] )) ||
+_zkstack__help__external-node__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help external-node wait commands' commands "$@"
 }
 (( $+functions[_zkstack__help__help_commands] )) ||
 _zkstack__help__help_commands() {
@@ -4953,8 +5136,27 @@ _zkstack__help__prover__setup-keys_commands() {
 }
 (( $+functions[_zkstack__help__server_commands] )) ||
 _zkstack__help__server_commands() {
-    local commands; commands=()
+    local commands; commands=(
+'build:Builds server' \
+'run:Runs server' \
+'wait:Waits for server to start' \
+    )
     _describe -t commands 'zkstack help server commands' commands "$@"
+}
+(( $+functions[_zkstack__help__server__build_commands] )) ||
+_zkstack__help__server__build_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help server build commands' commands "$@"
+}
+(( $+functions[_zkstack__help__server__run_commands] )) ||
+_zkstack__help__server__run_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help server run commands' commands "$@"
+}
+(( $+functions[_zkstack__help__server__wait_commands] )) ||
+_zkstack__help__server__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help server wait commands' commands "$@"
 }
 (( $+functions[_zkstack__help__update_commands] )) ||
 _zkstack__help__update_commands() {
@@ -5052,8 +5254,58 @@ _zkstack__prover__setup-keys_commands() {
 }
 (( $+functions[_zkstack__server_commands] )) ||
 _zkstack__server_commands() {
-    local commands; commands=()
+    local commands; commands=(
+'build:Builds server' \
+'run:Runs server' \
+'wait:Waits for server to start' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
     _describe -t commands 'zkstack server commands' commands "$@"
+}
+(( $+functions[_zkstack__server__build_commands] )) ||
+_zkstack__server__build_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack server build commands' commands "$@"
+}
+(( $+functions[_zkstack__server__help_commands] )) ||
+_zkstack__server__help_commands() {
+    local commands; commands=(
+'build:Builds server' \
+'run:Runs server' \
+'wait:Waits for server to start' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'zkstack server help commands' commands "$@"
+}
+(( $+functions[_zkstack__server__help__build_commands] )) ||
+_zkstack__server__help__build_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack server help build commands' commands "$@"
+}
+(( $+functions[_zkstack__server__help__help_commands] )) ||
+_zkstack__server__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack server help help commands' commands "$@"
+}
+(( $+functions[_zkstack__server__help__run_commands] )) ||
+_zkstack__server__help__run_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack server help run commands' commands "$@"
+}
+(( $+functions[_zkstack__server__help__wait_commands] )) ||
+_zkstack__server__help__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack server help wait commands' commands "$@"
+}
+(( $+functions[_zkstack__server__run_commands] )) ||
+_zkstack__server__run_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack server run commands' commands "$@"
+}
+(( $+functions[_zkstack__server__wait_commands] )) ||
+_zkstack__server__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack server wait commands' commands "$@"
 }
 (( $+functions[_zkstack__update_commands] )) ||
 _zkstack__update_commands() {

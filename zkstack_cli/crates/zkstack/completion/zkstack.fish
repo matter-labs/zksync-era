@@ -513,24 +513,50 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from help" -f -a "init-bellman-cuda" -d 'Initialize bellman-cuda'
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from help" -f -a "compressor-keys" -d 'Download compressor keys'
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c zkstack -n "__fish_zkstack_using_subcommand server" -l components -d 'Components of server to run' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand server" -s a -l additional-args -d 'Additional arguments that can be passed through the CLI' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand server" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand server" -l genesis -d 'Run server in genesis mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand server" -l build -d 'Build server but don\'t run it'
-complete -c zkstack -n "__fish_zkstack_using_subcommand server" -l uring -d 'Enables uring support for RocksDB'
-complete -c zkstack -n "__fish_zkstack_using_subcommand server" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand server" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand server" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and not __fish_seen_subcommand_from configs init build run help" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and not __fish_seen_subcommand_from configs init build run help" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and not __fish_seen_subcommand_from configs init build run help" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and not __fish_seen_subcommand_from configs init build run help" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and not __fish_seen_subcommand_from configs init build run help" -f -a "configs" -d 'Prepare configs for EN'
-complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and not __fish_seen_subcommand_from configs init build run help" -f -a "init" -d 'Init databases'
-complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and not __fish_seen_subcommand_from configs init build run help" -f -a "build" -d 'Build external node'
-complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and not __fish_seen_subcommand_from configs init build run help" -f -a "run" -d 'Run external node'
-complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and not __fish_seen_subcommand_from configs init build run help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -l components -d 'Components of server to run' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -s a -l additional-args -d 'Additional arguments that can be passed through the CLI' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -l chain -d 'Chain to use' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -l genesis -d 'Run server in genesis mode'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -l uring -d 'Enables uring support for RocksDB'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -s v -l verbose -d 'Verbose mode'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -l ignore-prerequisites -d 'Ignores prerequisites checks'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -s h -l help -d 'Print help'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -f -a "build" -d 'Builds server'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -f -a "run" -d 'Runs server'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -f -a "wait" -d 'Waits for server to start'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from build" -l chain -d 'Chain to use' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from build" -s v -l verbose -d 'Verbose mode'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from build" -l ignore-prerequisites -d 'Ignores prerequisites checks'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from build" -s h -l help -d 'Print help'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -l components -d 'Components of server to run' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -s a -l additional-args -d 'Additional arguments that can be passed through the CLI' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -l chain -d 'Chain to use' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -l genesis -d 'Run server in genesis mode'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -l uring -d 'Enables uring support for RocksDB'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -s v -l verbose -d 'Verbose mode'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -l ignore-prerequisites -d 'Ignores prerequisites checks'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -s h -l help -d 'Print help'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from wait" -s t -l timeout -d 'Wait timeout in seconds' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from wait" -l poll-interval -d 'Poll interval in milliseconds' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from wait" -l chain -d 'Chain to use' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from wait" -s v -l verbose -d 'Verbose mode'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from wait" -l ignore-prerequisites -d 'Ignores prerequisites checks'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from wait" -s h -l help -d 'Print help'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from help" -f -a "build" -d 'Builds server'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from help" -f -a "run" -d 'Runs server'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from help" -f -a "wait" -d 'Waits for server to start'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and not __fish_seen_subcommand_from configs init build run wait help" -l chain -d 'Chain to use' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and not __fish_seen_subcommand_from configs init build run wait help" -s v -l verbose -d 'Verbose mode'
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and not __fish_seen_subcommand_from configs init build run wait help" -l ignore-prerequisites -d 'Ignores prerequisites checks'
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and not __fish_seen_subcommand_from configs init build run wait help" -s h -l help -d 'Print help'
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and not __fish_seen_subcommand_from configs init build run wait help" -f -a "configs" -d 'Prepare configs for EN'
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and not __fish_seen_subcommand_from configs init build run wait help" -f -a "init" -d 'Init databases'
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and not __fish_seen_subcommand_from configs init build run wait help" -f -a "build" -d 'Build external node'
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and not __fish_seen_subcommand_from configs init build run wait help" -f -a "run" -d 'Run external node'
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and not __fish_seen_subcommand_from configs init build run wait help" -f -a "wait" -d 'Wait for external node to start'
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and not __fish_seen_subcommand_from configs init build run wait help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from configs" -l db-url -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from configs" -l db-name -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from configs" -l l1-rpc-url -r
@@ -555,24 +581,32 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fis
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from run" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from run" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from run" -s h -l help -d 'Print help'
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from wait" -s t -l timeout -d 'Wait timeout in seconds' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from wait" -l poll-interval -d 'Poll interval in milliseconds' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from wait" -l chain -d 'Chain to use' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from wait" -s v -l verbose -d 'Verbose mode'
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from wait" -l ignore-prerequisites -d 'Ignores prerequisites checks'
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from wait" -s h -l help -d 'Print help'
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from help" -f -a "configs" -d 'Prepare configs for EN'
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from help" -f -a "init" -d 'Init databases'
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from help" -f -a "build" -d 'Build external node'
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from help" -f -a "run" -d 'Run external node'
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from help" -f -a "wait" -d 'Wait for external node to start'
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand containers" -s o -l observability -d 'Enable Grafana' -r -f -a "{true\t'',false\t''}"
 complete -c zkstack -n "__fish_zkstack_using_subcommand containers" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand containers" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand containers" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand containers" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and not __fish_seen_subcommand_from build run init help" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and not __fish_seen_subcommand_from build run init help" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and not __fish_seen_subcommand_from build run init help" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and not __fish_seen_subcommand_from build run init help" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and not __fish_seen_subcommand_from build run init help" -f -a "build" -d 'Build contract verifier binary'
-complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and not __fish_seen_subcommand_from build run init help" -f -a "run" -d 'Run contract verifier'
-complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and not __fish_seen_subcommand_from build run init help" -f -a "init" -d 'Download required binaries for contract verifier'
-complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and not __fish_seen_subcommand_from build run init help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
+complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and not __fish_seen_subcommand_from build run wait init help" -l chain -d 'Chain to use' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and not __fish_seen_subcommand_from build run wait init help" -s v -l verbose -d 'Verbose mode'
+complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and not __fish_seen_subcommand_from build run wait init help" -l ignore-prerequisites -d 'Ignores prerequisites checks'
+complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and not __fish_seen_subcommand_from build run wait init help" -s h -l help -d 'Print help'
+complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and not __fish_seen_subcommand_from build run wait init help" -f -a "build" -d 'Build contract verifier binary'
+complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and not __fish_seen_subcommand_from build run wait init help" -f -a "run" -d 'Run contract verifier'
+complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and not __fish_seen_subcommand_from build run wait init help" -f -a "wait" -d 'Wait for contract verifier to start'
+complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and not __fish_seen_subcommand_from build run wait init help" -f -a "init" -d 'Download required binaries for contract verifier'
+complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and not __fish_seen_subcommand_from build run wait init help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from build" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from build" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from build" -l ignore-prerequisites -d 'Ignores prerequisites checks'
@@ -581,6 +615,12 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and _
 complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from run" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from run" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from run" -s h -l help -d 'Print help'
+complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from wait" -s t -l timeout -d 'Wait timeout in seconds' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from wait" -l poll-interval -d 'Poll interval in milliseconds' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from wait" -l chain -d 'Chain to use' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from wait" -s v -l verbose -d 'Verbose mode'
+complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from wait" -l ignore-prerequisites -d 'Ignores prerequisites checks'
+complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from wait" -s h -l help -d 'Print help'
 complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from init" -l zksolc-version -d 'Version of zksolc to install' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from init" -l zkvyper-version -d 'Version of zkvyper to install' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from init" -l solc-version -d 'Version of solc to install' -r
@@ -593,6 +633,7 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and _
 complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from init" -s h -l help -d 'Print help'
 complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from help" -f -a "build" -d 'Build contract verifier binary'
 complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from help" -f -a "run" -d 'Run contract verifier'
+complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from help" -f -a "wait" -d 'Wait for contract verifier to start'
 complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from help" -f -a "init" -d 'Download required binaries for contract verifier'
 complete -c zkstack -n "__fish_zkstack_using_subcommand contract-verifier; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand portal" -l chain -d 'Chain to use' -r
@@ -702,12 +743,17 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_su
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from prover" -f -a "run" -d 'Run prover'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from prover" -f -a "init-bellman-cuda" -d 'Initialize bellman-cuda'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from prover" -f -a "compressor-keys" -d 'Download compressor keys'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from server" -f -a "build" -d 'Builds server'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from server" -f -a "run" -d 'Runs server'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from server" -f -a "wait" -d 'Waits for server to start'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from external-node" -f -a "configs" -d 'Prepare configs for EN'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from external-node" -f -a "init" -d 'Init databases'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from external-node" -f -a "build" -d 'Build external node'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from external-node" -f -a "run" -d 'Run external node'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from external-node" -f -a "wait" -d 'Wait for external node to start'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from contract-verifier" -f -a "build" -d 'Build contract verifier binary'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from contract-verifier" -f -a "run" -d 'Run contract verifier'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from contract-verifier" -f -a "wait" -d 'Wait for contract verifier to start'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from contract-verifier" -f -a "init" -d 'Download required binaries for contract verifier'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from explorer" -f -a "init" -d 'Initialize explorer (create database to store explorer data and generate docker compose file with explorer services). Runs for all chains, unless --chain is passed'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from explorer" -f -a "run-backend" -d 'Start explorer backend services (api, data_fetcher, worker) for a given chain. Uses default chain, unless --chain is passed'
