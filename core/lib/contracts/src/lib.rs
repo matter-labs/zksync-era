@@ -15,6 +15,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use zksync_utils::{bytecode::hash_bytecode, env::Workspace};
 
+mod serde_bytecode;
 pub mod test_contracts;
 
 #[derive(Debug, Clone)]
@@ -371,54 +372,6 @@ fn read_zbin_bytecode_from_hex_file(bytecode_path: PathBuf) -> Vec<u8> {
         .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {bytecode_path:?}: {err}"));
 
     hex::decode(bytes).unwrap_or_else(|err| panic!("Invalid input file: {bytecode_path:?}, {err}"))
-}
-
-// FIXME: test
-mod serde_bytecode {
-    use std::fmt;
-
-    use ethabi::ethereum_types::U256;
-    use serde::{de, de::SeqAccess, ser, ser::SerializeSeq, Deserializer, Serializer};
-
-    pub(super) fn serialize<S: Serializer>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
-        if bytes.len() % 32 != 0 {
-            return Err(ser::Error::custom("bytecode length is not divisible by 32"));
-        }
-        let mut seq = serializer.serialize_seq(Some(bytes.len() % 32))?;
-        for chunk in bytes.chunks(32) {
-            let word = U256::from_big_endian(chunk);
-            seq.serialize_element(&word)?;
-        }
-        seq.end()
-    }
-
-    #[derive(Debug)]
-    struct SeqVisitor;
-
-    impl<'de> de::Visitor<'de> for SeqVisitor {
-        type Value = Vec<u8>;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(formatter, "sequence of `U256` words")
-        }
-
-        fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
-            let len = seq.size_hint().unwrap_or(0) * 32;
-            let mut bytes = Vec::with_capacity(len);
-            while let Some(value) = seq.next_element::<U256>()? {
-                let prev_len = bytes.len();
-                bytes.resize(prev_len + 32, 0);
-                value.to_big_endian(&mut bytes[prev_len..]);
-            }
-            Ok(bytes)
-        }
-    }
-
-    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Vec<u8>, D::Error> {
-        deserializer.deserialize_seq(SeqVisitor)
-    }
 }
 
 /// Hash of code and code which consists of 32 bytes words
