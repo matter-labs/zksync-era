@@ -1,0 +1,32 @@
+use anyhow::Context as _;
+use common::{config::global_config, logger};
+use config::EcosystemConfig;
+use xshell::Shell;
+
+use crate::{
+    commands::args::WaitArgs,
+    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_WAITING_FOR_EN},
+};
+
+pub async fn wait(shell: &Shell, args: WaitArgs) -> anyhow::Result<()> {
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let chain_config = ecosystem_config
+        .load_current_chain()
+        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let verbose = global_config().verbose;
+
+    let health_check_port = chain_config
+        .get_general_config()?
+        .api_config
+        .as_ref()
+        .context("no API config")?
+        .healthcheck
+        .port;
+
+    logger::info(MSG_WAITING_FOR_EN);
+    args.poll_health_check(health_check_port, verbose).await?;
+    logger::info(format!(
+        "External node is alive with health check server on :{health_check_port}"
+    ));
+    Ok(())
+}

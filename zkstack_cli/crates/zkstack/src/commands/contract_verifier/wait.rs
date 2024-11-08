@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use common::logger;
+use common::{config::global_config, logger};
 use config::EcosystemConfig;
 use xshell::Shell;
 
@@ -10,6 +10,7 @@ pub(crate) async fn wait(shell: &Shell, args: WaitArgs) -> anyhow::Result<()> {
     let chain = ecosystem
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    let verbose = global_config().verbose;
 
     let prometheus_port = chain
         .get_general_config()?
@@ -18,7 +19,7 @@ pub(crate) async fn wait(shell: &Shell, args: WaitArgs) -> anyhow::Result<()> {
         .context("contract verifier config not specified")?
         .prometheus_port;
     logger::info("Waiting for contract verifier to become alive");
-    args.poll_prometheus(prometheus_port).await?;
+    args.poll_prometheus(prometheus_port, verbose).await?;
     logger::info(format!(
         "Contract verifier is alive with Prometheus server bound to :{prometheus_port}"
     ));

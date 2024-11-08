@@ -354,6 +354,7 @@ pub(super) const MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR: &str = "Consensus n
 pub(super) const MSG_BUILDING_EN: &str = "Building external node";
 pub(super) const MSG_FAILED_TO_BUILD_EN_ERR: &str = "Failed to build external node";
 pub(super) const MSG_STARTING_EN: &str = "Starting external node";
+pub(super) const MSG_WAITING_FOR_EN: &str = "Waiting for external node to start";
 
 /// Prover related messages
 pub(super) const MSG_GENERATING_SK_SPINNER: &str = "Generating setup keys...";
