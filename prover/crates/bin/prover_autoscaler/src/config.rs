@@ -11,7 +11,10 @@ use zksync_config::configs::ObservabilityConfig;
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct ProverAutoscalerConfig {
     /// Amount of time ProverJobMonitor will wait all it's tasks to finish.
-    #[serde(with = "humantime_serde")]
+    #[serde(
+        with = "humantime_serde",
+        default = "ProverAutoscalerConfig::default_graceful_shutdown_timeout"
+    )]
     pub graceful_shutdown_timeout: Duration,
     pub agent_config: Option<ProverAutoscalerAgentConfig>,
     pub scaler_config: Option<ProverAutoscalerScalerConfig>,

@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
+use assert_matches::assert_matches;
 use ethabi::Token;
+use rand::{rngs::StdRng, Rng, SeedableRng};
 use zksync_contracts::{load_contract, read_bytecode, SystemContractCode};
 use zksync_system_constants::{
     CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L2_BASE_TOKEN_ADDRESS,
@@ -18,7 +20,8 @@ use zksync_utils::{
 
 use super::{default_system_env, TestedVm, VmTester, VmTesterBuilder};
 use crate::interface::{
-    storage::InMemoryStorage, TxExecutionMode, VmExecutionResultAndLogs, VmInterfaceExt,
+    storage::InMemoryStorage, ExecutionResult, TxExecutionMode, VmExecutionResultAndLogs,
+    VmInterfaceExt,
 };
 
 const MOCK_DEPLOYER_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/MockContractDeployer.json";
@@ -146,11 +149,26 @@ pub(crate) fn test_tracing_evm_contract_deployment<VM: TestedVm>() {
         .execute_transaction_with_bytecode_compression(deploy_tx, true);
     assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
 
-    let new_known_factory_deps = vm_result.new_known_factory_deps.unwrap();
-    assert_eq!(new_known_factory_deps.len(), 2); // the deployed EraVM contract + EVM contract
+    // The EraVM contract also deployed in a transaction should be filtered out
     assert_eq!(
-        new_known_factory_deps[&expected_bytecode_hash],
-        evm_bytecode
+        vm_result.dynamic_factory_deps,
+        HashMap::from([(expected_bytecode_hash, evm_bytecode)])
+    );
+
+    // "Deploy" a bytecode in another transaction and check that the first tx doesn't interfere with the returned `dynamic_factory_deps`.
+    let args = [Token::Bytes((0..32).rev().collect())];
+    let evm_bytecode = ethabi::encode(&args);
+    let expected_bytecode_hash = hash_evm_bytecode(&evm_bytecode);
+    let execute = Execute::for_deploy(expected_bytecode_hash, vec![0; 32], &args);
+    let deploy_tx = account.get_l2_tx_for_execute(execute, None);
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(deploy_tx, true);
+    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+
+    assert_eq!(
+        vm_result.dynamic_factory_deps,
+        HashMap::from([(expected_bytecode_hash, evm_bytecode)])
     );
 }
 
@@ -310,7 +328,7 @@ pub(crate) fn test_calling_to_mock_emulator_from_native_contract<VM: TestedVm>()
     assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
 }
 
-pub(crate) fn test_mock_emulator_with_deployment<VM: TestedVm>() {
+pub(crate) fn test_mock_emulator_with_deployment<VM: TestedVm>(revert: bool) {
     let contract_address = Address::repeat_byte(0xaa);
     let mut vm = EvmTestBuilder::new(true, contract_address)
         .with_mock_deployer()
@@ -329,6 +347,7 @@ pub(crate) fn test_mock_emulator_with_deployment<VM: TestedVm>() {
                 .encode_input(&[
                     Token::FixedBytes(new_evm_bytecode_hash.0.into()),
                     Token::Bytes(new_evm_bytecode.clone()),
+                    Token::Bool(revert),
                 ])
                 .unwrap(),
             value: 0.into(),
@@ -339,13 +358,156 @@ pub(crate) fn test_mock_emulator_with_deployment<VM: TestedVm>() {
     let (_, vm_result) = vm
         .vm
         .execute_transaction_with_bytecode_compression(test_tx, true);
+
+    assert_eq!(vm_result.result.is_failed(), revert, "{vm_result:?}");
+    let expected_dynamic_deps = if revert {
+        HashMap::new()
+    } else {
+        HashMap::from([(new_evm_bytecode_hash, new_evm_bytecode)])
+    };
+    assert_eq!(vm_result.dynamic_factory_deps, expected_dynamic_deps);
+
+    // Test that a following transaction can decommit / call EVM contracts deployed in the previous transaction.
+    let test_fn = mock_emulator_abi
+        .function("testCallToPreviousDeployment")
+        .unwrap();
+    let test_tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(contract_address),
+            calldata: test_fn.encode_input(&[]).unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(test_tx, true);
+
+    if revert {
+        assert_matches!(
+            &vm_result.result,
+            ExecutionResult::Revert { output }
+                if output.to_string().contains("contract code length")
+        );
+    } else {
+        assert!(!vm_result.result.is_failed(), "{vm_result:?}");
+    }
+    assert!(vm_result.dynamic_factory_deps.is_empty(), "{vm_result:?}");
+}
+
+fn encode_deployment(hash: H256, bytecode: Vec<u8>) -> Token {
+    assert_eq!(bytecode.len(), 32);
+    Token::Tuple(vec![
+        Token::FixedBytes(hash.0.to_vec()),
+        Token::FixedBytes(bytecode),
+    ])
+}
+
+pub(crate) fn test_mock_emulator_with_recursive_deployment<VM: TestedVm>() {
+    let contract_address = Address::repeat_byte(0xaa);
+    let mut vm = EvmTestBuilder::new(true, contract_address)
+        .with_mock_deployer()
+        .build::<VM>();
+    let account = &mut vm.rich_accounts[0];
+
+    let mock_emulator_abi = load_contract(MOCK_EMULATOR_PATH);
+    let bytecodes: HashMap<_, _> = (0_u8..10)
+        .map(|byte| {
+            let bytecode = vec![byte; 32];
+            (hash_evm_bytecode(&bytecode), bytecode)
+        })
+        .collect();
+    let test_fn = mock_emulator_abi
+        .function("testRecursiveDeployment")
+        .unwrap();
+    let deployments: Vec<_> = bytecodes
+        .iter()
+        .map(|(hash, code)| encode_deployment(*hash, code.clone()))
+        .collect();
+    let test_tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(contract_address),
+            calldata: test_fn.encode_input(&[Token::Array(deployments)]).unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(test_tx, true);
+    assert!(!vm_result.result.is_failed(), "{vm_result:?}");
+    assert_eq!(vm_result.dynamic_factory_deps, bytecodes);
+}
+
+pub(crate) fn test_mock_emulator_with_partial_reverts<VM: TestedVm>() {
+    for seed in [1, 10, 100, 1_000] {
+        println!("Testing with RNG seed {seed}");
+        let mut rng = StdRng::seed_from_u64(seed);
+        test_mock_emulator_with_partial_reverts_and_rng::<VM>(&mut rng);
+    }
+}
+
+fn test_mock_emulator_with_partial_reverts_and_rng<VM: TestedVm>(rng: &mut impl Rng) {
+    let contract_address = Address::repeat_byte(0xaa);
+    let mut vm = EvmTestBuilder::new(true, contract_address)
+        .with_mock_deployer()
+        .build::<VM>();
+    let account = &mut vm.rich_accounts[0];
+
+    let mock_emulator_abi = load_contract(MOCK_EMULATOR_PATH);
+    let all_bytecodes: HashMap<_, _> = (0_u8..10)
+        .map(|_| {
+            let bytecode = vec![rng.gen(); 32];
+            (hash_evm_bytecode(&bytecode), bytecode)
+        })
+        .collect();
+    let should_revert: Vec<_> = (0..10).map(|_| rng.gen::<bool>()).collect();
+
+    let test_fn = mock_emulator_abi
+        .function("testDeploymentWithPartialRevert")
+        .unwrap();
+    let deployments: Vec<_> = all_bytecodes
+        .iter()
+        .map(|(hash, code)| encode_deployment(*hash, code.clone()))
+        .collect();
+    let revert_tokens: Vec<_> = should_revert.iter().copied().map(Token::Bool).collect();
+
+    let test_tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(contract_address),
+            calldata: test_fn
+                .encode_input(&[Token::Array(deployments), Token::Array(revert_tokens)])
+                .unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(test_tx, true);
     assert!(!vm_result.result.is_failed(), "{vm_result:?}");
 
-    let factory_deps = vm_result.new_known_factory_deps.unwrap();
+    let dynamic_deps = &vm_result.dynamic_factory_deps;
     assert_eq!(
-        factory_deps,
-        HashMap::from([(new_evm_bytecode_hash, new_evm_bytecode)])
+        dynamic_deps.len(),
+        should_revert
+            .iter()
+            .map(|flag| !flag as usize)
+            .sum::<usize>(),
+        "{dynamic_deps:?}"
     );
+    for ((bytecode_hash, bytecode), &should_revert) in all_bytecodes.iter().zip(&should_revert) {
+        assert_eq!(
+            dynamic_deps.get(bytecode_hash),
+            (!should_revert).then_some(bytecode),
+            "hash={bytecode_hash:?}, deps={dynamic_deps:?}"
+        );
+    }
 }
 
 pub(crate) fn test_mock_emulator_with_delegate_call<VM: TestedVm>() {

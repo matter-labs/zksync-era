@@ -127,7 +127,6 @@ jobs:
         if: matrix.components == 'proof-fri-gpu-compressor'
         run: |
           run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
-
       # We need to run this only when ERA_BELLMAN_CUDA_RELEASE is not available
       # In our case it happens only when PR is created from fork
       - name: Wait for runner IP to be not rate-limited against GH API

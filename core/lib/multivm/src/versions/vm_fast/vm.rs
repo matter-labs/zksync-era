@@ -55,7 +55,6 @@ use crate::{
             get_result_success_first_slot, get_vm_hook_params_start_position, get_vm_hook_position,
             OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
         },
-        utils::extract_bytecodes_marked_as_known,
         MultiVMSubversion,
     },
 };
@@ -653,8 +652,10 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
 
         // We need to filter out bytecodes the deployment of which may have been reverted; the tracer is not aware of reverts.
         // To do this, we check bytecodes against deployer events.
-        let factory_deps_marked_as_known = extract_bytecodes_marked_as_known(&logs.events);
-        let new_known_factory_deps = self.world.decommit_bytecodes(&factory_deps_marked_as_known);
+        let factory_deps_marked_as_known = VmEvent::extract_bytecodes_marked_as_known(&logs.events);
+        let dynamic_factory_deps = self
+            .world
+            .decommit_dynamic_bytecodes(factory_deps_marked_as_known);
 
         VmExecutionResultAndLogs {
             result: result.execution_result,
@@ -671,7 +672,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
                 total_log_queries: 0,
             },
             refunds: result.refunds,
-            new_known_factory_deps: Some(new_known_factory_deps),
+            dynamic_factory_deps,
         }
     }
 }
@@ -848,16 +849,15 @@ impl<S: ReadStorage, T: Tracer> World<S, T> {
         )
     }
 
-    fn decommit_bytecodes(&self, hashes: &[H256]) -> HashMap<H256, Vec<u8>> {
-        let bytecodes = hashes.iter().map(|&hash| {
-            let int_hash = h256_to_u256(hash);
+    fn decommit_dynamic_bytecodes(
+        &self,
+        candidate_hashes: impl Iterator<Item = H256>,
+    ) -> HashMap<H256, Vec<u8>> {
+        let bytecodes = candidate_hashes.filter_map(|hash| {
             let bytecode = self
-                .bytecode_cache
-                .get(&int_hash)
-                .cloned()
-                .or_else(|| self.dynamic_bytecodes.take(int_hash))
-                .unwrap_or_else(|| panic!("Bytecode with hash {hash:?} not found"));
-            (hash, bytecode)
+                .dynamic_bytecodes
+                .map(h256_to_u256(hash), <[u8]>::to_vec)?;
+            Some((hash, bytecode))
         });
         bytecodes.collect()
     }
@@ -933,17 +933,28 @@ impl<S: ReadStorage, T: Tracer> zksync_vm2::World<T> for World<S, T> {
         self.program_cache
             .entry(hash)
             .or_insert_with(|| {
-                let bytecode = self.bytecode_cache.entry(hash).or_insert_with(|| {
-                    // Since we put the bytecode in the cache anyway, it's safe to *take* it out from `dynamic_bytecodes`
-                    // and put it in `bytecode_cache`.
-                    self.dynamic_bytecodes
-                        .take(hash)
-                        .or_else(|| self.storage.load_factory_dep(u256_to_h256(hash)))
+                let cached = self
+                    .bytecode_cache
+                    .get(&hash)
+                    .map(|code| Program::new(code, false))
+                    .or_else(|| {
+                        self.dynamic_bytecodes
+                            .map(hash, |code| Program::new(code, false))
+                    });
+
+                if let Some(cached) = cached {
+                    cached
+                } else {
+                    let code = self
+                        .storage
+                        .load_factory_dep(u256_to_h256(hash))
                         .unwrap_or_else(|| {
                             panic!("VM tried to decommit nonexistent bytecode: {hash:?}");
-                        })
-                });
-                Program::new(bytecode, false)
+                        });
+                    let program = Program::new(&code, false);
+                    self.bytecode_cache.insert(hash, code);
+                    program
+                }
             })
             .clone()
     }
