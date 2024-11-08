@@ -3100,11 +3100,11 @@ _zkstack() {
             fi
             case "${prev}" in
                 --targets)
-                    COMPREPLY=($(compgen -W "md sol js ts rs contracts autocompletion" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "md sol js ts rs contracts autocompletion rust-toolchain" -- "${cur}"))
                     return 0
                     ;;
                 -t)
-                    COMPREPLY=($(compgen -W "md sol js ts rs contracts autocompletion" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "md sol js ts rs contracts autocompletion rust-toolchain" -- "${cur}"))
                     return 0
                     ;;
                 --chain)
@@ -3764,11 +3764,11 @@ _zkstack() {
             fi
             case "${prev}" in
                 --targets)
-                    COMPREPLY=($(compgen -W "md sol js ts rs contracts autocompletion" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "md sol js ts rs contracts autocompletion rust-toolchain" -- "${cur}"))
                     return 0
                     ;;
                 -t)
-                    COMPREPLY=($(compgen -W "md sol js ts rs contracts autocompletion" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "md sol js ts rs contracts autocompletion rust-toolchain" -- "${cur}"))
                     return 0
                     ;;
                 --chain)
