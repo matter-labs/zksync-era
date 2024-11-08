@@ -44,7 +44,7 @@ async fn download_seed_from_gcs(bucket_name: String) -> Vec<u8> {
     let client = storage_client::new(config);
 
     // Download the file
-    client
+    let encrypted_seed = client
         .download_object(
             &GetObjectRequest {
                 bucket: bucket_name,
@@ -54,5 +54,6 @@ async fn download_seed_from_gcs(bucket_name: String) -> Vec<u8> {
             &Range::default(),
         )
         .await
-        .unwrap()
+        .expect("Failed to download seed");
+    encrypted_seed
 }
