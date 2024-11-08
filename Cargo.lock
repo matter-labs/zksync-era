@@ -10843,6 +10843,7 @@ dependencies = [
 name = "zksync_contracts"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "envy",
  "ethabi",
  "hex",

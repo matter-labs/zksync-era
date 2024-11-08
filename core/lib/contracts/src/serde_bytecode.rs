@@ -7,7 +7,7 @@ pub(super) fn serialize<S: Serializer>(bytes: &[u8], serializer: S) -> Result<S:
     if bytes.len() % 32 != 0 {
         return Err(ser::Error::custom("bytecode length is not divisible by 32"));
     }
-    let mut seq = serializer.serialize_seq(Some(bytes.len() % 32))?;
+    let mut seq = serializer.serialize_seq(Some(bytes.len() / 32))?;
     for chunk in bytes.chunks(32) {
         let word = U256::from_big_endian(chunk);
         seq.serialize_element(&word)?;
@@ -43,21 +43,42 @@ pub(super) fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<
 
 #[cfg(test)]
 mod tests {
-    use ethabi::ethereum_types::H256;
+    use ethabi::ethereum_types::{H256, U256};
+    use serde::{Deserialize, Serialize};
 
     use crate::SystemContractCode;
 
-    #[test]
-    fn serializing_system_contract_code() {
+    /// Code with legacy serialization logic.
+    #[derive(Debug, Serialize, Deserialize)]
+    struct LegacySystemContractCode {
+        code: Vec<U256>,
+        hash: H256,
+    }
+
+    impl From<&SystemContractCode> for LegacySystemContractCode {
+        fn from(value: &SystemContractCode) -> Self {
+            Self {
+                code: value.code.chunks(32).map(U256::from_big_endian).collect(),
+                hash: value.hash,
+            }
+        }
+    }
+
+    fn test_code() -> SystemContractCode {
         let mut code = vec![0; 32];
         code.extend_from_slice(&[0; 30]);
         code.extend_from_slice(&[0xab, 0xcd]);
         code.extend_from_slice(&[0x23; 32]);
 
-        let system_contract_code = SystemContractCode {
+        SystemContractCode {
             hash: H256::repeat_byte(0x42),
             code,
-        };
+        }
+    }
+
+    #[test]
+    fn serializing_system_contract_code() {
+        let system_contract_code = test_code();
         let json = serde_json::to_value(&system_contract_code).unwrap();
         assert_eq!(
             json,
@@ -67,8 +88,25 @@ mod tests {
             })
         );
 
+        let legacy_code = LegacySystemContractCode::from(&system_contract_code);
+        let legacy_json = serde_json::to_value(&legacy_code).unwrap();
+        assert_eq!(legacy_json, json);
+
         let restored: SystemContractCode = serde_json::from_value(json).unwrap();
         assert_eq!(restored.code, system_contract_code.code);
         assert_eq!(restored.hash, system_contract_code.hash);
+    }
+
+    #[test]
+    fn serializing_system_contract_code_using_bincode() {
+        let system_contract_code = test_code();
+        let bytes = bincode::serialize(&system_contract_code).unwrap();
+        let restored: SystemContractCode = bincode::deserialize(&bytes).unwrap();
+        assert_eq!(restored.code, system_contract_code.code);
+        assert_eq!(restored.hash, system_contract_code.hash);
+
+        let legacy_code = LegacySystemContractCode::from(&system_contract_code);
+        let legacy_bytes = bincode::serialize(&legacy_code).unwrap();
+        assert_eq!(legacy_bytes, bytes);
     }
 }
