@@ -387,8 +387,9 @@ jobs:
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain custom_token
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain consensus
 
-      - name: Setup attester committee for the consensus chain
+      - name: Set up attester committee for the consensus chain
         run: |
+          ci_run zkstack consensus wait-for-registry --ignore-prerequisites --verbose --chain consensus
           ci_run zkstack consensus set-attester-committee --chain consensus --from-genesis &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log 
 
       - name: Run integration tests
