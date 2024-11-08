@@ -257,14 +257,11 @@ pub(crate) fn random_upgrade_tx(tx_number: u64) -> ProtocolUpgradeTx {
 pub(crate) fn successful_exec_with_log() -> BatchTransactionExecutionResult {
     BatchTransactionExecutionResult {
         tx_result: Box::new(VmExecutionResultAndLogs {
-            result: ExecutionResult::Success { output: vec![] },
             logs: VmExecutionLogs {
                 user_l2_to_l1_logs: vec![UserL2ToL1Log::default()],
                 ..VmExecutionLogs::default()
             },
-            statistics: Default::default(),
-            refunds: Default::default(),
-            new_known_factory_deps: None,
+            ..VmExecutionResultAndLogs::mock_success()
         }),
         compressed_bytecodes: vec![],
         call_traces: vec![],
@@ -274,13 +271,9 @@ pub(crate) fn successful_exec_with_log() -> BatchTransactionExecutionResult {
 /// Creates a `TxExecutionResult` object denoting a tx that was rejected.
 pub(crate) fn rejected_exec(reason: Halt) -> BatchTransactionExecutionResult {
     BatchTransactionExecutionResult {
-        tx_result: Box::new(VmExecutionResultAndLogs {
-            result: ExecutionResult::Halt { reason },
-            logs: Default::default(),
-            statistics: Default::default(),
-            refunds: Default::default(),
-            new_known_factory_deps: None,
-        }),
+        tx_result: Box::new(VmExecutionResultAndLogs::mock(ExecutionResult::Halt {
+            reason,
+        })),
         compressed_bytecodes: vec![],
         call_traces: vec![],
     }
@@ -730,6 +723,7 @@ impl StateKeeperIO for TestIO {
     async fn wait_for_next_tx(
         &mut self,
         max_wait: Duration,
+        _l2_block_timestamp: u64,
     ) -> anyhow::Result<Option<Transaction>> {
         let action = self.pop_next_item("wait_for_next_tx");
 

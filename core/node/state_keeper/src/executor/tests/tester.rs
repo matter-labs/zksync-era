@@ -19,7 +19,7 @@ use zksync_multivm::{
     utils::StorageWritesDeduplicator,
     vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
-use zksync_node_genesis::{create_genesis_l1_batch, GenesisParams};
+use zksync_node_genesis::create_genesis_l1_batch;
 use zksync_node_test_utils::{recover, Snapshot};
 use zksync_state::{OwnedStorage, ReadStorageFactory, RocksdbStorageOptions};
 use zksync_test_account::{Account, DeployContractsTx, TxType};
@@ -602,7 +602,8 @@ impl StorageSnapshot {
             L1BatchNumber(1),
             self.l2_block_number,
             snapshot_logs,
-            GenesisParams::mock(),
+            &BASE_SYSTEM_CONTRACTS,
+            ProtocolVersionId::latest(),
         );
         let mut snapshot = recover(&mut storage, snapshot).await;
         snapshot.l2_block_hash = self.l2_block_hash;
