@@ -69,7 +69,7 @@ jobs:
           | xargs cat > ./after.binpb
 
       # compare
-      - uses: bufbuild/buf-setup-action@54abbed4fe8d8d45173eca4798b0c39a53a7b658 # v1.39.0
+      - uses: bufbuild/buf-setup-action@5d38b66514ec5b6b7b753e133245555ea664d0ac # v1.46.0
         with:
           github_token: ${{ github.token }}
       - name: buf breaking
