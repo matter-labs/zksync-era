@@ -11,6 +11,7 @@ use fflonk_gpu::FflonkSnarkVerifierCircuitProof;
 use tokio::task::JoinHandle;
 #[cfg(not(feature = "fflonk"))]
 use wrapper_prover::{GPUWrapperConfigs, WrapperProver};
+use zkevm_test_harness::proof_wrapper_utils::get_vk_for_previous_circuit;
 #[cfg(not(feature = "fflonk"))]
 use zkevm_test_harness::proof_wrapper_utils::{get_trusted_setup, DEFAULT_WRAPPER_CONFIG};
 use zksync_object_store::ObjectStore;
@@ -147,7 +148,7 @@ impl ProofCompressor {
             &keystore,
             proof.into_inner(),
             scheduler_vk.into_inner(),
-            compression_mode - 1,
+            compression_mode,
         )?;
 
         // construct fflonk snark verifier circuit
@@ -161,6 +162,9 @@ impl ProofCompressor {
             transcript_params: (),
             wrapper_function,
         };
+
+        tracing::info!("Proving FFLONK snark verifier");
+
         // create fflonk proof in single shot - without precomputation
         let (proof, _) = fflonk_gpu::gpu_prove_fflonk_snark_verifier_circuit_single_shot(&circuit);
         tracing::info!("Finished proof generation");
@@ -179,7 +183,7 @@ impl ProofCompressor {
     )> {
         let worker = franklin_crypto::boojum::worker::Worker::new();
         let mut compression_circuit =
-            ZkSyncCompressionLayerCircuit::from_witness_and_vk(Some(proof), vk, 1);
+            ZkSyncCompressionLayerCircuit::from_witness_and_vk(Some(proof), vk.clone(), 1);
         let mut compression_wrapper_circuit = None;
 
         for step_idx in 1..compression_steps {
@@ -203,8 +207,11 @@ impl ProofCompressor {
                         compression_steps,
                     ));
             } else {
-                compression_circuit =
-                    ZkSyncCompressionLayerCircuit::from_witness_and_vk(Some(proof), vk, step_idx);
+                compression_circuit = ZkSyncCompressionLayerCircuit::from_witness_and_vk(
+                    Some(proof),
+                    vk,
+                    step_idx + 1,
+                );
             }
         }
 
