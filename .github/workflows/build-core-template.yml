@@ -47,7 +47,7 @@ jobs:
             platforms: linux/arm64
 
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: "recursive"
 
@@ -180,7 +180,7 @@ jobs:
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.component.name == 'external-node') && '-alpha' || '' }}
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: login to Docker registries
         run: |

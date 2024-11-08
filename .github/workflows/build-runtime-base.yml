@@ -24,7 +24,7 @@ jobs:
         image_name: [ zksync-runtime-base ]
 
     steps:
-      - uses: actions/checkout@6d193bf28034eafb982f37bd894289fe649468fc # v4.1.7
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           submodules: "recursive"
 
