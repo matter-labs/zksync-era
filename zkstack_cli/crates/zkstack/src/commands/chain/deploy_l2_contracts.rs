@@ -13,7 +13,7 @@ use config::{
             input::DeployL2ContractsInput,
             output::{
                 ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
-                Multicall3Output, TimestampAsserterOutput
+                Multicall3Output, TimestampAsserterOutput,
             },
         },
         script_params::DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS,
