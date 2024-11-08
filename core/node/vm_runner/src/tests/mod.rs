@@ -27,8 +27,7 @@ use zksync_vm_interface::{
 use super::*;
 
 mod output_handler;
-// FIXME: uncomment when gateway support is added to fast vm.
-// mod playground;
+mod playground;
 mod process;
 mod storage;
 mod storage_writer;

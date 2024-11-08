@@ -1397,13 +1397,8 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (prettier)
 _arguments "${_arguments_options[@]}" : \
-<<<<<<< HEAD
-'*-t+[]:TARGETS:(md sol js ts rs contracts autocompletion)' \
-'*--targets=[]:TARGETS:(md sol js ts rs contracts autocompletion)' \
-=======
 '*-t+[]:TARGETS:(md sol js ts rs contracts autocompletion rust-toolchain)' \
 '*--targets=[]:TARGETS:(md sol js ts rs contracts autocompletion rust-toolchain)' \
->>>>>>> support-gateway-in-vm-fast
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
