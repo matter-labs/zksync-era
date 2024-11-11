@@ -67,7 +67,7 @@ fn pick_new_link_to_code(shell: &Shell) -> String {
     }
 }
 
-pub fn get_link_to_code(shell: &Shell) -> String {
+pub(crate) fn get_link_to_code(shell: &Shell) -> String {
     let link_to_code_selection =
         PromptSelect::new(MSG_REPOSITORY_ORIGIN_PROMPT, LinkToCodeSelection::iter()).ask();
     match link_to_code_selection {
@@ -85,7 +85,7 @@ pub fn get_link_to_code(shell: &Shell) -> String {
     }
 }
 
-pub fn resolve_link_to_code(
+pub(crate) fn resolve_link_to_code(
     shell: &Shell,
     base_path: PathBuf,
     link_to_code: String,
