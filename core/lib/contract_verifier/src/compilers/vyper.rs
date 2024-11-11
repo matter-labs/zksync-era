@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf, process::Stdio};
+use std::{collections::HashMap, mem, path::PathBuf, process::Stdio};
 
 use anyhow::Context;
 use tokio::io::AsyncWriteExt;
@@ -7,12 +7,13 @@ use zksync_types::contract_verification_api::{
     CompilationArtifacts, SourceCodeData, VerificationIncomingRequest,
 };
 
-use super::{Settings, Source, StandardJson};
+use super::{parse_standard_json_output, process_contract_name, Settings, Source, StandardJson};
 use crate::{error::ContractVerifierError, resolver::Compiler};
 
 #[derive(Debug)]
 pub(crate) struct VyperInput {
     pub contract_name: String,
+    pub file_name: String,
     pub sources: HashMap<String, String>,
     pub optimizer_mode: Option<String>,
 }
@@ -21,11 +22,7 @@ impl VyperInput {
     pub fn new(req: VerificationIncomingRequest) -> Result<Self, ContractVerifierError> {
         // Users may provide either just contract name or
         // source file name and contract name joined with ":".
-        let contract_name = if let Some((_, contract_name)) = req.contract_name.rsplit_once(':') {
-            contract_name.to_owned()
-        } else {
-            req.contract_name.clone()
-        };
+        let (file_name, contract_name) = process_contract_name(&req.contract_name, "vy");
 
         let sources = match req.source_code_data {
             SourceCodeData::VyperMultiFile(s) => s,
@@ -33,14 +30,15 @@ impl VyperInput {
         };
         Ok(Self {
             contract_name,
+            file_name,
             sources,
             optimizer_mode: req.optimizer_mode,
         })
     }
 
-    fn standard_json(self) -> StandardJson {
-        let sources = self
-            .sources
+    fn take_standard_json(&mut self) -> StandardJson {
+        let sources = mem::take(&mut self.sources);
+        let sources = sources
             .into_iter()
             .map(|(name, content)| (name, Source { content }));
 
@@ -50,7 +48,6 @@ impl VyperInput {
             settings: Settings {
                 output_selection: Some(serde_json::json!({
                     "*": [ "abi", "evm.bytecode", "evm.deployedBytecode" ],
-                     "": [ "abi", "evm.bytecode", "evm.deployedBytecode" ],
                 })),
                 other: serde_json::json!({}),
             },
@@ -73,20 +70,18 @@ impl Vyper {
 impl Compiler<VyperInput> for Vyper {
     async fn compile(
         self: Box<Self>,
-        input: VyperInput,
+        mut input: VyperInput,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let mut command = tokio::process::Command::new(&self.path);
         let mut child = command
             .arg("--standard-json")
-            .arg("-f")
-            .arg("combined_json")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
             .context("cannot spawn vyper")?;
         let mut stdin = child.stdin.take().unwrap();
-        let standard_json = input.standard_json();
+        let standard_json = input.take_standard_json();
         let content = serde_json::to_vec(&standard_json)
             .context("cannot encode standard JSON input for vyper")?;
         stdin
@@ -101,9 +96,9 @@ impl Compiler<VyperInput> for Vyper {
 
         let output = child.wait_with_output().await.context("vyper failed")?;
         if output.status.success() {
-            let output: serde_json::Value =
+            let output =
                 serde_json::from_slice(&output.stdout).context("vyper output is not valid JSON")?;
-            panic!("{output:?}");
+            parse_standard_json_output(&output, input.contract_name, input.file_name, true)
         } else {
             Err(ContractVerifierError::CompilerError(
                 "vyper",

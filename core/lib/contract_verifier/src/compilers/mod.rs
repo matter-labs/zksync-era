@@ -42,6 +42,18 @@ pub(crate) struct Source {
     pub content: String,
 }
 
+/// Users may provide either just contract name or source file name and contract name joined with ":".
+fn process_contract_name(original_name: &str, extension: &str) -> (String, String) {
+    if let Some((file_name, contract_name)) = original_name.rsplit_once(':') {
+        (file_name.to_owned(), contract_name.to_owned())
+    } else {
+        (
+            format!("{original_name}.{extension}"),
+            original_name.to_owned(),
+        )
+    }
+}
+
 /// Parsing logic shared between `solc` and `zksolc`.
 fn parse_standard_json_output(
     output: &serde_json::Value,
@@ -79,6 +91,8 @@ fn parse_standard_json_output(
     else {
         return Err(ContractVerifierError::AbstractContract(contract_name));
     };
+    // Strip an optional `0x` prefix (output by `vyper`, but not by `solc` / `zksolc`)
+    let bytecode_str = bytecode_str.strip_prefix("0x").unwrap_or(bytecode_str);
     let bytecode = hex::decode(bytecode_str).context("invalid bytecode")?;
 
     let deployed_bytecode = if get_deployed_bytecode {
@@ -87,6 +101,7 @@ fn parse_standard_json_output(
             .context("missing deployed bytecode in solc output")?
             .as_str()
             .ok_or(ContractVerifierError::AbstractContract(contract_name))?;
+        let bytecode_str = bytecode_str.strip_prefix("0x").unwrap_or(bytecode_str);
         Some(hex::decode(bytecode_str).context("invalid deployed bytecode")?)
     } else {
         None

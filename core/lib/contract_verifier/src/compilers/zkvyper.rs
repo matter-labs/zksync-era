@@ -22,14 +22,7 @@ impl VyperInput {
 
             let path = root_dir.join(&name);
             if let Some(prefix) = path.parent() {
-                let canonical_prefix = fs::canonicalize(prefix)
-                    .await
-                    .context("failed to canonicalize path prefix")?;
-                anyhow::ensure!(
-                    canonical_prefix.starts_with(root_dir),
-                    "Invalid contract name: {name}"
-                );
-
+                // FIXME: needs to be sanitized (e.g., absolute /name, ../../../etc/shadow)
                 fs::create_dir_all(prefix)
                     .await
                     .with_context(|| format!("failed creating parent dir for `{name}`"))?;

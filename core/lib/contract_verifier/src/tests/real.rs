@@ -159,6 +159,30 @@ async fn using_real_zkvyper() {
     assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
 }
 
+#[tokio::test]
+async fn using_standalone_vyper() {
+    let (compiler_resolver, supported_compilers) = real_resolver!();
+
+    let version = &supported_compilers.vyper;
+    let compiler = compiler_resolver.resolve_vyper(version).await.unwrap();
+    let req = VerificationIncomingRequest {
+        compiler_versions: CompilerVersions::Vyper {
+            compiler_vyper_version: version.clone(),
+            compiler_zkvyper_version: None,
+        },
+        source_code_data: SourceCodeData::VyperMultiFile(HashMap::from([(
+            "Counter.vy".to_owned(),
+            COUNTER_VYPER_CONTRACT.to_owned(),
+        )])),
+        ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
+    };
+    let input = VyperInput::new(req).unwrap();
+    let output = compiler.compile(input).await.unwrap();
+
+    assert!(output.deployed_bytecode.is_some());
+    assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
+}
+
 fn without_internal_types(mut abi: serde_json::Value) -> serde_json::Value {
     let items = abi.as_array_mut().unwrap();
     for item in items {

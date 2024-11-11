@@ -7,7 +7,7 @@ use zksync_types::contract_verification_api::{
     CompilationArtifacts, SourceCodeData, VerificationIncomingRequest,
 };
 
-use super::{parse_standard_json_output, Settings, Source, StandardJson};
+use super::{parse_standard_json_output, process_contract_name, Settings, Source, StandardJson};
 use crate::{error::ContractVerifierError, resolver::Compiler};
 
 // Here and below, fields are public for testing purposes.
@@ -31,17 +31,7 @@ impl Solc {
     pub fn build_input(
         req: VerificationIncomingRequest,
     ) -> Result<SolcInput, ContractVerifierError> {
-        // Users may provide either just contract name or
-        // source file name and contract name joined with ":".
-        let (file_name, contract_name) =
-            if let Some((file_name, contract_name)) = req.contract_name.rsplit_once(':') {
-                (file_name.to_string(), contract_name.to_string())
-            } else {
-                (
-                    format!("{}.sol", req.contract_name),
-                    req.contract_name.clone(),
-                )
-            };
+        let (file_name, contract_name) = process_contract_name(&req.contract_name, "sol");
         let default_output_selection = serde_json::json!({
             "*": {
                 "*": [ "abi", "evm.bytecode", "evm.deployedBytecode" ],
