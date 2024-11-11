@@ -1,8 +1,11 @@
 use anyhow::Context;
 use common::logger;
 use config::{
-    copy_configs, set_l1_rpc_url, traits::ReadConfig, traits::SaveConfigWithBasePath,
-    update_from_chain_config, zkstack_config::ZkStackConfig, ChainConfig, ContractsConfig,
+    copy_configs, set_l1_rpc_url,
+    traits::{ReadConfig, SaveConfigWithBasePath},
+    update_from_chain_config,
+    zkstack_config::ZkStackConfig,
+    ChainConfig, ContractsConfig,
 };
 use ethers::types::Address;
 use xshell::Shell;
