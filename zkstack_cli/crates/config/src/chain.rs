@@ -171,7 +171,7 @@ impl ChainConfig {
         }
     }
 
-    pub fn from_internal(
+    pub(crate) fn from_internal(
         chain_internal: ChainConfigInternal,
         shell: Shell,
     ) -> anyhow::Result<Self> {
