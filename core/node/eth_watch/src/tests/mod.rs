@@ -57,18 +57,23 @@ fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
     tx.try_into().unwrap()
 }
 
-fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx {
+fn dummy_bytecode() -> Vec<u8> {
+    vec![0u8; 32]
+}
+
+fn build_upgrade_tx(id: ProtocolVersionId) -> ProtocolUpgradeTx {
     let tx = ProtocolUpgradeTx {
         execute: Execute {
             contract_address: Some(Address::repeat_byte(0x11)),
             calldata: vec![1, 2, 3],
-            factory_deps: vec![],
+            factory_deps: vec![dummy_bytecode(), dummy_bytecode()],
             value: U256::zero(),
         },
         common_data: ProtocolUpgradeTxCommonData {
             upgrade_id: id,
             sender: [1u8; 20].into(),
-            eth_block,
+            // Note, that the field is deprecated
+            eth_block: 0,
             gas_limit: Default::default(),
             max_fee_per_gas: Default::default(),
             gas_per_pubdata_limit: 1u32.into(),
@@ -218,6 +223,8 @@ async fn test_normal_operation_upgrade_timestamp() {
     .await
     .unwrap();
 
+    let expected_upgrade_tx = build_upgrade_tx(ProtocolVersionId::next());
+
     let mut storage = connection_pool.connection().await.unwrap();
     client
         .add_upgrade_timestamp(&[
@@ -234,7 +241,7 @@ async fn test_normal_operation_upgrade_timestamp() {
                         minor: ProtocolVersionId::next(),
                         patch: 0.into(),
                     },
-                    tx: Some(build_upgrade_tx(ProtocolVersionId::next(), 18)),
+                    tx: Some(expected_upgrade_tx.clone()),
                     ..Default::default()
                 },
                 18,
@@ -281,7 +288,20 @@ async fn test_normal_operation_upgrade_timestamp() {
         .await
         .unwrap()
         .expect("no protocol upgrade transaction");
-    assert_eq!(tx.common_data.upgrade_id, ProtocolVersionId::next());
+
+    let ProtocolUpgradeTx {
+        execute: expected_execute,
+        common_data: expected_common_data,
+        ..
+    } = expected_upgrade_tx;
+
+    let ProtocolUpgradeTx {
+        execute,
+        common_data,
+        ..
+    } = tx;
+    assert_eq!(expected_execute, execute);
+    assert_eq!(expected_common_data, common_data);
 }
 
 #[test_log::test(tokio::test)]

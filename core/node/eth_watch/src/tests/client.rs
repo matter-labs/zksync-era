@@ -10,11 +10,12 @@ use zksync_types::{
     api::{ChainAggProof, Log},
     ethabi::{self, Token},
     l1::L1Tx,
+    protocol_upgrade::ProtocolUpgradeTx,
     tokens::TokenMetadata,
     web3::{contract::Tokenizable, BlockNumber},
     Address, L1BatchNumber, L2ChainId, ProtocolUpgrade, SLChainId, Transaction, H256, U256, U64,
 };
-use zksync_utils::u256_to_h256;
+use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use crate::client::{EthClient, L2EthClient, RETRY_LIMIT};
 
@@ -29,6 +30,7 @@ pub struct FakeEthClientData {
     chain_log_proofs: HashMap<L1BatchNumber, ChainAggProof>,
     batch_roots: HashMap<u64, Vec<Log>>,
     chain_roots: HashMap<u64, H256>,
+    bytecode_preimages: HashMap<H256, Vec<u8>>,
 }
 
 impl FakeEthClientData {
@@ -43,6 +45,7 @@ impl FakeEthClientData {
             chain_log_proofs: Default::default(),
             batch_roots: Default::default(),
             chain_roots: Default::default(),
+            bytecode_preimages: Default::default(),
         }
     }
 
@@ -67,6 +70,7 @@ impl FakeEthClientData {
                 .entry(*eth_block)
                 .or_default()
                 .push(diamond_upgrade_log(upgrade.clone(), *eth_block));
+            self.add_bytecode_preimages(&upgrade.tx);
         }
     }
 
@@ -96,6 +100,22 @@ impl FakeEthClientData {
     fn add_chain_log_proofs(&mut self, chain_log_proofs: Vec<(L1BatchNumber, ChainAggProof)>) {
         for (batch, proof) in chain_log_proofs {
             self.chain_log_proofs.insert(batch, proof);
+        }
+    }
+
+    fn get_bytecode_preimage(&self, hash: H256) -> Option<Vec<u8>> {
+        self.bytecode_preimages.get(&hash).map(|x| x.clone())
+    }
+
+    fn add_bytecode_preimages(&mut self, upgrade_tx: &Option<ProtocolUpgradeTx>) {
+        let Some(tx) = upgrade_tx.as_ref() else {
+            // Nothing to add
+            return;
+        };
+
+        for dep in tx.execute.factory_deps.iter() {
+            self.bytecode_preimages
+                .insert(hash_bytecode(dep), dep.clone());
         }
     }
 }
@@ -276,7 +296,13 @@ impl EthClient for MockEthClient {
         &self,
         hashes: Vec<H256>,
     ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>> {
-        Ok(vec![])
+        let mut result = vec![];
+
+        for hash in hashes {
+            result.push(self.inner.read().await.get_bytecode_preimage(hash));
+        }
+
+        Ok(result)
     }
 
     async fn get_base_token_metadata(&self) -> Result<TokenMetadata, ContractCallError> {
