@@ -8,7 +8,7 @@ use crate::{
         deploy_ecosystem::output::DeployL1Output,
         deploy_l2_contracts::output::{
             ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
-            Multicall3Output,
+            Multicall3Output, TimestampAsserterOutput,
         },
         register_chain::output::RegisterChainOutput,
     },
@@ -182,6 +182,14 @@ impl ContractsConfig {
         self.l2.multicall3 = Some(multicall3_output.multicall3);
         Ok(())
     }
+
+    pub fn set_timestamp_asserter_addr(
+        &mut self,
+        timestamp_asserter_output: &TimestampAsserterOutput,
+    ) -> anyhow::Result<()> {
+        self.l2.timestamp_asserter_addr = Some(timestamp_asserter_output.timestamp_asserter);
+        Ok(())
+    }
 }
 
 impl FileConfigWithDefaultName for ContractsConfig {
@@ -262,4 +270,5 @@ pub struct L2Contracts {
     pub legacy_shared_bridge_addr: Option<Address>,
     pub consensus_registry: Option<Address>,
     pub multicall3: Option<Address>,
+    pub timestamp_asserter_addr: Option<Address>,
 }

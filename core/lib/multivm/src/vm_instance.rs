@@ -14,6 +14,7 @@ use crate::{
         VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
+    vm_fast::FastVMVersion,
     vm_latest::HistoryEnabled,
 };
 
@@ -340,8 +341,5 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> FastVmInstance<S, Tr> {
 
 /// Checks whether the protocol version is supported by the fast VM.
 pub fn is_supported_by_fast_vm(protocol_version: ProtocolVersionId) -> bool {
-    matches!(
-        protocol_version.into(),
-        VmVersion::Vm1_5_0IncreasedBootloaderMemory
-    )
+    FastVMVersion::try_from(VmVersion::from(protocol_version)).is_ok()
 }

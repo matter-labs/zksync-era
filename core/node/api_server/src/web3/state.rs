@@ -122,6 +122,7 @@ pub struct InternalApiConfig {
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub user_facing_bridgehub_addr: Option<Address>,
+    pub timestamp_asserter_address: Option<Address>,
 }
 
 impl InternalApiConfig {
@@ -197,6 +198,7 @@ impl InternalApiConfig {
                     .as_ref()
                     .map(|a| a.bridgehub_proxy_addr),
             ),
+            timestamp_asserter_address: contracts_config.l2_timestamp_asserter_addr,
         }
     }
 }

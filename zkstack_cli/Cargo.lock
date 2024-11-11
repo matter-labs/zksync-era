@@ -899,6 +899,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "const-decoder"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b381abde2cdc1bc3817e394b24e05667a2dc89f37570cbd34d9c397d99e56e3f"
+dependencies = [
+ "compile-fmt",
+]
+
+[[package]]
 name = "const-hex"
 version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1191,7 +1200,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b42b6fa04a440b495c8b04d0e71b707c585f83cb9cb28cf8cd0d976c315e31b4"
 dependencies = [
  "powerfmt",
- "serde",
 ]
 
 [[package]]
@@ -7220,11 +7228,6 @@ dependencies = [
  "rand",
  "secrecy",
  "serde",
- "strum",
- "strum_macros",
- "time",
- "url",
- "vise",
  "zksync_basic_types",
  "zksync_concurrency",
  "zksync_consensus_utils",
@@ -7403,7 +7406,6 @@ dependencies = [
  "secrecy",
  "serde_json",
  "serde_yaml",
- "time",
  "tracing",
  "zksync_basic_types",
  "zksync_config",
@@ -7461,6 +7463,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bigdecimal",
+ "const-decoder",
  "futures",
  "hex",
  "num",

@@ -1391,8 +1391,8 @@ esac
 ;;
 (lint)
 _arguments "${_arguments_options[@]}" : \
-'*-t+[]:TARGETS:(md sol js ts rs contracts autocompletion)' \
-'*--targets=[]:TARGETS:(md sol js ts rs contracts autocompletion)' \
+'*-t+[]:TARGETS:(md sol js ts rs contracts autocompletion rust-toolchain)' \
+'*--targets=[]:TARGETS:(md sol js ts rs contracts autocompletion rust-toolchain)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-c[]' \
 '--check[]' \
@@ -1445,8 +1445,8 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (prettier)
 _arguments "${_arguments_options[@]}" : \
-'*-t+[]:TARGETS:(md sol js ts rs contracts autocompletion)' \
-'*--targets=[]:TARGETS:(md sol js ts rs contracts autocompletion)' \
+'*-t+[]:TARGETS:(md sol js ts rs contracts autocompletion rust-toolchain)' \
+'*--targets=[]:TARGETS:(md sol js ts rs contracts autocompletion rust-toolchain)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \

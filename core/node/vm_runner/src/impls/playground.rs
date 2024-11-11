@@ -224,10 +224,10 @@ impl VmPlayground {
         self.io.health_updater.subscribe()
     }
 
-    // #[cfg(test)]
-    // pub(crate) fn io(&self) -> &VmPlaygroundIo {
-    //     &self.io
-    // }
+    #[cfg(test)]
+    pub(crate) fn io(&self) -> &VmPlaygroundIo {
+        &self.io
+    }
 
     #[tracing::instrument(skip(self), err)]
     async fn reset_rocksdb_cache(&self, last_retained_batch: L1BatchNumber) -> anyhow::Result<()> {
@@ -379,10 +379,10 @@ impl VmPlaygroundIo {
         self.health_updater.update(health.into());
     }
 
-    // #[cfg(test)]
-    // pub(crate) fn subscribe_to_completed_batches(&self) -> watch::Receiver<L1BatchNumber> {
-    //     self.latest_processed_batch.subscribe()
-    // }
+    #[cfg(test)]
+    pub(crate) fn subscribe_to_completed_batches(&self) -> watch::Receiver<L1BatchNumber> {
+        self.latest_processed_batch.subscribe()
+    }
 }
 
 #[async_trait]

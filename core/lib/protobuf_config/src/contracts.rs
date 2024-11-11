@@ -103,6 +103,12 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("l2_testnet_paymaster_addr")?,
+            l2_timestamp_asserter_addr: l2
+                .timestamp_asserter_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("l2_timestamp_asserter_addr")?,
             l1_multicall3_addr: required(&l1.multicall3_addr)
                 .and_then(|x| parse_h160(x))
                 .context("l1_multicall3_addr")?,
@@ -195,6 +201,9 @@ impl ProtoRepr for proto::Contracts {
                 predeployed_l2_wrapped_base_token_address: this
                     .predeployed_l2_wrapped_base_token_address
                     .map(|x| format!("{:?}", x)),
+                timestamp_asserter_addr: this
+                    .l2_timestamp_asserter_addr
+                    .map(|a| format!("{:?}", a)),
             }),
             bridges: Some(proto::Bridges {
                 shared: Some(proto::Bridge {

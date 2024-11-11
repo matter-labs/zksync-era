@@ -499,14 +499,14 @@ mod tests {
             FastVmMode::Old,
         );
         assert_matches!(vm, BatchVm::Legacy(_));
-        // let vm = BatchVm::<_, ()>::new(
-        //     l1_batch_env.clone(),
-        //     system_env.clone(),
-        //     storage.clone(),
-        //     FastVmMode::New,
-        // );
-        // assert_matches!(vm, BatchVm::Fast(FastVmInstance::Fast(_)));
-        // let vm = BatchVm::<_, ()>::new(l1_batch_env, system_env, storage, FastVmMode::Shadow);
-        // assert_matches!(vm, BatchVm::Fast(FastVmInstance::Shadowed(_)));
+        let vm = BatchVm::<_, ()>::new(
+            l1_batch_env.clone(),
+            system_env.clone(),
+            storage.clone(),
+            FastVmMode::New,
+        );
+        assert_matches!(vm, BatchVm::Fast(FastVmInstance::Fast(_)));
+        let vm = BatchVm::<_, ()>::new(l1_batch_env, system_env, storage, FastVmMode::Shadow);
+        assert_matches!(vm, BatchVm::Fast(FastVmInstance::Shadowed(_)));
     }
 }
