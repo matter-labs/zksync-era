@@ -14,8 +14,9 @@ use xshell::{cmd, Shell};
 use crate::{
     commands::args::{RunServerArgs, ServerArgs, ServerCommand, WaitArgs},
     messages::{
-        MSG_BUILDING_SERVER, MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_BUILD_SERVER_ERR,
-        MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER, MSG_WAITING_FOR_SERVER,
+        msg_waiting_for_server_success, MSG_BUILDING_SERVER, MSG_CHAIN_NOT_INITIALIZED,
+        MSG_FAILED_TO_BUILD_SERVER_ERR, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER,
+        MSG_WAITING_FOR_SERVER,
     },
 };
 
@@ -86,8 +87,6 @@ async fn wait_for_server(args: WaitArgs, chain_config: &ChainConfig) -> anyhow::
 
     logger::info(MSG_WAITING_FOR_SERVER);
     args.poll_health_check(health_check_port, verbose).await?;
-    logger::info(format!(
-        "Server is alive with health check server on :{health_check_port}"
-    ));
+    logger::info(msg_waiting_for_server_success(health_check_port));
     Ok(())
 }

@@ -293,9 +293,9 @@ impl Setup {
         interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
         if verbose {
-            logger::debug(format!(
-                "Starting polling L2 HTTP RPC at {} for code at {addr:?}",
-                provider.url()
+            logger::debug(messages::msg_wait_consensus_registry_started_polling(
+                addr,
+                provider.url(),
             ));
         }
 
@@ -307,12 +307,15 @@ impl Setup {
                 Err(ProviderError::HTTPError(err)) if err.is_connect() || err.is_timeout() => {
                     continue;
                 }
-                Err(err) => return Err(anyhow::Error::new(err).context("failed querying L2 node")),
+                Err(err) => {
+                    return Err(anyhow::Error::new(err)
+                        .context(messages::MSG_CONSENSUS_REGISTRY_POLL_ERROR))
+                }
             };
             if !code.is_empty() {
-                logger::info(format!(
-                    "Consensus registry is deployed at {addr:?}: {} bytes",
-                    code.len()
+                logger::info(messages::msg_consensus_registry_wait_success(
+                    addr,
+                    code.len(),
                 ));
                 return Ok(());
             }
@@ -325,7 +328,7 @@ impl Setup {
         verbose: bool,
     ) -> anyhow::Result<()> {
         args.poll_with_timeout(
-            "main node HTTP RPC",
+            messages::MSG_CONSENSUS_REGISTRY_WAIT_COMPONENT,
             self.wait_for_registry_contract_inner(args, verbose),
         )
         .await

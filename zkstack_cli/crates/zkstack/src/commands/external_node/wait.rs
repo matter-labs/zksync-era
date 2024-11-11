@@ -6,7 +6,7 @@ use zksync_config::configs::GeneralConfig;
 
 use crate::{
     commands::args::WaitArgs,
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_WAITING_FOR_EN},
+    messages::{msg_waiting_for_en_success, MSG_CHAIN_NOT_INITIALIZED, MSG_WAITING_FOR_EN},
 };
 
 pub async fn wait(shell: &Shell, args: WaitArgs) -> anyhow::Result<()> {
@@ -30,8 +30,6 @@ pub async fn wait(shell: &Shell, args: WaitArgs) -> anyhow::Result<()> {
 
     logger::info(MSG_WAITING_FOR_EN);
     args.poll_health_check(health_check_port, verbose).await?;
-    logger::info(format!(
-        "External node is alive with health check server on :{health_check_port}"
-    ));
+    logger::info(msg_waiting_for_en_success(health_check_port));
     Ok(())
 }

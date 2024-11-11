@@ -7,7 +7,11 @@ use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use tokio::time::MissedTickBehavior;
 
-use crate::messages::{MSG_WAIT_POLL_INTERVAL_HELP, MSG_WAIT_TIMEOUT_HELP};
+use crate::messages::{
+    msg_wait_connect_err, msg_wait_non_successful_response, msg_wait_not_healthy,
+    msg_wait_starting_polling, msg_wait_timeout, MSG_WAIT_POLL_INTERVAL_HELP,
+    MSG_WAIT_TIMEOUT_HELP,
+};
 
 #[derive(Debug, Clone, Copy)]
 enum PolledComponent {
@@ -60,7 +64,7 @@ impl WaitArgs {
             None => action.await,
             Some(timeout) => tokio::time::timeout(Duration::from_secs(timeout), action)
                 .await
-                .map_err(|_| anyhow::anyhow!("timed out polling {component}"))?,
+                .map_err(|_| anyhow::Error::msg(msg_wait_timeout(&component)))?,
         }
     }
 
@@ -75,9 +79,7 @@ impl WaitArgs {
         interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
         if verbose {
-            logger::debug(format!(
-                "Starting polling {component} at `{url}` each {poll_interval:?}"
-            ));
+            logger::debug(msg_wait_starting_polling(&component, url, poll_interval));
         }
 
         let client = reqwest::Client::builder()
@@ -94,8 +96,9 @@ impl WaitArgs {
                     continue;
                 }
                 Err(err) => {
-                    return Err(anyhow::Error::new(err)
-                        .context(format!("failed to connect to {component} at `{url}`")))
+                    return Err(
+                        anyhow::Error::new(err).context(msg_wait_connect_err(&component, url))
+                    )
                 }
             };
 
@@ -103,7 +106,7 @@ impl WaitArgs {
                 PolledComponent::Prometheus => {
                     response
                         .error_for_status()
-                        .context("non-successful Prometheus response")?;
+                        .with_context(|| msg_wait_non_successful_response(&component))?;
                     return Ok(());
                 }
                 PolledComponent::HealthCheck => {
@@ -113,12 +116,12 @@ impl WaitArgs {
 
                     if response.status() == StatusCode::SERVICE_UNAVAILABLE {
                         if verbose {
-                            logger::debug(format!("Node at `{url}` is not healthy"));
+                            logger::debug(msg_wait_not_healthy(url));
                         }
                     } else {
                         response
                             .error_for_status()
-                            .context("non-successful health check response")?;
+                            .with_context(|| msg_wait_non_successful_response(&component))?;
                     }
                 }
             }
