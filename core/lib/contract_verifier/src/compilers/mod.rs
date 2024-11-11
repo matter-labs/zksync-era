@@ -1,17 +1,39 @@
+use std::collections::HashMap;
+
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use zksync_types::contract_verification_api::CompilationArtifacts;
 
 pub(crate) use self::{
     solc::{Solc, SolcInput},
+    vyper::{Vyper, VyperInput},
     zksolc::{ZkSolc, ZkSolcInput},
-    zkvyper::{ZkVyper, ZkVyperInput},
+    zkvyper::ZkVyper,
 };
 use crate::error::ContractVerifierError;
 
 mod solc;
+mod vyper;
 mod zksolc;
 mod zkvyper;
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct StandardJson {
+    pub language: String,
+    pub sources: HashMap<String, Source>,
+    settings: Settings,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Settings {
+    /// The output selection filters.
+    output_selection: Option<serde_json::Value>,
+    /// Other settings (only filled when parsing `StandardJson` input from the request).
+    #[serde(flatten)]
+    other: serde_json::Value,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

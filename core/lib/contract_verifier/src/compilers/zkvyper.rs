@@ -1,21 +1,49 @@
-use std::{collections::HashMap, fs::File, io::Write, path::Path, process::Stdio};
+use std::{ffi::OsString, path::Path, process::Stdio};
 
 use anyhow::Context as _;
+use tokio::{fs, io::AsyncWriteExt};
 use zksync_queued_job_processor::async_trait;
-use zksync_types::contract_verification_api::{
-    CompilationArtifacts, SourceCodeData, VerificationIncomingRequest,
-};
+use zksync_types::contract_verification_api::CompilationArtifacts;
 
+use super::VyperInput;
 use crate::{
     error::ContractVerifierError,
     resolver::{Compiler, CompilerPaths},
 };
 
-#[derive(Debug)]
-pub(crate) struct ZkVyperInput {
-    pub contract_name: String,
-    pub sources: HashMap<String, String>,
-    pub optimizer_mode: Option<String>,
+impl VyperInput {
+    async fn write_files(&self, root_dir: &Path) -> anyhow::Result<Vec<OsString>> {
+        let mut paths = Vec::with_capacity(self.sources.len());
+        for (name, content) in &self.sources {
+            let mut name = name.clone();
+            if !name.ends_with(".vy") {
+                name += ".vy";
+            }
+
+            let path = root_dir.join(&name);
+            if let Some(prefix) = path.parent() {
+                let canonical_prefix = fs::canonicalize(prefix)
+                    .await
+                    .context("failed to canonicalize path prefix")?;
+                anyhow::ensure!(
+                    canonical_prefix.starts_with(root_dir),
+                    "Invalid contract name: {name}"
+                );
+
+                fs::create_dir_all(prefix)
+                    .await
+                    .with_context(|| format!("failed creating parent dir for `{name}`"))?;
+            }
+            let mut file = fs::File::create(&path)
+                .await
+                .with_context(|| format!("failed creating file for `{name}`"))?;
+            file.write_all(content.as_bytes())
+                .await
+                .with_context(|| format!("failed writing to `{name}`"))?;
+            paths.push(path.into_os_string());
+        }
+        Ok(paths)
+    }
 }
 
 #[derive(Debug)]
@@ -26,28 +54,6 @@ pub(crate) struct ZkVyper {
 impl ZkVyper {
     pub fn new(paths: CompilerPaths) -> Self {
         Self { paths }
-    }
-
-    pub fn build_input(
-        req: VerificationIncomingRequest,
-    ) -> Result<ZkVyperInput, ContractVerifierError> {
-        // Users may provide either just contract name or
-        // source file name and contract name joined with ":".
-        let contract_name = if let Some((_, contract_name)) = req.contract_name.rsplit_once(':') {
-            contract_name.to_owned()
-        } else {
-            req.contract_name.clone()
-        };
-
-        let sources = match req.source_code_data {
-            SourceCodeData::VyperMultiFile(s) => s,
-            other => unreachable!("unexpected `SourceCodeData` variant: {other:?}"),
-        };
-        Ok(ZkVyperInput {
-            contract_name,
-            sources,
-            optimizer_mode: req.optimizer_mode,
-        })
     }
 
     fn parse_output(
@@ -80,10 +86,10 @@ impl ZkVyper {
 }
 
 #[async_trait]
-impl Compiler<ZkVyperInput> for ZkVyper {
+impl Compiler<VyperInput> for ZkVyper {
     async fn compile(
         self: Box<Self>,
-        input: ZkVyperInput,
+        input: VyperInput,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let mut command = tokio::process::Command::new(&self.paths.zk);
         if let Some(o) = input.optimizer_mode.as_ref() {
@@ -97,22 +103,15 @@ impl Compiler<ZkVyperInput> for ZkVyper {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        let temp_dir = tempfile::tempdir().context("failed creating temporary dir")?;
-        for (mut name, content) in input.sources {
-            if !name.ends_with(".vy") {
-                name += ".vy";
-            }
-            let path = temp_dir.path().join(&name);
-            if let Some(prefix) = path.parent() {
-                std::fs::create_dir_all(prefix)
-                    .with_context(|| format!("failed creating parent dir for `{name}`"))?;
-            }
-            let mut file = File::create(&path)
-                .with_context(|| format!("failed creating file for `{name}`"))?;
-            file.write_all(content.as_bytes())
-                .with_context(|| format!("failed writing to `{name}`"))?;
-            command.arg(path.into_os_string());
-        }
+        let temp_dir = tokio::task::spawn_blocking(tempfile::tempdir)
+            .await
+            .context("panicked creating temporary dir")?
+            .context("failed creating temporary dir")?;
+        let file_paths = input
+            .write_files(temp_dir.path())
+            .await
+            .context("failed writing Vyper files to temp dir")?;
+        command.args(file_paths);
 
         let child = command.spawn().context("cannot spawn zkvyper")?;
         let output = child.wait_with_output().await.context("zkvyper failed")?;

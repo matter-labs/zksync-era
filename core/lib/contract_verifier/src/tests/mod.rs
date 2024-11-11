@@ -22,7 +22,7 @@ use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics,
 
 use super::*;
 use crate::{
-    compilers::{SolcInput, ZkSolcInput, ZkVyperInput},
+    compilers::{SolcInput, VyperInput, ZkSolcInput},
     resolver::{Compiler, SupportedCompilerVersions},
 };
 
@@ -306,10 +306,17 @@ impl CompilerResolver for MockCompilerResolver {
         Ok(Box::new(self.clone()))
     }
 
+    async fn resolve_vyper(
+        &self,
+        _version: &str,
+    ) -> Result<Box<dyn Compiler<VyperInput>>, ContractVerifierError> {
+        unreachable!("not tested")
+    }
+
     async fn resolve_zkvyper(
         &self,
         _version: &ZkCompilerVersions,
-    ) -> Result<Box<dyn Compiler<ZkVyperInput>>, ContractVerifierError> {
+    ) -> Result<Box<dyn Compiler<VyperInput>>, ContractVerifierError> {
         unreachable!("not tested")
     }
 }

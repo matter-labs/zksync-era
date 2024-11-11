@@ -152,7 +152,7 @@ async fn using_real_zkvyper() {
         )])),
         ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
     };
-    let input = ZkVyper::build_input(req).unwrap();
+    let input = VyperInput::new(req).unwrap();
     let output = compiler.compile(input).await.unwrap();
 
     validate_bytecode(&output.bytecode).unwrap();
