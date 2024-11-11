@@ -4,11 +4,10 @@ use zksync_contracts::l1_messenger_contract;
 use zksync_system_constants::{BOOTLOADER_ADDRESS, L1_MESSENGER_ADDRESS};
 use zksync_test_account::TxType;
 use zksync_types::{
-    get_code_key, get_known_code_key,
+    get_code_key, get_known_code_key, h256_to_u256,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    Address, Execute, ExecuteTransactionCommon, U256,
+    u256_to_h256, Address, Execute, ExecuteTransactionCommon, U256,
 };
-use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use super::{
     read_test_contract, tester::VmTesterBuilder, ContractToDeploy, TestedVm, BASE_SYSTEM_CONTRACTS,

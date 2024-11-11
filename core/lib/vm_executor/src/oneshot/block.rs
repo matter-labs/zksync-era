@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 use anyhow::Context;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_multivm::{
@@ -8,11 +10,10 @@ use zksync_types::{
     api,
     block::{unpack_block_info, L2BlockHasher},
     fee_model::BatchFeeInput,
-    AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, H256,
+    h256_to_u256, AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, H256,
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, ZKPORTER_IS_AVAILABLE,
 };
-use zksync_utils::{h256_to_u256, time::seconds_since_epoch};
 
 use super::{env::OneshotEnvParameters, ContractsKind};
 
@@ -124,7 +125,11 @@ impl BlockInfo {
 
             state_l2_block_number = sealed_l2_block_header.number;
             // Timestamp of the next L1 batch must be greater than the timestamp of the last L2 block.
-            l1_batch_timestamp = seconds_since_epoch().max(sealed_l2_block_header.timestamp + 1);
+            let current_timestamp = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .context("incorrect system time")?
+                .as_secs();
+            l1_batch_timestamp = current_timestamp.max(sealed_l2_block_header.timestamp + 1);
             sealed_l2_block_header
         };
 
