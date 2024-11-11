@@ -151,6 +151,10 @@ impl ZksNamespace {
         self.state.bridge_addresses_handle.read().await
     }
 
+    pub fn get_timestamp_asserter_impl(&self) -> Option<Address> {
+        self.state.api_config.timestamp_asserter_address
+    }
+
     pub fn l1_chain_id_impl(&self) -> U64 {
         U64::from(*self.state.api_config.l1_chain_id)
     }

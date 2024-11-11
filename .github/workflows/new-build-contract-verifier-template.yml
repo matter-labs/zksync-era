@@ -176,7 +176,11 @@ jobs:
       - name: Download setup key
         shell: bash
         run: |
-          run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+          if [ -f "/setup_2^26.key" ]; then
+            cp '/setup_2^26.key' './setup_2^26.key'
+          else
+            run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+          fi
 
       - name: Set env vars
         shell: bash
