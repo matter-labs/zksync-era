@@ -541,6 +541,13 @@ impl StorageApiTransaction {
                 .or_else(|| self.max_fee_per_gas.clone())
                 .unwrap_or_else(BigDecimal::zero),
         };
+        // Legacy transactions are not supposed to have `yParity` and are reliant on `v` instead.
+        // Other transactions are required to have `yParity` which replaces the deprecated `v` value
+        // (still included for backwards compatibility).
+        let y_parity = match self.tx_format {
+            None | Some(0) => None,
+            _ => signature.as_ref().map(|s| U64::from(s.v())),
+        };
         let mut tx = api::Transaction {
             hash: H256::from_slice(&self.tx_hash),
             nonce: U256::from(self.nonce.unwrap_or(0) as u64),
@@ -553,6 +560,7 @@ impl StorageApiTransaction {
             gas_price: Some(bigdecimal_to_u256(gas_price)),
             gas: bigdecimal_to_u256(self.gas_limit.unwrap_or_else(BigDecimal::zero)),
             input: serde_json::from_value(self.calldata).expect("incorrect calldata in Postgres"),
+            y_parity,
             v: signature.as_ref().map(|s| U64::from(s.v())),
             r: signature.as_ref().map(|s| U256::from(s.r())),
             s: signature.as_ref().map(|s| U256::from(s.s())),
