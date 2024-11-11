@@ -6,6 +6,7 @@ use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use zksync_types::{
     api::{self, TransactionDetails, TransactionReceipt, TransactionStatus},
     fee::Fee,
+    h256_to_address,
     l1::{OpProcessingType, PriorityQueueType},
     l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTxCommonData,
@@ -16,11 +17,10 @@ use zksync_types::{
     TransactionTimeRangeConstraint, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160,
     H256, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
 };
-use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 use zksync_vm_interface::Call;
 
 use super::call::{LegacyCall, LegacyMixedCall};
-use crate::BigDecimal;
+use crate::{models::bigdecimal_to_u256, BigDecimal};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 #[cfg_attr(test, derive(Default))]
@@ -403,7 +403,7 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
             ),
             contract_address: storage_receipt
                 .contract_address
-                .map(|addr| h256_to_account_address(&H256::from_slice(&addr))),
+                .map(|addr| h256_to_address(&H256::from_slice(&addr))),
             logs: vec![],
             l2_to_l1_logs: vec![],
             status,

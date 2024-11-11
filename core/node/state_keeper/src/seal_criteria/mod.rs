@@ -20,17 +20,16 @@ use zksync_multivm::{
 use zksync_types::{
     block::BlockGasCount, utils::display_timestamp, ProtocolVersionId, Transaction,
 };
-use zksync_utils::time::millis_since;
+
+pub use self::conditional_sealer::{ConditionalSealer, NoopSealer, SequencerSealer};
+use crate::{
+    metrics::AGGREGATION_METRICS,
+    updates::UpdatesManager,
+    utils::{gas_count_from_tx_and_metrics, gas_count_from_writes, millis_since},
+};
 
 mod conditional_sealer;
 pub(super) mod criteria;
-
-pub use self::conditional_sealer::{ConditionalSealer, NoopSealer, SequencerSealer};
-use super::{
-    metrics::AGGREGATION_METRICS,
-    updates::UpdatesManager,
-    utils::{gas_count_from_tx_and_metrics, gas_count_from_writes},
-};
 
 fn halt_as_metric_label(halt: &Halt) -> &'static str {
     match halt {
@@ -278,10 +277,10 @@ impl L2BlockMaxPayloadSizeSealer {
 
 #[cfg(test)]
 mod tests {
-    use zksync_utils::time::seconds_since_epoch;
-
     use super::*;
-    use crate::tests::{create_execution_result, create_transaction, create_updates_manager};
+    use crate::tests::{
+        create_execution_result, create_transaction, create_updates_manager, seconds_since_epoch,
+    };
 
     fn apply_tx_to_manager(tx: Transaction, manager: &mut UpdatesManager) {
         manager.extend_from_executed_transaction(
