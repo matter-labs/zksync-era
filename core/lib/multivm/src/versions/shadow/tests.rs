@@ -231,7 +231,22 @@ mod evm_emulator {
 
     #[test]
     fn mock_emulator_with_deployment() {
-        test_mock_emulator_with_deployment::<super::ShadowedFastVm>();
+        test_mock_emulator_with_deployment::<super::ShadowedFastVm>(false);
+    }
+
+    #[test]
+    fn mock_emulator_with_reverted_deployment() {
+        test_mock_emulator_with_deployment::<super::ShadowedFastVm>(true);
+    }
+
+    #[test]
+    fn mock_emulator_with_recursive_deployment() {
+        test_mock_emulator_with_recursive_deployment::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn mock_emulator_with_partial_reverts() {
+        test_mock_emulator_with_partial_reverts::<super::ShadowedFastVm>();
     }
 
     #[test]

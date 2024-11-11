@@ -12,13 +12,13 @@ use itertools::Itertools;
 use zk_evm_1_3_3::{aux_structures::Timestamp, vm_state::VmLocalState};
 use zksync_contracts::deployer_contract;
 use zksync_types::{
+    address_to_h256,
     ethabi::{Address, Token},
+    h256_to_address, u256_to_h256,
     web3::keccak256,
     Execute, Nonce, StorageKey, StorageValue, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
-use zksync_utils::{
-    address_to_h256, bytecode::hash_bytecode, h256_to_account_address, u256_to_h256,
-};
+use zksync_utils::bytecode::hash_bytecode;
 
 use crate::interface::storage::WriteStorage;
 /// The tests here help us with the testing the VM
@@ -174,7 +174,7 @@ pub fn get_create_zksync_address(sender_address: Address, sender_nonce: Nonce) -
 
     let hash = keccak256(&digest);
 
-    h256_to_account_address(&H256(hash))
+    h256_to_address(&H256(hash))
 }
 
 pub fn verify_required_storage<H: HistoryMode, S: WriteStorage>(

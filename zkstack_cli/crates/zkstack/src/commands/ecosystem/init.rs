@@ -18,6 +18,7 @@ use config::{
         script_params::DEPLOY_ERC20_SCRIPT_PARAMS,
     },
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    zkstack_config::ZkStackConfig,
     ContractsConfig, EcosystemConfig,
 };
 use types::L1Network;
@@ -47,7 +48,7 @@ use crate::{
 };
 
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
 

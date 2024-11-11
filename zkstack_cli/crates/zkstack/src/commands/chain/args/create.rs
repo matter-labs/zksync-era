@@ -82,6 +82,7 @@ impl ChainCreateArgs {
         self,
         shell: &Shell,
         number_of_chains: u32,
+        internal_id: u32,
         l1_network: Option<L1Network>,
         possible_erc20: Vec<Erc20Token>,
         link_to_code: Option<String>,
@@ -262,7 +263,7 @@ impl ChainCreateArgs {
             link_to_code,
             chain_path,
             era_chain_id,
-            number_of_chains,
+            internal_id,
             l1_network,
         })
     }
@@ -283,7 +284,7 @@ pub struct ChainCreateArgsFinal {
     pub link_to_code: String,
     pub chain_path: PathBuf,
     pub era_chain_id: L2ChainId,
-    pub number_of_chains: u32,
+    pub internal_id: u32,
     pub l1_network: L1Network,
 }
 

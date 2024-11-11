@@ -22,12 +22,13 @@ use zksync_multivm::{
 };
 use zksync_types::{
     block::L2BlockHasher, ethabi::Token, fee::Fee, fee_model::BatchFeeInput, l1::L1Tx, l2::L2Tx,
-    utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, K256PrivateKey,
-    L1BatchNumber, L1TxCommonData, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId, StorageKey,
-    Transaction, BOOTLOADER_ADDRESS, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_GAS_PRICE_POSITION,
-    SYSTEM_CONTEXT_TX_ORIGIN_POSITION, U256, ZKPORTER_IS_AVAILABLE,
+    u256_to_h256, utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute,
+    K256PrivateKey, L1BatchNumber, L1TxCommonData, L2BlockNumber, L2ChainId, Nonce,
+    ProtocolVersionId, StorageKey, Transaction, BOOTLOADER_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
+    SYSTEM_CONTEXT_GAS_PRICE_POSITION, SYSTEM_CONTEXT_TX_ORIGIN_POSITION, U256,
+    ZKPORTER_IS_AVAILABLE,
 };
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, u256_to_h256};
+use zksync_utils::bytecode::hash_bytecode;
 
 use crate::intrinsic_costs::VmSpentResourcesResult;
 
@@ -65,7 +66,7 @@ pub static GAS_TEST_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(|| {
     let hash = hash_bytecode(&bytecode);
 
     let bootloader = SystemContractCode {
-        code: bytes_to_be_words(bytecode),
+        code: bytecode,
         hash,
     };
 
@@ -74,7 +75,7 @@ pub static GAS_TEST_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(|| {
 
     BaseSystemContracts {
         default_aa: SystemContractCode {
-            code: bytes_to_be_words(bytecode),
+            code: bytecode,
             hash,
         },
         bootloader,
@@ -214,7 +215,7 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
     let bytecode = read_bootloader_test_code("transfer_test");
     let hash = hash_bytecode(&bytecode);
     let bootloader = SystemContractCode {
-        code: bytes_to_be_words(bytecode),
+        code: bytecode,
         hash,
     };
 
@@ -223,7 +224,7 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
     let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
     let hash = hash_bytecode(&bytecode);
     let default_aa = SystemContractCode {
-        code: bytes_to_be_words(bytecode),
+        code: bytecode,
         hash,
     };
 
@@ -263,7 +264,11 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
         }
         input
     };
-    let input: Vec<_> = bytes_to_be_words(input).into_iter().enumerate().collect();
+    let input: Vec<_> = input
+        .chunks(32)
+        .map(U256::from_big_endian)
+        .enumerate()
+        .collect();
 
     let tracer_result = Rc::new(RefCell::new(0));
     let tracer = SpecialBootloaderTracer {

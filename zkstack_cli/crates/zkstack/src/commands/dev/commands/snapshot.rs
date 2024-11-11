@@ -1,7 +1,7 @@
 use anyhow::Context;
 use clap::Subcommand;
 use common::{cmd::Cmd, logger};
-use config::EcosystemConfig;
+use config::zkstack_config::ZkStackConfig;
 use xshell::{cmd, Shell};
 
 use crate::commands::dev::messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_RUNNING_SNAPSHOT_CREATOR};
@@ -22,7 +22,7 @@ pub(crate) async fn run(shell: &Shell, args: SnapshotCommands) -> anyhow::Result
 }
 
 async fn create(shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem = EcosystemConfig::from_file(shell)?;
+    let ecosystem = ZkStackConfig::ecosystem(shell)?;
     let chain = ecosystem
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;

@@ -87,7 +87,7 @@ pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()>
         return create::run(args, shell);
     }
 
-    let chain = ZkStackConfig::load_current_chain(shell).context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    let chain = ZkStackConfig::current_chain(shell).context(MSG_CHAIN_NOT_FOUND_ERR)?;
 
     match cmd {
         ChainCommands::Create(args) => create::run(args, shell),

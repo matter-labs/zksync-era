@@ -1,8 +1,7 @@
 use zksync_types::{
-    writes::StateDiffRecord, Address, ProtocolVersionId, ACCOUNT_CODE_STORAGE_ADDRESS,
-    BOOTLOADER_ADDRESS,
+    u256_to_h256, writes::StateDiffRecord, Address, ProtocolVersionId,
+    ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
 };
-use zksync_utils::u256_to_h256;
 
 use super::{rollup::RollupPubdataBuilder, validium::ValidiumPubdataBuilder};
 use crate::interface::pubdata::{L1MessengerL2ToL1Log, PubdataBuilder, PubdataInput};

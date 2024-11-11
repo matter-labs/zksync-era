@@ -1,3 +1,4 @@
+use anyhow::bail;
 use xshell::Shell;
 
 use crate::{ChainConfig, ChainConfigInternal, EcosystemConfig};
@@ -18,10 +19,17 @@ impl ZkStackConfig {
         }
     }
 
-    pub fn load_current_chain(shell: &Shell) -> anyhow::Result<ChainConfig> {
+    pub fn current_chain(shell: &Shell) -> anyhow::Result<ChainConfig> {
         match ZkStackConfig::from_file(shell)? {
             ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.load_current_chain(),
             ZkStackConfig::ChainConfig(chain) => Ok(chain),
+        }
+    }
+
+    pub fn ecosystem(shell: &Shell) -> anyhow::Result<EcosystemConfig> {
+        match EcosystemConfig::from_file(shell) {
+            Ok(ecosystem) => Ok(ecosystem),
+            Err(e) => bail!(e),
         }
     }
 }

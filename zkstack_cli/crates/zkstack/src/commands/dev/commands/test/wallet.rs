@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use common::logger;
-use config::EcosystemConfig;
+use config::zkstack_config::ZkStackConfig;
 use xshell::Shell;
 
 use super::utils::{TestWallets, TEST_WALLETS_PATH};
@@ -13,7 +13,7 @@ use crate::commands::dev::messages::{
 pub fn run(shell: &Shell) -> anyhow::Result<()> {
     logger::info(MSG_TEST_WALLETS_INFO);
 
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     let chain_config = ecosystem_config
         .load_current_chain()

@@ -14,7 +14,7 @@ use zksync_dal::{contract_verification_dal::DeployedContractData, ConnectionPool
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
     contract_verification_api::{
-        CompilationArtifacts, CompilerType, VerificationIncomingRequest, VerificationInfo,
+        self as api, CompilationArtifacts, VerificationIncomingRequest, VerificationInfo,
         VerificationRequest,
     },
     Address, CONTRACT_DEPLOYER_ADDRESS,
@@ -34,6 +34,65 @@ mod metrics;
 mod resolver;
 #[cfg(test)]
 mod tests;
+
+#[derive(Debug)]
+struct ZkCompilerVersions {
+    /// Version of the base / non-ZK compiler.
+    pub base: String,
+    /// Version of the ZK compiler.
+    pub zk: String,
+}
+
+/// Internal counterpart of `ContractVersions` from API that encompasses all supported compilation modes.
+#[derive(Debug)]
+enum VersionedCompiler {
+    Solc(String),
+    #[allow(dead_code)] // TODO (EVM-864): add vyper support
+    Vyper(String),
+    ZkSolc(ZkCompilerVersions),
+    ZkVyper(ZkCompilerVersions),
+}
+
+impl From<api::CompilerVersions> for VersionedCompiler {
+    fn from(versions: api::CompilerVersions) -> Self {
+        match versions {
+            api::CompilerVersions::Solc {
+                compiler_solc_version,
+                compiler_zksolc_version: None,
+            } => Self::Solc(compiler_solc_version),
+
+            api::CompilerVersions::Solc {
+                compiler_solc_version,
+                compiler_zksolc_version: Some(zk),
+            } => Self::ZkSolc(ZkCompilerVersions {
+                base: compiler_solc_version,
+                zk,
+            }),
+
+            api::CompilerVersions::Vyper {
+                compiler_vyper_version,
+                compiler_zkvyper_version: None,
+            } => Self::Vyper(compiler_vyper_version),
+
+            api::CompilerVersions::Vyper {
+                compiler_vyper_version,
+                compiler_zkvyper_version: Some(zk),
+            } => Self::ZkVyper(ZkCompilerVersions {
+                base: compiler_vyper_version,
+                zk,
+            }),
+        }
+    }
+}
+
+impl VersionedCompiler {
+    fn expected_bytecode_kind(&self) -> BytecodeMarker {
+        match self {
+            Self::Solc(_) | Self::Vyper(_) => BytecodeMarker::Evm,
+            Self::ZkSolc(_) | Self::ZkVyper(_) => BytecodeMarker::EraVm,
+        }
+    }
+}
 
 enum ConstructorArgs {
     Check(Vec<u8>),
@@ -112,19 +171,19 @@ impl ContractVerifier {
         let mut transaction = storage.start_transaction().await?;
         transaction
             .contract_verification_dal()
-            .set_zksolc_versions(supported_versions.zksolc)
+            .set_zksolc_versions(&supported_versions.zksolc)
             .await?;
         transaction
             .contract_verification_dal()
-            .set_solc_versions(supported_versions.solc)
+            .set_solc_versions(&supported_versions.solc)
             .await?;
         transaction
             .contract_verification_dal()
-            .set_zkvyper_versions(supported_versions.zkvyper)
+            .set_zkvyper_versions(&supported_versions.zkvyper)
             .await?;
         transaction
             .contract_verification_dal()
-            .set_vyper_versions(supported_versions.vyper)
+            .set_vyper_versions(&supported_versions.vyper)
             .await?;
         transaction.commit().await?;
         Ok(())
@@ -214,13 +273,11 @@ impl ContractVerifier {
 
     async fn compile_zksolc(
         &self,
+        version: &ZkCompilerVersions,
         req: VerificationIncomingRequest,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        let zksolc = self
-            .compiler_resolver
-            .resolve_zksolc(&req.compiler_versions)
-            .await?;
-        tracing::debug!(?zksolc, ?req.compiler_versions, "resolved compiler");
+        let zksolc = self.compiler_resolver.resolve_zksolc(version).await?;
+        tracing::debug!(?zksolc, ?version, "resolved compiler");
         let input = ZkSolc::build_input(req)?;
 
         time::timeout(self.compilation_timeout, zksolc.compile(input))
@@ -230,13 +287,11 @@ impl ContractVerifier {
 
     async fn compile_zkvyper(
         &self,
+        version: &ZkCompilerVersions,
         req: VerificationIncomingRequest,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        let zkvyper = self
-            .compiler_resolver
-            .resolve_zkvyper(&req.compiler_versions)
-            .await?;
-        tracing::debug!(?zkvyper, ?req.compiler_versions, "resolved compiler");
+        let zkvyper = self.compiler_resolver.resolve_zkvyper(version).await?;
+        tracing::debug!(?zkvyper, ?version, "resolved compiler");
         let input = ZkVyper::build_input(req)?;
         time::timeout(self.compilation_timeout, zkvyper.compile(input))
             .await
@@ -245,12 +300,10 @@ impl ContractVerifier {
 
     async fn compile_solc(
         &self,
+        version: &str,
         req: VerificationIncomingRequest,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        let solc = self
-            .compiler_resolver
-            .resolve_solc(req.compiler_versions.compiler_version())
-            .await?;
+        let solc = self.compiler_resolver.resolve_solc(version).await?;
         tracing::debug!(?solc, ?req.compiler_versions, "resolved compiler");
         let input = Solc::build_input(req)?;
 
@@ -276,15 +329,24 @@ impl ContractVerifier {
             return Err(err.into());
         }
 
-        match (bytecode_marker, compiler_type) {
-            (BytecodeMarker::EraVm, CompilerType::Solc) => self.compile_zksolc(req).await,
-            (BytecodeMarker::EraVm, CompilerType::Vyper) => self.compile_zkvyper(req).await,
-            (BytecodeMarker::Evm, CompilerType::Solc) => self.compile_solc(req).await,
-            (BytecodeMarker::Evm, CompilerType::Vyper) => {
-                // TODO: add vyper support
+        let compiler = VersionedCompiler::from(req.compiler_versions.clone());
+        if compiler.expected_bytecode_kind() != bytecode_marker {
+            let err = anyhow::anyhow!(
+                "bytecode kind expected by compiler {compiler:?} differs from the actual bytecode kind \
+                 of the verified contract ({bytecode_marker:?})",
+            );
+            return Err(err.into());
+        }
+
+        match &compiler {
+            VersionedCompiler::Solc(version) => self.compile_solc(version, req).await,
+            VersionedCompiler::Vyper(_) => {
+                // TODO (EVM-864): add vyper support
                 let err = anyhow::anyhow!("vyper toolchain is not yet supported for EVM contracts");
                 return Err(err.into());
             }
+            VersionedCompiler::ZkSolc(version) => self.compile_zksolc(version, req).await,
+            VersionedCompiler::ZkVyper(version) => self.compile_zkvyper(version, req).await,
         }
     }
 

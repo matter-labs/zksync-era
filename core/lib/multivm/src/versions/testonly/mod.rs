@@ -18,11 +18,11 @@ use zksync_contracts::{
     SystemContractCode,
 };
 use zksync_types::{
-    block::L2BlockHasher, fee_model::BatchFeeInput, get_code_key, get_is_account_key,
-    utils::storage_key_for_eth_balance, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
-    ProtocolVersionId, U256,
+    block::L2BlockHasher, fee_model::BatchFeeInput, get_code_key, get_is_account_key, h256_to_u256,
+    u256_to_h256, utils::storage_key_for_eth_balance, Address, L1BatchNumber, L2BlockNumber,
+    L2ChainId, ProtocolVersionId, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
+use zksync_utils::bytecode::hash_bytecode;
 use zksync_vm_interface::{
     pubdata::PubdataBuilder, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
 };
@@ -133,7 +133,7 @@ pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {
     let bootloader_code = read_bootloader_code(test);
     let bootloader_hash = hash_bytecode(&bootloader_code);
     SystemContractCode {
-        code: bytes_to_be_words(bootloader_code),
+        code: bootloader_code,
         hash: bootloader_hash,
     }
 }

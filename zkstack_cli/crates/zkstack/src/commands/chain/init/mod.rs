@@ -56,8 +56,8 @@ pub(crate) async fn run(args: ChainInitCommand, shell: &Shell) -> anyhow::Result
 }
 
 async fn run_init(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem = EcosystemConfig::from_file(shell).ok();
-    let chain_config = ZkStackConfig::load_current_chain(shell).context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    let ecosystem = ZkStackConfig::ecosystem(shell).ok();
+    let chain_config = ZkStackConfig::current_chain(shell).context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let args = args.fill_values_with_prompt(ecosystem.clone(), &chain_config)?;
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));

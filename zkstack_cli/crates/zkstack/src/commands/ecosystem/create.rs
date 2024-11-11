@@ -2,7 +2,8 @@ use anyhow::{bail, Context};
 use common::{logger, spinner::Spinner};
 use config::{
     create_local_configs_dir, create_wallets, get_default_era_chain_id,
-    traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError,
+    traits::SaveConfigWithBasePath, zkstack_config::ZkStackConfig, EcosystemConfig,
+    EcosystemConfigFromFileError,
 };
 use xshell::Shell;
 
@@ -28,12 +29,17 @@ use crate::{
 };
 
 pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
-    match EcosystemConfig::from_file(shell) {
+    match ZkStackConfig::ecosystem(shell) {
         Ok(_) => bail!(MSG_ECOSYSTEM_ALREADY_EXISTS_ERR),
-        Err(EcosystemConfigFromFileError::InvalidConfig { .. }) => {
-            bail!(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)
+        Err(e) => {
+            if let Some(EcosystemConfigFromFileError::NotExists { .. }) =
+                e.downcast_ref::<EcosystemConfigFromFileError>()
+            {
+                create(args, shell)?;
+            } else {
+                bail!(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)
+            }
         }
-        Err(EcosystemConfigFromFileError::NotExists { .. }) => create(args, shell)?,
     };
 
     Ok(())

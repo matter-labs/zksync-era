@@ -10,6 +10,7 @@ use config::{
         script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    zkstack_config::ZkStackConfig,
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use xshell::Shell;
@@ -23,7 +24,7 @@ use crate::{
 };
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;

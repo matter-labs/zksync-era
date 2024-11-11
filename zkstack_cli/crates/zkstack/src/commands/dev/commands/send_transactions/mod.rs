@@ -10,7 +10,7 @@ use anyhow::Context;
 use args::SendTransactionsArgs;
 use chrono::Local;
 use common::{ethereum::create_ethers_client, logger};
-use config::EcosystemConfig;
+use config::zkstack_config::ZkStackConfig;
 use ethers::{abi::Bytes, providers::Middleware, types::TransactionRequest, utils::hex};
 use serde::Deserialize;
 use tokio::time::sleep;
@@ -52,7 +52,7 @@ struct Txns {
 pub async fn run(shell: &Shell, args: SendTransactionsArgs) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
 
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_id = ecosystem_config.l1_network.chain_id();
 
     // Read the JSON file

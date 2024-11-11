@@ -2,7 +2,10 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Context};
 use common::{docker, logger, spinner::Spinner};
-use config::{EcosystemConfig, DOCKER_COMPOSE_FILE, ERA_OBSERVABILITY_COMPOSE_FILE};
+use config::{
+    zkstack_config::ZkStackConfig, EcosystemConfig, DOCKER_COMPOSE_FILE,
+    ERA_OBSERVABILITY_COMPOSE_FILE,
+};
 use xshell::Shell;
 
 use super::args::ContainersArgs;
@@ -17,7 +20,7 @@ use crate::{
 
 pub fn run(shell: &Shell, args: ContainersArgs) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
-    let ecosystem = EcosystemConfig::from_file(shell).context(MSG_FAILED_TO_FIND_ECOSYSTEM_ERR)?;
+    let ecosystem = ZkStackConfig::ecosystem(shell).context(MSG_FAILED_TO_FIND_ECOSYSTEM_ERR)?;
 
     initialize_docker(shell, &ecosystem)?;
 
