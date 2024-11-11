@@ -75,11 +75,17 @@ fn parse_standard_json_output(
         let errors = errors.as_array().unwrap().clone();
         if errors
             .iter()
-            .any(|err| err["severity"].as_str().unwrap() == "error")
+            .any(|err| err["severity"].as_str() == Some("error"))
         {
+            // FIXME: collected messages contain warnings as well; is this intentional?
             let error_messages = errors
                 .into_iter()
-                .map(|err| err["formattedMessage"].clone())
+                .filter_map(|err| {
+                    // `formattedMessage` is an optional field
+                    err.get("formattedMessage")
+                        .or_else(|| err.get("message"))
+                        .cloned()
+                })
                 .collect();
             return Err(ContractVerifierError::CompilationError(
                 serde_json::Value::Array(error_messages),

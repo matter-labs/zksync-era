@@ -278,6 +278,28 @@ async fn compiling_standalone_yul() {
     assert_eq!(output.abi, serde_json::json!([]));
 }
 
+fn test_vyper_request(
+    filename: &str,
+    contract_name: &str,
+    supported_compilers: TestCompilerVersions,
+    bytecode_kind: BytecodeMarker,
+) -> VerificationIncomingRequest {
+    VerificationIncomingRequest {
+        contract_address: Address::repeat_byte(1),
+        source_code_data: SourceCodeData::VyperMultiFile(HashMap::from([(
+            filename.to_owned(),
+            COUNTER_VYPER_CONTRACT.to_owned(),
+        )])),
+        contract_name: contract_name.to_owned(),
+        compiler_versions: supported_compilers.vyper_for_api(bytecode_kind),
+        optimization_used: true,
+        optimizer_mode: None,
+        constructor_arguments: Default::default(),
+        is_system: false,
+        force_evmla: false,
+    }
+}
+
 #[test_casing(2, [false, true])]
 #[tokio::test]
 async fn using_real_zkvyper(specify_contract_file: bool) {
@@ -287,23 +309,17 @@ async fn using_real_zkvyper(specify_contract_file: bool) {
         .resolve_zkvyper(&supported_compilers.clone().zkvyper())
         .await
         .unwrap();
-    let filename = if specify_contract_file {
-        "contracts/Counter.vy"
+    let (filename, contract_name) = if specify_contract_file {
+        ("contracts/Counter.vy", "contracts/Counter.vy:Counter")
     } else {
-        "Counter"
+        ("Counter", "Counter")
     };
-    let mut req = VerificationIncomingRequest {
-        compiler_versions: supported_compilers.vyper_for_api(BytecodeMarker::EraVm),
-        source_code_data: SourceCodeData::VyperMultiFile(HashMap::from([(
-            filename.to_owned(),
-            COUNTER_VYPER_CONTRACT.to_owned(),
-        )])),
-        ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
-    };
-    if specify_contract_file {
-        req.contract_name = "contracts/Counter.vy:Counter".to_owned();
-    }
-
+    let req = test_vyper_request(
+        filename,
+        contract_name,
+        supported_compilers,
+        BytecodeMarker::EraVm,
+    );
     let input = VyperInput::new(req).unwrap();
     let output = compiler.compile(input).await.unwrap();
 
@@ -318,31 +334,89 @@ async fn using_standalone_vyper(specify_contract_file: bool) {
 
     let version = &supported_compilers.vyper;
     let compiler = compiler_resolver.resolve_vyper(version).await.unwrap();
-    let filename = if specify_contract_file {
-        "contracts/Counter.vy"
+    let (filename, contract_name) = if specify_contract_file {
+        ("contracts/Counter.vy", "contracts/Counter.vy:Counter")
     } else {
-        "Counter.vy"
+        ("Counter.vy", "Counter")
     };
-    let mut req = VerificationIncomingRequest {
-        compiler_versions: CompilerVersions::Vyper {
-            compiler_vyper_version: version.clone(),
-            compiler_zkvyper_version: None,
-        },
-        source_code_data: SourceCodeData::VyperMultiFile(HashMap::from([(
-            filename.to_owned(),
-            COUNTER_VYPER_CONTRACT.to_owned(),
-        )])),
-        ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
-    };
-    if specify_contract_file {
-        req.contract_name = "contracts/Counter.vy:Counter".to_owned();
-    }
-
+    let req = test_vyper_request(
+        filename,
+        contract_name,
+        supported_compilers,
+        BytecodeMarker::Evm,
+    );
     let input = VyperInput::new(req).unwrap();
     let output = compiler.compile(input).await.unwrap();
 
     assert!(output.deployed_bytecode.is_some());
     assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
+}
+
+#[tokio::test]
+async fn using_standalone_vyper_without_optimization() {
+    let (compiler_resolver, supported_compilers) = real_resolver!();
+
+    let version = &supported_compilers.vyper;
+    let compiler = compiler_resolver.resolve_vyper(version).await.unwrap();
+    let mut req = test_vyper_request(
+        "counter.vy",
+        "counter",
+        supported_compilers,
+        BytecodeMarker::Evm,
+    );
+    req.optimization_used = false;
+    let input = VyperInput::new(req).unwrap();
+    let output = compiler.compile(input).await.unwrap();
+
+    assert!(output.deployed_bytecode.is_some());
+    assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
+}
+
+#[tokio::test]
+async fn using_standalone_vyper_with_code_size_optimization() {
+    let (compiler_resolver, supported_compilers) = real_resolver!();
+
+    let version = &supported_compilers.vyper;
+    let compiler = compiler_resolver.resolve_vyper(version).await.unwrap();
+    let mut req = test_vyper_request(
+        "counter.vy",
+        "counter",
+        supported_compilers,
+        BytecodeMarker::Evm,
+    );
+    req.optimization_used = true;
+    req.optimizer_mode = Some("codesize".to_owned());
+    let input = VyperInput::new(req).unwrap();
+    let output = compiler.compile(input).await.unwrap();
+
+    assert!(output.deployed_bytecode.is_some());
+    assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
+}
+
+#[tokio::test]
+async fn using_standalone_vyper_with_bogus_optimization() {
+    let (compiler_resolver, supported_compilers) = real_resolver!();
+
+    let version = &supported_compilers.vyper;
+    let compiler = compiler_resolver.resolve_vyper(version).await.unwrap();
+    let mut req = test_vyper_request(
+        "counter.vy",
+        "counter",
+        supported_compilers,
+        BytecodeMarker::Evm,
+    );
+    req.optimization_used = true;
+    req.optimizer_mode = Some("???".to_owned());
+    let input = VyperInput::new(req).unwrap();
+    let err = compiler.compile(input).await.unwrap_err();
+
+    let ContractVerifierError::CompilationError(serde_json::Value::Array(errors)) = err else {
+        panic!("unexpected error: {err:?}");
+    };
+    let has_opt_level_error = errors
+        .iter()
+        .any(|err| err.as_str().unwrap().contains("optimization level"));
+    assert!(has_opt_level_error, "{errors:?}");
 }
 
 #[test_casing(4, Product((BYTECODE_KINDS, Toolchain::ALL)))]

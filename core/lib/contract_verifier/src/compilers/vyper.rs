@@ -20,8 +20,6 @@ pub(crate) struct VyperInput {
 
 impl VyperInput {
     pub fn new(req: VerificationIncomingRequest) -> Result<Self, ContractVerifierError> {
-        // Users may provide either just contract name or
-        // source file name and contract name joined with ":".
         let (file_name, contract_name) = process_contract_name(&req.contract_name, "vy");
 
         let sources = match req.source_code_data {
@@ -32,7 +30,13 @@ impl VyperInput {
             contract_name,
             file_name,
             sources,
-            optimizer_mode: req.optimizer_mode,
+            optimizer_mode: if req.optimization_used {
+                // FIXME: values have differing semantics compared to other compilers; is this OK?
+                req.optimizer_mode
+            } else {
+                // `none` mode is not the default mode (which is `gas`), so we must specify it explicitly here
+                Some("none".to_owned())
+            },
         })
     }
 
@@ -49,7 +53,9 @@ impl VyperInput {
                 output_selection: Some(serde_json::json!({
                     "*": [ "abi", "evm.bytecode", "evm.deployedBytecode" ],
                 })),
-                other: serde_json::json!({}),
+                other: serde_json::json!({
+                    "optimize": self.optimizer_mode.as_deref(),
+                }),
             },
         }
     }
