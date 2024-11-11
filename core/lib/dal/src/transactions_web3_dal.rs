@@ -403,14 +403,14 @@ impl TransactionsWeb3Dal<'_, '_> {
             initiator_address.as_bytes(),
             committed_next_nonce as i64
         )
-        .instrument("next_nonce_by_initiator_account#non_rejected_nonces")
-        .with_arg("initiator_address", &initiator_address)
-        .with_arg("committed_next_nonce", &committed_next_nonce)
-        .fetch_all(self.storage)
-        .await?
-        .into_iter()
-        .map(|row| row.nonce as u64)
-        .collect();
+            .instrument("next_nonce_by_initiator_account#non_rejected_nonces")
+            .with_arg("initiator_address", &initiator_address)
+            .with_arg("committed_next_nonce", &committed_next_nonce)
+            .fetch_all(self.storage)
+            .await?
+            .into_iter()
+            .map(|row| row.nonce as u64)
+            .collect();
 
         // Find pending nonce as the first "gap" in nonces.
         let mut pending_nonce = committed_next_nonce;
@@ -423,6 +423,30 @@ impl TransactionsWeb3Dal<'_, '_> {
         }
 
         Ok(U256::from(pending_nonce))
+    }
+
+    pub async fn zkos_max_nonce_by_initiator_account(
+        &mut self,
+        initiator_address: Address,
+    ) -> DalResult<U256> {
+        let nonce = sqlx::query!(
+            r#"
+            SELECT
+                MAX(nonce) AS "nonce!"
+            FROM
+                transactions
+            WHERE
+                initiator_address = $1
+            "#,
+            initiator_address.as_bytes(),
+        )
+            .instrument("zkos_max_nonce_by_initiator_account")
+            .fetch_one(self.storage)
+            .await?
+            .nonce as u64;
+
+
+        Ok(U256::from(nonce))
     }
 
     /// Returns the server transactions (not API ones) from a L2 block range.

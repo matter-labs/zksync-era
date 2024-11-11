@@ -8,6 +8,7 @@ use zksync_config::configs::chain::MempoolConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
+use zksync_multivm::zk_evm_latest::k256::elliptic_curve::weierstrass::add;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 #[cfg(test)]
 use zksync_types::H256;
@@ -26,8 +27,8 @@ pub async fn l2_tx_filter(
     let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(fee_input, vm_version);
     Ok(L2TxFilter {
         fee_input,
-        fee_per_gas: base_fee,
-        gas_per_pubdata: gas_per_pubdata as u32,
+        fee_per_gas: 0,
+        gas_per_pubdata: 0,
     })
 }
 
@@ -63,6 +64,7 @@ impl MempoolFetcher {
     }
 
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        tracing::info!("running mempool layer");
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
         if let Some(stuck_tx_timeout) = self.stuck_tx_timeout {
             let removed_txs = storage
@@ -101,8 +103,8 @@ impl MempoolFetcher {
                 .sync_mempool(
                     &mempool_info.stashed_accounts,
                     &mempool_info.purged_accounts,
-                    l2_tx_filter.gas_per_pubdata,
-                    l2_tx_filter.fee_per_gas,
+                    0,
+                    0,
                     self.sync_batch_size,
                 )
                 .await
@@ -132,28 +134,30 @@ async fn get_transaction_nonces(
     storage: &mut Connection<'_, Core>,
     transactions: &[Transaction],
 ) -> anyhow::Result<HashMap<Address, Nonce>> {
-    let (nonce_keys, address_by_nonce_key): (Vec<_>, HashMap<_, _>) = transactions
-        .iter()
-        .map(|tx| {
-            let address = tx.initiator_account();
-            let nonce_key = get_nonce_key(&address).hashed_key();
-            (nonce_key, (nonce_key, address))
-        })
-        .unzip();
+    //todo: revert changes once nonces stored in storage properly
 
-    let nonce_values = storage
-        .storage_web3_dal()
-        .get_values(&nonce_keys)
-        .await
-        .context("failed getting nonces from storage")?;
+    // let (nonce_keys, address_by_nonce_key): (Vec<_>, HashMap<_, _>) = transactions
+    //     .iter()
+    //     .map(|tx| {
+    //         let address = tx.initiator_account();
+    //         let nonce_key = get_nonce_key(&address).hashed_key();
+    //         (nonce_key, (nonce_key, address))
+    //     })
+    //     .unzip();
 
-    Ok(nonce_values
-        .into_iter()
-        .map(|(nonce_key, nonce_value)| {
-            let nonce = Nonce(zksync_utils::h256_to_u32(nonce_value));
-            (address_by_nonce_key[&nonce_key], nonce)
-        })
-        .collect())
+    let mut result: HashMap<Address, Nonce> = HashMap::new();
+    for tx in transactions {
+        let address = tx.initiator_account();
+        let nonce_value = storage
+            .transactions_web3_dal()
+            .zkos_max_nonce_by_initiator_account(address)
+            .await
+            .context("failed getting nonce from storage")?;
+        let nonce = Nonce(nonce_value.as_u32());
+        result.insert(address, nonce);
+    }
+
+    Ok(result)
 }
 
 #[cfg(test)]

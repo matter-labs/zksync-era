@@ -99,6 +99,8 @@ impl EthNamespace {
         _block: Option<BlockNumber>,
         state_override: Option<StateOverride>,
     ) -> Result<U256, Web3Error> {
+        tracing::info!("eth_estimategas gas for {:?}", request);
+        return Ok(U256::from(u32::MAX));
         let mut request_with_gas_per_pubdata_overridden = request;
         self.state
             .set_nonce_for_call_request(&mut request_with_gas_per_pubdata_overridden)
@@ -446,44 +448,56 @@ impl EthNamespace {
         address: Address,
         block_id: Option<BlockId>,
     ) -> Result<U256, Web3Error> {
-        let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
-        self.current_method().set_block_id(block_id);
-
+        // let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        // self.current_method().set_block_id(block_id);
+        //
+        // let mut connection = self.state.acquire_connection().await?;
+        //
+        // let block_number = self.state.resolve_block(&mut connection, block_id).await?;
+        // self.set_block_diff(block_number);
+        // let full_nonce = connection
+        //     .storage_web3_dal()
+        //     .get_address_historical_nonce(address, block_number)
+        //     .await
+        //     .map_err(DalError::generalize)?;
+        //
+        // tracing::info!("full_nonce for {:?}: {:?}", address, full_nonce);
+        //
+        // // TODO (SMA-1612): currently account nonce is returning always, but later we will
+        // //  return account nonce for account abstraction and deployment nonce for non account abstraction.
+        // //  Strip off deployer nonce part.
+        // let (mut account_nonce, _) = decompose_full_nonce(full_nonce);
+        //
+        // if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+        //     let account_nonce_u64 = u64::try_from(account_nonce)
+        //         .map_err(|err| anyhow::anyhow!("nonce conversion failed: {err}"))?;
+        //     account_nonce = if let Some(account_nonce) = self
+        //         .state
+        //         .tx_sink()
+        //         .lookup_pending_nonce(address, account_nonce_u64 as u32)
+        //         .await?
+        //     {
+        //         account_nonce.0.into()
+        //     } else {
+        //         // No nonce hint in the sink: get pending nonces from the mempool
+        //         tracing::info!("using proper method");
+        //         connection
+        //             .transactions_web3_dal()
+        //             .next_nonce_by_initiator_account(address, account_nonce_u64)
+        //             .await
+        //             .map_err(DalError::generalize)?
+        //     };
+        // }
+        //
+        //
         let mut connection = self.state.acquire_connection().await?;
-
-        let block_number = self.state.resolve_block(&mut connection, block_id).await?;
-        self.set_block_diff(block_number);
-        let full_nonce = connection
-            .storage_web3_dal()
-            .get_address_historical_nonce(address, block_number)
+        let nonce = connection
+            .transactions_web3_dal()
+            .zkos_max_nonce_by_initiator_account(address)
             .await
             .map_err(DalError::generalize)?;
-
-        // TODO (SMA-1612): currently account nonce is returning always, but later we will
-        //  return account nonce for account abstraction and deployment nonce for non account abstraction.
-        //  Strip off deployer nonce part.
-        let (mut account_nonce, _) = decompose_full_nonce(full_nonce);
-
-        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
-            let account_nonce_u64 = u64::try_from(account_nonce)
-                .map_err(|err| anyhow::anyhow!("nonce conversion failed: {err}"))?;
-            account_nonce = if let Some(account_nonce) = self
-                .state
-                .tx_sink()
-                .lookup_pending_nonce(address, account_nonce_u64 as u32)
-                .await?
-            {
-                account_nonce.0.into()
-            } else {
-                // No nonce hint in the sink: get pending nonces from the mempool
-                connection
-                    .transactions_web3_dal()
-                    .next_nonce_by_initiator_account(address, account_nonce_u64)
-                    .await
-                    .map_err(DalError::generalize)?
-            };
-        }
-        Ok(account_nonce)
+        tracing::info!("account_nonce for {:?}: {:?}", address, nonce);
+        Ok((nonce + 1).into())
     }
 
     pub async fn get_transaction_impl(

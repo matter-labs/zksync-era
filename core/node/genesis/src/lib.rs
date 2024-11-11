@@ -206,28 +206,28 @@ pub async fn insert_genesis_batch(
     )
     .await?;
     tracing::info!("chain_schema_genesis is complete");
+    //
+    // let deduped_log_queries =
+    //     get_deduped_log_queries(&get_storage_logs(genesis_params.system_contracts()));
+    //
+    // let (deduplicated_writes, _): (Vec<_>, Vec<_>) = deduped_log_queries
+    //     .into_iter()
+    //     .partition(|log_query| log_query.rw_flag);
+    //
+    // let storage_logs: Vec<TreeInstruction> = deduplicated_writes
+    //     .iter()
+    //     .enumerate()
+    //     .map(|(index, log)| {
+    //         TreeInstruction::write(
+    //             StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key))
+    //                 .hashed_key_u256(),
+    //             (index + 1) as u64,
+    //             u256_to_h256(log.written_value),
+    //         )
+    //     })
+    //     .collect();
 
-    let deduped_log_queries =
-        get_deduped_log_queries(&get_storage_logs(genesis_params.system_contracts()));
-
-    let (deduplicated_writes, _): (Vec<_>, Vec<_>) = deduped_log_queries
-        .into_iter()
-        .partition(|log_query| log_query.rw_flag);
-
-    let storage_logs: Vec<TreeInstruction> = deduplicated_writes
-        .iter()
-        .enumerate()
-        .map(|(index, log)| {
-            TreeInstruction::write(
-                StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key))
-                    .hashed_key_u256(),
-                (index + 1) as u64,
-                u256_to_h256(log.written_value),
-            )
-        })
-        .collect();
-
-    let metadata = ZkSyncTree::process_genesis_batch(&storage_logs);
+    let metadata = ZkSyncTree::process_genesis_batch(&[]);
     let genesis_root_hash = metadata.root_hash;
     let rollup_last_leaf_index = metadata.leaf_count + 1;
 
@@ -318,6 +318,7 @@ pub async fn ensure_genesis_state(
 ) -> Result<H256, GenesisError> {
     let mut transaction = storage.start_transaction().await?;
 
+    //todo: it's like third check that genesis is needed
     if !transaction.blocks_dal().is_genesis_needed().await? {
         tracing::debug!("genesis is not needed!");
         return Ok(transaction
@@ -350,20 +351,20 @@ pub async fn ensure_genesis_state(
                 "expected_rollup_last_leaf_index",
             ))?;
 
-    if expected_root_hash != root_hash {
-        return Err(GenesisError::RootHash(expected_root_hash, root_hash));
-    }
-
-    if expected_commitment != commitment {
-        return Err(GenesisError::Commitment(expected_commitment, commitment));
-    }
-
-    if expected_rollup_last_leaf_index != rollup_last_leaf_index {
-        return Err(GenesisError::LeafIndexes(
-            expected_rollup_last_leaf_index,
-            rollup_last_leaf_index,
-        ));
-    }
+    // if expected_root_hash != root_hash {
+    //     return Err(GenesisError::RootHash(expected_root_hash, root_hash));
+    // }
+    //
+    // if expected_commitment != commitment {
+    //     return Err(GenesisError::Commitment(expected_commitment, commitment));
+    // }
+    //
+    // if expected_rollup_last_leaf_index != rollup_last_leaf_index {
+    //     return Err(GenesisError::LeafIndexes(
+    //         expected_rollup_last_leaf_index,
+    //         rollup_last_leaf_index,
+    //     ));
+    // }
 
     tracing::info!("genesis is complete");
     transaction.commit().await?;

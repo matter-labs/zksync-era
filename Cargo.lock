@@ -23,6 +23,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "adler"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
+
+[[package]]
 name = "adler2"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -185,6 +191,121 @@ name = "anyhow"
 version = "1.0.89"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "86fdf8605db99b54d3cd748a44c6d04df638eb5dafb219b135d0149bd0db01f6"
+
+[[package]]
+name = "ark-bn254"
+version = "0.4.0"
+source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+dependencies = [
+ "ark-ec",
+ "ark-ff",
+ "ark-std",
+]
+
+[[package]]
+name = "ark-ec"
+version = "0.4.2"
+source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+dependencies = [
+ "ahash 0.8.11",
+ "ark-ff",
+ "ark-poly",
+ "ark-serialize",
+ "ark-std",
+ "educe",
+ "fnv",
+ "hashbrown 0.14.5",
+ "itertools 0.13.0",
+ "num-bigint 0.4.6",
+ "num-integer",
+ "num-traits",
+ "zeroize",
+]
+
+[[package]]
+name = "ark-ff"
+version = "0.4.2"
+source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+dependencies = [
+ "ark-ff-asm",
+ "ark-ff-macros",
+ "ark-serialize",
+ "ark-std",
+ "arrayvec 0.7.6",
+ "digest 0.10.7",
+ "educe",
+ "itertools 0.13.0",
+ "num-bigint 0.4.6",
+ "num-traits",
+ "paste",
+ "zeroize",
+]
+
+[[package]]
+name = "ark-ff-asm"
+version = "0.4.2"
+source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+dependencies = [
+ "quote 1.0.37",
+ "syn 2.0.77",
+]
+
+[[package]]
+name = "ark-ff-macros"
+version = "0.4.2"
+source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+dependencies = [
+ "num-bigint 0.4.6",
+ "num-traits",
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "syn 2.0.77",
+]
+
+[[package]]
+name = "ark-poly"
+version = "0.4.2"
+source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+dependencies = [
+ "ahash 0.8.11",
+ "ark-ff",
+ "ark-serialize",
+ "ark-std",
+ "educe",
+ "fnv",
+ "hashbrown 0.14.5",
+]
+
+[[package]]
+name = "ark-serialize"
+version = "0.4.2"
+source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+dependencies = [
+ "ark-serialize-derive",
+ "ark-std",
+ "arrayvec 0.7.6",
+ "digest 0.10.7",
+ "num-bigint 0.4.6",
+]
+
+[[package]]
+name = "ark-serialize-derive"
+version = "0.4.2"
+source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+dependencies = [
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "syn 2.0.77",
+]
+
+[[package]]
+name = "ark-std"
+version = "0.4.0"
+source = "git+https://github.com/arkworks-rs/std/#9bd198f5efa116441da68035c7b54c55c49f68e1"
+dependencies = [
+ "num-traits",
+ "rand 0.8.5",
+]
 
 [[package]]
 name = "arr_macro"
@@ -698,6 +819,44 @@ dependencies = [
 ]
 
 [[package]]
+name = "basic_bootloader"
+version = "0.1.0"
+dependencies = [
+ "arrayvec 0.7.6",
+ "basic_system",
+ "crypto",
+ "either",
+ "evm_interpreter",
+ "hex",
+ "iwasm",
+ "iwasm_ee",
+ "ruint",
+ "seq-macro",
+ "zk_ee",
+]
+
+[[package]]
+name = "basic_system"
+version = "0.1.0"
+dependencies = [
+ "ark-bn254",
+ "ark-ec",
+ "ark-ff",
+ "ark-serialize",
+ "arrayvec 0.7.6",
+ "crypto",
+ "either",
+ "evm_interpreter",
+ "hex",
+ "iwasm",
+ "iwasm_ee",
+ "miniz_nostd_compression",
+ "ruint",
+ "storage_models",
+ "zk_ee",
+]
+
+[[package]]
 name = "beef"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -987,6 +1146,35 @@ dependencies = [
 [[package]]
 name = "boojum"
 version = "0.30.1"
+dependencies = [
+ "arrayvec 0.7.6",
+ "bincode",
+ "blake2 0.10.6",
+ "const_format",
+ "convert_case 0.6.0",
+ "crossbeam",
+ "crypto-bigint 0.5.5",
+ "derivative",
+ "ethereum-types",
+ "firestorm",
+ "itertools 0.10.5",
+ "lazy_static",
+ "num-modular",
+ "num_cpus",
+ "rand 0.8.5",
+ "rayon",
+ "serde",
+ "sha2 0.10.8",
+ "sha3_ce",
+ "smallvec",
+ "unroll",
+ "zksync_cs_derive 0.30.1",
+ "zksync_pairing 0.30.1",
+]
+
+[[package]]
+name = "boojum"
+version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68ec2f007ff8f90cc459f03e9f30ca1065440170f013c868823646e2e48d0234"
 dependencies = [
@@ -1011,8 +1199,8 @@ dependencies = [
  "sha3_ce",
  "smallvec",
  "unroll",
- "zksync_cs_derive",
- "zksync_pairing",
+ "zksync_cs_derive 0.30.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zksync_pairing 0.30.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1749,6 +1937,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 
 [[package]]
+name = "crypto"
+version = "0.1.0"
+dependencies = [
+ "blake2 0.10.6",
+ "k256 0.13.4",
+ "p256",
+ "sha2 0.10.8",
+ "sha3 0.10.8",
+]
+
+[[package]]
 name = "crypto-bigint"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2192,6 +2391,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "educe"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d7bc049e1bd8cdeb31b68bbd586a9464ecf9f3944af3958a7a9d0f8b9799417"
+dependencies = [
+ "enum-ordinalize",
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "syn 2.0.77",
+]
+
+[[package]]
 name = "either"
 version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2271,6 +2482,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b45de904aa0b010bce2ab45264d0631681847fa7b6f2eaa7dab7619943bc4f59"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "enum-ordinalize"
+version = "4.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fea0dcfa4e54eeb516fe454635a95753ddd39acda650ce703031c6973e315dd5"
+dependencies = [
+ "enum-ordinalize-derive",
+]
+
+[[package]]
+name = "enum-ordinalize-derive"
+version = "4.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d28318a75d4aead5c4db25382e8ef717932d0346600cacae6357eb5941bc5ff"
+dependencies = [
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "syn 2.0.77",
 ]
 
 [[package]]
@@ -2433,6 +2664,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "evm_interpreter"
+version = "0.1.0"
+dependencies = [
+ "arrayvec 0.7.6",
+ "crypto",
+ "either",
+ "ruint",
+ "zk_ee",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2552,6 +2794,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "forward_system"
+version = "0.1.0"
+dependencies = [
+ "arrayvec 0.7.6",
+ "basic_bootloader",
+ "basic_system",
+ "crypto",
+ "either",
+ "evm_interpreter",
+ "hex",
+ "ruint",
+ "seq-macro",
+ "zk_ee",
+]
+
+[[package]]
 name = "fraction"
 version = "0.15.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2587,15 +2845,13 @@ dependencies = [
 [[package]]
 name = "franklin-crypto"
 version = "0.30.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "971289216ea5c91872e5e0bb6989214b537bbce375d09fabea5c3ccfe031b204"
 dependencies = [
  "arr_macro",
  "bit-vec",
  "blake2 0.9.2",
  "blake2-rfc_bellman_edition",
  "blake2s_simd",
- "boojum",
+ "boojum 0.30.1",
  "byteorder",
  "derivative",
  "digest 0.9.0",
@@ -2604,7 +2860,7 @@ dependencies = [
  "itertools 0.10.5",
  "lazy_static",
  "num-bigint 0.4.6",
- "num-derive",
+ "num-derive 0.2.5",
  "num-integer",
  "num-traits",
  "rand 0.4.6",
@@ -3206,6 +3462,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "host_specification"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/iwasm.git#1e25bbaaf6d9118cabcd74f6b820ed20b7d91920"
+dependencies = [
+ "num-derive 0.4.2",
+ "num-traits",
+]
+
+[[package]]
 name = "hostname"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3674,6 +3939,26 @@ name = "itoa"
 version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
+
+[[package]]
+name = "iwasm"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/iwasm.git#1e25bbaaf6d9118cabcd74f6b820ed20b7d91920"
+dependencies = [
+ "arrayvec 0.7.6",
+]
+
+[[package]]
+name = "iwasm_ee"
+version = "0.1.0"
+dependencies = [
+ "arrayvec 0.7.6",
+ "crypto",
+ "host_specification",
+ "iwasm",
+ "ruint",
+ "zk_ee",
+]
 
 [[package]]
 name = "jni"
@@ -4461,6 +4746,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
 
 [[package]]
+name = "miniz_nostd_compression"
+version = "0.1.0"
+dependencies = [
+ "adler",
+]
+
+[[package]]
 name = "miniz_oxide"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4670,6 +4962,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "num-derive"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed3955f1a9c7c0c15e092f9c887db08b1fc683305fdf6eb6684f22555355e202"
+dependencies = [
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "syn 2.0.77",
+]
+
+[[package]]
 name = "num-integer"
 version = "0.1.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4767,7 +5070,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate 3.2.0",
+ "proc-macro-crate 1.3.1",
  "proc-macro2 1.0.86",
  "quote 1.0.37",
  "syn 2.0.77",
@@ -5484,7 +5787,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22505a5c94da8e3b7c2996394d1c933236c4d743e81a410bcca4e6989fc066a4"
 dependencies = [
  "bytes",
- "heck 0.5.0",
+ "heck 0.4.1",
  "itertools 0.12.1",
  "log",
  "multimap",
@@ -5518,7 +5821,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e9552f850d5f0964a4e4d0bf306459ac29323ddfbae05e35a7c0d35cb0803cc5"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools 0.10.5",
  "proc-macro2 1.0.86",
  "quote 1.0.37",
  "syn 2.0.77",
@@ -6077,6 +6380,21 @@ dependencies = [
  "subtle",
  "zeroize",
 ]
+
+[[package]]
+name = "ruint"
+version = "1.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f308135fef9fc398342da5472ce7c484529df23743fb7c734e0f3d472971e62"
+dependencies = [
+ "ruint-macro",
+]
+
+[[package]]
+name = "ruint-macro"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
 
 [[package]]
 name = "rust_decimal"
@@ -7513,6 +7831,16 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "storage_models"
+version = "0.1.0"
+dependencies = [
+ "arrayvec 0.7.6",
+ "either",
+ "ruint",
+ "zk_ee",
+]
 
 [[package]]
 name = "string_cache"
@@ -9275,6 +9603,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "zk_ee"
+version = "0.1.0"
+dependencies = [
+ "arrayvec 0.7.6",
+ "bitflags 2.6.0",
+ "cfg-if",
+ "crypto",
+ "derivative",
+ "ruint",
+]
+
+[[package]]
 name = "zk_evm"
 version = "0.131.0-rc.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9402,7 +9742,7 @@ checksum = "e3c365c801e0c6eda83fbd153df45575172beb406bfb663d386f9154b4325eda"
 dependencies = [
  "arrayvec 0.7.6",
  "bincode",
- "boojum",
+ "boojum 0.30.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "derivative",
  "hex",
  "itertools 0.10.5",
@@ -9413,7 +9753,7 @@ dependencies = [
  "serde_json",
  "smallvec",
  "zkevm_opcode_defs 0.132.0",
- "zksync_cs_derive",
+ "zksync_cs_derive 0.30.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -9424,7 +9764,7 @@ checksum = "2ccd0352e122a4e6f0046d2163b7e692e627b23fc3264faa77331a21b65833fd"
 dependencies = [
  "arrayvec 0.7.6",
  "bincode",
- "boojum",
+ "boojum 0.30.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "derivative",
  "hex",
  "itertools 0.10.5",
@@ -9435,7 +9775,7 @@ dependencies = [
  "serde_json",
  "smallvec",
  "zkevm_opcode_defs 0.141.0",
- "zksync_cs_derive",
+ "zksync_cs_derive 0.30.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -9445,7 +9785,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "784fa7cfb51e17c5ced112bca43da30b3468b2347b7af0427ad9638759fb140e"
 dependencies = [
  "arrayvec 0.7.6",
- "boojum",
+ "boojum 0.30.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "derivative",
  "hex",
  "itertools 0.10.5",
@@ -9455,7 +9795,7 @@ dependencies = [
  "serde",
  "smallvec",
  "zkevm_opcode_defs 0.150.5",
- "zksync_cs_derive",
+ "zksync_cs_derive 0.30.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -9563,8 +9903,6 @@ dependencies = [
 [[package]]
 name = "zksync_bellman"
 version = "0.30.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ffa03efe9bdb137a4b36b97d1a74237e18c9ae42b755163d903a9d48c1a5d80"
 dependencies = [
  "arrayvec 0.7.6",
  "bit-vec",
@@ -9580,7 +9918,7 @@ dependencies = [
  "serde",
  "smallvec",
  "tiny-keccak 1.5.0",
- "zksync_pairing",
+ "zksync_pairing 0.30.1",
 ]
 
 [[package]]
@@ -9986,6 +10324,16 @@ dependencies = [
 [[package]]
 name = "zksync_cs_derive"
 version = "0.30.1"
+dependencies = [
+ "proc-macro-error",
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "zksync_cs_derive"
+version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5939e2df4288c263c706ff18ac718e984149223ad4289d6d957d767dcfc04c81"
 dependencies = [
@@ -10298,6 +10646,17 @@ dependencies = [
 [[package]]
 name = "zksync_ff"
 version = "0.30.1"
+dependencies = [
+ "byteorder",
+ "hex",
+ "rand 0.4.6",
+ "serde",
+ "zksync_ff_derive 0.30.1",
+]
+
+[[package]]
+name = "zksync_ff"
+version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9524b06780b5e164e84b38840c7c428c739f051f35af6efc4d1285f629ceb88e"
 dependencies = [
@@ -10305,7 +10664,20 @@ dependencies = [
  "hex",
  "rand 0.4.6",
  "serde",
- "zksync_ff_derive",
+ "zksync_ff_derive 0.30.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "zksync_ff_derive"
+version = "0.30.1"
+dependencies = [
+ "num-bigint 0.4.6",
+ "num-integer",
+ "num-traits",
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "serde",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -10359,7 +10731,7 @@ version = "0.150.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edb8a9c76c172a6d639855ee342b9a670e3ba472f5ae302f771b1c3ee777dc88"
 dependencies = [
- "boojum",
+ "boojum 0.30.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "derivative",
  "hex",
  "once_cell",
@@ -10717,6 +11089,7 @@ dependencies = [
  "zksync_vm_executor",
  "zksync_vm_runner",
  "zksync_web3_decl",
+ "zksync_zkos_state_keeper",
 ]
 
 [[package]]
@@ -10847,6 +11220,17 @@ dependencies = [
 [[package]]
 name = "zksync_pairing"
 version = "0.30.1"
+dependencies = [
+ "byteorder",
+ "cfg-if",
+ "rand 0.4.6",
+ "serde",
+ "zksync_ff 0.30.1",
+]
+
+[[package]]
+name = "zksync_pairing"
+version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8412ae5574472fa567a097e183f9a01974b99dd0b5da3bfa1bbe6c57c579aa2"
 dependencies = [
@@ -10854,7 +11238,7 @@ dependencies = [
  "cfg-if",
  "rand 0.4.6",
  "serde",
- "zksync_ff",
+ "zksync_ff 0.30.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -11432,6 +11816,26 @@ dependencies = [
  "vise",
  "zksync_config",
  "zksync_types",
+]
+
+[[package]]
+name = "zksync_zkos_state_keeper"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "basic_system",
+ "forward_system",
+ "ruint",
+ "tokio",
+ "tracing",
+ "zk_ee",
+ "zksync_dal",
+ "zksync_mempool",
+ "zksync_state",
+ "zksync_state_keeper",
+ "zksync_storage",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]

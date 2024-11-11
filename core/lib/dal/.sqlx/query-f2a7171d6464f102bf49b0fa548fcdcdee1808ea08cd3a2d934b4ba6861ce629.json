@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE transactions\n            SET\n                l1_batch_number = $2,\n                l1_batch_tx_index = 0,\n                miniblock_number = $2,\n                updated_at = NOW()\n\n            WHERE\n                transactions.hash = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f2a7171d6464f102bf49b0fa548fcdcdee1808ea08cd3a2d934b4ba6861ce629"
+}
