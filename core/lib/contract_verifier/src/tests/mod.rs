@@ -157,7 +157,7 @@ async fn mock_evm_deployment(
     calldata.extend_from_slice(&ethabi::encode(constructor_args));
     let deployment = Execute {
         contract_address: None,
-        calldata, // FIXME: check
+        calldata,
         value: 0.into(),
         factory_deps: vec![],
     };

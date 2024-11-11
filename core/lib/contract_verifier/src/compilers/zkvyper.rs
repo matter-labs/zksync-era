@@ -1,4 +1,4 @@
-use std::{ffi::OsString, path::Path, process::Stdio};
+use std::{ffi::OsString, path, path::Path, process::Stdio};
 
 use anyhow::Context as _;
 use tokio::{fs, io::AsyncWriteExt};
@@ -20,9 +20,21 @@ impl VyperInput {
                 name += ".vy";
             }
 
-            let path = root_dir.join(&name);
+            let name_path = Path::new(&name);
+            anyhow::ensure!(
+                !name_path.is_absolute(),
+                "absolute contract filename: {name}"
+            );
+            let normal_components = name_path
+                .components()
+                .all(|component| matches!(component, path::Component::Normal(_)));
+            anyhow::ensure!(
+                normal_components,
+                "contract filename contains disallowed components: {name}"
+            );
+
+            let path = root_dir.join(name_path);
             if let Some(prefix) = path.parent() {
-                // FIXME: needs to be sanitized (e.g., absolute /name, ../../../etc/shadow)
                 fs::create_dir_all(prefix)
                     .await
                     .with_context(|| format!("failed creating parent dir for `{name}`"))?;
@@ -118,5 +130,38 @@ impl Compiler<VyperInput> for ZkVyper {
                 String::from_utf8_lossy(&output.stderr).to_string(),
             ))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn sanitizing_contract_paths() {
+        let mut input = VyperInput {
+            contract_name: "Test".to_owned(),
+            file_name: "test.vy".to_owned(),
+            sources: HashMap::from([("/etc/shadow".to_owned(), String::new())]),
+            optimizer_mode: None,
+        };
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let err = input
+            .write_files(temp_dir.path())
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("absolute"), "{err}");
+
+        input.sources = HashMap::from([("../../../etc/shadow".to_owned(), String::new())]);
+        let err = input
+            .write_files(temp_dir.path())
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("disallowed components"), "{err}");
     }
 }
