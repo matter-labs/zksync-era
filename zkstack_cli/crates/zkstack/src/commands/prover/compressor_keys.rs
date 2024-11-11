@@ -1,6 +1,6 @@
 use anyhow::Context;
 use common::spinner::Spinner;
-use config::{get_link_to_prover, EcosystemConfig, GeneralConfig};
+use config::{get_link_to_prover, zkstack_config::ZkStackConfig, EcosystemConfig, GeneralConfig};
 use xshell::Shell;
 
 use super::args::compressor_keys::CompressorKeysArgs;
@@ -10,7 +10,7 @@ use crate::messages::{
 };
 
 pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;

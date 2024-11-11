@@ -56,7 +56,7 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         DevCommands::Clean(command) => commands::clean::run(shell, command)?,
         DevCommands::Snapshot(command) => commands::snapshot::run(shell, command).await?,
         DevCommands::Lint(args) => commands::lint::run(shell, args)?,
-        DevCommands::Fmt(args) => commands::fmt::run(shell.clone(), args).await?,
+        DevCommands::Fmt(args) => commands::fmt::run(shell, args).await?,
         DevCommands::Prover(command) => commands::prover::run(shell, command).await?,
         DevCommands::Contracts(args) => commands::contracts::run(shell, args)?,
         DevCommands::ConfigWriter(args) => commands::config_writer::run(shell, args)?,

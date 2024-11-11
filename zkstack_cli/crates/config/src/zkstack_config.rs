@@ -27,11 +27,9 @@ impl ZkStackConfig {
     }
 
     pub fn ecosystem(shell: &Shell) -> anyhow::Result<EcosystemConfig> {
-        match ZkStackConfig::from_file(shell)? {
-            ZkStackConfig::EcosystemConfig(ecosystem) => Ok(ecosystem),
-            ZkStackConfig::ChainConfig(_) => {
-                bail!("Expected Ecosystem configuration, but found Chain configuration. Please run this command in an Ecosystem directory.")
-            }
+        match EcosystemConfig::from_file(shell) {
+            Ok(ecosystem) => Ok(ecosystem),
+            Err(e) => bail!(e),
         }
     }
 }

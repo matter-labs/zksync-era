@@ -3,8 +3,8 @@ use std::cell::OnceCell;
 use anyhow::Context;
 use common::{logger, spinner::Spinner};
 use config::{
-    create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
-    EcosystemConfig,
+    create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath,
+    zkstack_config::ZkStackConfig, ChainConfig, EcosystemConfig,
 };
 use xshell::Shell;
 use zksync_basic_types::L2ChainId;
@@ -18,7 +18,7 @@ use crate::{
 };
 
 pub fn run(args: ChainCreateArgs, shell: &Shell) -> anyhow::Result<()> {
-    let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let mut ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     create(args, &mut ecosystem_config, shell)
 }
 

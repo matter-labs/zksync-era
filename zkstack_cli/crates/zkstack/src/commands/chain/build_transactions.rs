@@ -1,7 +1,8 @@
 use anyhow::Context;
 use common::{git, logger, spinner::Spinner};
 use config::{
-    copy_configs, traits::SaveConfigWithBasePath, update_from_chain_config, EcosystemConfig,
+    copy_configs, traits::SaveConfigWithBasePath, update_from_chain_config,
+    zkstack_config::ZkStackConfig,
 };
 use ethers::utils::hex::ToHex;
 use xshell::Shell;
@@ -27,7 +28,7 @@ const SCRIPT_CONFIG_FILE_SRC: &str =
 const SCRIPT_CONFIG_FILE_DST: &str = "register-hyperchain.toml";
 
 pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<()> {
-    let config = EcosystemConfig::from_file(shell)?;
+    let config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;

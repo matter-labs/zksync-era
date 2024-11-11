@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use common::{cmd::Cmd, logger, spinner::Spinner};
-use config::EcosystemConfig;
+use config::zkstack_config::ZkStackConfig;
 use xshell::{cmd, Shell};
 
 use super::args::DatabaseCommonArgs;
@@ -21,7 +21,7 @@ pub fn run(shell: &Shell, args: DatabaseCommonArgs) -> anyhow::Result<()> {
     }
 
     logger::info(msg_database_info(MSG_DATABASE_MIGRATE_GERUND));
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     let dals = get_dals(shell, &args.selected_dals, &args.urls)?;
     for dal in dals {

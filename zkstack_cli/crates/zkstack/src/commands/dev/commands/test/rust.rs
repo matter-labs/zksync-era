@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use common::{cmd::Cmd, logger};
-use config::EcosystemConfig;
+use config::zkstack_config::ZkStackConfig;
 use url::Url;
 use xshell::{cmd, Shell};
 
@@ -18,7 +18,7 @@ use crate::commands::dev::{
 };
 
 pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
-    let ecosystem = EcosystemConfig::from_file(shell)?;
+    let ecosystem = ZkStackConfig::ecosystem(shell)?;
     let chain = ecosystem
         .clone()
         .load_chain(Some(ecosystem.default_chain))

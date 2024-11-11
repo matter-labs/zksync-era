@@ -2,7 +2,7 @@ use anyhow::Context;
 use common::logger;
 use config::{
     copy_configs, set_l1_rpc_url, traits::SaveConfigWithBasePath, update_from_chain_config,
-    ChainConfig, ContractsConfig, EcosystemConfig,
+    zkstack_config::ZkStackConfig, ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use ethers::types::Address;
 use xshell::Shell;
@@ -26,7 +26,7 @@ use crate::{
 };
 
 pub async fn run(args: InitConfigsArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;

@@ -1,6 +1,6 @@
 use anyhow::Context;
 use common::{git, logger, spinner::Spinner};
-use config::{traits::SaveConfigWithBasePath, EcosystemConfig};
+use config::{traits::SaveConfigWithBasePath, zkstack_config::ZkStackConfig};
 use xshell::Shell;
 
 use super::{
@@ -24,7 +24,7 @@ const SCRIPT_CONFIG_FILE_DST: &str = "config-deploy-l1.toml";
 
 pub async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
 

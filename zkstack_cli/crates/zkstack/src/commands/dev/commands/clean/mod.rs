@@ -1,7 +1,7 @@
 use anyhow::Context;
 use clap::Subcommand;
 use common::{docker, logger};
-use config::{EcosystemConfig, DOCKER_COMPOSE_FILE};
+use config::{zkstack_config::ZkStackConfig, EcosystemConfig, DOCKER_COMPOSE_FILE};
 use xshell::Shell;
 
 use crate::commands::dev::messages::{
@@ -19,7 +19,7 @@ pub enum CleanCommands {
 }
 
 pub fn run(shell: &Shell, args: CleanCommands) -> anyhow::Result<()> {
-    let ecosystem = EcosystemConfig::from_file(shell)?;
+    let ecosystem = ZkStackConfig::ecosystem(shell)?;
     match args {
         CleanCommands::All => {
             containers(shell)?;

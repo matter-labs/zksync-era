@@ -1,7 +1,9 @@
 use anyhow::Context;
 use clap::{command, Parser, Subcommand};
 use common::{git, logger, spinner::Spinner};
-use config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
+use config::{
+    traits::SaveConfigWithBasePath, zkstack_config::ZkStackConfig, ChainConfig, EcosystemConfig,
+};
 use types::BaseToken;
 use xshell::Shell;
 
@@ -54,7 +56,7 @@ pub(crate) async fn run(args: ChainInitCommand, shell: &Shell) -> anyhow::Result
 }
 
 async fn run_init(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
-    let config = EcosystemConfig::from_file(shell)?;
+    let config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;

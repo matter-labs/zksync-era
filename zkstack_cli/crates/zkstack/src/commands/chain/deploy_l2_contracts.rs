@@ -18,6 +18,7 @@ use config::{
         script_params::DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    zkstack_config::ZkStackConfig,
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use xshell::Shell;
@@ -43,7 +44,7 @@ pub async fn run(
     shell: &Shell,
     deploy_option: Deploy2ContractsOption,
 ) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;

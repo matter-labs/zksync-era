@@ -7,7 +7,7 @@ use std::{
 use anyhow::{bail, Context};
 use clap::Parser;
 use common::{cmd::Cmd, logger, spinner::Spinner};
-use config::EcosystemConfig;
+use config::{zkstack_config::ZkStackConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
 
 use crate::commands::{
@@ -49,7 +49,7 @@ pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
 
     logger::info(msg_running_linters_for_files(&targets));
 
-    let ecosystem = EcosystemConfig::from_file(shell)?;
+    let ecosystem = ZkStackConfig::ecosystem(shell)?;
 
     for target in targets {
         match target {

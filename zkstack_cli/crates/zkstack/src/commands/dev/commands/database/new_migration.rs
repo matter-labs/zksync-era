@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use common::{cmd::Cmd, logger, spinner::Spinner};
-use config::EcosystemConfig;
+use config::zkstack_config::ZkStackConfig;
 use xshell::{cmd, Shell};
 
 use super::args::new_migration::{DatabaseNewMigrationArgs, SelectedDatabase};
@@ -17,7 +17,7 @@ pub fn run(shell: &Shell, args: DatabaseNewMigrationArgs) -> anyhow::Result<()> 
         SelectedDatabase::Core => get_core_dal(shell, None)?,
         SelectedDatabase::Prover => get_prover_dal(shell, None)?,
     };
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     generate_migration(shell, ecosystem_config.link_to_code, dal, args.name)?;
 

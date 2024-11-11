@@ -4,7 +4,8 @@ use config::{
     explorer::{ExplorerChainConfig, ExplorerConfig},
     explorer_compose::{ExplorerBackendComposeConfig, ExplorerBackendConfig, ExplorerBackendPorts},
     traits::{ConfigWithL2RpcUrl, SaveConfig},
-    ChainConfig, EcosystemConfig,
+    zkstack_config::ZkStackConfig,
+    ChainConfig,
 };
 use slugify_rs::slugify;
 use url::Url;
@@ -22,7 +23,7 @@ use crate::{
 };
 
 pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     // If specific chain is provided, initialize only that chain; otherwise, initialize all chains
     let chains_enabled = match global_config().chain_name {
         Some(ref chain_name) => vec![chain_name.clone()],
