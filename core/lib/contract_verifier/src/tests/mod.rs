@@ -461,8 +461,30 @@ async fn assert_request_success(
         .unwrap()
         .expect("no verification info");
     assert_eq!(verification_info.artifacts.bytecode, *expected_bytecode);
-    assert_eq!(verification_info.artifacts.abi, counter_contract_abi());
+    assert_eq!(
+        without_internal_types(verification_info.artifacts.abi.clone()),
+        without_internal_types(counter_contract_abi())
+    );
     verification_info
+}
+
+fn without_internal_types(mut abi: serde_json::Value) -> serde_json::Value {
+    let items = abi.as_array_mut().unwrap();
+    for item in items {
+        if let Some(inputs) = item.get_mut("inputs") {
+            let inputs = inputs.as_array_mut().unwrap();
+            for input in inputs {
+                input.as_object_mut().unwrap().remove("internalType");
+            }
+        }
+        if let Some(outputs) = item.get_mut("outputs") {
+            let outputs = outputs.as_array_mut().unwrap();
+            for output in outputs {
+                output.as_object_mut().unwrap().remove("internalType");
+            }
+        }
+    }
+    abi
 }
 
 #[test_casing(2, TestContract::ALL)]

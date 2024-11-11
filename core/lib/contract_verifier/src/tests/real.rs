@@ -8,6 +8,16 @@ use zksync_utils::bytecode::validate_bytecode;
 
 use super::*;
 
+#[derive(Debug, Clone, Copy)]
+enum Toolchain {
+    Solidity,
+    Vyper,
+}
+
+impl Toolchain {
+    const ALL: [Self; 2] = [Self::Solidity, Self::Vyper];
+}
+
 #[derive(Debug, Clone)]
 struct TestCompilerVersions {
     solc: String,
@@ -97,18 +107,23 @@ macro_rules! real_resolver {
     };
 }
 
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn using_real_zksolc() {
+async fn using_real_zksolc(specify_contract_file: bool) {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
     let compiler = compiler_resolver
         .resolve_zksolc(&supported_compilers.clone().zksolc())
         .await
         .unwrap();
-    let req = VerificationIncomingRequest {
+    let mut req = VerificationIncomingRequest {
         compiler_versions: supported_compilers.solc_for_api(BytecodeMarker::EraVm),
         ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
     };
+    if specify_contract_file {
+        set_multi_file_solc_input(&mut req);
+    }
+
     let input = ZkSolc::build_input(req).unwrap();
     let output = compiler.compile(input).await.unwrap();
 
@@ -116,19 +131,43 @@ async fn using_real_zksolc() {
     assert_eq!(output.abi, counter_contract_abi());
 }
 
+fn set_multi_file_solc_input(req: &mut VerificationIncomingRequest) {
+    let input = serde_json::json!({
+        "language": "Solidity",
+        "sources": {
+            "contracts/test.sol": {
+                "content": COUNTER_CONTRACT,
+            },
+        },
+        "settings": {
+            "optimizer": { "enabled": true },
+        },
+    });
+    let serde_json::Value::Object(input) = input else {
+        unreachable!();
+    };
+    req.source_code_data = SourceCodeData::StandardJsonInput(input);
+    req.contract_name = "contracts/test.sol:Counter".to_owned();
+}
+
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn using_standalone_solc() {
+async fn using_standalone_solc(specify_contract_file: bool) {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
     let version = &supported_compilers.solc;
     let compiler = compiler_resolver.resolve_solc(version).await.unwrap();
-    let req = VerificationIncomingRequest {
+    let mut req = VerificationIncomingRequest {
         compiler_versions: CompilerVersions::Solc {
             compiler_solc_version: version.clone(),
             compiler_zksolc_version: None,
         },
         ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
     };
+    if specify_contract_file {
+        set_multi_file_solc_input(&mut req);
+    }
+
     let input = Solc::build_input(req).unwrap();
     let output = compiler.compile(input).await.unwrap();
 
@@ -136,22 +175,32 @@ async fn using_standalone_solc() {
     assert_eq!(output.abi, counter_contract_abi());
 }
 
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn using_real_zkvyper() {
+async fn using_real_zkvyper(specify_contract_file: bool) {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
     let compiler = compiler_resolver
         .resolve_zkvyper(&supported_compilers.clone().zkvyper())
         .await
         .unwrap();
-    let req = VerificationIncomingRequest {
+    let filename = if specify_contract_file {
+        "contracts/Counter.vy"
+    } else {
+        "Counter"
+    };
+    let mut req = VerificationIncomingRequest {
         compiler_versions: supported_compilers.vyper_for_api(BytecodeMarker::EraVm),
         source_code_data: SourceCodeData::VyperMultiFile(HashMap::from([(
-            "Counter".to_owned(),
+            filename.to_owned(),
             COUNTER_VYPER_CONTRACT.to_owned(),
         )])),
         ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
     };
+    if specify_contract_file {
+        req.contract_name = "contracts/Counter.vy:Counter".to_owned();
+    }
+
     let input = VyperInput::new(req).unwrap();
     let output = compiler.compile(input).await.unwrap();
 
@@ -159,23 +208,33 @@ async fn using_real_zkvyper() {
     assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
 }
 
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn using_standalone_vyper() {
+async fn using_standalone_vyper(specify_contract_file: bool) {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
     let version = &supported_compilers.vyper;
     let compiler = compiler_resolver.resolve_vyper(version).await.unwrap();
-    let req = VerificationIncomingRequest {
+    let filename = if specify_contract_file {
+        "contracts/Counter.vy"
+    } else {
+        "Counter.vy"
+    };
+    let mut req = VerificationIncomingRequest {
         compiler_versions: CompilerVersions::Vyper {
             compiler_vyper_version: version.clone(),
             compiler_zkvyper_version: None,
         },
         source_code_data: SourceCodeData::VyperMultiFile(HashMap::from([(
-            "Counter.vy".to_owned(),
+            filename.to_owned(),
             COUNTER_VYPER_CONTRACT.to_owned(),
         )])),
         ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
     };
+    if specify_contract_file {
+        req.contract_name = "contracts/Counter.vy:Counter".to_owned();
+    }
+
     let input = VyperInput::new(req).unwrap();
     let output = compiler.compile(input).await.unwrap();
 
@@ -183,37 +242,28 @@ async fn using_standalone_vyper() {
     assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
 }
 
-fn without_internal_types(mut abi: serde_json::Value) -> serde_json::Value {
-    let items = abi.as_array_mut().unwrap();
-    for item in items {
-        if let Some(inputs) = item.get_mut("inputs") {
-            let inputs = inputs.as_array_mut().unwrap();
-            for input in inputs {
-                input.as_object_mut().unwrap().remove("internalType");
-            }
-        }
-        if let Some(outputs) = item.get_mut("outputs") {
-            let outputs = outputs.as_array_mut().unwrap();
-            for output in outputs {
-                output.as_object_mut().unwrap().remove("internalType");
-            }
-        }
-    }
-    abi
-}
-
-#[test_casing(2, BYTECODE_KINDS)]
+#[test_casing(4, Product((BYTECODE_KINDS, Toolchain::ALL)))]
 #[tokio::test]
-async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker) {
+async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker, toolchain: Toolchain) {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
-    let req = VerificationIncomingRequest {
-        compiler_versions: supported_compilers.clone().solc_for_api(bytecode_kind),
-        ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
+    let req = match toolchain {
+        Toolchain::Solidity => VerificationIncomingRequest {
+            compiler_versions: supported_compilers.clone().solc_for_api(bytecode_kind),
+            ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
+        },
+        Toolchain::Vyper => VerificationIncomingRequest {
+            compiler_versions: supported_compilers.clone().vyper_for_api(bytecode_kind),
+            source_code_data: SourceCodeData::VyperMultiFile(HashMap::from([(
+                "Counter.vy".to_owned(),
+                COUNTER_VYPER_CONTRACT.to_owned(),
+            )])),
+            ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
+        },
     };
     let address = Address::repeat_byte(1);
-    let output = match bytecode_kind {
-        BytecodeMarker::EraVm => {
+    let output = match (bytecode_kind, toolchain) {
+        (BytecodeMarker::EraVm, Toolchain::Solidity) => {
             let compiler = compiler_resolver
                 .resolve_zksolc(&supported_compilers.zksolc())
                 .await
@@ -221,10 +271,24 @@ async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker) {
             let input = ZkSolc::build_input(req.clone()).unwrap();
             compiler.compile(input).await.unwrap()
         }
-        BytecodeMarker::Evm => {
+        (BytecodeMarker::Evm, Toolchain::Solidity) => {
             let solc_version = &supported_compilers.solc;
             let compiler = compiler_resolver.resolve_solc(solc_version).await.unwrap();
             let input = Solc::build_input(req.clone()).unwrap();
+            compiler.compile(input).await.unwrap()
+        }
+        (_, Toolchain::Vyper) => {
+            let compiler = match bytecode_kind {
+                BytecodeMarker::EraVm => compiler_resolver
+                    .resolve_zkvyper(&supported_compilers.zkvyper())
+                    .await
+                    .unwrap(),
+                BytecodeMarker::Evm => compiler_resolver
+                    .resolve_vyper(&supported_compilers.vyper)
+                    .await
+                    .unwrap(),
+            };
+            let input = VyperInput::new(req.clone()).unwrap();
             compiler.compile(input).await.unwrap()
         }
     };
@@ -322,3 +386,5 @@ async fn compilation_errors(bytecode_kind: BytecodeMarker) {
         .any(|err| err.contains("ParserError") && err.contains("Counter.sol"));
     assert!(has_parser_error, "{compilation_errors:?}");
 }
+
+// FIXME: test Yul; test abstract contract error

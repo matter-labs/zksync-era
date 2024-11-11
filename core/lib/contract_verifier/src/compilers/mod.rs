@@ -22,6 +22,7 @@ mod zkvyper;
 pub(crate) struct StandardJson {
     pub language: String,
     pub sources: HashMap<String, Source>,
+    #[serde(default)]
     settings: Settings,
 }
 
@@ -33,6 +34,15 @@ struct Settings {
     /// Other settings (only filled when parsing `StandardJson` input from the request).
     #[serde(flatten)]
     other: serde_json::Value,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            output_selection: None,
+            other: serde_json::json!({}),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
