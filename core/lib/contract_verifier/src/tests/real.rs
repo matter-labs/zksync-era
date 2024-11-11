@@ -4,6 +4,7 @@
 
 use std::{env, sync::Arc, time::Duration};
 
+use assert_matches::assert_matches;
 use zksync_utils::bytecode::validate_bytecode;
 
 use super::*;
@@ -173,6 +174,61 @@ async fn using_standalone_solc(specify_contract_file: bool) {
 
     assert!(output.deployed_bytecode.is_some());
     assert_eq!(output.abi, counter_contract_abi());
+}
+
+#[test_casing(2, [false, true])]
+#[tokio::test]
+async fn using_zksolc_with_abstract_contract(specify_contract_file: bool) {
+    let (compiler_resolver, supported_compilers) = real_resolver!();
+
+    let compiler = compiler_resolver
+        .resolve_zksolc(&supported_compilers.clone().zksolc())
+        .await
+        .unwrap();
+    let (source_code_data, contract_name) = if specify_contract_file {
+        let input = serde_json::json!({
+            "language": "Solidity",
+            "sources": {
+                "contracts/test.sol": {
+                    "content": COUNTER_CONTRACT_WITH_INTERFACE,
+                },
+            },
+            "settings": {
+                "optimizer": { "enabled": true },
+            },
+        });
+        let serde_json::Value::Object(input) = input else {
+            unreachable!();
+        };
+        (
+            SourceCodeData::StandardJsonInput(input),
+            "contracts/test.sol:ICounter",
+        )
+    } else {
+        (
+            SourceCodeData::SolSingleFile(COUNTER_CONTRACT_WITH_INTERFACE.to_owned()),
+            "ICounter",
+        )
+    };
+
+    let req = VerificationIncomingRequest {
+        contract_address: Address::repeat_byte(1),
+        compiler_versions: supported_compilers.solc_for_api(BytecodeMarker::EraVm),
+        optimization_used: true,
+        optimizer_mode: None,
+        constructor_arguments: Default::default(),
+        is_system: false,
+        source_code_data,
+        contract_name: contract_name.to_owned(),
+        force_evmla: false,
+    };
+
+    let input = ZkSolc::build_input(req).unwrap();
+    let err = compiler.compile(input).await.unwrap_err();
+    assert_matches!(
+        err,
+        ContractVerifierError::AbstractContract(name) if name == "ICounter"
+    );
 }
 
 fn test_yul_request(compiler_versions: CompilerVersions) -> VerificationIncomingRequest {
@@ -433,5 +489,3 @@ async fn compilation_errors(bytecode_kind: BytecodeMarker) {
         .any(|err| err.contains("ParserError") && err.contains("Counter.sol"));
     assert!(has_parser_error, "{compilation_errors:?}");
 }
-
-// FIXME: test abstract contract error

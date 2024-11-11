@@ -55,6 +55,19 @@ const COUNTER_CONTRACT_WITH_CONSTRUCTOR: &str = r#"
         }
     }
 "#;
+const COUNTER_CONTRACT_WITH_INTERFACE: &str = r#"
+    interface ICounter {
+        function increment(uint256 x) external;
+    }
+
+    contract Counter is ICounter {
+        uint256 value;
+
+        function increment(uint256 x) external override {
+            value += x;
+        }
+    }
+"#;
 const COUNTER_VYPER_CONTRACT: &str = r#"
 #pragma version ^0.3.10
 

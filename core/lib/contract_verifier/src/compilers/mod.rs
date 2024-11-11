@@ -94,23 +94,23 @@ fn parse_standard_json_output(
         return Err(ContractVerifierError::MissingContract(contract_name));
     };
 
-    let Some(bytecode_str) = contract
-        .pointer("/evm/bytecode/object")
-        .context("missing bytecode in solc / zksolc output")?
-        .as_str()
-    else {
+    let Some(bytecode_str) = contract.pointer("/evm/bytecode/object") else {
         return Err(ContractVerifierError::AbstractContract(contract_name));
     };
+    let bytecode_str = bytecode_str
+        .as_str()
+        .context("unexpected `/evm/bytecode/object` value")?;
     // Strip an optional `0x` prefix (output by `vyper`, but not by `solc` / `zksolc`)
     let bytecode_str = bytecode_str.strip_prefix("0x").unwrap_or(bytecode_str);
     let bytecode = hex::decode(bytecode_str).context("invalid bytecode")?;
 
     let deployed_bytecode = if get_deployed_bytecode {
-        let bytecode_str = contract
-            .pointer("/evm/deployedBytecode/object")
-            .context("missing deployed bytecode in solc output")?
+        let Some(bytecode_str) = contract.pointer("/evm/deployedBytecode/object") else {
+            return Err(ContractVerifierError::AbstractContract(contract_name));
+        };
+        let bytecode_str = bytecode_str
             .as_str()
-            .ok_or(ContractVerifierError::AbstractContract(contract_name))?;
+            .context("unexpected `/evm/deployedBytecode/object` value")?;
         let bytecode_str = bytecode_str.strip_prefix("0x").unwrap_or(bytecode_str);
         Some(hex::decode(bytecode_str).context("invalid deployed bytecode")?)
     } else {
