@@ -95,7 +95,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for EvmDeployTracer<S> {
     ) -> TracerExecutionStatus {
         let timestamp = Timestamp(state.local_state.timestamp);
         for published_bytecode in mem::take(&mut self.pending_bytecodes) {
-            let hash = BytecodeHash::for_bytecode(&published_bytecode).value_u256();
+            let hash = BytecodeHash::for_evm_bytecode(&published_bytecode).value_u256();
             let as_words = bytes_to_be_words(&published_bytecode);
             state
                 .decommittment_processor
