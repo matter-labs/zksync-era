@@ -125,7 +125,7 @@ And with the server running on one terminal, you can run the server integration 
 following command:
 
 ```bash
-zkstack dev test --chain eigen_da
+zkstack dev test integration --chain eigen_da
 ```
 
 ## Mainnet/Testnet setup
