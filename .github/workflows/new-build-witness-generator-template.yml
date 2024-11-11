@@ -127,6 +127,7 @@ jobs:
             SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
             SCCACHE_GCS_RW_MODE=READ_WRITE
             RUSTC_WRAPPER=sccache
+            RUST_FLAGS=${{ inputs.WITNESS_GENERATOR_RUST_FLAGS }}
           file: docker/${{ matrix.components }}/Dockerfile
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
