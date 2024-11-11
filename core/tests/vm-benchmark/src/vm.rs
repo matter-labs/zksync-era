@@ -14,7 +14,7 @@ use zksync_multivm::{
     zk_evm_latest::ethereum_types::{Address, U256},
 };
 use zksync_types::{
-    block::L2BlockHasher, fee_model::BatchFeeInput, helpers::unix_timestamp_ms,
+    block::L2BlockHasher, fee_model::BatchFeeInput, helpers::unix_timestamp_ms, u256_to_h256,
     utils::storage_key_for_eth_balance, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
     Transaction,
 };
@@ -29,7 +29,7 @@ static STORAGE: Lazy<InMemoryStorage> = Lazy::new(|| {
     // Give `PRIVATE_KEY` some money
     let balance = U256::from(10u32).pow(U256::from(32)); //10^32 wei
     let key = storage_key_for_eth_balance(&PRIVATE_KEY.address());
-    storage.set_value(key, zksync_utils::u256_to_h256(balance));
+    storage.set_value(key, u256_to_h256(balance));
     storage
 });
 

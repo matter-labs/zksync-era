@@ -13,11 +13,11 @@ use zksync_multivm::interface::{
 };
 use zksync_state::OwnedStorage;
 use zksync_types::{
-    commitment::PubdataParams, fee::Fee, utils::storage_key_for_standard_token_balance,
-    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, StorageLog, Transaction,
-    L2_BASE_TOKEN_ADDRESS, SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
+    commitment::PubdataParams, fee::Fee, u256_to_h256,
+    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, L1BatchNumber,
+    L2BlockNumber, StorageLog, Transaction, L2_BASE_TOKEN_ADDRESS, SYSTEM_CONTEXT_MINIMAL_BASE_FEE,
+    U256,
 };
-use zksync_utils::u256_to_h256;
 
 pub mod test_batch_executor;
 

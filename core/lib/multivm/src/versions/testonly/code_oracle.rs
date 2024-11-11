@@ -1,9 +1,10 @@
 use ethabi::Token;
 use zksync_test_contracts::TestContract;
 use zksync_types::{
-    get_known_code_key, web3::keccak256, Address, Execute, StorageLogWithPreviousValue, U256,
+    get_known_code_key, h256_to_u256, u256_to_h256, web3::keccak256, Address, Execute,
+    StorageLogWithPreviousValue, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
+use zksync_utils::bytecode::hash_bytecode;
 
 use super::{get_empty_storage, tester::VmTesterBuilder, TestedVm};
 use crate::{

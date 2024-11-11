@@ -9,6 +9,7 @@ use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_system_constants::{L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE};
 use zksync_test_contracts::{LoadnextContractExecutionParams, TestContract};
 use zksync_types::{
+    address_to_u256,
     api::state_override::{Bytecode, OverrideAccount, OverrideState, StateOverride},
     ethabi,
     ethabi::Token,
@@ -18,11 +19,11 @@ use zksync_types::{
     l1::L1Tx,
     l2::L2Tx,
     transaction_request::{CallRequest, Eip712Meta, PaymasterParams},
+    u256_to_h256,
     utils::storage_key_for_eth_balance,
     AccountTreeId, Address, K256PrivateKey, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId,
     StorageKey, StorageLog, EIP_712_TX_TYPE, H256, U256,
 };
-use zksync_utils::{address_to_u256, u256_to_h256};
 
 const MULTICALL3_CONTRACT_PATH: &str =
     "contracts/l2-contracts/zkout/Multicall3.sol/Multicall3.json";

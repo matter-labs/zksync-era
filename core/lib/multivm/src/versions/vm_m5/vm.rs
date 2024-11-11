@@ -1,7 +1,6 @@
 use std::rc::Rc;
 
-use zksync_types::{vm::VmVersion, Transaction};
-use zksync_utils::h256_to_u256;
+use zksync_types::{h256_to_u256, vm::VmVersion, Transaction};
 use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{

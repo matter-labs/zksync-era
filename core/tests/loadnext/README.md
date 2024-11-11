@@ -32,17 +32,7 @@ The smart contract that is used for every l2 transaction can be found in the [`z
 The `execute` function of the contract has the following parameters:
 
 ```solidity
-function execute(
-  uint256 reads,
-  uint256 writes,
-  uint256 hashes,
-  uint256 events,
-  uint256 max_recursion,
-  uint256 deploys
-) external returns (uint256) {
-  // snipped
-}
-
+function execute(uint reads, uint initialWrites, uint repeatedWrites, uint hashes, uint events, uint maxRecursion, uint deploys) external returns(uint) {
 ```
 
 which correspond to the following configuration options:
@@ -50,7 +40,8 @@ which correspond to the following configuration options:
 ```rust
 pub struct LoadnextContractExecutionParams {
     pub reads: usize,
-    pub writes: usize,
+    pub initial_writes: usize,
+    pub repeated_writes: usize,
     pub events: usize,
     pub hashes: usize,
     pub recursive_calls: usize,
@@ -60,8 +51,9 @@ pub struct LoadnextContractExecutionParams {
 
 For example, to simulate an average transaction on mainnet, one could do:
 
-```shell
-CONTRACT_EXECUTION_PARAMS_WRITES=2
+```env
+CONTRACT_EXECUTION_PARAMS_INITIAL_WRITES=2
+CONTRACT_EXECUTION_PARAMS_REPEATED_WRITES=2
 CONTRACT_EXECUTION_PARAMS_READS=6
 CONTRACT_EXECUTION_PARAMS_EVENTS=2
 CONTRACT_EXECUTION_PARAMS_HASHES=10
@@ -71,8 +63,9 @@ CONTRACT_EXECUTION_PARAMS_DEPLOYS=0
 
 Similarly, to simulate a lightweight transaction:
 
-```shell
-CONTRACT_EXECUTION_PARAMS_WRITES=0
+```env
+CONTRACT_EXECUTION_PARAMS_INITIAL_WRITES=0
+CONTRACT_EXECUTION_PARAMS_REPEATED_WRITES=0
 CONTRACT_EXECUTION_PARAMS_READS=0
 CONTRACT_EXECUTION_PARAMS_EVENTS=0
 CONTRACT_EXECUTION_PARAMS_HASHES=0
@@ -98,7 +91,8 @@ Example invocation:
 ```shell
 cargo build
 
-CONTRACT_EXECUTION_PARAMS_WRITES=2 \
+CONTRACT_EXECUTION_PARAMS_INITIAL_WRITES=2 \
+CONTRACT_EXECUTION_PARAMS_REPEATED_WRITES=2 \
 CONTRACT_EXECUTION_PARAMS_READS=6 \
 CONTRACT_EXECUTION_PARAMS_EVENTS=2 \
 CONTRACT_EXECUTION_PARAMS_HASHES=10 \
