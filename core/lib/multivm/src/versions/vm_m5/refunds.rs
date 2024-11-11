@@ -1,6 +1,5 @@
 use zk_evm_1_3_1::aux_structures::Timestamp;
-use zksync_types::U256;
-use zksync_utils::ceil_div_u256;
+use zksync_types::{ceil_div_u256, U256};
 
 use crate::vm_m5::{
     storage::Storage,

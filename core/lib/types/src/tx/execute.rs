@@ -1,9 +1,12 @@
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
-use zksync_utils::{bytecode::hash_bytecode, ZeroPrefixHexSerde};
+use zksync_utils::bytecode::hash_bytecode;
 
-use crate::{ethabi, Address, EIP712TypedStructure, StructBuilder, H256, U256};
+use crate::{
+    ethabi, serde_wrappers::ZeroPrefixHexSerde, Address, EIP712TypedStructure, StructBuilder, H256,
+    U256,
+};
 
 /// This struct is the `serde` schema for the `Execute` struct.
 /// It allows us to modify `Execute` struct without worrying

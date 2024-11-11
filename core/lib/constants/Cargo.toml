@@ -12,6 +12,5 @@ categories.workspace = true
 
 [dependencies]
 zksync_basic_types.workspace = true
-zksync_utils.workspace = true
 
 once_cell.workspace = true

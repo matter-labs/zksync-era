@@ -2,11 +2,12 @@ use std::{collections::HashMap, rc::Rc};
 
 use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
+    h256_to_u256,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    u256_to_h256,
     vm::VmVersion,
     Transaction, H256,
 };
-use zksync_utils::{be_words_to_bytes, h256_to_u256, u256_to_h256};
 use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{
@@ -18,7 +19,7 @@ use crate::{
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
         VmTrackingContracts,
     },
-    utils::events::extract_l2tol1logs_from_l1_messenger,
+    utils::{bytecode::be_words_to_bytes, events::extract_l2tol1logs_from_l1_messenger},
     vm_latest::{
         bootloader_state::BootloaderState,
         old_vm::{events::merge_events, history_recorder::HistoryEnabled},

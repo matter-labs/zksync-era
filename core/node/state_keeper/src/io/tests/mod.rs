@@ -20,17 +20,14 @@ use zksync_types::{
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
     ProtocolVersionId, StorageKey, TransactionTimeRangeConstraint, H256, U256,
 };
-use zksync_utils::{
-    bytecode::{hash_bytecode, hash_evm_bytecode},
-    time::seconds_since_epoch,
-};
+use zksync_utils::bytecode::{hash_bytecode, hash_evm_bytecode};
 
 use self::tester::Tester;
 use crate::{
     io::{seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, StateKeeperIO},
     mempool_actor::l2_tx_filter,
     testonly::BASE_SYSTEM_CONTRACTS,
-    tests::{create_execution_result, create_transaction, Query},
+    tests::{create_execution_result, create_transaction, seconds_since_epoch, Query},
     updates::{L2BlockSealCommand, L2BlockUpdates, UpdatesManager},
     StateKeeperOutputHandler, StateKeeperPersistence,
 };

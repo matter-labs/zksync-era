@@ -5,8 +5,10 @@ use zk_evm_1_5_0::{
 };
 use zksync_contracts::SystemContractCode;
 use zksync_types::{
+    h256_to_u256,
     l1::is_l1_tx_type,
     l2_to_l1_log::UserL2ToL1Log,
+    u256_to_h256,
     utils::key_for_eth_balance,
     writes::{
         compression::compress_with_best_strategy, StateDiffRecord, BYTES_PER_DERIVED_KEY,
@@ -16,7 +18,7 @@ use zksync_types::{
     Transaction, BOOTLOADER_ADDRESS, H160, H256, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
     L2_BASE_TOKEN_ADDRESS, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
+use zksync_utils::bytecode::hash_bytecode;
 use zksync_vm2::{
     interface::{CallframeInterface, HeapId, StateInterface, Tracer},
     ExecutionEnd, FatPointer, Program, Settings, StorageSlot, VirtualMachine,
@@ -845,7 +847,7 @@ impl<S: ReadStorage, T: Tracer> World<S, T> {
     ) -> (U256, Program<T, Self>) {
         (
             h256_to_u256(code.hash),
-            Program::from_words(code.code.clone(), is_bootloader),
+            Program::new(&code.code, is_bootloader),
         )
     }
 

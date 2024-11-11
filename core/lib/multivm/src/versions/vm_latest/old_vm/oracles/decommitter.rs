@@ -10,12 +10,12 @@ use zk_evm_1_5_0::{
     },
     zkevm_opcode_defs::{VersionedHashHeader, VersionedHashNormalizedPreimage},
 };
-use zksync_types::{H256, U256};
-use zksync_utils::{bytes_to_be_words, h256_to_u256, u256_to_h256};
+use zksync_types::{h256_to_u256, u256_to_h256, H256, U256};
 
 use super::OracleWithHistory;
 use crate::{
     interface::storage::{ReadStorage, StoragePtr},
+    utils::bytecode::bytes_to_be_words,
     vm_latest::old_vm::history_recorder::{
         HistoryEnabled, HistoryMode, HistoryRecorder, WithHistory,
     },
@@ -69,7 +69,7 @@ impl<S: ReadStorage, const B: bool, H: HistoryMode> DecommitterOracle<B, S, H> {
                     .load_factory_dep(u256_to_h256(hash))
                     .unwrap_or_else(|| panic!("Trying to decommit unexisting hash: {}", hash));
 
-                let value = bytes_to_be_words(value);
+                let value = bytes_to_be_words(&value);
                 self.known_bytecodes.insert(hash, value.clone(), timestamp);
                 value
             }
