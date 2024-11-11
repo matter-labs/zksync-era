@@ -40,6 +40,8 @@ fn create(
         .map(|ecosystem| ecosystem.list_of_chains().len() as u32)
         .unwrap_or(0);
 
+    let internal_id = ecosystem.as_ref().map_or(0, |_| number_of_chains + 1);
+
     let l1_network = ecosystem.as_ref().map(|ecosystem| ecosystem.l1_network);
 
     let chains_path = ecosystem.as_ref().map(|ecosystem| ecosystem.chains.clone());
@@ -56,6 +58,7 @@ fn create(
         .fill_values_with_prompt(
             shell,
             number_of_chains,
+            internal_id,
             l1_network,
             possible_erc20,
             link_to_code,
@@ -98,7 +101,6 @@ pub(crate) fn create_chain_inner(args: ChainCreateArgsFinal, shell: &Shell) -> a
         (L2ChainId::from(args.chain_id), None)
     };
 
-    let internal_id = args.number_of_chains + 1;
     let link_to_code = resolve_link_to_code(shell, chain_path.clone(), args.link_to_code.clone())?;
     let default_genesis_config = GenesisConfig::read_with_base_path(
         shell,
@@ -112,7 +114,7 @@ pub(crate) fn create_chain_inner(args: ChainCreateArgsFinal, shell: &Shell) -> a
     let artifacts = chain_path.join(LOCAL_ARTIFACTS_PATH);
 
     let chain_config = ChainConfig {
-        id: internal_id,
+        id: args.internal_id,
         name: default_chain_name.clone(),
         chain_id,
         prover_version: args.prover_version,
@@ -134,7 +136,7 @@ pub(crate) fn create_chain_inner(args: ChainCreateArgsFinal, shell: &Shell) -> a
         shell,
         &chain_config.configs,
         &link_to_code,
-        internal_id,
+        args.internal_id,
         args.wallet_creation,
         args.wallet_path,
     )?;
