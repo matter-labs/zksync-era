@@ -13,7 +13,6 @@ categories.workspace = true
 [dependencies]
 zksync_types.workspace = true
 zksync_dal.workspace = true
-zksync_config.workspace = true
 zksync_contracts.workspace = true
 zksync_queued_job_processor.workspace = true
 zksync_utils.workspace = true
@@ -27,8 +26,12 @@ ethabi.workspace = true
 vise.workspace = true
 hex.workspace = true
 serde = { workspace = true, features = ["derive"] }
-lazy_static.workspace = true
 tempfile.workspace = true
 regex.workspace = true
 tracing.workspace = true
 semver.workspace = true
+
+[dev-dependencies]
+zksync_node_test_utils.workspace = true
+zksync_vm_interface.workspace = true
+test-casing.workspace = true

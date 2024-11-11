@@ -16,6 +16,7 @@ zk_evm.workspace = true
 zksync_vlog.workspace = true
 
 bigdecimal.workspace = true
+const-decoder.workspace = true
 num = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["time"] }

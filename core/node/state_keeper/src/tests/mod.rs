@@ -10,8 +10,8 @@ use tokio::sync::watch;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_multivm::{
     interface::{
-        ExecutionResult, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv, TxExecutionMode,
-        VmExecutionLogs, VmExecutionResultAndLogs, VmExecutionStatistics,
+        Halt, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionLogs,
+        VmExecutionResultAndLogs, VmExecutionStatistics,
     },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
@@ -120,26 +120,16 @@ pub(super) fn create_execution_result(
 
     let total_log_queries = storage_logs.len() + 2;
     VmExecutionResultAndLogs {
-        result: ExecutionResult::Success { output: vec![] },
         logs: VmExecutionLogs {
-            events: vec![],
-            system_l2_to_l1_logs: vec![],
-            user_l2_to_l1_logs: vec![],
             storage_logs,
             total_log_queries_count: total_log_queries,
+            ..VmExecutionLogs::default()
         },
         statistics: VmExecutionStatistics {
-            contracts_used: 0,
-            cycles_used: 0,
-            gas_used: 0,
-            gas_remaining: 0,
-            computational_gas_used: 0,
             total_log_queries,
-            pubdata_published: 0,
-            circuit_statistic: Default::default(),
+            ..VmExecutionStatistics::default()
         },
-        refunds: Refunds::default(),
-        new_known_factory_deps: None,
+        ..VmExecutionResultAndLogs::mock_success()
     }
 }
 

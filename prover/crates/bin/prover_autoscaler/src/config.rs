@@ -1,18 +1,20 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf, time::Duration};
 
+use anyhow::Context;
 use serde::Deserialize;
 use strum::Display;
 use strum_macros::EnumString;
-use time::Duration;
 use vise::EncodeLabelValue;
-
-use crate::configs::ObservabilityConfig;
+use zksync_config::configs::ObservabilityConfig;
 
 /// Config used for running ProverAutoscaler (both Scaler and Agent).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct ProverAutoscalerConfig {
     /// Amount of time ProverJobMonitor will wait all it's tasks to finish.
-    // TODO: find a way to use #[serde(with = "humantime_serde")] with time::Duration.
+    #[serde(
+        with = "humantime_serde",
+        default = "ProverAutoscalerConfig::default_graceful_shutdown_timeout"
+    )]
     pub graceful_shutdown_timeout: Duration,
     pub agent_config: Option<ProverAutoscalerAgentConfig>,
     pub scaler_config: Option<ProverAutoscalerScalerConfig>,
@@ -28,8 +30,6 @@ pub struct ProverAutoscalerAgentConfig {
     /// List of namespaces to watch.
     #[serde(default = "ProverAutoscalerAgentConfig::default_namespaces")]
     pub namespaces: Vec<String>,
-    /// Watched cluster name. Also can be set via flag.
-    pub cluster_name: Option<String>,
     /// If dry-run enabled don't do any k8s updates, just report success.
     #[serde(default = "ProverAutoscalerAgentConfig::default_dry_run")]
     pub dry_run: bool,
@@ -40,7 +40,10 @@ pub struct ProverAutoscalerScalerConfig {
     /// Port for prometheus metrics connection.
     pub prometheus_port: u16,
     /// The interval between runs for global Scaler.
-    #[serde(default = "ProverAutoscalerScalerConfig::default_scaler_run_interval")]
+    #[serde(
+        with = "humantime_serde",
+        default = "ProverAutoscalerScalerConfig::default_scaler_run_interval"
+    )]
     pub scaler_run_interval: Duration,
     /// URL to get queue reports from.
     /// In production should be "http://prover-job-monitor.stage2.svc.cluster.local:3074/queue_report".
@@ -59,10 +62,16 @@ pub struct ProverAutoscalerScalerConfig {
     /// Minimum number of provers per namespace.
     pub min_provers: HashMap<String, u32>,
     /// Duration after which pending pod considered long pending.
-    #[serde(default = "ProverAutoscalerScalerConfig::default_long_pending_duration")]
+    #[serde(
+        with = "humantime_serde",
+        default = "ProverAutoscalerScalerConfig::default_long_pending_duration"
+    )]
     pub long_pending_duration: Duration,
     /// List of simple autoscaler targets.
     pub scaler_targets: Vec<ScalerTarget>,
+    /// If dry-run enabled don't send any scale requests.
+    #[serde(default)]
+    pub dry_run: bool,
 }
 
 #[derive(
@@ -97,7 +106,7 @@ pub enum Gpu {
 
 // TODO: generate this enum by QueueReport from https://github.com/matter-labs/zksync-era/blob/main/prover/crates/bin/prover_job_monitor/src/autoscaler_queue_reporter.rs#L23
 // and remove allowing of non_camel_case_types by generating field name parser.
-#[derive(Debug, Display, PartialEq, Eq, Hash, Clone, Deserialize, EnumString, Default)]
+#[derive(Debug, Display, PartialEq, Eq, Hash, Clone, Copy, Deserialize, EnumString, Default)]
 #[allow(non_camel_case_types)]
 pub enum QueueReportFields {
     #[strum(ascii_case_insensitive)]
@@ -122,7 +131,7 @@ pub enum QueueReportFields {
 #[derive(Debug, Clone, PartialEq, Deserialize, Default)]
 pub struct ScalerTarget {
     pub queue_report_field: QueueReportFields,
-    pub pod_name_prefix: String,
+    pub deployment: String,
     /// Max replicas per cluster.
     pub max_replicas: HashMap<String, usize>,
     /// The queue will be divided by the speed and rounded up to get number of replicas.
@@ -133,7 +142,7 @@ pub struct ScalerTarget {
 impl ProverAutoscalerConfig {
     /// Default graceful shutdown timeout -- 5 seconds
     pub fn default_graceful_shutdown_timeout() -> Duration {
-        Duration::seconds(5)
+        Duration::from_secs(5)
     }
 }
 
@@ -150,7 +159,7 @@ impl ProverAutoscalerAgentConfig {
 impl ProverAutoscalerScalerConfig {
     /// Default scaler_run_interval -- 10s
     pub fn default_scaler_run_interval() -> Duration {
-        Duration::seconds(10)
+        Duration::from_secs(10)
     }
 
     /// Default prover_job_monitor_url -- cluster local URL
@@ -160,7 +169,7 @@ impl ProverAutoscalerScalerConfig {
 
     /// Default long_pending_duration -- 10m
     pub fn default_long_pending_duration() -> Duration {
-        Duration::minutes(10)
+        Duration::from_secs(600)
     }
 }
 
@@ -168,4 +177,10 @@ impl ScalerTarget {
     pub fn default_speed() -> usize {
         1
     }
+}
+
+pub fn config_from_yaml<T: serde::de::DeserializeOwned>(path: &PathBuf) -> anyhow::Result<T> {
+    let yaml = std::fs::read_to_string(path)
+        .with_context(|| format!("failed to read {}", path.display()))?;
+    Ok(serde_yaml::from_str(&yaml)?)
 }
