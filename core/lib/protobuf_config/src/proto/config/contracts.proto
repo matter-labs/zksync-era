@@ -41,7 +41,5 @@ message Contracts {
   optional L2 l2 = 2;
   optional Bridges bridges = 3;
   optional EcosystemContracts ecosystem_contracts = 4;
-  optional string user_facing_bridgehub = 5;
-  optional string user_facing_diamond_proxy = 6;
-  optional uint64 settlement_layer = 7;
+  optional uint64 settlement_layer = 5;
 }
