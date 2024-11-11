@@ -159,7 +159,7 @@ fn get_tasks(
         prover_jobs_archiver,
     );
 
-    // job requeuers
+    // job re-queuers
     let proof_compressor_job_requeuer = ProofCompressorJobRequeuer::new(
         proof_compressor_config.max_attempts,
         proof_compressor_config.generation_timeout(),
