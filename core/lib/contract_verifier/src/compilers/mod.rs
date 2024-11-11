@@ -117,8 +117,12 @@ fn parse_standard_json_output(
         None
     };
 
-    let abi = contract["abi"].clone();
-    if !abi.is_array() {
+    let mut abi = contract["abi"].clone();
+    if abi.is_null() {
+        // ABI is undefined for Yul contracts when compiled with standalone `solc`. For uniformity with `zksolc`,
+        // replace it with an empty array.
+        abi = serde_json::json!([]);
+    } else if !abi.is_array() {
         let err = anyhow::anyhow!(
             "unexpected value for ABI: {}",
             serde_json::to_string_pretty(&abi).unwrap()

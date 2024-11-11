@@ -175,6 +175,53 @@ async fn using_standalone_solc(specify_contract_file: bool) {
     assert_eq!(output.abi, counter_contract_abi());
 }
 
+fn test_yul_request(compiler_versions: CompilerVersions) -> VerificationIncomingRequest {
+    VerificationIncomingRequest {
+        contract_address: Default::default(),
+        source_code_data: SourceCodeData::YulSingleFile(EMPTY_YUL_CONTRACT.to_owned()),
+        contract_name: "Empty".to_owned(),
+        compiler_versions,
+        optimization_used: true,
+        optimizer_mode: None,
+        constructor_arguments: Default::default(),
+        is_system: false,
+        force_evmla: false,
+    }
+}
+
+#[tokio::test]
+async fn compiling_yul_with_zksolc() {
+    let (compiler_resolver, supported_compilers) = real_resolver!();
+
+    let version = supported_compilers.clone().zksolc();
+    let compiler = compiler_resolver.resolve_zksolc(&version).await.unwrap();
+    let req = test_yul_request(supported_compilers.solc_for_api(BytecodeMarker::EraVm));
+    let input = ZkSolc::build_input(req).unwrap();
+    let output = compiler.compile(input).await.unwrap();
+
+    assert!(!output.bytecode.is_empty());
+    assert!(output.deployed_bytecode.is_none());
+    assert_eq!(output.abi, serde_json::json!([]));
+}
+
+#[tokio::test]
+async fn compiling_standalone_yul() {
+    let (compiler_resolver, supported_compilers) = real_resolver!();
+
+    let version = &supported_compilers.solc;
+    let compiler = compiler_resolver.resolve_solc(version).await.unwrap();
+    let req = test_yul_request(CompilerVersions::Solc {
+        compiler_solc_version: version.clone(),
+        compiler_zksolc_version: None,
+    });
+    let input = Solc::build_input(req).unwrap();
+    let output = compiler.compile(input).await.unwrap();
+
+    assert!(!output.bytecode.is_empty());
+    assert_ne!(output.deployed_bytecode.unwrap(), output.bytecode);
+    assert_eq!(output.abi, serde_json::json!([]));
+}
+
 #[test_casing(2, [false, true])]
 #[tokio::test]
 async fn using_real_zkvyper(specify_contract_file: bool) {
@@ -387,4 +434,4 @@ async fn compilation_errors(bytecode_kind: BytecodeMarker) {
     assert!(has_parser_error, "{compilation_errors:?}");
 }
 
-// FIXME: test Yul; test abstract contract error
+// FIXME: test abstract contract error

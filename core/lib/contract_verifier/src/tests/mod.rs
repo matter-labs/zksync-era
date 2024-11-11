@@ -64,6 +64,17 @@ value: uint256
 def increment(x: uint256):
     self.value += x
 "#;
+const EMPTY_YUL_CONTRACT: &str = r#"
+object "Empty" {
+    code {
+        mstore(0, 0)
+        return(0, 32)
+    }
+    object "Empty_deployed" {
+        code { }
+    }
+}
+"#;
 
 #[derive(Debug, Clone, Copy)]
 enum TestContract {
