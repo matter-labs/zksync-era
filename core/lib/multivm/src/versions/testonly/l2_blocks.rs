@@ -3,7 +3,10 @@
 //! The description for each of the tests can be found in the corresponding `.yul` file.
 //!
 
+use std::str::FromStr;
+
 use assert_matches::assert_matches;
+use ethabi::{Function, ParamType, Token};
 use zksync_system_constants::REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::{pack_block_info, L2BlockHasher},
@@ -13,6 +16,7 @@ use zksync_types::{
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, U256,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
+use zksync_vm_interface::VmRevertReason;
 
 use super::{default_l1_batch, get_empty_storage, tester::VmTesterBuilder, TestedVm};
 use crate::{
@@ -26,6 +30,38 @@ use crate::{
         MultiVMSubversion,
     },
 };
+
+/// Encodes a Solidity function call with parameters into a Vec<u8>.
+///
+/// # Arguments
+///
+/// * `signature` - A string representing the Solidity function signature (e.g., "transfer(address,uint256)").
+/// * `params` - A slice of `Token` values representing the arguments for the function.
+///
+/// # Returns
+///
+/// A `Result<Vec<u8>, ethabi::Error>` containing the encoded function call data.
+pub fn encode_function_call(
+    name: &str,
+    types: &[ParamType],
+    params: &[Token],
+) -> Result<String, ethabi::Error> {
+    let short_sig = ethabi::short_signature(name, types);
+
+    // Check if the provided number of parameters matches the function's expected inputs
+    if types.len() != params.len() {
+        return Err(ethabi::Error::InvalidData);
+    }
+
+    // Encode the function call with the provided parameters
+    let encoded_data = ethabi::encode(params);
+
+    Ok(VmRevertReason::Unknown {
+        function_selector: short_sig.to_vec(),
+        data: vec![short_sig.to_vec(), encoded_data].concat(),
+    }
+    .to_string())
+}
 
 fn get_l1_noop() -> Transaction {
     Transaction {
@@ -72,7 +108,7 @@ pub(crate) fn test_l2_block_initialization_timestamp<VM: TestedVm>() {
     assert_matches!(
         res.result,
         ExecutionResult::Halt { reason: Halt::FailedToSetL2Block(msg) }
-            if msg.contains("timestamp")
+            if msg.contains("0x5e9ad9b0")
     );
 }
 
@@ -107,7 +143,7 @@ pub(crate) fn test_l2_block_initialization_number_non_zero<VM: TestedVm>() {
         res.result,
         ExecutionResult::Halt {
             reason: Halt::FailedToSetL2Block(
-                "L2 block number is never expected to be zero".to_string()
+                encode_function_call("L2BlockNumberZero", &[], &[]).unwrap()
             )
         }
     );
@@ -163,7 +199,15 @@ pub(crate) fn test_l2_block_same_l2_block<VM: TestedVm>() {
     // Case 1: Incorrect timestamp
     test_same_l2_block::<VM>(
         Some(Halt::FailedToSetL2Block(
-            "The timestamp of the same L2 block must be same".to_string(),
+            encode_function_call(
+                "IncorrectSameL2BlockTimestamp",
+                &[ParamType::Uint(128), ParamType::Uint(128)],
+                &[
+                    Token::Uint(U256::zero()),
+                    Token::Uint(U256::from(1_700_000_001)),
+                ],
+            )
+            .unwrap(),
         )),
         Some(0),
         None,
@@ -172,7 +216,20 @@ pub(crate) fn test_l2_block_same_l2_block<VM: TestedVm>() {
     // Case 2: Incorrect previous block hash
     test_same_l2_block::<VM>(
         Some(Halt::FailedToSetL2Block(
-            "The previous hash of the same L2 block must be same".to_string(),
+            encode_function_call(
+                "IncorrectSameL2BlockPrevBlockHash",
+                &[ParamType::FixedBytes(32), ParamType::FixedBytes(32)],
+                &[
+                    Token::FixedBytes(H256::zero().0.to_vec()),
+                    Token::FixedBytes(
+                        hex::decode(
+                            "e8e77626586f73b955364c7b4bbf0bb7f7685ebd40e852b164633a4acbd3244c",
+                        )
+                        .unwrap(),
+                    ),
+                ],
+            )
+            .unwrap(),
         )),
         None,
         Some(H256::zero()),
@@ -249,7 +306,12 @@ pub(crate) fn test_l2_block_new_l2_block<VM: TestedVm>() {
         None,
         None,
         Some(Halt::FailedToSetL2Block(
-            "Invalid new L2 block number".to_string(),
+            encode_function_call(
+                "InvalidNewL2BlockNumber",
+                &[ParamType::Uint(256)],
+                &[Token::Uint(U256::from(3u32))],
+            )
+            .unwrap(),
         )),
     );
 
@@ -259,7 +321,14 @@ pub(crate) fn test_l2_block_new_l2_block<VM: TestedVm>() {
         None,
         Some(1),
         None,
-        Some(Halt::FailedToSetL2Block("The timestamp of the new L2 block must be greater than the timestamp of the previous L2 block".to_string())),
+        Some(Halt::FailedToSetL2Block(
+            encode_function_call(
+                "NonMonotonicL2BlockTimestamp",
+                &[ParamType::Uint(128), ParamType::Uint(128)],
+                &[Token::Uint(U256::from(1)), Token::Uint(U256::from(1))],
+            )
+            .unwrap(),
+        )),
     );
 
     // Case 3: Incorrect previous block hash
@@ -269,7 +338,20 @@ pub(crate) fn test_l2_block_new_l2_block<VM: TestedVm>() {
         None,
         Some(H256::zero()),
         Some(Halt::FailedToSetL2Block(
-            "The current L2 block hash is incorrect".to_string(),
+            encode_function_call(
+                "IncorrectL2BlockHash",
+                &[ParamType::FixedBytes(32), ParamType::FixedBytes(32)],
+                &[
+                    Token::FixedBytes(H256::zero().0.to_vec()),
+                    Token::FixedBytes(
+                        hex::decode(
+                            "de4c551714ad02a0a4f51252f966ef90c13376ea4c8a463eedfb242b97551c43",
+                        )
+                        .unwrap(),
+                    ),
+                ],
+            )
+            .unwrap(),
         )),
     );
 
@@ -395,7 +477,14 @@ pub(crate) fn test_l2_block_first_in_batch<VM: TestedVm>() {
             prev_block_hash,
             max_virtual_blocks_to_create: 1,
         },
-        Some(Halt::FailedToSetL2Block("The timestamp of the L2 block must be greater than or equal to the timestamp of the current batch".to_string())),
+        Some(Halt::FailedToSetL2Block(
+            encode_function_call(
+                "L2BlockAndBatchTimestampMismatch",
+                &[ParamType::Uint(128), ParamType::Uint(128)],
+                &[Token::Uint(U256::from(9)), Token::Uint(U256::from(12))],
+            )
+            .unwrap(),
+        )),
     );
 }
 
