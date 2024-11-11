@@ -38,7 +38,7 @@ impl From<ServerArgs> for ServerCommand {
 pub struct RunServerArgs {
     #[arg(long, help = MSG_SERVER_COMPONENTS_HELP)]
     pub components: Option<Vec<String>>,
-    #[arg(long, help = MSG_SERVER_GENESIS_HELP)] // FIXME: a separate command as well?
+    #[arg(long, help = MSG_SERVER_GENESIS_HELP)]
     pub genesis: bool,
     #[arg(
         long, short,
