@@ -50,9 +50,12 @@ sequenceDiagram
 Scaler supports 2 types of scaling algorithms: GPU and Simple. GPU usually is prover itself and all other Deployments
 are using Simple algorithm.
 
-Simple algorithm tries to scale the Deployment up to `queue / speed` replicas (rounded up) in the best cluster. If
-there is not enough capacity it continue in the next best and so on. On each run it selects "best cluster" using
-priority, number of capacity issues and cluster size.
+Simple algorithm tries to scale the Deployment up to `queue / speed` replicas (rounded up) in the best cluster. If there
+is not enough capacity it continue in the next best cluster and so on. On each run it selects "best cluster" using
+priority, number of capacity issues and cluster size. The capacity is limited by config (`max_provers` or
+`max_replicas`) and also by availability of machines in the cluster. Autoscaler detects that a cluster is running out of
+particular machines by watching for `FailedScaleUp` events and also by checking if a Pod stuck in Pending for longer
+than `long_pending_duration`. If not enough capacity is detected not running Pods will be moved.
 
 GPU algorithm works similar to Simple one, but it also recognise different GPU types and distribute load across L4 GPUs
 first, then T4, V100, P100 and A100, if available.
