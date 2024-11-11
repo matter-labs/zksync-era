@@ -12,6 +12,8 @@ use super::*;
 struct TestCompilerVersions {
     solc: String,
     zksolc: String,
+    vyper: String,
+    zkvyper: String,
 }
 
 impl TestCompilerVersions {
@@ -23,6 +25,8 @@ impl TestCompilerVersions {
         Some(Self {
             solc,
             zksolc: versions.zksolc.pop()?,
+            vyper: versions.vyper.pop()?,
+            zkvyper: versions.zkvyper.pop()?,
         })
     }
 
@@ -39,6 +43,23 @@ impl TestCompilerVersions {
             compiler_zksolc_version: match bytecode_kind {
                 BytecodeMarker::Evm => None,
                 BytecodeMarker::EraVm => Some(self.zksolc),
+            },
+        }
+    }
+
+    fn zkvyper(self) -> ZkCompilerVersions {
+        ZkCompilerVersions {
+            base: self.vyper,
+            zk: self.zkvyper,
+        }
+    }
+
+    fn vyper_for_api(self, bytecode_kind: BytecodeMarker) -> CompilerVersions {
+        CompilerVersions::Vyper {
+            compiler_vyper_version: self.vyper,
+            compiler_zkvyper_version: match bytecode_kind {
+                BytecodeMarker::Evm => None,
+                BytecodeMarker::EraVm => Some(self.zkvyper),
             },
         }
     }
@@ -77,7 +98,7 @@ macro_rules! real_resolver {
 }
 
 #[tokio::test]
-async fn using_real_compiler() {
+async fn using_real_zksolc() {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
     let compiler = compiler_resolver
@@ -113,6 +134,48 @@ async fn using_standalone_solc() {
 
     assert!(output.deployed_bytecode.is_some());
     assert_eq!(output.abi, counter_contract_abi());
+}
+
+#[tokio::test]
+async fn using_real_zkvyper() {
+    let (compiler_resolver, supported_compilers) = real_resolver!();
+
+    let compiler = compiler_resolver
+        .resolve_zkvyper(&supported_compilers.clone().zkvyper())
+        .await
+        .unwrap();
+    let req = VerificationIncomingRequest {
+        compiler_versions: supported_compilers.vyper_for_api(BytecodeMarker::EraVm),
+        source_code_data: SourceCodeData::VyperMultiFile(HashMap::from([(
+            "Counter".to_owned(),
+            COUNTER_VYPER_CONTRACT.to_owned(),
+        )])),
+        ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
+    };
+    let input = ZkVyper::build_input(req).unwrap();
+    let output = compiler.compile(input).await.unwrap();
+
+    validate_bytecode(&output.bytecode).unwrap();
+    assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
+}
+
+fn without_internal_types(mut abi: serde_json::Value) -> serde_json::Value {
+    let items = abi.as_array_mut().unwrap();
+    for item in items {
+        if let Some(inputs) = item.get_mut("inputs") {
+            let inputs = inputs.as_array_mut().unwrap();
+            for input in inputs {
+                input.as_object_mut().unwrap().remove("internalType");
+            }
+        }
+        if let Some(outputs) = item.get_mut("outputs") {
+            let outputs = outputs.as_array_mut().unwrap();
+            for output in outputs {
+                output.as_object_mut().unwrap().remove("internalType");
+            }
+        }
+    }
+    abi
 }
 
 #[test_casing(2, BYTECODE_KINDS)]

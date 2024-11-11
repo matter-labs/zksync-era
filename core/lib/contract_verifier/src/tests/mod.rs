@@ -55,6 +55,15 @@ const COUNTER_CONTRACT_WITH_CONSTRUCTOR: &str = r#"
         }
     }
 "#;
+const COUNTER_VYPER_CONTRACT: &str = r#"
+#pragma version ^0.3.10
+
+value: uint256
+
+@external
+def increment(x: uint256):
+    self.value += x
+"#;
 
 #[derive(Debug, Clone, Copy)]
 enum TestContract {
