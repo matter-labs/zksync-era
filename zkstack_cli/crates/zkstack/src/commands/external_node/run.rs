@@ -31,7 +31,6 @@ async fn run_external_node(
     if args.reinit {
         init::init(shell, chain_config).await?
     }
-    let enable_consensus = args.enable_consensus.unwrap_or(false);
     let server = RunExternalNode::new(args.components.clone(), chain_config)?;
-    server.run(shell, enable_consensus, args.additional_args.clone())
+    server.run(shell, args.additional_args.clone())
 }

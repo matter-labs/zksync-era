@@ -944,7 +944,6 @@ _arguments "${_arguments_options[@]}" : \
 (revert)
 _arguments "${_arguments_options[@]}" : \
 '--chain=[Chain to use]:CHAIN:_default' \
-'--enable-consensus[Enable consensus]' \
 '-e[Run tests for external node]' \
 '--external-node[Run tests for external node]' \
 '-n[Do not install or build dependencies]' \
@@ -2042,7 +2041,6 @@ _arguments "${_arguments_options[@]}" : \
 (run)
 _arguments "${_arguments_options[@]}" : \
 '*--components=[Components of server to run]:COMPONENTS:_default' \
-'--enable-consensus=[Enable consensus]' \
 '*-a+[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '*--additional-args=[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
