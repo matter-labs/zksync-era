@@ -1,8 +1,9 @@
 use ethabi::Token;
 use zksync_types::{
-    get_known_code_key, web3::keccak256, Address, Execute, StorageLogWithPreviousValue, U256,
+    get_known_code_key, h256_to_u256, u256_to_h256, web3::keccak256, Address, Execute,
+    StorageLogWithPreviousValue, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
+use zksync_utils::bytecode::hash_bytecode;
 
 use super::{
     get_empty_storage, load_precompiles_contract, read_precompiles_contract, read_test_contract,

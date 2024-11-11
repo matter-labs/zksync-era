@@ -20,7 +20,6 @@ zksync_config.workspace = true
 zksync_protobuf_config.workspace = true
 zksync_eth_client.workspace = true
 zksync_storage.workspace = true
-zksync_utils.workspace = true
 zksync_state.workspace = true
 zksync_contracts.workspace = true
 zksync_l1_contract_interface.workspace = true

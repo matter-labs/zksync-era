@@ -18,8 +18,7 @@ use zksync_merkle_tree::{
     unstable::{NodeKey, RawNode},
     NoVersionError, ValueHash,
 };
-use zksync_types::{web3, L1BatchNumber, H256, U256};
-use zksync_utils::u256_to_h256;
+use zksync_types::{u256_to_h256, web3, L1BatchNumber, H256, U256};
 
 use self::metrics::{MerkleTreeApiMethod, API_METRICS};
 use crate::{AsyncTreeReader, LazyAsyncTreeReader, MerkleTreeInfo};
