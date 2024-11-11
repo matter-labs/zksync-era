@@ -21,10 +21,6 @@ const L1_MESSAGE_EVENT_SIGNATURE: H256 = H256([
     58, 54, 228, 114, 145, 244, 32, 31, 175, 19, 127, 171, 8, 29, 146, 41, 91, 206, 45, 83, 190,
     44, 108, 166, 139, 168, 44, 127, 170, 156, 226, 65,
 ]);
-const PUBLISHED_BYTECODE_SIGNATURE: H256 = H256([
-    201, 71, 34, 255, 19, 234, 207, 83, 84, 124, 71, 65, 218, 181, 34, 131, 83, 160, 89, 56, 255,
-    205, 213, 212, 162, 213, 51, 174, 14, 97, 130, 135,
-]);
 
 pub fn bytecode_len_in_bytes(bytecodehash: H256) -> usize {
     usize::from(u16::from_be_bytes([bytecodehash[2], bytecodehash[3]])) * 32
@@ -49,6 +45,11 @@ impl VmEvent {
     pub const L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE: H256 = H256([
         72, 13, 60, 159, 114, 123, 94, 92, 18, 3, 212, 198, 31, 177, 133, 211, 127, 8, 230, 178,
         220, 94, 155, 191, 152, 89, 27, 26, 122, 221, 245, 124,
+    ]);
+    /// Long signature of the known bytecodes storage bytecode publication event (`MarkedAsKnown`).
+    pub const PUBLISHED_BYTECODE_SIGNATURE: H256 = H256([
+        201, 71, 34, 255, 19, 234, 207, 83, 84, 124, 71, 65, 218, 181, 34, 131, 83, 160, 89, 56,
+        255, 205, 213, 212, 162, 213, 51, 174, 14, 97, 130, 135,
     ]);
 
     /// Extracts all the "long" L2->L1 messages that were submitted by the L1Messenger contract.
@@ -79,11 +80,24 @@ impl VmEvent {
                 // Filter events from the deployer contract that match the expected signature.
                 event.address == KNOWN_CODES_STORAGE_ADDRESS
                     && event.indexed_topics.len() == 3
-                    && event.indexed_topics[0] == PUBLISHED_BYTECODE_SIGNATURE
+                    && event.indexed_topics[0] == Self::PUBLISHED_BYTECODE_SIGNATURE
                     && event.indexed_topics[2] != H256::zero()
             })
             .map(|event| event.indexed_topics[1])
             .collect()
+    }
+
+    /// Extracts all bytecodes marked as known on the system contracts.
+    pub fn extract_bytecodes_marked_as_known(events: &[Self]) -> impl Iterator<Item = H256> + '_ {
+        events
+            .iter()
+            .filter(|event| {
+                // Filter events from the deployer contract that match the expected signature.
+                event.address == KNOWN_CODES_STORAGE_ADDRESS
+                    && event.indexed_topics.len() == 3
+                    && event.indexed_topics[0] == Self::PUBLISHED_BYTECODE_SIGNATURE
+            })
+            .map(|event| event.indexed_topics[1])
     }
 }
 
@@ -120,10 +134,10 @@ pub struct VmExecutionResultAndLogs {
     pub logs: VmExecutionLogs,
     pub statistics: VmExecutionStatistics,
     pub refunds: Refunds,
-    /// Bytecodes decommitted during VM execution. `None` if not computed by the VM.
-    // FIXME: currently, this is only filled up by `vm_latest`; probably makes sense to narrow down
-    //   to *dynamic* factory deps, so that `HashMap::new()` is a valid value for VMs not supporting EVM emulation.
-    pub new_known_factory_deps: Option<HashMap<H256, Vec<u8>>>,
+    /// Dynamic bytecodes decommitted during VM execution (i.e., not present in the storage at the start of VM execution
+    /// or in `factory_deps` fields of executed transactions). Currently, the only kind of such codes are EVM bytecodes.
+    /// Correspondingly, they may only be present if supported by the VM version, and if the VM is initialized with the EVM emulator base system contract.
+    pub dynamic_factory_deps: HashMap<H256, Vec<u8>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -144,6 +158,22 @@ impl ExecutionResult {
 }
 
 impl VmExecutionResultAndLogs {
+    /// Creates a mock full result based on the provided base result.
+    pub fn mock(result: ExecutionResult) -> Self {
+        Self {
+            result,
+            logs: VmExecutionLogs::default(),
+            statistics: VmExecutionStatistics::default(),
+            refunds: Refunds::default(),
+            dynamic_factory_deps: HashMap::new(),
+        }
+    }
+
+    /// Creates a mock successful result with no payload.
+    pub fn mock_success() -> Self {
+        Self::mock(ExecutionResult::Success { output: vec![] })
+    }
+
     pub fn get_execution_metrics(&self, tx: Option<&Transaction>) -> VmExecutionMetrics {
         let contracts_deployed = tx
             .map(|tx| tx.execute.factory_deps.len() as u16)
@@ -414,6 +444,6 @@ mod tests {
             "MarkedAsKnown",
             &[ethabi::ParamType::FixedBytes(32), ethabi::ParamType::Bool],
         );
-        assert_eq!(PUBLISHED_BYTECODE_SIGNATURE, expected_signature);
+        assert_eq!(VmEvent::PUBLISHED_BYTECODE_SIGNATURE, expected_signature);
     }
 }

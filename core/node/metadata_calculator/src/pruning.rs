@@ -304,6 +304,7 @@ mod tests {
             extend_db_state_from_l1_batch(
                 &mut storage,
                 snapshot_recovery.l1_batch_number + 1,
+                snapshot_recovery.l2_block_number + 1,
                 new_logs,
             )
             .await;
