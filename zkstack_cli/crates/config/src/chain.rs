@@ -205,7 +205,7 @@ impl ChainConfig {
 }
 
 impl ChainConfigInternal {
-    pub fn from_file(shell: &Shell) -> anyhow::Result<ChainConfigInternal> {
+    pub(crate) fn from_file(shell: &Shell) -> anyhow::Result<ChainConfigInternal> {
         let Ok(path) = find_file(shell, shell.current_dir(), CONFIG_NAME) else {
             bail!("Chain config not found")
         };
