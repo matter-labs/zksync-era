@@ -1,6 +1,7 @@
 use std::{
     env,
     ffi::OsString,
+    future::Future,
     num::{NonZeroU32, NonZeroU64, NonZeroUsize},
     path::PathBuf,
     time::Duration,
@@ -24,7 +25,7 @@ use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_metadata_calculator::MetadataCalculatorRecoveryConfig;
 use zksync_node_api_server::{
-    tx_sender::TxSenderConfig,
+    tx_sender::{TimestampAsserterParams, TxSenderConfig},
     web3::{state::InternalApiConfig, Namespace},
 };
 use zksync_protobuf_config::proto;
@@ -121,6 +122,7 @@ pub(crate) struct RemoteENConfig {
     pub l1_weth_bridge_addr: Option<Address>,
     pub l2_weth_bridge_addr: Option<Address>,
     pub l2_testnet_paymaster_addr: Option<Address>,
+    pub l2_timestamp_asserter_addr: Option<Address>,
     pub base_token_addr: Address,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub dummy_verifier: bool,
@@ -146,22 +148,19 @@ impl RemoteENConfig {
             .get_main_contract()
             .rpc_context("get_main_contract")
             .await?;
-        let base_token_addr = match client.get_base_token_l1_address().await {
-            Err(ClientError::Call(err))
-                if [
-                    ErrorCode::MethodNotFound.code(),
-                    // This what `Web3Error::NotImplemented` gets
-                    // `casted` into in the `api` server.
-                    ErrorCode::InternalError.code(),
-                ]
-                .contains(&(err.code())) =>
-            {
-                // This is the fallback case for when the EN tries to interact
-                // with a node that does not implement the `zks_baseTokenL1Address` endpoint.
-                ETHEREUM_ADDRESS
-            }
-            response => response.context("Failed to fetch base token address")?,
-        };
+
+        let timestamp_asserter_address = handle_rpc_response_with_fallback(
+            client.get_timestamp_asserter(),
+            None,
+            "Failed to fetch timestamp asserter address".to_string(),
+        )
+        .await?;
+        let base_token_addr = handle_rpc_response_with_fallback(
+            client.get_base_token_l1_address(),
+            ETHEREUM_ADDRESS,
+            "Failed to fetch base token address".to_string(),
+        )
+        .await?;
 
         // These two config variables should always have the same value.
         // TODO(EVM-578): double check and potentially forbid both of them being `None`.
@@ -206,6 +205,7 @@ impl RemoteENConfig {
                 .as_ref()
                 .map(|a| a.dummy_verifier)
                 .unwrap_or_default(),
+            l2_timestamp_asserter_addr: timestamp_asserter_address,
         })
     }
 
@@ -227,7 +227,33 @@ impl RemoteENConfig {
             l2_legacy_shared_bridge_addr: Some(Address::repeat_byte(7)),
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
             dummy_verifier: true,
+            l2_timestamp_asserter_addr: None,
         }
+    }
+}
+
+async fn handle_rpc_response_with_fallback<T, F>(
+    rpc_call: F,
+    fallback: T,
+    context: String,
+) -> anyhow::Result<T>
+where
+    F: Future<Output = Result<T, ClientError>>,
+    T: Clone,
+{
+    match rpc_call.await {
+        Err(ClientError::Call(err))
+            if [
+                ErrorCode::MethodNotFound.code(),
+                // This what `Web3Error::NotImplemented` gets
+                // `casted` into in the `api` server.
+                ErrorCode::InternalError.code(),
+            ]
+            .contains(&(err.code())) =>
+        {
+            Ok(fallback)
+        }
+        response => response.context(context),
     }
 }
 
@@ -454,6 +480,9 @@ pub(crate) struct OptionalENConfig {
     pub gateway_url: Option<SensitiveUrl>,
     /// Interval for bridge addresses refreshing in seconds.
     bridge_addresses_refresh_interval_sec: Option<NonZeroU64>,
+    /// Minimum time between current block.timestamp and the end of the asserted range for TimestampAsserter
+    #[serde(default = "OptionalENConfig::default_timestamp_asserter_min_time_till_end_sec")]
+    pub timestamp_asserter_min_time_till_end_sec: u32,
 }
 
 impl OptionalENConfig {
@@ -685,6 +714,11 @@ impl OptionalENConfig {
             contracts_diamond_proxy_addr: None,
             gateway_url: enconfig.gateway_url.clone(),
             bridge_addresses_refresh_interval_sec: enconfig.bridge_addresses_refresh_interval_sec,
+            timestamp_asserter_min_time_till_end_sec: general_config
+                .timestamp_asserter_config
+                .as_ref()
+                .map(|x| x.min_time_till_end_sec)
+                .unwrap_or_else(Self::default_timestamp_asserter_min_time_till_end_sec),
         })
     }
 
@@ -817,6 +851,10 @@ impl OptionalENConfig {
 
     fn default_pruning_data_retention_sec() -> u64 {
         3_600 * 24 * 7 // 7 days
+    }
+
+    const fn default_timestamp_asserter_min_time_till_end_sec() -> u32 {
+        60
     }
 
     fn from_env() -> anyhow::Result<Self> {
@@ -1425,6 +1463,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
             filters_disabled: config.optional.filters_disabled,
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
+            timestamp_asserter_address: config.remote.l2_timestamp_asserter_addr,
         }
     }
 }
@@ -1447,6 +1486,17 @@ impl From<&ExternalNodeConfig> for TxSenderConfig {
             chain_id: config.required.l2_chain_id,
             // Does not matter for EN.
             whitelisted_tokens_for_aa: Default::default(),
+            timestamp_asserter_params: config.remote.l2_timestamp_asserter_addr.map(|address| {
+                TimestampAsserterParams {
+                    address,
+                    min_time_till_end: Duration::from_secs(
+                        config
+                            .optional
+                            .timestamp_asserter_min_time_till_end_sec
+                            .into(),
+                    ),
+                }
+            }),
         }
     }
 }

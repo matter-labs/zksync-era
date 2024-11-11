@@ -100,7 +100,7 @@ jobs:
       - name: Kill prover & start compressor
         run: |
           sudo ./bin/prover_checkers/kill_prover
-          
+
           ci_run zkstack prover run --component=compressor --docker=false &>prover_logs/compressor.log &
       - name: Wait for batch to be executed on L1
         env:

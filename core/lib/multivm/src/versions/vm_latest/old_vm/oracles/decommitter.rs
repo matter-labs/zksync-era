@@ -1,4 +1,7 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+};
 
 use zk_evm_1_5_0::{
     abstractions::{DecommittmentProcessor, Memory, MemoryType},
@@ -27,6 +30,9 @@ pub struct DecommitterOracle<const B: bool, S, H: HistoryMode> {
     /// The cache of bytecodes that the bootloader "knows", but that are not necessarily in the database.
     /// And it is also used as a database cache.
     pub known_bytecodes: HistoryRecorder<HashMap<U256, Vec<U256>>, H>,
+    /// Subset of `known_bytecodes` that are dynamically deployed during VM execution. Currently,
+    /// only EVM bytecodes can be deployed like that.
+    pub dynamic_bytecode_hashes: HashSet<U256>,
     /// Stores pages of memory where certain code hashes have already been decommitted.
     /// It is expected that they all are present in the DB.
     // `decommitted_code_hashes` history is necessary
@@ -40,6 +46,7 @@ impl<S: ReadStorage, const B: bool, H: HistoryMode> DecommitterOracle<B, S, H> {
         Self {
             storage,
             known_bytecodes: HistoryRecorder::default(),
+            dynamic_bytecode_hashes: HashSet::default(),
             decommitted_code_hashes: HistoryRecorder::default(),
             decommitment_requests: HistoryRecorder::default(),
         }
@@ -74,6 +81,17 @@ impl<S: ReadStorage, const B: bool, H: HistoryMode> DecommitterOracle<B, S, H> {
         for (hash, bytecode) in bytecodes {
             self.known_bytecodes.insert(hash, bytecode, timestamp);
         }
+    }
+
+    pub fn insert_dynamic_bytecode(
+        &mut self,
+        bytecode_hash: U256,
+        bytecode: Vec<U256>,
+        timestamp: Timestamp,
+    ) {
+        self.dynamic_bytecode_hashes.insert(bytecode_hash);
+        self.known_bytecodes
+            .insert(bytecode_hash, bytecode, timestamp);
     }
 
     pub fn get_decommitted_bytecodes_after_timestamp(&self, timestamp: Timestamp) -> usize {
