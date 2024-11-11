@@ -1,7 +1,6 @@
 use std::{collections::HashSet, rc::Rc};
 
-use zksync_types::{h256_to_u256, vm::VmVersion, Transaction};
-use zksync_utils::bytecode::hash_bytecode;
+use zksync_types::{bytecode::BytecodeHash, h256_to_u256, vm::VmVersion, Transaction};
 use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{
@@ -143,7 +142,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
             let mut deps_hashes = HashSet::with_capacity(deps.len());
             let mut bytecode_hashes = vec![];
             let filtered_deps = deps.iter().filter_map(|bytecode| {
-                let bytecode_hash = hash_bytecode(bytecode);
+                let bytecode_hash = BytecodeHash::for_bytecode(bytecode).value();
                 let is_known = !deps_hashes.insert(bytecode_hash)
                     || self.vm.is_bytecode_exists(&bytecode_hash);
 

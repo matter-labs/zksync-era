@@ -4,7 +4,7 @@
 
 use std::{env, sync::Arc, time::Duration};
 
-use zksync_utils::bytecode::validate_bytecode;
+use zksync_types::bytecode::validate_bytecode;
 
 use super::*;
 

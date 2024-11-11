@@ -10,6 +10,7 @@ use zksync_multivm::{
 use zksync_system_constants::{DEFAULT_ERA_CHAIN_ID, ETHEREUM_ADDRESS};
 use zksync_types::{
     block::{DeployedContract, L1BatchTreeData},
+    bytecode::BytecodeHash,
     commitment::L1BatchCommitment,
     get_code_key, get_known_code_key, get_system_context_init_logs, h256_to_u256,
     tokens::{TokenInfo, TokenMetadata},
@@ -17,7 +18,6 @@ use zksync_types::{
     zk_evm_types::{LogQuery, Timestamp},
     AccountTreeId, L1BatchNumber, L2BlockNumber, L2ChainId, StorageKey, StorageLog, H256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 use crate::GenesisError;
 
@@ -51,7 +51,7 @@ pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<Sto
     let known_code_storage_logs: Vec<_> = system_contracts
         .iter()
         .map(|contract| {
-            let hash = hash_bytecode(&contract.bytecode);
+            let hash = BytecodeHash::for_bytecode(&contract.bytecode).value();
             let known_code_key = get_known_code_key(&hash);
             let marked_known_value = H256::from_low_u64_be(1u64);
 
@@ -63,7 +63,7 @@ pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<Sto
     let storage_logs: Vec<_> = system_contracts
         .iter()
         .map(|contract| {
-            let hash = hash_bytecode(&contract.bytecode);
+            let hash = BytecodeHash::for_bytecode(&contract.bytecode).value();
             let code_key = get_code_key(contract.account_id.address());
             StorageLog::new_write_log(code_key, hash)
         })

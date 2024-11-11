@@ -1,8 +1,7 @@
-// FIXME (PLA-1064): move to basic_types
-
 use anyhow::Context as _;
-use zk_evm::k256::sha2::{Digest, Sha256};
-use zksync_basic_types::{H256, U256};
+use sha2::{Digest, Sha256};
+
+use crate::{H256, U256};
 
 const MAX_BYTECODE_LENGTH_IN_WORDS: usize = (1 << 16) - 1;
 const MAX_BYTECODE_LENGTH_BYTES: usize = MAX_BYTECODE_LENGTH_IN_WORDS * 32;
@@ -40,37 +39,71 @@ pub fn validate_bytecode(code: &[u8]) -> Result<(), InvalidBytecodeError> {
     Ok(())
 }
 
-fn bytes_to_chunks(bytes: &[u8]) -> Vec<[u8; 32]> {
-    assert_eq!(
-        bytes.len() % 32,
-        0,
-        "Bytes must be divisible by 32 to split into chunks"
-    );
-    bytes
-        .chunks(32)
-        .map(|el| {
-            let mut chunk = [0u8; 32];
-            chunk.copy_from_slice(el);
-            chunk
-        })
-        .collect()
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BytecodeHash(H256);
+
+impl BytecodeHash {
+    pub fn for_bytecode(bytecode: &[u8]) -> Self {
+        Self::for_generic_bytecode(BytecodeMarker::EraVm, bytecode)
+    }
+
+    pub fn for_evm_bytecode(bytecode: &[u8]) -> Self {
+        Self::for_generic_bytecode(BytecodeMarker::Evm, bytecode)
+    }
+
+    pub fn for_generic_bytecode(kind: BytecodeMarker, bytecode: &[u8]) -> Self {
+        validate_bytecode(bytecode).expect("invalid bytecode");
+
+        let mut hasher = Sha256::new();
+        let len = match kind {
+            BytecodeMarker::EraVm => (bytecode.len() / 32) as u16,
+            BytecodeMarker::Evm => bytecode.len() as u16,
+        };
+        hasher.update(bytecode);
+        let result = hasher.finalize();
+
+        let mut output = [0u8; 32];
+        output[..].copy_from_slice(result.as_slice());
+        output[0] = kind as u8;
+        output[1] = 0;
+        output[2..4].copy_from_slice(&len.to_be_bytes());
+
+        Self(H256(output))
+    }
+
+    pub fn marker(&self) -> BytecodeMarker {
+        match self.0.as_bytes()[0] {
+            val if val == BytecodeMarker::EraVm as u8 => BytecodeMarker::EraVm,
+            val if val == BytecodeMarker::Evm as u8 => BytecodeMarker::Evm,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn len_in_bytes(&self) -> usize {
+        let bytes = self.0.as_bytes();
+        let raw_len = u16::from_be_bytes([bytes[2], bytes[3]]);
+        match self.marker() {
+            BytecodeMarker::EraVm => raw_len as usize * 32,
+            BytecodeMarker::Evm => raw_len as usize,
+        }
+    }
+
+    pub fn value(self) -> H256 {
+        self.0
+    }
+
+    pub fn value_u256(self) -> U256 {
+        crate::h256_to_u256(self.0)
+    }
 }
 
-/// Hashes the provided EraVM bytecode.
-pub fn hash_bytecode(code: &[u8]) -> H256 {
-    let chunked_code = bytes_to_chunks(code);
-    let hash = zk_evm::zkevm_opcode_defs::utils::bytecode_to_code_hash(&chunked_code)
-        .expect("Invalid bytecode");
+impl TryFrom<H256> for BytecodeHash {
+    type Error = anyhow::Error;
 
-    H256(hash)
-}
-
-pub fn bytecode_len_in_words(bytecodehash: &H256) -> u16 {
-    u16::from_be_bytes([bytecodehash[2], bytecodehash[3]])
-}
-
-pub fn bytecode_len_in_bytes(bytecodehash: H256) -> usize {
-    bytecode_len_in_words(&bytecodehash) as usize * 32
+    fn try_from(raw_hash: H256) -> Result<Self, Self::Error> {
+        BytecodeMarker::new(raw_hash).context("unknown bytecode hash marker")?;
+        Ok(Self(raw_hash))
+    }
 }
 
 /// Bytecode marker encoded in the first byte of the bytecode hash.
@@ -92,25 +125,6 @@ impl BytecodeMarker {
             _ => return None,
         })
     }
-}
-
-/// Hashes the provided EVM bytecode. The bytecode must be padded to an odd number of 32-byte words;
-/// bytecodes stored in the known codes storage satisfy this requirement automatically.
-pub fn hash_evm_bytecode(bytecode: &[u8]) -> H256 {
-    validate_bytecode(bytecode).expect("invalid EVM bytecode");
-
-    let mut hasher = Sha256::new();
-    let len = bytecode.len() as u16;
-    hasher.update(bytecode);
-    let result = hasher.finalize();
-
-    let mut output = [0u8; 32];
-    output[..].copy_from_slice(result.as_slice());
-    output[0] = BytecodeMarker::Evm as u8;
-    output[1] = 0;
-    output[2..4].copy_from_slice(&len.to_be_bytes());
-
-    H256(output)
 }
 
 pub fn prepare_evm_bytecode(raw: &[u8]) -> anyhow::Result<&[u8]> {
@@ -172,16 +186,13 @@ mod tests {
 
     #[test]
     fn bytecode_markers_are_valid() {
-        let bytecode_hash = hash_bytecode(&[0; 32]);
-        assert_eq!(
-            BytecodeMarker::new(bytecode_hash),
-            Some(BytecodeMarker::EraVm)
-        );
-        let bytecode_hash = hash_evm_bytecode(&[0; 32]);
-        assert_eq!(
-            BytecodeMarker::new(bytecode_hash),
-            Some(BytecodeMarker::Evm)
-        );
+        let bytecode_hash = BytecodeHash::for_bytecode(&[0; 32]);
+        assert_eq!(bytecode_hash.marker(), BytecodeMarker::EraVm);
+        assert_eq!(bytecode_hash.len_in_bytes(), 32);
+
+        let bytecode_hash = BytecodeHash::for_evm_bytecode(&[0; 32]);
+        assert_eq!(bytecode_hash.marker(), BytecodeMarker::Evm);
+        assert_eq!(bytecode_hash.len_in_bytes(), 32);
     }
 
     #[test]

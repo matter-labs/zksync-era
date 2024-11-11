@@ -7816,6 +7816,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "const-decoder 0.4.0",
  "ethabi",
  "hex",
  "num_enum 0.7.2",
@@ -7823,6 +7824,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
+ "sha2 0.10.8",
  "strum",
  "thiserror",
  "tiny-keccak 2.0.2",
@@ -7994,11 +7996,11 @@ name = "zksync_contracts"
 version = "0.1.0"
 dependencies = [
  "envy",
- "ethabi",
  "hex",
  "once_cell",
  "serde",
  "serde_json",
+ "zksync_basic_types",
  "zksync_utils",
 ]
 
@@ -8230,7 +8232,6 @@ dependencies = [
  "zksync_mini_merkle_tree",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
  "zksync_vm2",
  "zksync_vm_interface",
 ]

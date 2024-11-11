@@ -29,6 +29,7 @@ pub use self::conversions::{
 #[macro_use]
 mod macros;
 pub mod basic_fri_types;
+pub mod bytecode;
 pub mod commitment;
 mod conversions;
 pub mod network;

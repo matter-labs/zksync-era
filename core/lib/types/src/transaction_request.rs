@@ -3,19 +3,18 @@ use std::convert::{TryFrom, TryInto};
 use rlp::{DecoderError, Rlp, RlpStream};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use zksync_basic_types::H256;
 use zksync_system_constants::{DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE, MAX_ENCODED_TX_SIZE};
-use zksync_utils::bytecode::{hash_bytecode, validate_bytecode, InvalidBytecodeError};
 
 use super::{EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE};
 use crate::{
+    bytecode::{validate_bytecode, BytecodeHash, InvalidBytecodeError},
     fee::Fee,
     l1::L1Tx,
     l2::{L2Tx, TransactionType},
     u256_to_h256,
     web3::{keccak256, keccak256_concat, AccessList, Bytes},
     Address, EIP712TypedStructure, Eip712Domain, L1TxCommonData, L2ChainId, Nonce,
-    PackedEthSignature, StructBuilder, LEGACY_TX_TYPE, U256, U64,
+    PackedEthSignature, StructBuilder, H256, LEGACY_TX_TYPE, U256, U64,
 };
 
 /// Call contract request (eth_call / eth_estimateGas)
@@ -353,7 +352,7 @@ impl EIP712TypedStructure for TransactionRequest {
         let factory_dep_hashes: Vec<_> = self
             .get_factory_deps()
             .into_iter()
-            .map(|dep| hash_bytecode(&dep))
+            .map(|dep| BytecodeHash::for_bytecode(&dep).value())
             .collect();
         builder.add_member("factoryDeps", &factory_dep_hashes.as_slice());
 

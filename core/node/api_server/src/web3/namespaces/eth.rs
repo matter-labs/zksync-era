@@ -6,6 +6,7 @@ use zksync_types::{
         state_override::StateOverride, BlockId, BlockNumber, FeeHistory, GetLogsFilter,
         Transaction, TransactionId, TransactionReceipt, TransactionVariant,
     },
+    bytecode::{prepare_evm_bytecode, BytecodeMarker},
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
     u256_to_h256,
@@ -13,7 +14,6 @@ use zksync_types::{
     web3::{self, Bytes, SyncInfo, SyncState},
     AccountTreeId, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
-use zksync_utils::bytecode::{prepare_evm_bytecode, BytecodeMarker};
 use zksync_web3_decl::{
     error::Web3Error,
     types::{Address, Block, Filter, FilterChanges, Log, U64},
