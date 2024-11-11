@@ -1,6 +1,6 @@
 use anyhow::Context;
 use clap::Parser;
-use config::EcosystemConfig;
+use config::zkstack_config::ZkStackConfig;
 use xshell::Shell;
 
 use crate::{
@@ -29,7 +29,7 @@ impl StatusArgs {
         if let Some(url) = &self.url {
             Ok(url.clone())
         } else {
-            let ecosystem = EcosystemConfig::from_file(shell)?;
+            let ecosystem = ZkStackConfig::ecosystem(shell)?;
             let chain = ecosystem
                 .load_current_chain()
                 .context(MSG_CHAIN_NOT_FOUND_ERR)?;

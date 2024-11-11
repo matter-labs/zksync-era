@@ -1,10 +1,9 @@
-use zksync_types::U256;
-use zksync_utils::{bytes_to_be_words, h256_to_u256};
+use zksync_types::{h256_to_u256, U256};
 
 use super::tx::BootloaderTx;
 use crate::{
     interface::{BootloaderMemory, CompressedBytecodeInfo, TxExecutionMode},
-    utils::bytecode,
+    utils::{bytecode, bytecode::bytes_to_be_words},
     vm_refunds_enhancement::{
         bootloader_state::l2_block::BootloaderL2Block,
         constants::{
@@ -23,8 +22,7 @@ pub(super) fn get_memory_for_compressed_bytecodes(
         .iter()
         .flat_map(bytecode::encode_call)
         .collect();
-
-    bytes_to_be_words(memory_addition)
+    bytes_to_be_words(&memory_addition)
 }
 
 #[allow(clippy::too_many_arguments)]

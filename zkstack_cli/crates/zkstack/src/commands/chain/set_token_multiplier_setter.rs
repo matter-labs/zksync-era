@@ -5,7 +5,10 @@ use common::{
     spinner::Spinner,
     wallets::Wallet,
 };
-use config::{forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, EcosystemConfig};
+use config::{
+    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, zkstack_config::ZkStackConfig,
+    EcosystemConfig,
+};
 use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
 use lazy_static::lazy_static;
 use xshell::Shell;
@@ -30,7 +33,7 @@ lazy_static! {
 }
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;

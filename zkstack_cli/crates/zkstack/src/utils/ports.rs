@@ -2,8 +2,8 @@ use std::{collections::HashMap, fmt, net::SocketAddr, ops::Range, path::Path};
 
 use anyhow::{bail, Context, Result};
 use config::{
-    explorer_compose::ExplorerBackendPorts, EcosystemConfig, DEFAULT_EXPLORER_API_PORT,
-    DEFAULT_EXPLORER_DATA_FETCHER_PORT, DEFAULT_EXPLORER_WORKER_PORT,
+    explorer_compose::ExplorerBackendPorts, zkstack_config::ZkStackConfig,
+    DEFAULT_EXPLORER_API_PORT, DEFAULT_EXPLORER_DATA_FETCHER_PORT, DEFAULT_EXPLORER_WORKER_PORT,
 };
 use serde_yaml::Value;
 use url::Url;
@@ -206,7 +206,7 @@ impl EcosystemPortsScanner {
     /// Scans the ecosystem directory for YAML files and extracts port information.
     /// Specifically, it looks for keys ending with "port" or "ports" and collects their values.
     pub fn scan(shell: &Shell) -> Result<EcosystemPorts> {
-        let ecosystem_config = EcosystemConfig::from_file(shell)?;
+        let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
         // Create a list of directories to scan:
         // - Ecosystem configs directory

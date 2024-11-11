@@ -33,14 +33,14 @@ use zksync_multivm::{
 };
 use zksync_types::{
     block::pack_block_info,
-    get_nonce_key,
+    get_nonce_key, h256_to_u256,
     l2::L2Tx,
+    u256_to_h256,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     vm::FastVmMode,
     AccountTreeId, Nonce, StorageKey, Transaction, SYSTEM_CONTEXT_ADDRESS,
     SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
 };
-use zksync_utils::{h256_to_u256, u256_to_h256};
 
 pub use self::{
     block::{BlockInfo, ResolvedBlockInfo},

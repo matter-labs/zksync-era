@@ -193,7 +193,7 @@ impl Setup {
     }
 
     fn new(shell: &Shell) -> anyhow::Result<Self> {
-        let chain = ZkStackConfig::load_current_chain(shell)?;
+        let chain = ZkStackConfig::current_chain(shell)?;
         let contracts = chain
             .get_contracts_config()
             .context("get_contracts_config()")?;

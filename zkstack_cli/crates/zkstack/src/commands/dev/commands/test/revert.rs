@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use common::{cmd::Cmd, logger, spinner::Spinner};
-use config::EcosystemConfig;
+use config::{zkstack_config::ZkStackConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
 
 use super::{
@@ -17,7 +17,7 @@ use crate::commands::dev::messages::{
 const REVERT_TESTS_PATH: &str = "core/tests/revert-test";
 
 pub async fn run(shell: &Shell, args: RevertArgs) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     shell.change_dir(ecosystem_config.link_to_code.join(REVERT_TESTS_PATH));
 
     logger::info(MSG_REVERT_TEST_RUN_INFO);

@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use common::logger;
-use config::EcosystemConfig;
+use config::zkstack_config::ZkStackConfig;
 use xshell::Shell;
 
 use super::{args::DatabaseCommonArgs, drop::drop_database, setup::setup_database};
@@ -20,7 +20,7 @@ pub async fn run(shell: &Shell, args: DatabaseCommonArgs) -> anyhow::Result<()> 
         return Ok(());
     }
 
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     logger::info(msg_database_info(MSG_DATABASE_RESET_GERUND));
 

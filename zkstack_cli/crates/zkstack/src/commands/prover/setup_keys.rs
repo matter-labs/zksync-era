@@ -2,7 +2,7 @@ use anyhow::Ok;
 use common::{
     check_prerequisites, cmd::Cmd, logger, spinner::Spinner, GCLOUD_PREREQUISITE, GPU_PREREQUISITES,
 };
-use config::{get_link_to_prover, EcosystemConfig};
+use config::{get_link_to_prover, zkstack_config::ZkStackConfig};
 use xshell::{cmd, Shell};
 
 use crate::{
@@ -12,7 +12,7 @@ use crate::{
 
 pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     if args.mode == Mode::Generate {
         check_prerequisites(shell, &GPU_PREREQUISITES, false);

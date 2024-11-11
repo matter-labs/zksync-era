@@ -24,7 +24,7 @@ use zksync_state_keeper::{
 use zksync_types::{
     api::state_override::StateOverride,
     fee_model::BatchFeeInput,
-    get_intrinsic_constants,
+    get_intrinsic_constants, h256_to_u256,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
@@ -32,7 +32,6 @@ use zksync_types::{
     AccountTreeId, Address, L2ChainId, Nonce, ProtocolVersionId, Transaction, H160, H256,
     MAX_NEW_FACTORY_DEPS, U256,
 };
-use zksync_utils::h256_to_u256;
 use zksync_vm_executor::oneshot::{
     CallOrExecute, EstimateGas, MultiVMBaseSystemContracts, OneshotEnvParameters,
 };

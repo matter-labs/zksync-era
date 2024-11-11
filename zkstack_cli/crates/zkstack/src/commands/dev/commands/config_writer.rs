@@ -1,7 +1,7 @@
 use anyhow::Context;
 use clap::Parser;
 use common::{logger, Prompt};
-use config::{override_config, EcosystemConfig};
+use config::{override_config, zkstack_config::ZkStackConfig};
 use xshell::Shell;
 
 use crate::commands::dev::messages::{
@@ -24,7 +24,7 @@ impl ConfigWriterArgs {
 
 pub fn run(shell: &Shell, args: ConfigWriterArgs) -> anyhow::Result<()> {
     let path = args.get_config_path().into();
-    let ecosystem = EcosystemConfig::from_file(shell)?;
+    let ecosystem = ZkStackConfig::ecosystem(shell)?;
     let chain = ecosystem
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;

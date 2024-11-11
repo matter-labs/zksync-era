@@ -74,13 +74,7 @@ impl MockOneshotExecutor {
     {
         Box::new(
             move |tx: &Transaction, env: &OneshotEnv| -> VmExecutionResultAndLogs {
-                VmExecutionResultAndLogs {
-                    result: responses(tx, env),
-                    logs: Default::default(),
-                    statistics: Default::default(),
-                    refunds: Default::default(),
-                    new_known_factory_deps: None,
-                }
+                VmExecutionResultAndLogs::mock(responses(tx, env))
             },
         )
     }

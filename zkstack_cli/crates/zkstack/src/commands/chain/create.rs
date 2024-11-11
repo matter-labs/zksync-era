@@ -5,6 +5,7 @@ use common::logger;
 use config::{
     create_local_configs_dir, create_wallets, get_default_era_chain_id,
     traits::{ReadConfigWithBasePath, SaveConfigWithBasePath},
+    zkstack_config::ZkStackConfig,
     ChainConfig, EcosystemConfig, GenesisConfig, LOCAL_ARTIFACTS_PATH, LOCAL_DB_PATH,
 };
 use xshell::Shell;
@@ -20,7 +21,7 @@ use crate::{
 };
 
 pub fn run(args: ChainCreateArgs, shell: &Shell) -> anyhow::Result<()> {
-    let mut ecosystem_config = EcosystemConfig::from_file(shell).ok();
+    let mut ecosystem_config = ZkStackConfig::ecosystem(shell).ok();
     create(args, &mut ecosystem_config, shell)
 }
 

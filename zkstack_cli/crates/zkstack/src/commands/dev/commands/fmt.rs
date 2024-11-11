@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use common::{cmd::Cmd, logger, spinner::Spinner};
-use config::EcosystemConfig;
+use config::zkstack_config::ZkStackConfig;
 use xshell::{cmd, Shell};
 
 use super::sql_fmt::format_sql;
@@ -83,8 +83,8 @@ pub struct FmtArgs {
     pub formatter: Option<Formatter>,
 }
 
-pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
-    let ecosystem = EcosystemConfig::from_file(&shell)?;
+pub async fn run(shell: &Shell, args: FmtArgs) -> anyhow::Result<()> {
+    let ecosystem = ZkStackConfig::ecosystem(shell)?;
     match args.formatter {
         None => {
             let mut tasks = vec![];

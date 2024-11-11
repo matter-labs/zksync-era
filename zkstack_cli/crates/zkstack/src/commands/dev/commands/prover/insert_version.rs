@@ -1,5 +1,5 @@
 use common::{check_prerequisites, cmd::Cmd, logger, PROVER_CLI_PREREQUISITE};
-use config::{get_link_to_prover, EcosystemConfig};
+use config::{get_link_to_prover, zkstack_config::ZkStackConfig};
 use xshell::{cmd, Shell};
 
 use crate::commands::dev::{
@@ -13,7 +13,7 @@ use crate::commands::dev::{
 pub async fn run(shell: &Shell, args: InsertVersionArgs) -> anyhow::Result<()> {
     check_prerequisites(shell, &PROVER_CLI_PREREQUISITE, false);
 
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
         .expect(MSG_CHAIN_NOT_FOUND_ERR);

@@ -11,12 +11,13 @@ use zksync_system_constants::{DEFAULT_ERA_CHAIN_ID, ETHEREUM_ADDRESS};
 use zksync_types::{
     block::{DeployedContract, L1BatchTreeData},
     commitment::L1BatchCommitment,
-    get_code_key, get_known_code_key, get_system_context_init_logs,
+    get_code_key, get_known_code_key, get_system_context_init_logs, h256_to_u256,
     tokens::{TokenInfo, TokenMetadata},
+    u256_to_h256,
     zk_evm_types::{LogQuery, Timestamp},
     AccountTreeId, L1BatchNumber, L2BlockNumber, L2ChainId, StorageKey, StorageLog, H256,
 };
-use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
+use zksync_utils::bytecode::hash_bytecode;
 
 use crate::GenesisError;
 
@@ -132,7 +133,7 @@ pub(super) async fn insert_base_system_contracts_to_factory_deps(
     let factory_deps = [&contracts.bootloader, &contracts.default_aa]
         .into_iter()
         .chain(contracts.evm_emulator.as_ref())
-        .map(|c| (c.hash, be_words_to_bytes(&c.code)))
+        .map(|c| (c.hash, c.code.clone()))
         .collect();
 
     Ok(storage
