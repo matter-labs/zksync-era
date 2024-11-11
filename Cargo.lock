@@ -9634,7 +9634,6 @@ dependencies = [
  "zksync_contracts",
  "zksync_multivm",
  "zksync_types",
- "zksync_utils",
  "zksync_vlog",
  "zksync_vm2",
 ]
@@ -10794,7 +10793,6 @@ dependencies = [
  "zksync_dal",
  "zksync_node_test_utils",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -10999,7 +10997,6 @@ dependencies = [
  "zksync_system_constants",
  "zksync_test_account",
  "zksync_types",
- "zksync_utils",
  "zksync_vm_interface",
 ]
 
@@ -11480,7 +11477,6 @@ dependencies = [
  "zksync_state_keeper",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
  "zksync_vm_executor",
  "zksync_web3_decl",
 ]
@@ -11654,7 +11650,6 @@ dependencies = [
  "zksync_multivm",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -11709,7 +11704,6 @@ dependencies = [
  "zksync_state_keeper",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
  "zksync_vm_executor",
  "zksync_web3_decl",
 ]
@@ -11956,7 +11950,6 @@ dependencies = [
  "zksync_health_check",
  "zksync_object_store",
  "zksync_types",
- "zksync_utils",
  "zksync_web3_decl",
 ]
 
@@ -12037,7 +12030,6 @@ dependencies = [
  "zksync_system_constants",
  "zksync_test_account",
  "zksync_types",
- "zksync_utils",
  "zksync_vm_executor",
 ]
 
@@ -12116,7 +12108,6 @@ dependencies = [
  "zksync_eth_signer",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -12151,7 +12142,6 @@ dependencies = [
  "zksync_protobuf",
  "zksync_protobuf_build",
  "zksync_system_constants",
- "zksync_utils",
 ]
 
 [[package]]
@@ -12234,7 +12224,6 @@ dependencies = [
  "zksync_dal",
  "zksync_multivm",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -12285,7 +12274,6 @@ dependencies = [
  "zksync_storage",
  "zksync_test_account",
  "zksync_types",
- "zksync_utils",
  "zksync_vm_executor",
  "zksync_vm_interface",
 ]

@@ -8078,7 +8078,6 @@ dependencies = [
  "zksync_protobuf_build",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
  "zksync_vm_interface",
 ]
 
@@ -8623,7 +8622,6 @@ dependencies = [
  "zksync_protobuf",
  "zksync_protobuf_build",
  "zksync_system_constants",
- "zksync_utils",
 ]
 
 [[package]]
