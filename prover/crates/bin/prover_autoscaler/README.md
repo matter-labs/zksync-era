@@ -50,7 +50,7 @@ sequenceDiagram
 Scaler supports 2 types of scaling algorithms: GPU and Simple. GPU usually is prover itself and all other Deployments
 are using Simple algorithm.
 
-Simple algorithm tries to scale the Deployment up too `queue / speed` replicas (rounded up) in the best cluster. If
+Simple algorithm tries to scale the Deployment up to `queue / speed` replicas (rounded up) in the best cluster. If
 there is not enough capacity it continue in the next best and so on. On each run it selects "best cluster" using
 priority, number of capacity issues and cluster size.
 
