@@ -55,7 +55,7 @@ there is not enough capacity it continue in the next best and so on. On each run
 priority, number of capacity issues and cluster size.
 
 GPU algorithm works similar to Simple one, but it also recognise different GPU types and distribute load across L4 GPUs
-first, than T4, V100, P100 and A100, if available.
+first, then T4, V100, P100 and A100, if available.
 
 Different namespaces are running different protocol versions and completely independent. Normally only one namespace is
 active, and only during protocol upgrade both are active. Each namespace has to have correct version of binaries
