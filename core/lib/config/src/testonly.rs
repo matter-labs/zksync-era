@@ -269,8 +269,6 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l2_testnet_paymaster_addr: self.sample_opt(|| rng.gen()),
             l1_multicall3_addr: rng.gen(),
             ecosystem_contracts: self.sample(rng),
-            user_facing_bridgehub_proxy_addr: rng.gen(),
-            user_facing_diamond_proxy_addr: rng.gen(),
             base_token_addr: self.sample_opt(|| rng.gen()),
             chain_admin_addr: self.sample_opt(|| rng.gen()),
             settlement_layer: self.sample_opt(|| rng.gen()),
