@@ -42,13 +42,11 @@ pub(super) fn apply_tx_to_memory(
     compressed_bytecodes_size: usize,
     execution_mode: TxExecutionMode,
     start_new_l2_block: bool,
+    subversion: MultiVMSubversion,
 ) -> usize {
-    // FIXME: not supported in fast vm
-    let bootloader_description_offset =
-        get_bootloader_tx_description_offset(crate::vm_latest::MultiVMSubversion::Gateway)
-            + BOOTLOADER_TX_DESCRIPTION_SIZE * tx_index;
-    let tx_description_offset =
-        get_tx_description_offset(crate::vm_latest::MultiVMSubversion::Gateway) + tx_offset;
+    let bootloader_description_offset = get_bootloader_tx_description_offset(subversion)
+        + BOOTLOADER_TX_DESCRIPTION_SIZE * tx_index;
+    let tx_description_offset = get_tx_description_offset(subversion) + tx_offset;
 
     memory.push((
         bootloader_description_offset,
@@ -60,29 +58,30 @@ pub(super) fn apply_tx_to_memory(
         U256::from_big_endian(&(32 * tx_description_offset).to_be_bytes()),
     ));
 
-    let refund_offset =
-        get_operator_refunds_offset(crate::vm_latest::MultiVMSubversion::Gateway) + tx_index;
+    let refund_offset = get_operator_refunds_offset(subversion) + tx_index;
     memory.push((refund_offset, bootloader_tx.refund.into()));
 
-    let overhead_offset =
-        get_tx_overhead_offset(crate::vm_latest::MultiVMSubversion::Gateway) + tx_index;
+    let overhead_offset = get_tx_overhead_offset(subversion) + tx_index;
     memory.push((overhead_offset, bootloader_tx.gas_overhead.into()));
 
-    let trusted_gas_limit_offset =
-        get_tx_trusted_gas_limit_offset(crate::vm_latest::MultiVMSubversion::Gateway) + tx_index;
+    let trusted_gas_limit_offset = get_tx_trusted_gas_limit_offset(subversion) + tx_index;
     memory.push((trusted_gas_limit_offset, bootloader_tx.trusted_gas_limit));
 
     memory.extend(
         (tx_description_offset..tx_description_offset + bootloader_tx.encoded_len())
             .zip(bootloader_tx.encoded.clone()),
     );
-    apply_l2_block_inner(memory, bootloader_l2_block, tx_index, start_new_l2_block);
+    apply_l2_block_inner(
+        memory,
+        bootloader_l2_block,
+        tx_index,
+        start_new_l2_block,
+        subversion,
+    );
 
     // Note, +1 is moving for pointer
     let compressed_bytecodes_offset =
-        get_compressed_bytecodes_offset(crate::vm_latest::MultiVMSubversion::Gateway)
-            + 1
-            + compressed_bytecodes_size;
+        get_compressed_bytecodes_offset(subversion) + 1 + compressed_bytecodes_size;
 
     let encoded_compressed_bytecodes =
         get_memory_for_compressed_bytecodes(&bootloader_tx.compressed_bytecodes);
@@ -100,8 +99,9 @@ pub(crate) fn apply_l2_block(
     memory: &mut BootloaderMemory,
     bootloader_l2_block: &BootloaderL2Block,
     txs_index: usize,
+    subversion: MultiVMSubversion,
 ) {
-    apply_l2_block_inner(memory, bootloader_l2_block, txs_index, true)
+    apply_l2_block_inner(memory, bootloader_l2_block, txs_index, true, subversion)
 }
 
 fn apply_l2_block_inner(
@@ -109,15 +109,14 @@ fn apply_l2_block_inner(
     bootloader_l2_block: &BootloaderL2Block,
     txs_index: usize,
     start_new_l2_block: bool,
+    subversion: MultiVMSubversion,
 ) {
     // Since L2 block information start from the `TX_OPERATOR_L2_BLOCK_INFO_OFFSET` and each
     // L2 block info takes `TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO` slots, the position where the L2 block info
     // for this transaction needs to be written is:
 
-    let block_position = get_tx_operator_l2_block_info_offset(
-        // FIXME: provide protocol version
-        crate::vm_latest::MultiVMSubversion::Gateway,
-    ) + txs_index * TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO;
+    let block_position = get_tx_operator_l2_block_info_offset(subversion)
+        + txs_index * TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO;
 
     memory.extend(vec![
         (block_position, bootloader_l2_block.number.into()),

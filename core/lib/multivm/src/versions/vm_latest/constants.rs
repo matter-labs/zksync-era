@@ -121,7 +121,7 @@ pub(crate) const fn get_priority_txs_l1_data_offset(subversion: MultiVMSubversio
 
 pub(crate) const PRIORITY_TXS_L1_DATA_SLOTS: usize = 2;
 
-pub const fn get_operator_provided_l1_messenger_pubdata_offset(
+pub(crate) const fn get_operator_provided_l1_messenger_pubdata_offset(
     subversion: MultiVMSubversion,
 ) -> usize {
     get_priority_txs_l1_data_offset(subversion) + PRIORITY_TXS_L1_DATA_SLOTS
