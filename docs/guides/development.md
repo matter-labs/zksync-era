@@ -119,16 +119,38 @@ Commands:
   help          Print this message or the help of the given subcommand(s)
 ```
 
+### Running unit tests
+
 You can run unit tests for the Rust crates in the project by running:
 
 ```bash
 zkstack dev test rust
 ```
 
+### Running integration tests
+
 Running integration tests is more complex. Some tests require a running server, while others need the system to be in a
 specific state. Please refer to our CI scripts
 [ci-core-reusable.yml](https://github.com/matter-labs/zksync-era/blob/main/.github/workflows/ci-core-reusable.yml) to
 have a better understanding of the process.
+
+### Running load tests
+
+The current load test implementation only supports the legacy bridge. To use it, you need to create a new chain with
+legacy bridge support:
+
+```bash
+zk_inception chain create --legacy-bridge
+zk_inception chain init
+```
+
+After initializing the chain with a legacy bridge, you can run the load test against it.
+
+```bash
+zk_supervisor test loadtest
+```
+
+> WARNING: Never use legacy bridges in non-testing environments.
 
 ## Contracts
 
