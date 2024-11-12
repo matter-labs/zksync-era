@@ -21,13 +21,13 @@ use zksync_l1_contract_interface::i_executor::commit::kzg::ZK_SYNC_BYTES_PER_BLO
 use zksync_multivm::{interface::VmEvent, utils::get_used_bootloader_memory_bytes};
 use zksync_system_constants::message_root::{AGG_TREE_HEIGHT_KEY, AGG_TREE_NODES_KEY};
 use zksync_types::{
+    address_to_u256, h256_to_u256, u256_to_h256,
     vm::VmVersion,
     web3::keccak256,
     zk_evm_types::{LogQuery, Timestamp},
     AccountTreeId, L1BatchNumber, ProtocolVersionId, StorageKey, EVENT_WRITER_ADDRESS, H256,
     L2_MESSAGE_ROOT_ADDRESS, U256,
 };
-use zksync_utils::{address_to_u256, expand_memory_contents, h256_to_u256, u256_to_h256};
 
 /// Encapsulates computations of commitment components.
 ///
@@ -124,6 +124,15 @@ impl CommitmentComputer for RealCommitmentComputer {
     }
 }
 
+fn expand_memory_contents(packed: &[(usize, U256)], memory_size_bytes: usize) -> Vec<u8> {
+    let mut result: Vec<u8> = vec![0; memory_size_bytes];
+
+    for (offset, value) in packed {
+        value.to_big_endian(&mut result[(offset * 32)..(offset + 1) * 32]);
+    }
+
+    result
+}
 fn to_log_query_1_3_3(log_query: LogQuery) -> LogQuery_1_3_3 {
     LogQuery_1_3_3 {
         timestamp: Timestamp_1_3_3(log_query.timestamp.0),

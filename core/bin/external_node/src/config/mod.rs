@@ -417,6 +417,9 @@ pub(crate) struct OptionalENConfig {
     /// Timeout to wait for the Merkle tree database to run compaction on stalled writes.
     #[serde(default = "OptionalENConfig::default_merkle_tree_stalled_writes_timeout_sec")]
     merkle_tree_stalled_writes_timeout_sec: u64,
+    /// Enables the stale keys repair task for the Merkle tree.
+    #[serde(default)]
+    pub merkle_tree_repair_stale_keys: bool,
 
     // Postgres config (new parameters)
     /// Threshold in milliseconds for the DB connection lifetime to denote it as long-living and log its details.
@@ -648,6 +651,12 @@ impl OptionalENConfig {
                 merkle_tree.stalled_writes_timeout_sec,
                 default_merkle_tree_stalled_writes_timeout_sec
             ),
+            merkle_tree_repair_stale_keys: general_config
+                .db_config
+                .as_ref()
+                .map_or(false, |config| {
+                    config.experimental.merkle_tree_repair_stale_keys
+                }),
             database_long_connection_threshold_ms: load_config!(
                 general_config.postgres_config,
                 long_connection_threshold_ms

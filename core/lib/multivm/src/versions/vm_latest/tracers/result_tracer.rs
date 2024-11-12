@@ -23,7 +23,7 @@ use crate::{
             utils::{get_vm_hook_params, read_pointer, VmHook},
         },
         types::internals::ZkSyncVmState,
-        vm::MultiVMSubversion,
+        vm::MultiVmSubversion,
         BootloaderState, HistoryMode, SimpleMemory,
     },
 };
@@ -102,7 +102,7 @@ pub(crate) struct ResultTracer<S> {
     execution_mode: VmExecutionMode,
 
     far_call_tracker: FarCallTracker,
-    subversion: MultiVMSubversion,
+    subversion: MultiVmSubversion,
 
     pub(crate) tx_finished_in_one_tx_mode: bool,
 
@@ -110,7 +110,7 @@ pub(crate) struct ResultTracer<S> {
 }
 
 impl<S> ResultTracer<S> {
-    pub(crate) fn new(execution_mode: VmExecutionMode, subversion: MultiVMSubversion) -> Self {
+    pub(crate) fn new(execution_mode: VmExecutionMode, subversion: MultiVmSubversion) -> Self {
         Self {
             result: None,
             bootloader_out_of_gas: false,
@@ -336,7 +336,7 @@ impl<S: WriteStorage> ResultTracer<S> {
 pub(crate) fn tx_has_failed<S: WriteStorage, H: HistoryMode>(
     state: &ZkSyncVmState<S, H>,
     tx_id: u32,
-    subversion: MultiVMSubversion,
+    subversion: MultiVmSubversion,
 ) -> bool {
     let mem_slot = get_result_success_first_slot(subversion) + tx_id;
     let mem_value = state

@@ -29,6 +29,9 @@ pub struct ExperimentalDBConfig {
     /// correspondingly; otherwise, RocksDB performance can significantly degrade.
     #[serde(default)]
     pub include_indices_and_filters_in_block_cache: bool,
+    /// Enables the stale keys repair task for the Merkle tree.
+    #[serde(default)]
+    pub merkle_tree_repair_stale_keys: bool,
 }
 
 impl Default for ExperimentalDBConfig {
@@ -40,6 +43,7 @@ impl Default for ExperimentalDBConfig {
             protective_reads_persistence_enabled: false,
             processing_delay_ms: Self::default_merkle_tree_processing_delay_ms(),
             include_indices_and_filters_in_block_cache: false,
+            merkle_tree_repair_stale_keys: false,
         }
     }
 }

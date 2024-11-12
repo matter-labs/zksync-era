@@ -6,13 +6,12 @@ use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
     api::{ChainAggProof, Log},
-    ethabi,
+    ethabi, h256_to_u256,
     l2_to_l1_log::{
         BatchAndChainMerklePath, BATCH_LEAF_PADDING, LOG_PROOF_SUPPORTED_METADATA_VERSION,
     },
-    L1BatchNumber, L2ChainId, SLChainId, H256, U256,
+    u256_to_h256, L1BatchNumber, L2ChainId, SLChainId, H256, U256,
 };
-use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     client::L2EthClient,

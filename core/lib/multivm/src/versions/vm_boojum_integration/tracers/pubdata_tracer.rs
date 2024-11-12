@@ -5,8 +5,10 @@ use zk_evm_1_4_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
-use zksync_types::{writes::StateDiffRecord, AccountTreeId, StorageKey, L1_MESSENGER_ADDRESS};
-use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
+use zksync_types::{
+    h256_to_u256, u256_to_h256, writes::StateDiffRecord, AccountTreeId, StorageKey,
+    L1_MESSENGER_ADDRESS,
+};
 
 use crate::{
     interface::{
@@ -16,9 +18,12 @@ use crate::{
         L1BatchEnv, VmEvent, VmExecutionMode,
     },
     tracers::dynamic::vm_1_4_0::DynTracer,
-    utils::events::{
-        extract_bytecode_publication_requests_from_l1_messenger,
-        extract_l2tol1logs_from_l1_messenger,
+    utils::{
+        bytecode::be_words_to_bytes,
+        events::{
+            extract_bytecode_publication_requests_from_l1_messenger,
+            extract_l2tol1logs_from_l1_messenger,
+        },
     },
     vm_boojum_integration::{
         bootloader_state::{utils::apply_pubdata_to_memory, BootloaderState},
@@ -98,15 +103,13 @@ impl<S: WriteStorage> PubdataTracer<S> {
         bytecode_publication_requests
             .iter()
             .map(|bytecode_publication_request| {
-                state
+                let bytecode_words = state
                     .decommittment_processor
                     .known_bytecodes
                     .inner()
                     .get(&h256_to_u256(bytecode_publication_request.bytecode_hash))
-                    .unwrap()
-                    .iter()
-                    .flat_map(u256_to_bytes_be)
-                    .collect()
+                    .unwrap();
+                be_words_to_bytes(bytecode_words)
             })
             .collect()
     }

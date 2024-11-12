@@ -64,7 +64,7 @@ impl PubdataInput {
 #[cfg(test)]
 mod tests {
     use zksync_system_constants::{ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS};
-    use zksync_utils::u256_to_h256;
+    use zksync_types::u256_to_h256;
 
     use super::*;
 

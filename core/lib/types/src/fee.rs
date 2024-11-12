@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use zksync_utils::ceil_div;
 
 use crate::U256;
 
@@ -43,10 +42,10 @@ pub fn encoding_len(
 
     // All of the fields are encoded as `bytes`, so their encoding takes ceil(len, 32) slots.
     // For factory deps we only provide hashes, which are encoded as an array of bytes32.
-    let dynamic_len = ceil_div(data_len, 32)
-        + ceil_div(signature_len, 32)
-        + ceil_div(paymaster_input_len, 32)
-        + ceil_div(reserved_dynamic_len, 32)
+    let dynamic_len = data_len.div_ceil(32)
+        + signature_len.div_ceil(32)
+        + paymaster_input_len.div_ceil(32)
+        + reserved_dynamic_len.div_ceil(32)
         + factory_deps_len;
 
     BASE_LEN + dynamic_len as usize

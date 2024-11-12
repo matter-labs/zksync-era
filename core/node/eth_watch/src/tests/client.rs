@@ -12,10 +12,10 @@ use zksync_types::{
     ethabi,
     ethabi::Token,
     l1::L1Tx,
+    u256_to_h256,
     web3::{contract::Tokenizable, BlockNumber},
     Address, L1BatchNumber, L2ChainId, ProtocolUpgrade, SLChainId, Transaction, H256, U256, U64,
 };
-use zksync_utils::u256_to_h256;
 
 use crate::client::{EthClient, L2EthClient, RETRY_LIMIT};
 
