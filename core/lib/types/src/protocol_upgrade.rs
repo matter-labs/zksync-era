@@ -101,7 +101,7 @@ impl From<abi::VerifierParams> for VerifierParams {
 /// Instead, they are expected to be known and need to be fetched, typically from L1.
 #[async_trait::async_trait]
 pub trait ProtocolUpgradePreimageOracle: Send + Sync {
-    async fn get_protocol_upgrade_preimages(&self, hash: Vec<H256>)
+    async fn get_protocol_upgrade_preimages(&self, hashes: Vec<H256>)
         -> anyhow::Result<Vec<Vec<u8>>>;
 }
 
