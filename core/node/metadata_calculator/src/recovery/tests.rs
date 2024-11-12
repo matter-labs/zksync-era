@@ -28,6 +28,8 @@ use crate::{
     MetadataCalculator, MetadataCalculatorConfig,
 };
 
+impl HandleRecoveryEvent for () {}
+
 #[test]
 fn calculating_chunk_count() {
     let mut snapshot = InitParameters {
@@ -118,7 +120,7 @@ async fn prune_storage(pool: &ConnectionPool<Core>, pruned_l1_batch: L1BatchNumb
         .expect("L1 batch not present in Postgres");
     let root_hash = storage
         .blocks_dal()
-        .get_l1_batch_state_root(dbg!(pruned_l1_batch))
+        .get_l1_batch_state_root(pruned_l1_batch)
         .await
         .unwrap()
         .expect("L1 batch does not have root hash");
@@ -482,6 +484,66 @@ async fn recovery_with_further_pruning(pruned_batches: u32) {
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let (calculator, _) = setup_calculator(&temp_dir.path().join("new"), pool, true).await;
     assert_eq!(run_calculator(calculator).await, expected_root_hash);
+}
+
+#[tokio::test]
+async fn detecting_root_hash_mismatch_after_pruning() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let snapshot_logs = gen_storage_logs(100..300, 1).pop().unwrap();
+    let mut storage = pool.connection().await.unwrap();
+    let mut db_transaction = storage.start_transaction().await.unwrap();
+    let snapshot_recovery = prepare_recovery_snapshot(
+        &mut db_transaction,
+        L1BatchNumber(23),
+        L2BlockNumber(42),
+        &snapshot_logs,
+    )
+    .await;
+
+    let logs = gen_storage_logs(200..400, 5);
+    extend_db_state_from_l1_batch(
+        &mut db_transaction,
+        snapshot_recovery.l1_batch_number + 1,
+        snapshot_recovery.l2_block_number + 1,
+        logs,
+    )
+    .await;
+    // Intentionally add an incorrect root has of the batch to be pruned.
+    db_transaction
+        .blocks_dal()
+        .set_l1_batch_hash(snapshot_recovery.l1_batch_number + 1, H256::repeat_byte(42))
+        .await
+        .unwrap();
+    db_transaction.commit().await.unwrap();
+
+    prune_storage(&pool, snapshot_recovery.l1_batch_number + 1).await;
+
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+    let config = MetadataCalculatorRecoveryConfig::default();
+    let (tree, _) = create_tree_recovery(temp_dir.path(), L1BatchNumber(1), &config).await;
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let recovery_options = RecoveryOptions {
+        chunk_count: 5,
+        concurrency_limit: 1,
+        events: Box::new(()),
+    };
+    let init_params = InitParameters::new(&pool, &config)
+        .await
+        .unwrap()
+        .expect("no init params");
+    assert_eq!(init_params.expected_root_hash, Some(H256::repeat_byte(42)));
+
+    let err = tree
+        .recover(init_params, recovery_options, &pool, &stop_receiver)
+        .await
+        .unwrap_err();
+    let err = format!("{err:#}").to_lowercase();
+    assert!(err.contains("root hash"), "{err}");
+
+    // Because of an abrupt error, terminating a RocksDB instance needs to be handled explicitly.
+    tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
+        .await
+        .unwrap();
 }
 
 #[derive(Debug)]
