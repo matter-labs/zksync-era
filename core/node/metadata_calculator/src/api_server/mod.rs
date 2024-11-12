@@ -486,6 +486,17 @@ impl AsyncTreeReader {
         Json(StaleKeysResponse { stale_keys })
     }
 
+    async fn bogus_stale_keys_handler(
+        State(this): State<Self>,
+        Json(request): Json<StaleKeysRequest>,
+    ) -> Json<StaleKeysResponse> {
+        let latency = API_METRICS.latency[&MerkleTreeApiMethod::GetBogusStaleKeys].start();
+        let stale_keys = this.clone().bogus_stale_keys(request.l1_batch_number).await;
+        let stale_keys = stale_keys.into_iter().map(HexNodeKey).collect();
+        latency.observe();
+        Json(StaleKeysResponse { stale_keys })
+    }
+
     async fn create_api_server(
         self,
         bind_address: &SocketAddr,
@@ -500,6 +511,10 @@ impl AsyncTreeReader {
             .route(
                 "/debug/stale-keys",
                 routing::post(Self::get_stale_keys_handler),
+            )
+            .route(
+                "/debug/stale-keys/bogus",
+                routing::post(Self::bogus_stale_keys_handler),
             )
             .with_state(self);
 
