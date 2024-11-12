@@ -140,14 +140,14 @@ The current load test implementation only supports the legacy bridge. To use it,
 legacy bridge support:
 
 ```bash
-zk_inception chain create --legacy-bridge
-zk_inception chain init
+zkstack chain create --legacy-bridge
+zkstack chain init
 ```
 
 After initializing the chain with a legacy bridge, you can run the load test against it.
 
 ```bash
-zk_supervisor test loadtest
+zkstack dev test loadtest
 ```
 
 > WARNING: Never use legacy bridges in non-testing environments.
