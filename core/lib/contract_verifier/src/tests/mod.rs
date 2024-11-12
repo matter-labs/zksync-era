@@ -20,7 +20,7 @@ use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics,
 
 use super::*;
 use crate::{
-    compilers::{SolcInput, ZkSolcInput, ZkVyperInput},
+    compilers::{SolcInput, VyperInput, ZkSolcInput},
     resolver::{Compiler, SupportedCompilerVersions},
 };
 
@@ -52,6 +52,39 @@ const COUNTER_CONTRACT_WITH_CONSTRUCTOR: &str = r#"
             value += x;
         }
     }
+"#;
+const COUNTER_CONTRACT_WITH_INTERFACE: &str = r#"
+    interface ICounter {
+        function increment(uint256 x) external;
+    }
+
+    contract Counter is ICounter {
+        uint256 value;
+
+        function increment(uint256 x) external override {
+            value += x;
+        }
+    }
+"#;
+const COUNTER_VYPER_CONTRACT: &str = r#"
+#pragma version ^0.3.10
+
+value: uint256
+
+@external
+def increment(x: uint256):
+    self.value += x
+"#;
+const EMPTY_YUL_CONTRACT: &str = r#"
+object "Empty" {
+    code {
+        mstore(0, 0)
+        return(0, 32)
+    }
+    object "Empty_deployed" {
+        code { }
+    }
+}
 "#;
 
 #[derive(Debug, Clone, Copy)]
@@ -122,7 +155,7 @@ async fn mock_evm_deployment(
     calldata.extend_from_slice(&ethabi::encode(constructor_args));
     let deployment = Execute {
         contract_address: None,
-        calldata, // FIXME: check
+        calldata,
         value: 0.into(),
         factory_deps: vec![],
     };
@@ -295,10 +328,17 @@ impl CompilerResolver for MockCompilerResolver {
         Ok(Box::new(self.clone()))
     }
 
+    async fn resolve_vyper(
+        &self,
+        _version: &str,
+    ) -> Result<Box<dyn Compiler<VyperInput>>, ContractVerifierError> {
+        unreachable!("not tested")
+    }
+
     async fn resolve_zkvyper(
         &self,
         _version: &ZkCompilerVersions,
-    ) -> Result<Box<dyn Compiler<ZkVyperInput>>, ContractVerifierError> {
+    ) -> Result<Box<dyn Compiler<VyperInput>>, ContractVerifierError> {
         unreachable!("not tested")
     }
 }
@@ -443,8 +483,30 @@ async fn assert_request_success(
         .unwrap()
         .expect("no verification info");
     assert_eq!(verification_info.artifacts.bytecode, *expected_bytecode);
-    assert_eq!(verification_info.artifacts.abi, counter_contract_abi());
+    assert_eq!(
+        without_internal_types(verification_info.artifacts.abi.clone()),
+        without_internal_types(counter_contract_abi())
+    );
     verification_info
+}
+
+fn without_internal_types(mut abi: serde_json::Value) -> serde_json::Value {
+    let items = abi.as_array_mut().unwrap();
+    for item in items {
+        if let Some(inputs) = item.get_mut("inputs") {
+            let inputs = inputs.as_array_mut().unwrap();
+            for input in inputs {
+                input.as_object_mut().unwrap().remove("internalType");
+            }
+        }
+        if let Some(outputs) = item.get_mut("outputs") {
+            let outputs = outputs.as_array_mut().unwrap();
+            for output in outputs {
+                output.as_object_mut().unwrap().remove("internalType");
+            }
+        }
+    }
+    abi
 }
 
 #[test_casing(2, TestContract::ALL)]
