@@ -477,11 +477,11 @@ impl TxSender {
             );
             return Err(SubmitTxError::MaxPriorityFeeGreaterThanMaxFee);
         }
-        let max_new_fatory_deps = get_max_new_factory_deps(protocol_version.into());
-        if tx.execute.factory_deps.len() > max_new_fatory_deps {
+        let max_new_factory_deps = get_max_new_factory_deps(protocol_version.into());
+        if tx.execute.factory_deps.len() > max_new_factory_deps {
             return Err(SubmitTxError::TooManyFactoryDependencies(
                 tx.execute.factory_deps.len(),
-                max_new_fatory_deps,
+                max_new_factory_deps,
             ));
         }
 

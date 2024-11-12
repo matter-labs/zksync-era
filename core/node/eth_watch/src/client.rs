@@ -409,11 +409,10 @@ where
     }
 
     async fn get_base_token_metadata(&self) -> Result<TokenMetadata, ContractCallError> {
-        let base_token_addr = CallFunctionArgs::new("getBaseToken", ())
+        let base_token_addr: Address = CallFunctionArgs::new("getBaseToken", ())
             .for_contract(self.diamond_proxy_addr, &self.getters_facet_contract_abi)
             .call(&self.client)
-            .await
-            .map(|x: Address| x)?;
+            .await?;
 
         if base_token_addr == SHARED_BRIDGE_ETHER_TOKEN_ADDRESS {
             return Ok(TokenMetadata {

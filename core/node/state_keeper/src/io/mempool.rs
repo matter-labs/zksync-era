@@ -371,7 +371,7 @@ impl StateKeeperIO for MempoolIO {
     ) -> anyhow::Result<BaseSystemContracts> {
         get_base_system_contracts_hashes_by_version_id(
             &mut self.pool.connection_tagged("state_keeper").await?,
-            protocol_version as u16,
+            protocol_version,
         )
         .await
         .context("failed loading base system contracts")?
