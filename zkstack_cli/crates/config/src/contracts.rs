@@ -77,7 +77,6 @@ impl ContractsConfig {
 
     pub fn set_chain_contracts(&mut self, register_chain_output: &RegisterChainOutput) {
         self.l1.diamond_proxy_addr = register_chain_output.diamond_proxy_addr;
-        self.l1.governance_addr = register_chain_output.governance_addr;
         self.l1.chain_admin_addr = register_chain_output.chain_admin_addr;
     }
 

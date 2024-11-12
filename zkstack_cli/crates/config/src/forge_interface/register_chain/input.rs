@@ -21,6 +21,7 @@ struct DeployedAddresses {
     state_transition: StateTransition,
     bridgehub: Bridgehub,
     validator_timelock_addr: Address,
+    chain_registrar: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -62,6 +63,7 @@ impl RegisterChainL1Config {
                     bridgehub_proxy_addr: contracts.ecosystem_contracts.bridgehub_proxy_addr,
                 },
                 validator_timelock_addr: contracts.ecosystem_contracts.validator_timelock_addr,
+                chain_registrar: contracts.ecosystem_contracts.chain_registrar,
             },
             chain: ChainL1Config {
                 chain_chain_id: chain_config.chain_id,
