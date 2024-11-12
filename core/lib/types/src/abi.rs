@@ -381,7 +381,7 @@ impl ForceDeployment {
         ])
     }
 
-    /// Decodes `ProposedUpgrade` from a RLP token.
+    /// Decodes `ForceDeployment` from a RLP token.
     /// Returns an error if token doesn't match the `schema()`.
     pub fn decode(token: Token) -> anyhow::Result<Self> {
         let tokens = token.into_tuple().context("not a tuple")?;
