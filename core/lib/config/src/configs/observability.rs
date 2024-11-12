@@ -1,8 +1,6 @@
-use serde::Deserialize;
-
 /// Configuration for the essential observability stack, like
 /// logging and sentry integration.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ObservabilityConfig {
     /// URL of the Sentry instance to send events to.
     pub sentry_url: Option<String>,
@@ -17,7 +15,7 @@ pub struct ObservabilityConfig {
     pub log_directives: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OpentelemetryConfig {
     /// Enables export of span data of specified level (and above) using opentelemetry exporters.
     pub level: String,

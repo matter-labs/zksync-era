@@ -1,3 +1,5 @@
+// TODO: move to shared tests
+
 use std::rc::Rc;
 
 use ethabi::Token;

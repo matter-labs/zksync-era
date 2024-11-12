@@ -113,7 +113,7 @@ mod tests {
         block::{L1BatchHeader, L2BlockHeader},
         Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction,
     };
-    use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
+    use zksync_vm_interface::TransactionExecutionMetrics;
 
     use super::*;
     use crate::{
@@ -168,11 +168,7 @@ mod tests {
         };
         let tx = mock_l2_transaction();
         conn.transactions_dal()
-            .insert_transaction_l2(
-                &tx,
-                TransactionExecutionMetrics::default(),
-                ValidationTraces::default(),
-            )
+            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         conn.blocks_dal()

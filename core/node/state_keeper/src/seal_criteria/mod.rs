@@ -54,7 +54,6 @@ fn halt_as_metric_label(halt: &Halt) -> &'static str {
         Halt::VMPanic => "VMPanic",
         Halt::TracerCustom(_) => "TracerCustom",
         Halt::FailedToPublishCompressedBytecodes => "FailedToPublishCompressedBytecodes",
-        Halt::FailedBlockTimestampAssertion => "FailedBlockTimestampAssertion",
     }
 }
 

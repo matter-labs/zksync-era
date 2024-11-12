@@ -98,12 +98,6 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("l2_testnet_paymaster_addr")?,
-            l2_timestamp_asserter_addr: l2
-                .timestamp_asserter_addr
-                .as_ref()
-                .map(|x| parse_h160(x))
-                .transpose()
-                .context("l2_timestamp_asserter_addr")?,
             l1_multicall3_addr: required(&l1.multicall3_addr)
                 .and_then(|x| parse_h160(x))
                 .context("l1_multicall3_addr")?,
@@ -176,9 +170,6 @@ impl ProtoRepr for proto::Contracts {
                 da_validator_addr: this.l2_da_validator_addr.map(|a| format!("{:?}", a)),
                 legacy_shared_bridge_addr: this
                     .l2_legacy_shared_bridge_addr
-                    .map(|a| format!("{:?}", a)),
-                timestamp_asserter_addr: this
-                    .l2_timestamp_asserter_addr
                     .map(|a| format!("{:?}", a)),
             }),
             bridges: Some(proto::Bridges {

@@ -1,7 +1,5 @@
 use circuit_sequencer_api_1_5_0::{geometry_config::get_geometry_config, toolset::GeometryConfig};
-use zksync_vm2::interface::{
-    CycleStats, GlobalStateInterface, Opcode, OpcodeType, ShouldStop, Tracer,
-};
+use zksync_vm2::interface::{CycleStats, GlobalStateInterface, Opcode, OpcodeType, Tracer};
 use zksync_vm_interface::CircuitStatistic;
 
 use crate::vm_latest::tracers::circuits_capacity::*;
@@ -9,7 +7,7 @@ use crate::vm_latest::tracers::circuits_capacity::*;
 /// VM tracer tracking [`CircuitStatistic`]s. Statistics generally depend on the number of time some opcodes were invoked,
 /// and, for precompiles, invocation complexity (e.g., how many hashing cycles `keccak256` required).
 #[derive(Debug, Default, Clone, PartialEq)]
-pub(super) struct CircuitsTracer {
+pub struct CircuitsTracer {
     main_vm_cycles: u32,
     ram_permutation_cycles: u32,
     storage_application_cycles: u32,
@@ -26,10 +24,7 @@ pub(super) struct CircuitsTracer {
 }
 
 impl Tracer for CircuitsTracer {
-    fn after_instruction<OP: OpcodeType, S: GlobalStateInterface>(
-        &mut self,
-        _: &mut S,
-    ) -> ShouldStop {
+    fn after_instruction<OP: OpcodeType, S: GlobalStateInterface>(&mut self, _: &mut S) {
         self.main_vm_cycles += 1;
 
         match OP::VALUE {
@@ -115,8 +110,6 @@ impl Tracer for CircuitsTracer {
                 self.ram_permutation_cycles += UMA_READ_RAM_CYCLES;
             }
         }
-
-        ShouldStop::Continue
     }
 
     fn on_extra_prover_cycles(&mut self, stats: CycleStats) {

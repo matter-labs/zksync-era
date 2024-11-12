@@ -96,7 +96,7 @@ pub struct ScaleRequest {
     pub deployments: Vec<ScaleDeploymentRequest>,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ScaleResponse {
     pub scale_result: Vec<String>,
 }
