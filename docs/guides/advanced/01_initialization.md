@@ -38,7 +38,7 @@ This command:
 
 - Collects and finalize the ecosystem configuration.
 - Builds and deploys L1 & L2 contracts.
-- Initialize each chain defined in the `/chains` folder. (Currently, a single chain `era` is defined there, but you can
+- Initializes each chain defined in the `/chains` folder. (Currently, a single chain `era` is defined there, but you can
   create your own chains running `zkstack chain create`).
 - Sets up observability.
 - Runs the genesis process.
