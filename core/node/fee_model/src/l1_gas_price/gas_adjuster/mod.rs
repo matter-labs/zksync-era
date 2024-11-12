@@ -244,14 +244,14 @@ impl GasAdjuster {
     /// Returns the sum of base and priority fee, in wei, not considering time in mempool.
     /// Can be used to get an estimate of current gas price.
     pub(crate) fn estimate_effective_gas_price(&self) -> u64 {
-        if let Some(price) = self.config.internal_enforced_l1_gas_price {
+        if let Some(price) = self.config.internal_enforced_sl_gas_price {
             return price;
         }
 
         let effective_gas_price = self.get_base_fee(0) + self.get_priority_fee();
 
         let calculated_price =
-            (self.config.internal_l1_pricing_multiplier * effective_gas_price as f64) as u64;
+            (self.config.internal_sl_pricing_multiplier * effective_gas_price as f64) as u64;
 
         // Bound the price if it's too high.
         self.bound_gas_price(calculated_price)

@@ -157,7 +157,7 @@ export class NodeSpawner {
 
             if (overrides != null) {
                 if (overrides.newL1GasPrice) {
-                    config['eth']['gas_adjuster']['internal_enforced_l1_gas_price'] = overrides.newL1GasPrice;
+                    config['eth']['gas_adjuster']['internal_enforced_sl_gas_price'] = overrides.newL1GasPrice;
                 }
 
                 if (overrides.newPubdataPrice) {
