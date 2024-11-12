@@ -3,7 +3,7 @@ use std::ops;
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{L1BatchNumber, L2BlockNumber, H256};
 
-use crate::Core;
+use crate::{Core, CoreDal};
 
 #[cfg(test)]
 mod tests;
@@ -155,7 +155,7 @@ impl PruningDal<'_, '_> {
         Ok(row.map(PruningInfo::from).unwrap_or_default())
     }
 
-    pub async fn soft_prune_batches_range(
+    pub async fn insert_soft_pruning_log(
         &mut self,
         last_l1_batch_to_prune: L1BatchNumber,
         last_l2_block_to_prune: L2BlockNumber,
@@ -188,11 +188,22 @@ impl PruningDal<'_, '_> {
         Ok(())
     }
 
+    /// If the pruned L1 batch does not have a root hash present in the storage, this is a no-op.
     pub async fn hard_prune_batches_range(
         &mut self,
         last_l1_batch_to_prune: L1BatchNumber,
         last_l2_block_to_prune: L2BlockNumber,
     ) -> DalResult<HardPruningStats> {
+        let Some(last_l1_batch_root_hash) = self
+            .storage
+            .blocks_dal()
+            .get_l1_batch_state_root(last_l1_batch_to_prune)
+            .await?
+        else {
+            // Assume that pruning has already occurred.
+            return Ok(HardPruningStats::default());
+        };
+
         let row = sqlx::query!(
             r#"
             SELECT
@@ -210,42 +221,44 @@ impl PruningDal<'_, '_> {
         .fetch_one(self.storage)
         .await?;
 
-        // We don't have any L2 blocks available when recovering from a snapshot
-        let stats = if let Some(first_l2_block_to_prune) = row.first_miniblock_to_prune {
-            let first_l2_block_to_prune = L2BlockNumber(first_l2_block_to_prune as u32);
-
-            let deleted_events = self
-                .delete_events(first_l2_block_to_prune..=last_l2_block_to_prune)
-                .await?;
-            let deleted_l2_to_l1_logs = self
-                .delete_l2_to_l1_logs(first_l2_block_to_prune..=last_l2_block_to_prune)
-                .await?;
-            let deleted_call_traces = self
-                .delete_call_traces(first_l2_block_to_prune..=last_l2_block_to_prune)
-                .await?;
-            self.clear_transaction_fields(first_l2_block_to_prune..=last_l2_block_to_prune)
-                .await?;
-
-            let deleted_storage_logs = self
-                .prune_storage_logs(first_l2_block_to_prune..=last_l2_block_to_prune)
-                .await?;
-            let deleted_l1_batches = self.delete_l1_batches(last_l1_batch_to_prune).await?;
-            let deleted_l2_blocks = self.delete_l2_blocks(last_l2_block_to_prune).await?;
-
-            HardPruningStats {
-                deleted_l1_batches,
-                deleted_l2_blocks,
-                deleted_events,
-                deleted_l2_to_l1_logs,
-                deleted_call_traces,
-                deleted_storage_logs,
-            }
-        } else {
-            HardPruningStats::default()
+        let Some(first_l2_block_to_prune) = row.first_miniblock_to_prune else {
+            return Ok(HardPruningStats::default());
         };
 
-        self.insert_hard_pruning_log(last_l1_batch_to_prune, last_l2_block_to_prune)
+        let first_l2_block_to_prune = L2BlockNumber(first_l2_block_to_prune as u32);
+
+        let deleted_events = self
+            .delete_events(first_l2_block_to_prune..=last_l2_block_to_prune)
             .await?;
+        let deleted_l2_to_l1_logs = self
+            .delete_l2_to_l1_logs(first_l2_block_to_prune..=last_l2_block_to_prune)
+            .await?;
+        let deleted_call_traces = self
+            .delete_call_traces(first_l2_block_to_prune..=last_l2_block_to_prune)
+            .await?;
+        self.clear_transaction_fields(first_l2_block_to_prune..=last_l2_block_to_prune)
+            .await?;
+
+        let deleted_storage_logs = self
+            .prune_storage_logs(first_l2_block_to_prune..=last_l2_block_to_prune)
+            .await?;
+        let deleted_l1_batches = self.delete_l1_batches(last_l1_batch_to_prune).await?;
+        let deleted_l2_blocks = self.delete_l2_blocks(last_l2_block_to_prune).await?;
+
+        let stats = HardPruningStats {
+            deleted_l1_batches,
+            deleted_l2_blocks,
+            deleted_events,
+            deleted_l2_to_l1_logs,
+            deleted_call_traces,
+            deleted_storage_logs,
+        };
+        self.insert_hard_pruning_log(
+            last_l1_batch_to_prune,
+            last_l2_block_to_prune,
+            last_l1_batch_root_hash,
+        )
+        .await?;
         Ok(stats)
     }
 
@@ -440,11 +453,11 @@ impl PruningDal<'_, '_> {
         Ok(execution_result.rows_affected())
     }
 
-    // FIXME: record removed L1 batch root hash
-    async fn insert_hard_pruning_log(
+    pub async fn insert_hard_pruning_log(
         &mut self,
         last_l1_batch_to_prune: L1BatchNumber,
         last_l2_block_to_prune: L2BlockNumber,
+        last_pruned_l1_batch_root_hash: H256,
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
@@ -452,15 +465,17 @@ impl PruningDal<'_, '_> {
             pruning_log (
                 pruned_l1_batch,
                 pruned_miniblock,
+                pruned_l1_batch_root_hash,
                 type,
                 created_at,
                 updated_at
             )
             VALUES
-            ($1, $2, $3, NOW(), NOW())
+            ($1, $2, $3, $4, NOW(), NOW())
             "#,
             i64::from(last_l1_batch_to_prune.0),
             i64::from(last_l2_block_to_prune.0),
+            last_pruned_l1_batch_root_hash.as_bytes(),
             PruneType::Hard as PruneType
         )
         .instrument("hard_prune_batches_range#insert_pruning_log")
