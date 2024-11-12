@@ -193,7 +193,7 @@ impl ProtocolVersionsDal<'_, '_> {
     /// Returns base system contracts' hashes.
     pub async fn get_base_system_contract_hashes_by_version_id(
         &mut self,
-        version_id: u16,
+        version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<BaseSystemContractsHashes>> {
         let row = sqlx::query!(
             r#"
@@ -206,10 +206,10 @@ impl ProtocolVersionsDal<'_, '_> {
             WHERE
                 id = $1
             "#,
-            i32::from(version_id)
+            i32::from(version_id as u16)
         )
         .instrument("get_base_system_contract_hashes_by_version_id")
-        .with_arg("version_id", &version_id)
+        .with_arg("version_id", &(version_id as u16))
         .fetch_optional(self.storage)
         .await
         .context("cannot fetch system contract hashes")?;

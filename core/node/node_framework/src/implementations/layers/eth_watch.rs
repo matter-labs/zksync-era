@@ -112,6 +112,7 @@ impl WiringLayer for EthWatchLayer {
             Some(Box::new(EthHttpQueryClient::new(
                 gateway_client,
                 contracts_config.diamond_proxy_addr,
+                // Bytecode supplier is only present on L1
                 None,
                 Some(contracts_config.state_transition_proxy_addr),
                 contracts_config.chain_admin_addr,

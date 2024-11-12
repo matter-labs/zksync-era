@@ -399,15 +399,15 @@ async fn get_base_system_contracts(
         return Ok(deps);
     }
 
-    let error_msg = format!("Could not find either of the following factoey deps: bootloader {bootloader_hash:?} or {default_aa_hash:?}");
-
     let protocol_version = protocol_version.context("Protocol version not provided")?;
 
     let upgrade_tx = storage
         .protocol_versions_dal()
         .get_protocol_upgrade_tx(protocol_version)
         .await?
-        .context(error_msg.clone())?;
+        .with_context(|| {
+            format!("Could not find base contracts for version {protocol_version:?}: bootloader {bootloader_hash:?} or {default_aa_hash:?}")
+        })?;
 
     anyhow::ensure!(
         upgrade_tx.execute.factory_deps.len() >= 2,
@@ -447,7 +447,7 @@ async fn get_base_system_contracts(
 
 pub async fn get_base_system_contracts_hashes_by_version_id(
     storage: &mut Connection<'_, Core>,
-    version_id: u16,
+    version_id: ProtocolVersionId,
 ) -> anyhow::Result<Option<BaseSystemContracts>> {
     let hashes = storage
         .protocol_versions_dal()
@@ -460,7 +460,7 @@ pub async fn get_base_system_contracts_hashes_by_version_id(
     Ok(Some(
         get_base_system_contracts(
             storage,
-            Some(ProtocolVersionId::try_from(version_id).unwrap()),
+            Some(version_id),
             hashes.bootloader,
             hashes.default_aa,
             hashes.evm_emulator,

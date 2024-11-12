@@ -30,16 +30,7 @@ use crate::{
 };
 
 /// Encodes a Solidity function call with parameters into a Vec<u8>.
-///
-/// # Arguments
-///
-/// * `signature` - A string representing the Solidity function signature (e.g., "transfer(address,uint256)").
-/// * `params` - A slice of `Token` values representing the arguments for the function.
-///
-/// # Returns
-///
-/// A `Result<Vec<u8>, ethabi::Error>` containing the encoded function call data.
-pub fn encode_function_call(
+fn encode_function_call(
     name: &str,
     types: &[ParamType],
     params: &[Token],

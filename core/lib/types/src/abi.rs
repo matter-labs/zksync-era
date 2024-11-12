@@ -370,7 +370,7 @@ impl ForceDeployment {
         ])
     }
 
-    /// Encodes `ProposedUpgrade` to a RLP token.
+    /// Encodes `ForceDeployment` to a RLP token.
     pub fn encode(&self) -> Token {
         Token::Tuple(vec![
             Token::FixedBytes(self.bytecode_hash.0.to_vec()),
@@ -381,7 +381,7 @@ impl ForceDeployment {
         ])
     }
 
-    /// Decodes `ProposedUpgrade` from a RLP token.
+    /// Decodes `ForceDeployment` from a RLP token.
     /// Returns an error if token doesn't match the `schema()`.
     pub fn decode(token: Token) -> anyhow::Result<Self> {
         let tokens = token.into_tuple().context("not a tuple")?;
@@ -412,7 +412,7 @@ pub struct GatewayUpgradeEncodedInput {
 }
 
 impl GatewayUpgradeEncodedInput {
-    /// ABI schema of the `ProposedUpgrade`.
+    /// ABI schema of the `GatewayUpgradeEncodedInput`.
     pub fn schema() -> ParamType {
         ParamType::Tuple(vec![
             ParamType::Array(Box::new(ForceDeployment::schema())),
@@ -425,7 +425,7 @@ impl GatewayUpgradeEncodedInput {
         ])
     }
 
-    /// Decodes `ProposedUpgrade` from a RLP token.
+    /// Decodes `GatewayUpgradeEncodedInput` from a RLP token.
     /// Returns an error if token doesn't match the `schema()`.
     pub fn decode(token: Token) -> anyhow::Result<Self> {
         let tokens = token.into_tuple().context("not a tuple")?;
@@ -485,7 +485,7 @@ impl ZkChainSpecificUpgradeData {
         })
     }
 
-    /// ABI schema of the `ProposedUpgrade`.
+    /// ABI schema of the `ZkChainSpecificUpgradeData`.
     pub fn schema() -> ParamType {
         ParamType::Tuple(vec![
             ParamType::FixedBytes(32),
@@ -494,7 +494,7 @@ impl ZkChainSpecificUpgradeData {
         ])
     }
 
-    /// Encodes `ProposedUpgrade` to a RLP token.
+    /// Encodes `ZkChainSpecificUpgradeData` to a RLP token.
     pub fn encode(&self) -> Token {
         Token::Tuple(vec![
             Token::FixedBytes(self.base_token_asset_id.0.to_vec()),

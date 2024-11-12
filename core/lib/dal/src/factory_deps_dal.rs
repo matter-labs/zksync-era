@@ -116,8 +116,10 @@ impl FactoryDepsDal<'_, '_> {
             let evm_emulator_bytecode = self
                 .get_sealed_factory_dep(evm_emulator_hash)
                 .await
-                .context("failed loading EVM emulator code")?
-                .with_context(|| format!("EVM emulator code with hash {evm_emulator_hash:?} should be present in the database"))?;
+                .context("failed loading EVM emulator code")?;
+            let Some(evm_emulator_bytecode) = evm_emulator_bytecode else {
+                return Ok(None);
+            };
 
             Some(SystemContractCode {
                 code: bytes_to_be_words(evm_emulator_bytecode),

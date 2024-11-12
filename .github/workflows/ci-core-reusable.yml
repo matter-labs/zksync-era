@@ -1,6 +1,10 @@
 name: Workflow template for CI jobs for Core Components
 on:
   workflow_call:
+    secrets:
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE:
+        description: "Token which will be provided to checkout action to be able to clone private submodules"
+        required: true
     inputs:
       compilers:
         description: "JSON of required compilers and their versions"
@@ -16,12 +20,15 @@ jobs:
   lint:
     name: lint
     uses: ./.github/workflows/ci-core-lint-reusable.yml
+    secrets:
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
   unit-tests:
     runs-on: [ matterlabs-ci-runner-highmem-long ]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
+          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
           submodules: "recursive"
           fetch-depth: 0
 
@@ -94,6 +101,7 @@ jobs:
 #    steps:
 #      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
 #        with:
+#          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 #          submodules: "recursive"
 #          fetch-depth: 0
 #
@@ -177,6 +185,7 @@ jobs:
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
+          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
           submodules: "recursive"
           fetch-depth: 0
 
