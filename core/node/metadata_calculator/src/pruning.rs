@@ -101,8 +101,8 @@ impl MerkleTreePruningTask {
             let pruning_info = storage.pruning_dal().get_pruning_info().await?;
             drop(storage);
 
-            if let Some(l1_batch_number) = pruning_info.last_hard_pruned_l1_batch {
-                let target_retained_l1_batch_number = l1_batch_number + 1;
+            if let Some(pruned) = pruning_info.last_hard_pruned {
+                let target_retained_l1_batch_number = pruned.l1_batch + 1;
                 let target_retained_version = u64::from(target_retained_l1_batch_number.0);
                 let Ok(prev_target_version) =
                     pruner_handle.set_target_retained_version(target_retained_version)

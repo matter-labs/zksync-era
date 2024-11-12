@@ -204,10 +204,8 @@ async fn soft_pruning_works() {
 
     assert_eq!(
         PruningInfo {
-            last_soft_pruned_l2_block: None,
-            last_soft_pruned_l1_batch: None,
-            last_hard_pruned_l2_block: None,
-            last_hard_pruned_l1_batch: None
+            last_soft_pruned: None,
+            last_hard_pruned: None,
         },
         transaction.pruning_dal().get_pruning_info().await.unwrap()
     );
@@ -219,10 +217,11 @@ async fn soft_pruning_works() {
         .unwrap();
     assert_eq!(
         PruningInfo {
-            last_soft_pruned_l2_block: Some(L2BlockNumber(11)),
-            last_soft_pruned_l1_batch: Some(L1BatchNumber(5)),
-            last_hard_pruned_l2_block: None,
-            last_hard_pruned_l1_batch: None
+            last_soft_pruned: Some(SoftPruningInfo {
+                l2_block: L2BlockNumber(11),
+                l1_batch: L1BatchNumber(5),
+            }),
+            last_hard_pruned: None,
         },
         transaction.pruning_dal().get_pruning_info().await.unwrap()
     );
@@ -234,10 +233,11 @@ async fn soft_pruning_works() {
         .unwrap();
     assert_eq!(
         PruningInfo {
-            last_soft_pruned_l2_block: Some(L2BlockNumber(21)),
-            last_soft_pruned_l1_batch: Some(L1BatchNumber(10)),
-            last_hard_pruned_l2_block: None,
-            last_hard_pruned_l1_batch: None
+            last_soft_pruned: Some(SoftPruningInfo {
+                l2_block: L2BlockNumber(21),
+                l1_batch: L1BatchNumber(10),
+            }),
+            last_hard_pruned: None,
         },
         transaction.pruning_dal().get_pruning_info().await.unwrap()
     );
@@ -249,10 +249,15 @@ async fn soft_pruning_works() {
         .unwrap();
     assert_eq!(
         PruningInfo {
-            last_soft_pruned_l2_block: Some(L2BlockNumber(21)),
-            last_soft_pruned_l1_batch: Some(L1BatchNumber(10)),
-            last_hard_pruned_l2_block: Some(L2BlockNumber(21)),
-            last_hard_pruned_l1_batch: Some(L1BatchNumber(10))
+            last_soft_pruned: Some(SoftPruningInfo {
+                l2_block: L2BlockNumber(21),
+                l1_batch: L1BatchNumber(10),
+            }),
+            last_hard_pruned: Some(HardPruningInfo {
+                l2_block: L2BlockNumber(21),
+                l1_batch: L1BatchNumber(10),
+                l1_batch_root_hash: None, // FIXME
+            }),
         },
         transaction.pruning_dal().get_pruning_info().await.unwrap()
     );
@@ -399,7 +404,7 @@ async fn l1_batches_can_be_hard_pruned() {
         .get_pruning_info()
         .await
         .unwrap()
-        .last_hard_pruned_l1_batch
+        .last_hard_pruned
         .is_none());
 
     transaction
@@ -410,14 +415,10 @@ async fn l1_batches_can_be_hard_pruned() {
 
     assert_l1_batch_objects_dont_exist(&mut transaction, L1BatchNumber(1)..=L1BatchNumber(5)).await;
     assert_l1_batch_objects_exists(&mut transaction, L1BatchNumber(6)..=L1BatchNumber(10)).await;
+    let pruning_info = transaction.pruning_dal().get_pruning_info().await.unwrap();
     assert_eq!(
-        Some(L1BatchNumber(5)),
-        transaction
-            .pruning_dal()
-            .get_pruning_info()
-            .await
-            .unwrap()
-            .last_hard_pruned_l1_batch
+        L1BatchNumber(5),
+        pruning_info.last_hard_pruned.unwrap().l1_batch
     );
 
     let stats = transaction
@@ -432,14 +433,10 @@ async fn l1_batches_can_be_hard_pruned() {
 
     assert_l1_batch_objects_dont_exist(&mut transaction, L1BatchNumber(1)..=L1BatchNumber(10))
         .await;
+    let pruning_info = transaction.pruning_dal().get_pruning_info().await.unwrap();
     assert_eq!(
-        Some(L1BatchNumber(10)),
-        transaction
-            .pruning_dal()
-            .get_pruning_info()
-            .await
-            .unwrap()
-            .last_hard_pruned_l1_batch
+        L1BatchNumber(10),
+        pruning_info.last_hard_pruned.unwrap().l1_batch
     );
 }
 

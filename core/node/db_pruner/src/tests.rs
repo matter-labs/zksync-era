@@ -167,17 +167,27 @@ async fn hard_pruning_ignores_conditions_checks() {
         .unwrap();
 
     assert_eq!(
-        PruningInfo {
-            last_soft_pruned_l1_batch: Some(L1BatchNumber(2)),
-            last_soft_pruned_l2_block: Some(L2BlockNumber(5)),
-            last_hard_pruned_l1_batch: Some(L1BatchNumber(2)),
-            last_hard_pruned_l2_block: Some(L2BlockNumber(5)),
-        },
+        test_pruning_info(2, 5),
         conn.pruning_dal().get_pruning_info().await.unwrap()
     );
     let health = health_check.check_health().await;
     assert_matches!(health.status(), HealthStatus::Ready);
 }
+
+fn test_pruning_info(l1_batch: u32, l2_block: u32) -> PruningInfo {
+    PruningInfo {
+        last_soft_pruned: Some(SoftPruningInfo {
+            l1_batch: L1BatchNumber(l1_batch),
+            l2_block: L2BlockNumber(l2_block),
+        }),
+        last_hard_pruned: Some(HardPruningInfo {
+            l1_batch: L1BatchNumber(l1_batch),
+            l2_block: L2BlockNumber(l2_block),
+            l1_batch_root_hash: None, // FIXME
+        }),
+    }
+}
+
 #[test(tokio::test)]
 async fn pruner_catches_up_with_hard_pruning_up_to_soft_pruning_boundary_ignoring_chunk_size() {
     let pool = ConnectionPool::<Core>::test_pool().await;
@@ -205,12 +215,7 @@ async fn pruner_catches_up_with_hard_pruning_up_to_soft_pruning_boundary_ignorin
         .unwrap();
 
     assert_eq!(
-        PruningInfo {
-            last_soft_pruned_l1_batch: Some(L1BatchNumber(2)),
-            last_soft_pruned_l2_block: Some(L2BlockNumber(5)),
-            last_hard_pruned_l1_batch: Some(L1BatchNumber(2)),
-            last_hard_pruned_l2_block: Some(L2BlockNumber(5)),
-        },
+        test_pruning_info(2, 5),
         conn.pruning_dal().get_pruning_info().await.unwrap()
     );
 
@@ -219,12 +224,7 @@ async fn pruner_catches_up_with_hard_pruning_up_to_soft_pruning_boundary_ignorin
         .await
         .unwrap();
     assert_eq!(
-        PruningInfo {
-            last_soft_pruned_l1_batch: Some(L1BatchNumber(7)),
-            last_soft_pruned_l2_block: Some(L2BlockNumber(15)),
-            last_hard_pruned_l1_batch: Some(L1BatchNumber(7)),
-            last_hard_pruned_l2_block: Some(L2BlockNumber(15)),
-        },
+        test_pruning_info(7, 15),
         conn.pruning_dal().get_pruning_info().await.unwrap()
     );
 }
@@ -253,12 +253,7 @@ async fn unconstrained_pruner_with_fresh_database() {
         .unwrap();
 
     assert_eq!(
-        PruningInfo {
-            last_soft_pruned_l1_batch: Some(L1BatchNumber(3)),
-            last_soft_pruned_l2_block: Some(L2BlockNumber(7)),
-            last_hard_pruned_l1_batch: Some(L1BatchNumber(3)),
-            last_hard_pruned_l2_block: Some(L2BlockNumber(7)),
-        },
+        test_pruning_info(3, 7),
         conn.pruning_dal().get_pruning_info().await.unwrap()
     );
 
@@ -267,12 +262,7 @@ async fn unconstrained_pruner_with_fresh_database() {
         .await
         .unwrap();
     assert_eq!(
-        PruningInfo {
-            last_soft_pruned_l1_batch: Some(L1BatchNumber(6)),
-            last_soft_pruned_l2_block: Some(L2BlockNumber(13)),
-            last_hard_pruned_l1_batch: Some(L1BatchNumber(6)),
-            last_hard_pruned_l2_block: Some(L2BlockNumber(13)),
-        },
+        test_pruning_info(6, 13),
         conn.pruning_dal().get_pruning_info().await.unwrap()
     );
 }
@@ -302,12 +292,7 @@ async fn pruning_blocked_after_first_chunk() {
         .unwrap();
 
     assert_eq!(
-        PruningInfo {
-            last_soft_pruned_l1_batch: Some(L1BatchNumber(3)),
-            last_soft_pruned_l2_block: Some(L2BlockNumber(7)),
-            last_hard_pruned_l1_batch: Some(L1BatchNumber(3)),
-            last_hard_pruned_l2_block: Some(L2BlockNumber(7)),
-        },
+        test_pruning_info(3, 7),
         conn.pruning_dal().get_pruning_info().await.unwrap()
     );
 
@@ -318,12 +303,7 @@ async fn pruning_blocked_after_first_chunk() {
     assert_matches!(outcome, PruningIterationOutcome::NoOp);
     // pruning shouldn't have progressed as chunk 6 cannot be pruned
     assert_eq!(
-        PruningInfo {
-            last_soft_pruned_l1_batch: Some(L1BatchNumber(3)),
-            last_soft_pruned_l2_block: Some(L2BlockNumber(7)),
-            last_hard_pruned_l1_batch: Some(L1BatchNumber(3)),
-            last_hard_pruned_l2_block: Some(L2BlockNumber(7)),
-        },
+        test_pruning_info(3, 7),
         conn.pruning_dal().get_pruning_info().await.unwrap()
     );
 }

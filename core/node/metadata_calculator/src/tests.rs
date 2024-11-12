@@ -696,7 +696,7 @@ async fn setup_calculator_with_options(
 ) -> MetadataCalculator {
     let mut storage = pool.connection().await.unwrap();
     let pruning_info = storage.pruning_dal().get_pruning_info().await.unwrap();
-    let has_pruning_logs = pruning_info.last_hard_pruned_l1_batch.is_some();
+    let has_pruning_logs = pruning_info.last_hard_pruned.is_some();
     if !has_pruning_logs && storage.blocks_dal().is_genesis_needed().await.unwrap() {
         insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
