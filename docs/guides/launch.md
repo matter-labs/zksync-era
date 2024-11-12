@@ -60,9 +60,11 @@ access it at `http://127.0.0.1:3000/` under credentials `admin/admin`.
 The ecosystem configuration is spread across multiple files and directories:
 
 1. Root level:
+
    - `ZkStack.yaml`: Main configuration file for the entire ecosystem.
 
 2. `configs/` directory:
+
    - `apps/`:
      - `portal_config.json`: Configuration for the portal application.
    - `contracts.yaml`: Defines smart contract settings and addresses.
@@ -71,6 +73,7 @@ The ecosystem configuration is spread across multiple files and directories:
    - `wallets.yaml`: Contains wallet configurations.
 
 3. `chains/<chain_name>/` directory:
+
    - `artifacts/`: Contains build/execution artifacts.
    - `configs/`: Chain-specific configuration files.
      - `contracts.yaml`: Chain-specific smart contract settings.
@@ -82,7 +85,8 @@ The ecosystem configuration is spread across multiple files and directories:
    - `db/main/`: Database files for the chain.
    - `ZkStack.yaml`: Chain-specific ZkStack configuration.
 
-These configuration files are automatically generated during the ecosystem initialization (`zkstack ecosystem init`) and chain initialization (`zkstack chain init`) processes. They control various aspects of the ZKsync ecosystem, including:
+These configuration files are automatically generated during the ecosystem initialization (`zkstack ecosystem init`) and
+chain initialization (`zkstack chain init`) processes. They control various aspects of the ZKsync ecosystem, including:
 
 - Network settings
 - Smart contract deployments
@@ -90,9 +94,12 @@ These configuration files are automatically generated during the ecosystem initi
 - Database settings
 - Application/Service-specific parameters
 
-It's important to note that while these files can be manually edited, any changes may be overwritten if the ecosystem or chain is reinitialized. Always back up your modifications and exercise caution when making direct changes to these files.
+It's important to note that while these files can be manually edited, any changes may be overwritten if the ecosystem or
+chain is reinitialized. Always back up your modifications and exercise caution when making direct changes to these
+files.
 
-For specific configuration needs, it's recommended to use the appropriate `zkstack` commands or consult the documentation for safe ways to customize your setup.
+For specific configuration needs, it's recommended to use the appropriate `zkstack` commands or consult the
+documentation for safe ways to customize your setup.
 
 ## Build and run server
 
