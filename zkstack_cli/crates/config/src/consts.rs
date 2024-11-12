@@ -1,6 +1,3 @@
-use ethers::abi::Address;
-use zksync_basic_types::U256;
-
 /// Name of the main configuration file
 pub(crate) const CONFIG_NAME: &str = "ZkStack.yaml";
 /// Name of the wallets file
@@ -87,27 +84,3 @@ pub(crate) const ERA_CHAIN_ID: u32 = 270;
 
 pub(crate) const TEST_CONFIG_PATH: &str = "etc/test_config/constant/eth.json";
 pub(crate) const BASE_PATH: &str = "m/44'/60'/0'";
-
-pub(crate) fn apply_l1_to_l2_alias(address: Address) -> Address {
-    let addr_as_u256 = address_to_u256(&address);
-    let offset = U256::from_str_radix("1111000000000000000000000000000000001111", 16).unwrap();
-
-    let addr_with_offset = addr_as_u256 + offset;
-
-    u256_to_account_address(&addr_with_offset)
-}
-
-/// Converts `U256` value into the Address
-fn u256_to_account_address(value: &U256) -> Address {
-    let mut bytes = [0u8; 32];
-    value.to_big_endian(&mut bytes);
-
-    Address::from_slice(&bytes[12..])
-}
-
-fn address_to_u256(value: &Address) -> U256 {
-    let mut bytes = [0u8; 32];
-    bytes[12..].copy_from_slice(value.as_bytes());
-
-    U256::from_big_endian(&bytes)
-}

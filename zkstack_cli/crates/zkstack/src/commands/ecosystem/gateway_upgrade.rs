@@ -279,7 +279,6 @@ async fn no_governance_stage_2(
         .into_iter()
         .map(|t| ethers::abi::Token::Address(t.address))
         .collect();
-    let tokens_no_eth = tokens.clone();
     tokens.push(ethers::abi::Token::Address(
         SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
     ));

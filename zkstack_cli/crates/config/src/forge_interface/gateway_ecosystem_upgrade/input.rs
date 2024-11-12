@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use zksync_basic_types::L2ChainId;
 
 use crate::{
-    apply_l1_to_l2_alias, forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
+    forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
     traits::ZkStackConfig, ContractsConfig, GenesisConfig, WalletsConfig,
 };
 
@@ -29,9 +29,6 @@ impl GatewayEcosystemUpgradeInput {
         era_diamond_proxy: Address,
         testnet_verifier: bool,
     ) -> Self {
-        let aliased_governance_address =
-            apply_l1_to_l2_alias(current_contracts_config.l1.governance_addr);
-
         Self {
             era_chain_id,
             testnet_verifier,
