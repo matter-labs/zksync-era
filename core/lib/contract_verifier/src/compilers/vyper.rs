@@ -31,7 +31,6 @@ impl VyperInput {
             file_name,
             sources,
             optimizer_mode: if req.optimization_used {
-                // FIXME: values have differing semantics compared to other compilers; is this OK?
                 req.optimizer_mode
             } else {
                 // `none` mode is not the default mode (which is `gas`), so we must specify it explicitly here

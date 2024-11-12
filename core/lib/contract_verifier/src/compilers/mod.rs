@@ -77,7 +77,6 @@ fn parse_standard_json_output(
             .iter()
             .any(|err| err["severity"].as_str() == Some("error"))
         {
-            // FIXME: collected messages contain warnings as well; is this intentional?
             let error_messages = errors
                 .into_iter()
                 .filter_map(|err| {

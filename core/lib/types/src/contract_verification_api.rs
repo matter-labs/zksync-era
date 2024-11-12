@@ -137,6 +137,8 @@ pub struct VerificationIncomingRequest {
     #[serde(flatten)]
     pub compiler_versions: CompilerVersions,
     pub optimization_used: bool,
+    /// Optimization mode used for the contract. Semantics depends on the compiler used; e.g., for `vyper`,
+    /// allowed values are `gas` (default), `codesize` or `none`.
     pub optimizer_mode: Option<String>,
     #[serde(default)]
     pub constructor_arguments: Bytes,
