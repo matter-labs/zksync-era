@@ -2374,6 +2374,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "data_imex"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "clap 4.5.20",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "zksync_config",
+ "zksync_contract_verifier_lib",
+ "zksync_core_leftovers",
+ "zksync_dal",
+ "zksync_queued_job_processor",
+ "zksync_types",
+ "zksync_utils",
+ "zksync_vlog",
+]
+
+[[package]]
 name = "debugid"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -78,7 +78,7 @@ members = [
   # Test infrastructure
   "core/tests/test_account",
   "core/tests/loadnext",
-  "core/tests/vm-benchmark",
+  "core/tests/vm-benchmark", "core/bin/data_imex",
 ]
 resolver = "2"
 
