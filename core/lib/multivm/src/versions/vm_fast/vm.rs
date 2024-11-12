@@ -367,8 +367,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
                     self.write_to_bootloader_heap(memory_to_apply);
 
                     // Save the pubdata for the future initial bootloader memory building
-                    self.bootloader_state
-                        .set_pubdata_input(pubdata_input.clone());
+                    self.bootloader_state.set_pubdata_input(pubdata_input);
                 }
 
                 Hook::PaymasterValidationEntered | Hook::ValidationStepEnded => { /* unused */ }
