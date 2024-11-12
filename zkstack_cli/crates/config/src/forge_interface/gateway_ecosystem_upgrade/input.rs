@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use zksync_basic_types::L2ChainId;
 
 use crate::{
-    forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
-    traits::ZkStackConfig, ContractsConfig, GenesisConfig, WalletsConfig,
+    forge_interface::deploy_ecosystem::input::InitialDeploymentConfig, traits::ZkStackConfig,
+    ContractsConfig, GenesisConfig, WalletsConfig,
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
