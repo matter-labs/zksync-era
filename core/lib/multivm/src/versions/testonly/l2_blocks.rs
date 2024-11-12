@@ -3,10 +3,8 @@
 //! The description for each of the tests can be found in the corresponding `.yul` file.
 //!
 
-use std::str::FromStr;
-
 use assert_matches::assert_matches;
-use ethabi::{Function, ParamType, Token};
+use ethabi::{ParamType, Token};
 use zksync_system_constants::REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::{pack_block_info, L2BlockHasher},
@@ -58,7 +56,7 @@ pub fn encode_function_call(
 
     Ok(VmRevertReason::Unknown {
         function_selector: short_sig.to_vec(),
-        data: vec![short_sig.to_vec(), encoded_data].concat(),
+        data: [short_sig.to_vec(), encoded_data].concat(),
     }
     .to_string())
 }

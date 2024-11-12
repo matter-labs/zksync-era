@@ -104,7 +104,7 @@ impl FakeEthClientData {
     }
 
     fn get_bytecode_preimage(&self, hash: H256) -> Option<Vec<u8>> {
-        self.bytecode_preimages.get(&hash).map(|x| x.clone())
+        self.bytecode_preimages.get(&hash).cloned()
     }
 
     fn add_bytecode_preimages(&mut self, upgrade_tx: &Option<ProtocolUpgradeTx>) {

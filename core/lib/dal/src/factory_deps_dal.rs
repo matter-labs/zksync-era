@@ -3,10 +3,10 @@ use std::collections::{HashMap, HashSet};
 use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_types::{L2BlockNumber, ProtocolVersionId, H256, U256};
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, bytes_to_chunks};
+use zksync_types::{L2BlockNumber, H256, U256};
+use zksync_utils::{bytes_to_be_words, bytes_to_chunks};
 
-use crate::{Core, CoreDal};
+use crate::Core;
 
 /// DAL methods related to factory dependencies.
 #[derive(Debug)]

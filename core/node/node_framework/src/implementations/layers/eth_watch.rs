@@ -1,13 +1,8 @@
 use futures::TryFutureExt;
 use zksync_config::{configs::gateway::GatewayChainConfig, ContractsConfig, EthWatchConfig};
 use zksync_contracts::chain_admin_contract;
-use zksync_eth_client::EthInterface;
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch, L2EthClient};
-use zksync_types::{
-    abi::ZkChainSpecificUpgradeData, ethabi::ParamType, settlement::SettlementMode,
-    web3::CallRequest, Address, L2ChainId, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
-};
-use zksync_web3_decl::client::{DynClient, L1};
+use zksync_types::{settlement::SettlementMode, L2ChainId};
 
 use crate::{
     implementations::resources::{

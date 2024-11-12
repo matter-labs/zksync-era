@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 
 use anyhow::Context as _;
-use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
+use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::{
     connection::Connection,
     error::DalResult,
