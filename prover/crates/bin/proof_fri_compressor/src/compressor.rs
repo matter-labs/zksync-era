@@ -2,49 +2,36 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-#[cfg(not(feature = "fflonk"))]
 use circuit_sequencer_api::proof::FinalProof;
-#[cfg(feature = "fflonk")]
-use fflonk_gpu::FflonkSnarkVerifierCircuit;
-#[cfg(feature = "fflonk")]
-use fflonk_gpu::FflonkSnarkVerifierCircuitProof;
+use fflonk_gpu::{FflonkSnarkVerifierCircuit, FflonkSnarkVerifierCircuitProof};
 use tokio::task::JoinHandle;
-#[cfg(not(feature = "fflonk"))]
 use wrapper_prover::{GPUWrapperConfigs, WrapperProver};
-use zkevm_test_harness::proof_wrapper_utils::get_vk_for_previous_circuit;
-#[cfg(not(feature = "fflonk"))]
-use zkevm_test_harness::proof_wrapper_utils::{get_trusted_setup, DEFAULT_WRAPPER_CONFIG};
+use zkevm_test_harness::proof_wrapper_utils::{
+    get_trusted_setup, get_vk_for_previous_circuit, DEFAULT_WRAPPER_CONFIG,
+};
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-#[cfg(feature = "fflonk")]
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::aux_layer::wrapper::ZkSyncCompressionWrapper;
-#[cfg(feature = "fflonk")]
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::aux_layer::{
-    ZkSyncCompressionForWrapperCircuit, ZkSyncCompressionLayerCircuit,
-};
-#[cfg(feature = "fflonk")]
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::{
-    aux_layer::{
-        ZkSyncCompressionProof, ZkSyncCompressionProofForWrapper,
-        ZkSyncCompressionVerificationKeyForWrapper,
-    },
-    recursion_layer::ZkSyncRecursionVerificationKey,
-};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
-        circuit_definitions::recursion_layer::{
-            ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
+        circuit_definitions::{
+            aux_layer::{
+                wrapper::ZkSyncCompressionWrapper, ZkSyncCompressionForWrapperCircuit,
+                ZkSyncCompressionLayerCircuit, ZkSyncCompressionProof,
+                ZkSyncCompressionProofForWrapper, ZkSyncCompressionVerificationKeyForWrapper,
+            },
+            recursion_layer::{
+                ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
+                ZkSyncRecursionVerificationKey,
+            },
         },
         zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
     },
     get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper,
 };
-#[cfg(feature = "fflonk")]
-use zksync_prover_interface::outputs::FflonkL1BatchProofForL1;
-use zksync_prover_interface::outputs::L1BatchProofForL1;
-#[cfg(not(feature = "fflonk"))]
-use zksync_prover_interface::outputs::PlonkL1BatchProofForL1;
+use zksync_prover_interface::outputs::{
+    FflonkL1BatchProofForL1, L1BatchProofForL1, PlonkL1BatchProofForL1,
+};
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
@@ -58,6 +45,12 @@ pub struct ProofCompressor {
     max_attempts: u32,
     protocol_version: ProtocolSemanticVersion,
     keystore: Keystore,
+    is_fflonk: bool,
+}
+
+pub enum Proof {
+    Plonk(FinalProof),
+    Fflonk(FflonkSnarkVerifierCircuitProof),
 }
 
 impl ProofCompressor {
@@ -68,6 +61,7 @@ impl ProofCompressor {
         max_attempts: u32,
         protocol_version: ProtocolSemanticVersion,
         keystore: Keystore,
+        is_fflonk: bool,
     ) -> Self {
         Self {
             blob_store,
@@ -76,6 +70,7 @@ impl ProofCompressor {
             max_attempts,
             protocol_version,
             keystore,
+            is_fflonk,
         }
     }
 
@@ -93,7 +88,6 @@ impl ProofCompressor {
         array
     }
 
-    #[cfg(not(feature = "fflonk"))]
     #[tracing::instrument(skip(proof, _compression_mode))]
     pub fn compress_proof(
         proof: ZkSyncRecursionLayerProof,
@@ -130,9 +124,8 @@ impl ProofCompressor {
         Ok(final_proof)
     }
 
-    #[cfg(feature = "fflonk")]
     #[tracing::instrument(skip(proof, compression_mode))]
-    pub fn compress_proof(
+    pub fn compress_fflonk_proof(
         proof: ZkSyncRecursionLayerProof,
         compression_mode: u8,
         keystore: Keystore,
@@ -171,7 +164,6 @@ impl ProofCompressor {
         Ok(proof)
     }
 
-    #[cfg(feature = "fflonk")]
     pub fn fflonk_compress_proof(
         keystore: &Keystore,
         proof: ZkSyncCompressionProof,
@@ -240,10 +232,7 @@ impl JobProcessor for ProofCompressor {
     type Job = ZkSyncRecursionLayerProof;
     type JobId = L1BatchNumber;
 
-    #[cfg(feature = "fflonk")]
-    type JobArtifacts = FflonkSnarkVerifierCircuitProof;
-    #[cfg(not(feature = "fflonk"))]
-    type JobArtifacts = FinalProof;
+    type JobArtifacts = Proof;
 
     const SERVICE_NAME: &'static str = "ProofCompressor";
 
@@ -300,7 +289,22 @@ impl JobProcessor for ProofCompressor {
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
         let compression_mode = self.compression_mode;
         let keystore = self.keystore.clone();
-        tokio::task::spawn_blocking(move || Self::compress_proof(job, compression_mode, keystore))
+        let is_fflonk = self.is_fflonk;
+        tokio::task::spawn_blocking(move || {
+            if !is_fflonk {
+                Ok(Proof::Plonk(Self::compress_proof(
+                    job,
+                    compression_mode,
+                    keystore,
+                )?))
+            } else {
+                Ok(Proof::Fflonk(Self::compress_fflonk_proof(
+                    job,
+                    compression_mode,
+                    keystore,
+                )?))
+            }
+        })
     }
 
     async fn save_result(
@@ -322,18 +326,19 @@ impl JobProcessor for ProofCompressor {
             .context("Failed to get aggregation result coords from blob store")?;
         let aggregation_result_coords =
             Self::aux_output_witness_to_array(aux_output_witness_wrapper.0);
-        #[cfg(feature = "fflonk")]
-        let l1_batch_proof = L1BatchProofForL1::Fflonk(FflonkL1BatchProofForL1 {
-            aggregation_result_coords,
-            scheduler_proof: artifacts,
-            protocol_version: self.protocol_version,
-        });
-        #[cfg(not(feature = "fflonk"))]
-        let l1_batch_proof = L1BatchProofForL1::Plonk(PlonkL1BatchProofForL1 {
-            aggregation_result_coords,
-            scheduler_proof: artifacts,
-            protocol_version: self.protocol_version,
-        });
+
+        let l1_batch_proof = match artifacts {
+            Proof::Plonk(proof) => L1BatchProofForL1::Plonk(PlonkL1BatchProofForL1 {
+                aggregation_result_coords,
+                scheduler_proof: proof,
+                protocol_version: self.protocol_version,
+            }),
+            Proof::Fflonk(proof) => L1BatchProofForL1::Fflonk(FflonkL1BatchProofForL1 {
+                aggregation_result_coords,
+                scheduler_proof: proof,
+                protocol_version: self.protocol_version,
+            }),
+        };
 
         let blob_save_started_at = Instant::now();
         let blob_url = self
