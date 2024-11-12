@@ -5,7 +5,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_multivm::{
     circuit_sequencer_api_latest::sort_storage_access::sort_storage_access_queries,
-    zk_evm_latest::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp},
+    zk_evm_latest::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVmTimestamp},
 };
 use zksync_system_constants::{DEFAULT_ERA_CHAIN_ID, ETHEREUM_ADDRESS};
 use zksync_types::{
@@ -84,7 +84,7 @@ pub(super) fn get_deduped_log_queries(storage_logs: &[StorageLog]) -> Vec<LogQue
             MultiVmLogQuery {
                 // Timestamp and `tx_number` in block don't matter.
                 // `sort_storage_access_queries` assumes that the queries are in chronological order.
-                timestamp: MultiVMTimestamp(0),
+                timestamp: MultiVmTimestamp(0),
                 tx_number_in_block: 0,
                 aux_byte: 0,
                 shard_id: 0,

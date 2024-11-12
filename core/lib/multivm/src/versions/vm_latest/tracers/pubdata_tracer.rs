@@ -33,7 +33,7 @@ use crate::{
         tracers::{traits::VmTracer, utils::VmHook},
         types::internals::ZkSyncVmState,
         utils::logs::collect_events_and_l1_system_logs_after_timestamp,
-        vm::MultiVMSubversion,
+        vm::MultiVmSubversion,
         StorageOracle,
     },
 };
@@ -47,7 +47,7 @@ pub(crate) struct PubdataTracer<S> {
     // For testing purposes it might be helpful to supply an exact set of state diffs to be provided
     // to the L1Messenger.
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
-    subversion: MultiVMSubversion,
+    subversion: MultiVmSubversion,
     pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     _phantom_data: PhantomData<S>,
 }
@@ -56,7 +56,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
     pub(crate) fn new(
         l1_batch_env: L1BatchEnv,
         execution_mode: VmExecutionMode,
-        subversion: MultiVMSubversion,
+        subversion: MultiVmSubversion,
         pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     ) -> Self {
         Self {
@@ -77,7 +77,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
         l1_batch_env: L1BatchEnv,
         execution_mode: VmExecutionMode,
         forced_state_diffs: Vec<StateDiffRecord>,
-        subversion: MultiVMSubversion,
+        subversion: MultiVmSubversion,
         pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     ) -> Self {
         Self {
