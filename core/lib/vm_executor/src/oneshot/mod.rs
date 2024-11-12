@@ -29,7 +29,7 @@ use zksync_multivm::{
     utils::adjust_pubdata_price_for_tx,
     vm_latest::{HistoryDisabled, HistoryEnabled},
     zk_evm_latest::ethereum_types::U256,
-    FastVmInstance, HistoryMode, LegacyVmInstance, MultiVMTracer,
+    FastVmInstance, HistoryMode, LegacyVmInstance, MultiVmTracer,
 };
 use zksync_types::{
     block::pack_block_info,
@@ -46,7 +46,7 @@ pub use self::{
     block::{BlockInfo, ResolvedBlockInfo},
     contracts::{
         BaseSystemContractsProvider, CallOrExecute, ContractsKind, EstimateGas,
-        MultiVMBaseSystemContracts,
+        MultiVmBaseSystemContracts,
     },
     env::OneshotEnvParameters,
     mock::MockOneshotExecutor,

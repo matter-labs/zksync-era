@@ -49,7 +49,7 @@ use crate::{
         bootloader_state::utils::{apply_l2_block, apply_pubdata_to_memory},
         events::merge_events,
         refund::compute_refund,
-        version::FastVMVersion,
+        version::FastVmVersion,
     },
     vm_latest::constants::{
         get_result_success_first_slot, get_vm_hook_params_start_position, get_vm_hook_position,
@@ -98,14 +98,14 @@ pub struct Vm<S, Tr = ()> {
     pub(super) batch_env: L1BatchEnv,
     pub(super) system_env: SystemEnv,
     snapshot: Option<VmSnapshot>,
-    vm_version: FastVMVersion,
+    vm_version: FastVmVersion,
     #[cfg(test)]
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
 }
 
 impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
     pub fn custom(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
-        let vm_version: FastVMVersion = VmVersion::from(system_env.version)
+        let vm_version: FastVmVersion = VmVersion::from(system_env.version)
             .try_into()
             .unwrap_or_else(|_| {
                 panic!(

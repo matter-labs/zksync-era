@@ -1,21 +1,21 @@
-use crate::{vm_latest::MultiVMSubversion, VmVersion};
+use crate::{vm_latest::MultiVmSubversion, VmVersion};
 
 #[derive(Debug, Copy, Clone)]
-pub(crate) enum FastVMVersion {
+pub(crate) enum FastVmVersion {
     IncreasedBootloaderMemory,
     Gateway,
 }
 
-impl From<FastVMVersion> for MultiVMSubversion {
-    fn from(value: FastVMVersion) -> Self {
+impl From<FastVmVersion> for MultiVmSubversion {
+    fn from(value: FastVmVersion) -> Self {
         match value {
-            FastVMVersion::IncreasedBootloaderMemory => Self::IncreasedBootloaderMemory,
-            FastVMVersion::Gateway => Self::Gateway,
+            FastVmVersion::IncreasedBootloaderMemory => Self::IncreasedBootloaderMemory,
+            FastVmVersion::Gateway => Self::Gateway,
         }
     }
 }
 
-impl TryFrom<VmVersion> for FastVMVersion {
+impl TryFrom<VmVersion> for FastVmVersion {
     type Error = ();
 
     fn try_from(value: VmVersion) -> Result<Self, Self::Error> {
