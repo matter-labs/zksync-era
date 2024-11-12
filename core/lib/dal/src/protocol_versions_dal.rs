@@ -206,7 +206,7 @@ impl ProtocolVersionsDal<'_, '_> {
             WHERE
                 id = $1
             "#,
-            i32::from(version_id)
+            i32::from(version_id as u16)
         )
         .instrument("get_base_system_contract_hashes_by_version_id")
         .with_arg("version_id", &(version_id as u16))
