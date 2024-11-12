@@ -5,8 +5,10 @@ use zk_evm_1_5_0::{
 };
 use zksync_contracts::SystemContractCode;
 use zksync_types::{
+    h256_to_u256,
     l1::is_l1_tx_type,
     l2_to_l1_log::UserL2ToL1Log,
+    u256_to_h256,
     utils::key_for_eth_balance,
     writes::{
         compression::compress_with_best_strategy, StateDiffRecord, BYTES_PER_DERIVED_KEY,
@@ -16,7 +18,7 @@ use zksync_types::{
     Transaction, BOOTLOADER_ADDRESS, H160, H256, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
     L2_BASE_TOKEN_ADDRESS, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
+use zksync_utils::bytecode::hash_bytecode;
 use zksync_vm2::{
     interface::{CallframeInterface, HeapId, StateInterface, Tracer},
     ExecutionEnd, FatPointer, Program, Settings, StorageSlot, VirtualMachine,
@@ -47,14 +49,11 @@ use crate::{
         bootloader_state::utils::{apply_l2_block, apply_pubdata_to_memory},
         events::merge_events,
         refund::compute_refund,
-        version::FastVMVersion,
+        version::FastVmVersion,
     },
-    vm_latest::{
-        constants::{
-            get_result_success_first_slot, get_vm_hook_params_start_position, get_vm_hook_position,
-            OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
-        },
-        utils::extract_bytecodes_marked_as_known,
+    vm_latest::constants::{
+        get_result_success_first_slot, get_vm_hook_params_start_position, get_vm_hook_position,
+        OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
     },
     VmVersion,
 };
@@ -99,14 +98,14 @@ pub struct Vm<S, Tr = ()> {
     pub(super) batch_env: L1BatchEnv,
     pub(super) system_env: SystemEnv,
     snapshot: Option<VmSnapshot>,
-    vm_version: FastVMVersion,
+    vm_version: FastVmVersion,
     #[cfg(test)]
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
 }
 
 impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
     pub fn custom(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
-        let vm_version: FastVMVersion = VmVersion::from(system_env.version)
+        let vm_version: FastVmVersion = VmVersion::from(system_env.version)
             .try_into()
             .unwrap_or_else(|_| {
                 panic!(
@@ -368,8 +367,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
                     self.write_to_bootloader_heap(memory_to_apply);
 
                     // Save the pubdata for the future initial bootloader memory building
-                    self.bootloader_state
-                        .set_pubdata_input(pubdata_input.clone());
+                    self.bootloader_state.set_pubdata_input(pubdata_input);
                 }
 
                 Hook::PaymasterValidationEntered | Hook::ValidationStepEnded => { /* unused */ }
@@ -668,8 +666,10 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
 
         // We need to filter out bytecodes the deployment of which may have been reverted; the tracer is not aware of reverts.
         // To do this, we check bytecodes against deployer events.
-        let factory_deps_marked_as_known = extract_bytecodes_marked_as_known(&logs.events);
-        let new_known_factory_deps = self.world.decommit_bytecodes(&factory_deps_marked_as_known);
+        let factory_deps_marked_as_known = VmEvent::extract_bytecodes_marked_as_known(&logs.events);
+        let dynamic_factory_deps = self
+            .world
+            .decommit_dynamic_bytecodes(factory_deps_marked_as_known);
 
         VmExecutionResultAndLogs {
             result: result.execution_result,
@@ -686,7 +686,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
                 total_log_queries: 0,
             },
             refunds: result.refunds,
-            new_known_factory_deps: Some(new_known_factory_deps),
+            dynamic_factory_deps,
         }
     }
 }
@@ -863,20 +863,19 @@ impl<S: ReadStorage, T: Tracer> World<S, T> {
     ) -> (U256, Program<T, Self>) {
         (
             h256_to_u256(code.hash),
-            Program::from_words(code.code.clone(), is_bootloader),
+            Program::new(&code.code, is_bootloader),
         )
     }
 
-    fn decommit_bytecodes(&self, hashes: &[H256]) -> HashMap<H256, Vec<u8>> {
-        let bytecodes = hashes.iter().map(|&hash| {
-            let int_hash = h256_to_u256(hash);
+    fn decommit_dynamic_bytecodes(
+        &self,
+        candidate_hashes: impl Iterator<Item = H256>,
+    ) -> HashMap<H256, Vec<u8>> {
+        let bytecodes = candidate_hashes.filter_map(|hash| {
             let bytecode = self
-                .bytecode_cache
-                .get(&int_hash)
-                .cloned()
-                .or_else(|| self.dynamic_bytecodes.take(int_hash))
-                .unwrap_or_else(|| panic!("Bytecode with hash {hash:?} not found"));
-            (hash, bytecode)
+                .dynamic_bytecodes
+                .map(h256_to_u256(hash), <[u8]>::to_vec)?;
+            Some((hash, bytecode))
         });
         bytecodes.collect()
     }
@@ -952,17 +951,28 @@ impl<S: ReadStorage, T: Tracer> zksync_vm2::World<T> for World<S, T> {
         self.program_cache
             .entry(hash)
             .or_insert_with(|| {
-                let bytecode = self.bytecode_cache.entry(hash).or_insert_with(|| {
-                    // Since we put the bytecode in the cache anyway, it's safe to *take* it out from `dynamic_bytecodes`
-                    // and put it in `bytecode_cache`.
-                    self.dynamic_bytecodes
-                        .take(hash)
-                        .or_else(|| self.storage.load_factory_dep(u256_to_h256(hash)))
+                let cached = self
+                    .bytecode_cache
+                    .get(&hash)
+                    .map(|code| Program::new(code, false))
+                    .or_else(|| {
+                        self.dynamic_bytecodes
+                            .map(hash, |code| Program::new(code, false))
+                    });
+
+                if let Some(cached) = cached {
+                    cached
+                } else {
+                    let code = self
+                        .storage
+                        .load_factory_dep(u256_to_h256(hash))
                         .unwrap_or_else(|| {
                             panic!("VM tried to decommit nonexistent bytecode: {hash:?}");
-                        })
-                });
-                Program::new(bytecode, false)
+                        });
+                    let program = Program::new(&code, false);
+                    self.bytecode_cache.insert(hash, code);
+                    program
+                }
             })
             .clone()
     }

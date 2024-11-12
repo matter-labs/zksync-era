@@ -380,6 +380,11 @@ impl ExternalNodeBuilder {
             layer = layer.with_tree_api_config(merkle_tree_api_config);
         }
 
+        // Add stale keys repair task if requested.
+        if self.config.optional.merkle_tree_repair_stale_keys {
+            layer = layer.with_stale_keys_repair();
+        }
+
         // Add tree pruning if needed.
         if self.config.optional.pruning_enabled {
             layer = layer.with_pruning_config(self.config.optional.pruning_removal_delay());

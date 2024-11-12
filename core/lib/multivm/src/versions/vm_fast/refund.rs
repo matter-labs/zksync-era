@@ -1,5 +1,4 @@
-use zksync_types::{H256, U256};
-use zksync_utils::ceil_div_u256;
+use zksync_types::{ceil_div_u256, H256, U256};
 
 use crate::{interface::L1BatchEnv, vm_latest::utils::fee::get_batch_base_fee};
 

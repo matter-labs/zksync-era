@@ -23,7 +23,6 @@ use zksync_types::{
     block::{L1BatchHeader, L1BatchTreeData},
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, StorageKey, StorageLog, H256,
 };
-use zksync_utils::u32_to_h256;
 
 use super::{
     helpers::L1BatchWithLogs, GenericAsyncTree, MetadataCalculator, MetadataCalculatorConfig,
@@ -904,9 +903,9 @@ pub(crate) fn gen_storage_logs(
     let proof_keys = accounts.iter().flat_map(|&account| {
         account_keys
             .clone()
-            .map(move |i| StorageKey::new(account, u32_to_h256(i)))
+            .map(move |i| StorageKey::new(account, H256::from_low_u64_be(i.into())))
     });
-    let proof_values = indices.map(u32_to_h256);
+    let proof_values = indices.map(|i| H256::from_low_u64_be(i.into()));
 
     let logs: Vec<_> = proof_keys
         .zip(proof_values)

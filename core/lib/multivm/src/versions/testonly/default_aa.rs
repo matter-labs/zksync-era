@@ -1,11 +1,10 @@
 use zksync_test_account::{DeployContractsTx, TxType};
 use zksync_types::{
-    get_code_key, get_known_code_key, get_nonce_key,
+    get_code_key, get_known_code_key, get_nonce_key, h256_to_u256,
     system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT},
     utils::storage_key_for_eth_balance,
     U256,
 };
-use zksync_utils::h256_to_u256;
 
 use super::{default_pubdata_builder, read_test_contract, tester::VmTesterBuilder, TestedVm};
 use crate::{

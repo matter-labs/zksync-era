@@ -26,7 +26,7 @@ impl ContractsKind for CallOrExecute {}
 
 /// Provider of [`BaseSystemContracts`] for oneshot execution.
 ///
-/// The main implementation of this trait is [`MultiVMBaseSystemContracts`], which selects contracts
+/// The main implementation of this trait is [`MultiVmBaseSystemContracts`], which selects contracts
 /// based on [`ProtocolVersionId`].
 #[async_trait]
 pub trait BaseSystemContractsProvider<C: ContractsKind>: fmt::Debug + Send + Sync {
@@ -46,7 +46,7 @@ pub trait BaseSystemContractsProvider<C: ContractsKind>: fmt::Debug + Send + Syn
 
 /// System contracts (bootloader and default account abstraction) for all supported VM versions.
 #[derive(Debug)]
-pub struct MultiVMBaseSystemContracts<C> {
+pub struct MultiVmBaseSystemContracts<C> {
     /// Contracts to be used for pre-virtual-blocks protocol versions.
     pre_virtual_blocks: BaseSystemContracts,
     /// Contracts to be used for post-virtual-blocks protocol versions.
@@ -69,11 +69,11 @@ pub struct MultiVMBaseSystemContracts<C> {
     vm_protocol_defense: BaseSystemContracts,
     /// Contracts to be used after the gateway upgrade
     gateway: BaseSystemContracts,
-    // We use `fn() -> C` marker so that the `MultiVMBaseSystemContracts` unconditionally implements `Send + Sync`.
+    // We use `fn() -> C` marker so that the `MultiVmBaseSystemContracts` unconditionally implements `Send + Sync`.
     _contracts_kind: PhantomData<fn() -> C>,
 }
 
-impl<C: ContractsKind> MultiVMBaseSystemContracts<C> {
+impl<C: ContractsKind> MultiVmBaseSystemContracts<C> {
     fn get_by_protocol_version(
         &self,
         version: ProtocolVersionId,
@@ -120,7 +120,7 @@ impl<C: ContractsKind> MultiVMBaseSystemContracts<C> {
     }
 }
 
-impl MultiVMBaseSystemContracts<EstimateGas> {
+impl MultiVmBaseSystemContracts<EstimateGas> {
     /// Returned system contracts (mainly the bootloader) are tuned to provide accurate execution metrics.
     pub fn load_estimate_gas_blocking() -> Self {
         Self {
@@ -142,7 +142,7 @@ impl MultiVMBaseSystemContracts<EstimateGas> {
     }
 }
 
-impl MultiVMBaseSystemContracts<CallOrExecute> {
+impl MultiVmBaseSystemContracts<CallOrExecute> {
     /// Returned system contracts (mainly the bootloader) are tuned to provide better UX (e.g. revert messages).
     pub fn load_eth_call_blocking() -> Self {
         Self {
@@ -165,7 +165,7 @@ impl MultiVMBaseSystemContracts<CallOrExecute> {
 }
 
 #[async_trait]
-impl<C: ContractsKind> BaseSystemContractsProvider<C> for MultiVMBaseSystemContracts<C> {
+impl<C: ContractsKind> BaseSystemContractsProvider<C> for MultiVmBaseSystemContracts<C> {
     async fn base_system_contracts(
         &self,
         block_info: &ResolvedBlockInfo,
