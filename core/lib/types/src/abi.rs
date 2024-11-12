@@ -494,7 +494,7 @@ impl ZkChainSpecificUpgradeData {
         ])
     }
 
-    /// Encodes `ProposedUpgrade` to a RLP token.
+    /// Encodes `ZkChainSpecificUpgradeData` to a RLP token.
     pub fn encode(&self) -> Token {
         Token::Tuple(vec![
             Token::FixedBytes(self.base_token_asset_id.0.to_vec()),
