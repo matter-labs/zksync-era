@@ -370,7 +370,7 @@ impl ForceDeployment {
         ])
     }
 
-    /// Encodes `ProposedUpgrade` to a RLP token.
+    /// Encodes `ForceDeployment` to a RLP token.
     pub fn encode(&self) -> Token {
         Token::Tuple(vec![
             Token::FixedBytes(self.bytecode_hash.0.to_vec()),
