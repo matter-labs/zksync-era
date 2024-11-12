@@ -412,7 +412,7 @@ pub struct GatewayUpgradeEncodedInput {
 }
 
 impl GatewayUpgradeEncodedInput {
-    /// ABI schema of the `ProposedUpgrade`.
+    /// ABI schema of the `GatewayUpgradeEncodedInput`.
     pub fn schema() -> ParamType {
         ParamType::Tuple(vec![
             ParamType::Array(Box::new(ForceDeployment::schema())),
