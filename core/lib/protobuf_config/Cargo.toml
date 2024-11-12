@@ -26,6 +26,7 @@ rand.workspace = true
 hex.workspace = true
 secrecy.workspace = true
 tracing.workspace = true
+time.workspace = true
 
 [build-dependencies]
 zksync_protobuf_build.workspace = true

@@ -16,10 +16,7 @@ use zksync_types::{
     H256, U256,
 };
 
-use crate::{
-    avail::sdk::{GasRelayClient, RawAvailClient},
-    utils::{to_non_retriable_da_error, to_retriable_da_error},
-};
+use crate::avail::sdk::{GasRelayClient, RawAvailClient};
 
 #[derive(Debug, Clone)]
 enum AvailClientMode {
@@ -195,7 +192,7 @@ impl DataAvailabilityClient for AvailClient {
         let response = self
             .api_client
             .get(&url)
-            .timeout(Duration::from_millis(self.config.timeout_ms as u64))
+            .timeout(Duration::from_secs(self.config.timeout as u64))
             .send()
             .await
             .map_err(to_retriable_da_error)?;
@@ -226,5 +223,19 @@ impl DataAvailabilityClient for AvailClient {
 
     fn blob_size_limit(&self) -> Option<usize> {
         Some(RawAvailClient::MAX_BLOB_SIZE)
+    }
+}
+
+pub fn to_non_retriable_da_error(error: impl Into<anyhow::Error>) -> DAError {
+    DAError {
+        error: error.into(),
+        is_retriable: false,
+    }
+}
+
+pub fn to_retriable_da_error(error: impl Into<anyhow::Error>) -> DAError {
+    DAError {
+        error: error.into(),
+        is_retriable: true,
     }
 }

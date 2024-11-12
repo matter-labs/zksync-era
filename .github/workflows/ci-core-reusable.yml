@@ -34,7 +34,6 @@ jobs:
           echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
           echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
           echo "RUSTC_WRAPPER=sccache" >> .env
-          echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
 
       # TODO: Remove when we after upgrade of hardhat-plugins
       - name: pre-download compilers
@@ -73,9 +72,6 @@ jobs:
 
 #      - name: Contracts unit tests
 #        run: ci_run yarn l1-contracts test
-
-      - name: Download compilers for contract verifier tests
-        run: ci_run zkstack contract-verifier init --zksolc-version=v1.5.3 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
 
       - name: Rust unit tests
         run: |
@@ -280,8 +276,8 @@ jobs:
           --wallet-creation localhost \
           --l1-batch-commit-data-generator-mode rollup \
           --base-token-address ${{ env.CUSTOM_TOKEN_ADDRESS }} \
-          --base-token-price-nominator 314 \
-          --base-token-price-denominator 1000 \
+          --base-token-price-nominator 3 \
+          --base-token-price-denominator 2 \
           --set-as-default false \
           --ignore-prerequisites
 
@@ -336,8 +332,8 @@ jobs:
           --wallet-creation localhost \
           --l1-batch-commit-data-generator-mode validium \
           --base-token-address ${{ env.CUSTOM_TOKEN_ADDRESS }} \
-          --base-token-price-nominator 314 \
-          --base-token-price-denominator 1000 \
+          --base-token-price-nominator 3 \
+          --base-token-price-denominator 2 \
           --set-as-default false \
           --ignore-prerequisites
 

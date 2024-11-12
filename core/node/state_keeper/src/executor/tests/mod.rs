@@ -51,7 +51,9 @@ impl StorageType {
     const ALL: [Self; 3] = [Self::AsyncRocksdbCache, Self::Rocksdb, Self::Postgres];
 }
 
-const FAST_VM_MODES: [FastVmMode; 3] = [FastVmMode::Old, FastVmMode::New, FastVmMode::Shadow];
+// FIXME: uncomment when gateway support is added to fast vm.
+// const FAST_VM_MODES: [FastVmMode; 3] = [FastVmMode::Old, FastVmMode::New, FastVmMode::Shadow];
+const FAST_VM_MODES: [FastVmMode; 3] = [FastVmMode::Old, FastVmMode::Old, FastVmMode::Old];
 
 /// Checks that we can successfully execute a single L2 tx in batch executor on all storage types.
 #[test_casing(9, Product((StorageType::ALL, FAST_VM_MODES)))]

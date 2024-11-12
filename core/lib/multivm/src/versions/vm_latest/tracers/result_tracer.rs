@@ -104,8 +104,6 @@ pub(crate) struct ResultTracer<S> {
     far_call_tracker: FarCallTracker,
     subversion: MultiVMSubversion,
 
-    pub(crate) tx_finished_in_one_tx_mode: bool,
-
     _phantom: PhantomData<S>,
 }
 
@@ -117,7 +115,6 @@ impl<S> ResultTracer<S> {
             execution_mode,
             far_call_tracker: Default::default(),
             subversion,
-            tx_finished_in_one_tx_mode: false,
             _phantom: PhantomData,
         }
     }
@@ -300,7 +297,7 @@ impl<S: WriteStorage> ResultTracer<S> {
 
             let has_failed =
                 tx_has_failed(state, bootloader_state.current_tx() as u32, self.subversion);
-            if self.tx_finished_in_one_tx_mode && has_failed {
+            if has_failed {
                 self.result = Some(Result::Error {
                     error_reason: VmRevertReason::General {
                         msg: "Transaction reverted with empty reason. Possibly out of gas"
@@ -309,9 +306,9 @@ impl<S: WriteStorage> ResultTracer<S> {
                     },
                 });
             } else {
-                self.result = Some(Result::Success {
+                self.result = Some(self.result.clone().unwrap_or(Result::Success {
                     return_data: vec![],
-                });
+                }));
             }
         }
     }

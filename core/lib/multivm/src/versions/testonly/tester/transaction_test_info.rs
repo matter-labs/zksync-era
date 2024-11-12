@@ -9,6 +9,9 @@ use crate::{
     versions::testonly::default_pubdata_builder,
 };
 
+// FIXME: remove the dead code allow
+#[allow(unused_variables)]
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub(crate) enum TxModifier {
     WrongSignatureLength,
@@ -18,6 +21,9 @@ pub(crate) enum TxModifier {
     NonceReused(H160, Nonce),
 }
 
+// FIXME: remove the dead code allow
+#[allow(unused_variables)]
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub(crate) enum TxExpectedResult {
     Rejected { error: ExpectedError },
@@ -130,6 +136,8 @@ impl TransactionTestInfo {
         }
     }
 
+    // FIXME: remove allow dead code
+    #[allow(dead_code)]
     pub(crate) fn new_processed(transaction: Transaction, should_be_rollbacked: bool) -> Self {
         Self {
             tx: transaction,

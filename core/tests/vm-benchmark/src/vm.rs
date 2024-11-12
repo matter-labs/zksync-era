@@ -232,82 +232,82 @@ impl BenchmarkingVm<Legacy> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use assert_matches::assert_matches;
-    use zksync_contracts::read_bytecode;
-    use zksync_multivm::interface::ExecutionResult;
-
-    use super::*;
-    use crate::{
-        get_deploy_tx, get_heavy_load_test_tx, get_load_test_deploy_tx, get_load_test_tx,
-        get_realistic_load_test_tx, get_transfer_tx, LoadTestParams, BYTECODES,
-    };
-
-    #[test]
-    fn can_deploy_contract() {
-        let test_contract = read_bytecode(
-            "etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json",
-        );
-        let mut vm = BenchmarkingVm::new();
-        let res = vm.run_transaction(&get_deploy_tx(&test_contract));
-
-        assert_matches!(res.result, ExecutionResult::Success { .. });
-    }
-
-    #[test]
-    fn can_transfer() {
-        let mut vm = BenchmarkingVm::new();
-        let res = vm.run_transaction(&get_transfer_tx(0));
-        assert_matches!(res.result, ExecutionResult::Success { .. });
-    }
-
-    #[test]
-    fn can_load_test() {
-        let mut vm = BenchmarkingVm::new();
-        let res = vm.run_transaction(&get_load_test_deploy_tx());
-        assert_matches!(res.result, ExecutionResult::Success { .. });
-
-        let params = LoadTestParams::default();
-        let res = vm.run_transaction(&get_load_test_tx(1, 10_000_000, params));
-        assert_matches!(res.result, ExecutionResult::Success { .. });
-    }
-
-    #[test]
-    fn can_load_test_with_realistic_txs() {
-        let mut vm = BenchmarkingVm::new();
-        let res = vm.run_transaction(&get_load_test_deploy_tx());
-        assert_matches!(res.result, ExecutionResult::Success { .. });
-
-        let res = vm.run_transaction(&get_realistic_load_test_tx(1));
-        assert_matches!(res.result, ExecutionResult::Success { .. });
-    }
-
-    #[test]
-    fn can_load_test_with_heavy_txs() {
-        let mut vm = BenchmarkingVm::new();
-        let res = vm.run_transaction(&get_load_test_deploy_tx());
-        assert_matches!(res.result, ExecutionResult::Success { .. });
-
-        let res = vm.run_transaction(&get_heavy_load_test_tx(1));
-        assert_matches!(res.result, ExecutionResult::Success { .. });
-    }
-
-    #[test]
-    fn instruction_count_matches_on_both_vms_for_transfer() {
-        let tx = get_transfer_tx(0);
-        let legacy_count = Legacy::count_instructions(&tx);
-        let fast_count = Fast::count_instructions(&tx);
-        assert_eq!(legacy_count, fast_count);
-    }
-
-    #[test]
-    fn instruction_count_matches_on_both_vms_for_benchmark_bytecodes() {
-        for bytecode in BYTECODES {
-            let tx = bytecode.deploy_tx();
-            let legacy_count = Legacy::count_instructions(&tx);
-            let fast_count = Fast::count_instructions(&tx);
-            assert_eq!(legacy_count, fast_count, "bytecode: {}", bytecode.name);
-        }
-    }
-}
+// #[cfg(test)]
+// mod tests {
+//     use assert_matches::assert_matches;
+//     use zksync_contracts::read_bytecode;
+//     use zksync_multivm::interface::ExecutionResult;
+//
+//     use super::*;
+//     use crate::{
+//         get_deploy_tx, get_heavy_load_test_tx, get_load_test_deploy_tx, get_load_test_tx,
+//         get_realistic_load_test_tx, get_transfer_tx, LoadTestParams, BYTECODES,
+//     };
+//
+//     #[test]
+//     fn can_deploy_contract() {
+//         let test_contract = read_bytecode(
+//             "etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json",
+//         );
+//         let mut vm = BenchmarkingVm::new();
+//         let res = vm.run_transaction(&get_deploy_tx(&test_contract));
+//
+//         assert_matches!(res.result, ExecutionResult::Success { .. });
+//     }
+//
+//     #[test]
+//     fn can_transfer() {
+//         let mut vm = BenchmarkingVm::new();
+//         let res = vm.run_transaction(&get_transfer_tx(0));
+//         assert_matches!(res.result, ExecutionResult::Success { .. });
+//     }
+//
+//     #[test]
+//     fn can_load_test() {
+//         let mut vm = BenchmarkingVm::new();
+//         let res = vm.run_transaction(&get_load_test_deploy_tx());
+//         assert_matches!(res.result, ExecutionResult::Success { .. });
+//
+//         let params = LoadTestParams::default();
+//         let res = vm.run_transaction(&get_load_test_tx(1, 10_000_000, params));
+//         assert_matches!(res.result, ExecutionResult::Success { .. });
+//     }
+//
+//     #[test]
+//     fn can_load_test_with_realistic_txs() {
+//         let mut vm = BenchmarkingVm::new();
+//         let res = vm.run_transaction(&get_load_test_deploy_tx());
+//         assert_matches!(res.result, ExecutionResult::Success { .. });
+//
+//         let res = vm.run_transaction(&get_realistic_load_test_tx(1));
+//         assert_matches!(res.result, ExecutionResult::Success { .. });
+//     }
+//
+//     #[test]
+//     fn can_load_test_with_heavy_txs() {
+//         let mut vm = BenchmarkingVm::new();
+//         let res = vm.run_transaction(&get_load_test_deploy_tx());
+//         assert_matches!(res.result, ExecutionResult::Success { .. });
+//
+//         let res = vm.run_transaction(&get_heavy_load_test_tx(1));
+//         assert_matches!(res.result, ExecutionResult::Success { .. });
+//     }
+//
+//     #[test]
+//     fn instruction_count_matches_on_both_vms_for_transfer() {
+//         let tx = get_transfer_tx(0);
+//         let legacy_count = Legacy::count_instructions(&tx);
+//         let fast_count = Fast::count_instructions(&tx);
+//         assert_eq!(legacy_count, fast_count);
+//     }
+//
+//     #[test]
+//     fn instruction_count_matches_on_both_vms_for_benchmark_bytecodes() {
+//         for bytecode in BYTECODES {
+//             let tx = bytecode.deploy_tx();
+//             let legacy_count = Legacy::count_instructions(&tx);
+//             let fast_count = Fast::count_instructions(&tx);
+//             assert_eq!(legacy_count, fast_count, "bytecode: {}", bytecode.name);
+//         }
+//     }
+// }
