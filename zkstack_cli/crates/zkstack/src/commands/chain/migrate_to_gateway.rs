@@ -385,9 +385,12 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .as_mut()
         .expect("sender")
         .max_aggregated_tx_gas = 4294967295;
+    eth_config
+        .sender
+        .as_mut()
+        .expect("sender")
+        .max_eth_tx_data_size = 550_000;
     api_config.web3_json_rpc.settlement_layer_url = Some(gateway_url);
-    // we need to ensure that this value is lower than in blob
-    state_keeper.max_pubdata_per_batch = 120_000;
 
     general_config.save_with_base_path(shell, chain_config.configs.clone())?;
     let mut chain_genesis_config = chain_config.get_genesis_config().unwrap();
