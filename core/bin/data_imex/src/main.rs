@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use sqlx::prelude::*;
-use sqlx::PgConnection;
-use sqlx::QueryBuilder;
+use sqlx::{prelude::*, PgConnection, QueryBuilder};
 use zksync_types::{AccountTreeId, StorageKey, StorageLog, StorageLogKind, H256};
 
 const BIND_LIMIT: usize = 65535; // postgres limit = 65535
@@ -106,7 +104,7 @@ async fn main() {
         q.push_values(batch, |mut args_list, value| {
             args_list
                 .push_bind(value.hashed_key)
-                .push_bind(value.l1_batch_number) // TODO: should the batch number reset to zero or should it be copied over?
+                .push_bind(0i32) // TODO: should the batch number reset to zero or should it be copied over?
                 .push_bind(value.index);
         });
 
@@ -138,9 +136,9 @@ async fn main() {
                 .push_bind(value.key.address().0)
                 .push_bind(value.key.key().0)
                 .push_bind(value.value.0)
-                .push_bind(todo!("operation number") as i32)
-                .push_bind(todo!("transaction hash") as i32)
-                .push_bind(todo!("miniblock number") as i32);
+                .push_bind(0i32)
+                .push_bind(0i32)
+                .push_bind(0i32);
         });
 
         q.build().execute(&mut conn_destination).await.unwrap();
