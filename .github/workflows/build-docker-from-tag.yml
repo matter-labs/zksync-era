@@ -49,7 +49,7 @@ jobs:
   build-push-core-images:
     name: Build and push image
     needs: [ setup ]
-    uses: ./.github/workflows/new-build-core-template.yml
+    uses: ./.github/workflows/build-core-template.yml
     if: contains(github.ref_name, 'core')
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
@@ -57,7 +57,6 @@ jobs:
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       en_alpha_release: true
-      action: "push"
 
   build-push-tee-prover-images:
     name: Build and push images
@@ -74,25 +73,23 @@ jobs:
   build-push-contract-verifier:
     name: Build and push image
     needs: [ setup ]
-    uses: ./.github/workflows/new-build-contract-verifier-template.yml
+    uses: ./.github/workflows/build-contract-verifier-template.yml
     if: contains(github.ref_name, 'contract_verifier')
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
-      action: "push"
 
   build-push-prover-images:
     name: Build and push image
     needs: [ setup ]
-    uses: ./.github/workflows/new-build-prover-template.yml
+    uses: ./.github/workflows/build-prover-template.yml
     if: contains(github.ref_name, 'prover')
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
       CUDA_ARCH: "60;70;75;80;89"
-      action: "push"
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -100,14 +97,13 @@ jobs:
   build-push-witness-generator-image-avx512:
     name: Build and push image
     needs: [ setup ]
-    uses: ./.github/workflows/new-build-witness-generator-template.yml
+    uses: ./.github/workflows/build-witness-generator-template.yml
     if: contains(github.ref_name, 'prover')
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-avx512
       ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
       CUDA_ARCH: "60;70;75;80;89"
       WITNESS_GENERATOR_RUST_FLAGS: "-Ctarget_feature=+avx512bw,+avx512cd,+avx512dq,+avx512f,+avx512vl"
-      action: push
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
