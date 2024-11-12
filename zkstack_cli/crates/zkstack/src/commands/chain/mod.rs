@@ -19,6 +19,7 @@ pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
 pub mod genesis;
 pub mod init;
+pub mod propose_chain;
 pub mod register_chain;
 mod set_token_multiplier_setter;
 mod setup_legacy_bridge;
@@ -64,6 +65,7 @@ pub enum ChainCommands {
     DeployPaymaster(ForgeScriptArgs),
     /// Update Token Multiplier Setter address on L1
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
+    ProposeChain,
 }
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
@@ -93,5 +95,6 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
             set_token_multiplier_setter::run(args, shell).await
         }
+        ChainCommands::ProposeChain => propose_chain::run(shell).await,
     }
 }

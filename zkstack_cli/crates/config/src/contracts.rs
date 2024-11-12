@@ -71,6 +71,8 @@ impl ContractsConfig {
             .diamond_cut_data
             .clone_from(&deploy_l1_output.contracts_config.diamond_cut_data);
         self.l1.chain_admin_addr = deploy_l1_output.deployed_addresses.chain_admin;
+        self.ecosystem_contracts.chain_registrar =
+            deploy_l1_output.deployed_addresses.chain_registrar;
     }
 
     pub fn set_chain_contracts(&mut self, register_chain_output: &RegisterChainOutput) {
@@ -132,6 +134,7 @@ pub struct EcosystemContracts {
     pub transparent_proxy_admin_addr: Address,
     pub validator_timelock_addr: Address,
     pub diamond_cut_data: String,
+    pub chain_registrar: Address,
 }
 
 impl ZkStackConfig for EcosystemContracts {}

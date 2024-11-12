@@ -48,6 +48,7 @@ pub struct DeployL1DeployedAddressesOutput {
     pub bridgehub: L1BridgehubOutput,
     pub bridges: L1BridgesOutput,
     pub state_transition: L1StateTransitionOutput,
+    pub chain_registrar: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

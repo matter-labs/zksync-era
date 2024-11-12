@@ -16,6 +16,7 @@ use crate::{
         deploy_l2_contracts, deploy_paymaster,
         genesis::genesis,
         init::configs::init_configs,
+        propose_chain,
         register_chain::register_chain,
         set_token_multiplier_setter::set_token_multiplier_setter,
         setup_legacy_bridge::setup_legacy_bridge,
@@ -84,6 +85,8 @@ pub async fn init(
     // Fund some wallet addresses with ETH or base token (only for Localhost)
     distribute_eth(ecosystem_config, chain_config, init_args.l1_rpc_url.clone()).await?;
     mint_base_token(ecosystem_config, chain_config, init_args.l1_rpc_url.clone()).await?;
+    // Propose chain registration
+    propose_chain::run_propose_chain_registration(chain_config).await?;
 
     // Register chain on BridgeHub (run by L1 Governor)
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);

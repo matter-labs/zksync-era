@@ -8,6 +8,7 @@ use ethers::{
     providers::Middleware,
     types::{Address, TransactionRequest},
 };
+use sqlx::encode::IsNull::No;
 use types::TokenInfo;
 
 use crate::{logger, wallets::Wallet};
@@ -112,5 +113,55 @@ pub async fn mint_token(
 
     futures::future::join_all(pending_txs).await;
 
+    Ok(())
+}
+
+abigen!(
+    ContractRegistar,
+    r"[
+        function proposeChainRegistration(uint256 chainId, uint8 pubdataPricingMode, address commitOperator,address operator,address governor,address tokenAddress,address tokenMultiplierSetter,uint128 gasPriceMultiplierNominator,uint128 gasPriceMultiplierDenominator)
+    ]"
+);
+
+pub async fn propose_registration(
+    chain_registrar: Address,
+    main_wallet: Wallet,
+    l1_rpc: String,
+    l1_chain_id: u64,
+    l2_chain_id: u64,
+    commit_operator: Address,
+    operator: Address,
+    governor: Address,
+    token_address: Address,
+    token_multiplier_setter: Option<Address>,
+    gas_price_multiplier_nominator: u64,
+    gas_price_multiplier_denominator: u64,
+) -> anyhow::Result<()> {
+    let client = Arc::new(
+        create_ethers_client(main_wallet.private_key.unwrap(), l1_rpc, Some(l1_chain_id))?
+            .nonce_manager(main_wallet.address),
+    );
+    let contract = ContractRegistar::new(chain_registrar, client);
+    contract
+        .propose_chain_registration(
+            l2_chain_id.into(),
+            // TODO pass the correct value
+            0,
+            commit_operator,
+            operator,
+            governor,
+            token_address,
+            token_multiplier_setter.unwrap_or_default(),
+            gas_price_multiplier_nominator as u128,
+            gas_price_multiplier_denominator as u128,
+        )
+        .send()
+        .await?
+        .confirmations(3)
+        .await?;
+    logger::info(format!(
+        "Chain was proposed with chain id {} and author {:?}",
+        l2_chain_id, main_wallet.address
+    ));
     Ok(())
 }
