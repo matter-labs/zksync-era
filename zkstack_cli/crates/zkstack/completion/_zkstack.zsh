@@ -535,6 +535,23 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
 ;;
+(deploy-timestamp-asserter)
+_arguments "${_arguments_options[@]}" : \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
 (deploy-upgrader)
 _arguments "${_arguments_options[@]}" : \
 '--verify=[Verify deployed contracts]' \
@@ -671,6 +688,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (deploy-multicall3)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(deploy-timestamp-asserter)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2506,6 +2527,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(deploy-timestamp-asserter)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (deploy-upgrader)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -2998,6 +3023,7 @@ _zkstack__chain_commands() {
 'initialize-bridges:Initialize bridges on L2' \
 'deploy-consensus-registry:Deploy L2 consensus registry' \
 'deploy-multicall3:Deploy L2 multicall3' \
+'deploy-timestamp-asserter:Deploy L2 TimestampAsserter' \
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
@@ -3039,6 +3065,11 @@ _zkstack__chain__deploy-multicall3_commands() {
 _zkstack__chain__deploy-paymaster_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain deploy-paymaster commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__deploy-timestamp-asserter_commands] )) ||
+_zkstack__chain__deploy-timestamp-asserter_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain deploy-timestamp-asserter commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__deploy-upgrader_commands] )) ||
 _zkstack__chain__deploy-upgrader_commands() {
@@ -3101,6 +3132,7 @@ _zkstack__chain__help_commands() {
 'initialize-bridges:Initialize bridges on L2' \
 'deploy-consensus-registry:Deploy L2 consensus registry' \
 'deploy-multicall3:Deploy L2 multicall3' \
+'deploy-timestamp-asserter:Deploy L2 TimestampAsserter' \
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
@@ -3142,6 +3174,11 @@ _zkstack__chain__help__deploy-multicall3_commands() {
 _zkstack__chain__help__deploy-paymaster_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help deploy-paymaster commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__deploy-timestamp-asserter_commands] )) ||
+_zkstack__chain__help__deploy-timestamp-asserter_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help deploy-timestamp-asserter commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__help__deploy-upgrader_commands] )) ||
 _zkstack__chain__help__deploy-upgrader_commands() {
@@ -4353,6 +4390,7 @@ _zkstack__help__chain_commands() {
 'initialize-bridges:Initialize bridges on L2' \
 'deploy-consensus-registry:Deploy L2 consensus registry' \
 'deploy-multicall3:Deploy L2 multicall3' \
+'deploy-timestamp-asserter:Deploy L2 TimestampAsserter' \
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
@@ -4393,6 +4431,11 @@ _zkstack__help__chain__deploy-multicall3_commands() {
 _zkstack__help__chain__deploy-paymaster_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain deploy-paymaster commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__deploy-timestamp-asserter_commands] )) ||
+_zkstack__help__chain__deploy-timestamp-asserter_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain deploy-timestamp-asserter commands' commands "$@"
 }
 (( $+functions[_zkstack__help__chain__deploy-upgrader_commands] )) ||
 _zkstack__help__chain__deploy-upgrader_commands() {
