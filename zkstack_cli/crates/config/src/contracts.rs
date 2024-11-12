@@ -249,12 +249,16 @@ pub struct L1Contracts {
     pub validator_timelock_addr: Address,
     pub base_token_addr: Address,
     // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub base_token_asset_id: Option<H256>,
     // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub rollup_l1_da_validator_addr: Option<Address>,
     // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub validium_l1_da_validator_addr: Option<Address>,
     // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_filterer_addr: Option<Address>,
 }
 
@@ -263,10 +267,13 @@ pub struct L2Contracts {
     pub testnet_paymaster_addr: Address,
     pub default_l2_upgrader: Address,
     // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub da_validator_addr: Option<Address>,
     // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub l2_native_token_vault_proxy_addr: Option<Address>,
     // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub legacy_shared_bridge_addr: Option<Address>,
     pub consensus_registry: Option<Address>,
     pub multicall3: Option<Address>,

@@ -83,7 +83,6 @@ impl ProtoRepr for proto::Contracts {
             l2_legacy_shared_bridge_addr: l2
                 .legacy_shared_bridge_addr
                 .as_ref()
-                .and_then(|x| (!x.is_empty()).then_some(x))
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("l2_legacy_shared_bridge_addr")?,
