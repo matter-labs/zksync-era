@@ -1,23 +1,8 @@
-use std::{env, error, str::FromStr};
+use std::env;
 
-use anyhow::Context as _;
 use zksync_config::{configs::DatabaseSecrets, DBConfig, PostgresConfig};
 
-use crate::{envy_load, FromEnv};
-
-fn parse_optional_var<T>(name: &str) -> anyhow::Result<Option<T>>
-where
-    T: FromStr,
-    T::Err: 'static + error::Error + Send + Sync,
-{
-    env::var(name)
-        .ok()
-        .map(|val| {
-            val.parse()
-                .with_context(|| format!("failed to parse env variable {name}"))
-        })
-        .transpose()
-}
+use crate::{envy_load, utils::parse_optional_var, FromEnv};
 
 impl FromEnv for DBConfig {
     fn from_env() -> anyhow::Result<Self> {

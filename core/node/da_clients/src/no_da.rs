@@ -15,7 +15,7 @@ impl DataAvailabilityClient for NoDAClient {
     }
 
     async fn get_inclusion_data(&self, _: &str) -> Result<Option<InclusionData>, DAError> {
-        return Ok(Some(InclusionData::default()));
+        Ok(Some(InclusionData::default()))
     }
 
     fn clone_boxed(&self) -> Box<dyn DataAvailabilityClient> {
