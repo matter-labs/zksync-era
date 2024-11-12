@@ -1,3 +1,15 @@
+//! Bytecode-related types and utils.
+//!
+//! # Bytecode kinds
+//!
+//! ZKsync supports 2 kinds of bytecodes: EraVM and EVM ones.
+//!
+//! - **EraVM** bytecodes consist of 64-bit (8-byte) instructions for the corresponding VM.
+//! - **EVM** bytecodes consist of ordinary EVM opcodes, preceded with a 32-byte big-endian code length (in bytes).
+//!
+//! Both bytecode kinds are right-padded to consist of an integer, odd number of 32-byte words. All methods
+//! in this module operate on padded bytecodes unless explicitly specified otherwise.
+
 use anyhow::Context as _;
 use sha2::{Digest, Sha256};
 
@@ -6,16 +18,25 @@ use crate::{H256, U256};
 const MAX_BYTECODE_LENGTH_IN_WORDS: usize = (1 << 16) - 1;
 const MAX_BYTECODE_LENGTH_BYTES: usize = MAX_BYTECODE_LENGTH_IN_WORDS * 32;
 
-#[derive(Debug, thiserror::Error, PartialEq)]
+/// Errors returned from [`validate_bytecode()`].
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum InvalidBytecodeError {
+    /// Bytecode is too long.
     #[error("Bytecode too long: {0} bytes, while max {1} allowed")]
     BytecodeTooLong(usize, usize),
-    #[error("Bytecode has even number of 32-byte words")]
-    BytecodeLengthInWordsIsEven,
+    /// Bytecode length isn't divisible by 32 (i.e., bytecode cannot be represented as a sequence of 32-byte EraVM words).
     #[error("Bytecode length is not divisible by 32")]
     BytecodeLengthIsNotDivisibleBy32,
+    /// Bytecode has an even number of 32-byte words.
+    #[error("Bytecode has even number of 32-byte words")]
+    BytecodeLengthInWordsIsEven,
 }
 
+/// Validates that the given bytecode passes basic checks (e.g., not too long).
+///
+/// The performed checks are universal both for EraVM and (padded) EVM bytecodes. If you need to additionally check EVM bytecode integrity,
+/// use [`trim_padded_evm_bytecode()`].
 pub fn validate_bytecode(code: &[u8]) -> Result<(), InvalidBytecodeError> {
     let bytecode_len = code.len();
 
@@ -39,19 +60,23 @@ pub fn validate_bytecode(code: &[u8]) -> Result<(), InvalidBytecodeError> {
     Ok(())
 }
 
+/// 32-byte bytecode hash. Besides a cryptographically secure hash of the bytecode contents, contains a [`BytecodeMarker`]
+/// and the bytecode length.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BytecodeHash(H256);
 
 impl BytecodeHash {
+    /// Hashes the provided EraVM bytecode.
     pub fn for_bytecode(bytecode: &[u8]) -> Self {
         Self::for_generic_bytecode(BytecodeMarker::EraVm, bytecode)
     }
 
+    /// Hashes the provided padded EVM bytecode.
     pub fn for_evm_bytecode(bytecode: &[u8]) -> Self {
         Self::for_generic_bytecode(BytecodeMarker::Evm, bytecode)
     }
 
-    pub fn for_generic_bytecode(kind: BytecodeMarker, bytecode: &[u8]) -> Self {
+    fn for_generic_bytecode(kind: BytecodeMarker, bytecode: &[u8]) -> Self {
         validate_bytecode(bytecode).expect("invalid bytecode");
 
         let mut hasher = Sha256::new();
@@ -71,6 +96,7 @@ impl BytecodeHash {
         Self(H256(output))
     }
 
+    /// Returns a marker / kind of this bytecode.
     pub fn marker(&self) -> BytecodeMarker {
         match self.0.as_bytes()[0] {
             val if val == BytecodeMarker::EraVm as u8 => BytecodeMarker::EraVm,
@@ -79,6 +105,7 @@ impl BytecodeHash {
         }
     }
 
+    /// Returns the length of the hashed bytecode in bytes.
     pub fn len_in_bytes(&self) -> usize {
         let bytes = self.0.as_bytes();
         let raw_len = u16::from_be_bytes([bytes[2], bytes[3]]);
@@ -88,10 +115,12 @@ impl BytecodeHash {
         }
     }
 
+    /// Returns the underlying hash value.
     pub fn value(self) -> H256 {
         self.0
     }
 
+    /// Returns the underlying hash value interpreted as a big-endian unsigned integer.
     pub fn value_u256(self) -> U256 {
         crate::h256_to_u256(self.0)
     }
@@ -127,7 +156,10 @@ impl BytecodeMarker {
     }
 }
 
-pub fn prepare_evm_bytecode(raw: &[u8]) -> anyhow::Result<&[u8]> {
+/// Removes padding from an EVM bytecode, returning the original EVM bytecode.
+pub fn trim_padded_evm_bytecode(raw: &[u8]) -> anyhow::Result<&[u8]> {
+    validate_bytecode(raw).context("bytecode fails basic validity checks")?;
+
     // EVM bytecodes are prefixed with a big-endian `U256` bytecode length.
     let bytecode_len_bytes = raw.get(..32).context("length < 32")?;
     let bytecode_len = U256::from_big_endian(bytecode_len_bytes);
@@ -149,6 +181,7 @@ pub fn prepare_evm_bytecode(raw: &[u8]) -> anyhow::Result<&[u8]> {
     Ok(bytecode)
 }
 
+#[doc(hidden)] // only useful for tests
 pub mod testonly {
     use const_decoder::Decoder;
 
@@ -197,7 +230,7 @@ mod tests {
 
     #[test]
     fn preparing_evm_bytecode() {
-        let prepared = prepare_evm_bytecode(RAW_EVM_BYTECODE).unwrap();
+        let prepared = trim_padded_evm_bytecode(RAW_EVM_BYTECODE).unwrap();
         assert_eq!(prepared, PROCESSED_EVM_BYTECODE);
     }
 }

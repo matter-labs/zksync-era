@@ -173,7 +173,7 @@ impl CallRequestBuilder {
     }
 }
 
-#[derive(Debug, Error, PartialEq)]
+#[derive(Debug, Error)]
 pub enum SerializationTransactionError {
     #[error("transaction type is not supported")]
     UnknownTransactionFormat,
@@ -1157,9 +1157,9 @@ mod tests {
 
         let decoded_tx =
             TransactionRequest::from_bytes(encoded_tx.as_slice(), L2ChainId::from(272));
-        assert_eq!(
-            decoded_tx,
-            Err(SerializationTransactionError::WrongChainId(Some(270)))
+        assert_matches!(
+            decoded_tx.unwrap_err(),
+            SerializationTransactionError::WrongChainId(Some(270))
         );
     }
 
@@ -1235,9 +1235,9 @@ mod tests {
         data.insert(0, EIP_1559_TX_TYPE);
 
         let decoded_tx = TransactionRequest::from_bytes(data.as_slice(), L2ChainId::from(270));
-        assert_eq!(
-            decoded_tx,
-            Err(SerializationTransactionError::WrongChainId(Some(272)))
+        assert_matches!(
+            decoded_tx.unwrap_err(),
+            SerializationTransactionError::WrongChainId(Some(272))
         );
     }
 
@@ -1275,9 +1275,9 @@ mod tests {
         data.insert(0, EIP_1559_TX_TYPE);
 
         let res = TransactionRequest::from_bytes(data.as_slice(), L2ChainId::from(270));
-        assert_eq!(
-            res,
-            Err(SerializationTransactionError::AccessListsNotSupported)
+        assert_matches!(
+            res.unwrap_err(),
+            SerializationTransactionError::AccessListsNotSupported
         );
     }
 
@@ -1312,9 +1312,9 @@ mod tests {
         data.insert(0, EIP_2930_TX_TYPE);
 
         let res = TransactionRequest::from_bytes(data.as_slice(), L2ChainId::from(270));
-        assert_eq!(
-            res,
-            Err(SerializationTransactionError::AccessListsNotSupported)
+        assert_matches!(
+            res.unwrap_err(),
+            SerializationTransactionError::AccessListsNotSupported
         );
     }
 
@@ -1340,7 +1340,7 @@ mod tests {
         };
         let execute_tx2: Result<L2Tx, SerializationTransactionError> =
             L2Tx::from_request(tx2, usize::MAX, true);
-        assert_eq!(
+        assert_matches!(
             execute_tx2.unwrap_err(),
             SerializationTransactionError::TooBigNonce
         );
@@ -1357,7 +1357,7 @@ mod tests {
         };
         let execute_tx1: Result<L2Tx, SerializationTransactionError> =
             L2Tx::from_request(tx1, usize::MAX, true);
-        assert_eq!(
+        assert_matches!(
             execute_tx1.unwrap_err(),
             SerializationTransactionError::MaxFeePerGasNotU64
         );
@@ -1371,7 +1371,7 @@ mod tests {
         };
         let execute_tx2: Result<L2Tx, SerializationTransactionError> =
             L2Tx::from_request(tx2, usize::MAX, true);
-        assert_eq!(
+        assert_matches!(
             execute_tx2.unwrap_err(),
             SerializationTransactionError::MaxPriorityFeePerGasNotU64
         );
@@ -1389,7 +1389,7 @@ mod tests {
 
         let execute_tx3: Result<L2Tx, SerializationTransactionError> =
             L2Tx::from_request(tx3, usize::MAX, true);
-        assert_eq!(
+        assert_matches!(
             execute_tx3.unwrap_err(),
             SerializationTransactionError::MaxFeePerPubdataByteNotU64
         );
