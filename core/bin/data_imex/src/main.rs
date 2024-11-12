@@ -10,10 +10,10 @@ static SOURCE_DATABASE_URL: &str =
 static DESTINATION_DATABASE_URL: &str =
     "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_imex_destination";
 
-type FactoryDeps = HashMap<H256, Vec<u8>>;
-
 #[tokio::main]
 async fn main() {
+    // TODO: paginate, bc probably cannot store 25gb in memory
+
     println!("Connecting to source database...");
     let mut conn_source = PgConnection::connect(SOURCE_DATABASE_URL).await.unwrap();
     println!("Connected to source database.");
@@ -22,8 +22,8 @@ async fn main() {
     #[derive(FromRow)]
     struct InitialWriteRow {
         hashed_key: [u8; 32],
-        l1_batch_number: i32,
-        index: i32,
+        l1_batch_number: i64,
+        index: i64,
     }
     let initial_writes = sqlx::query_as::<_, InitialWriteRow>(
         "select hashed_key, l1_batch_number, index from initial_writes;",
@@ -64,14 +64,16 @@ async fn main() {
     );
 
     println!("Loading factory deps from source database...");
-    let factory_deps: FactoryDeps =
-        sqlx::query("select bytecode_hash, bytecode from factory_deps fd;")
+    #[derive(FromRow)]
+    struct FactoryDepRow {
+        bytecode_hash: [u8; 32],
+        bytecode: Vec<u8>,
+    }
+    let factory_deps: Vec<FactoryDepRow> =
+        sqlx::query_as("select bytecode_hash, bytecode from factory_deps;")
             .fetch_all(&mut conn_source)
             .await
-            .unwrap()
-            .into_iter()
-            .map(|r| (H256(r.get("bytecode_hash")), r.get("bytecode")))
-            .collect();
+            .unwrap();
     println!(
         "Loaded {} factory deps from source database.",
         factory_deps.len(),
@@ -97,7 +99,7 @@ async fn main() {
     for (i, batch) in iw_batches.enumerate() {
         let mut q = QueryBuilder::new(
             r#"
-                insert into initial_writes(hashed_key, l1_batch_number, index)
+                insert into initial_writes(hashed_key, l1_batch_number, index, created_at, updated_at)
             "#,
         );
 
@@ -105,7 +107,9 @@ async fn main() {
             args_list
                 .push_bind(value.hashed_key)
                 .push_bind(0i32) // TODO: should the batch number reset to zero or should it be copied over?
-                .push_bind(value.index);
+                .push_bind(value.index)
+                .push("current_timestamp")
+                .push("current_timestamp");
         });
 
         q.build().execute(&mut conn_destination).await.unwrap();
@@ -126,7 +130,7 @@ async fn main() {
     for (i, batch) in sl_batches.enumerate() {
         let mut q = QueryBuilder::new(
             r#"
-                insert into storage_logs(hashed_key, address, key, value, operation_number, tx_hash, miniblock_number)
+                insert into storage_logs(hashed_key, address, key, value, operation_number, tx_hash, miniblock_number, created_at, updated_at)
             "#,
         );
 
@@ -137,8 +141,10 @@ async fn main() {
                 .push_bind(value.key.key().0)
                 .push_bind(value.value.0)
                 .push_bind(0i32)
+                .push_bind([0u8; 32])
                 .push_bind(0i32)
-                .push_bind(0i32);
+                .push("current_timestamp")
+                .push("current_timestamp");
         });
 
         q.build().execute(&mut conn_destination).await.unwrap();
@@ -146,4 +152,35 @@ async fn main() {
         println!("Inserted batch {i} to destination database, for total of {total_sl_insertions} storage log records inserted.");
     }
     println!("Finished inserting storage logs to destination database.");
+
+    // factory deps
+    const FD_BINDINGS_PER_BATCH: usize = 7;
+    let fd_batches = factory_deps.chunks(BIND_LIMIT / FD_BINDINGS_PER_BATCH);
+    println!(
+        "Copying factory deps to destination in {} batches...",
+        fd_batches.len(),
+    );
+
+    let mut total_fd_insertions = 0;
+    for (i, batch) in fd_batches.enumerate() {
+        let mut q = QueryBuilder::new(
+            r#"
+                insert into factory_deps(bytecode_hash, bytecode, miniblock_number, created_at, updated_at)
+            "#,
+        );
+
+        q.push_values(batch, |mut args_list, value| {
+            args_list
+                .push_bind(value.bytecode_hash)
+                .push_bind(&value.bytecode)
+                .push_bind(0i32)
+                .push("current_timestamp")
+                .push("current_timestamp");
+        });
+
+        q.build().execute(&mut conn_destination).await.unwrap();
+        total_fd_insertions += batch.len();
+        println!("Inserted batch {i} to destination database, for total of {total_fd_insertions} factory deps records inserted.");
+    }
+    println!("Finished inserting factory deps to destination database.");
 }
