@@ -2,6 +2,10 @@ name: Build Prover FRI GPU & Circuit Prover GPU with builtin setup data
 
 on:
   workflow_call:
+    secrets:
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE:
+        description: "Token which will be provided to checkout action to be able to clone private submodules"
+        required: true
     inputs:
       image_tag_suffix:
         description: "Commit sha or git tag for Docker tag"

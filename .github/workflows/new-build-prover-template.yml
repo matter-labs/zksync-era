@@ -8,6 +8,9 @@ on:
       DOCKERHUB_TOKEN:
         description: "DOCKERHUB_TOKEN"
         required: true
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE:
+        description: "Token which will be provided to checkout action to be able to clone private submodules"
+        required: true
     inputs:
       ERA_BELLMAN_CUDA_RELEASE:
         description: "ERA_BELLMAN_CUDA_RELEASE"

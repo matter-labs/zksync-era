@@ -1,6 +1,11 @@
 name: Workflow template for CI jobs for Prover Components
 on:
   workflow_call:
+    secrets:
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE:
+        description: "Token which will be provided to checkout action to be able to clone private submodules"
+        required: true
+
 jobs:
   lint:
     runs-on: [ matterlabs-ci-runner-highmem-long ]

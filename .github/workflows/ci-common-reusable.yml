@@ -1,6 +1,10 @@
 name: Workflow template for CI jobs to be ran on both Prover and Core Components
 on:
   workflow_call:
+    secrets:
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE:
+        description: "Token which will be provided to checkout action to be able to clone private submodules"
+        required: true
 
 jobs:
   build:
