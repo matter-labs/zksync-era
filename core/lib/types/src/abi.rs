@@ -485,7 +485,7 @@ impl ZkChainSpecificUpgradeData {
         })
     }
 
-    /// ABI schema of the `ProposedUpgrade`.
+    /// ABI schema of the `ZkChainSpecificUpgradeData`.
     pub fn schema() -> ParamType {
         ParamType::Tuple(vec![
             ParamType::FixedBytes(32),
