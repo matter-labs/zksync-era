@@ -10,7 +10,7 @@ use zksync_types::contract_verification_api::CompilationArtifacts;
 use zksync_utils::env::Workspace;
 
 use crate::{
-    compilers::{Solc, SolcInput, ZkSolc, ZkSolcInput, ZkVyper, ZkVyperInput},
+    compilers::{Solc, SolcInput, Vyper, VyperInput, ZkSolc, ZkSolcInput, ZkVyper},
     error::ContractVerifierError,
     ZkCompilerVersions,
 };
@@ -115,11 +115,17 @@ pub(crate) trait CompilerResolver: fmt::Debug + Send + Sync {
         version: &ZkCompilerVersions,
     ) -> Result<Box<dyn Compiler<ZkSolcInput>>, ContractVerifierError>;
 
+    /// Resolves a `vyper` compiler.
+    async fn resolve_vyper(
+        &self,
+        version: &str,
+    ) -> Result<Box<dyn Compiler<VyperInput>>, ContractVerifierError>;
+
     /// Resolves a `zkvyper` compiler.
     async fn resolve_zkvyper(
         &self,
         version: &ZkCompilerVersions,
-    ) -> Result<Box<dyn Compiler<ZkVyperInput>>, ContractVerifierError>;
+    ) -> Result<Box<dyn Compiler<VyperInput>>, ContractVerifierError>;
 }
 
 /// Encapsulates a one-off compilation process.
@@ -218,10 +224,20 @@ impl CompilerResolver for EnvCompilerResolver {
         )))
     }
 
+    async fn resolve_vyper(
+        &self,
+        version: &str,
+    ) -> Result<Box<dyn Compiler<VyperInput>>, ContractVerifierError> {
+        let vyper_path = CompilerType::Vyper
+            .bin_path(&self.home_dir, version)
+            .await?;
+        Ok(Box::new(Vyper::new(vyper_path)))
+    }
+
     async fn resolve_zkvyper(
         &self,
         version: &ZkCompilerVersions,
-    ) -> Result<Box<dyn Compiler<ZkVyperInput>>, ContractVerifierError> {
+    ) -> Result<Box<dyn Compiler<VyperInput>>, ContractVerifierError> {
         let zkvyper_path = CompilerType::ZkVyper
             .bin_path(&self.home_dir, &version.zk)
             .await?;
