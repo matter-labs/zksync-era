@@ -137,6 +137,8 @@ pub struct VerificationIncomingRequest {
     #[serde(flatten)]
     pub compiler_versions: CompilerVersions,
     pub optimization_used: bool,
+    /// Optimization mode used for the contract. Semantics depends on the compiler used; e.g., for `vyper`,
+    /// allowed values are `gas` (default), `codesize` or `none`.
     pub optimizer_mode: Option<String>,
     #[serde(default)]
     pub constructor_arguments: Bytes,
@@ -152,17 +154,19 @@ pub enum CompilerType {
     Vyper,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CompilerVersions {
     #[serde(rename_all = "camelCase")]
     Solc {
-        compiler_zksolc_version: String, // FIXME: optional?
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        compiler_zksolc_version: Option<String>,
         compiler_solc_version: String,
     },
     #[serde(rename_all = "camelCase")]
     Vyper {
-        compiler_zkvyper_version: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        compiler_zkvyper_version: Option<String>,
         compiler_vyper_version: String,
     },
 }
@@ -175,16 +179,16 @@ impl CompilerVersions {
         }
     }
 
-    pub fn zk_compiler_version(&self) -> &str {
+    pub fn zk_compiler_version(&self) -> Option<&str> {
         match self {
             Self::Solc {
                 compiler_zksolc_version,
                 ..
-            } => compiler_zksolc_version,
+            } => compiler_zksolc_version.as_deref(),
             Self::Vyper {
                 compiler_zkvyper_version,
                 ..
-            } => compiler_zkvyper_version,
+            } => compiler_zkvyper_version.as_deref(),
         }
     }
 
