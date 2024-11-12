@@ -3,7 +3,7 @@ use std::ops;
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{L1BatchNumber, L2BlockNumber, H256};
 
-use crate::{Core, CoreDal};
+use crate::Core;
 
 #[cfg(test)]
 mod tests;
@@ -188,22 +188,12 @@ impl PruningDal<'_, '_> {
         Ok(())
     }
 
-    /// If the pruned L1 batch does not have a root hash present in the storage, this is a no-op.
+    /// Does not insert pruning logs; the caller is responsible to do this!
     pub async fn hard_prune_batches_range(
         &mut self,
         last_l1_batch_to_prune: L1BatchNumber,
         last_l2_block_to_prune: L2BlockNumber,
     ) -> DalResult<HardPruningStats> {
-        let Some(last_l1_batch_root_hash) = self
-            .storage
-            .blocks_dal()
-            .get_l1_batch_state_root(last_l1_batch_to_prune)
-            .await?
-        else {
-            // Assume that pruning has already occurred.
-            return Ok(HardPruningStats::default());
-        };
-
         let row = sqlx::query!(
             r#"
             SELECT
@@ -253,12 +243,6 @@ impl PruningDal<'_, '_> {
             deleted_call_traces,
             deleted_storage_logs,
         };
-        self.insert_hard_pruning_log(
-            last_l1_batch_to_prune,
-            last_l2_block_to_prune,
-            last_l1_batch_root_hash,
-        )
-        .await?;
         Ok(stats)
     }
 

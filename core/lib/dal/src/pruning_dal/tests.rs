@@ -422,11 +422,6 @@ async fn l1_batches_can_be_hard_pruned() {
 
     assert_l1_batches_not_exist(&mut transaction, L1BatchNumber(1)..=L1BatchNumber(5)).await;
     assert_l1_batches_exist(&mut transaction, L1BatchNumber(6)..=L1BatchNumber(9)).await;
-    let pruning_info = transaction.pruning_dal().get_pruning_info().await.unwrap();
-    assert_eq!(
-        L1BatchNumber(5),
-        pruning_info.last_hard_pruned.unwrap().l1_batch
-    );
 
     let stats = transaction
         .pruning_dal()
@@ -439,11 +434,6 @@ async fn l1_batches_can_be_hard_pruned() {
     assert_eq!(stats.deleted_l2_to_l1_logs, 40);
 
     assert_l1_batches_not_exist(&mut transaction, L1BatchNumber(1)..=L1BatchNumber(9)).await;
-    let pruning_info = transaction.pruning_dal().get_pruning_info().await.unwrap();
-    assert_eq!(
-        L1BatchNumber(9),
-        pruning_info.last_hard_pruned.unwrap().l1_batch
-    );
 }
 
 #[tokio::test]
