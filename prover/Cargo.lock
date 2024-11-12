@@ -8629,16 +8629,12 @@ name = "zksync_utils"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "const-decoder 0.4.0",
  "futures 0.3.30",
  "once_cell",
  "reqwest 0.12.5",
  "serde_json",
- "thiserror",
  "tokio",
  "tracing",
- "zk_evm 0.133.0",
- "zksync_basic_types",
  "zksync_vlog",
 ]
 
