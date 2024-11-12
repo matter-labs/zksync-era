@@ -6,7 +6,10 @@ use std::collections::HashMap;
 use anyhow::Context as _;
 #[cfg(feature = "gpu")]
 use boojum_cuda::poseidon2::GLHasher;
-use circuit_definitions::circuit_definitions::aux_layer::CompressionProofsTreeHasherForWrapper;
+use circuit_definitions::{
+    boojum::cs::gates::NonlinearityGateFinalizationHint,
+    circuit_definitions::aux_layer::CompressionProofsTreeHasherForWrapper,
+};
 use shivini::cs::gpu_setup_and_vk_from_base_setup_vk_params_and_hints;
 use zkevm_test_harness::{
     compute_setups::{
@@ -169,6 +172,32 @@ impl SetupDataGenerator for GPUSetupDataGenerator {
                 &mut data_source,
             )
             .unwrap();
+
+            let circuit_setup_data1 = generate_light_circuit_setup_data(
+                circuit.stage as u8,
+                circuit.circuit_id,
+                &mut data_source,
+            )
+            .unwrap();
+
+            let hint1 = bincode::deserialize::<NonlinearityGateFinalizationHint<7>>(
+                &circuit_setup_data.finalization_hint.row_finalization_hints[1],
+            )
+            .expect("Failed to deserialize 1");
+            let hint2 = bincode::deserialize::<NonlinearityGateFinalizationHint<7>>(
+                &circuit_setup_data1.finalization_hint.row_finalization_hints[1],
+            )
+            .expect("Failed to deserialize 2");
+
+            // assert_eq!(circuit_setup_data.finalization_hint, circuit_setup_data1.finalization_hint);
+            let mut vec1 = hint1.instances_to_add.clone();
+            let mut vec2 = hint2.instances_to_add.clone();
+
+            vec1.sort();
+            vec2.sort();
+
+            assert_eq!(vec1, vec2);
+            assert_eq!(hint1.instances_to_add, hint2.instances_to_add);
 
             let worker = Worker::new();
 

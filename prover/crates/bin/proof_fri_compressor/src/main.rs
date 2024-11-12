@@ -36,6 +36,7 @@ struct Cli {
     #[arg(long = "n_iterations")]
     #[arg(short)]
     number_of_iterations: Option<usize>,
+    #[arg(long)]
     pub(crate) fflonk: Option<bool>,
     #[arg(long)]
     pub(crate) config_path: Option<std::path::PathBuf>,
@@ -91,6 +92,7 @@ async fn main() -> anyhow::Result<()> {
         config.max_attempts,
         protocol_version,
         keystore,
+        is_fflonk,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -104,7 +106,7 @@ async fn main() -> anyhow::Result<()> {
     })
     .expect("Error setting Ctrl+C handler"); // Setting handler should always succeed.
 
-    setup_crs_keys(&config);
+    setup_crs_keys(&config, is_fflonk);
 
     tracing::info!("Starting proof compressor");
 

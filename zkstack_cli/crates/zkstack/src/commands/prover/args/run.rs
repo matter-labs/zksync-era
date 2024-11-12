@@ -106,7 +106,7 @@ impl ProverComponent {
 
         if self == &Self::Compressor {
             if args.compressor_args.mode == CompressorMode::Fflonk {
-                application_args.push("--features=fflonk".to_string());
+                application_args.push("--fflonk=true".to_string());
             }
         }
 
