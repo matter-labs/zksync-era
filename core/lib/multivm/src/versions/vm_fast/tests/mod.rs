@@ -9,36 +9,37 @@ use zksync_vm_interface::{
     CurrentExecutionState, L2BlockEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
 };
 
-use super::Vm;
+use super::{circuits_tracer::CircuitsTracer, Vm};
 use crate::{
     interface::storage::{ImmutableStorageView, InMemoryStorage},
     versions::testonly::TestedVm,
-    vm_fast::CircuitsTracer,
+    vm_fast::evm_deploy_tracer::{DynamicBytecodes, EvmDeployTracer},
 };
 
-// mod block_tip;
-// mod bootloader;
-// mod bytecode_publishing;
-// mod circuits;
-// mod code_oracle;
-// mod default_aa;
-// mod gas_limit;
-// mod get_used_contracts;
-// mod is_write_initial;
-// mod l1_messenger;
-// mod l1_tx_execution;
-// mod l2_blocks;
-// mod nonce_holder;
-// mod precompiles;
-// mod refunds;
-// mod require_eip712;
-// mod rollbacks;
-// mod secp256r1;
-// mod simple_execution;
-// mod storage;
-// mod tracing_execution_error;
-// mod transfer;
-// mod upgrade;
+mod block_tip;
+mod bootloader;
+mod bytecode_publishing;
+mod circuits;
+mod code_oracle;
+mod default_aa;
+mod evm_emulator;
+mod gas_limit;
+mod get_used_contracts;
+mod is_write_initial;
+mod l1_messenger;
+mod l1_tx_execution;
+mod l2_blocks;
+mod nonce_holder;
+mod precompiles;
+mod refunds;
+mod require_eip712;
+mod rollbacks;
+mod secp256r1;
+mod simple_execution;
+mod storage;
+mod tracing_execution_error;
+mod transfer;
+mod upgrade;
 
 trait ObjectSafeEq: fmt::Debug + AsRef<dyn Any> {
     fn eq(&self, other: &dyn ObjectSafeEq) -> bool;
@@ -112,7 +113,7 @@ impl TestedVm for Vm<ImmutableStorageView<InMemoryStorage>> {
     }
 
     fn finish_batch_without_pubdata(&mut self) -> VmExecutionResultAndLogs {
-        self.inspect_inner(&mut Default::default(), VmExecutionMode::Batch)
+        self.inspect_inner(&mut Default::default(), VmExecutionMode::Batch, None)
     }
 
     fn insert_bytecodes(&mut self, bytecodes: &[&[u8]]) {
@@ -124,9 +125,13 @@ impl TestedVm for Vm<ImmutableStorageView<InMemoryStorage>> {
     }
 
     fn manually_decommit(&mut self, code_hash: H256) -> bool {
+        let mut tracer = (
+            ((), CircuitsTracer::default()),
+            EvmDeployTracer::new(DynamicBytecodes::default()),
+        );
         let (_, is_fresh) = self.inner.world_diff_mut().decommit_opcode(
             &mut self.world,
-            &mut ((), CircuitsTracer::default()),
+            &mut tracer,
             h256_to_u256(code_hash),
         );
         is_fresh
@@ -170,6 +175,6 @@ impl TestedVm for Vm<ImmutableStorageView<InMemoryStorage>> {
     }
 
     fn pubdata_input(&self) -> PubdataInput {
-        todo!()
+        self.bootloader_state.get_pubdata_information().clone()
     }
 }

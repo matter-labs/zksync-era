@@ -93,6 +93,7 @@ mod tests {
             chain_admin_addr: Some(addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
             l2_da_validator_addr: Some(addr("0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
             settlement_layer: Some(0),
+            l2_timestamp_asserter_addr: Some(addr("0x0000000000000000000000000000000000000002")),
         }
     }
 
@@ -123,6 +124,7 @@ CONTRACTS_L2_NATIVE_TOKEN_VAULT_PROXY_ADDR="0xfc073319977e314f251eae6ae6be76b0b3
 CONTRACTS_CHAIN_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
 CONTRACTS_SETTLEMENT_LAYER="0"
 CONTRACTS_L2_DA_VALIDATOR_ADDR="0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
+CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR="0x0000000000000000000000000000000000000002"
         "#;
         lock.set_env(config);
 

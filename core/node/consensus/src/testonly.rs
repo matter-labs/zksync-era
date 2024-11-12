@@ -73,7 +73,6 @@ pub(super) struct ConfigSet {
     net: network::Config,
     pub(super) config: config::ConsensusConfig,
     pub(super) secrets: config::ConsensusSecrets,
-    pub(super) enable_pregenesis: bool,
 }
 
 impl ConfigSet {
@@ -83,17 +82,11 @@ impl ConfigSet {
             config: make_config(&net, None),
             secrets: make_secrets(&net, None),
             net,
-            enable_pregenesis: self.enable_pregenesis,
         }
     }
 }
 
-pub(super) fn new_configs(
-    rng: &mut impl Rng,
-    setup: &Setup,
-    seed_peers: usize,
-    pregenesis: bool,
-) -> Vec<ConfigSet> {
+pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) -> Vec<ConfigSet> {
     let net_cfgs = network::testonly::new_configs(rng, setup, 0);
     let genesis_spec = config::GenesisSpec {
         chain_id: setup.genesis.chain_id.0.try_into().unwrap(),
@@ -133,7 +126,6 @@ pub(super) fn new_configs(
             config: make_config(&net, Some(genesis_spec.clone())),
             secrets: make_secrets(&net, setup.attester_keys.get(i).cloned()),
             net,
-            enable_pregenesis: pregenesis,
         })
         .collect()
 }
@@ -473,7 +465,6 @@ impl StateKeeper {
             cfgs.config,
             cfgs.secrets,
             cfgs.net.build_version,
-            cfgs.enable_pregenesis,
         )
         .await
     }

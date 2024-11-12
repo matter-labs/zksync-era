@@ -200,24 +200,6 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
         root.unwrap_or(Root::Empty)
     }
 
-    /// Removes the most recent versions from the database.
-    ///
-    /// The current implementation does not actually remove node data for the removed versions
-    /// since it's likely to be reused in the future (especially upper-level internal nodes).
-    ///
-    /// # Errors
-    ///
-    /// Proxies database I/O errors.
-    pub fn truncate_recent_versions(&mut self, retained_version_count: u64) -> anyhow::Result<()> {
-        let mut manifest = self.db.manifest().unwrap_or_default();
-        if manifest.version_count > retained_version_count {
-            manifest.version_count = retained_version_count;
-            let patch = PatchSet::from_manifest(manifest);
-            self.db.apply_patch(patch)?;
-        }
-        Ok(())
-    }
-
     /// Extends this tree by creating its new version.
     ///
     /// # Return value
@@ -259,6 +241,26 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
 }
 
 impl<DB: PruneDatabase> MerkleTree<DB> {
+    /// Removes the most recent versions from the database.
+    ///
+    /// The current implementation does not actually remove node data for the removed versions
+    /// since it's likely to be reused in the future (especially upper-level internal nodes).
+    ///
+    /// # Errors
+    ///
+    /// Proxies database I/O errors.
+    pub fn truncate_recent_versions(&mut self, retained_version_count: u64) -> anyhow::Result<()> {
+        let mut manifest = self.db.manifest().unwrap_or_default();
+        let current_version_count = manifest.version_count;
+        if current_version_count > retained_version_count {
+            // It is necessary to remove "future" stale keys since otherwise they may be used in future pruning and lead
+            // to non-obsolete tree nodes getting removed.
+            manifest.version_count = retained_version_count;
+            self.db.truncate(manifest, ..current_version_count)?;
+        }
+        Ok(())
+    }
+
     /// Returns the first retained version of the tree.
     pub fn first_retained_version(&self) -> Option<u64> {
         match self.db.min_stale_key_version() {

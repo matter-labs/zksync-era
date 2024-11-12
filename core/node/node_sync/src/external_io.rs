@@ -362,6 +362,7 @@ impl StateKeeperIO for ExternalIO {
     async fn wait_for_next_tx(
         &mut self,
         max_wait: Duration,
+        _l2_block_timestamp: u64,
     ) -> anyhow::Result<Option<Transaction>> {
         tracing::debug!(
             "Waiting for the new tx, next action is {:?}",
