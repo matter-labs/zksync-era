@@ -95,13 +95,40 @@ Currently the following criteria are checked:
 
 ## Testing
 
-You can run tests using `zkstack dev test` subcommand. Just run:
+ZKstack CLI offers multiple subcommands to run specific integration and unit test:
 
 ```bash
-zkstack dev test --help`
+zkstack dev test --help
 ```
 
-to see all the options.
+```bash
+Usage: zkstack dev test [OPTIONS] <COMMAND>
+
+Commands:
+  integration   Run integration tests
+  fees          Run fees test
+  revert        Run revert tests
+  recovery      Run recovery tests
+  upgrade       Run upgrade tests
+  build         Build all test dependencies
+  rust          Run unit-tests, accepts optional cargo test flags
+  l1-contracts  Run L1 contracts tests
+  prover        Run prover tests
+  wallet        Print test wallets information
+  loadtest      Run loadtest
+  help          Print this message or the help of the given subcommand(s)
+```
+
+You can run unit tests for the Rust crates in the project by running:
+
+```bash
+zkstack dev test rust
+```
+
+Running integration tests is more complex. Some tests require a running server, while others need the system to be in a
+specific state. Please refer to our CI scripts
+[ci-core-reusable.yml](https://github.com/matter-labs/zksync-era/blob/main/.github/workflows/ci-core-reusable.yml) to
+have a better understanding of the process.
 
 ## Contracts
 
