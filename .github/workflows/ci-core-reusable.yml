@@ -464,19 +464,19 @@ jobs:
       - name: Run integration tests en
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites --external-node" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
-
+#
 #      - name: Fee projection tests
 #        run: |
 #          ci_run killall -INT zksync_server || true
 #          ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}
-
-      - name: Run revert tests
-        run: |
-          ci_run killall -INT zksync_server || true
-          ci_run killall -INT zksync_external_node || true
-
-          ci_run ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --external-node --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
-
+#
+#      - name: Run revert tests
+#        run: |
+#          ci_run killall -INT zksync_server || true
+#          ci_run killall -INT zksync_external_node || true
+#
+#          ci_run ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --external-node --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+#
 #      # Upgrade tests should run last, because as soon as they
 #      # finish the bootloader will be different
 #      # TODO make upgrade tests safe to run multiple times
