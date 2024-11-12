@@ -57,14 +57,42 @@ access it at `http://127.0.0.1:3000/` under credentials `admin/admin`.
 
 ## Ecosystem Configuration
 
-The ecosystem configurations can be found in the following folders:
+The ecosystem configuration is spread across multiple files and directories:
 
-- `/ZkStack.yaml`
-- `/configs` folder
-- `/chains` folder
+1. Root level:
+   - `ZkStack.yaml`: Main configuration file for the entire ecosystem.
 
-These files are created at ecosystem initialization `zkstack ecosystem init` and at chain initialization
-`zkstack chain init`.
+2. `configs/` directory:
+   - `apps/`:
+     - `portal_config.json`: Configuration for the portal application.
+   - `contracts.yaml`: Defines smart contract settings and addresses.
+   - `erc20.yaml`: Configuration for ERC20 tokens.
+   - `initial_deployments.yaml`: Specifies initial ERC20 token deployments.
+   - `wallets.yaml`: Contains wallet configurations.
+
+3. `chains/<chain_name>/` directory:
+   - `artifacts/`: Contains build/execution artifacts.
+   - `configs/`: Chain-specific configuration files.
+     - `contracts.yaml`: Chain-specific smart contract settings.
+     - `external_node.yaml`: Configuration for external nodes.
+     - `general.yaml`: General chain configuration.
+     - `genesis.yaml`: Genesis configuration for the chain.
+     - `secrets.yaml`: Secrets and private keys for the chain.
+     - `wallets.yaml`: Wallet configurations for the chain.
+   - `db/main/`: Database files for the chain.
+   - `ZkStack.yaml`: Chain-specific ZkStack configuration.
+
+These configuration files are automatically generated during the ecosystem initialization (`zkstack ecosystem init`) and chain initialization (`zkstack chain init`) processes. They control various aspects of the ZKsync ecosystem, including:
+
+- Network settings
+- Smart contract deployments
+- Token configurations
+- Database settings
+- Application/Service-specific parameters
+
+It's important to note that while these files can be manually edited, any changes may be overwritten if the ecosystem or chain is reinitialized. Always back up your modifications and exercise caution when making direct changes to these files.
+
+For specific configuration needs, it's recommended to use the appropriate `zkstack` commands or consult the documentation for safe ways to customize your setup.
 
 ## Build and run server
 
