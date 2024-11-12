@@ -175,6 +175,45 @@ impl DataAvailabilityDal<'_, '_> {
         .map(DataAvailabilityBlob::from))
     }
 
+    pub async fn get_da_blob_ids_awaiting_inclusion(
+        &mut self,
+    ) -> DalResult<Vec<Option<DataAvailabilityBlob>>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                l1_batch_number,
+                blob_id,
+                inclusion_data,
+                sent_at
+            FROM
+                data_availability
+            WHERE
+                inclusion_data IS NULL
+            ORDER BY
+                l1_batch_number
+            "#,
+        )
+        .instrument("get_da_blobs_awaiting_inclusion")
+        .fetch_all(self.storage)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                let l1_batch_number_u32 = row.l1_batch_number.try_into();
+                if let Ok(l1_batch_number) = l1_batch_number_u32 {
+                    Some(DataAvailabilityBlob {
+                        l1_batch_number: L1BatchNumber(l1_batch_number),
+                        blob_id: row.blob_id,
+                        inclusion_data: row.inclusion_data,
+                        sent_at: row.sent_at.and_utc(),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect())
+    }
     /// Fetches the pubdata and `l1_batch_number` for the L1 batches that are ready for DA dispatch.
     pub async fn get_ready_for_da_dispatch_l1_batches(
         &mut self,

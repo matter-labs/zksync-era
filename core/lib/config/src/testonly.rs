@@ -972,6 +972,7 @@ impl Distribution<configs::da_dispatcher::DADispatcherConfig> for EncodeDist {
             max_rows_to_dispatch: self.sample(rng),
             max_retries: self.sample(rng),
             use_dummy_inclusion_data: self.sample(rng),
+            max_concurrent_requests: self.sample(rng),
         }
     }
 }
