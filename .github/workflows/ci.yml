@@ -29,6 +29,7 @@ jobs:
         with:
           fetch-depth: 2
           submodules: "recursive"
+          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
       - name: Get changed files
         id: changed-files
