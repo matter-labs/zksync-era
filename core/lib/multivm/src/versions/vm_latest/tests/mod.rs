@@ -91,7 +91,7 @@ impl TestedVm for TestedLatestVm {
             self.batch_env.clone(),
             VmExecutionMode::Batch,
             diffs,
-            crate::vm_latest::MultiVMSubversion::latest(),
+            crate::vm_latest::MultiVmSubversion::latest(),
             Some(pubdata_builder),
         );
         self.inspect_inner(
