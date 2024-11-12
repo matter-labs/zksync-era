@@ -402,12 +402,17 @@ async fn error_on_pruned_next_l1_batch(sealed_protective_reads: bool) {
     extend_db_state(&mut storage, new_logs).await;
     storage
         .pruning_dal()
-        .soft_prune_batches_range(L1BatchNumber(5), L2BlockNumber(5))
+        .insert_soft_pruning_log(L1BatchNumber(5), L2BlockNumber(5))
         .await
         .unwrap();
     storage
         .pruning_dal()
         .hard_prune_batches_range(L1BatchNumber(5), L2BlockNumber(5))
+        .await
+        .unwrap();
+    storage
+        .pruning_dal()
+        .insert_hard_pruning_log(L1BatchNumber(5), L2BlockNumber(5), H256::zero())
         .await
         .unwrap();
     // Sanity check: there should be no pruned batch headers.

@@ -12,8 +12,7 @@ use zksync_node_test_utils::{
     l1_batch_metadata_to_commitment_artifacts,
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, block::L2BlockHeader, Address, L2BlockNumber,
-    ProtocolVersion, H256,
+    aggregated_operations::AggregatedActionType, L2BlockNumber, ProtocolVersion, H256,
 };
 
 use super::*;
@@ -95,8 +94,8 @@ async fn is_l1_batch_prunable_works() {
 
 async fn insert_l2_blocks(
     conn: &mut Connection<'_, Core>,
-    l1_batches_count: u64,
-    l2_blocks_per_batch: u64,
+    l1_batches_count: u32,
+    l2_blocks_per_batch: u32,
 ) {
     conn.protocol_versions_dal()
         .save_protocol_version_with_tx(&ProtocolVersion::default())
@@ -104,36 +103,31 @@ async fn insert_l2_blocks(
         .unwrap();
 
     for l1_batch_number in 0..l1_batches_count {
+        let l1_batch_number = L1BatchNumber(l1_batch_number);
         for l2_block_index in 0..l2_blocks_per_batch {
-            let l2_block_number =
-                L2BlockNumber((l1_batch_number * l2_blocks_per_batch + l2_block_index) as u32);
-            let l2_block_header = L2BlockHeader {
-                number: l2_block_number,
-                timestamp: 0,
-                hash: H256::from_low_u64_be(u64::from(l2_block_number.0)),
-                l1_tx_count: 0,
-                l2_tx_count: 0,
-                fee_account_address: Address::repeat_byte(1),
-                base_fee_per_gas: 0,
-                gas_per_pubdata_limit: 0,
-                batch_fee_input: Default::default(),
-                base_system_contracts_hashes: Default::default(),
-                protocol_version: Some(Default::default()),
-                virtual_blocks: 0,
-                gas_limit: 0,
-                logs_bloom: Default::default(),
-                pubdata_params: Default::default(),
-            };
+            let l2_block_number = l1_batch_number.0 * l2_blocks_per_batch + l2_block_index;
+            let l2_block_header = create_l2_block(l2_block_number);
 
             conn.blocks_dal()
                 .insert_l2_block(&l2_block_header)
                 .await
                 .unwrap();
             conn.blocks_dal()
-                .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(l1_batch_number as u32))
+                .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
                 .await
                 .unwrap();
         }
+
+        let l1_batch_header = create_l1_batch(l1_batch_number.0);
+        conn.blocks_dal()
+            .insert_mock_l1_batch(&l1_batch_header)
+            .await
+            .unwrap();
+        let root_hash = H256::from_low_u64_be(l1_batch_number.0.into());
+        conn.blocks_dal()
+            .set_l1_batch_hash(l1_batch_number, root_hash)
+            .await
+            .unwrap();
     }
 }
 
@@ -144,7 +138,7 @@ async fn hard_pruning_ignores_conditions_checks() {
 
     insert_l2_blocks(&mut conn, 10, 2).await;
     conn.pruning_dal()
-        .soft_prune_batches_range(L1BatchNumber(2), L2BlockNumber(5))
+        .insert_soft_pruning_log(L1BatchNumber(2), L2BlockNumber(5))
         .await
         .unwrap();
 
@@ -183,7 +177,7 @@ fn test_pruning_info(l1_batch: u32, l2_block: u32) -> PruningInfo {
         last_hard_pruned: Some(HardPruningInfo {
             l1_batch: L1BatchNumber(l1_batch),
             l2_block: L2BlockNumber(l2_block),
-            l1_batch_root_hash: None, // FIXME
+            l1_batch_root_hash: Some(H256::from_low_u64_be(l1_batch.into())),
         }),
     }
 }
@@ -194,7 +188,7 @@ async fn pruner_catches_up_with_hard_pruning_up_to_soft_pruning_boundary_ignorin
     let mut conn = pool.connection().await.unwrap();
     insert_l2_blocks(&mut conn, 10, 2).await;
     conn.pruning_dal()
-        .soft_prune_batches_range(L1BatchNumber(2), L2BlockNumber(5))
+        .insert_soft_pruning_log(L1BatchNumber(2), L2BlockNumber(5))
         .await
         .unwrap();
 

@@ -148,7 +148,7 @@ mod tests {
     use test_casing::test_casing;
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_node_test_utils::prepare_recovery_snapshot;
-    use zksync_types::{L1BatchNumber, L2BlockNumber};
+    use zksync_types::{L1BatchNumber, L2BlockNumber, H256};
 
     use super::*;
     use crate::{
@@ -192,6 +192,11 @@ mod tests {
         storage
             .pruning_dal()
             .hard_prune_batches_range(L1BatchNumber(3), L2BlockNumber(3))
+            .await
+            .unwrap();
+        storage
+            .pruning_dal()
+            .insert_hard_pruning_log(L1BatchNumber(3), L2BlockNumber(3), H256::zero())
             .await
             .unwrap();
 
@@ -322,9 +327,10 @@ mod tests {
         // Prune first 3 created batches in Postgres.
         storage
             .pruning_dal()
-            .hard_prune_batches_range(
+            .insert_hard_pruning_log(
                 snapshot_recovery.l1_batch_number + 3,
                 snapshot_recovery.l2_block_number + 3,
+                H256::zero(), // not used
             )
             .await
             .unwrap();

@@ -207,7 +207,7 @@ impl DbPruner {
             .with_context(|| format!("L1 batch #{next_l1_batch_to_prune} is ready to be pruned, but has no L2 blocks"))?;
         transaction
             .pruning_dal()
-            .soft_prune_batches_range(next_l1_batch_to_prune, next_l2_block_to_prune)
+            .insert_soft_pruning_log(next_l1_batch_to_prune, next_l2_block_to_prune)
             .await?;
 
         transaction.commit().await?;
@@ -239,6 +239,17 @@ impl DbPruner {
             format!("bogus pruning info {current_pruning_info:?}: trying to hard-prune data, but there is no soft-pruned data")
         })?;
 
+        let last_pruned_l1_batch_root_hash = transaction
+            .blocks_dal()
+            .get_l1_batch_state_root(soft_pruned.l1_batch)
+            .await?
+            .with_context(|| {
+                format!(
+                    "hard-pruned L1 batch #{} does not have root hash",
+                    soft_pruned.l1_batch
+                )
+            })?;
+
         let mut dal = transaction.pruning_dal();
         let stats = tokio::select! {
             result = dal.hard_prune_batches_range(
@@ -255,13 +266,20 @@ impl DbPruner {
             }
         };
         METRICS.observe_hard_pruning(stats);
+
+        dal.insert_hard_pruning_log(
+            soft_pruned.l1_batch,
+            soft_pruned.l2_block,
+            last_pruned_l1_batch_root_hash,
+        )
+        .await?;
         transaction.commit().await?;
 
         let latency = latency.observe();
         let hard_pruning_info = HardPruningInfo {
             l1_batch: soft_pruned.l1_batch,
             l2_block: soft_pruned.l2_block,
-            l1_batch_root_hash: None, // FIXME
+            l1_batch_root_hash: Some(last_pruned_l1_batch_root_hash),
         };
         tracing::info!("Hard pruned data up to {hard_pruning_info:?}, operation took {latency:?}");
         current_pruning_info.last_hard_pruned = Some(hard_pruning_info);
