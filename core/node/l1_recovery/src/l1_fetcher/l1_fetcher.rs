@@ -1,18 +1,20 @@
 use std::{cmp, collections::HashMap, fs::File, future::Future, sync::Arc};
 
 use anyhow::{anyhow, Result};
-use ethabi::{Contract, Event, Function, Token};
+use ethabi::{Contract, Event, Function};
 use rand::random;
 use thiserror::Error;
 use tokio::time::{sleep, Duration};
 use zksync_basic_types::{
-    web3::{BlockId, BlockNumber, CallRequest, FilterBuilder, Log, Transaction},
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
+    web3::{contract::Tokenizable, BlockId, BlockNumber, FilterBuilder, Log, Transaction},
     Address, L1BatchNumber, L1BlockNumber, H256, U256, U64,
 };
-use zksync_contracts::eth_contract;
+use zksync_contracts::BaseSystemContractsHashes;
 use zksync_eth_client::{CallFunctionArgs, EthInterface};
-use zksync_types::{l1::L1Tx, L2_BASE_TOKEN_ADDRESS};
-use zksync_utils::{address_to_u256, bytecode::hash_bytecode, env::Workspace};
+use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
+use zksync_types::{l1::L1Tx, ProtocolVersion};
+use zksync_utils::{bytecode::hash_bytecode, env::Workspace};
 use zksync_web3_decl::client::{DynClient, L1};
 
 use crate::l1_fetcher::{
@@ -56,21 +58,12 @@ pub struct L1FetcherConfig {
 
 pub struct L1Fetcher {
     eth_client: Box<DynClient<L1>>,
-    blob_client: Arc<dyn BlobClient>,
     config: L1FetcherConfig,
 }
 
 impl L1Fetcher {
-    pub fn new(
-        config: L1FetcherConfig,
-        eth_client: Box<DynClient<L1>>,
-        blob_client: Arc<dyn BlobClient>,
-    ) -> Result<Self> {
-        Ok(L1Fetcher {
-            eth_client,
-            config,
-            blob_client,
-        })
+    pub fn new(config: L1FetcherConfig, eth_client: Box<DynClient<L1>>) -> Result<Self> {
+        Ok(L1Fetcher { eth_client, config })
     }
 
     fn v1_contract() -> Result<Contract> {
@@ -95,28 +88,143 @@ impl L1Fetcher {
         ])
     }
 
-    fn get_first_unprocessed_priority_tx_function() -> Result<Function> {
-        let contract = L1Fetcher::v1_contract()?;
-        Ok(contract
-            .functions_by_name("getFirstUnprocessedPriorityTx")
-            .unwrap()[0]
-            .clone())
-    }
-
     fn block_commit_event() -> Result<Event> {
         Ok(L1Fetcher::v1_contract()?.events_by_name("BlockCommit")?[0].clone())
+    }
+
+    fn block_execute_event() -> Result<Event> {
+        Ok(L1Fetcher::v1_contract()?.events_by_name("BlockExecution")?[0].clone())
     }
 
     fn priority_tx_event() -> Result<Event> {
         Ok(L1Fetcher::v1_contract()?.events_by_name("NewPriorityRequest")?[0].clone())
     }
 
-    pub async fn get_all_blocks_to_process(&self) -> Vec<CommitBlock> {
+    pub async fn get_all_blocks_to_process(
+        &self,
+        blob_client: &Arc<dyn BlobClient>,
+    ) -> Vec<CommitBlock> {
         let start_block = U64::zero();
         let end_block = L1Fetcher::get_last_l1_block_number(&self.eth_client)
             .await
             .unwrap();
-        self.get_blocks_to_process(start_block, end_block).await
+        self.get_blocks_to_process(blob_client, start_block, end_block)
+            .await
+    }
+
+    pub async fn get_stored_block_info(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<StoredBatchInfo> {
+        let event = L1Fetcher::block_commit_event()?;
+        let eth_block = self
+            .get_commit_event_eth_block(l1_batch_number + 1)
+            .await
+            .unwrap();
+        let logs = self
+            .get_logs(U64::from(eth_block), U64::from(eth_block), &event)
+            .await;
+        for log in logs {
+            let log_l1_batch_number = log.topics[1].to_low_u64_be() as u32;
+            if l1_batch_number.0 + 1 != log_l1_batch_number {
+                continue;
+            }
+            let hash = log.transaction_hash.unwrap();
+            let tx = L1Fetcher::retry_call(
+                || L1Fetcher::get_transaction_by_hash(&self.eth_client, hash),
+                L1FetchError::GetTx,
+            )
+            .await
+            .unwrap();
+            return Ok(parse_last_committed_l1_batch(
+                &Self::commit_functions().unwrap(),
+                &tx.input.0,
+            )
+            .await
+            .unwrap());
+        }
+        unreachable!("No logs found for block {}", l1_batch_number);
+    }
+    pub async fn get_latest_protocol_version(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> ProtocolVersion {
+        let block_to_check = self
+            .get_commit_event_eth_block(l1_batch_number)
+            .await
+            .unwrap()
+            + 1;
+        let bootloader_bytecode_hash: H256 =
+            CallFunctionArgs::new("getL2BootloaderBytecodeHash", ())
+                .with_block(BlockId::Number(BlockNumber::Number(U64::from(
+                    block_to_check,
+                ))))
+                .for_contract(
+                    self.config.diamond_proxy_addr,
+                    &Self::v1_contract().unwrap(),
+                )
+                .call(&self.eth_client)
+                .await
+                .unwrap();
+        let default_aa_bytecode_hash: H256 =
+            CallFunctionArgs::new("getL2DefaultAccountBytecodeHash", ())
+                .with_block(BlockId::Number(BlockNumber::Number(U64::from(
+                    block_to_check,
+                ))))
+                .for_contract(
+                    self.config.diamond_proxy_addr,
+                    &Self::v1_contract().unwrap(),
+                )
+                .call(&self.eth_client)
+                .await
+                .unwrap();
+        let packed_protocol_version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
+            .with_block(BlockId::Number(BlockNumber::Number(U64::from(
+                block_to_check,
+            ))))
+            .for_contract(
+                self.config.diamond_proxy_addr,
+                &Self::v1_contract().unwrap(),
+            )
+            .call(&self.eth_client)
+            .await
+            .unwrap();
+
+        ProtocolVersion {
+            version: ProtocolSemanticVersion::try_from_packed(packed_protocol_version).unwrap(),
+            timestamp: 0,
+            l1_verifier_config: L1VerifierConfig::default(),
+            base_system_contracts_hashes: BaseSystemContractsHashes {
+                bootloader: bootloader_bytecode_hash,
+                default_aa: default_aa_bytecode_hash,
+                evm_emulator: None,
+            },
+            tx: None,
+        }
+    }
+
+    pub async fn get_last_executed_l1_batch_number(&self) -> Option<L1BatchNumber> {
+        let end_block = L1Fetcher::get_last_l1_block_number(&self.eth_client)
+            .await
+            .unwrap();
+        let mut current_block = end_block;
+        let event = Self::block_execute_event().unwrap();
+        loop {
+            let filter_from_block = current_block
+                .checked_sub(U64::from(self.config.block_step - 1))
+                .unwrap_or_default();
+            let mut logs = self
+                .get_logs(filter_from_block, current_block, &event)
+                .await;
+            logs.reverse();
+            for log in &logs {
+                return Some(L1BatchNumber(log.topics[1].to_low_u64_be() as u32));
+            }
+            if filter_from_block == U64::zero() {
+                return None;
+            }
+            current_block = filter_from_block - 1;
+        }
     }
 
     pub async fn get_commit_event_eth_block(&self, l1_batch_number: L1BatchNumber) -> Option<u64> {
@@ -229,6 +337,7 @@ impl L1Fetcher {
 
     pub async fn get_blocks_to_process(
         &self,
+        blob_client: &Arc<dyn BlobClient>,
         start_block: U64,
         end_block: U64,
     ) -> Vec<CommitBlock> {
@@ -244,6 +353,7 @@ impl L1Fetcher {
         let mut priority_txs_so_far = 0;
         let mut last_processed_priority_tx = 0;
         let mut factory_deps_hashes = HashMap::new();
+        let last_executed_batch = self.get_last_executed_l1_batch_number().await.unwrap();
 
         loop {
             let filter_to_block = cmp::min(current_block + block_step - 1, end_block);
@@ -262,6 +372,11 @@ impl L1Fetcher {
 
             for log in logs {
                 let hash = log.transaction_hash.unwrap();
+                let commitment: H256 = H256::from(log.topics[3].to_fixed_bytes());
+                let l1_batch_number = H256::from(log.topics[1].to_fixed_bytes());
+                if l1_batch_number.to_low_u64_be() as u32 > last_executed_batch.0 {
+                    continue;
+                }
                 let tx = L1Fetcher::retry_call(
                     || L1Fetcher::get_transaction_by_hash(&self.eth_client, hash),
                     L1FetchError::GetTx,
@@ -270,7 +385,7 @@ impl L1Fetcher {
                 .unwrap();
                 let blocks = L1Fetcher::process_tx_data(
                     &functions,
-                    &self.blob_client,
+                    &blob_client,
                     tx,
                     &self.config.versioning,
                 )
@@ -278,13 +393,16 @@ impl L1Fetcher {
                 .unwrap();
 
                 for mut block in blocks {
-                    for _ in 0..block.priority_operations_count {
+                    for _ in 0..block.l1_tx_count {
                         let priority_tx = priority_txs[last_processed_priority_tx].clone();
                         tracing::info!(
                             "Processing priority tx: {} with {} factory deps",
                             priority_tx.serial_id(),
                             priority_tx.execute.factory_deps.len()
                         );
+                        block
+                            .priority_ops_onchain_data
+                            .push(priority_tx.common_data.onchain_data());
                         for factory_dep in &priority_tx.execute.factory_deps {
                             let hashed = hash_bytecode(factory_dep);
                             if factory_deps_hashes.contains_key(&hashed) {
@@ -296,6 +414,7 @@ impl L1Fetcher {
                         }
                         last_processed_priority_tx += 1;
                     }
+                    block.commitment = commitment;
                     result.push(block)
                 }
             }
@@ -394,6 +513,21 @@ impl L1Fetcher {
         }
         Err(err.into())
     }
+}
+
+pub async fn parse_last_committed_l1_batch(
+    commit_candidates: &[Function],
+    calldata: &[u8],
+) -> Result<StoredBatchInfo, ParseError> {
+    let commit_fn = commit_candidates
+        .iter()
+        .find(|f| f.short_signature() == calldata[..4])
+        .unwrap();
+    let mut parsed_input = commit_fn.decode_input(&calldata[4..]).unwrap();
+
+    let _new_blocks_data = parsed_input.pop().unwrap();
+    let stored_block_info = parsed_input.pop().unwrap();
+    return Ok(StoredBatchInfo::from_token(stored_block_info).unwrap());
 }
 pub async fn parse_calldata(
     protocol_versioning: &ProtocolVersioning,
@@ -497,12 +631,11 @@ async fn parse_commit_block_info(
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, num::NonZero, str::FromStr, sync::Arc};
+    use std::{num::NonZero, str::FromStr, sync::Arc};
 
     use tempfile::TempDir;
-    use zksync_basic_types::{url::SensitiveUrl, L1BatchNumber, L2BlockNumber, H256, U64};
-    use zksync_dal::{ConnectionPool, Core, CoreDal};
-    use zksync_types::snapshots::SnapshotRecoveryStatus;
+    use zksync_basic_types::{url::SensitiveUrl, web3::keccak256, L1BatchNumber, H256, U64};
+    use zksync_dal::{ConnectionPool, Core};
     use zksync_utils::{bytecode::hash_bytecode, env::Workspace};
     use zksync_web3_decl::client::{Client, DynClient, L1};
 
@@ -531,24 +664,19 @@ mod tests {
         Box::new(eth_client)
     }
 
-    pub fn local_l1_client() -> Box<DynClient<L1>> {
-        let url = SensitiveUrl::from_str(&"http://127.0.0.1:8545").unwrap();
-        let eth_client = Client::http(url).unwrap().build();
-        Box::new(eth_client)
-    }
     fn sepolia_l1_fetcher() -> L1Fetcher {
         let config = L1FetcherConfig {
             block_step: 10000,
             diamond_proxy_addr: sepolia_diamond_proxy_addr().parse().unwrap(),
             versioning: sepolia_versioning(),
         };
-        L1Fetcher::new(
-            config,
-            sepolia_l1_client(),
-            Arc::new(BlobHttpClient::new("https://api.sepolia.blobscan.com/blobs/").unwrap()),
-        )
-        .unwrap()
+        L1Fetcher::new(config, sepolia_l1_client()).unwrap()
     }
+
+    fn sepolia_blob_client() -> Arc<dyn BlobClient> {
+        Arc::new(BlobHttpClient::new("https://api.sepolia.blobscan.com/blobs/").unwrap())
+    }
+
     #[test_log::test(tokio::test)]
     async fn uncompressing_factory_deps_from_l2_to_l1_messages() {
         let eth_client = sepolia_l1_client();
@@ -612,7 +740,11 @@ mod tests {
         let l1_fetcher = sepolia_l1_fetcher();
         // batches from 10 to 109
         let blocks = l1_fetcher
-            .get_blocks_to_process(U64::from(4801161), U64::from(4820508))
+            .get_blocks_to_process(
+                &sepolia_blob_client(),
+                U64::from(4801161),
+                U64::from(4820508),
+            )
             .await;
 
         // blocks from 10 to 109, two blocks were sent twice (precisely ...80,81,82,83,82,83,84...)
@@ -634,7 +766,11 @@ mod tests {
         let l1_fetcher = sepolia_l1_fetcher();
         // batches up to batch 109, we want that many to test whether "duplicated" batches don't break anything
         let blocks = l1_fetcher
-            .get_blocks_to_process(U64::from(4800000), U64::from(4820508))
+            .get_blocks_to_process(
+                &sepolia_blob_client(),
+                U64::from(4800000),
+                U64::from(4820508),
+            )
             .await;
 
         let mut processor = StateCompressor::new(temp_dir).await;
@@ -655,6 +791,76 @@ mod tests {
         assert_eq!(
             "0x575d0a455a544bf171783c5be9db312b6af771ad6844f4eef89d7f2e642bfb90",
             format!("{:?}", reconstructed.get_root_hash())
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_reconstruct_priority_data() {
+        let connection_pool = ConnectionPool::<Core>::builder(
+            "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
+                .parse()
+                .unwrap(),
+            10,
+        )
+        .build()
+        .await
+        .unwrap();
+        let url = SensitiveUrl::from_str(&"http://127.0.0.1:8545").unwrap();
+        let eth_client = Client::http(url).unwrap().build();
+        let blob_client: Arc<dyn BlobClient> =
+            Arc::new(LocalDbBlobSource::new(connection_pool.clone()));
+        let fetcher = L1Fetcher::new(
+            L1FetcherConfig {
+                block_step: 100_000,
+                diamond_proxy_addr: local_diamond_proxy_addr().parse().unwrap(),
+                versioning: OnlyV3,
+            },
+            Box::new(eth_client),
+        )
+        .unwrap();
+        let blocks = fetcher.get_all_blocks_to_process(&blob_client).await;
+        tracing::info!("blocks len: {}", blocks.len());
+        let block = blocks[37].clone();
+        tracing::info!("{:?}", block);
+
+        let stored_block = fetcher
+            .get_stored_block_info(L1BatchNumber(block.l1_batch_number as u32))
+            .await
+            .unwrap();
+        tracing::info!("{:?}", stored_block);
+        assert_eq!(
+            block.rollup_last_leaf_index, stored_block.index_repeated_storage_changes,
+            "index_repeated_storage_changes mismatch"
+        );
+        assert_eq!(
+            block.priority_operations_hash, stored_block.priority_operations_hash,
+            "priority_operations_hash mismatch"
+        );
+        assert_eq!(
+            block.timestamp,
+            stored_block.timestamp.as_u64(),
+            "timestamp mismatch"
+        );
+        assert_eq!(
+            block.l2_logs_tree_root, stored_block.l2_logs_tree_root,
+            "l2_logs_tree_root mismatch"
+        );
+        assert_eq!(
+            block.commitment, stored_block.commitment,
+            "commitment mismatch"
+        );
+
+        let mut rolling_hash: H256 = keccak256(&[]).into();
+        for onchain_data in &block.priority_ops_onchain_data {
+            let mut preimage = Vec::new();
+            preimage.extend(rolling_hash.as_bytes());
+            preimage.extend(onchain_data.onchain_data_hash.as_bytes());
+
+            rolling_hash = keccak256(&preimage).into();
+        }
+        assert_eq!(
+            rolling_hash, stored_block.priority_operations_hash,
+            "priority_operations_hash mismatch"
         );
     }
 }

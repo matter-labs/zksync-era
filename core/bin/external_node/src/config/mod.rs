@@ -1163,6 +1163,7 @@ impl ExperimentalENConfig {
             snapshots_recovery_tree_chunk_size: Self::default_snapshots_recovery_tree_chunk_size(),
             snapshots_recovery_tree_parallel_persistence_buffer: None,
             commitment_generator_max_parallelism: None,
+            snapshots_recovery_recover_from_l1: false,
         }
     }
 

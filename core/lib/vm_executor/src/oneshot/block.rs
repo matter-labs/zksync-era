@@ -1,5 +1,8 @@
 use std::time::SystemTime;
 
+use std::str::FromStr;
+use std::time::SystemTime;
+
 use anyhow::Context;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_multivm::{
@@ -55,7 +58,9 @@ impl BlockInfo {
             .get_expected_l1_batch_timestamp(&l1_batch)
             .await
             .map_err(DalError::generalize)?
-            .context("missing timestamp for non-pending block")?;
+            .context(format!(
+                "missing timestamp for non-pending block {number}, l1_batch {l1_batch:?}"
+            ))?;
         Ok(Self {
             resolved_block_number: number,
             l1_batch_timestamp_s: Some(l1_batch_timestamp),
@@ -310,6 +315,14 @@ async fn load_l2_block_info(
             prev_block_hash = snapshot_recovery.and_then(|recovery| {
                 (recovery.l2_block_number == prev_block_number).then_some(recovery.l2_block_hash)
             });
+            if prev_block_hash.is_none() {
+                prev_block_hash = Some(
+                    H256::from_str(
+                        &"0x3259078d280da94b303592f6640e70c723c24018ab6d592a45931477e6645ab5",
+                    )
+                    .unwrap(),
+                );
+            }
         }
 
         current_block = Some(prev_l2_block);

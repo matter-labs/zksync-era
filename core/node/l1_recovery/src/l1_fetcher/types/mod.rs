@@ -5,11 +5,16 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zksync_basic_types::{web3::keccak256, Address, H160, H256, U256};
-use zksync_utils::bytecode::hash_bytecode;
+use zksync_types::{priority_op_onchain_data::PriorityOpOnchainData, L2_TO_L1_LOGS_TREE_ROOT_KEY};
+use zksync_utils::u256_to_h256;
 
 use self::{v1::V1, v2::V2, v3::V3};
 use crate::{
-    l1_fetcher::{blob_http_client::BlobClient, types::common::read_next_n_bytes},
+    l1_fetcher::{
+        blob_http_client::BlobClient,
+        constants::zksync::L2_TO_L1_LOG_SERIALIZE_SIZE,
+        types::common::{parse_l2_to_l1_log, read_next_n_bytes},
+    },
     storage::PackingType,
 };
 
@@ -93,7 +98,14 @@ pub struct CommitBlock {
     /// (contract bytecodes) array of L2 bytecodes that were deployed.
     pub factory_deps: Vec<Vec<u8>>,
 
-    pub priority_operations_count: u64,
+    pub l1_tx_count: u64,
+
+    pub timestamp: u64,
+    pub priority_operations_hash: H256,
+    pub priority_ops_onchain_data: Vec<PriorityOpOnchainData>,
+    pub l2_logs_tree_root: H256,
+    pub commitment: H256,
+    pub rollup_last_leaf_index: u64,
 }
 
 impl CommitBlock {
@@ -183,7 +195,14 @@ impl CommitBlock {
                     .map(|(k, v)| (k, PackingType::NoCompression(v.into())))
                     .collect(),
                 factory_deps: block.factory_deps,
-                priority_operations_count: block.number_of_l1_txs.as_u64(),
+                l1_tx_count: block.number_of_l1_txs.as_u64(),
+                //FIXME
+                timestamp: 0,
+                priority_operations_hash: Default::default(),
+                priority_ops_onchain_data: vec![],
+                l2_logs_tree_root: Default::default(),
+                commitment: Default::default(),
+                rollup_last_leaf_index: 0,
             },
             CommitBlockInfo::V2(block) => {
                 let mut initial_storage_changes = IndexMap::new();
@@ -215,12 +234,35 @@ impl CommitBlock {
                     initial_storage_changes,
                     repeated_storage_changes,
                     factory_deps,
-                    priority_operations_count: block.number_of_l1_txs.as_u64(),
+                    l1_tx_count: block.number_of_l1_txs.as_u64(),
+                    //FIXME
+                    timestamp: 0,
+                    priority_operations_hash: Default::default(),
+                    priority_ops_onchain_data: vec![],
+                    l2_logs_tree_root: Default::default(),
+                    commitment: Default::default(),
+                    rollup_last_leaf_index: 0,
                 }
             }
         }
     }
 
+    fn extract_l2_logs_tree_root(block: &V3) -> H256 {
+        let mut pointer = 0;
+        let num_of_l1_to_l2_logs = block.system_logs.len() / L2_TO_L1_LOG_SERIALIZE_SIZE;
+        for _ in 0..num_of_l1_to_l2_logs {
+            let log = parse_l2_to_l1_log(&block.system_logs, &mut pointer).unwrap();
+            match log {
+                L2ToL1Pubdata::L2ToL1Log { key, value, .. } => {
+                    if key == u256_to_h256(L2_TO_L1_LOGS_TREE_ROOT_KEY.into()) {
+                        return value;
+                    }
+                }
+                _ => panic!("Expected L2ToL1Log"),
+            }
+        }
+        unreachable!("L2 logs tree root not found");
+    }
     pub async fn from_commit_block_resolve(
         block: V3,
         client: &Arc<dyn BlobClient>,
@@ -247,6 +289,7 @@ impl CommitBlock {
             }
         }
 
+        let l2_logs_tree_root = CommitBlock::extract_l2_logs_tree_root(&block);
         Ok(CommitBlock {
             l1_batch_number: block.l1_batch_number,
             index_repeated_storage_changes: block.index_repeated_storage_changes,
@@ -254,7 +297,13 @@ impl CommitBlock {
             initial_storage_changes,
             repeated_storage_changes,
             factory_deps,
-            priority_operations_count: block.number_of_l1_txs.as_u64(),
+            l1_tx_count: block.number_of_l1_txs.as_u64(),
+            timestamp: block.timestamp,
+            priority_operations_hash: H256::from_slice(&block.priority_operations_hash),
+            rollup_last_leaf_index: block.index_repeated_storage_changes,
+            l2_logs_tree_root,
+            commitment: Default::default(),
+            priority_ops_onchain_data: vec![],
         })
     }
 }

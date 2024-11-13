@@ -311,7 +311,7 @@ impl SnapshotsApplierTask {
     /// Returns `Some(false)` if the recovery is not completed.
     pub async fn is_recovery_completed(
         conn: &mut Connection<'_, Core>,
-        client: &dyn SnapshotsApplierMainNodeClient,
+        client: &Option<Box<dyn SnapshotsApplierMainNodeClient>>,
     ) -> anyhow::Result<RecoveryCompletionStatus> {
         let Some(applied_snapshot_status) = conn
             .snapshot_recovery_dal()
@@ -326,21 +326,24 @@ impl SnapshotsApplierTask {
         }
         // Currently, migrating tokens is the last step of the recovery.
         // The number of tokens is not a part of the snapshot header, so we have to re-query the main node.
-        let added_tokens = conn
-            .tokens_web3_dal()
-            .get_all_tokens(Some(applied_snapshot_status.l2_block_number))
-            .await?
-            .len();
-        let tokens_on_main_node = client
-            .fetch_tokens(applied_snapshot_status.l2_block_number)
-            .await?
-            .len();
+        if let Some(client) = client {
+            let added_tokens = conn
+                .tokens_web3_dal()
+                .get_all_tokens(Some(applied_snapshot_status.l2_block_number))
+                .await?
+                .len();
+            let tokens_on_main_node = client
+                .fetch_tokens(applied_snapshot_status.l2_block_number)
+                .await?
+                .len();
 
-        match added_tokens.cmp(&tokens_on_main_node) {
-            Ordering::Less => Ok(RecoveryCompletionStatus::InProgress),
-            Ordering::Equal => Ok(RecoveryCompletionStatus::Completed),
-            Ordering::Greater => anyhow::bail!("DB contains more tokens than the main node"),
+            return match added_tokens.cmp(&tokens_on_main_node) {
+                Ordering::Less => Ok(RecoveryCompletionStatus::InProgress),
+                Ordering::Equal => Ok(RecoveryCompletionStatus::Completed),
+                Ordering::Greater => anyhow::bail!("DB contains more tokens than the main node"),
+            };
         }
+        Ok(RecoveryCompletionStatus::Completed)
     }
 
     /// Specifies the L1 batch to recover from. This setting is ignored if recovery is complete or resumed.

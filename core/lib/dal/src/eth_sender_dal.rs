@@ -500,8 +500,8 @@ impl EthSenderDal<'_, '_> {
             // Insert a "sent transaction".
             let eth_history_id = sqlx::query_scalar!(
                 "INSERT INTO eth_txs_history \
-                (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at) \
-                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), $3) \
+                (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, sent_at_block, created_at, updated_at, confirmed_at) \
+                VALUES ($1, 0, 0, $2, '\\x00', 0, now(), now(), $3) \
                 RETURNING id",
                 eth_tx_id,
                 tx_hash,

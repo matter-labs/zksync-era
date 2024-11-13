@@ -1,108 +1,161 @@
-use std::{collections::HashMap, sync::Arc, time::SystemTime};
+use std::sync::Arc;
 
-use async_trait::async_trait;
+use chrono::DateTime;
 use tempfile::TempDir;
-use zksync_basic_types::{
-    protocol_version::ProtocolVersionId, Address, L1BatchNumber, L2BlockNumber, H256,
-};
-use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_eth_client::EnrichedClientResult;
+use zksync_basic_types::{protocol_version::ProtocolVersionId, Address, L1BatchNumber, H256};
+use zksync_dal::{eth_watcher_dal::EventType, ConnectionPool, Core, CoreDal};
+use zksync_eth_client::EthInterface;
 use zksync_object_store::ObjectStore;
-use zksync_snapshots_applier::{L1BlockMetadata, L2BlockMetadata, SnapshotsApplierMainNodeClient};
 use zksync_types::{
+    aggregated_operations::AggregatedActionType,
+    block::{BlockGasCount, L1BatchHeader, L1BatchTreeData, L2BlockHeader, UnsealedL1BatchHeader},
+    commitment::{L1BatchCommitmentArtifacts, L1BatchCommitmentHash},
+    fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
     snapshots::{
-        SnapshotFactoryDependencies, SnapshotHeader, SnapshotRecoveryStatus,
-        SnapshotStorageLogsChunk, SnapshotStorageLogsChunkMetadata, SnapshotStorageLogsStorageKey,
-        SnapshotVersion,
+        SnapshotFactoryDependencies, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
     },
-    tokens::TokenInfo,
 };
-use zksync_utils::bytecode::hash_bytecode;
+use zksync_vm_interface::CircuitStatistic;
 use zksync_web3_decl::client::{DynClient, L1};
 
 use crate::{
     l1_fetcher::{
         blob_http_client::BlobClient,
         l1_fetcher::{L1Fetcher, L1FetcherConfig, ProtocolVersioning::OnlyV3},
+        types::CommitBlock,
     },
     processor::snapshot::StateCompressor,
 };
 
-pub async fn recover_db(
-    connection_pool: ConnectionPool<Core>,
-    l1_client: Box<DynClient<L1>>,
-    blob_client: Arc<dyn BlobClient>,
-    diamond_proxy_addr: Address,
-) {
-    let temp_dir = TempDir::new().unwrap().into_path().join("db");
-
-    let l1_fetcher = L1Fetcher::new(
-        L1FetcherConfig {
-            block_step: 100000,
-            diamond_proxy_addr,
-            versioning: OnlyV3,
-        },
-        l1_client,
-        blob_client,
-    );
-    let blocks = l1_fetcher.unwrap().get_all_blocks_to_process().await;
-    let last_l1_batch_number = blocks.last().unwrap().l1_batch_number;
-    let dummy_miniblock_number = L2BlockNumber(last_l1_batch_number as u32);
-    let timestamp_now = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
+pub async fn insert_dummy_l1_batch(last_block: CommitBlock, connection_pool: ConnectionPool<Core>) {
+    let mut storage = connection_pool.connection().await.unwrap();
+    let snapshot_recovery = storage
+        .snapshot_recovery_dal()
+        .get_applied_snapshot_status()
+        .await
         .unwrap()
-        .as_secs();
-
-    let mut processor = StateCompressor::new(temp_dir).await;
-    processor.process_genesis_state(None).await;
-    processor.process_blocks(blocks).await;
-
-    let mut storage = connection_pool
-        .connection_tagged("l1_recovery")
+        .unwrap();
+    storage
+        .blocks_dal()
+        .insert_l2_block(&L2BlockHeader {
+            number: snapshot_recovery.l2_block_number,
+            timestamp: 1,
+            hash: snapshot_recovery.l2_block_hash,
+            l1_tx_count: 0,
+            l2_tx_count: 0,
+            fee_account_address: Default::default(),
+            base_fee_per_gas: 0,
+            batch_fee_input: BatchFeeInput::L1Pegged(L1PeggedBatchFeeModelInput {
+                fair_l2_gas_price: 0,
+                l1_gas_price: 0,
+            }),
+            gas_per_pubdata_limit: 0,
+            base_system_contracts_hashes: Default::default(),
+            protocol_version: Some(ProtocolVersionId::latest()),
+            virtual_blocks: 0,
+            gas_limit: 0,
+            logs_bloom: Default::default(),
+            pubdata_params: Default::default(),
+        })
         .await
         .unwrap();
-
     storage
-        .storage_logs_dal()
-        .insert_storage_logs_from_snapshot(
-            dummy_miniblock_number,
-            &processor.export_storage_logs().await,
+        .blocks_dal()
+        .insert_l1_batch(UnsealedL1BatchHeader {
+            number: snapshot_recovery.l1_batch_number,
+            timestamp: last_block.timestamp,
+            protocol_version: Some(ProtocolVersionId::latest()),
+            fee_address: Default::default(),
+            fee_input: BatchFeeInput::L1Pegged(L1PeggedBatchFeeModelInput {
+                fair_l2_gas_price: 0,
+                l1_gas_price: 0,
+            }),
+        })
+        .await
+        .unwrap();
+    storage
+        .blocks_dal()
+        .mark_l1_batch_as_sealed(
+            &L1BatchHeader {
+                number: snapshot_recovery.l1_batch_number,
+                timestamp: 1,
+                l1_tx_count: last_block.l1_tx_count as u16,
+                l2_tx_count: 0,
+                priority_ops_onchain_data: last_block.priority_ops_onchain_data,
+                l2_to_l1_logs: vec![],
+                l2_to_l1_messages: vec![],
+                bloom: Default::default(),
+                used_contract_hashes: vec![],
+                base_system_contracts_hashes: Default::default(),
+                system_logs: vec![],
+                protocol_version: Some(ProtocolVersionId::latest()),
+                pubdata_input: None,
+                fee_address: Default::default(),
+            },
+            &[],
+            BlockGasCount::default(),
+            &[],
+            &[],
+            CircuitStatistic::default(),
         )
         .await
         .unwrap();
-
-    let chunk_deps_hashmap: HashMap<H256, Vec<u8>> = processor
-        .export_factory_deps()
-        .await
-        .iter()
-        .map(|dep| (hash_bytecode(&dep.bytecode.0), dep.bytecode.0.clone()))
-        .collect();
+    tracing::info!("leaf_index: {}", last_block.rollup_last_leaf_index);
     storage
-        .factory_deps_dal()
-        .insert_factory_deps(dummy_miniblock_number, &chunk_deps_hashmap)
+        .blocks_dal()
+        .save_l1_batch_tree_data(
+            snapshot_recovery.l1_batch_number,
+            &L1BatchTreeData {
+                hash: snapshot_recovery.l1_batch_root_hash,
+                rollup_last_leaf_index: last_block.rollup_last_leaf_index,
+            },
+        )
         .await
         .unwrap();
-
-    let status = SnapshotRecoveryStatus {
-        l1_batch_number: L1BatchNumber(last_l1_batch_number as u32),
-        l1_batch_root_hash: processor.get_root_hash(),
-        l1_batch_timestamp: timestamp_now,
-        l2_block_number: dummy_miniblock_number,
-        l2_block_hash: H256::zero(),
-        l2_block_timestamp: timestamp_now,
-        protocol_version: Default::default(),
-        storage_logs_chunks_processed: vec![true],
-    };
     storage
-        .snapshot_recovery_dal()
-        .insert_initial_recovery_status(&status)
+        .blocks_dal()
+        .mark_l2_blocks_as_executed_in_l1_batch(snapshot_recovery.l1_batch_number)
         .await
-        .unwrap()
+        .unwrap();
+    storage
+        .blocks_dal()
+        .save_l1_batch_commitment_artifacts(
+            snapshot_recovery.l1_batch_number,
+            &L1BatchCommitmentArtifacts {
+                commitment_hash: L1BatchCommitmentHash {
+                    pass_through_data: Default::default(),
+                    aux_output: Default::default(),
+                    meta_parameters: Default::default(),
+                    commitment: last_block.commitment,
+                },
+                l2_l1_merkle_root: last_block.l2_logs_tree_root,
+                compressed_state_diffs: None,
+                compressed_initial_writes: None,
+                compressed_repeated_writes: None,
+                zkporter_is_available: false,
+                aux_commitments: None,
+                aggregation_root: Default::default(),
+                local_root: Default::default(),
+                state_diff_hash: Default::default(),
+            },
+        )
+        .await
+        .unwrap();
+    storage
+        .vm_runner_dal()
+        .mark_protective_reads_batch_as_processing(snapshot_recovery.l1_batch_number)
+        .await
+        .unwrap();
+    storage
+        .vm_runner_dal()
+        .mark_protective_reads_batch_as_completed(snapshot_recovery.l1_batch_number)
+        .await
+        .unwrap();
 }
 
-async fn recover_eth_watch(
+pub async fn recover_eth_sender(
+    connection_pool: ConnectionPool<Core>,
     l1_client: Box<DynClient<L1>>,
-    blob_client: Arc<dyn BlobClient>,
     diamond_proxy_addr: Address,
 ) {
     let l1_fetcher = L1Fetcher::new(
@@ -111,16 +164,115 @@ async fn recover_eth_watch(
             diamond_proxy_addr,
             versioning: OnlyV3,
         },
-        l1_client,
-        blob_client,
+        l1_client.clone(),
     )
     .unwrap();
-    let blocks = l1_fetcher.get_all_blocks_to_process().await;
-    let last_l1_batch_number = L1BatchNumber(blocks.last().unwrap().l1_batch_number as u32);
+    let last_l1_batch_number = l1_fetcher
+        .get_last_executed_l1_batch_number()
+        .await
+        .unwrap();
+    let mut storage = connection_pool.connection().await.unwrap();
+    storage
+        .eth_sender_dal()
+        .insert_bogus_confirmed_eth_tx(
+            last_l1_batch_number,
+            AggregatedActionType::Commit,
+            H256::random(),
+            DateTime::default(),
+        )
+        .await
+        .unwrap();
+    storage
+        .eth_sender_dal()
+        .insert_bogus_confirmed_eth_tx(
+            last_l1_batch_number,
+            AggregatedActionType::PublishProofOnchain,
+            H256::random(),
+            DateTime::default(),
+        )
+        .await
+        .unwrap();
+    storage
+        .eth_sender_dal()
+        .insert_bogus_confirmed_eth_tx(
+            last_l1_batch_number,
+            AggregatedActionType::Execute,
+            H256::random(),
+            DateTime::default(),
+        )
+        .await
+        .unwrap();
+}
+
+pub async fn recover_eth_watch(
+    connection_pool: ConnectionPool<Core>,
+    l1_client: Box<DynClient<L1>>,
+    diamond_proxy_addr: Address,
+) {
+    let l1_fetcher = L1Fetcher::new(
+        L1FetcherConfig {
+            block_step: 10000,
+            diamond_proxy_addr,
+            versioning: OnlyV3,
+        },
+        l1_client.clone(),
+    )
+    .unwrap();
+    let last_l1_batch_number = l1_fetcher
+        .get_last_executed_l1_batch_number()
+        .await
+        .unwrap();
     let block = l1_fetcher
         .calculate_last_processed_priority_transaction_eth_block(last_l1_batch_number)
-        .await;
+        .await
+        + 1;
     //panic!("{:?}", block)
+    let chain_id = l1_client.fetch_chain_id().await.unwrap();
+    let mut storage = connection_pool.connection().await.unwrap();
+    storage
+        .eth_watcher_dal()
+        .get_or_set_next_block_to_process(EventType::PriorityTransactions, chain_id, block.0 as u64)
+        .await
+        .unwrap();
+    storage
+        .eth_watcher_dal()
+        .get_or_set_next_block_to_process(EventType::ProtocolUpgrades, chain_id, block.0 as u64)
+        .await
+        .unwrap();
+    tracing::info!("Recovered eth_watch state, last processed block is {block}")
+}
+
+pub async fn recover_latest_protocol_version(
+    connection_pool: ConnectionPool<Core>,
+    l1_client: Box<DynClient<L1>>,
+    diamond_proxy_addr: Address,
+    l1_batch_number: L1BatchNumber,
+) {
+    let l1_fetcher = L1Fetcher::new(
+        L1FetcherConfig {
+            block_step: 10000,
+            diamond_proxy_addr,
+            versioning: OnlyV3,
+        },
+        l1_client.clone(),
+    )
+    .unwrap();
+    let latest_version = l1_fetcher
+        .get_latest_protocol_version(l1_batch_number)
+        .await;
+    tracing::info!("Recovered protocol version is {:?}", latest_version);
+    let mut storage = connection_pool.connection().await.unwrap();
+    storage
+        .protocol_versions_dal()
+        .save_protocol_version(
+            latest_version.version,
+            latest_version.timestamp,
+            latest_version.l1_verifier_config,
+            latest_version.base_system_contracts_hashes,
+            None,
+        )
+        .await
+        .unwrap();
 }
 
 pub async fn create_l1_snapshot(
@@ -128,7 +280,7 @@ pub async fn create_l1_snapshot(
     blob_client: Arc<dyn BlobClient>,
     object_store: &Arc<dyn ObjectStore>,
     diamond_proxy_addr: Address,
-) -> (L1BatchNumber, H256) {
+) -> CommitBlock {
     let temp_dir = TempDir::new().unwrap().into_path().join("db");
 
     let l1_fetcher = L1Fetcher::new(
@@ -138,11 +290,11 @@ pub async fn create_l1_snapshot(
             versioning: OnlyV3,
         },
         l1_client,
-        blob_client,
     )
     .unwrap();
-    let blocks = l1_fetcher.get_all_blocks_to_process().await;
-    let last_l1_batch_number = L1BatchNumber(blocks.last().unwrap().l1_batch_number as u32);
+    let blocks = l1_fetcher.get_all_blocks_to_process(&blob_client).await;
+    let last_block = blocks.last().unwrap().clone();
+    let last_l1_batch_number = L1BatchNumber(last_block.l1_batch_number as u32);
     let mut processor = StateCompressor::new(temp_dir).await;
     processor.process_genesis_state(None).await;
     processor.process_blocks(blocks).await;
@@ -171,169 +323,5 @@ pub async fn create_l1_snapshot(
         .await
         .unwrap();
 
-    (last_l1_batch_number, processor.get_root_hash())
-}
-
-#[derive(Debug, Clone)]
-struct FakeClient {
-    newest_l1_batch_number: L1BatchNumber,
-    root_hash: H256,
-}
-
-#[async_trait]
-impl SnapshotsApplierMainNodeClient for FakeClient {
-    async fn fetch_l1_batch_details(
-        &self,
-        number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<L1BlockMetadata>> {
-        assert_eq!(number, self.newest_l1_batch_number);
-        Ok(Some(L1BlockMetadata {
-            root_hash: Some(self.root_hash),
-            timestamp: 0,
-        }))
-    }
-
-    async fn fetch_l2_block_details(
-        &self,
-        number: L2BlockNumber,
-    ) -> EnrichedClientResult<Option<L2BlockMetadata>> {
-        assert_eq!(number, L2BlockNumber(0));
-        Ok(Some(L2BlockMetadata {
-            // TODO calculate this using storage logs
-            block_hash: Some(H256::zero()),
-            protocol_version: Some(ProtocolVersionId::latest()),
-            timestamp: 0,
-        }))
-    }
-
-    async fn fetch_newest_snapshot_l1_batch_number(
-        &self,
-    ) -> EnrichedClientResult<Option<L1BatchNumber>> {
-        unimplemented!("Shouldn't be called")
-    }
-
-    async fn fetch_snapshot(
-        &self,
-        l1_batch_number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<SnapshotHeader>> {
-        assert_eq!(l1_batch_number, self.newest_l1_batch_number);
-        Ok(Some(SnapshotHeader {
-            version: SnapshotVersion::Version1.into(),
-            l1_batch_number,
-            l2_block_number: Default::default(),
-            storage_logs_chunks: vec![SnapshotStorageLogsChunkMetadata {
-                chunk_id: 0,
-                filepath: "".to_string(),
-            }],
-            factory_deps_filepath: "".to_string(),
-        }))
-    }
-
-    async fn fetch_tokens(
-        &self,
-        _at_l2_block: L2BlockNumber,
-    ) -> EnrichedClientResult<Vec<TokenInfo>> {
-        Ok(vec![])
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::{str::FromStr, sync::Arc};
-
-    use tokio::sync::watch;
-    use zksync_basic_types::url::SensitiveUrl;
-    use zksync_dal::{ConnectionPool, Core};
-    use zksync_object_store::MockObjectStore;
-    use zksync_snapshots_applier::{SnapshotsApplierConfig, SnapshotsApplierTask};
-    use zksync_web3_decl::client::Client;
-
-    use crate::{
-        l1_fetcher::{blob_http_client::LocalDbBlobSource, constants::local_diamond_proxy_addr},
-        processor::db_recovery::{create_l1_snapshot, recover_eth_watch, FakeClient},
-        recover_db,
-    };
-
-    // #[test_log::test(tokio::test)]
-    // async fn test_process_blocks() {
-    //     let connection_pool = ConnectionPool::<Core>::builder(
-    //         "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
-    //             .parse()
-    //             .unwrap(),
-    //         10,
-    //     )
-    //     .build()
-    //     .await
-    //     .unwrap();
-    //     let url = SensitiveUrl::from_str(&"http://127.0.0.1:8545").unwrap();
-    //     let eth_client = Client::http(url).unwrap().build();
-    //     let blob_client = Arc::new(LocalDbBlobSource::new(connection_pool.clone()));
-    //     recover_db(
-    //         ConnectionPool::test_pool().await,
-    //         Box::new(eth_client),
-    //         blob_client,
-    //         local_diamond_proxy_addr().parse().unwrap(),
-    //     )
-    //     .await;
-    // }
-
-    // #[test_log::test(tokio::test)]
-    // async fn test_export_storage_logs() {
-    //     let connection_pool = ConnectionPool::<Core>::builder(
-    //         "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
-    //             .parse()
-    //             .unwrap(),
-    //         10,
-    //     )
-    //     .build()
-    //     .await
-    //     .unwrap();
-    //     let blob_client = Arc::new(LocalDbBlobSource::new(connection_pool.clone()));
-    //     let url = SensitiveUrl::from_str(&"http://127.0.0.1:8545").unwrap();
-    //     let eth_client = Client::http(url).unwrap().build();
-    //     let object_store = MockObjectStore::arc();
-    //     let (newest_l1_batch_number, root_hash) = create_l1_snapshot(
-    //         Box::new(eth_client),
-    //         blob_client,
-    //         &object_store,
-    //         local_diamond_proxy_addr().parse().unwrap(),
-    //     )
-    //     .await;
-    //
-    //     let applier_config = SnapshotsApplierConfig::default();
-    //     let (_, stop_rx) = watch::channel(false);
-    //     let mut applier = SnapshotsApplierTask::new(
-    //         applier_config,
-    //         connection_pool,
-    //         Box::new(FakeClient {
-    //             newest_l1_batch_number,
-    //             root_hash,
-    //         }),
-    //         object_store,
-    //     );
-    //     applier.set_snapshot_l1_batch(newest_l1_batch_number);
-    //     applier.run(stop_rx).await.unwrap();
-    // }
-
-    #[test_log::test(tokio::test)]
-    async fn test_recover_eth_watch() {
-        let connection_pool = ConnectionPool::<Core>::builder(
-            "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
-                .parse()
-                .unwrap(),
-            10,
-        )
-        .build()
-        .await
-        .unwrap();
-        let blob_client = Arc::new(LocalDbBlobSource::new(connection_pool.clone()));
-        let url = SensitiveUrl::from_str(&"http://127.0.0.1:8545").unwrap();
-        let eth_client = Client::http(url).unwrap().build();
-        recover_eth_watch(
-            Box::new(eth_client),
-            blob_client,
-            local_diamond_proxy_addr().parse().unwrap(),
-        )
-        .await;
-    }
+    last_block
 }

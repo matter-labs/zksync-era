@@ -15,6 +15,7 @@ mod traits;
 pub struct SnapshotRecoveryConfig {
     pub recover_from_l1: bool,
     /// If not specified, the latest snapshot will be used.
+    pub recover_main_node_components: bool,
     pub snapshot_l1_batch_override: Option<L1BatchNumber>,
     pub drop_storage_key_preimages: bool,
     pub object_store_config: Option<ObjectStoreConfig>,

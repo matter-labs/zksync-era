@@ -11,7 +11,6 @@ use tokio::sync::watch;
 use zksync_object_store::{Bucket, MockObjectStore, ObjectStore, ObjectStoreError, StoredObject};
 use zksync_types::{
     api,
-    api::L1BatchDetails,
     block::L2BlockHeader,
     snapshots::{
         SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotHeader,

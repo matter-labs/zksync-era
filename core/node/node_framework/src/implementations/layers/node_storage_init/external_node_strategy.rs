@@ -85,7 +85,7 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
                     .get_custom(self.max_postgres_concurrency.get() as u32 + 1)
                     .await?;
                 let recovery: Arc<dyn InitializeStorage> = Arc::new(ExternalNodeSnapshotRecovery {
-                    main_node_client: client.clone(),
+                    main_node_client: Some(client.clone()),
                     l1_client: input.l1_client.0.clone(),
                     pool: recovery_pool,
                     max_concurrency: self.max_postgres_concurrency,

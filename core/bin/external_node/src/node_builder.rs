@@ -549,6 +549,7 @@ impl ExternalNodeBuilder {
                         .experimental
                         .snapshots_recovery_drop_storage_key_preimages,
                     object_store_config: config.optional.snapshots_recovery_object_store.clone(),
+                    recover_main_node_components: false,
                 });
         self.node.add_layer(ExternalNodeInitStrategyLayer {
             l2_chain_id: self.config.required.l2_chain_id,

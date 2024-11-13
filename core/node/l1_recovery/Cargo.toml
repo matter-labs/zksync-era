@@ -30,6 +30,7 @@ reqwest.workspace = true
 zkevm_circuits.workspace = true
 blake2.workspace = true
 tempfile.workspace = true
+chrono.workspace = true
 
 zksync_merkle_tree.workspace = true
 zksync_storage.workspace = true
@@ -44,6 +45,9 @@ zksync_node_genesis.workspace = true
 zksync_contracts.workspace = true
 zksync_object_store.workspace = true
 zksync_snapshots_applier.workspace = true
+zksync_vm_interface.workspace = true
+zksync_l1_contract_interface.workspace = true
+zksync_block_reverter.workspace = true
 
 [dev-dependencies]
 test-log.workspace = true

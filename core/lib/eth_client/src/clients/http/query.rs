@@ -179,12 +179,17 @@ where
                             let message_len =
                                 "execution reverted: ".len().min(call_err.message().len());
                             let revert_reason = call_err.message()[message_len..].to_string();
+                            let error_selector = call_err
+                                .data()
+                                .map(|x| x.to_string()[2..11].to_string())
+                                .unwrap_or_default();
 
                             Ok(Some(FailureInfo {
                                 revert_code,
                                 revert_reason,
                                 gas_used,
                                 gas_limit,
+                                error_selector,
                             }))
                         } else {
                             Err(err)
