@@ -80,12 +80,3 @@ EN_CONSENSUS_SECRETS_PATH=...
 
 These variables should point to your consensus config and secrets files that we have just created. Tweak the paths to
 the files if you have placed them differently.
-
-### Add `--enable-consensus` flag to your entry point command
-
-For the consensus configuration to take effect you have to add `--enable-consensus` flag to the command line when
-running the node, for example:
-
-```
-docker run "matterlabs/external-node:2.0-v24.12.0" <all the other flags> --enable-consensus
-```

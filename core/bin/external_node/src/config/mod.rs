@@ -1216,23 +1216,18 @@ pub fn generate_consensus_secrets() {
     println!("node_key: {}", node_key.encode());
 }
 
-pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets>> {
-    let Ok(path) = env::var("EN_CONSENSUS_SECRETS_PATH") else {
-        return Ok(None);
-    };
-    Ok(Some(
-        read_yaml_repr::<proto::secrets::ConsensusSecrets>(&path.into())
-            .context("failed decoding YAML")?,
-    ))
+pub(crate) fn read_consensus_secrets() -> anyhow::Result<ConsensusSecrets> {
+    Ok(read_yaml_repr::<proto::secrets::ConsensusSecrets>(
+        &env::var("EN_CONSENSUS_SECRETS_PATH")?.into(),
+    )
+    .context("failed decoding YAML")?)
 }
 
-pub(crate) fn read_consensus_config() -> anyhow::Result<Option<ConsensusConfig>> {
-    let Ok(path) = env::var("EN_CONSENSUS_CONFIG_PATH") else {
-        return Ok(None);
-    };
-    Ok(Some(
-        read_yaml_repr::<proto::consensus::Config>(&path.into()).context("failed decoding YAML")?,
-    ))
+pub(crate) fn read_consensus_config() -> anyhow::Result<ConsensusConfig> {
+    Ok(
+        read_yaml_repr::<proto::consensus::Config>(&env::var("EN_CONSENSUS_CONFIG_PATH")?.into())
+            .context("failed decoding YAML")?,
+    )
 }
 
 /// Configuration for snapshot recovery. Should be loaded optionally, only if snapshot recovery is enabled.
@@ -1285,8 +1280,8 @@ pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub optional: OptionalENConfig,
     pub observability: ObservabilityENConfig,
     pub experimental: ExperimentalENConfig,
-    pub consensus: Option<ConsensusConfig>,
-    pub consensus_secrets: Option<ConsensusSecrets>,
+    pub consensus: ConsensusConfig,
+    pub consensus_secrets: ConsensusSecrets,
     pub api_component: ApiComponentConfig,
     pub tree_component: TreeComponentConfig,
     pub remote: R,
@@ -1320,7 +1315,7 @@ impl ExternalNodeConfig<()> {
         general_config_path: PathBuf,
         external_node_config_path: PathBuf,
         secrets_configs_path: PathBuf,
-        consensus_config_path: Option<PathBuf>,
+        consensus_config_path: PathBuf,
     ) -> anyhow::Result<Self> {
         let general_config = read_yaml_repr::<proto::general::GeneralConfig>(&general_config_path)
             .context("failed decoding general YAML config")?;
@@ -1329,12 +1324,9 @@ impl ExternalNodeConfig<()> {
                 .context("failed decoding external node YAML config")?;
         let secrets_config = read_yaml_repr::<proto::secrets::Secrets>(&secrets_configs_path)
             .context("failed decoding secrets YAML config")?;
-
-        let consensus = consensus_config_path
-            .map(|path| read_yaml_repr::<proto::consensus::Config>(&path))
-            .transpose()
+        let consensus = read_yaml_repr::<proto::consensus::Config>(&consensus_config_path)
             .context("failed decoding consensus YAML config")?;
-        let consensus_secrets = secrets_config.consensus.clone();
+        let consensus_secrets = secrets_config.consensus.clone().unwrap();
         let required = RequiredENConfig::from_configs(
             &general_config,
             &external_node_config,

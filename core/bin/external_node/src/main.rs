@@ -125,7 +125,7 @@ fn main() -> anyhow::Result<()> {
     let config = if let Some(config_path) = opt.config_path.clone() {
         let secrets_path = opt.secrets_path.clone().unwrap();
         let external_node_config_path = opt.external_node_config_path.clone().unwrap();
-        let consensus_path = opt.consensus_path.clone();
+        let consensus_path = opt.consensus_path.clone().unwrap();
 
         ExternalNodeConfig::from_files(
             config_path,
