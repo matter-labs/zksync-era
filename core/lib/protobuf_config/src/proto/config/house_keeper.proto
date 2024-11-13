@@ -4,6 +4,7 @@ package zksync.config.house_keeper;
 
 message HouseKeeper {
     optional uint64 l1_batch_metrics_reporting_interval_ms = 1; // required; ms
+    optional uint64 database_health_polling_interval_ms = 18; // required; ms
     reserved 2; reserved "gpu_prover_queue_reporting_interval_ms";
     reserved 3; reserved "prover_job_retrying_interval_ms";
     reserved 4; reserved "prover_stats_reporting_interval_ms";
@@ -17,5 +18,4 @@ message HouseKeeper {
     reserved 15; reserved "prover_job_archiver_archive_after_secs";
     reserved 16; reserved "fri_gpu_prover_archiver_archiving_interval_ms";
     reserved 17; reserved "fri_gpu_prover_archiver_archive_after_secs";
-    optional uint64 database_health_polling_interval_ms = 18; // required; ms
 }
