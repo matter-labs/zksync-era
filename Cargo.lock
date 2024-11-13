@@ -11499,6 +11499,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "vise",
  "zksync_concurrency",
  "zksync_config",
  "zksync_consensus_bft",

@@ -17,6 +17,7 @@ use zksync_web3_decl::{
 
 use super::{config, storage::Store, ConsensusConfig, ConsensusSecrets};
 use crate::{
+    metrics::METRICS,
     registry,
     storage::{self, ConnectionPool},
 };
@@ -367,6 +368,7 @@ impl EN {
     ) -> ctx::Result<FetchedBlock> {
         const RETRY_INTERVAL: time::Duration = time::Duration::seconds(5);
         let n = L2BlockNumber(n.0.try_into().context("overflow")?);
+        METRICS.fetch_block.inc();
         loop {
             match ctx.wait(self.client.sync_l2_block(n, true)).await? {
                 Ok(Some(block)) => return Ok(block.try_into()?),
