@@ -6,6 +6,7 @@ use zksync_types::{
     KECCAK256_PRECOMPILE_ADDRESS, L2_BASE_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS,
     SYSTEM_CONTEXT_ADDRESS, U256,
 };
+use zksync_utils::u256_to_account_address;
 use zksync_vm2::interface::{
     CallframeInterface, GlobalStateInterface, Opcode::*, OpcodeType, ReturnType::*, ShouldStop,
     Tracer,
@@ -117,7 +118,8 @@ impl Tracer for ValidationTracer {
                     .storage_containing_trusted_addresses
                     .contains(&(address, slot))
                 {
-                    self.trusted_addresses.insert(address);
+                    self.trusted_addresses
+                        .insert(u256_to_account_address(&state.get_storage(address, slot)));
                 } else if !self.is_valid_storage_read(
                     address,
                     caller,
