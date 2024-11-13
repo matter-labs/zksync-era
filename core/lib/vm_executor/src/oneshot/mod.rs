@@ -257,7 +257,7 @@ where
                             );
                             let mut validation_result = validation_tracer.get_result();
                             let validation_traces = validation_tracer.get_traces();
-                            let tracers: Box<dyn MultiVMTracer<_, HistoryEnabled>> =
+                            let tracers: Box<dyn MultiVmTracer<_, HistoryEnabled>> =
                                 validation_tracer.into_tracer_pointer();
 
                             let exec_result = vm.inspect(

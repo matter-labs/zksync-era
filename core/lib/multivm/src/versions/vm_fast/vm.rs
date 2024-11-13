@@ -52,17 +52,12 @@ use crate::{
         refund::compute_refund,
         version::FastVmVersion,
     },
-    vm_latest::{
-        constants::{
-            get_result_success_first_slot, get_vm_hook_params_start_position, get_vm_hook_position,
-            OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
-        },
-        MultiVmSubversion,
+    vm_latest::constants::{
+        get_result_success_first_slot, get_vm_hook_params_start_position, get_vm_hook_position,
+        OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
     },
     VmVersion,
 };
-
-const VM_VERSION: MultiVmSubversion = MultiVmSubversion::IncreasedBootloaderMemory;
 
 #[derive(Debug)]
 struct VmRunResult {
