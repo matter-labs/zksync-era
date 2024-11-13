@@ -1034,6 +1034,123 @@ pub static DIAMOND_CUT: Lazy<Function> = Lazy::new(|| {
     serde_json::from_str(abi).unwrap()
 });
 
+pub static POST_BOOJUM_COMMIT_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "batchNumber",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "batchHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "indexRepeatedStorageChanges",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "numberOfLayer1Txs",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "priorityOperationsHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "l2LogsTreeRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "timestamp",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "commitment",
+              "type": "bytes32"
+            }
+          ],
+          "internalType": "struct IExecutor.StoredBatchInfo",
+          "name": "_lastCommittedBatchData",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "batchNumber",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "timestamp",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "indexRepeatedStorageChanges",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "newStateRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "numberOfLayer1Txs",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "priorityOperationsHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "bootloaderHeapInitialContentsHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "eventsQueueStateHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes",
+              "name": "systemLogs",
+              "type": "bytes"
+            },
+            {
+              "internalType": "bytes",
+              "name": "pubdataCommitments",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct IExecutor.CommitBatchInfo[]",
+          "name": "_newBatchesData",
+          "type": "tuple[]"
+        }
+      ],
+      "name": "commitBatches",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
 pub static POST_SHARED_BRIDGE_COMMIT_FUNCTION: Lazy<Function> = Lazy::new(|| {
     let abi = r#"
     {
