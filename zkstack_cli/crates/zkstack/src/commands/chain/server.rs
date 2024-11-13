@@ -1,5 +1,7 @@
 use anyhow::Context;
 use common::{
+    cmd::Cmd,
+    config::global_config,
     logger,
     server::{Server, ServerMode},
 };
@@ -7,28 +9,47 @@ use config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, GeneralConfig, GenesisConfig,
     SecretsConfig, WalletsConfig,
 };
-use xshell::Shell;
+use xshell::{cmd, Shell};
 
-use super::args::run_server::RunServerArgs;
-use crate::messages::{MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER};
+use crate::{
+    commands::args::WaitArgs,
+    messages::{
+        msg_waiting_for_server_success, MSG_BUILDING_SERVER, MSG_FAILED_TO_BUILD_SERVER_ERR,
+        MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER, MSG_WAITING_FOR_SERVER,
+    },
+};
 
-pub fn run(shell: &Shell, args: RunServerArgs, chain: ChainConfig) -> anyhow::Result<()> {
-    logger::info(MSG_STARTING_SERVER);
-    run_server(args, &chain, shell)?;
-    Ok(())
+use super::args::run_server::{RunServerArgs, ServerArgs, ServerCommand};
+
+pub async fn run(shell: &Shell, args: ServerArgs, chain: ChainConfig) -> anyhow::Result<()> {
+    match ServerCommand::from(args) {
+        ServerCommand::Run(args) => run_server(args, &chain, shell),
+        ServerCommand::Build => build_server(&chain, shell),
+        ServerCommand::Wait(args) => wait_for_server(args, &chain).await,
+    }
 }
 
-fn run_server(args: RunServerArgs, chain: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
+fn build_server(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
+    let _dir_guard = shell.push_dir(&chain_config.link_to_code);
+
+    logger::info(MSG_BUILDING_SERVER);
+
+    let mut cmd = Cmd::new(cmd!(shell, "cargo build --release --bin zksync_server"));
+    cmd = cmd.with_force_run();
+    cmd.run().context(MSG_FAILED_TO_BUILD_SERVER_ERR)
+}
+
+fn run_server(
+    args: RunServerArgs,
+    chain_config: &ChainConfig,
+    shell: &Shell,
+) -> anyhow::Result<()> {
+    logger::info(MSG_STARTING_SERVER);
     let server = Server::new(
         args.components.clone(),
-        chain.link_to_code.clone(),
+        chain_config.link_to_code.clone(),
         args.uring,
     );
-
-    if args.build {
-        server.build(shell)?;
-        return Ok(());
-    }
 
     let mode = if args.genesis {
         ServerMode::Genesis
@@ -39,12 +60,29 @@ fn run_server(args: RunServerArgs, chain: &ChainConfig, shell: &Shell) -> anyhow
         .run(
             shell,
             mode,
-            GenesisConfig::get_path_with_base_path(&chain.configs),
-            WalletsConfig::get_path_with_base_path(&chain.configs),
-            GeneralConfig::get_path_with_base_path(&chain.configs),
-            SecretsConfig::get_path_with_base_path(&chain.configs),
-            ContractsConfig::get_path_with_base_path(&chain.configs),
+            GenesisConfig::get_path_with_base_path(&chain_config.configs),
+            WalletsConfig::get_path_with_base_path(&chain_config.configs),
+            GeneralConfig::get_path_with_base_path(&chain_config.configs),
+            SecretsConfig::get_path_with_base_path(&chain_config.configs),
+            ContractsConfig::get_path_with_base_path(&chain_config.configs),
             vec![],
         )
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)
+}
+
+async fn wait_for_server(args: WaitArgs, chain_config: &ChainConfig) -> anyhow::Result<()> {
+    let verbose = global_config().verbose;
+
+    let health_check_port = chain_config
+        .get_general_config()?
+        .api_config
+        .as_ref()
+        .context("no API config")?
+        .healthcheck
+        .port;
+
+    logger::info(MSG_WAITING_FOR_SERVER);
+    args.poll_health_check(health_check_port, verbose).await?;
+    logger::info(msg_waiting_for_server_success(health_check_port));
+    Ok(())
 }

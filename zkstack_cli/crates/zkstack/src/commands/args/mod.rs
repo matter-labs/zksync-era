@@ -1,7 +1,6 @@
-pub use autocomplete::*;
-pub use containers::*;
-pub use update::*;
+pub use self::{autocomplete::*, containers::*, update::*, wait::*};
 
 mod autocomplete;
 mod containers;
 mod update;
+mod wait;

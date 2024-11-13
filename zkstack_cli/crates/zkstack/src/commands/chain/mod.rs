@@ -1,7 +1,7 @@
 use ::common::forge::ForgeScriptArgs;
 use anyhow::Context;
 pub(crate) use args::create::ChainCreateArgsFinal;
-use args::{build_transactions::BuildTransactionsArgs, run_server::RunServerArgs};
+use args::{build_transactions::BuildTransactionsArgs, run_server::ServerArgs};
 use clap::{command, Subcommand};
 use config::zkstack_config::ZkStackConfig;
 use consensus::ConsensusCommand;
@@ -65,6 +65,9 @@ pub enum ChainCommands {
     /// Deploy L2 multicall3
     #[command(alias = "multicall3")]
     DeployMulticall3(ForgeScriptArgs),
+    /// Deploy L2 TimestampAsserter
+    #[command(alias = "timestamp-asserter")]
+    DeployTimestampAsserter(ForgeScriptArgs),
     /// Deploy Default Upgrader
     #[command(alias = "upgrader")]
     DeployUpgrader(ForgeScriptArgs),
@@ -74,7 +77,7 @@ pub enum ChainCommands {
     /// Update Token Multiplier Setter address on L1
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
     /// Run server
-    Server(RunServerArgs),
+    Server(ServerArgs),
     /// Run contract verifier
     #[command(subcommand)]
     ContractVerifier(ContractVerifierCommands),
@@ -105,6 +108,9 @@ pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()>
         ChainCommands::DeployMulticall3(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Multicall3).await
         }
+        ChainCommands::DeployTimestampAsserter(args) => {
+            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::TimestampAsserter).await
+        }
         ChainCommands::DeployUpgrader(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Upgrader).await
         }
@@ -115,7 +121,7 @@ pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()>
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
             set_token_multiplier_setter::run(args, shell).await
         }
-        ChainCommands::Server(args) => server::run(shell, args, chain),
+        ChainCommands::Server(args) => server::run(shell, args, chain).await,
         ChainCommands::ContractVerifier(args) => contract_verifier::run(shell, args, chain).await,
         ChainCommands::Consensus(cmd) => cmd.run(shell).await,
     }

@@ -9,10 +9,6 @@ on:
         description: "DOCKERHUB_TOKEN"
         required: true
     inputs:
-      ERA_BELLMAN_CUDA_RELEASE:
-        description: "ERA_BELLMAN_CUDA_RELEASE"
-        type: string
-        required: true
       image_tag_suffix:
         description: "Optional suffix to override tag name generation"
         type: string
@@ -131,8 +127,6 @@ jobs:
             SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
             SCCACHE_GCS_RW_MODE=READ_WRITE
             RUSTC_WRAPPER=sccache
-            ERA_BELLMAN_CUDA_RELEASE=${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
-            RUST_FLAGS=${{ inputs.WITNESS_GENERATOR_RUST_FLAGS }}
           file: docker/${{ matrix.components }}/Dockerfile
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
