@@ -12,11 +12,6 @@ impl ProtoRepr for proto::HouseKeeper {
                 &self.l1_batch_metrics_reporting_interval_ms,
             )
             .context("l1_batch_metrics_reporting_interval_ms")?,
-
-            database_health_polling_interval_ms: *required(
-                &self.database_health_polling_interval_ms,
-            )
-            .context("database_health_polling_interval_ms")?,
         })
     }
 
@@ -25,7 +20,6 @@ impl ProtoRepr for proto::HouseKeeper {
             l1_batch_metrics_reporting_interval_ms: Some(
                 this.l1_batch_metrics_reporting_interval_ms,
             ),
-            database_health_polling_interval_ms: Some(this.database_health_polling_interval_ms),
         }
     }
 }

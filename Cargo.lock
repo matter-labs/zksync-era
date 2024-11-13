@@ -11598,6 +11598,7 @@ dependencies = [
  "futures 0.3.31",
  "pin-project-lite",
  "semver 1.0.23",
+ "serde",
  "thiserror",
  "tokio",
  "tracing",

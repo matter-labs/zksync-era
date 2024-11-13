@@ -1,19 +1,12 @@
-use std::sync::Arc;
-
 use zksync_config::configs::house_keeper::HouseKeeperConfig;
-use zksync_health_check::ReactiveHealthCheck;
 use zksync_house_keeper::{
-    blocks_state_reporter::L1BatchMetricsReporter, database::DatabaseHealthTask,
-    periodic_job::PeriodicJob, version::NodeVersionInfo,
+    blocks_state_reporter::L1BatchMetricsReporter, periodic_job::PeriodicJob,
 };
 
 use crate::{
-    implementations::resources::{
-        healthcheck::AppHealthCheckResource,
-        pools::{PoolResource, ReplicaPool},
-    },
+    implementations::resources::pools::{PoolResource, ReplicaPool},
     service::StopReceiver,
-    task::{Task, TaskId, TaskKind},
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
@@ -29,8 +22,6 @@ pub struct HouseKeeperLayer {
 #[context(crate = crate)]
 pub struct Input {
     pub replica_pool: PoolResource<ReplicaPool>,
-    #[context(default)]
-    pub app_health: AppHealthCheckResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -38,8 +29,6 @@ pub struct Input {
 pub struct Output {
     #[context(task)]
     pub l1_batch_metrics_reporter: L1BatchMetricsReporter,
-    #[context(task)]
-    pub database_health_task: DatabaseHealthTask,
 }
 
 impl HouseKeeperLayer {
@@ -67,29 +56,11 @@ impl WiringLayer for HouseKeeperLayer {
         let l1_batch_metrics_reporter = L1BatchMetricsReporter::new(
             self.house_keeper_config
                 .l1_batch_metrics_reporting_interval_ms,
-            replica_pool.clone(),
+            replica_pool,
         );
-
-        let app_health = input.app_health.0;
-        app_health
-            .insert_custom_component(Arc::new(NodeVersionInfo::default()))
-            .map_err(WiringError::internal)?;
-
-        let (database_health_check, database_health_updater) = ReactiveHealthCheck::new("database");
-
-        app_health
-            .insert_component(database_health_check)
-            .map_err(WiringError::internal)?;
-
-        let database_health_task = DatabaseHealthTask {
-            polling_interval_ms: self.house_keeper_config.database_health_polling_interval_ms,
-            connection_pool: replica_pool.clone(),
-            database_health_updater,
-        };
 
         Ok(Output {
             l1_batch_metrics_reporter,
-            database_health_task,
         })
     }
 }
@@ -98,21 +69,6 @@ impl WiringLayer for HouseKeeperLayer {
 impl Task for L1BatchMetricsReporter {
     fn id(&self) -> TaskId {
         "l1_batch_metrics_reporter".into()
-    }
-
-    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        (*self).run(stop_receiver.0).await
-    }
-}
-
-#[async_trait::async_trait]
-impl Task for DatabaseHealthTask {
-    fn kind(&self) -> TaskKind {
-        TaskKind::UnconstrainedTask
-    }
-
-    fn id(&self) -> TaskId {
-        "database_health".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

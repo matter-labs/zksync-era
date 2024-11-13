@@ -298,7 +298,6 @@ external_price_api_client:
 
 house_keeper:
   l1_batch_metrics_reporting_interval_ms: 10000
-  database_health_polling_interval_ms: 10000
 
 prometheus:
   listener_port: 3314
