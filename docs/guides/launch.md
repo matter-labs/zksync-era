@@ -106,7 +106,7 @@ documentation for safe ways to customize your setup.
 Run server:
 
 ```bash
-zkstack server
+zkstack chain server
 ```
 
 The server's configuration files can be found in `/chains/<chain_name>/configs` directory. These files are created when
@@ -123,7 +123,7 @@ To manually modify configuration files:
 5. Restart the relevant services for changes to take effect:
 
 ```bash
-zkstack server
+zkstack chain server
 ```
 
 > NOTE: Manual changes to configuration files may be overwritten if the ecosystem is reinitialized or the chain is

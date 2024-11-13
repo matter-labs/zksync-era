@@ -359,7 +359,7 @@ jobs:
 
       - name: Build tested binaries
         run: |
-          ci_run zkstack server build
+          ci_run zkstack chain server build
           ci_run zkstack external-node build
           ci_run zkstack contract-verifier build
 
@@ -382,10 +382,10 @@ jobs:
             --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,vm_playground,da_dispatcher,consensus \
             &> ${{ env.SERVER_LOGS_DIR }}/consensus.log &
 
-          ci_run zkstack server wait --ignore-prerequisites --verbose --chain era
-          ci_run zkstack server wait --ignore-prerequisites --verbose --chain validium
-          ci_run zkstack server wait --ignore-prerequisites --verbose --chain custom_token
-          ci_run zkstack server wait --ignore-prerequisites --verbose --chain consensus
+          ci_run zkstack chain server wait --ignore-prerequisites --verbose --chain era
+          ci_run zkstack chain server wait --ignore-prerequisites --verbose --chain validium
+          ci_run zkstack chain server wait --ignore-prerequisites --verbose --chain custom_token
+          ci_run zkstack chain server wait --ignore-prerequisites --verbose --chain consensus
 
       - name: Set up attester committee for the consensus chain
         run: |
