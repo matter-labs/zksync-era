@@ -7,7 +7,6 @@ use zksync_prover_fri_types::{
     ProverServiceDataKey, ProvingStage,
 };
 use zksync_prover_keystore::keystore::Keystore;
-use zksync_types::basic_fri_types::AggregationRound;
 
 fn all_possible_prover_service_data_key() -> impl Strategy<Value = ProverServiceDataKey> {
     let mut keys = Vec::with_capacity(30);

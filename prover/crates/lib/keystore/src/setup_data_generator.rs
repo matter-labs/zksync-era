@@ -6,10 +6,7 @@ use std::collections::HashMap;
 use anyhow::Context as _;
 #[cfg(feature = "gpu")]
 use boojum_cuda::poseidon2::GLHasher;
-use circuit_definitions::{
-    boojum::cs::gates::NonlinearityGateFinalizationHint,
-    circuit_definitions::aux_layer::CompressionProofsTreeHasherForWrapper,
-};
+use circuit_definitions::circuit_definitions::aux_layer::CompressionProofsTreeHasherForWrapper;
 use shivini::cs::gpu_setup_and_vk_from_base_setup_vk_params_and_hints;
 use zkevm_test_harness::{
     compute_setups::{

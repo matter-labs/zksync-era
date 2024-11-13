@@ -6,9 +6,7 @@ use circuit_sequencer_api::proof::FinalProof;
 use fflonk_gpu::{FflonkSnarkVerifierCircuit, FflonkSnarkVerifierCircuitProof};
 use tokio::task::JoinHandle;
 use wrapper_prover::{GPUWrapperConfigs, WrapperProver};
-use zkevm_test_harness::proof_wrapper_utils::{
-    get_trusted_setup, get_vk_for_previous_circuit, DEFAULT_WRAPPER_CONFIG,
-};
+use zkevm_test_harness::proof_wrapper_utils::{get_trusted_setup, DEFAULT_WRAPPER_CONFIG};
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
@@ -49,7 +47,7 @@ pub struct ProofCompressor {
 }
 
 pub enum Proof {
-    Plonk(FinalProof),
+    Plonk(Box<FinalProof>),
     Fflonk(FflonkSnarkVerifierCircuitProof),
 }
 
@@ -292,11 +290,11 @@ impl JobProcessor for ProofCompressor {
         let is_fflonk = self.is_fflonk;
         tokio::task::spawn_blocking(move || {
             if !is_fflonk {
-                Ok(Proof::Plonk(Self::compress_proof(
+                Ok(Proof::Plonk(Box::new(Self::compress_proof(
                     job,
                     compression_mode,
                     keystore,
-                )?))
+                )?)))
             } else {
                 Ok(Proof::Fflonk(Self::compress_fflonk_proof(
                     job,
@@ -330,7 +328,7 @@ impl JobProcessor for ProofCompressor {
         let l1_batch_proof = match artifacts {
             Proof::Plonk(proof) => L1BatchProofForL1::Plonk(PlonkL1BatchProofForL1 {
                 aggregation_result_coords,
-                scheduler_proof: proof,
+                scheduler_proof: *proof,
                 protocol_version: self.protocol_version,
             }),
             Proof::Fflonk(proof) => L1BatchProofForL1::Fflonk(FflonkL1BatchProofForL1 {

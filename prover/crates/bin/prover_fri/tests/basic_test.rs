@@ -64,7 +64,7 @@ async fn prover_and_assert_base_layer(
     )
     .context("generate_cpu_base_layers_setup_data()")?;
     let setup_data = Arc::new(circuit_setup_data.into());
-    let setup_key = ProverServiceDataKey::new(circuit_id, aggregation_round);
+    let setup_key = ProverServiceDataKey::new(circuit_id, aggregation_round.into());
     let prover_job = ProverJob::new(block_number, expected_proof_id, circuit_wrapper, setup_key);
     let artifacts = Prover::prove(
         prover_job,

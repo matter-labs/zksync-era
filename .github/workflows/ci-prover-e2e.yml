@@ -63,6 +63,7 @@ jobs:
           echo "URL=$(grep "http_url" ./chains/proving_chain/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
       - name: Build prover binaries
         run: |
+          PASSED_ENV_VARS="BELLMAN_CUDA_DIR" \
           ci_run cargo build --release --workspace --manifest-path=prover/Cargo.toml
       - name: Prepare prover subsystem
         run: |

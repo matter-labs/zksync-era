@@ -180,11 +180,11 @@ mod tests {
     fn test_get_setup_data_key_for_node_agg_key() {
         let key = ProverServiceDataKey {
             circuit_id: 10,
-            stage: AggregationRound::NodeAggregation,
+            stage: ProvingStage::NodeAggregation,
         };
         let expected = ProverServiceDataKey {
             circuit_id: ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
-            stage: AggregationRound::NodeAggregation,
+            stage: ProvingStage::NodeAggregation,
         };
 
         let result = get_setup_data_key(key);
@@ -197,7 +197,7 @@ mod tests {
     fn test_get_setup_data_key_for_non_node_agg_key() {
         let key = ProverServiceDataKey {
             circuit_id: 10,
-            stage: AggregationRound::BasicCircuits,
+            stage: ProvingStage::BasicCircuits,
         };
 
         let result = get_setup_data_key(key);

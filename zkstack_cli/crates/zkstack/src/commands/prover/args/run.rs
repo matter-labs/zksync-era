@@ -94,20 +94,18 @@ impl ProverComponent {
     ) -> anyhow::Result<Vec<String>> {
         let mut application_args = vec![];
 
-        if self == &Self::Prover || self == &Self::Compressor || self == &Self::CircuitProver {
-            if in_docker {
-                application_args.push("--gpus=all".to_string());
-            }
+        if (self == &Self::Prover || self == &Self::Compressor || self == &Self::CircuitProver)
+            && in_docker
+        {
+            application_args.push("--gpus=all".to_string());
         }
 
         if self == &Self::Prover {
             application_args.push("--features=gpu".to_string());
         }
 
-        if self == &Self::Compressor {
-            if args.compressor_args.mode == CompressorMode::Fflonk {
-                application_args.push("--fflonk=true".to_string());
-            }
+        if self == &Self::Compressor && args.compressor_args.mode == CompressorMode::Fflonk {
+            application_args.push("--fflonk=true".to_string());
         }
 
         Ok(application_args)

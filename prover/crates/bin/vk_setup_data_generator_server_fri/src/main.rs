@@ -135,10 +135,12 @@ fn generate_compression_vks<DS: SetupDataSource + BlockDataSource>(
     worker: &Worker,
 ) {
     for circuit_type in config.get_compression_types() {
-        let vk = get_vk_for_previous_circuit(source, circuit_type).expect(&format!(
-            "VK of previous circuit should be present. Current circuit type: {}",
-            circuit_type
-        ));
+        let vk = get_vk_for_previous_circuit(source, circuit_type).unwrap_or_else(|_| {
+            panic!(
+                "VK of previous circuit should be present. Current circuit type: {}",
+                circuit_type
+            )
+        });
 
         let compression_circuit =
             ZkSyncCompressionLayerCircuit::from_witness_and_vk(None, vk, circuit_type);
@@ -147,7 +149,7 @@ fn generate_compression_vks<DS: SetupDataSource + BlockDataSource>(
         let (setup_base, vk_geometry, vars_hint, witness_hint, finalization_hint) =
             create_light_compression_layer_setup_data(
                 compression_circuit,
-                &worker,
+                worker,
                 proof_config.fri_lde_factor,
                 proof_config.merkle_tree_cap_size,
             );
@@ -157,7 +159,7 @@ fn generate_compression_vks<DS: SetupDataSource + BlockDataSource>(
             vk_geometry,
             vars_hint.clone(),
             witness_hint,
-            &worker,
+            worker,
         )
         .expect("failed creating GPU compression layer setup data");
 
@@ -205,7 +207,7 @@ fn generate_compression_for_wrapper_vks<DS: SetupDataSource + BlockDataSource>(
         vk_geometry,
         vars_hint.clone(),
         witness_hint,
-        &worker,
+        worker,
     )
     .expect("failed creating GPU compression for wrapper layer setup data");
 
