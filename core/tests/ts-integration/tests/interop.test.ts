@@ -38,10 +38,7 @@ function readContract(path: string, fileName: string, contractName?: string) {
 
 const ArtifactBridgeHub = readContract(`${ARTIFACTS_PATH}bridgehub`, 'Bridgehub');
 const ArtifactInteropCenter = readContract(`${ARTIFACTS_PATH}bridgehub`, 'InteropCenter');
-const ArtifactInteropHandler = readContract(
-    `${ARTIFACTS_PATH}bridgehub`,
-    'InteropHandler'
-);
+const ArtifactInteropHandler = readContract(`${ARTIFACTS_PATH}bridgehub`, 'InteropHandler');
 const ArtifactNativeTokenVault = readContract(`${ARTIFACTS_PATH}bridge/ntv`, 'L2NativeTokenVault');
 const ArtifactMintableERC20 = readContract(
     '../../../contracts/l1-contracts/artifacts-zk/contracts/dev-contracts',
