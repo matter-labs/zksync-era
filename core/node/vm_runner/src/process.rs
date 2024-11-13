@@ -109,7 +109,6 @@ impl VmRunner {
 
             let mut block_output = L2BlockOutput::default();
             for tx in l2_block.txs {
-                println!("kl todo: tx: {:?}", tx.hash());
                 let exec_result = batch_executor
                     .execute_tx(tx.clone())
                     .await

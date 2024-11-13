@@ -31,8 +31,9 @@ use zksync_multivm::{
 use zksync_types::{
     block::pack_block_info,
     get_nonce_key,
+    l2::L2Tx,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
-    AccountTreeId, ExternalTx, Nonce, StorageKey, Transaction, SYSTEM_CONTEXT_ADDRESS,
+    AccountTreeId, Nonce, StorageKey, Transaction, SYSTEM_CONTEXT_ADDRESS,
     SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
@@ -138,7 +139,7 @@ where
         &self,
         storage: S,
         env: OneshotEnv,
-        tx: ExternalTx,
+        tx: L2Tx,
         validation_params: ValidationParams,
     ) -> anyhow::Result<Result<(), ValidationError>> {
         anyhow::ensure!(

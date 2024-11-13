@@ -4,7 +4,7 @@ use tokio::sync::Mutex;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Core, CoreDal};
 use zksync_multivm::interface::TransactionExecutionMetrics;
 use zksync_shared_metrics::{TxStage, APP_METRICS};
-use zksync_types::{Address, ExternalTx, Nonce, H256};
+use zksync_types::{l2::L2Tx, Address, Nonce, H256};
 
 use super::{tx_sink::TxSink, SubmitTxError};
 use crate::web3::metrics::API_METRICS;
@@ -29,7 +29,7 @@ impl MasterPoolSink {
 impl TxSink for MasterPoolSink {
     async fn submit_tx(
         &self,
-        tx: &ExternalTx,
+        tx: &L2Tx,
         execution_metrics: TransactionExecutionMetrics,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let address_and_nonce = (tx.initiator_account(), tx.nonce());
@@ -55,7 +55,7 @@ impl TxSink for MasterPoolSink {
         let result = match self.master_pool.connection_tagged("api").await {
             Ok(mut connection) => connection
                 .transactions_dal()
-                .insert_transaction_external(tx, execution_metrics)
+                .insert_transaction_l2(tx, execution_metrics)
                 .await
                 .inspect(|submission_res_handle| {
                     APP_METRICS.processed_txs[&TxStage::Mempool(*submission_res_handle)].inc();

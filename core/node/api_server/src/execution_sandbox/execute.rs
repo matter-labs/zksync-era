@@ -15,7 +15,7 @@ use zksync_multivm::interface::{
 };
 use zksync_state::{PostgresStorage, PostgresStorageCaches};
 use zksync_types::{
-    api::state_override::StateOverride, fee_model::BatchFeeInput, ExternalTx, Transaction,
+    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, Transaction,
 };
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 
@@ -30,13 +30,10 @@ use crate::tx_sender::SandboxExecutorOptions;
 #[derive(Debug)]
 pub(crate) enum SandboxAction {
     /// Execute a transaction.
-    Execution {
-        tx: ExternalTx,
-        fee_input: BatchFeeInput,
-    },
+    Execution { tx: L2Tx, fee_input: BatchFeeInput },
     /// Execute a call, possibly with tracing.
     Call {
-        call: ExternalTx,
+        call: L2Tx,
         fee_input: BatchFeeInput,
         enforced_base_fee: Option<u64>,
         tracing_params: OneshotTracingParams,
@@ -53,7 +50,7 @@ impl SandboxAction {
     fn factory_deps_count(&self) -> usize {
         match self {
             Self::Execution { tx, .. } | Self::Call { call: tx, .. } => {
-                tx.execute().factory_deps.len()
+                tx.execute.factory_deps.len()
             }
             Self::GasEstimation { tx, .. } => tx.execute.factory_deps.len(),
         }
@@ -287,7 +284,7 @@ where
         &self,
         storage: S,
         env: OneshotEnv,
-        tx: ExternalTx,
+        tx: L2Tx,
         validation_params: ValidationParams,
     ) -> anyhow::Result<Result<(), ValidationError>> {
         match &self.engine {

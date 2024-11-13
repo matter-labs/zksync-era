@@ -3,17 +3,13 @@ use std::convert::TryInto;
 use zksync_types::{
     ethabi::{encode, Address, Token},
     fee::{encoding_len, Fee},
-    l1::{is_l1_tx_type, OpProcessingType, PriorityQueueType},
+    l1::is_l1_tx_type,
     l2::{L2Tx, TransactionType},
     transaction_request::{PaymasterParams, TransactionRequest},
     web3::Bytes,
-    xl2::XL2Tx,
-    Execute, ExecuteTransactionCommon, ExternalTx, L2ChainId, L2TxCommonData, Nonce, PriorityOpId,
-    Transaction, XL2TxCommonData, H160, H256, INTEROP_TX_TYPE, U256,
+    Execute, ExecuteTransactionCommon, L2ChainId, L2TxCommonData, Nonce, Transaction, H256, U256,
 };
-use zksync_utils::{
-    address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256,
-};
+use zksync_utils::{address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
 
 use crate::vm_latest::{
     constants::{MAX_GAS_PER_PUBDATA_BYTE, TX_MAX_COMPUTE_GAS_LIMIT},
@@ -131,40 +127,6 @@ impl From<Transaction> for TransactionData {
                     raw_bytes: None,
                 }
             }
-            ExecuteTransactionCommon::XL2(common_data) => {
-                let refund_recipient = h256_to_u256(address_to_h256(&common_data.refund_recipient));
-                // println!("kl todo tx data into 0 {:?}", common_data);
-                // let data =
-                TransactionData {
-                    tx_type: common_data.tx_format() as u8,
-                    from: common_data.sender,
-                    to: execute_tx.execute.contract_address,
-                    gas_limit: common_data.gas_limit,
-                    pubdata_price_limit: common_data.gas_per_pubdata_limit,
-                    // It doesn't matter what we put here, since
-                    // the bootloader does not charge anything
-                    max_fee_per_gas: common_data.max_fee_per_gas,
-                    max_priority_fee_per_gas: U256::zero(),
-                    paymaster: Address::default(),
-                    nonce: U256::from(common_data.serial_id.0), // priority op ID
-                    value: execute_tx.execute.value,
-                    reserved: [
-                        common_data.to_mint,
-                        refund_recipient,
-                        U256::zero(),
-                        U256::zero(),
-                    ],
-                    data: execute_tx.execute.calldata,
-                    // The signature isn't checked for L1 transactions so we don't care
-                    signature: vec![],
-                    factory_deps: execute_tx.execute.factory_deps,
-                    paymaster_input: vec![],
-                    reserved_dynamic: common_data.merkle_proof,
-                    raw_bytes: None,
-                }
-                // println!("kl todo tx data into {:?}", data);
-                // data
-            }
             ExecuteTransactionCommon::ProtocolUpgrade(common_data) => {
                 let refund_recipient = h256_to_u256(address_to_h256(&common_data.refund_recipient));
                 TransactionData {
@@ -262,10 +224,8 @@ impl TransactionData {
             return self.canonical_l1_tx_hash().unwrap();
         }
 
-        let external_tx: ExternalTx = self.clone().try_into().unwrap();
-        // println!("kl todo tx_hash {:?}", self.clone());
-        let mut transaction_request: TransactionRequest = external_tx.into();
-
+        let l2_tx: L2Tx = self.clone().try_into().unwrap();
+        let mut transaction_request: TransactionRequest = l2_tx.into();
         transaction_request.chain_id = Some(chain_id.as_u64());
 
         // It is assumed that the `TransactionData` always has all the necessary components to recover the hash.
@@ -331,63 +291,6 @@ impl TryInto<L2Tx> for TransactionData {
             received_timestamp_ms: 0,
             raw_bytes: self.raw_bytes.map(Bytes::from),
         })
-    }
-}
-
-impl TryInto<XL2Tx> for TransactionData {
-    type Error = TxHashCalculationError;
-
-    fn try_into(self) -> Result<XL2Tx, Self::Error> {
-        if self.tx_type != INTEROP_TX_TYPE {
-            return Err(TxHashCalculationError::CannotCalculateL2HashForL1Tx);
-        }
-
-        let common_data = XL2TxCommonData {
-            max_fee_per_gas: self.max_fee_per_gas,
-            // max_priority_fee_per_gas: self.max_priority_fee_per_gas,
-            gas_limit: self.gas_limit,
-            gas_per_pubdata_limit: self.pubdata_price_limit,
-            input: None,
-            sender: self.from,
-            serial_id: PriorityOpId(self.nonce.as_u64()),
-            layer_2_tip_fee: U256::zero(),
-            refund_recipient: H160::from(u256_to_h256(self.reserved[1])),
-            full_fee: U256::zero(),
-            op_processing_type: OpProcessingType::default(),
-            priority_queue_type: PriorityQueueType::default(),
-            canonical_tx_hash: H256::zero(),
-            to_mint: self.reserved[0],
-            merkle_proof: self.reserved_dynamic,
-            eth_block: 0,
-        };
-        let execute = Execute {
-            contract_address: self.to,
-            value: self.value,
-            calldata: self.data,
-            factory_deps: self.factory_deps,
-        };
-        Ok(XL2Tx {
-            execute,
-            common_data,
-            received_timestamp_ms: 0,
-        })
-    }
-}
-
-impl TryInto<ExternalTx> for TransactionData {
-    type Error = TxHashCalculationError;
-
-    fn try_into(self) -> Result<ExternalTx, Self::Error> {
-        match self.tx_type {
-            INTEROP_TX_TYPE => {
-                let xl2_tx: XL2Tx = self.clone().try_into().unwrap();
-                Ok(ExternalTx::XL2Tx(xl2_tx))
-            }
-            _ => {
-                let l2_tx: L2Tx = self.clone().try_into().unwrap();
-                Ok(ExternalTx::L2Tx(l2_tx))
-            }
-        }
     }
 }
 

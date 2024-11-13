@@ -20,7 +20,6 @@ use zksync_types::{
     l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTxCommonData,
     transaction_request::PaymasterParams,
-    xl2::XL2TxCommonData,
     Address, Execute, ExecuteTransactionCommon, InputData, L1BatchNumber, L1TxCommonData,
     L2TxCommonData, Nonce, PriorityOpId, ProtocolVersionId, Transaction, H256,
 };
@@ -288,7 +287,6 @@ impl ProtoRepr for proto::TransactionV25 {
                 eth_block: 0,
             },
             T::L2(l2) => abi::Transaction::L2(required(&l2.rlp).context("rlp")?.clone()),
-            T::Xl2(l2) => abi::Transaction::XL2(required(&l2.rlp).context("rlp")?.clone()),
         };
         tx.try_into()
     }
@@ -305,7 +303,6 @@ impl ProtoRepr for proto::TransactionV25 {
                     factory_deps,
                 }),
                 abi::Transaction::L2(tx) => T::L2(proto::L2Transaction { rlp: Some(tx) }),
-                abi::Transaction::XL2(tx) => T::Xl2(proto::Xl2Transaction { rlp: Some(tx) }),
             }),
         }
     }
@@ -382,87 +379,6 @@ impl ProtoRepr for proto::Transaction {
                         refund_recipient: required(&common_data.refund_recipient_address)
                             .and_then(|x| parse_h160(x))
                             .context("common_data.refund_recipient_address")?,
-                    })
-                }
-                proto::transaction::CommonData::Xl2(common_data) => {
-                    anyhow::ensure!(
-                        *required(&common_data.deadline_block)
-                            .context("common_data.deadline_block")?
-                            == 0
-                    );
-                    anyhow::ensure!(
-                        required(&common_data.eth_hash)
-                            .and_then(|x| parse_h256(x))
-                            .context("common_data.eth_hash")?
-                            == H256::default()
-                    );
-                    ExecuteTransactionCommon::XL2(XL2TxCommonData {
-                        sender: required(&common_data.sender_address)
-                            .and_then(|x| parse_h160(x))
-                            .context("common_data.sender_address")?,
-                        serial_id: required(&common_data.serial_id)
-                            .map(|x| PriorityOpId(*x))
-                            .context("common_data.serial_id")?,
-                        layer_2_tip_fee: required(&common_data.layer_2_tip_fee)
-                            .and_then(|x| parse_h256(x))
-                            .map(h256_to_u256)
-                            .context("common_data.layer_2_tip_fee")?,
-                        full_fee: required(&common_data.full_fee)
-                            .and_then(|x| parse_h256(x))
-                            .map(h256_to_u256)
-                            .context("common_data.full_fee")?,
-                        max_fee_per_gas: required(&common_data.max_fee_per_gas)
-                            .and_then(|x| parse_h256(x))
-                            .map(h256_to_u256)
-                            .context("common_data.max_fee_per_gas")?,
-                        gas_limit: required(&common_data.gas_limit)
-                            .and_then(|x| parse_h256(x))
-                            .map(h256_to_u256)
-                            .context("common_data.gas_limit")?,
-                        gas_per_pubdata_limit: required(&common_data.gas_per_pubdata_limit)
-                            .and_then(|x| parse_h256(x))
-                            .map(h256_to_u256)
-                            .context("common_data.gas_per_pubdata_limit")?,
-                        op_processing_type: required(&common_data.op_processing_type)
-                            .and_then(|x| {
-                                OpProcessingType::try_from(u8::try_from(*x)?)
-                                    .map_err(|_| anyhow!("u8::try_from"))
-                            })
-                            .context("common_data.op_processing_type")?,
-                        priority_queue_type: required(&common_data.priority_queue_type)
-                            .and_then(|x| {
-                                PriorityQueueType::try_from(u8::try_from(*x)?)
-                                    .map_err(|_| anyhow!("u8::try_from"))
-                            })
-                            .context("common_data.priority_queue_type")?,
-                        eth_block: *required(&common_data.eth_block)
-                            .context("common_data.eth_block")?,
-                        canonical_tx_hash: required(&common_data.canonical_tx_hash)
-                            .and_then(|x| parse_h256(x))
-                            .context("common_data.canonical_tx_hash")?,
-                        to_mint: required(&common_data.to_mint)
-                            .and_then(|x| parse_h256(x))
-                            .map(h256_to_u256)
-                            .context("common_data.to_mint")?,
-                        refund_recipient: required(&common_data.refund_recipient_address)
-                            .and_then(|x| parse_h160(x))
-                            .context("common_data.refund_recipient_address")?,
-                        merkle_proof: required(&common_data.merkle_proof)
-                            .context("common_data.merkle_proof")?
-                            .clone(),
-                        input: {
-                            match &common_data.input {
-                                None => None,
-                                Some(input) => Some(InputData {
-                                    hash: required(&input.hash)
-                                        .and_then(|x| parse_h256(x))
-                                        .context("common_data.input.hash")?,
-                                    data: required(&input.data)
-                                        .context("common_data.input.data")?
-                                        .clone(),
-                                }),
-                            }
-                        },
                     })
                 }
                 proto::transaction::CommonData::L2(common_data) => {
@@ -598,32 +514,6 @@ impl ProtoRepr for proto::Transaction {
                     canonical_tx_hash: Some(data.canonical_tx_hash.as_bytes().into()),
                     to_mint: Some(u256_to_h256(data.to_mint).as_bytes().into()),
                     refund_recipient_address: Some(data.refund_recipient.as_bytes().into()),
-                })
-            }
-            ExecuteTransactionCommon::XL2(data) => {
-                proto::transaction::CommonData::Xl2(proto::Xl2TxCommonData {
-                    sender_address: Some(data.sender.as_bytes().into()),
-                    serial_id: Some(data.serial_id.0),
-                    deadline_block: Some(0),
-                    layer_2_tip_fee: Some(u256_to_h256(data.layer_2_tip_fee).as_bytes().into()),
-                    full_fee: Some(u256_to_h256(data.full_fee).as_bytes().into()),
-                    max_fee_per_gas: Some(u256_to_h256(data.max_fee_per_gas).as_bytes().into()),
-                    gas_limit: Some(u256_to_h256(data.gas_limit).as_bytes().into()),
-                    gas_per_pubdata_limit: Some(
-                        u256_to_h256(data.gas_per_pubdata_limit).as_bytes().into(),
-                    ),
-                    op_processing_type: Some(data.op_processing_type as u32),
-                    priority_queue_type: Some(data.priority_queue_type as u32),
-                    eth_hash: Some(H256::default().as_bytes().into()),
-                    eth_block: Some(data.eth_block),
-                    canonical_tx_hash: Some(data.canonical_tx_hash.as_bytes().into()),
-                    to_mint: Some(u256_to_h256(data.to_mint).as_bytes().into()),
-                    refund_recipient_address: Some(data.refund_recipient.as_bytes().into()),
-                    merkle_proof: Some(data.merkle_proof.clone()),
-                    input: data.input.as_ref().map(|input_data| proto::InputData {
-                        data: Some(input_data.data.clone()),
-                        hash: Some(input_data.hash.as_bytes().into()),
-                    }),
                 })
             }
             ExecuteTransactionCommon::L2(data) => {

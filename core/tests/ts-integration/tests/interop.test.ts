@@ -39,7 +39,7 @@ function readContract(path: string, fileName: string, contractName?: string) {
 const ArtifactBridgeHub = readContract(`${ARTIFACTS_PATH}bridgehub`, 'Bridgehub');
 const ArtifactInteropCenter = readContract(`${ARTIFACTS_PATH}bridgehub`, 'InteropCenter');
 const ArtifactInteropHandler = readContract(
-    `../../../contracts/system-contracts/artifacts-zk/contracts-preprocessed`,
+    `${ARTIFACTS_PATH}bridgehub`,
     'InteropHandler'
 );
 const ArtifactNativeTokenVault = readContract(`${ARTIFACTS_PATH}bridge/ntv`, 'L2NativeTokenVault');
@@ -524,7 +524,7 @@ describe('Interop checks', () => {
                     value: '0x0',
                     requestedInteropCallValue: '0x0'
                 },
-                // // getTransferBackTokenDirectStarter()
+                // getTransferBackTokenDirectStarter()
                 {
                     directCall: true,
                     to: L2_BRIDGEHUB_ADDRESS,

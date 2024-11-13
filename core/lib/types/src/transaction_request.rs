@@ -12,14 +12,12 @@ use zksync_utils::{
 
 use super::{EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE};
 use crate::{
-    abi,
     fee::Fee,
     l1::L1Tx,
     l2::{L2Tx, TransactionType},
     web3::{keccak256, AccessList, Bytes},
-    xl2::XL2Tx,
     Address, EIP712TypedStructure, Eip712Domain, L1TxCommonData, L2ChainId, Nonce,
-    PackedEthSignature, StructBuilder, INTEROP_TX_TYPE, LEGACY_TX_TYPE, U256, U64,
+    PackedEthSignature, StructBuilder, LEGACY_TX_TYPE, U256, U64,
 };
 
 /// Call contract request (eth_call / eth_estimateGas)
@@ -258,14 +256,6 @@ pub struct TransactionRequest {
     pub eip712_meta: Option<Eip712Meta>,
     /// Chain ID
     pub chain_id: Option<u64>,
-    /// merkle proof for xl2 transactions
-    pub merkle_proof: Option<Vec<u8>>,
-    /// full fee paid on sender chain for xl2 transactions
-    pub full_fee: Option<U256>,
-    /// amount to mint for xl2 tx
-    pub to_mint: Option<U256>,
-    /// refund recipient for xl2 tx
-    pub refund_recipient: Option<Address>,
 }
 
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Debug, Eq)]
@@ -573,7 +563,7 @@ impl TransactionRequest {
             (None, _, _) => {}
         }
 
-        if self.is_eip712_tx() || self.transaction_type == Some(INTEROP_TX_TYPE.into()) {
+        if self.is_eip712_tx() {
             rlp.append(
                 &self
                     .chain_id
@@ -622,38 +612,7 @@ impl TransactionRequest {
         bytes: &[u8],
     ) -> Result<(Self, H256), SerializationTransactionError> {
         let rlp;
-        println!("kl todo parsing tx 0 {:?}", bytes.first());
         let mut tx = match bytes.first() {
-            Some(&INTEROP_TX_TYPE) => {
-                rlp = Rlp::new(&bytes[1..]);
-                println!("kl todo parsing interop tx");
-                // if rlp.item_count()? != 17 {
-                //     return Err(DecoderError::RlpIncorrectListLen.into());
-                // }
-                Self {
-                    v: None,
-                    r: None,
-                    s: None,
-                    eip712_meta: Some(Eip712Meta {
-                        gas_per_pubdata: rlp.val_at(12)?,
-                        factory_deps: rlp.list_at(13)?,
-                        custom_signature: rlp.val_at(14).ok(),
-                        paymaster_params: if let Ok(params) = rlp.list_at(15) {
-                            PaymasterParams::from_vector(params)?
-                        } else {
-                            None
-                        },
-                    }),
-                    chain_id: Some(rlp.val_at(10)?),
-                    transaction_type: Some(INTEROP_TX_TYPE.into()),
-                    from: Some(rlp.val_at(11)?),
-                    merkle_proof: Some(rlp.val_at(16)?),
-                    full_fee: Some(rlp.val_at(17)?),
-                    to_mint: Some(rlp.val_at(18)?),
-                    refund_recipient: Some(rlp.val_at(19)?),
-                    ..Self::decode_eip1559_fields(&rlp, 0)?
-                }
-            }
             Some(x) if *x >= 0x80 => {
                 rlp = Rlp::new(bytes);
                 if rlp.item_count()? != 9 {
@@ -736,7 +695,6 @@ impl TransactionRequest {
         let hash = tx
             .get_tx_hash_with_signed_message(default_signed_message)?
             .unwrap();
-        // println!("kl todo from bytes unverified tx hash {:?}", hash);
         Ok((tx, hash))
     }
 
@@ -760,8 +718,6 @@ impl TransactionRequest {
                 &Eip712Domain::new(L2ChainId::try_from(chain_id).unwrap()),
                 self,
             ))
-        } else if self.transaction_type == Some(INTEROP_TX_TYPE.into()) {
-            Ok(H256::zero())
         } else {
             let mut data = self.get_rlp()?;
             if let Some(tx_type) = self.transaction_type {
@@ -771,7 +727,7 @@ impl TransactionRequest {
         }
     }
 
-    pub fn get_tx_hash_with_signed_message(
+    fn get_tx_hash_with_signed_message(
         &self,
         signed_message: H256,
     ) -> Result<Option<H256>, SerializationTransactionError> {
@@ -780,13 +736,6 @@ impl TransactionRequest {
                 signed_message,
                 H256(keccak256(&self.get_signature()?)),
             )));
-        }
-        const INTEROP_TX_TYPE_SMALLU64: u64 = INTEROP_TX_TYPE as u64;
-        const INTEROP_TX_TYPE_U64: U64 = U64([INTEROP_TX_TYPE_SMALLU64]);
-        if self.transaction_type == Some(INTEROP_TX_TYPE_U64) {
-            let canonical_tx =
-                abi::L2CanonicalTransaction::from(XL2Tx::from_request_unverified(self.clone())?);
-            return Ok(Some(canonical_tx.hash()));
         }
         Ok(self.raw.as_ref().map(|bytes| H256(keccak256(&bytes.0))))
     }
@@ -896,69 +845,6 @@ impl L2Tx {
         if let Some(raw_bytes) = value.raw {
             tx.set_raw_bytes(raw_bytes);
         }
-        Ok(tx)
-    }
-
-    pub fn from_request(
-        value: TransactionRequest,
-        max_tx_size: usize,
-    ) -> Result<Self, SerializationTransactionError> {
-        let tx = Self::from_request_unverified(value)?;
-        tx.check_encoded_size(max_tx_size)?;
-        Ok(tx)
-    }
-
-    /// Ensures that encoded transaction size is not greater than `max_tx_size`.
-    fn check_encoded_size(&self, max_tx_size: usize) -> Result<(), SerializationTransactionError> {
-        // since `abi_encoding_len` returns 32-byte words multiplication on 32 is needed
-        let tx_size = self.abi_encoding_len() * 32;
-        if tx_size > max_tx_size {
-            return Err(SerializationTransactionError::OversizedData(
-                max_tx_size,
-                tx_size,
-            ));
-        };
-        Ok(())
-    }
-}
-
-impl XL2Tx {
-    pub(crate) fn from_request_unverified(
-        mut value: TransactionRequest,
-    ) -> Result<Self, SerializationTransactionError> {
-        let fee = value.get_fee_data_checked()?;
-        let nonce = value.get_nonce_checked()?;
-
-        // let raw_signature = value.get_signature().unwrap_or_default();
-        let meta = value.eip712_meta.take().unwrap_or_default();
-        validate_factory_deps(&meta.factory_deps)?;
-
-        let mut tx = XL2Tx::new(
-            value
-                .to
-                .ok_or(SerializationTransactionError::ToAddressIsNull)?,
-            value.input.0.clone(),
-            nonce,
-            fee,
-            value.full_fee.unwrap_or_default(),
-            value.from.unwrap_or_default(),
-            value.value,
-            meta.factory_deps,
-            value.merkle_proof.unwrap_or_default(),
-            // meta.paymaster_params.unwrap_or_default(),
-        );
-        tx.common_data.to_mint = value.to_mint.unwrap_or_default();
-        tx.common_data.full_fee = value.full_fee.unwrap_or_default();
-        tx.common_data.refund_recipient = value.refund_recipient.unwrap_or_default();
-        // tx.common_data.serial_id = value.serial_id.unwrap_or_default();
-        // tx.common_data.transaction_type = INTEROP_TX_TYPE;
-        // For fee calculation we use the same structure, as a result, signature may not be provided
-        // tx.set_raw_signature(raw_signature);
-
-        // if let Some(raw_bytes) = value.raw {
-        //     tx.set_raw_bytes(raw_bytes);
-        // }
-        value.chain_id = Some(270); //kl todo
         Ok(tx)
     }
 

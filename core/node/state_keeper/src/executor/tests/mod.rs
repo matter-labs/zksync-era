@@ -94,51 +94,6 @@ async fn execute_l2_tx(storage_type: StorageType, vm_mode: FastVmMode) {
     executor.finish_batch().await.unwrap();
 }
 
-/// Checks that we can successfully execute a single L2 tx in batch executor on all storage types.
-#[test_casing(9, Product((StorageType::ALL, FAST_VM_MODES)))]
-#[tokio::test]
-async fn execute_xl2_tx(storage_type: StorageType, vm_mode: FastVmMode) {
-    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let mut alice = Account::random();
-    let mut tester = Tester::new(connection_pool, vm_mode);
-    tester.genesis().await;
-    tester.fund(&[alice.address()]).await;
-
-    let l2_message_root = l2_message_root();
-    let encoded_data = l2_message_root
-        .function("initialize")
-        .unwrap()
-        .encode_input(&[])
-        .unwrap();
-
-    let message_root_init_txn = alice.get_l2_tx_for_execute(
-        Execute {
-            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
-            calldata: encoded_data,
-            value: U256::zero(),
-            factory_deps: vec![],
-        },
-        None,
-    );
-
-    let mut executor = tester
-        .create_batch_executor_with_init_transactions(
-            storage_type,
-            &[message_root_init_txn.clone()],
-        )
-        .await;
-
-    println!("alice.xl2_execute(): {:?}", alice.xl2_execute());
-    println!(
-        "alice.xl2_execute().get_input(): {:?}",
-        alice.xl2_execute().common_data
-    );
-    let res = executor.execute_tx(alice.xl2_execute()).await.unwrap();
-    println!("res: {:?}", res);
-    assert_executed(&res);
-    executor.finish_batch().await.unwrap();
-}
-
 #[derive(Debug, Clone, Copy)]
 enum SnapshotRecoveryMutation {
     RemoveNonce,

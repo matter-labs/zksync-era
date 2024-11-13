@@ -17,8 +17,8 @@ use crate::{
     web3::Bytes,
     Address, EIP712TypedStructure, ExecuteTransactionCommon, InputData, L2ChainId, Nonce,
     PackedEthSignature, StructBuilder, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE,
-    EIP_712_TX_TYPE, H256, INTEROP_TX_TYPE, LEGACY_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE,
-    PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
+    EIP_712_TX_TYPE, H256, LEGACY_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE,
+    U256, U64,
 };
 
 pub mod error;
@@ -33,7 +33,6 @@ pub enum TransactionType {
     EIP1559Transaction = 2,
     // EIP 712 transaction with additional fields specified for ZKsync
     EIP712Transaction = EIP_712_TX_TYPE as u32,
-    InteropTransaction = INTEROP_TX_TYPE as u32,
     PriorityOpTransaction = PRIORITY_OPERATION_L2_TX_TYPE as u32,
     ProtocolUpgradeTransaction = PROTOCOL_UPGRADE_TX_TYPE as u32,
 }
@@ -339,10 +338,6 @@ impl From<L2Tx> for TransactionRequest {
             access_list: None,
             eip712_meta: None,
             chain_id: tx.common_data.extract_chain_id(),
-            merkle_proof: None,
-            full_fee: None,
-            to_mint: None,
-            refund_recipient: None,
         };
         match tx_type as u8 {
             LEGACY_TX_TYPE => {}
@@ -437,7 +432,6 @@ impl TryFrom<Transaction> for L2Tx {
         } = value;
         match common_data {
             ExecuteTransactionCommon::L1(_) => Err("Cannot convert L1Tx to L2Tx"),
-            ExecuteTransactionCommon::XL2(_) => Err("Cannot convert XL2Tx to L2Tx"),
             ExecuteTransactionCommon::L2(common_data) => Ok(L2Tx {
                 execute,
                 common_data,

@@ -30,9 +30,7 @@ impl BootloaderTx {
         offset: usize,
         chain_id: L2ChainId,
     ) -> Self {
-        // println!("kl todo new bootloader tx {:?}", tx);
         let hash = tx.tx_hash(chain_id);
-        // println!("kl todo new bootloader tx hash {:?}, {:?}", hash, chain_id);
         Self {
             hash,
             encoded: tx.into_tokens(),

@@ -171,7 +171,6 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
         self.wait_for_all_commands().await;
 
         let batch_number = updates_manager.l1_batch.number;
-        // println!("kl todo handle_l1_batch");
         updates_manager
             .seal_l1_batch(
                 self.pool.clone(),

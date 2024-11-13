@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use anyhow::Context;
 use zksync_dal::{Connection, Core};
 use zksync_multivm::interface::{OneshotEnv, TxExecutionMode};
-use zksync_types::{fee_model::BatchFeeInput, AccountTreeId, ExternalTx, L2ChainId};
+use zksync_types::{fee_model::BatchFeeInput, l2::L2Tx, AccountTreeId, L2ChainId};
 
 use crate::oneshot::{contracts::MultiVMBaseSystemContracts, ResolvedBlockInfo};
 
@@ -124,14 +124,14 @@ impl OneshotEnvParameters<CallOrExecute> {
         connection: &mut Connection<'_, Core>,
         resolved_block_info: &ResolvedBlockInfo,
         fee_input: BatchFeeInput,
-        tx: &ExternalTx,
+        tx: &L2Tx,
     ) -> anyhow::Result<OneshotEnv> {
         self.to_env_inner(
             connection,
             TxExecutionMode::VerifyExecute,
             resolved_block_info,
             fee_input,
-            Some(tx.max_fee_per_gas().as_u64()),
+            Some(tx.common_data.fee.max_fee_per_gas.as_u64()),
         )
         .await
     }

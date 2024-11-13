@@ -15,7 +15,7 @@ use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     api::state_override::{OverrideAccount, StateOverride},
     fee_model::BatchFeeInput,
-    ExternalTx, K256PrivateKey, ProtocolVersionId, Transaction, U256,
+    K256PrivateKey, ProtocolVersionId, Transaction, U256,
 };
 
 use super::*;
@@ -274,10 +274,7 @@ async fn validating_transaction(set_balance: bool) {
         .execute_in_sandbox(
             vm_permit,
             connection,
-            SandboxAction::Execution {
-                tx: ExternalTx::L2Tx(tx.clone()),
-                fee_input,
-            },
+            SandboxAction::Execution { tx, fee_input },
             &block_args,
             Some(state_override),
         )

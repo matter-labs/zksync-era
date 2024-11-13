@@ -1,5 +1,5 @@
 use zksync_types::{
-    ExecuteTransactionCommon, ExternalTx, Nonce, PackedEthSignature, Transaction, U256,
+    l2::L2Tx, ExecuteTransactionCommon, Nonce, PackedEthSignature, Transaction, U256,
 };
 
 pub use self::{
@@ -47,7 +47,7 @@ pub struct TxExecutionArgs {
 }
 
 impl TxExecutionArgs {
-    pub fn for_validation(tx: ExternalTx) -> Self {
+    pub fn for_validation(tx: L2Tx) -> Self {
         Self {
             enforced_nonce: Some(tx.nonce()),
             added_balance: U256::zero(),
@@ -56,16 +56,9 @@ impl TxExecutionArgs {
         }
     }
 
-    pub fn for_eth_call(mut call: ExternalTx) -> Self {
-        match call {
-            ExternalTx::L2Tx(mut tx) => {
-                if tx.common_data.signature.is_empty() {
-                    tx.common_data.signature =
-                        PackedEthSignature::default().serialize_packed().into();
-                }
-                call = ExternalTx::L2Tx(tx);
-            }
-            ExternalTx::XL2Tx(_) => (),
+    pub fn for_eth_call(mut call: L2Tx) -> Self {
+        if call.common_data.signature.is_empty() {
+            call.common_data.signature = PackedEthSignature::default().serialize_packed().into();
         }
 
         Self {
@@ -81,7 +74,6 @@ impl TxExecutionArgs {
         // while for L1->L2 transactions the `to_mint` field plays this role
         let added_balance = match &transaction.common_data {
             ExecuteTransactionCommon::L2(data) => data.fee.gas_limit * data.fee.max_fee_per_gas,
-            ExecuteTransactionCommon::XL2(_) => U256::zero(),
             ExecuteTransactionCommon::L1(_) => U256::zero(),
             ExecuteTransactionCommon::ProtocolUpgrade(_) => U256::zero(),
         };

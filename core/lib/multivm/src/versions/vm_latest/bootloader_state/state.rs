@@ -97,7 +97,6 @@ impl BootloaderState {
             !last_block.txs.is_empty(),
             "Can not create new miniblocks on top of empty ones"
         );
-        // println!("kl todo start_new_l2_block");
         assert_next_block(&last_block.l2_block(), &l2_block);
         self.push_l2_block(l2_block);
     }
@@ -118,7 +117,6 @@ impl BootloaderState {
         chain_id: L2ChainId,
     ) -> BootloaderMemory {
         let tx_offset = self.free_tx_offset();
-        // println!("kl todo push tx {:?}", tx);
         let bootloader_tx = BootloaderTx::new(
             tx,
             predefined_refund,
@@ -265,7 +263,6 @@ impl BootloaderState {
 
     pub(crate) fn insert_fictive_l2_block(&mut self) -> &BootloaderL2Block {
         let block = self.last_l2_block();
-        println!("kl todo insert_fictive_l2_block");
         if !block.txs.is_empty() {
             self.start_new_l2_block(L2BlockEnv {
                 timestamp: block.timestamp + 1,

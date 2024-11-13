@@ -8,7 +8,7 @@ use zksync_multivm::interface::{
     tracer::{ValidationError as RawValidationError, ValidationParams},
 };
 use zksync_types::{
-    api::state_override::StateOverride, fee_model::BatchFeeInput, Address, ExternalTx,
+    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, Address,
     TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS,
 };
 
@@ -35,7 +35,7 @@ impl SandboxExecutor {
         &self,
         vm_permit: VmPermit,
         mut connection: Connection<'static, Core>,
-        tx: ExternalTx,
+        tx: L2Tx,
         block_args: BlockArgs,
         fee_input: BatchFeeInput,
         whitelisted_tokens_for_aa: &[Address],
@@ -77,13 +77,13 @@ impl SandboxExecutor {
 /// sometimes we can safely rely on them to not change often.
 pub(super) async fn get_validation_params(
     connection: &mut Connection<'_, Core>,
-    tx: &ExternalTx,
+    tx: &L2Tx,
     computational_gas_limit: u32,
     whitelisted_tokens_for_aa: &[Address],
 ) -> anyhow::Result<ValidationParams> {
     let method_latency = EXECUTION_METRICS.get_validation_params.start();
-    let user_address = tx.initiator_account();
-    let paymaster_address = tx.payer();
+    let user_address = tx.common_data.initiator_address;
+    let paymaster_address = tx.common_data.paymaster_params.paymaster;
 
     // This method assumes that the number of tokens is relatively low. When it grows
     // we may need to introduce some kind of caching.

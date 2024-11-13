@@ -26,9 +26,8 @@ use zksync_types::{
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
-    xl2::XL2Tx,
-    AccountTreeId, Address, ExternalTx, L2ChainId, Nonce, ProtocolVersionId, Transaction, H160,
-    H256, MAX_NEW_FACTORY_DEPS, U256,
+    AccountTreeId, Address, L2ChainId, Nonce, ProtocolVersionId, Transaction, H160, H256,
+    MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
 use zksync_vm_executor::oneshot::{CallOrExecute, EstimateGas, OneshotEnvParameters};
@@ -281,14 +280,14 @@ impl TxSender {
     #[tracing::instrument(level = "debug", skip_all, fields(tx.hash = ?tx.hash()))]
     pub async fn submit_tx(
         &self,
-        tx: ExternalTx,
+        tx: L2Tx,
     ) -> Result<(L2TxSubmissionResult, VmExecutionResultAndLogs), SubmitTxError> {
         let tx_hash = tx.hash();
         let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::Validate);
         let mut connection = self.acquire_replica_connection().await?;
         let protocol_version = connection.blocks_dal().pending_protocol_version().await?;
         drop(connection);
-        self.validate_tx(&tx.clone(), protocol_version).await?;
+        self.validate_tx(&tx, protocol_version).await?;
         stage_latency.observe();
 
         let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DryRun);
@@ -323,8 +322,6 @@ impl TxSender {
 
         let stage_latency =
             SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::VerifyExecute);
-        // println!("kl submit_tx 2");
-
         let connection = self.acquire_replica_connection().await?;
         let validation_result = self
             .0
@@ -338,8 +335,6 @@ impl TxSender {
                 &self.read_whitelisted_tokens_for_aa_cache().await,
             )
             .await;
-        // println!("kl submit_tx 3");
-
         stage_latency.observe();
 
         if let Err(err) = validation_result {
@@ -351,17 +346,13 @@ impl TxSender {
 
         let mut stage_latency =
             SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DbInsert);
-        // println!("kl submit_tx 4");
-
         self.ensure_tx_executable(&tx.clone().into(), &execution_output.metrics, true)?;
-        // println!("kl submit_tx 5");
-
         let submission_res_handle = self
             .0
             .tx_sink
             .submit_tx(&tx, execution_output.metrics)
             .await?;
-        // println!("kl submit_tx 6");
+
         match submission_res_handle {
             L2TxSubmissionResult::AlreadyExecuted => {
                 let initiator_account = tx.initiator_account();
@@ -394,17 +385,6 @@ impl TxSender {
     }
 
     async fn validate_tx(
-        &self,
-        tx: &ExternalTx,
-        protocol_version: ProtocolVersionId,
-    ) -> Result<(), SubmitTxError> {
-        match tx {
-            ExternalTx::L2Tx(tx) => self.validate_l2_tx(tx, protocol_version).await,
-            ExternalTx::XL2Tx(tx) => self.validate_xl2_tx(tx, protocol_version).await,
-        }
-    }
-
-    async fn validate_l2_tx(
         &self,
         tx: &L2Tx,
         protocol_version: ProtocolVersionId,
@@ -482,81 +462,6 @@ impl TxSender {
         // Even though without enough balance the tx will not pass anyway
         // we check the user for enough balance explicitly here for better DevEx.
         self.validate_enough_balance(tx).await?;
-        Ok(())
-    }
-
-    // kl todo this go out of sync with validate_l2_tx
-    async fn validate_xl2_tx(
-        &self,
-        tx: &XL2Tx,
-        protocol_version: ProtocolVersionId,
-    ) -> Result<(), SubmitTxError> {
-        // This check is intended to ensure that the gas-related values will be safe to convert to u64 in the future computations.
-        let max_gas = U256::from(u64::MAX);
-        if tx.common_data.gas_limit > max_gas || tx.common_data.gas_per_pubdata_limit > max_gas {
-            return Err(SubmitTxError::GasLimitIsTooBig);
-        }
-
-        let max_allowed_gas_limit = get_max_batch_gas_limit(protocol_version.into());
-        if tx.common_data.gas_limit > max_allowed_gas_limit.into() {
-            return Err(SubmitTxError::GasLimitIsTooBig);
-        }
-
-        let fee_input = self
-            .0
-            .batch_fee_input_provider
-            .get_batch_fee_input()
-            .await?;
-
-        // TODO (SMA-1715): do not subsidize the overhead for the transaction
-
-        if tx.common_data.gas_limit > self.0.sender_config.max_allowed_l2_tx_gas_limit.into() {
-            tracing::info!(
-                "Submitted Tx is Unexecutable {:?} because of GasLimitIsTooBig {}",
-                tx.hash(),
-                tx.common_data.gas_limit,
-            );
-            return Err(SubmitTxError::GasLimitIsTooBig);
-        }
-        if tx.common_data.max_fee_per_gas < fee_input.fair_l2_gas_price().into() {
-            tracing::info!(
-                "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
-                tx.hash(),
-                tx.common_data.max_fee_per_gas
-            );
-            return Err(SubmitTxError::MaxFeePerGasTooLow);
-        }
-        // if tx.common_data.max_fee_per_gas < tx.common_data.max_priority_fee_per_gas {
-        //     tracing::info!(
-        //         "Submitted Tx is Unexecutable {:?} because of MaxPriorityFeeGreaterThanMaxFee {}",
-        //         tx.hash(),
-        //         tx.common_data.max_fee_per_gas
-        //     );
-        //     return Err(SubmitTxError::MaxPriorityFeeGreaterThanMaxFee);
-        // }
-        if tx.execute.factory_deps.len() > MAX_NEW_FACTORY_DEPS {
-            return Err(SubmitTxError::TooManyFactoryDependencies(
-                tx.execute.factory_deps.len(),
-                MAX_NEW_FACTORY_DEPS,
-            ));
-        }
-
-        let intrinsic_consts = get_intrinsic_constants();
-        assert!(
-            intrinsic_consts.l2_tx_intrinsic_pubdata == 0,
-            "Currently we assume that the L2 transactions do not have any intrinsic pubdata"
-        );
-        let min_gas_limit = U256::from(intrinsic_consts.l2_tx_intrinsic_gas);
-        if tx.common_data.gas_limit < min_gas_limit {
-            return Err(SubmitTxError::IntrinsicGas);
-        }
-
-        // We still double-check the nonce manually
-        // to make sure that only the correct nonce is submitted and the transaction's hashes never repeat
-        // self.validate_account_nonce(tx).await?;
-        // Even though without enough balance the tx will not pass anyway
-        // we check the user for enough balance explicitly here for better DevEx.
-        // self.validate_enough_balance(tx).await?;
         Ok(())
     }
 
@@ -686,7 +591,7 @@ impl TxSender {
         };
 
         let action = SandboxAction::Call {
-            call: ExternalTx::L2Tx(call),
+            call,
             fee_input,
             enforced_base_fee: call_overrides.enforced_base_fee,
             tracing_params: OneshotTracingParams::default(),
