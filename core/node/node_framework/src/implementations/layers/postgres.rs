@@ -132,9 +132,9 @@ impl From<DatabaseInfo> for Health {
 
 #[derive(Debug)]
 pub struct DatabaseHealthTask {
-    pub polling_interval_ms: u64,
-    pub connection_pool: ConnectionPool<Core>,
-    pub updater: HealthUpdater,
+    polling_interval_ms: u64,
+    connection_pool: ConnectionPool<Core>,
+    updater: HealthUpdater,
 }
 
 impl DatabaseHealthTask {
