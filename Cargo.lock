@@ -2216,6 +2216,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "custom_genesis_export"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "clap 4.5.20",
+ "futures 0.3.31",
+ "sqlx",
+ "tokio",
+]
+
+[[package]]
 name = "darling"
 version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2371,26 +2382,6 @@ checksum = "332d754c0af53bc87c108fed664d121ecf59207ec4196041f04d6ab9002ad33f"
 dependencies = [
  "data-encoding",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "data_imex"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bincode",
- "clap 4.5.20",
- "sqlx",
- "tokio",
- "tracing",
- "zksync_config",
- "zksync_contract_verifier_lib",
- "zksync_core_leftovers",
- "zksync_dal",
- "zksync_queued_job_processor",
- "zksync_types",
- "zksync_utils",
- "zksync_vlog",
 ]
 
 [[package]]

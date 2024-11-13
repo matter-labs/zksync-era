@@ -1,0 +1,22 @@
+[package]
+name = "custom_genesis_export"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+bincode.workspace = true
+clap = { workspace = true, features = ["derive"] }
+futures.workspace = true
+sqlx = { workspace = true, features = [
+    "runtime-tokio",
+    "tls-native-tls",
+    "macros",
+    "postgres",
+] }
+tokio = { workspace = true, features = ["full"] }
