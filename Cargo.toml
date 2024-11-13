@@ -214,7 +214,7 @@ subxt-signer = { version = "0.34", default-features = false }
 celestia-types = "0.6.1"
 bech32 = "0.11.0"
 ripemd = "0.1.3"
-tonic = { version = "0.11.0", default-features = false }
+tonic = { version = "0.11.0", default-features = false, features=["tls","tls-roots","transport"] }
 pbjson-types = "0.6.0"
 
 # Eigen
