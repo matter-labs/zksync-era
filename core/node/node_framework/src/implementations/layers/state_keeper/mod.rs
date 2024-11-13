@@ -103,13 +103,15 @@ impl WiringLayer for StateKeeperLayer {
             self.rocksdb_options,
         );
 
-        let state_keeper = StateKeeperTask::new(
+        let state_keeper = ZkSyncStateKeeper::new(
             io,
             batch_executor_base,
             output_handler,
             sealer,
             Arc::new(storage_factory),
         );
+
+        let state_keeper = StateKeeperTask { state_keeper };
 
         input
             .app_health
@@ -137,24 +139,6 @@ pub struct StateKeeperTask {
 }
 
 impl StateKeeperTask {
-    pub fn new(
-        io: Box<dyn StateKeeperIO>,
-        executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
-        output_handler: OutputHandler,
-        sealer: Arc<dyn ConditionalSealer>,
-        storage_factory: Arc<dyn ReadStorageFactory>,
-    ) -> Self {
-        let state_keeper = ZkSyncStateKeeper::new(
-            io,
-            executor_factory,
-            output_handler,
-            sealer,
-            storage_factory,
-        );
-
-        Self { state_keeper }
-    }
-
     /// Returns the health check for state keeper.
     pub fn health_check(&self) -> ReactiveHealthCheck {
         self.state_keeper.health_check()
