@@ -114,8 +114,9 @@ jobs:
       - name: Kill prover & start compressor
         run: |
           sudo ./bin/prover_checkers/kill_prover
-          
+
           ci_run zkstack prover run --component=compressor --docker=false --compressor-mode=${{matrix.compressor-mode}} &>prover_logs/compressor.log &
+
       - name: Wait for batch to be executed on L1
         if: matrix.compressor-mode == 'plonk'
         env:

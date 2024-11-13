@@ -3285,7 +3285,6 @@ dependencies = [
  "zksync_protobuf",
  "zksync_protobuf_config",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -10486,7 +10485,6 @@ dependencies = [
  "zksync_external_price_api",
  "zksync_node_fee_model",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -10600,7 +10598,6 @@ dependencies = [
  "zksync_node_test_utils",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
  "zksync_web3_decl",
 ]
 
@@ -10827,15 +10824,18 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum 0.7.7",
- "serde",
+ "http-body-util",
  "serde_json",
+ "test-casing",
  "tokio",
+ "tower 0.4.13",
  "tower-http",
  "tracing",
  "vise",
- "zksync_config",
  "zksync_dal",
+ "zksync_node_test_utils",
  "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -10843,16 +10843,13 @@ name = "zksync_contract_verifier"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "ctrlc",
- "futures 0.3.31",
- "structopt",
+ "clap 4.5.20",
  "tokio",
  "tracing",
  "zksync_config",
  "zksync_contract_verifier_lib",
  "zksync_core_leftovers",
  "zksync_dal",
- "zksync_env_config",
  "zksync_queued_job_processor",
  "zksync_utils",
  "zksync_vlog",
@@ -10863,6 +10860,7 @@ name = "zksync_contract_verifier_lib"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "chrono",
  "ethabi",
  "hex",
@@ -10871,6 +10869,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "test-casing",
  "thiserror",
  "tokio",
  "tracing",
@@ -10888,6 +10887,7 @@ dependencies = [
 name = "zksync_contracts"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "envy",
  "ethabi",
  "hex",
@@ -10925,7 +10925,6 @@ dependencies = [
  "sha2 0.10.8",
  "thiserror",
  "zksync_basic_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -11007,7 +11006,6 @@ dependencies = [
  "zksync_da_client",
  "zksync_dal",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -11125,7 +11123,6 @@ dependencies = [
  "zksync_prover_interface",
  "zksync_shared_metrics",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -11211,7 +11208,6 @@ dependencies = [
  "zksync_state_keeper",
  "zksync_storage",
  "zksync_types",
- "zksync_utils",
  "zksync_vlog",
  "zksync_web3_decl",
 ]
@@ -11398,7 +11394,6 @@ dependencies = [
  "zksync_storage",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -11433,7 +11428,6 @@ dependencies = [
  "zksync_shared_metrics",
  "zksync_storage",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -11462,6 +11456,7 @@ dependencies = [
  "itertools 0.10.5",
  "once_cell",
  "pretty_assertions",
+ "rand 0.8.5",
  "test-casing",
  "thiserror",
  "tracing",
@@ -11491,7 +11486,6 @@ dependencies = [
  "async-trait",
  "axum 0.7.7",
  "chrono",
- "const-decoder",
  "futures 0.3.31",
  "governor",
  "hex",
@@ -11574,7 +11568,6 @@ dependencies = [
  "zksync_system_constants",
  "zksync_test_account",
  "zksync_types",
- "zksync_utils",
  "zksync_vm_executor",
  "zksync_vm_interface",
  "zksync_web3_decl",
@@ -11775,7 +11768,6 @@ dependencies = [
  "zksync_merkle_tree",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
  "zksync_vm_interface",
 ]
 
@@ -11839,7 +11831,6 @@ dependencies = [
  "zksync_object_store",
  "zksync_prover_interface",
  "zksync_types",
- "zksync_utils",
  "zksync_vm_executor",
 ]
 
@@ -11979,7 +11970,6 @@ dependencies = [
  "zksync_protobuf_config",
  "zksync_storage",
  "zksync_types",
- "zksync_utils",
  "zksync_vlog",
 ]
 
@@ -12056,7 +12046,6 @@ dependencies = [
  "zksync_shared_metrics",
  "zksync_storage",
  "zksync_types",
- "zksync_utils",
  "zksync_vm_interface",
 ]
 
@@ -12118,7 +12107,6 @@ version = "0.1.0"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -12162,7 +12150,6 @@ dependencies = [
  "zksync_multivm",
  "zksync_prover_interface",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -12220,15 +12207,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_matches",
- "bigdecimal",
- "bincode",
+ "const-decoder",
  "futures 0.3.31",
- "hex",
- "num",
  "once_cell",
- "rand 0.8.5",
  "reqwest 0.12.9",
- "serde",
  "serde_json",
  "thiserror",
  "tokio",

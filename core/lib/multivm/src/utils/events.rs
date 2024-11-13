@@ -93,8 +93,7 @@ mod tests {
     use zksync_system_constants::{
         BOOTLOADER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L2_BASE_TOKEN_ADDRESS,
     };
-    use zksync_types::{Address, L1BatchNumber};
-    use zksync_utils::u256_to_h256;
+    use zksync_types::{u256_to_h256, Address, L1BatchNumber};
 
     use super::*;
 

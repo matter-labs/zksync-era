@@ -6,9 +6,9 @@ use zksync_system_constants::{
 };
 use zksync_types::{
     commitment::SerializeCommitment, fee_model::BatchFeeInput, get_code_key,
-    l2_to_l1_log::L2ToL1Log, writes::StateDiffRecord, Address, Execute, H256, U256,
+    l2_to_l1_log::L2ToL1Log, u256_to_h256, writes::StateDiffRecord, Address, Execute, H256, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
+use zksync_utils::bytecode::hash_bytecode;
 
 use super::{
     default_pubdata_builder, get_complex_upgrade_abi, get_empty_storage, read_complex_upgrade,

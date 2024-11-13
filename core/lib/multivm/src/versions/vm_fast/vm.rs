@@ -5,8 +5,10 @@ use zk_evm_1_5_0::{
 };
 use zksync_contracts::SystemContractCode;
 use zksync_types::{
+    h256_to_u256,
     l1::is_l1_tx_type,
     l2_to_l1_log::UserL2ToL1Log,
+    u256_to_h256,
     utils::key_for_eth_balance,
     writes::{
         compression::compress_with_best_strategy, StateDiffRecord, BYTES_PER_DERIVED_KEY,
@@ -16,12 +18,11 @@ use zksync_types::{
     Transaction, BOOTLOADER_ADDRESS, H160, H256, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
     L2_BASE_TOKEN_ADDRESS, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
+use zksync_utils::bytecode::hash_bytecode;
 use zksync_vm2::{
     interface::{CallframeInterface, HeapId, StateInterface, Tracer},
     ExecutionEnd, FatPointer, Program, Settings, StorageSlot, VirtualMachine,
 };
-use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use super::{
     bootloader_state::{BootloaderState, BootloaderStateSnapshot},
@@ -35,32 +36,27 @@ use super::{
 use crate::{
     glue::GlueInto,
     interface::{
+        pubdata::{PubdataBuilder, PubdataInput},
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
         BytecodeCompressionError, BytecodeCompressionResult, CurrentExecutionState,
-        ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, PushTransactionResult,
-        Refunds, SystemEnv, TxRevertReason, VmEvent, VmExecutionLogs, VmExecutionMode,
-        VmExecutionResultAndLogs, VmExecutionStatistics, VmFactory, VmInterface,
+        ExecutionResult, FinishedL1Batch, Halt, InspectExecutionMode, L1BatchEnv, L2BlockEnv,
+        PushTransactionResult, Refunds, SystemEnv, TxRevertReason, VmEvent, VmExecutionLogs,
+        VmExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics, VmFactory, VmInterface,
         VmInterfaceHistoryEnabled, VmRevertReason, VmTrackingContracts,
     },
-    is_supported_by_fast_vm,
     utils::events::extract_l2tol1logs_from_l1_messenger,
     vm_fast::{
         bootloader_state::utils::{apply_l2_block, apply_pubdata_to_memory},
         events::merge_events,
-        pubdata::PubdataInput,
         refund::compute_refund,
+        version::FastVmVersion,
     },
-    vm_latest::{
-        constants::{
-            get_result_success_first_slot, get_vm_hook_params_start_position, get_vm_hook_position,
-            OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
-        },
-        utils::extract_bytecodes_marked_as_known,
-        MultiVMSubversion,
+    vm_latest::constants::{
+        get_result_success_first_slot, get_vm_hook_params_start_position, get_vm_hook_position,
+        OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
     },
+    VmVersion,
 };
-
-const VM_VERSION: MultiVMSubversion = MultiVMSubversion::IncreasedBootloaderMemory;
 
 type FullTracer<Tr> = ((Tr, CircuitsTracer), EvmDeployTracer);
 
@@ -102,17 +98,21 @@ pub struct Vm<S, Tr = ()> {
     pub(super) batch_env: L1BatchEnv,
     pub(super) system_env: SystemEnv,
     snapshot: Option<VmSnapshot>,
+    vm_version: FastVmVersion,
     #[cfg(test)]
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
 }
 
 impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
     pub fn custom(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
-        assert!(
-            is_supported_by_fast_vm(system_env.version),
-            "Protocol version {:?} is not supported by fast VM",
-            system_env.version
-        );
+        let vm_version: FastVmVersion = VmVersion::from(system_env.version)
+            .try_into()
+            .unwrap_or_else(|_| {
+                panic!(
+                    "Protocol version {:?} is not supported by fast VM",
+                    system_env.version
+                )
+            });
 
         let default_aa_code_hash = system_env.base_system_smart_contracts.default_aa.hash;
         let evm_emulator_hash = system_env
@@ -146,7 +146,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
             Settings {
                 default_aa_code_hash: default_aa_code_hash.into(),
                 evm_interpreter_code_hash: evm_emulator_hash.into(),
-                hook_address: get_vm_hook_position(VM_VERSION) * 32,
+                hook_address: get_vm_hook_position(vm_version.into()) * 32,
             },
         );
 
@@ -166,10 +166,12 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
                 system_env.execution_mode,
                 bootloader_memory.clone(),
                 batch_env.first_l2_block,
+                system_env.version,
             ),
             system_env,
             batch_env,
             snapshot: None,
+            vm_version,
             #[cfg(test)]
             enforced_state_diffs: None,
         };
@@ -182,6 +184,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
         execution_mode: VmExecutionMode,
         tracer: &mut FullTracer<Tr>,
         track_refunds: bool,
+        pubdata_builder: Option<&dyn PubdataBuilder>,
     ) -> VmRunResult {
         let mut refunds = Refunds {
             gas_refunded: 0,
@@ -352,15 +355,19 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
                         state_diffs: self.compute_state_diffs(),
                     };
 
-                    // Save the pubdata for the future initial bootloader memory building
-                    self.bootloader_state
-                        .set_pubdata_input(pubdata_input.clone());
-
                     // Apply the pubdata to the current memory
                     let mut memory_to_apply = vec![];
 
-                    apply_pubdata_to_memory(&mut memory_to_apply, pubdata_input);
+                    apply_pubdata_to_memory(
+                        &mut memory_to_apply,
+                        pubdata_builder.expect("`pubdata_builder` is required to finish batch"),
+                        &pubdata_input,
+                        self.system_env.version,
+                    );
                     self.write_to_bootloader_heap(memory_to_apply);
+
+                    // Save the pubdata for the future initial bootloader memory building
+                    self.bootloader_state.set_pubdata_input(pubdata_input);
                 }
 
                 Hook::PaymasterValidationEntered | Hook::ValidationStepEnded => { /* unused */ }
@@ -385,8 +392,8 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
     }
 
     fn get_hook_params(&self) -> [U256; 3] {
-        (get_vm_hook_params_start_position(VM_VERSION)
-            ..get_vm_hook_params_start_position(VM_VERSION) + VM_HOOK_PARAMS_COUNT)
+        (get_vm_hook_params_start_position(self.vm_version.into())
+            ..get_vm_hook_params_start_position(self.vm_version.into()) + VM_HOOK_PARAMS_COUNT)
             .map(|word| self.read_word_from_bootloader_heap(word as usize))
             .collect::<Vec<_>>()
             .try_into()
@@ -395,7 +402,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
 
     fn get_tx_result(&self) -> U256 {
         let tx_idx = self.bootloader_state.current_tx();
-        let slot = get_result_success_first_slot(VM_VERSION) as usize + tx_idx;
+        let slot = get_result_success_first_slot(self.vm_version.into()) as usize + tx_idx;
         self.read_word_from_bootloader_heap(slot)
     }
 
@@ -577,6 +584,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
         &mut self,
         tracer: &mut Tr,
         execution_mode: VmExecutionMode,
+        pubdata_builder: Option<&dyn PubdataBuilder>,
     ) -> VmExecutionResultAndLogs {
         let mut track_refunds = false;
         if matches!(execution_mode, VmExecutionMode::OneTx) {
@@ -592,7 +600,12 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
             (mem::take(tracer), CircuitsTracer::default()),
             EvmDeployTracer::new(self.world.dynamic_bytecodes.clone()),
         );
-        let result = self.run(execution_mode, &mut full_tracer, track_refunds);
+        let result = self.run(
+            execution_mode,
+            &mut full_tracer,
+            track_refunds,
+            pubdata_builder,
+        );
         let ((external_tracer, circuits_tracer), _) = full_tracer;
         *tracer = external_tracer; // place the tracer back
 
@@ -653,8 +666,10 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
 
         // We need to filter out bytecodes the deployment of which may have been reverted; the tracer is not aware of reverts.
         // To do this, we check bytecodes against deployer events.
-        let factory_deps_marked_as_known = extract_bytecodes_marked_as_known(&logs.events);
-        let new_known_factory_deps = self.world.decommit_bytecodes(&factory_deps_marked_as_known);
+        let factory_deps_marked_as_known = VmEvent::extract_bytecodes_marked_as_known(&logs.events);
+        let dynamic_factory_deps = self
+            .world
+            .decommit_dynamic_bytecodes(factory_deps_marked_as_known);
 
         VmExecutionResultAndLogs {
             result: result.execution_result,
@@ -671,7 +686,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
                 total_log_queries: 0,
             },
             refunds: result.refunds,
-            new_known_factory_deps: Some(new_known_factory_deps),
+            dynamic_factory_deps,
         }
     }
 }
@@ -709,7 +724,7 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
         tracer: &mut Self::TracerDispatcher,
         execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        self.inspect_inner(tracer, execution_mode.into())
+        self.inspect_inner(tracer, execution_mode.into(), None)
     }
 
     fn inspect_transaction_with_bytecode_compression(
@@ -736,19 +751,23 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
         self.bootloader_state.start_new_l2_block(l2_block_env)
     }
 
-    fn finish_batch(&mut self, _pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
-        let result = self.inspect_inner(&mut Tr::default(), VmExecutionMode::Batch);
+    fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
+        let result = self.inspect_inner(
+            &mut Tr::default(),
+            VmExecutionMode::Batch,
+            Some(pubdata_builder.as_ref()),
+        );
         let execution_state = self.get_current_execution_state();
-        let bootloader_memory = self.bootloader_state.bootloader_memory();
+        let bootloader_memory = self
+            .bootloader_state
+            .bootloader_memory(pubdata_builder.as_ref());
         FinishedL1Batch {
             block_tip_execution_result: result,
             final_execution_state: execution_state,
             final_bootloader_memory: Some(bootloader_memory),
             pubdata_input: Some(
                 self.bootloader_state
-                    .get_pubdata_information()
-                    .clone()
-                    .build_pubdata(false),
+                    .settlement_layer_pubdata(pubdata_builder.as_ref()),
             ),
             state_diffs: Some(
                 self.bootloader_state
@@ -844,20 +863,19 @@ impl<S: ReadStorage, T: Tracer> World<S, T> {
     ) -> (U256, Program<T, Self>) {
         (
             h256_to_u256(code.hash),
-            Program::from_words(code.code.clone(), is_bootloader),
+            Program::new(&code.code, is_bootloader),
         )
     }
 
-    fn decommit_bytecodes(&self, hashes: &[H256]) -> HashMap<H256, Vec<u8>> {
-        let bytecodes = hashes.iter().map(|&hash| {
-            let int_hash = h256_to_u256(hash);
+    fn decommit_dynamic_bytecodes(
+        &self,
+        candidate_hashes: impl Iterator<Item = H256>,
+    ) -> HashMap<H256, Vec<u8>> {
+        let bytecodes = candidate_hashes.filter_map(|hash| {
             let bytecode = self
-                .bytecode_cache
-                .get(&int_hash)
-                .cloned()
-                .or_else(|| self.dynamic_bytecodes.take(int_hash))
-                .unwrap_or_else(|| panic!("Bytecode with hash {hash:?} not found"));
-            (hash, bytecode)
+                .dynamic_bytecodes
+                .map(h256_to_u256(hash), <[u8]>::to_vec)?;
+            Some((hash, bytecode))
         });
         bytecodes.collect()
     }
@@ -933,17 +951,28 @@ impl<S: ReadStorage, T: Tracer> zksync_vm2::World<T> for World<S, T> {
         self.program_cache
             .entry(hash)
             .or_insert_with(|| {
-                let bytecode = self.bytecode_cache.entry(hash).or_insert_with(|| {
-                    // Since we put the bytecode in the cache anyway, it's safe to *take* it out from `dynamic_bytecodes`
-                    // and put it in `bytecode_cache`.
-                    self.dynamic_bytecodes
-                        .take(hash)
-                        .or_else(|| self.storage.load_factory_dep(u256_to_h256(hash)))
+                let cached = self
+                    .bytecode_cache
+                    .get(&hash)
+                    .map(|code| Program::new(code, false))
+                    .or_else(|| {
+                        self.dynamic_bytecodes
+                            .map(hash, |code| Program::new(code, false))
+                    });
+
+                if let Some(cached) = cached {
+                    cached
+                } else {
+                    let code = self
+                        .storage
+                        .load_factory_dep(u256_to_h256(hash))
                         .unwrap_or_else(|| {
                             panic!("VM tried to decommit nonexistent bytecode: {hash:?}");
-                        })
-                });
-                Program::new(bytecode, false)
+                        });
+                    let program = Program::new(&code, false);
+                    self.bytecode_cache.insert(hash, code);
+                    program
+                }
             })
             .clone()
     }

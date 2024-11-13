@@ -4,7 +4,8 @@ use crate::{
     versions::testonly::evm_emulator::{
         test_calling_to_mock_emulator_from_native_contract, test_mock_emulator_basics,
         test_mock_emulator_with_delegate_call, test_mock_emulator_with_deployment,
-        test_mock_emulator_with_payment, test_mock_emulator_with_recursion,
+        test_mock_emulator_with_partial_reverts, test_mock_emulator_with_payment,
+        test_mock_emulator_with_recursion, test_mock_emulator_with_recursive_deployment,
         test_mock_emulator_with_static_call, test_tracing_evm_contract_deployment,
     },
     vm_latest::{HistoryEnabled, Vm},
@@ -39,7 +40,22 @@ fn calling_to_mock_emulator_from_native_contract() {
 
 #[test]
 fn mock_emulator_with_deployment() {
-    test_mock_emulator_with_deployment::<Vm<_, HistoryEnabled>>();
+    test_mock_emulator_with_deployment::<Vm<_, HistoryEnabled>>(false);
+}
+
+#[test]
+fn mock_emulator_with_reverted_deployment() {
+    test_mock_emulator_with_deployment::<Vm<_, HistoryEnabled>>(true);
+}
+
+#[test]
+fn mock_emulator_with_recursive_deployment() {
+    test_mock_emulator_with_recursive_deployment::<Vm<_, HistoryEnabled>>();
+}
+
+#[test]
+fn mock_emulator_with_partial_reverts() {
+    test_mock_emulator_with_partial_reverts::<Vm<_, HistoryEnabled>>();
 }
 
 #[test]

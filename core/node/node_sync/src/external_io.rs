@@ -20,7 +20,6 @@ use zksync_types::{
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
     L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
-use zksync_utils::bytes_to_be_words;
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
 use super::{
@@ -75,7 +74,7 @@ impl ExternalIO {
 
         Ok(match bytecode {
             Some(bytecode) => SystemContractCode {
-                code: bytes_to_be_words(bytecode),
+                code: bytecode,
                 hash,
             },
             None => {
@@ -98,7 +97,7 @@ impl ExternalIO {
                     )
                     .await?;
                 SystemContractCode {
-                    code: bytes_to_be_words(contract_bytecode),
+                    code: contract_bytecode,
                     hash,
                 }
             }

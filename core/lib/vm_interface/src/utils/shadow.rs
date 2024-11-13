@@ -190,15 +190,13 @@ impl CheckDivergence for VmExecutionResultAndLogs {
             &other.statistics.computational_gas_used,
         );
 
-        if let (Some(these_deps), Some(other_deps)) =
-            (&self.new_known_factory_deps, &other.new_known_factory_deps)
-        {
-            // Order deps to have a more reasonable diff on a mismatch
-            let these_deps = these_deps.iter().collect::<BTreeMap<_, _>>();
-            let other_deps = other_deps.iter().collect::<BTreeMap<_, _>>();
-            errors.check_match("new_known_factory_deps", &these_deps, &other_deps);
-        }
-
+        // Order deps to have a more reasonable diff on a mismatch
+        let these_deps = self.dynamic_factory_deps.iter().collect::<BTreeMap<_, _>>();
+        let other_deps = other
+            .dynamic_factory_deps
+            .iter()
+            .collect::<BTreeMap<_, _>>();
+        errors.check_match("dynamic_factory_deps", &these_deps, &other_deps);
         errors
     }
 }
