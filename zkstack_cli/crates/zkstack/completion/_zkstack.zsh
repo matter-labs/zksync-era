@@ -1883,6 +1883,7 @@ _arguments "${_arguments_options[@]}" : \
 '--bellman-cuda=[]' \
 '--setup-compressor-key=[]' \
 '--path=[]:PATH:_default' \
+'--compressor-type=[]:COMPRESSOR_TYPE:(fflonk plonk)' \
 '--region=[]:REGION:(us europe asia)' \
 '--mode=[]:MODE:(download generate)' \
 '--setup-keys=[]' \
@@ -1924,6 +1925,7 @@ _arguments "${_arguments_options[@]}" : \
 '--max-allocation=[Memory allocation limit in bytes (for prover component)]:MAX_ALLOCATION:_default' \
 '--witness-vector-generator-count=[]:WITNESS_VECTOR_GENERATOR_COUNT:_default' \
 '--max-allocation=[]:MAX_ALLOCATION:_default' \
+'--mode=[]:MODE:(fflonk plonk)' \
 '--docker=[]:DOCKER:(true false)' \
 '--tag=[]:TAG:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
@@ -1949,6 +1951,7 @@ _arguments "${_arguments_options[@]}" : \
 (compressor-keys)
 _arguments "${_arguments_options[@]}" : \
 '--path=[]:PATH:_default' \
+'--compressor-type=[]:COMPRESSOR_TYPE:(fflonk plonk)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
