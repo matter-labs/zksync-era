@@ -37,7 +37,7 @@ impl GatewayChainConfig {
     pub fn from_gateway_and_chain_data(
         gateway_config: &GatewayConfig,
         diamond_proxy_addr: Address,
-        chain_admin_addr: Address,
+        l2_chain_admin_addr: Address,
         settlement_layer: u64,
     ) -> Self {
         // FIXME: there is no "governnace" for a chain, only an admin, we
@@ -48,8 +48,8 @@ impl GatewayChainConfig {
             validator_timelock_addr: gateway_config.validator_timelock_addr,
             multicall3_addr: gateway_config.multicall3_addr,
             diamond_proxy_addr,
-            chain_admin_addr: Some(chain_admin_addr),
-            governance_addr: chain_admin_addr,
+            chain_admin_addr: Some(l2_chain_admin_addr),
+            governance_addr: l2_chain_admin_addr,
             settlement_layer,
         }
     }

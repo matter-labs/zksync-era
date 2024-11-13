@@ -50,11 +50,12 @@ pub struct MigrateToGatewayArgs {
 lazy_static! {
     static ref GATEWAY_PREPARATION_INTERFACE: BaseContract = BaseContract::from(
         parse_abi(&[
-            "function migrateChainToGateway(address chainAdmin,address accessControlRestriction,uint256 chainId) public",
-            "function setDAValidatorPair(address chainAdmin,address accessControlRestriction,uint256 chainId,address l1DAValidator,address l2DAValidator,address chainDiamondProxyOnGateway)",
+            "function migrateChainToGateway(address chainAdmin,address l2ChainAdmin,address accessControlRestriction,uint256 chainId) public",
+            "function setDAValidatorPair(address chainAdmin,address accessControlRestriction,uint256 chainId,address l1DAValidator,address l2DAValidator,address chainDiamondProxyOnGateway,address chainAdminOnGateway)",
             "function supplyGatewayWallet(address addr, uint256 addr) public",
-            "function enableValidator(address chainAdmin,address accessControlRestriction,uint256 chainId,address validatorAddress,address gatewayValidatorTimelock) public",
-            "function grantWhitelist(address filtererProxy, address[] memory addr) public"
+            "function enableValidator(address chainAdmin,address accessControlRestriction,uint256 chainId,address validatorAddress,address gatewayValidatorTimelock,address chainAdminOnGateway) public",
+            "function grantWhitelist(address filtererProxy, address[] memory addr) public",
+            "function deployL2ChainAdmin() public"
         ])
         .unwrap(),
     );
@@ -137,6 +138,24 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     println!("Migrating the chain to the Gateway...");
 
+    let l2_chain_admin = call_script(
+        shell,
+        args.forge_args.clone(),
+        &GATEWAY_PREPARATION_INTERFACE
+            .encode(
+                "deployL2ChainAdmin",
+                (),
+            )
+            .unwrap(),
+        &ecosystem_config,
+        &chain_config.get_wallets_config()?.governor,
+        l1_url.clone(),
+    )
+    .await?
+    .l2_chain_admin_address;
+    println!("L2 chain admin deployed! Its address: {:#?}", l2_chain_admin);
+
+
     let hash = call_script(
         shell,
         args.forge_args.clone(),
@@ -145,6 +164,8 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 "migrateChainToGateway",
                 (
                     chain_admin_addr,
+                    // TODO(EVM-746): Use L2-based chain admin contract
+                    l2_chain_admin,
                     chain_access_control_restriction,
                     U256::from(chain_config.chain_id.0),
                 ),
@@ -154,7 +175,8 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
-    .await?;
+    .await?
+    .governance_l2_tx_hash;
 
     let gateway_provider = Provider::<Http>::try_from(
         gateway_chain_config
@@ -221,6 +243,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                         .da_validator_addr
                         .context("da_validator_addr")?,
                     new_diamond_proxy_address,
+                    l2_chain_admin
                 ),
             )
             .unwrap(),
@@ -228,7 +251,8 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
-    .await?;
+    .await?
+    .governance_l2_tx_hash;
     println!(
         "DA validator pair set! Hash: {}",
         hex::encode(hash.as_bytes())
@@ -249,6 +273,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                     U256::from(chain_config.chain_id.0),
                     chain_secrets_config.blob_operator.address,
                     gateway_gateway_config.validator_timelock_addr,
+                    l2_chain_admin
                 ),
             )
             .unwrap(),
@@ -256,7 +281,8 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
-    .await?;
+    .await?
+    .governance_l2_tx_hash;
     println!(
         "blob_operator enabled! Hash: {}",
         hex::encode(hash.as_bytes())
@@ -278,7 +304,8 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
-    .await?;
+    .await?
+    .governance_l2_tx_hash;
     println!(
         "blob_operator supplied with 10 ETH! Hash: {}",
         hex::encode(hash.as_bytes())
@@ -296,6 +323,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                     U256::from(chain_config.chain_id.0),
                     chain_secrets_config.operator.address,
                     gateway_gateway_config.validator_timelock_addr,
+                    l2_chain_admin
                 ),
             )
             .unwrap(),
@@ -303,7 +331,8 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
-    .await?;
+    .await?
+    .governance_l2_tx_hash;
     println!("operator enabled! Hash: {}", hex::encode(hash.as_bytes()));
 
     let hash = call_script(
@@ -322,7 +351,8 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
-    .await?;
+    .await?
+    .governance_l2_tx_hash;
     println!(
         "operator supplied with 10 ETH! Hash: {}",
         hex::encode(hash.as_bytes())
@@ -345,8 +375,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     let gateway_chain_config = GatewayChainConfig::from_gateway_and_chain_data(
         &gateway_gateway_config,
         new_diamond_proxy_address,
-        // TODO: for now we do not use a noraml chain admin
-        Address::zero(),
+        l2_chain_admin,
         gateway_chain_id,
     );
     gateway_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
@@ -432,7 +461,7 @@ async fn call_script(
     config: &EcosystemConfig,
     governor: &Wallet,
     l1_rpc_url: String,
-) -> anyhow::Result<H256> {
+) -> anyhow::Result<GatewayPreparationOutput> {
     let mut forge = Forge::new(&config.path_to_l1_foundry())
         .script(&GATEWAY_PREPARATION.script(), forge_args.clone())
         .with_ffi()
@@ -448,5 +477,30 @@ async fn call_script(
     let gateway_preparation_script_output =
         GatewayPreparationOutput::read(shell, GATEWAY_PREPARATION.output(&config.link_to_code))?;
 
-    Ok(gateway_preparation_script_output.governance_l2_tx_hash)
+    Ok(gateway_preparation_script_output)
+}
+
+/// Applies the L1 to L2 address aliasing by adding a constant offset.
+///
+/// # Arguments
+///
+/// * `l1_address` - The Layer 1 Ethereum address to be aliased.
+///
+/// # Returns
+///
+/// * `Address` - The aliased Layer 2 Ethereum address.
+fn apply_l1_to_l2_alias(l1_address: Address) -> Address {
+    // Define the constant offset as a U256 number.
+    let offset = U256::from_str_radix("1111000000000000000000000000000000001111", 16).unwrap();
+
+    // Convert the l1_address (which is 20 bytes) into a U256 number.
+    let l1_address_u256 = U256::from_big_endian(&l1_address.0);
+
+    // Perform the addition with wrapping to mimic Solidity's unchecked arithmetic.
+    let l2_address_u256 = l1_address_u256 + offset;
+
+    // Convert the resulting U256 back into a 20-byte address.
+    let mut l2_address_bytes = [0u8; 32];
+    l2_address_u256.to_big_endian(&mut l2_address_bytes);
+    Address::from_slice(&l2_address_bytes[12..32]) // Take the last 20 bytes.
 }

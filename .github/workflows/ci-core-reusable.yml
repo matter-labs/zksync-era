@@ -486,12 +486,12 @@ jobs:
 #
 #          ci_run ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --external-node --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 #
-#      # Upgrade tests should run last, because as soon as they
-#      # finish the bootloader will be different
-#      # TODO make upgrade tests safe to run multiple times
-#      - name: Run upgrade test
-#        run: |
-#          ci_run zkstack dev test upgrade --no-deps --chain era
+      # Upgrade tests should run last, because as soon as they
+      # finish the bootloader will be different
+      # TODO make upgrade tests safe to run multiple times
+      - name: Run upgrade test
+        run: |
+          ci_run zkstack dev test upgrade --no-deps --chain era
 
 
       - name: Upload logs

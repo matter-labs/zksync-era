@@ -18,6 +18,7 @@ import {
     setEthSenderSenderAggregatedBlockCommitDeadline
 } from './utils';
 import path from 'path';
+import internal from 'stream';
 
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
@@ -45,6 +46,9 @@ describe('Upgrade test', function () {
     let governanceContract: ethers.Contract;
     let chainAdminContract: ethers.Contract;
     let bootloaderHash: string;
+    let defaultAccountHash: string;
+    let bootloaderCode: string;
+    let bytecodeSupplier: string;
     let executeOperation: string;
     let forceDeployAddress: string;
     let forceDeployBytecode: string;
@@ -84,6 +88,7 @@ describe('Upgrade test', function () {
             web3JsonRpc = generalConfig.api.web3_json_rpc.http_url;
             contractsL2DefaultUpgradeAddr = contractsConfig.l2.default_l2_upgrader;
             upgradeAddress = contractsConfig.l1.default_upgrade_addr;
+            bytecodeSupplier = contractsConfig.ecosystem_contracts.l1_bytecodes_supplier_addr;
             contractsPriorityTxMaxGasLimit = '72000000';
         } else {
             ethProviderAddress = process.env.L1_RPC_ADDRESS || process.env.ETH_CLIENT_WEB3_URL;
@@ -93,6 +98,10 @@ describe('Upgrade test', function () {
             upgradeAddress = process.env.CONTRACTS_DEFAULT_UPGRADE_ADDR;
             if (!upgradeAddress) {
                 throw new Error('CONTRACTS_DEFAULT_UPGRADE_ADDR not set');
+            }
+            bytecodeSupplier = process.env.CONTRACTS_L1_BYTECODE_SUPPLIER_ADDR as string;
+            if (!bytecodeSupplier) {
+                throw new Error('CONTRACTS_L1_BYTECODE_SUPPLIER_ADDR not set');
             }
             contractsPriorityTxMaxGasLimit = process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT!;
         }
@@ -236,27 +245,34 @@ describe('Upgrade test', function () {
     });
 
     step('Send l1 tx for saving new bootloader', async () => {
-        const path = `${pathToHome}/contracts/system-contracts/zkout/playground_batch.yul/contracts-preprocessed/bootloader/playground_batch.yul.json`;
-        let bootloaderCode;
-        if (fs.existsSync(path)) {
-            bootloaderCode = '0x'.concat(require(path).bytecode.object);
-        } else {
-            const legacyPath = `${pathToHome}/contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin`;
-            bootloaderCode = ethers.hexlify(fs.readFileSync(legacyPath));
-        }
+        const bootloaderCode = readCode(
+            'contracts/system-contracts/zkout/playground_batch.yul/contracts-preprocessed/bootloader/playground_batch.yul.json',
+            'contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin'
+        );
+
+        const defaultAACode = readCode(
+            'contracts/system-contracts/zkout/DefaultAccount.sol/DefaultAccount.json',
+            'contracts/system-contracts/artifacts-zk/contracts-preprocessed/DefaultAccount.sol/DefaultAccount.json'
+        );
 
         bootloaderHash = ethers.hexlify(zksync.utils.hashBytecode(bootloaderCode));
-        const txHandle = await tester.syncWallet.requestExecute({
-            contractAddress: ethers.ZeroAddress,
-            calldata: '0x',
-            l2GasLimit: 20000000,
-            factoryDeps: [bootloaderCode],
-            overrides: {
-                gasLimit: 3000000
-            }
-        });
-        await txHandle.wait();
-        await waitForNewL1Batch(alice);
+        defaultAccountHash = ethers.hexlify(zksync.utils.hashBytecode(defaultAACode));
+
+        await publishBytecode(
+            tester.ethWallet,
+            bytecodeSupplier,
+            bootloaderCode
+        );
+        await publishBytecode(
+            tester.ethWallet,
+            bytecodeSupplier,
+            defaultAACode
+        );
+        await publishBytecode(
+            tester.ethWallet,
+            bytecodeSupplier,
+            forceDeployBytecode
+        );
     });
 
     step('Schedule governance call', async () => {
@@ -296,11 +312,10 @@ describe('Upgrade test', function () {
                     reserved: [0, 0, 0, 0],
                     data,
                     signature: '0x',
-                    factoryDeps: [ethers.hexlify(zksync.utils.hashBytecode(forceDeployBytecode))],
+                    factoryDeps: [bootloaderHash, defaultAccountHash, ethers.hexlify(zksync.utils.hashBytecode(forceDeployBytecode))],
                     paymasterInput: '0x',
                     reservedDynamic: '0x'
                 },
-                factoryDeps: [forceDeployBytecode],
                 bootloaderHash,
                 upgradeTimestamp: 0
             }
@@ -422,6 +437,46 @@ describe('Upgrade test', function () {
     }
 });
 
+function readCode(
+    newPath: string,
+    legacyPath: string,
+): string {
+    let path = `${pathToHome}/${newPath}`;
+    if (fs.existsSync(path)) {
+        return '0x'.concat(require(path).bytecode.object);
+    } else {
+        path = `${pathToHome}/${legacyPath}`;
+        if (path.endsWith('.zbin')) {
+            return ethers.hexlify(fs.readFileSync(path));
+        } else {
+            return require(path).bytecode;
+        }
+    }
+}
+
+async function publishBytecode(
+    wallet: ethers.Wallet,
+    bytecodeSupplierAddr: string,
+    bytecode: string
+) {
+    const hash = zksync.utils.hashBytecode(bytecode);
+    const abi = [
+        'function publishBytecode(bytes calldata _bytecode) public',
+        'function publishingBlock(bytes32 _hash) public returns (uint256)'
+    ];
+
+    
+    const contract =  new ethers.Contract(
+        bytecodeSupplierAddr,
+        abi,
+        wallet
+    );
+    const block = await contract.publishingBlock(hash);
+    if (block == BigInt(0)) {
+        await (await contract.publishBytecode(bytecode)).wait();
+    } 
+}
+
 async function checkedRandomTransfer(sender: zksync.Wallet, amount: bigint): Promise<zksync.types.TransactionResponse> {
     const senderBalanceBefore = await sender.getBalance();
     const receiverHD = zksync.Wallet.createRandom();
@@ -503,7 +558,6 @@ async function prepareUpgradeCalldata(
             paymasterInput: BytesLike;
             reservedDynamic: BytesLike;
         };
-        factoryDeps: BytesLike[];
         bootloaderHash?: BytesLike;
         defaultAAHash?: BytesLike;
         verifier?: string;
@@ -528,7 +582,6 @@ async function prepareUpgradeCalldata(
     const upgradeInitData = contracts.l1DefaultUpgradeAbi.encodeFunctionData('upgrade', [
         [
             params.l2ProtocolUpgradeTx,
-            params.factoryDeps,
             params.bootloaderHash ?? ethers.ZeroHash,
             params.defaultAAHash ?? ethers.ZeroHash,
             params.verifier ?? ethers.ZeroAddress,
