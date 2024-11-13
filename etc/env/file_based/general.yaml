@@ -175,7 +175,7 @@ prover_gateway:
   prometheus_pushgateway_url: http://127.0.0.1:9091
   prometheus_push_interval_ms: 100
 proof_compressor:
-  compression_mode: 1
+  compression_mode: 5
   prometheus_listener_port: 3321
   prometheus_pushgateway_url: http://127.0.0.1:9091
   prometheus_push_interval_ms: 100
