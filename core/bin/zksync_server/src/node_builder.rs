@@ -48,7 +48,7 @@ use zksync_node_framework::{
         object_store::ObjectStoreLayer,
         pk_signing_eth_client::PKSigningEthClientLayer,
         pools_layer::PoolsLayerBuilder,
-        postgres_metrics::PostgresMetricsLayer,
+        postgres_metrics::PostgresLayer,
         prometheus_exporter::PrometheusExporterLayer,
         proof_data_handler::ProofDataHandlerLayer,
         query_eth_client::QueryEthClientLayer,
@@ -139,7 +139,7 @@ impl MainNodeBuilder {
     }
 
     fn add_postgres_metrics_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(PostgresMetricsLayer);
+        self.node.add_layer(PostgresLayer);
         Ok(self)
     }
 

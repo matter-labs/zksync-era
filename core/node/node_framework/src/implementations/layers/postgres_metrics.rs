@@ -14,7 +14,7 @@ const SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
 
 /// Wiring layer for the Postgres metrics exporter.
 #[derive(Debug)]
-pub struct PostgresMetricsLayer;
+pub struct PostgresLayer;
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
@@ -30,7 +30,7 @@ pub struct Output {
 }
 
 #[async_trait::async_trait]
-impl WiringLayer for PostgresMetricsLayer {
+impl WiringLayer for PostgresLayer {
     type Input = Input;
     type Output = Output;
 

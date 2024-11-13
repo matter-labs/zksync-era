@@ -33,7 +33,7 @@ use zksync_node_framework::{
             NodeStorageInitializerLayer,
         },
         pools_layer::PoolsLayerBuilder,
-        postgres_metrics::PostgresMetricsLayer,
+        postgres_metrics::PostgresLayer,
         prometheus_exporter::PrometheusExporterLayer,
         pruning::PruningLayer,
         query_eth_client::QueryEthClientLayer,
@@ -126,7 +126,7 @@ impl ExternalNodeBuilder {
     }
 
     fn add_postgres_metrics_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(PostgresMetricsLayer);
+        self.node.add_layer(PostgresLayer);
         Ok(self)
     }
 
