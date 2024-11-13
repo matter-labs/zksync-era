@@ -22,7 +22,7 @@ const SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct Config {
-    pub polling_interval_ms: u64,
+    polling_interval_ms: u64,
 }
 
 impl Default for Config {
@@ -72,17 +72,11 @@ impl WiringLayer for PostgresLayer {
         };
 
         let app_health = input.app_health.0;
-        let (database_health_check, updater) = ReactiveHealthCheck::new("database");
+        let health_task = DatabaseHealthTask::new(self.config.polling_interval_ms, pool);
 
         app_health
-            .insert_component(database_health_check)
+            .insert_component(health_task.health_check())
             .map_err(WiringError::internal)?;
-
-        let health_task = DatabaseHealthTask {
-            polling_interval_ms: self.config.polling_interval_ms,
-            connection_pool: pool,
-            updater,
-        };
 
         Ok(Output {
             metrics_task,
@@ -138,6 +132,14 @@ pub struct DatabaseHealthTask {
 }
 
 impl DatabaseHealthTask {
+    fn new(polling_interval_ms: u64, connection_pool: ConnectionPool<Core>) -> Self {
+        Self {
+            polling_interval_ms,
+            connection_pool,
+            updater: ReactiveHealthCheck::new("database").1,
+        }
+    }
+
     async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()>
     where
         Self: Sized,
@@ -161,6 +163,10 @@ impl DatabaseHealthTask {
         }
         tracing::info!("Stop signal received; database healthcheck is shut down");
         Ok(())
+    }
+
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.updater.subscribe()
     }
 }
 
