@@ -5,8 +5,7 @@ use zk_evm_1_5_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
-use zksync_types::{H256, U256};
-use zksync_utils::ceil_div_u256;
+use zksync_types::{ceil_div_u256, H256, U256};
 
 use crate::{
     interface::{

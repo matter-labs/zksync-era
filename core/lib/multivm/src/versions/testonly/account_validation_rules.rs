@@ -1,9 +1,8 @@
 use assert_matches::assert_matches;
 use zksync_types::{
-    fee::Fee, l2::L2Tx, transaction_request::TransactionRequest, AccountTreeId, Address,
-    Eip712Domain, L2ChainId, StorageKey, U256,
+    fee::Fee, l2::L2Tx, transaction_request::TransactionRequest, u256_to_h256, AccountTreeId,
+    Address, Eip712Domain, L2ChainId, StorageKey, U256,
 };
-use zksync_utils::u256_to_h256;
 use zksync_vm_interface::tracer::ViolatedValidationRule;
 
 use super::{

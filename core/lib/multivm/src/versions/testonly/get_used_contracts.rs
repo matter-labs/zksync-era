@@ -5,8 +5,8 @@ use ethabi::Token;
 use zk_evm_1_3_1::zkevm_opcode_defs::decoding::{EncodingModeProduction, VmEncodingMode};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_test_account::{Account, TxType};
-use zksync_types::{AccountTreeId, Address, Execute, StorageKey, H256, U256};
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
+use zksync_types::{h256_to_u256, AccountTreeId, Address, Execute, StorageKey, H256, U256};
+use zksync_utils::bytecode::hash_bytecode;
 
 use super::{
     read_proxy_counter_contract, read_test_contract,

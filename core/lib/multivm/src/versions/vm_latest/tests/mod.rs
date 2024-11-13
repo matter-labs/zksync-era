@@ -10,10 +10,10 @@ use zk_evm_1_5_0::{
     zkevm_opcode_defs::{ContractCodeSha256Format, VersionedHashLen32},
 };
 use zksync_types::{
-    l2::L2Tx, vm::VmVersion, writes::StateDiffRecord, StorageKey, StorageValue, Transaction, H256,
-    U256,
+    h256_to_u256, l2::L2Tx, vm::VmVersion, writes::StateDiffRecord, StorageKey, StorageValue,
+    Transaction, H256, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
+use zksync_utils::bytecode::hash_bytecode;
 use zksync_vm_interface::{pubdata::PubdataBuilder, tracer::ViolatedValidationRule, VmInterface};
 
 use super::{HistoryEnabled, ToTracerPointer, Vm};
@@ -23,6 +23,7 @@ use crate::{
         CurrentExecutionState, L2BlockEnv, VmExecutionMode, VmExecutionResultAndLogs,
     },
     tracers::ValidationTracer,
+    utils::bytecode::bytes_to_be_words,
     versions::testonly::{
         filter_out_base_system_contracts, validation_params, TestedVm, TestedVmForValidation,
     },
@@ -119,7 +120,7 @@ impl TestedVm for TestedLatestVm {
             .iter()
             .map(|&bytecode| {
                 let hash = hash_bytecode(bytecode);
-                let words = bytes_to_be_words(bytecode.to_vec());
+                let words = bytes_to_be_words(bytecode);
                 (h256_to_u256(hash), words)
             })
             .collect();

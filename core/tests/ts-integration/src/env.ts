@@ -126,7 +126,7 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
 
     const wsL2NodeUrl = generalConfig.api.web3_json_rpc.ws_url;
 
-    const contractVerificationUrl = generalConfig.contract_verifier.url;
+    const contractVerificationUrl = `http://127.0.0.1:${generalConfig.contract_verifier.port}`;
 
     const tokens = getTokensNew(pathToHome);
     // wBTC is chosen because it has decimals different from ETH (8 instead of 18).

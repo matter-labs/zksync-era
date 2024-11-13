@@ -1,6 +1,6 @@
 use itertools::Itertools;
-use zksync_types::H256;
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
+use zksync_types::{h256_to_u256, H256};
+use zksync_utils::bytecode::hash_bytecode;
 
 use super::Vm;
 use crate::{

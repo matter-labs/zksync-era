@@ -241,11 +241,8 @@ impl Distribution<configs::ContractVerifierConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ContractVerifierConfig {
         configs::ContractVerifierConfig {
             compilation_timeout: self.sample(rng),
-            polling_interval: self.sample(rng),
             prometheus_port: self.sample(rng),
-            threads_per_server: self.sample(rng),
             port: self.sample(rng),
-            url: self.sample(rng),
         }
     }
 }
@@ -308,6 +305,7 @@ impl Distribution<configs::ExperimentalDBConfig> for EncodeDist {
             protective_reads_persistence_enabled: self.sample(rng),
             processing_delay_ms: self.sample(rng),
             include_indices_and_filters_in_block_cache: self.sample(rng),
+            merkle_tree_repair_stale_keys: self.sample(rng),
         }
     }
 }

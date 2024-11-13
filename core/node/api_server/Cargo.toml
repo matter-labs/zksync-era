@@ -61,5 +61,4 @@ zksync_node_genesis.workspace = true
 zksync_node_test_utils.workspace = true
 
 assert_matches.workspace = true
-const-decoder.workspace = true
 test-casing.workspace = true
