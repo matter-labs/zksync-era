@@ -1,9 +1,10 @@
-use std::path::Path;
+use std::{fmt, path::Path, time::Duration};
 
 use ethers::{
-    types::{H160, U256},
+    types::{Address, H160, U256},
     utils::format_ether,
 };
+use url::Url;
 use zksync_consensus_roles::attester;
 
 pub(super) const MSG_SETUP_KEYS_DOWNLOAD_SELECTION_PROMPT: &str =
@@ -264,7 +265,6 @@ pub(super) const MSG_ENABLE_CONSENSUS_HELP: &str = "Enable consensus";
 pub(super) const MSG_SERVER_GENESIS_HELP: &str = "Run server in genesis mode";
 pub(super) const MSG_SERVER_ADDITIONAL_ARGS_HELP: &str =
     "Additional arguments that can be passed through the CLI";
-pub(super) const MSG_SERVER_BUILD_HELP: &str = "Build server but don't run it";
 pub(super) const MSG_SERVER_URING_HELP: &str = "Enables uring support for RocksDB";
 
 /// Accept ownership related messages
@@ -284,6 +284,13 @@ pub(super) const MSG_OBSERVABILITY_RUN_PROMPT: &str = "Do you want to run observ
 pub(super) const MSG_STARTING_SERVER: &str = "Starting server";
 pub(super) const MSG_FAILED_TO_RUN_SERVER_ERR: &str = "Failed to start server";
 pub(super) const MSG_PREPARING_EN_CONFIGS: &str = "Preparing External Node config";
+pub(super) const MSG_BUILDING_SERVER: &str = "Building server";
+pub(super) const MSG_FAILED_TO_BUILD_SERVER_ERR: &str = "Failed to build server";
+pub(super) const MSG_WAITING_FOR_SERVER: &str = "Waiting for server to start";
+
+pub(super) fn msg_waiting_for_server_success(health_check_port: u16) -> String {
+    format!("Server is alive with health check server on :{health_check_port}")
+}
 
 /// Portal related messages
 pub(super) const MSG_PORTAL_FAILED_TO_FIND_ANY_CHAIN_ERR: &str =
@@ -351,7 +358,14 @@ pub(super) const MSG_CONSENSUS_CONFIG_MISSING_ERR: &str = "Consensus config is m
 pub(super) const MSG_CONSENSUS_SECRETS_MISSING_ERR: &str = "Consensus secrets config is missing";
 pub(super) const MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR: &str = "Consensus node key is missing";
 
+pub(super) const MSG_BUILDING_EN: &str = "Building external node";
+pub(super) const MSG_FAILED_TO_BUILD_EN_ERR: &str = "Failed to build external node";
 pub(super) const MSG_STARTING_EN: &str = "Starting external node";
+pub(super) const MSG_WAITING_FOR_EN: &str = "Waiting for external node to start";
+
+pub(super) fn msg_waiting_for_en_success(health_check_port: u16) -> String {
+    format!("External node is alive with health check server on :{health_check_port}")
+}
 
 /// Prover related messages
 pub(super) const MSG_GENERATING_SK_SPINNER: &str = "Generating setup keys...";
@@ -429,7 +443,10 @@ pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
 }
 
 /// Contract verifier related messages
+pub(super) const MSG_BUILDING_CONTRACT_VERIFIER: &str = "Building contract verifier";
 pub(super) const MSG_RUNNING_CONTRACT_VERIFIER: &str = "Running contract verifier";
+pub(super) const MSG_FAILED_TO_BUILD_CONTRACT_VERIFIER_ERR: &str =
+    "Failed to build contract verifier";
 pub(super) const MSG_FAILED_TO_RUN_CONTRACT_VERIFIER_ERR: &str = "Failed to run contract verifier";
 pub(super) const MSG_INVALID_ARCH_ERR: &str = "Invalid arch";
 pub(super) const MSG_GET_ZKSOLC_RELEASES_ERR: &str = "Failed to get zksolc releases";
@@ -478,6 +495,34 @@ pub(super) const MSG_DIFF_EN_GENERAL_CONFIG: &str =
     "Added the following fields to the external node generalconfig:";
 pub(super) const MSG_UPDATING_ERA_OBSERVABILITY_SPINNER: &str = "Updating era observability...";
 
+/// Wait-related messages
+pub(super) const MSG_WAIT_TIMEOUT_HELP: &str = "Wait timeout in seconds";
+pub(super) const MSG_WAIT_POLL_INTERVAL_HELP: &str = "Poll interval in milliseconds";
+
+pub(super) fn msg_wait_starting_polling(
+    component: &impl fmt::Display,
+    url: &str,
+    poll_interval: Duration,
+) -> String {
+    format!("Starting polling {component} at `{url}` each {poll_interval:?}")
+}
+
+pub(super) fn msg_wait_timeout(component: &impl fmt::Display) -> String {
+    format!("timed out polling {component}")
+}
+
+pub(super) fn msg_wait_connect_err(component: &impl fmt::Display, url: &str) -> String {
+    format!("failed to connect to {component} at `{url}`")
+}
+
+pub(super) fn msg_wait_non_successful_response(component: &impl fmt::Display) -> String {
+    format!("non-successful {component} response")
+}
+
+pub(super) fn msg_wait_not_healthy(url: &str) -> String {
+    format!("Node at `{url}` is not healthy")
+}
+
 pub(super) fn msg_diff_genesis_config(chain: &str) -> String {
     format!(
         "Found differences between chain {chain} and era genesis configs. Consider updating the chain {chain} genesis config and re-running genesis. Diff:"
@@ -516,9 +561,20 @@ pub(super) const MSG_CONSENSUS_REGISTRY_ADDRESS_NOT_CONFIGURED: &str =
     "consensus registry address not configured";
 pub(super) const MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML: &str =
     "consensus.genesis_spec.attesters missing in general.yaml";
+pub(super) const MSG_CONSENSUS_REGISTRY_POLL_ERROR: &str = "failed querying L2 node";
+pub(super) const MSG_CONSENSUS_REGISTRY_WAIT_COMPONENT: &str = "main node HTTP RPC";
+
 pub(super) fn msg_setting_attester_committee_failed(
     got: &attester::Committee,
     want: &attester::Committee,
 ) -> String {
     format!("setting attester committee failed: got {got:?}, want {want:?}")
+}
+
+pub(super) fn msg_wait_consensus_registry_started_polling(addr: Address, url: &Url) -> String {
+    format!("Starting polling L2 HTTP RPC at {url} for code at {addr:?}")
+}
+
+pub(super) fn msg_consensus_registry_wait_success(addr: Address, code_len: usize) -> String {
+    format!("Consensus registry is deployed at {addr:?}: {code_len} bytes")
 }

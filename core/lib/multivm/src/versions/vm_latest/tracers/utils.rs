@@ -21,7 +21,7 @@ use crate::vm_latest::{
         memory::SimpleMemory,
         utils::{aux_heap_page_from_base, heap_page_from_base},
     },
-    vm::MultiVMSubversion,
+    vm::MultiVmSubversion,
 };
 
 #[derive(Clone, Debug, Copy)]
@@ -47,7 +47,7 @@ impl VmHook {
     pub(crate) fn from_opcode_memory(
         state: &VmLocalStateData<'_>,
         data: &BeforeExecutionData,
-        subversion: MultiVMSubversion,
+        subversion: MultiVmSubversion,
     ) -> Self {
         let opcode_variant = data.opcode.variant;
         let heap_page =
@@ -89,7 +89,7 @@ impl VmHook {
 pub(crate) fn get_debug_log<H: HistoryMode>(
     state: &VmLocalStateData<'_>,
     memory: &SimpleMemory<H>,
-    subversion: MultiVMSubversion,
+    subversion: MultiVmSubversion,
 ) -> String {
     let vm_hook_params: Vec<_> = get_vm_hook_params(memory, subversion)
         .into_iter()
@@ -161,7 +161,7 @@ pub(crate) fn print_debug_if_needed<H: HistoryMode>(
     state: &VmLocalStateData<'_>,
     memory: &SimpleMemory<H>,
     latest_returndata_ptr: Option<FatPointer>,
-    subversion: MultiVMSubversion,
+    subversion: MultiVmSubversion,
 ) {
     let log = match hook {
         VmHook::DebugLog => get_debug_log(state, memory, subversion),
@@ -210,7 +210,7 @@ pub(crate) fn get_calldata_page_via_abi(far_call_abi: &FarCallABI, base_page: Me
 }
 pub(crate) fn get_vm_hook_params<H: HistoryMode>(
     memory: &SimpleMemory<H>,
-    subversion: MultiVMSubversion,
+    subversion: MultiVmSubversion,
 ) -> Vec<U256> {
     let start_position = get_vm_hook_params_start_position(subversion);
     memory.dump_page_content_as_u256_words(
