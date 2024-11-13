@@ -11,6 +11,7 @@ use config::{
 };
 use xshell::{cmd, Shell};
 
+use super::args::run_server::{RunServerArgs, ServerArgs, ServerCommand};
 use crate::{
     commands::args::WaitArgs,
     messages::{
@@ -18,8 +19,6 @@ use crate::{
         MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER, MSG_WAITING_FOR_SERVER,
     },
 };
-
-use super::args::run_server::{RunServerArgs, ServerArgs, ServerCommand};
 
 pub async fn run(shell: &Shell, args: ServerArgs, chain: ChainConfig) -> anyhow::Result<()> {
     match ServerCommand::from(args) {
