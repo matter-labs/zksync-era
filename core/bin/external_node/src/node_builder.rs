@@ -125,7 +125,7 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
-    fn add_postgres_metrics_layer(mut self) -> anyhow::Result<Self> {
+    fn add_postgres_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(PostgresLayer);
         Ok(self)
     }
@@ -577,7 +577,7 @@ impl ExternalNodeBuilder {
             // so until we have a dedicated component for "auxiliary" tasks,
             // it's responsible for things like metrics.
             self = self
-                .add_postgres_metrics_layer()?
+                .add_postgres_layer()?
                 .add_external_node_metrics_layer()?;
             // We assign the storage initialization to the core, as it's considered to be
             // the "main" component.

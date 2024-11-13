@@ -35,7 +35,7 @@ impl WiringLayer for PostgresLayer {
     type Output = Output;
 
     fn layer_name(&self) -> &'static str {
-        "postgres_metrics_layer"
+        "postgres_layer"
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {

@@ -138,7 +138,7 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_postgres_metrics_layer(mut self) -> anyhow::Result<Self> {
+    fn add_postgres_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(PostgresLayer);
         Ok(self)
     }
@@ -752,9 +752,7 @@ impl MainNodeBuilder {
                     self = self.add_eth_tx_manager_layer()?;
                 }
                 Component::Housekeeper => {
-                    self = self
-                        .add_house_keeper_layer()?
-                        .add_postgres_metrics_layer()?;
+                    self = self.add_house_keeper_layer()?.add_postgres_layer()?;
                 }
                 Component::ProofDataHandler => {
                     self = self.add_proof_data_handler_layer()?;
