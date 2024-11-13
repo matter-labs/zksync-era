@@ -96,14 +96,8 @@ impl ZkSyncStateKeeper {
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         match self.run_inner(stop_receiver).await {
             Ok(_) => unreachable!(),
-            Err(Error::Fatal(err)) => {
-                self.health_updater
-                    .update(Health::from(HealthStatus::ShuttingDown));
-                Err(err).context("state_keeper failed")
-            }
+            Err(Error::Fatal(err)) => Err(err).context("state_keeper failed"),
             Err(Error::Canceled) => {
-                self.health_updater
-                    .update(Health::from(HealthStatus::ShuttingDown));
                 tracing::info!("Stop signal received, state keeper is shutting down");
                 Ok(())
             }
