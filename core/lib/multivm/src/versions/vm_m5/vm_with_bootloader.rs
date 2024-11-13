@@ -30,7 +30,7 @@ use crate::{
         utils::{
             code_page_candidate_from_base, heap_page_from_base, BLOCK_GAS_LIMIT, INITIAL_BASE_PAGE,
         },
-        vm_instance::{MultiVMSubversion, VmInstance, ZkSyncVmState},
+        vm_instance::{MultiVmSubversion, VmInstance, ZkSyncVmState},
         OracleTools,
     },
 };
@@ -222,7 +222,7 @@ impl Default for TxExecutionMode {
 }
 
 pub fn init_vm<S: Storage>(
-    refund_state: MultiVMSubversion,
+    refund_state: MultiVmSubversion,
     oracle_tools: OracleTools<false, S>,
     block_context: BlockContextMode,
     block_properties: BlockProperties,
@@ -241,7 +241,7 @@ pub fn init_vm<S: Storage>(
 }
 
 pub fn init_vm_with_gas_limit<S: Storage>(
-    refund_state: MultiVMSubversion,
+    refund_state: MultiVmSubversion,
     oracle_tools: OracleTools<false, S>,
     block_context: BlockContextMode,
     block_properties: BlockProperties,
@@ -338,7 +338,7 @@ impl BlockContextMode {
 // This method accepts a custom bootloader code.
 // It should be used only in tests.
 pub fn init_vm_inner<S: Storage>(
-    refund_state: MultiVMSubversion,
+    refund_state: MultiVmSubversion,
     mut oracle_tools: OracleTools<false, S>,
     block_context: BlockContextMode,
     block_properties: BlockProperties,

@@ -10817,6 +10817,7 @@ name = "zksync_contract_verifier_lib"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "chrono",
  "ethabi",
  "hex",
@@ -11498,6 +11499,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "vise",
  "zksync_concurrency",
  "zksync_config",
  "zksync_consensus_bft",
@@ -11698,6 +11700,7 @@ dependencies = [
  "vise",
  "zksync_concurrency",
  "zksync_config",
+ "zksync_consensus_roles",
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",

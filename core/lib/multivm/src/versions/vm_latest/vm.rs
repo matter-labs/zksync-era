@@ -35,7 +35,7 @@ use crate::{
 /// version was released with increased bootloader memory. The version with the small bootloader memory
 /// is available only on internal staging environments.
 #[derive(Debug, Copy, Clone)]
-pub(crate) enum MultiVMSubversion {
+pub(crate) enum MultiVmSubversion {
     /// The initial version of v1.5.0, available only on staging environments.
     SmallBootloaderMemory,
     /// The final correct version of v1.5.0
@@ -44,7 +44,7 @@ pub(crate) enum MultiVMSubversion {
     Gateway,
 }
 
-impl MultiVMSubversion {
+impl MultiVmSubversion {
     #[cfg(test)]
     pub(crate) fn latest() -> Self {
         Self::IncreasedBootloaderMemory
@@ -53,7 +53,7 @@ impl MultiVMSubversion {
 
 #[derive(Debug)]
 pub(crate) struct VmVersionIsNotVm150Error;
-impl TryFrom<VmVersion> for MultiVMSubversion {
+impl TryFrom<VmVersion> for MultiVmSubversion {
     type Error = VmVersionIsNotVm150Error;
     fn try_from(value: VmVersion) -> Result<Self, Self::Error> {
         match value {
@@ -77,7 +77,7 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
     pub(crate) batch_env: L1BatchEnv,
     // Snapshots for the current run
     pub(crate) snapshots: Vec<VmSnapshot>,
-    pub(crate) subversion: MultiVMSubversion,
+    pub(crate) subversion: MultiVmSubversion,
     _phantom: std::marker::PhantomData<H>,
 }
 
@@ -247,7 +247,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: StoragePtr<S>,
-        subversion: MultiVMSubversion,
+        subversion: MultiVmSubversion,
     ) -> Self {
         let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
         Self {
