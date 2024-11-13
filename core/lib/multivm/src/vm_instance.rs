@@ -13,7 +13,7 @@ use crate::{
         VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
-    vm_fast::{self, DefaultTracers},
+    vm_fast::{self, DefaultTracers, FastVmVersion},
     vm_latest::{self, HistoryEnabled},
 };
 
@@ -132,7 +132,7 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    crate::vm_m5::vm_instance::MultiVMSubversion::V1,
+                    crate::vm_m5::vm_instance::MultiVmSubversion::V1,
                 );
                 Self::VmM5(vm)
             }
@@ -141,7 +141,7 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    crate::vm_m5::vm_instance::MultiVMSubversion::V2,
+                    crate::vm_m5::vm_instance::MultiVmSubversion::V2,
                 );
                 Self::VmM5(vm)
             }
@@ -150,7 +150,7 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    crate::vm_m6::vm_instance::MultiVMSubversion::V1,
+                    crate::vm_m6::vm_instance::MultiVmSubversion::V1,
                 );
                 Self::VmM6(vm)
             }
@@ -159,7 +159,7 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    crate::vm_m6::vm_instance::MultiVMSubversion::V2,
+                    crate::vm_m6::vm_instance::MultiVmSubversion::V2,
                 );
                 Self::VmM6(vm)
             }
@@ -194,7 +194,7 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    vm_latest::MultiVMSubversion::SmallBootloaderMemory,
+                    vm_latest::MultiVmSubversion::SmallBootloaderMemory,
                 );
                 Self::Vm1_5_0(vm)
             }
@@ -203,7 +203,7 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    vm_latest::MultiVMSubversion::IncreasedBootloaderMemory,
+                    vm_latest::MultiVmSubversion::IncreasedBootloaderMemory,
                 );
                 Self::Vm1_5_0(vm)
             }
@@ -212,7 +212,7 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    vm_latest::MultiVMSubversion::Gateway,
+                    vm_latest::MultiVmSubversion::Gateway,
                 );
                 Self::Vm1_5_0(vm)
             }
@@ -342,8 +342,5 @@ impl<S: ReadStorage, Tr: vm_fast::interface::Tracer> FastVmInstance<S, Tr> {
 
 /// Checks whether the protocol version is supported by the fast VM.
 pub fn is_supported_by_fast_vm(protocol_version: ProtocolVersionId) -> bool {
-    matches!(
-        protocol_version.into(),
-        VmVersion::Vm1_5_0IncreasedBootloaderMemory
-    )
+    FastVmVersion::try_from(VmVersion::from(protocol_version)).is_ok()
 }

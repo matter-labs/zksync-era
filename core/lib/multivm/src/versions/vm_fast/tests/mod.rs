@@ -119,7 +119,7 @@ where
     }
 
     fn finish_batch_without_pubdata(&mut self) -> VmExecutionResultAndLogs {
-        self.inspect_inner(&mut Default::default(), VmExecutionMode::Batch)
+        self.inspect_inner(&mut Default::default(), VmExecutionMode::Batch, None)
     }
 
     fn insert_bytecodes(&mut self, bytecodes: &[&[u8]]) {

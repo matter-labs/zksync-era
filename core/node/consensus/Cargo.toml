@@ -42,6 +42,7 @@ thiserror.workspace = true
 tracing.workspace = true
 tokio.workspace = true
 semver.workspace = true
+vise.workspace = true
 
 [dev-dependencies]
 zksync_node_genesis.workspace = true
