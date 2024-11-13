@@ -1,9 +1,10 @@
 use anyhow::Context as _;
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
+use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{
     ethabi,
     ethabi::{ParamType, Token},
+    h256_to_u256,
     transaction_request::TransactionRequest,
     web3, Address, H256, U256,
 };

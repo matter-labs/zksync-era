@@ -13,13 +13,14 @@ use zksync_test_account::Account;
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHasher},
     fee::Fee,
-    get_intrinsic_constants,
+    get_intrinsic_constants, h256_to_u256,
     l2::L2Tx,
+    u256_to_h256,
     utils::storage_key_for_standard_token_balance,
     AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
     StorageLog, StorageLogKind, StorageValue, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
+use zksync_utils::bytecode::hash_bytecode;
 use zksync_vm_interface::{
     tracer::ValidationTraces, L1BatchEnv, L2BlockEnv, SystemEnv, TransactionExecutionMetrics,
 };

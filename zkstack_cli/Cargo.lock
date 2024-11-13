@@ -796,6 +796,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "const-decoder"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b381abde2cdc1bc3817e394b24e05667a2dc89f37570cbd34d9c397d99e56e3f"
+dependencies = [
+ "compile-fmt",
+]
+
+[[package]]
 name = "const-hex"
 version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6886,7 +6895,6 @@ dependencies = [
  "sha2",
  "thiserror",
  "zksync_basic_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -6961,7 +6969,6 @@ version = "0.1.0"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -7001,13 +7008,10 @@ name = "zksync_utils"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bigdecimal",
+ "const-decoder",
  "futures",
- "hex",
- "num",
  "once_cell",
  "reqwest 0.12.8",
- "serde",
  "serde_json",
  "thiserror",
  "tokio",

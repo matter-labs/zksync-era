@@ -8,15 +8,15 @@ use zksync_types::{
     commitment::{L1BatchCommitmentMode, PubdataParams},
     ethabi,
     fee::Fee,
+    h256_to_u256,
     l1::{OpProcessingType, PriorityQueueType},
     l2::TransactionType,
     parse_h160, parse_h256,
     protocol_upgrade::ProtocolUpgradeTxCommonData,
     transaction_request::PaymasterParams,
-    Execute, ExecuteTransactionCommon, InputData, L1BatchNumber, L1TxCommonData, L2TxCommonData,
-    Nonce, PriorityOpId, ProtocolVersionId, Transaction, H256,
+    u256_to_h256, Execute, ExecuteTransactionCommon, InputData, L1BatchNumber, L1TxCommonData,
+    L2TxCommonData, Nonce, PriorityOpId, ProtocolVersionId, Transaction, H256,
 };
-use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use super::*;
 
