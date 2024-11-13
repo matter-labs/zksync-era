@@ -361,7 +361,7 @@ jobs:
         run: |
           ci_run zkstack chain server build
           ci_run zkstack external-node build
-          ci_run zkstack server contract-verifier build
+          ci_run zkstack chain contract-verifier build
 
       - name: Initialize Contract verifier
         run: |
