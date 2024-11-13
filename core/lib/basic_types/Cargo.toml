@@ -14,7 +14,7 @@ categories.workspace = true
 const-decoder.workspace = true
 ethabi.workspace = true
 hex.workspace = true
-sha2.workspace = true # FIXME: is this dep OK?
+sha2.workspace = true
 tiny-keccak.workspace = true
 thiserror.workspace = true
 serde = { workspace = true, features = ["derive"] }
