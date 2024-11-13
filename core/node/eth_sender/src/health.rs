@@ -6,23 +6,6 @@ use zksync_types::{
     L1BlockNumber, Nonce, H256,
 };
 
-#[derive(Debug, Serialize, Deserialize)]
-pub enum ActionType {
-    Commit,
-    PublishProofOnchain,
-    Execute,
-}
-
-impl From<AggregatedActionType> for ActionType {
-    fn from(action_type: AggregatedActionType) -> Self {
-        match action_type {
-            AggregatedActionType::Commit => Self::Commit,
-            AggregatedActionType::PublishProofOnchain => Self::PublishProofOnchain,
-            AggregatedActionType::Execute => Self::Execute,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TxStatus {
     pub tx_hash: H256,
@@ -54,7 +37,7 @@ impl From<EthTxAggregatorHealthDetails> for Health {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EthTxDetails {
     pub nonce: Nonce,
-    pub tx_type: ActionType,
+    pub tx_type: AggregatedActionType,
     pub created_at_timestamp: u64,
     pub predicted_gas_cost: u64,
 }
