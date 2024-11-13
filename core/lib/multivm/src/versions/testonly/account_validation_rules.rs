@@ -24,9 +24,10 @@ pub(crate) fn test_account_validation_rules<VM: TestedVm + TestedVmForValidation
         Some(ViolatedValidationRule::CalledContractWithNoCode(_))
     );
     assert_matches!(test_rule::<VM>(3), None);
-
-    // TODO: test running out of gas but catching the failure.
-    // Can be accomplished via many nested far calls.
+    assert_matches!(
+        test_rule::<VM>(4),
+        Some(ViolatedValidationRule::TookTooManyComputationalGas(_))
+    )
 }
 
 fn test_rule<VM: TestedVm + TestedVmForValidation>(rule: u32) -> Option<ViolatedValidationRule> {

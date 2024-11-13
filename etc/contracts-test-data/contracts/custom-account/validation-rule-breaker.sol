@@ -42,9 +42,16 @@ contract ValidationRuleBreaker is IAccount {
             // This should succeed because a trustedAddress is marked as a slot that grants access to the address it contains
             require(trustedAddress == address(0x800a));
             require(BOOTLOADER_FORMAL_ADDRESS.balance != 0);
+        } else if (typeOfRuleBreak == 4) {
+            // This should still fail; EIP-4337 defines out of gas as an immediate failure
+            _runOutOfGasButCatchThePanic();
         }
 
         _validateTransaction(_suggestedSignedTxHash, _transaction);
+    }
+
+    function _runOutOfGasButCatchThePanic() internal {
+        bool success = _runOutOfGasButCatchThePanic();
     }
 
     function _validateTransaction(
