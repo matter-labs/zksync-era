@@ -33,7 +33,7 @@ use zksync_node_framework::{
             NodeStorageInitializerLayer,
         },
         pools_layer::PoolsLayerBuilder,
-        postgres_metrics::PostgresLayer,
+        postgres::PostgresLayer,
         prometheus_exporter::PrometheusExporterLayer,
         pruning::PruningLayer,
         query_eth_client::QueryEthClientLayer,
