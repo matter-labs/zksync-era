@@ -44,14 +44,18 @@ contract ValidationRuleBreaker is IAccount {
             require(BOOTLOADER_FORMAL_ADDRESS.balance != 0);
         } else if (typeOfRuleBreak == 4) {
             // This should still fail; EIP-4337 defines out of gas as an immediate failure
-            _runOutOfGasButCatchThePanic();
+            address(this).call(
+                abi.encodeWithSignature("_runOutOfGasButCatchThePanic()")
+            );
         }
 
         _validateTransaction(_suggestedSignedTxHash, _transaction);
     }
 
-    function _runOutOfGasButCatchThePanic() internal {
-        bool success = _runOutOfGasButCatchThePanic();
+    function _runOutOfGasButCatchThePanic() external {
+        address(this).call(
+            abi.encodeWithSignature("_runOutOfGasButCatchThePanic()")
+        );
     }
 
     function _validateTransaction(
