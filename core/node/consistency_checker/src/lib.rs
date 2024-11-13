@@ -476,7 +476,12 @@ impl ConsistencyChecker {
             .client
             .get_tx_status(commit_tx_hash)
             .await?
-            .with_context(|| format!("receipt for tx {commit_tx_hash:?} not found on target layer"))
+            .with_context(|| {
+                format!(
+                    "receipt for tx {commit_tx_hash:?} not found on target chain with id {}",
+                    chain_data.chain_id
+                )
+            })
             .map_err(CheckError::Validation)?;
         if !commit_tx_status.success {
             let err = anyhow::anyhow!("main node gave us a failed commit tx {commit_tx_hash:?}");
