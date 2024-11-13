@@ -1,13 +1,13 @@
 use itertools::Itertools;
 use zksync_types::U256;
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
+use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{
     interface::{
         storage::{StoragePtr, WriteStorage},
         CompressedBytecodeInfo,
     },
-    utils::bytecode,
+    utils::{bytecode, bytecode::bytes_to_be_words},
     vm_virtual_blocks::Vm,
     HistoryMode,
 };
@@ -34,9 +34,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 pub(crate) fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> (U256, Vec<U256>) {
     let bytecode_hash = hash_bytecode(&bytecode);
     let bytecode_hash = U256::from_big_endian(bytecode_hash.as_bytes());
-
-    let bytecode_words = bytes_to_be_words(bytecode);
-
+    let bytecode_words = bytes_to_be_words(&bytecode);
     (bytecode_hash, bytecode_words)
 }
 

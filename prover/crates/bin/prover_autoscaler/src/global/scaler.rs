@@ -4,14 +4,12 @@ use chrono::Utc;
 use debug_map_sorted::SortedOutputExt;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use zksync_config::configs::prover_autoscaler::{
-    Gpu, ProverAutoscalerScalerConfig, QueueReportFields, ScalerTarget,
-};
 
 use super::{queuer, watcher};
 use crate::{
     agent::{ScaleDeploymentRequest, ScaleRequest},
     cluster_types::{Cluster, Clusters, Pod, PodStatus},
+    config::{Gpu, ProverAutoscalerScalerConfig, QueueReportFields, ScalerTarget},
     metrics::AUTOSCALER_METRICS,
     task_wiring::Task,
 };
@@ -124,11 +122,11 @@ impl Scaler {
         let mut simple_scalers = Vec::default();
         let mut jobs = vec![QueueReportFields::prover_jobs];
         for c in &config.scaler_targets {
-            jobs.push(c.queue_report_field.clone());
+            jobs.push(c.queue_report_field);
             simple_scalers.push(SimpleScaler::new(
                 c,
                 config.cluster_priorities.clone(),
-                chrono::Duration::seconds(config.long_pending_duration.whole_seconds()),
+                chrono::Duration::seconds(config.long_pending_duration.as_secs() as i64),
             ))
         }
         Self {
@@ -150,7 +148,7 @@ impl GpuScaler {
             max_provers: config.max_provers,
             prover_speed: config.prover_speed,
             long_pending_duration: chrono::Duration::seconds(
-                config.long_pending_duration.whole_seconds(),
+                config.long_pending_duration.as_secs() as i64,
             ),
         }
     }
@@ -429,7 +427,7 @@ impl SimpleScaler {
         long_pending_duration: chrono::Duration,
     ) -> Self {
         Self {
-            queue_report_field: config.queue_report_field.clone(),
+            queue_report_field: config.queue_report_field,
             deployment: config.deployment.clone(),
             cluster_priorities,
             max_replicas: config.max_replicas.clone(),
@@ -671,6 +669,7 @@ impl Task for Scaler {
                     .get(&(ppv.to_string(), QueueReportFields::prover_jobs))
                     .cloned()
                     .unwrap_or(0);
+                AUTOSCALER_METRICS.queue[&(ns.clone(), "prover".into())].set(q);
                 tracing::debug!("Running eval for namespace {ns} and PPV {ppv} found queue {q}");
                 if q > 0 || is_namespace_running(ns, &guard.clusters) {
                     let provers = self.prover_scaler.run(ns, q, &guard.clusters);
@@ -684,9 +683,10 @@ impl Task for Scaler {
                 // Simple Scalers.
                 for scaler in &self.simple_scalers {
                     let q = queue
-                        .get(&(ppv.to_string(), scaler.queue_report_field.clone()))
+                        .get(&(ppv.to_string(), scaler.queue_report_field))
                         .cloned()
                         .unwrap_or(0);
+                    AUTOSCALER_METRICS.queue[&(ns.clone(), scaler.deployment.clone())].set(q);
                     tracing::debug!("Running eval for namespace {ns}, PPV {ppv}, simple scaler {} found queue {q}", scaler.deployment);
                     if q > 0 || is_namespace_running(ns, &guard.clusters) {
                         let replicas = scaler.run(ns, q, &guard.clusters);

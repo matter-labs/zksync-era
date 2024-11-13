@@ -18,7 +18,7 @@ use zksync_multivm::{
     interface::{
         executor::{OneshotExecutor, TransactionValidator},
         storage::{ReadStorage, StorageView, StorageWithOverrides},
-        tracer::{ValidationError, ValidationParams},
+        tracer::{ValidationError, ValidationParams, ValidationTraces},
         utils::{DivergenceHandler, ShadowVm},
         Call, ExecutionResult, InspectExecutionMode, OneshotEnv, OneshotTracingParams,
         OneshotTransactionExecutionResult, StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode,
@@ -29,24 +29,24 @@ use zksync_multivm::{
     utils::adjust_pubdata_price_for_tx,
     vm_latest::{HistoryDisabled, HistoryEnabled},
     zk_evm_latest::ethereum_types::U256,
-    FastVmInstance, HistoryMode, LegacyVmInstance, MultiVMTracer,
+    FastVmInstance, HistoryMode, LegacyVmInstance, MultiVmTracer,
 };
 use zksync_types::{
     block::pack_block_info,
-    get_nonce_key,
+    get_nonce_key, h256_to_u256,
     l2::L2Tx,
+    u256_to_h256,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     vm::FastVmMode,
     AccountTreeId, Nonce, StorageKey, Transaction, SYSTEM_CONTEXT_ADDRESS,
     SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
 };
-use zksync_utils::{h256_to_u256, u256_to_h256};
 
 pub use self::{
     block::{BlockInfo, ResolvedBlockInfo},
     contracts::{
         BaseSystemContractsProvider, CallOrExecute, ContractsKind, EstimateGas,
-        MultiVMBaseSystemContracts,
+        MultiVmBaseSystemContracts,
     },
     env::OneshotEnvParameters,
     mock::MockOneshotExecutor,
@@ -171,13 +171,14 @@ where
         env: OneshotEnv,
         tx: L2Tx,
         validation_params: ValidationParams,
-    ) -> anyhow::Result<Result<(), ValidationError>> {
+    ) -> anyhow::Result<Result<ValidationTraces, ValidationError>> {
         anyhow::ensure!(
             env.system.execution_mode == TxExecutionMode::VerifyExecute,
             "Unexpected execution mode for tx validation: {:?} (expected `VerifyExecute`)",
             env.system.execution_mode
         );
 
+        let l1_batch_env = env.l1_batch.clone();
         let sandbox = VmSandbox {
             fast_vm_mode: FastVmMode::Old,
             panic_on_divergence: self.panic_on_divergence,
@@ -188,11 +189,13 @@ where
         };
 
         tokio::task::spawn_blocking(move || {
-            let (validation_tracer, mut validation_result) =
-                ValidationTracer::<HistoryDisabled>::new(
-                    validation_params,
-                    sandbox.env.system.version.into(),
-                );
+            let validation_tracer = ValidationTracer::<HistoryDisabled>::new(
+                validation_params,
+                sandbox.env.system.version.into(),
+                l1_batch_env,
+            );
+            let mut validation_result = validation_tracer.get_result();
+            let validation_traces = validation_tracer.get_traces();
             let tracers = vec![validation_tracer.into_tracer_pointer()];
 
             let exec_result = sandbox.execute_in_vm(|vm, transaction| {
@@ -209,7 +212,7 @@ where
             match (exec_result.result, validation_result) {
                 (_, Err(violated_rule)) => Err(ValidationError::ViolatedRule(violated_rule)),
                 (ExecutionResult::Halt { reason }, _) => Err(ValidationError::FailedTx(reason)),
-                _ => Ok(()),
+                _ => Ok(validation_traces.lock().unwrap().clone()),
             }
         })
         .await

@@ -1,6 +1,6 @@
 //! Helper module to submit transactions into the ZKsync Network.
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::sync::RwLock;
@@ -9,7 +9,10 @@ use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
 use zksync_multivm::{
-    interface::{OneshotTracingParams, TransactionExecutionMetrics, VmExecutionResultAndLogs},
+    interface::{
+        tracer::TimestampAsserterParams as TracerTimestampAsserterParams, OneshotTracingParams,
+        TransactionExecutionMetrics, VmExecutionResultAndLogs,
+    },
     utils::{derive_base_fee_and_gas_per_pubdata, get_max_batch_gas_limit},
 };
 use zksync_node_fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider};
@@ -21,7 +24,7 @@ use zksync_state_keeper::{
 use zksync_types::{
     api::state_override::StateOverride,
     fee_model::BatchFeeInput,
-    get_intrinsic_constants,
+    get_intrinsic_constants, h256_to_u256,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
@@ -29,9 +32,8 @@ use zksync_types::{
     AccountTreeId, Address, L2ChainId, Nonce, ProtocolVersionId, Transaction, H160, H256,
     MAX_NEW_FACTORY_DEPS, U256,
 };
-use zksync_utils::h256_to_u256;
 use zksync_vm_executor::oneshot::{
-    CallOrExecute, EstimateGas, MultiVMBaseSystemContracts, OneshotEnvParameters,
+    CallOrExecute, EstimateGas, MultiVmBaseSystemContracts, OneshotEnvParameters,
 };
 
 pub(super) use self::{gas_estimation::BinarySearchKind, result::SubmitTxError};
@@ -107,11 +109,11 @@ impl SandboxExecutorOptions {
         validation_computational_gas_limit: u32,
     ) -> anyhow::Result<Self> {
         let estimate_gas_contracts =
-            tokio::task::spawn_blocking(MultiVMBaseSystemContracts::load_estimate_gas_blocking)
+            tokio::task::spawn_blocking(MultiVmBaseSystemContracts::load_estimate_gas_blocking)
                 .await
                 .context("failed loading base contracts for gas estimation")?;
         let call_contracts =
-            tokio::task::spawn_blocking(MultiVMBaseSystemContracts::load_eth_call_blocking)
+            tokio::task::spawn_blocking(MultiVmBaseSystemContracts::load_eth_call_blocking)
                 .await
                 .context("failed loading base contracts for calls / tx execution")?;
 
@@ -205,6 +207,12 @@ impl TxSenderBuilder {
             executor_options,
             storage_caches,
             missed_storage_invocation_limit,
+            self.config.timestamp_asserter_params.clone().map(|params| {
+                TracerTimestampAsserterParams {
+                    address: params.address,
+                    min_time_till_end: params.min_time_till_end,
+                }
+            }),
         );
 
         TxSender(Arc::new(TxSenderInner {
@@ -234,6 +242,13 @@ pub struct TxSenderConfig {
     pub validation_computational_gas_limit: u32,
     pub chain_id: L2ChainId,
     pub whitelisted_tokens_for_aa: Vec<Address>,
+    pub timestamp_asserter_params: Option<TimestampAsserterParams>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimestampAsserterParams {
+    pub address: Address,
+    pub min_time_till_end: Duration,
 }
 
 impl TxSenderConfig {
@@ -242,6 +257,7 @@ impl TxSenderConfig {
         web3_json_config: &Web3JsonRpcConfig,
         fee_account_addr: Address,
         chain_id: L2ChainId,
+        timestamp_asserter_params: Option<TimestampAsserterParams>,
     ) -> Self {
         Self {
             fee_account_addr,
@@ -253,6 +269,7 @@ impl TxSenderConfig {
                 .validation_computational_gas_limit,
             chain_id,
             whitelisted_tokens_for_aa: web3_json_config.whitelisted_tokens_for_aa.clone(),
+            timestamp_asserter_params,
         }
     }
 }
@@ -361,14 +378,15 @@ impl TxSender {
         if !execution_output.are_published_bytecodes_ok {
             return Err(SubmitTxError::FailedToPublishCompressedBytecodes);
         }
-
         let mut stage_latency =
             SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DbInsert);
         self.ensure_tx_executable(&tx.clone().into(), &execution_output.metrics, true)?;
+
+        let validation_traces = validation_result?;
         let submission_res_handle = self
             .0
             .tx_sink
-            .submit_tx(&tx, execution_output.metrics)
+            .submit_tx(&tx, execution_output.metrics, validation_traces)
             .await?;
 
         match submission_res_handle {

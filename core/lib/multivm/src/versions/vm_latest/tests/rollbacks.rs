@@ -87,7 +87,7 @@ fn test_layered_rollback() {
     let loadnext_transaction = account.get_loadnext_transaction(
         address,
         LoadnextContractExecutionParams {
-            writes: 1,
+            initial_writes: 1,
             recursive_calls: 20,
             ..LoadnextContractExecutionParams::empty()
         },

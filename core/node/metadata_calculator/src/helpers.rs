@@ -22,6 +22,7 @@ use zksync_health_check::{CheckHealth, Health, HealthStatus, ReactiveHealthCheck
 use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
     recovery::{MerkleTreeRecovery, PersistenceThreadHandle},
+    repair::StaleKeysRepairTask,
     unstable::{NodeKey, RawNode},
     Database, Key, MerkleTreeColumnFamily, NoVersionError, RocksDBWrapper, TreeEntry,
     TreeEntryWithProof, TreeInstruction,
@@ -419,6 +420,19 @@ impl AsyncTreeReader {
         tokio::task::spawn_blocking(move || self.inner.raw_stale_keys(l1_batch_number))
             .await
             .unwrap()
+    }
+
+    pub(crate) async fn bogus_stale_keys(self, l1_batch_number: L1BatchNumber) -> Vec<NodeKey> {
+        let version = l1_batch_number.0.into();
+        tokio::task::spawn_blocking(move || {
+            StaleKeysRepairTask::bogus_stale_keys(self.inner.db(), version)
+        })
+        .await
+        .unwrap()
+    }
+
+    pub(crate) fn into_db(self) -> RocksDBWrapper {
+        self.inner.into_db()
     }
 }
 
