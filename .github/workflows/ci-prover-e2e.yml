@@ -123,8 +123,21 @@ jobs:
             BATCH_NUMBER: 1
             INTERVAL: 30
             TIMEOUT: 600
+            DB_CHECKS_ONLY: false
         run: |
-          PASSED_ENV_VARS="BATCH_NUMBER,DATABASE_URL,URL,INTERVAL,TIMEOUT" \
+          PASSED_ENV_VARS="BATCH_NUMBER,DATABASE_URL,URL,INTERVAL,TIMEOUT,DB_CHECKS_ONLY" \
+          ci_run ./bin/prover_checkers/batch_l1_status_checker
+
+      - name: Wait for batch to be generated in database
+        if: matrix.compressor-mode == 'fflonk'
+        env:
+          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
+          BATCH_NUMBER: 1
+          INTERVAL: 30
+          TIMEOUT: 600
+          DB_CHECKS_ONLY: true
+        run: |
+          PASSED_ENV_VARS="BATCH_NUMBER,DATABASE_URL,URL,INTERVAL,TIMEOUT,DB_CHECKS_ONLY" \
           ci_run ./bin/prover_checkers/batch_l1_status_checker
 
       - name: Upload logs

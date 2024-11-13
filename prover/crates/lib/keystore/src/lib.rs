@@ -1,6 +1,5 @@
 #![feature(allocator_api)]
 
-use boojum_cuda::poseidon2::GLHasher;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "gpu")]
 use shivini::cs::GpuSetup;
