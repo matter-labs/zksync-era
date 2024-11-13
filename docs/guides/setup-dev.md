@@ -14,20 +14,20 @@ git config --global url."https://".insteadOf git://
 
 # Rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
 # NVM
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+
 # All necessary stuff
 sudo apt-get update
-sudo apt-get install build-essential pkg-config cmake clang lldb lld libssl-dev postgresql apt-transport-https ca-certificates curl software-properties-common
+sudo apt-get install -y build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates curl software-properties-common
+
 # Install docker
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
 sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
 sudo apt install docker-ce
 sudo usermod -aG docker ${USER}
 
-# Stop default postgres (as we'll use the docker one)
-sudo systemctl stop postgresql
-sudo systemctl disable postgresql
 # Start docker.
 sudo systemctl start docker
 
@@ -45,9 +45,9 @@ cargo install cargo-nextest
 # SQL tools
 cargo install sqlx-cli --version 0.8.1
 
-# Foundry
-curl -L https://foundry.paradigm.xyz | bash
-foundryup --branch master
+# Foundry ZKsync
+curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
+foundryup-zksync --branch master
 
 # Non CUDA (GPU) setup, can be skipped if the machine has a CUDA installed for provers
 # Don't do that if you intend to run provers on your machine. Check the prover docs for a setup instead.
@@ -60,24 +60,24 @@ cd zksync-era
 git submodule update --init --recursive
 ```
 
-Don't forget to [add env variables](#Environment) and look at [tips](#tips).
+Don't forget to look at [tips](#tips).
 
 ## Supported operating systems
 
-ZKsync currently can be launched on any \*nix operating system (e.g. any linux distribution or MacOS).
+ZKsync currently can be launched on any \*nix operating system (e.g. any linux distribution or macOS).
 
 If you're using Windows, then make sure to use WSL 2.
 
 Additionally, if you are going to use WSL 2, make sure that your project is located in the _linux filesystem_, since
 accessing NTFS partitions from within WSL is very slow.
 
-If you're using MacOS with an ARM processor (e.g. M1/M2), make sure that you are working in the _native_ environment
-(e.g. your terminal and IDE don't run in Rosetta, and your toolchain is native). Trying to work with ZKsync code via
+If you're using macOS with an ARM processor (e.g. M1/M2), make sure that you are working in the _native_ environment
+(e.g., your terminal and IDE don't run in Rosetta, and your toolchain is native). Trying to work with ZKsync code via
 Rosetta may cause problems that are hard to spot and debug, so make sure to check everything before you start.
 
 If you are a NixOS user or would like to have a reproducible environment, skip to the section about `nix`.
 
-## `Docker`
+## Docker
 
 Install `docker`. It is recommended to follow the instructions from the
 [official site](https://docs.docker.com/install/).
@@ -117,13 +117,13 @@ at this step.
 
 If logging out does not resolve the issue, restarting the computer should.
 
-## `Node` & `Yarn`
+## Node.js & Yarn
 
 1. Install `Node` (requires version `v20`). The recommended way is via [nvm](https://github.com/nvm-sh/nvm).
 2. Install `yarn`. Can be done via `npm install -g yarn`. Make sure to get version 1.22.19 - you can change the version
    by running `yarn set version 1.22.19`.
 
-## `clang`
+## clang
 
 In order to compile RocksDB, you must have LLVM available. On debian-based linux it can be installed as follows:
 
@@ -133,12 +133,12 @@ On debian-based linux:
 sudo apt-get install build-essential pkg-config cmake clang lldb lld
 ```
 
-On mac:
+On macOS:
 
 You need to have an up-to-date `Xcode`. You can install it directly from `App Store`. With Xcode command line tools, you
 get the Clang compiler installed by default. Thus, having XCode you don't need to install `clang`.
 
-## `OpenSSL`
+## OpenSSL
 
 Install OpenSSL:
 
@@ -154,9 +154,9 @@ On debian-based linux:
 sudo apt-get install libssl-dev
 ```
 
-## `Rust`
+## Rust
 
-Install the latest `rust` version.
+Install `Rust`'s toolchain version reported in `/rust-toolchain.toml` (also a later stable version should work).
 
 Instructions can be found on the [official site](https://www.rust-lang.org/tools/install).
 
@@ -167,7 +167,7 @@ rustc --version
 rustc 1.xx.y (xxxxxx 20xx-yy-zz) # Output may vary depending on actual version of rust
 ```
 
-If you are using MacOS with ARM processor (e.g. M1/M2), make sure that you use an `aarch64` toolchain. For example, when
+If you are using macOS with ARM processor (e.g. M1/M2), make sure that you use an `aarch64` toolchain. For example, when
 you run `rustup show`, you should see a similar input:
 
 ```bash
@@ -190,25 +190,26 @@ If you see `x86_64` mentioned in the output, probably you're running (or used to
 that's the case, you should probably change the way you run terminal, and/or reinstall your IDE, and then reinstall the
 Rust toolchain as well.
 
-## Postgres
+## PostgreSQL Client Library
 
-Install the latest postgres:
+For development purposes, you typically only need the PostgreSQL client library, not the full server installation.
+Here's how to install it:
 
-On mac:
+On macOS:
 
 ```bash
-brew install postgresql@14
+brew install libpq
 ```
 
-On debian-based linux:
+On Debian-based Linux:
 
 ```bash
-sudo apt-get install postgresql
+sudo apt-get install libpq-dev
 ```
 
 ### Cargo nextest
 
-[cargo-nextest](https://nexte.st/) is the next-generation test runner for Rust projects. `zk test rust` uses
+[cargo-nextest](https://nexte.st/) is the next-generation test runner for Rust projects. `zkstack dev test rust` uses
 `cargo nextest` by default.
 
 ```bash
@@ -236,10 +237,13 @@ enable nix-ld.
 
 Go to the zksync folder and run `nix develop`. After it finishes, you are in a shell that has all the dependencies.
 
-## Foundry
+## Foundry ZKsync
 
-[Foundry](https://book.getfoundry.sh/getting-started/installation) can be utilized for deploying smart contracts. For
-commands related to deployment, you can pass flags for Foundry integration.
+ZKSync depends on Foundry ZKsync (which is is a specialized fork of Foundry, tailored for ZKsync). Please follow this
+[installation guide](https://foundry-book.zksync.io/getting-started/installation) to get started with Foundry ZKsync.
+
+Foundry ZKsync can also be used for deploying smart contracts. For commands related to deployment, you can pass flags
+for Foundry integration.
 
 ## Non-GPU setup
 
@@ -266,17 +270,6 @@ RUSTFLAGS as env var, or pass it in `config.toml` (either project level or globa
 rustflags = ["--cfg=no_cuda"]
 ```
 
-## Environment
-
-Edit the lines below and add them to your shell profile file (e.g. `~/.bash_profile`, `~/.zshrc`):
-
-```bash
-# Add path here:
-export ZKSYNC_HOME=/path/to/zksync
-
-export PATH=$ZKSYNC_HOME/bin:$PATH
-```
-
 ## Tips
 
 ### Tip: `mold`
@@ -294,7 +287,7 @@ export RUSTFLAGS='-C link-arg=-fuse-ld=/usr/local/bin/mold'
 export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="clang"
 ```
 
-## Tip: Speeding up building `RocksDB`
+### Tip: Speeding up building `RocksDB`
 
 By default, each time you compile `rocksdb` crate, it will compile required C++ sources from scratch. It can be avoided
 by using precompiled versions of library, and it will significantly improve your build times.

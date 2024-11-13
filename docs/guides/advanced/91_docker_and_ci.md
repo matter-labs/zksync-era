@@ -64,8 +64,8 @@ zk
 
 After this, you can run any commands you need.
 
-When you see a command like `ci_run zk contract build` in the CI - this simply means that it executed
-`zk contract build` inside that docker container.
+When you see a command like `ci_run zkstack dev contracts` in the CI - this simply means that it executed
+`zkstack dev contracts` inside that docker container.
 
 **IMPORTANT** - by default, docker is running in the mode, where it does NOT persist the changes. So if you exit that
 shell, all the changes will be removed (so when you restart, you'll end up in the same pristine condition). You can

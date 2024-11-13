@@ -537,6 +537,23 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
 ;;
+(deploy-timestamp-asserter)
+_arguments "${_arguments_options[@]}" : \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
 (deploy-upgrader)
 _arguments "${_arguments_options[@]}" : \
 '--verify=[Verify deployed contracts]' \
@@ -595,7 +612,39 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--genesis[Run server in genesis mode]' \
-'--build[Build server but don'\''t run it]' \
+'--uring[Enables uring support for RocksDB]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_zkstack__chain__server_commands" \
+"*::: :->server" \
+&& ret=0
+
+    case $state in
+    (server)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-chain-server-command-$line[1]:"
+        case $line[1] in
+            (build)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+'*--components=[Components of server to run]:COMPONENTS:_default' \
+'*-a+[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--genesis[Run server in genesis mode]' \
 '--uring[Enables uring support for RocksDB]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
@@ -603,6 +652,55 @@ _arguments "${_arguments_options[@]}" : \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
+;;
+(wait)
+_arguments "${_arguments_options[@]}" : \
+'-t+[Wait timeout in seconds]:SECONDS:_default' \
+'--timeout=[Wait timeout in seconds]:SECONDS:_default' \
+'--poll-interval=[Poll interval in milliseconds]:MILLIS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_zkstack__chain__server__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-chain-server-help-command-$line[1]:"
+        case $line[1] in
+            (build)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(wait)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
 ;;
 (contract-verifier)
 _arguments "${_arguments_options[@]}" : \
@@ -622,8 +720,31 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:zkstack-chain-contract-verifier-command-$line[1]:"
         case $line[1] in
-            (run)
+            (build)
 _arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(wait)
+_arguments "${_arguments_options[@]}" : \
+'-t+[Wait timeout in seconds]:SECONDS:_default' \
+'--timeout=[Wait timeout in seconds]:SECONDS:_default' \
+'--poll-interval=[Poll interval in milliseconds]:MILLIS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
@@ -660,7 +781,15 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:zkstack-chain-contract-verifier-help-command-$line[1]:"
         case $line[1] in
-            (run)
+            (build)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(wait)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -720,6 +849,19 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
+(wait-for-registry)
+_arguments "${_arguments_options[@]}" : \
+'-t+[Wait timeout in seconds]:SECONDS:_default' \
+'--timeout=[Wait timeout in seconds]:SECONDS:_default' \
+'--poll-interval=[Poll interval in milliseconds]:MILLIS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_zkstack__chain__consensus__help_commands" \
@@ -737,6 +879,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (get-attester-committee)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(wait-for-registry)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -840,6 +986,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(deploy-timestamp-asserter)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (deploy-upgrader)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -854,7 +1004,31 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (server)
 _arguments "${_arguments_options[@]}" : \
+":: :_zkstack__chain__help__server_commands" \
+"*::: :->server" \
 && ret=0
+
+    case $state in
+    (server)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-chain-help-server-command-$line[1]:"
+        case $line[1] in
+            (build)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(wait)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
 ;;
 (contract-verifier)
 _arguments "${_arguments_options[@]}" : \
@@ -868,7 +1042,15 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:zkstack-chain-help-contract-verifier-command-$line[1]:"
         case $line[1] in
-            (run)
+            (build)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(wait)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -897,6 +1079,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (get-attester-committee)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(wait-for-registry)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2241,6 +2427,16 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
+(build)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
 (run)
 _arguments "${_arguments_options[@]}" : \
 '*--components=[Components of server to run]:COMPONENTS:_default' \
@@ -2249,6 +2445,19 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--reinit[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(wait)
+_arguments "${_arguments_options[@]}" : \
+'-t+[Wait timeout in seconds]:SECONDS:_default' \
+'--timeout=[Wait timeout in seconds]:SECONDS:_default' \
+'--poll-interval=[Poll interval in milliseconds]:MILLIS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -2276,7 +2485,15 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(build)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(wait)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2560,6 +2777,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(deploy-timestamp-asserter)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (deploy-upgrader)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -2574,7 +2795,31 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (server)
 _arguments "${_arguments_options[@]}" : \
+":: :_zkstack__help__chain__server_commands" \
+"*::: :->server" \
 && ret=0
+
+    case $state in
+    (server)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-help-chain-server-command-$line[1]:"
+        case $line[1] in
+            (build)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(wait)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
 ;;
 (contract-verifier)
 _arguments "${_arguments_options[@]}" : \
@@ -2588,7 +2833,15 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:zkstack-help-chain-contract-verifier-command-$line[1]:"
         case $line[1] in
-            (run)
+            (build)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(wait)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2617,6 +2870,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (get-attester-committee)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(wait-for-registry)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2948,7 +3205,15 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(build)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(wait)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -3049,6 +3314,7 @@ _zkstack__chain_commands() {
 'initialize-bridges:Initialize bridges on L2' \
 'deploy-consensus-registry:Deploy L2 consensus registry' \
 'deploy-multicall3:Deploy L2 multicall3' \
+'deploy-timestamp-asserter:Deploy L2 TimestampAsserter' \
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
@@ -3074,6 +3340,7 @@ _zkstack__chain__consensus_commands() {
     local commands; commands=(
 'set-attester-committee:Sets the attester committee in the consensus registry contract to \`consensus.genesis_spec.attesters\` in general.yaml' \
 'get-attester-committee:Fetches the attester committee from the consensus registry contract' \
+'wait-for-registry:Wait until the consensus registry contract is deployed to L2' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack chain consensus commands' commands "$@"
@@ -3088,6 +3355,7 @@ _zkstack__chain__consensus__help_commands() {
     local commands; commands=(
 'set-attester-committee:Sets the attester committee in the consensus registry contract to \`consensus.genesis_spec.attesters\` in general.yaml' \
 'get-attester-committee:Fetches the attester committee from the consensus registry contract' \
+'wait-for-registry:Wait until the consensus registry contract is deployed to L2' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack chain consensus help commands' commands "$@"
@@ -3107,28 +3375,52 @@ _zkstack__chain__consensus__help__set-attester-committee_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain consensus help set-attester-committee commands' commands "$@"
 }
+(( $+functions[_zkstack__chain__consensus__help__wait-for-registry_commands] )) ||
+_zkstack__chain__consensus__help__wait-for-registry_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain consensus help wait-for-registry commands' commands "$@"
+}
 (( $+functions[_zkstack__chain__consensus__set-attester-committee_commands] )) ||
 _zkstack__chain__consensus__set-attester-committee_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain consensus set-attester-committee commands' commands "$@"
 }
+(( $+functions[_zkstack__chain__consensus__wait-for-registry_commands] )) ||
+_zkstack__chain__consensus__wait-for-registry_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain consensus wait-for-registry commands' commands "$@"
+}
 (( $+functions[_zkstack__chain__contract-verifier_commands] )) ||
 _zkstack__chain__contract-verifier_commands() {
     local commands; commands=(
+'build:Build contract verifier binary' \
 'run:Run contract verifier' \
+'wait:Wait for contract verifier to start' \
 'init:Download required binaries for contract verifier' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack chain contract-verifier commands' commands "$@"
 }
+(( $+functions[_zkstack__chain__contract-verifier__build_commands] )) ||
+_zkstack__chain__contract-verifier__build_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain contract-verifier build commands' commands "$@"
+}
 (( $+functions[_zkstack__chain__contract-verifier__help_commands] )) ||
 _zkstack__chain__contract-verifier__help_commands() {
     local commands; commands=(
+'build:Build contract verifier binary' \
 'run:Run contract verifier' \
+'wait:Wait for contract verifier to start' \
 'init:Download required binaries for contract verifier' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack chain contract-verifier help commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__contract-verifier__help__build_commands] )) ||
+_zkstack__chain__contract-verifier__help__build_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain contract-verifier help build commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__contract-verifier__help__help_commands] )) ||
 _zkstack__chain__contract-verifier__help__help_commands() {
@@ -3145,6 +3437,11 @@ _zkstack__chain__contract-verifier__help__run_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain contract-verifier help run commands' commands "$@"
 }
+(( $+functions[_zkstack__chain__contract-verifier__help__wait_commands] )) ||
+_zkstack__chain__contract-verifier__help__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain contract-verifier help wait commands' commands "$@"
+}
 (( $+functions[_zkstack__chain__contract-verifier__init_commands] )) ||
 _zkstack__chain__contract-verifier__init_commands() {
     local commands; commands=()
@@ -3154,6 +3451,11 @@ _zkstack__chain__contract-verifier__init_commands() {
 _zkstack__chain__contract-verifier__run_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain contract-verifier run commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__contract-verifier__wait_commands] )) ||
+_zkstack__chain__contract-verifier__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain contract-verifier wait commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__create_commands] )) ||
 _zkstack__chain__create_commands() {
@@ -3179,6 +3481,11 @@ _zkstack__chain__deploy-multicall3_commands() {
 _zkstack__chain__deploy-paymaster_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain deploy-paymaster commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__deploy-timestamp-asserter_commands] )) ||
+_zkstack__chain__deploy-timestamp-asserter_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain deploy-timestamp-asserter commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__deploy-upgrader_commands] )) ||
 _zkstack__chain__deploy-upgrader_commands() {
@@ -3241,6 +3548,7 @@ _zkstack__chain__help_commands() {
 'initialize-bridges:Initialize bridges on L2' \
 'deploy-consensus-registry:Deploy L2 consensus registry' \
 'deploy-multicall3:Deploy L2 multicall3' \
+'deploy-timestamp-asserter:Deploy L2 TimestampAsserter' \
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
@@ -3266,6 +3574,7 @@ _zkstack__chain__help__consensus_commands() {
     local commands; commands=(
 'set-attester-committee:Sets the attester committee in the consensus registry contract to \`consensus.genesis_spec.attesters\` in general.yaml' \
 'get-attester-committee:Fetches the attester committee from the consensus registry contract' \
+'wait-for-registry:Wait until the consensus registry contract is deployed to L2' \
     )
     _describe -t commands 'zkstack chain help consensus commands' commands "$@"
 }
@@ -3279,13 +3588,25 @@ _zkstack__chain__help__consensus__set-attester-committee_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help consensus set-attester-committee commands' commands "$@"
 }
+(( $+functions[_zkstack__chain__help__consensus__wait-for-registry_commands] )) ||
+_zkstack__chain__help__consensus__wait-for-registry_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help consensus wait-for-registry commands' commands "$@"
+}
 (( $+functions[_zkstack__chain__help__contract-verifier_commands] )) ||
 _zkstack__chain__help__contract-verifier_commands() {
     local commands; commands=(
+'build:Build contract verifier binary' \
 'run:Run contract verifier' \
+'wait:Wait for contract verifier to start' \
 'init:Download required binaries for contract verifier' \
     )
     _describe -t commands 'zkstack chain help contract-verifier commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__contract-verifier__build_commands] )) ||
+_zkstack__chain__help__contract-verifier__build_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help contract-verifier build commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__help__contract-verifier__init_commands] )) ||
 _zkstack__chain__help__contract-verifier__init_commands() {
@@ -3296,6 +3617,11 @@ _zkstack__chain__help__contract-verifier__init_commands() {
 _zkstack__chain__help__contract-verifier__run_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help contract-verifier run commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__contract-verifier__wait_commands] )) ||
+_zkstack__chain__help__contract-verifier__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help contract-verifier wait commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__help__create_commands] )) ||
 _zkstack__chain__help__create_commands() {
@@ -3321,6 +3647,11 @@ _zkstack__chain__help__deploy-multicall3_commands() {
 _zkstack__chain__help__deploy-paymaster_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help deploy-paymaster commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__deploy-timestamp-asserter_commands] )) ||
+_zkstack__chain__help__deploy-timestamp-asserter_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help deploy-timestamp-asserter commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__help__deploy-upgrader_commands] )) ||
 _zkstack__chain__help__deploy-upgrader_commands() {
@@ -3374,8 +3705,27 @@ _zkstack__chain__help__register-chain_commands() {
 }
 (( $+functions[_zkstack__chain__help__server_commands] )) ||
 _zkstack__chain__help__server_commands() {
-    local commands; commands=()
+    local commands; commands=(
+'build:Builds server' \
+'run:Runs server' \
+'wait:Waits for server to start' \
+    )
     _describe -t commands 'zkstack chain help server commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__server__build_commands] )) ||
+_zkstack__chain__help__server__build_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help server build commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__server__run_commands] )) ||
+_zkstack__chain__help__server__run_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help server run commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__server__wait_commands] )) ||
+_zkstack__chain__help__server__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help server wait commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__help__update-token-multiplier-setter_commands] )) ||
 _zkstack__chain__help__update-token-multiplier-setter_commands() {
@@ -3425,8 +3775,58 @@ _zkstack__chain__register-chain_commands() {
 }
 (( $+functions[_zkstack__chain__server_commands] )) ||
 _zkstack__chain__server_commands() {
-    local commands; commands=()
+    local commands; commands=(
+'build:Builds server' \
+'run:Runs server' \
+'wait:Waits for server to start' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
     _describe -t commands 'zkstack chain server commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__server__build_commands] )) ||
+_zkstack__chain__server__build_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain server build commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__server__help_commands] )) ||
+_zkstack__chain__server__help_commands() {
+    local commands; commands=(
+'build:Builds server' \
+'run:Runs server' \
+'wait:Waits for server to start' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'zkstack chain server help commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__server__help__build_commands] )) ||
+_zkstack__chain__server__help__build_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain server help build commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__server__help__help_commands] )) ||
+_zkstack__chain__server__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain server help help commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__server__help__run_commands] )) ||
+_zkstack__chain__server__help__run_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain server help run commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__server__help__wait_commands] )) ||
+_zkstack__chain__server__help__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain server help wait commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__server__run_commands] )) ||
+_zkstack__chain__server__run_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain server run commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__server__wait_commands] )) ||
+_zkstack__chain__server__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain server wait commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__update-token-multiplier-setter_commands] )) ||
 _zkstack__chain__update-token-multiplier-setter_commands() {
@@ -4367,10 +4767,17 @@ _zkstack__external-node_commands() {
     local commands; commands=(
 'configs:Prepare configs for EN' \
 'init:Init databases' \
+'build:Build external node' \
 'run:Run external node' \
+'wait:Wait for external node to start' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack external-node commands' commands "$@"
+}
+(( $+functions[_zkstack__external-node__build_commands] )) ||
+_zkstack__external-node__build_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack external-node build commands' commands "$@"
 }
 (( $+functions[_zkstack__external-node__configs_commands] )) ||
 _zkstack__external-node__configs_commands() {
@@ -4382,10 +4789,17 @@ _zkstack__external-node__help_commands() {
     local commands; commands=(
 'configs:Prepare configs for EN' \
 'init:Init databases' \
+'build:Build external node' \
 'run:Run external node' \
+'wait:Wait for external node to start' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack external-node help commands' commands "$@"
+}
+(( $+functions[_zkstack__external-node__help__build_commands] )) ||
+_zkstack__external-node__help__build_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack external-node help build commands' commands "$@"
 }
 (( $+functions[_zkstack__external-node__help__configs_commands] )) ||
 _zkstack__external-node__help__configs_commands() {
@@ -4407,6 +4821,11 @@ _zkstack__external-node__help__run_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack external-node help run commands' commands "$@"
 }
+(( $+functions[_zkstack__external-node__help__wait_commands] )) ||
+_zkstack__external-node__help__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack external-node help wait commands' commands "$@"
+}
 (( $+functions[_zkstack__external-node__init_commands] )) ||
 _zkstack__external-node__init_commands() {
     local commands; commands=()
@@ -4416,6 +4835,11 @@ _zkstack__external-node__init_commands() {
 _zkstack__external-node__run_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack external-node run commands' commands "$@"
+}
+(( $+functions[_zkstack__external-node__wait_commands] )) ||
+_zkstack__external-node__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack external-node wait commands' commands "$@"
 }
 (( $+functions[_zkstack__help_commands] )) ||
 _zkstack__help_commands() {
@@ -4453,6 +4877,7 @@ _zkstack__help__chain_commands() {
 'initialize-bridges:Initialize bridges on L2' \
 'deploy-consensus-registry:Deploy L2 consensus registry' \
 'deploy-multicall3:Deploy L2 multicall3' \
+'deploy-timestamp-asserter:Deploy L2 TimestampAsserter' \
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
@@ -4477,6 +4902,7 @@ _zkstack__help__chain__consensus_commands() {
     local commands; commands=(
 'set-attester-committee:Sets the attester committee in the consensus registry contract to \`consensus.genesis_spec.attesters\` in general.yaml' \
 'get-attester-committee:Fetches the attester committee from the consensus registry contract' \
+'wait-for-registry:Wait until the consensus registry contract is deployed to L2' \
     )
     _describe -t commands 'zkstack help chain consensus commands' commands "$@"
 }
@@ -4490,13 +4916,25 @@ _zkstack__help__chain__consensus__set-attester-committee_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain consensus set-attester-committee commands' commands "$@"
 }
+(( $+functions[_zkstack__help__chain__consensus__wait-for-registry_commands] )) ||
+_zkstack__help__chain__consensus__wait-for-registry_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain consensus wait-for-registry commands' commands "$@"
+}
 (( $+functions[_zkstack__help__chain__contract-verifier_commands] )) ||
 _zkstack__help__chain__contract-verifier_commands() {
     local commands; commands=(
+'build:Build contract verifier binary' \
 'run:Run contract verifier' \
+'wait:Wait for contract verifier to start' \
 'init:Download required binaries for contract verifier' \
     )
     _describe -t commands 'zkstack help chain contract-verifier commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__contract-verifier__build_commands] )) ||
+_zkstack__help__chain__contract-verifier__build_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain contract-verifier build commands' commands "$@"
 }
 (( $+functions[_zkstack__help__chain__contract-verifier__init_commands] )) ||
 _zkstack__help__chain__contract-verifier__init_commands() {
@@ -4507,6 +4945,11 @@ _zkstack__help__chain__contract-verifier__init_commands() {
 _zkstack__help__chain__contract-verifier__run_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain contract-verifier run commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__contract-verifier__wait_commands] )) ||
+_zkstack__help__chain__contract-verifier__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain contract-verifier wait commands' commands "$@"
 }
 (( $+functions[_zkstack__help__chain__create_commands] )) ||
 _zkstack__help__chain__create_commands() {
@@ -4532,6 +4975,11 @@ _zkstack__help__chain__deploy-multicall3_commands() {
 _zkstack__help__chain__deploy-paymaster_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain deploy-paymaster commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__deploy-timestamp-asserter_commands] )) ||
+_zkstack__help__chain__deploy-timestamp-asserter_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain deploy-timestamp-asserter commands' commands "$@"
 }
 (( $+functions[_zkstack__help__chain__deploy-upgrader_commands] )) ||
 _zkstack__help__chain__deploy-upgrader_commands() {
@@ -4580,8 +5028,27 @@ _zkstack__help__chain__register-chain_commands() {
 }
 (( $+functions[_zkstack__help__chain__server_commands] )) ||
 _zkstack__help__chain__server_commands() {
-    local commands; commands=()
+    local commands; commands=(
+'build:Builds server' \
+'run:Runs server' \
+'wait:Waits for server to start' \
+    )
     _describe -t commands 'zkstack help chain server commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__server__build_commands] )) ||
+_zkstack__help__chain__server__build_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain server build commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__server__run_commands] )) ||
+_zkstack__help__chain__server__run_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain server run commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__server__wait_commands] )) ||
+_zkstack__help__chain__server__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain server wait commands' commands "$@"
 }
 (( $+functions[_zkstack__help__chain__update-token-multiplier-setter_commands] )) ||
 _zkstack__help__chain__update-token-multiplier-setter_commands() {
@@ -4917,9 +5384,16 @@ _zkstack__help__external-node_commands() {
     local commands; commands=(
 'configs:Prepare configs for EN' \
 'init:Init databases' \
+'build:Build external node' \
 'run:Run external node' \
+'wait:Wait for external node to start' \
     )
     _describe -t commands 'zkstack help external-node commands' commands "$@"
+}
+(( $+functions[_zkstack__help__external-node__build_commands] )) ||
+_zkstack__help__external-node__build_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help external-node build commands' commands "$@"
 }
 (( $+functions[_zkstack__help__external-node__configs_commands] )) ||
 _zkstack__help__external-node__configs_commands() {
@@ -4935,6 +5409,11 @@ _zkstack__help__external-node__init_commands() {
 _zkstack__help__external-node__run_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help external-node run commands' commands "$@"
+}
+(( $+functions[_zkstack__help__external-node__wait_commands] )) ||
+_zkstack__help__external-node__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help external-node wait commands' commands "$@"
 }
 (( $+functions[_zkstack__help__help_commands] )) ||
 _zkstack__help__help_commands() {
