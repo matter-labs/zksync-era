@@ -71,6 +71,7 @@ mod hasher;
 mod metrics;
 mod pruning;
 pub mod recovery;
+pub mod repair;
 mod storage;
 mod types;
 mod utils;
@@ -198,6 +199,21 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     pub(crate) fn latest_root(&self) -> Root {
         let root = self.latest_version().and_then(|version| self.root(version));
         root.unwrap_or(Root::Empty)
+    }
+
+    /// Incorrect version of [`Self::truncate_recent_versions()`] that doesn't remove stale keys for the truncated tree versions.
+    #[cfg(test)]
+    fn truncate_recent_versions_incorrectly(
+        &mut self,
+        retained_version_count: u64,
+    ) -> anyhow::Result<()> {
+        let mut manifest = self.db.manifest().unwrap_or_default();
+        if manifest.version_count > retained_version_count {
+            manifest.version_count = retained_version_count;
+            let patch = PatchSet::from_manifest(manifest);
+            self.db.apply_patch(patch)?;
+        }
+        Ok(())
     }
 
     /// Extends this tree by creating its new version.

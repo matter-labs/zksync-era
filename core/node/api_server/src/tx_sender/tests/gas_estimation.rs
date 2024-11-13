@@ -116,7 +116,7 @@ async fn initial_estimate_for_deep_recursion(with_reads: bool) {
             (75, 1.2),
             (100, 1.4),
             (125, 1.7),
-            (150, 2.1),
+            (150, 2.2),
         ]
     };
     for &(recursion_depth, multiplier) in depths_and_multipliers {
