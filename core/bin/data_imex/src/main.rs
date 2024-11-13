@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use sqlx::{prelude::*, PgConnection, QueryBuilder};
 use zksync_types::{AccountTreeId, StorageKey, StorageLog, StorageLogKind, H256};
 
@@ -22,7 +20,7 @@ async fn main() {
     #[derive(FromRow)]
     struct InitialWriteRow {
         hashed_key: [u8; 32],
-        l1_batch_number: i64,
+        // l1_batch_number: i64,
         index: i64,
     }
     let initial_writes = sqlx::query_as::<_, InitialWriteRow>(
