@@ -25,13 +25,6 @@ pub(crate) fn test_account_validation_rules<VM: TestedVm + TestedVmForValidation
         Some(ViolatedValidationRule::CalledContractWithNoCode(_))
     );
 
-    // Disallowing gasleft is difficult because it isn't immediately followed
-    // by far call in EraVM bytecode.
-    /*assert_matches!(
-        test_rule::<VM>(100),
-        Some(ViolatedValidationRule::TouchedDisallowedContext)
-    );*/
-
     // TODO: test running out of gas but catching the failure.
     // Can be accomplished via many nested far calls.
 }

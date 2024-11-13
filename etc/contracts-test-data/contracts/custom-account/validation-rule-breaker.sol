@@ -39,9 +39,6 @@ contract ValidationRuleBreaker is IAccount {
             address(1234567890).call("");
         } else if (typeOfRuleBreak == 3) {
             // TODO make test that calls upgradeable proxy
-        } else if (typeOfRuleBreak == 100) {
-            // Gas may only be queried to pass everything into a far call
-            gasleft();
         }
 
         _validateTransaction(_suggestedSignedTxHash, _transaction);
