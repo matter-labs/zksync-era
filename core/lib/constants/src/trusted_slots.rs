@@ -1,6 +1,5 @@
 use once_cell::sync::Lazy;
-use zksync_basic_types::{H256, U256};
-use zksync_utils::h256_to_u256;
+use zksync_basic_types::{h256_to_u256, H256, U256};
 
 ///
 /// Well known-slots (e.g. proxy addresses in popular EIPs).

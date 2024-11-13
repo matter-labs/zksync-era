@@ -1,10 +1,8 @@
-// FIXME: move to basic_types?
+// FIXME (PLA-1064): move to basic_types
 
 use anyhow::Context as _;
 use zk_evm::k256::sha2::{Digest, Sha256};
 use zksync_basic_types::{H256, U256};
-
-use crate::bytes_to_chunks;
 
 const MAX_BYTECODE_LENGTH_IN_WORDS: usize = (1 << 16) - 1;
 const MAX_BYTECODE_LENGTH_BYTES: usize = MAX_BYTECODE_LENGTH_IN_WORDS * 32;
@@ -40,6 +38,22 @@ pub fn validate_bytecode(code: &[u8]) -> Result<(), InvalidBytecodeError> {
     }
 
     Ok(())
+}
+
+fn bytes_to_chunks(bytes: &[u8]) -> Vec<[u8; 32]> {
+    assert_eq!(
+        bytes.len() % 32,
+        0,
+        "Bytes must be divisible by 32 to split into chunks"
+    );
+    bytes
+        .chunks(32)
+        .map(|el| {
+            let mut chunk = [0u8; 32];
+            chunk.copy_from_slice(el);
+            chunk
+        })
+        .collect()
 }
 
 /// Hashes the provided EraVM bytecode.

@@ -45,10 +45,7 @@ use zksync_types::{
 };
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
-use crate::{
-    en,
-    storage::{ConnectionPool, Store},
-};
+use crate::{en, storage::ConnectionPool};
 
 /// Fake StateKeeper for tests.
 #[derive(Debug)]
@@ -410,40 +407,6 @@ impl StateKeeper {
             sync_state: self.sync_state.clone(),
         }
         .run_fetcher(ctx, self.actions_sender)
-        .await
-    }
-
-    pub async fn run_temporary_fetcher(
-        self,
-        ctx: &ctx::Ctx,
-        client: Box<DynClient<L2>>,
-    ) -> ctx::Result<()> {
-        scope::run!(ctx, |ctx, s| async {
-            let payload_queue = self
-                .pool
-                .connection(ctx)
-                .await
-                .wrap("connection()")?
-                .new_payload_queue(ctx, self.actions_sender, self.sync_state.clone())
-                .await
-                .wrap("new_payload_queue()")?;
-            let (store, runner) = Store::new(
-                ctx,
-                self.pool.clone(),
-                Some(payload_queue),
-                Some(client.clone()),
-            )
-            .await
-            .wrap("Store::new()")?;
-            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
-            en::EN {
-                pool: self.pool.clone(),
-                client,
-                sync_state: self.sync_state.clone(),
-            }
-            .temporary_block_fetcher(ctx, &store)
-            .await
-        })
         .await
     }
 

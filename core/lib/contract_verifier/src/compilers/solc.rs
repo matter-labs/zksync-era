@@ -1,14 +1,13 @@
 use std::{collections::HashMap, path::PathBuf, process::Stdio};
 
 use anyhow::Context;
-use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 use zksync_queued_job_processor::async_trait;
 use zksync_types::contract_verification_api::{
     CompilationArtifacts, SourceCodeData, VerificationIncomingRequest,
 };
 
-use super::{parse_standard_json_output, Source};
+use super::{parse_standard_json_output, process_contract_name, Settings, Source, StandardJson};
 use crate::{error::ContractVerifierError, resolver::Compiler};
 
 // Here and below, fields are public for testing purposes.
@@ -17,24 +16,6 @@ pub(crate) struct SolcInput {
     pub standard_json: StandardJson,
     pub contract_name: String,
     pub file_name: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct StandardJson {
-    pub language: String,
-    pub sources: HashMap<String, Source>,
-    settings: Settings,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Settings {
-    /// The output selection filters.
-    output_selection: Option<serde_json::Value>,
-    /// Other settings (only filled when parsing `StandardJson` input from the request).
-    #[serde(flatten)]
-    other: serde_json::Value,
 }
 
 #[derive(Debug)]
@@ -50,17 +31,7 @@ impl Solc {
     pub fn build_input(
         req: VerificationIncomingRequest,
     ) -> Result<SolcInput, ContractVerifierError> {
-        // Users may provide either just contract name or
-        // source file name and contract name joined with ":".
-        let (file_name, contract_name) =
-            if let Some((file_name, contract_name)) = req.contract_name.rsplit_once(':') {
-                (file_name.to_string(), contract_name.to_string())
-            } else {
-                (
-                    format!("{}.sol", req.contract_name),
-                    req.contract_name.clone(),
-                )
-            };
+        let (file_name, contract_name) = process_contract_name(&req.contract_name, "sol");
         let default_output_selection = serde_json::json!({
             "*": {
                 "*": [ "abi", "evm.bytecode", "evm.deployedBytecode" ],

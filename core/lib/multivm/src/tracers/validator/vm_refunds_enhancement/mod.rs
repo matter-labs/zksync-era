@@ -3,8 +3,9 @@ use zk_evm_1_3_3::{
     zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode},
 };
 use zksync_system_constants::KECCAK256_PRECOMPILE_ADDRESS;
-use zksync_types::{get_code_key, AccountTreeId, StorageKey, H256};
-use zksync_utils::{h256_to_account_address, u256_to_account_address, u256_to_h256};
+use zksync_types::{
+    get_code_key, h256_to_address, u256_to_address, u256_to_h256, AccountTreeId, StorageKey, H256,
+};
 
 use crate::{
     interface::{
@@ -48,7 +49,7 @@ impl<H: HistoryMode> ValidationTracer<H> {
                 let packed_abi = data.src0_value.value;
                 let call_destination_value = data.src1_value.value;
 
-                let called_address = u256_to_account_address(&call_destination_value);
+                let called_address = u256_to_address(&call_destination_value);
                 let far_call_abi = FarCallABI::from_u256(packed_abi);
 
                 if called_address == KECCAK256_PRECOMPILE_ADDRESS
@@ -115,7 +116,7 @@ impl<H: HistoryMode> ValidationTracer<H> {
                     let value = storage.borrow_mut().read_value(&storage_key);
 
                     return Ok(NewTrustedValidationItems {
-                        new_trusted_addresses: vec![h256_to_account_address(&value)],
+                        new_trusted_addresses: vec![h256_to_address(&value)],
                         ..Default::default()
                     });
                 }

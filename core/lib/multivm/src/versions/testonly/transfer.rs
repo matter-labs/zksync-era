@@ -1,7 +1,6 @@
 use ethabi::Token;
 use zksync_contracts::{load_contract, read_bytecode};
-use zksync_types::{utils::storage_key_for_eth_balance, Address, Execute, U256};
-use zksync_utils::u256_to_h256;
+use zksync_types::{u256_to_h256, utils::storage_key_for_eth_balance, Address, Execute, U256};
 
 use super::{
     default_pubdata_builder, get_empty_storage, tester::VmTesterBuilder, ContractToDeploy, TestedVm,
