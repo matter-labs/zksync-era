@@ -176,7 +176,7 @@ cargo run --release --bin zksync_commitment_generator
 ## Running the contract verifier
 
 ```bash
-zkstack contract-verifier run
+zkstack server contract-verifier run
 ```
 
 ## Troubleshooting
