@@ -1,3 +1,4 @@
+use common::ethereum::chain_registrar::ChainRegistar;
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::L2ChainId;
@@ -17,6 +18,8 @@ pub struct DeployL2ContractsInput {
     pub governance: Address,
     pub erc20_bridge: Address,
     pub consensus_registry_owner: Address,
+    pub chain_registrar: Address,
+    pub proposal_author: Address,
 }
 
 impl DeployL2ContractsInput {
@@ -31,6 +34,8 @@ impl DeployL2ContractsInput {
             governance: wallets.governor.address,
             erc20_bridge: contracts.bridges.erc20.l1_address,
             consensus_registry_owner: wallets.governor.address,
+            chain_registrar: contracts.ecosystem_contracts.chain_registrar,
+            proposal_author: wallets.governor.address,
         })
     }
 }

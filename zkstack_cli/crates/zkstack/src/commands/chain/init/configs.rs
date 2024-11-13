@@ -1,5 +1,5 @@
 use anyhow::Context;
-use common::logger;
+use common::{ethereum, logger};
 use config::{
     copy_configs, set_l1_rpc_url, traits::SaveConfigWithBasePath, update_from_chain_config,
     ChainConfig, ContractsConfig, EcosystemConfig,
@@ -32,7 +32,23 @@ pub async fn run(args: InitConfigsArgs, shell: &Shell) -> anyhow::Result<()> {
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let args = args.fill_values_with_prompt(&chain_config);
 
-    init_configs(&args, shell, &ecosystem_config, &chain_config).await?;
+    let mut contracts = init_configs(&args, shell, &ecosystem_config, &chain_config).await?;
+    let wallets = chain_config.get_wallets_config()?;
+    let secrets = chain_config.get_secrets_config()?;
+    let genesis = chain_config.get_genesis_config()?;
+    let res = ethereum::chain_registrar::load_contracts_for_chain(
+        contracts.ecosystem_contracts.chain_registrar,
+        wallets.governor,
+        secrets.l1.unwrap().l1_rpc_url.expose_str().to_string(),
+        genesis.l1_chain_id.0,
+        genesis.l2_chain_id.as_u64(),
+    )
+    .await?;
+    contracts.l1.chain_admin_addr = res.chain_admin;
+    contracts.l1.diamond_proxy_addr = res.diamond_proxy;
+    contracts.bridges.shared.l2_address = Some(res.l2_shared_bridge);
+    contracts.bridges.erc20.l2_address = Some(res.l2_shared_bridge);
+    contracts.save_with_base_path(shell, &chain_config.configs)?;
     logger::outro(MSG_CHAIN_CONFIGS_INITIALIZED);
 
     Ok(())
