@@ -245,7 +245,8 @@ pub(crate) fn validation_params(tx: &L2Tx, system: &SystemEnv) -> ValidationPara
         paymaster_address,
         trusted_slots: Default::default(),
         trusted_addresses: Default::default(),
-        trusted_address_slots: Default::default(),
+        // field `trustedAddress` of ValidationRuleBreaker
+        trusted_address_slots: [(Address::repeat_byte(0x10), 2.into())].into(),
         computational_gas_limit: system.default_validation_computational_gas_limit,
         timestamp_asserter_params: None,
     }

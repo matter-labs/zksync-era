@@ -13,6 +13,7 @@ contract ValidationRuleBreaker is IAccount {
     using TransactionHelper for Transaction;
 
     uint32 public typeOfRuleBreak;
+    address public trustedAddress = address(0x800a);
 
     constructor() {
         typeOfRuleBreak = 0;
@@ -38,7 +39,9 @@ contract ValidationRuleBreaker is IAccount {
             // May not call an EOA
             address(1234567890).call("");
         } else if (typeOfRuleBreak == 3) {
-            // TODO make test that calls upgradeable proxy
+            // This should succeed because a trustedAddress is marked as a slot that grants access to the address it contains
+            require(trustedAddress == address(0x800a));
+            require(BOOTLOADER_FORMAL_ADDRESS.balance != 0);
         }
 
         _validateTransaction(_suggestedSignedTxHash, _transaction);
