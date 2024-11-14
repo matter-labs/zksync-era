@@ -12,7 +12,7 @@ use crate::{
     },
     vm_m5::{
         storage::Storage,
-        vm_instance::{MultiVMSubversion, VmInstance},
+        vm_instance::{MultiVmSubversion, VmInstance},
     },
 };
 
@@ -28,7 +28,7 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: StoragePtr<S>,
-        vm_sub_version: MultiVMSubversion,
+        vm_sub_version: MultiVmSubversion,
     ) -> Self {
         let oracle_tools = crate::vm_m5::OracleTools::new(storage.clone(), vm_sub_version);
         let block_properties = zk_evm_1_3_1::block_properties::BlockProperties {
@@ -127,8 +127,8 @@ impl<S: Storage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let vm_version: VmVersion = system_env.version.into();
         let vm_sub_version = match vm_version {
-            VmVersion::M5WithoutRefunds => MultiVMSubversion::V1,
-            VmVersion::M5WithRefunds => MultiVMSubversion::V2,
+            VmVersion::M5WithoutRefunds => MultiVmSubversion::V1,
+            VmVersion::M5WithRefunds => MultiVmSubversion::V2,
             _ => panic!("Unsupported protocol version for vm_m5: {:?}", vm_version),
         };
         Self::new_with_subversion(batch_env, system_env, storage, vm_sub_version)

@@ -33,7 +33,7 @@ use zksync_types::{
     MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_vm_executor::oneshot::{
-    CallOrExecute, EstimateGas, MultiVMBaseSystemContracts, OneshotEnvParameters,
+    CallOrExecute, EstimateGas, MultiVmBaseSystemContracts, OneshotEnvParameters,
 };
 
 pub(super) use self::{gas_estimation::BinarySearchKind, result::SubmitTxError};
@@ -109,11 +109,11 @@ impl SandboxExecutorOptions {
         validation_computational_gas_limit: u32,
     ) -> anyhow::Result<Self> {
         let estimate_gas_contracts =
-            tokio::task::spawn_blocking(MultiVMBaseSystemContracts::load_estimate_gas_blocking)
+            tokio::task::spawn_blocking(MultiVmBaseSystemContracts::load_estimate_gas_blocking)
                 .await
                 .context("failed loading base contracts for gas estimation")?;
         let call_contracts =
-            tokio::task::spawn_blocking(MultiVMBaseSystemContracts::load_eth_call_blocking)
+            tokio::task::spawn_blocking(MultiVmBaseSystemContracts::load_eth_call_blocking)
                 .await
                 .context("failed loading base contracts for calls / tx execution")?;
 

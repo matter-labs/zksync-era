@@ -14,10 +14,9 @@ use zk_evm_1_3_1::{
 use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{
-    address_to_u256, fee_model::L1PeggedBatchFeeModelInput, h256_to_u256, Address, Transaction,
-    BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
+    address_to_u256, bytecode::BytecodeHash, fee_model::L1PeggedBatchFeeModelInput, h256_to_u256,
+    Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{
     interface::{CompressedBytecodeInfo, L1BatchEnv},
@@ -30,7 +29,7 @@ use crate::{
         utils::{
             code_page_candidate_from_base, heap_page_from_base, BLOCK_GAS_LIMIT, INITIAL_BASE_PAGE,
         },
-        vm_instance::{MultiVMSubversion, ZkSyncVmState},
+        vm_instance::{MultiVmSubversion, ZkSyncVmState},
         OracleTools, VmInstance,
     },
 };
@@ -270,7 +269,7 @@ impl Default for TxExecutionMode {
 }
 
 pub fn init_vm<S: Storage, H: HistoryMode>(
-    vm_subversion: MultiVMSubversion,
+    vm_subversion: MultiVmSubversion,
     oracle_tools: OracleTools<false, S, H>,
     block_context: BlockContextMode,
     block_properties: BlockProperties,
@@ -289,7 +288,7 @@ pub fn init_vm<S: Storage, H: HistoryMode>(
 }
 
 pub fn init_vm_with_gas_limit<S: Storage, H: HistoryMode>(
-    vm_subversion: MultiVMSubversion,
+    vm_subversion: MultiVmSubversion,
     oracle_tools: OracleTools<false, S, H>,
     block_context: BlockContextMode,
     block_properties: BlockProperties,
@@ -386,7 +385,7 @@ impl BlockContextMode {
 // This method accepts a custom bootloader code.
 // It should be used only in tests.
 pub fn init_vm_inner<S: Storage, H: HistoryMode>(
-    vm_subversion: MultiVMSubversion,
+    vm_subversion: MultiVmSubversion,
     mut oracle_tools: OracleTools<false, S, H>,
     block_context: BlockContextMode,
     block_properties: BlockProperties,
@@ -434,7 +433,7 @@ fn bootloader_initial_memory(block_properties: &BlockContextMode) -> Vec<(usize,
 }
 
 pub fn get_bootloader_memory(
-    vm_subversion: MultiVMSubversion,
+    vm_subversion: MultiVmSubversion,
     txs: Vec<TransactionData>,
     predefined_refunds: Vec<u32>,
     predefined_compressed_bytecodes: Vec<Vec<CompressedBytecodeInfo>>,
@@ -442,14 +441,14 @@ pub fn get_bootloader_memory(
     block_context: BlockContextMode,
 ) -> Vec<(usize, U256)> {
     match vm_subversion {
-        MultiVMSubversion::V1 => get_bootloader_memory_v1(
+        MultiVmSubversion::V1 => get_bootloader_memory_v1(
             txs,
             predefined_refunds,
             predefined_compressed_bytecodes,
             execution_mode,
             block_context,
         ),
-        MultiVMSubversion::V2 => get_bootloader_memory_v2(
+        MultiVmSubversion::V2 => get_bootloader_memory_v2(
             txs,
             predefined_refunds,
             predefined_compressed_bytecodes,
@@ -576,14 +575,14 @@ pub fn push_raw_transaction_to_bootloader_memory<S: Storage, H: HistoryMode>(
     explicit_compressed_bytecodes: Option<Vec<CompressedBytecodeInfo>>,
 ) -> Vec<CompressedBytecodeInfo> {
     match vm.vm_subversion {
-        MultiVMSubversion::V1 => push_raw_transaction_to_bootloader_memory_v1(
+        MultiVmSubversion::V1 => push_raw_transaction_to_bootloader_memory_v1(
             vm,
             tx,
             execution_mode,
             predefined_overhead,
             explicit_compressed_bytecodes,
         ),
-        MultiVMSubversion::V2 => push_raw_transaction_to_bootloader_memory_v2(
+        MultiVmSubversion::V2 => push_raw_transaction_to_bootloader_memory_v2(
             vm,
             tx,
             execution_mode,
@@ -620,7 +619,7 @@ fn push_raw_transaction_to_bootloader_memory_v1<S: Storage, H: HistoryMode>(
         tx.factory_deps
             .iter()
             .filter_map(|bytecode| {
-                if vm.is_bytecode_exists(&hash_bytecode(bytecode)) {
+                if vm.is_bytecode_exists(&BytecodeHash::for_bytecode(bytecode).value()) {
                     return None;
                 }
                 bytecode::compress(bytecode.clone()).ok()
@@ -692,7 +691,7 @@ fn push_raw_transaction_to_bootloader_memory_v2<S: Storage, H: HistoryMode>(
         tx.factory_deps
             .iter()
             .filter_map(|bytecode| {
-                if vm.is_bytecode_exists(&hash_bytecode(bytecode)) {
+                if vm.is_bytecode_exists(&BytecodeHash::for_bytecode(bytecode).value()) {
                     return None;
                 }
                 bytecode::compress(bytecode.clone()).ok()
@@ -905,8 +904,7 @@ fn formal_calldata_abi() -> PrimitiveValue {
 }
 
 pub(crate) fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> (U256, Vec<U256>) {
-    let bytecode_hash = hash_bytecode(&bytecode);
-    let bytecode_hash = U256::from_big_endian(bytecode_hash.as_bytes());
+    let bytecode_hash = BytecodeHash::for_bytecode(&bytecode).value_u256();
     let bytecode_words = bytes_to_be_words(&bytecode);
     (bytecode_hash, bytecode_words)
 }
