@@ -45,10 +45,7 @@ use zksync_types::{
 };
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
-use crate::{
-    en,
-    storage::{ConnectionPool, Store},
-};
+use crate::{en, storage::ConnectionPool};
 
 /// Fake StateKeeper for tests.
 #[derive(Debug)]
@@ -73,7 +70,6 @@ pub(super) struct ConfigSet {
     net: network::Config,
     pub(super) config: config::ConsensusConfig,
     pub(super) secrets: config::ConsensusSecrets,
-    pub(super) enable_pregenesis: bool,
 }
 
 impl ConfigSet {
@@ -83,17 +79,11 @@ impl ConfigSet {
             config: make_config(&net, None),
             secrets: make_secrets(&net, None),
             net,
-            enable_pregenesis: self.enable_pregenesis,
         }
     }
 }
 
-pub(super) fn new_configs(
-    rng: &mut impl Rng,
-    setup: &Setup,
-    seed_peers: usize,
-    pregenesis: bool,
-) -> Vec<ConfigSet> {
+pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) -> Vec<ConfigSet> {
     let net_cfgs = network::testonly::new_configs(rng, setup, 0);
     let genesis_spec = config::GenesisSpec {
         chain_id: setup.genesis.chain_id.0.try_into().unwrap(),
@@ -133,7 +123,6 @@ pub(super) fn new_configs(
             config: make_config(&net, Some(genesis_spec.clone())),
             secrets: make_secrets(&net, setup.attester_keys.get(i).cloned()),
             net,
-            enable_pregenesis: pregenesis,
         })
         .collect()
 }
@@ -295,6 +284,7 @@ impl StateKeeper {
                         timestamp: self.last_timestamp,
                         virtual_blocks: 1,
                     },
+                    pubdata_params: Default::default(),
                 },
                 number: self.last_batch,
                 first_l2_block_number: self.last_block,
@@ -420,40 +410,6 @@ impl StateKeeper {
         .await
     }
 
-    pub async fn run_temporary_fetcher(
-        self,
-        ctx: &ctx::Ctx,
-        client: Box<DynClient<L2>>,
-    ) -> ctx::Result<()> {
-        scope::run!(ctx, |ctx, s| async {
-            let payload_queue = self
-                .pool
-                .connection(ctx)
-                .await
-                .wrap("connection()")?
-                .new_payload_queue(ctx, self.actions_sender, self.sync_state.clone())
-                .await
-                .wrap("new_payload_queue()")?;
-            let (store, runner) = Store::new(
-                ctx,
-                self.pool.clone(),
-                Some(payload_queue),
-                Some(client.clone()),
-            )
-            .await
-            .wrap("Store::new()")?;
-            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
-            en::EN {
-                pool: self.pool.clone(),
-                client,
-                sync_state: self.sync_state.clone(),
-            }
-            .temporary_block_fetcher(ctx, &store)
-            .await
-        })
-        .await
-    }
-
     /// Runs consensus node for the external node.
     pub async fn run_consensus(
         self,
@@ -472,7 +428,6 @@ impl StateKeeper {
             cfgs.config,
             cfgs.secrets,
             cfgs.net.build_version,
-            cfgs.enable_pregenesis,
         )
         .await
     }
@@ -568,9 +523,11 @@ impl StateKeeperRunner {
             let (stop_send, stop_recv) = sync::watch::channel(false);
             let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
                 self.pool.0.clone(),
-                ethabi::Address::repeat_byte(11),
+                Some(ethabi::Address::repeat_byte(11)),
                 5,
-            );
+            )
+            .await
+            .unwrap();
 
             let io = ExternalIO::new(
                 self.pool.0.clone(),
@@ -675,9 +632,11 @@ impl StateKeeperRunner {
             let (stop_send, stop_recv) = sync::watch::channel(false);
             let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
                 self.pool.0.clone(),
-                ethabi::Address::repeat_byte(11),
+                Some(ethabi::Address::repeat_byte(11)),
                 5,
-            );
+            )
+            .await
+            .unwrap();
             let tree_writes_persistence = TreeWritesPersistence::new(self.pool.0.clone());
 
             let io = ExternalIO::new(

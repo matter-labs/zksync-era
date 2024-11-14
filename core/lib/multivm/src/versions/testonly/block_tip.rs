@@ -5,17 +5,17 @@ use zksync_system_constants::{
     CONTRACT_FORCE_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
 };
 use zksync_types::{
-    commitment::SerializeCommitment, fee_model::BatchFeeInput, get_code_key,
-    l2_to_l1_log::L2ToL1Log, writes::StateDiffRecord, Address, Execute, H256, U256,
+    bytecode::BytecodeHash, commitment::SerializeCommitment, fee_model::BatchFeeInput,
+    get_code_key, l2_to_l1_log::L2ToL1Log, u256_to_h256, writes::StateDiffRecord, Address, Execute,
+    H256, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use super::{
-    get_complex_upgrade_abi, get_empty_storage, read_complex_upgrade,
+    default_pubdata_builder, get_complex_upgrade_abi, get_empty_storage, read_complex_upgrade,
     tester::{TestedVm, VmTesterBuilder},
 };
 use crate::{
-    interface::{L1BatchEnv, TxExecutionMode, VmExecutionMode, VmInterfaceExt},
+    interface::{InspectExecutionMode, L1BatchEnv, TxExecutionMode, VmInterfaceExt},
     versions::testonly::default_l1_batch,
     vm_latest::constants::{
         BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
@@ -72,7 +72,9 @@ fn populate_mimic_calls(data: L1MessengerTestData) -> Vec<Vec<u8>> {
         data: l1_messenger
             .function("requestBytecodeL1Publication")
             .unwrap()
-            .encode_input(&[Token::FixedBytes(hash_bytecode(bytecode).0.to_vec())])
+            .encode_input(&[Token::FixedBytes(
+                BytecodeHash::for_bytecode(bytecode).value().0.to_vec(),
+            )])
             .unwrap(),
     });
 
@@ -118,9 +120,12 @@ fn execute_test<VM: TestedVm>(test_data: L1MessengerTestData) -> TestStatistics 
     // For this test we'll just put the bytecode onto the force deployer address
     storage.set_value(
         get_code_key(&CONTRACT_FORCE_DEPLOYER_ADDRESS),
-        hash_bytecode(&complex_upgrade_code),
+        BytecodeHash::for_bytecode(&complex_upgrade_code).value(),
     );
-    storage.store_factory_dep(hash_bytecode(&complex_upgrade_code), complex_upgrade_code);
+    storage.store_factory_dep(
+        BytecodeHash::for_bytecode(&complex_upgrade_code).value(),
+        complex_upgrade_code,
+    );
 
     // We are measuring computational cost, so prices for pubdata don't matter, while they artificially dilute
     // the gas limit
@@ -156,7 +161,7 @@ fn execute_test<VM: TestedVm>(test_data: L1MessengerTestData) -> TestStatistics 
 
         vm.vm.push_transaction(tx);
 
-        let result = vm.vm.execute(VmExecutionMode::OneTx);
+        let result = vm.vm.execute(InspectExecutionMode::OneTx);
         assert!(
             !result.result.is_failed(),
             "Transaction {i} wasn't successful for input: {:#?}",
@@ -169,7 +174,7 @@ fn execute_test<VM: TestedVm>(test_data: L1MessengerTestData) -> TestStatistics 
     let gas_before = vm.vm.gas_remaining();
     let result = vm
         .vm
-        .execute_with_state_diffs(test_data.state_diffs.clone(), VmExecutionMode::Batch);
+        .finish_batch_with_state_diffs(test_data.state_diffs.clone(), default_pubdata_builder());
     assert!(
         !result.result.is_failed(),
         "Batch wasn't successful for input: {test_data:?}"

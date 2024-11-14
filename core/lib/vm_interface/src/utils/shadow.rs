@@ -3,6 +3,7 @@ use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     fmt,
+    rc::Rc,
     sync::Arc,
 };
 
@@ -10,9 +11,10 @@ use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transact
 
 use super::dump::{DumpingVm, VmDump};
 use crate::{
+    pubdata::PubdataBuilder,
     storage::{ReadStorage, StoragePtr, StorageView},
-    BytecodeCompressionResult, CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-    PushTransactionResult, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
+    BytecodeCompressionResult, CurrentExecutionState, FinishedL1Batch, InspectExecutionMode,
+    L1BatchEnv, L2BlockEnv, PushTransactionResult, SystemEnv, VmExecutionResultAndLogs, VmFactory,
     VmInterface, VmInterfaceHistoryEnabled, VmTrackingContracts,
 };
 
@@ -187,6 +189,14 @@ impl CheckDivergence for VmExecutionResultAndLogs {
             &self.statistics.computational_gas_used,
             &other.statistics.computational_gas_used,
         );
+
+        // Order deps to have a more reasonable diff on a mismatch
+        let these_deps = self.dynamic_factory_deps.iter().collect::<BTreeMap<_, _>>();
+        let other_deps = other
+            .dynamic_factory_deps
+            .iter()
+            .collect::<BTreeMap<_, _>>();
+        errors.check_match("dynamic_factory_deps", &these_deps, &other_deps);
         errors
     }
 }
@@ -332,7 +342,7 @@ where
     where
         Shadow: VmFactory<ShadowS>,
     {
-        let main = DumpingVm::new(batch_env.clone(), system_env.clone(), storage.clone());
+        let main = DumpingVm::new(batch_env.clone(), system_env.clone(), storage);
         let shadow = Shadow::new(batch_env.clone(), system_env.clone(), shadow_storage);
         let shadow = VmWithReporting {
             vm: shadow,
@@ -400,7 +410,7 @@ where
     fn inspect(
         &mut self,
         (main_tracer, shadow_tracer): &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
         let main_result = self.main.inspect(main_tracer, execution_mode);
         if let Some(shadow) = self.shadow.get_mut() {
@@ -457,10 +467,10 @@ where
         (main_bytecodes_result, main_tx_result)
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        let main_batch = self.main.finish_batch();
+    fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
+        let main_batch = self.main.finish_batch(pubdata_builder.clone());
         if let Some(shadow) = self.shadow.get_mut() {
-            let shadow_batch = shadow.vm.finish_batch();
+            let shadow_batch = shadow.vm.finish_batch(pubdata_builder);
             let errors = main_batch.check_divergence(&shadow_batch);
             if let Err(err) = errors.into_result() {
                 self.report(err);

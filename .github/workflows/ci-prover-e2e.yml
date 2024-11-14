@@ -29,7 +29,6 @@ jobs:
       - name: Start services
         run: |
           run_retried docker-compose -f ${RUNNER_COMPOSE_FILE} pull
-          mkdir -p ./volumes/postgres ./volumes/reth/data
           docker-compose -f ${RUNNER_COMPOSE_FILE} --profile runner up -d --wait
           ci_run sccache --start-server
 
@@ -101,7 +100,7 @@ jobs:
       - name: Kill prover & start compressor
         run: |
           sudo ./bin/prover_checkers/kill_prover
-          
+
           ci_run zkstack prover run --component=compressor --docker=false &>prover_logs/compressor.log &
       - name: Wait for batch to be executed on L1
         env:

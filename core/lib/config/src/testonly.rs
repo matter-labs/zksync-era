@@ -3,13 +3,12 @@ use std::num::NonZeroUsize;
 use rand::{distributions::Distribution, Rng};
 use secrecy::Secret;
 use zksync_basic_types::{
-    api_key::APIKey,
     basic_fri_types::CircuitIdRoundTuple,
     commitment::L1BatchCommitmentMode,
     network::Network,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     pubdata_da::PubdataSendingMode,
-    seed_phrase::SeedPhrase,
+    secrets::{APIKey, SeedPhrase},
     vm::FastVmMode,
     L1BatchNumber, L1ChainId, L2ChainId,
 };
@@ -19,6 +18,7 @@ use zksync_crypto_primitives::K256PrivateKey;
 use crate::{
     configs::{
         self,
+        chain::TimestampAsserterConfig,
         da_client::{
             avail::{AvailClientConfig, AvailDefaultConfig},
             DAClientConfig::Avail,
@@ -241,11 +241,8 @@ impl Distribution<configs::ContractVerifierConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ContractVerifierConfig {
         configs::ContractVerifierConfig {
             compilation_timeout: self.sample(rng),
-            polling_interval: self.sample(rng),
             prometheus_port: self.sample(rng),
-            threads_per_server: self.sample(rng),
             port: self.sample(rng),
-            url: self.sample(rng),
         }
     }
 }
@@ -262,13 +259,16 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l2_erc20_bridge_addr: self.sample_opt(|| rng.gen()),
             l1_shared_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
             l2_shared_bridge_addr: self.sample_opt(|| rng.gen()),
+            l2_legacy_shared_bridge_addr: self.sample_opt(|| rng.gen()),
             l1_weth_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
             l2_weth_bridge_addr: self.sample_opt(|| rng.gen()),
             l2_testnet_paymaster_addr: self.sample_opt(|| rng.gen()),
+            l2_timestamp_asserter_addr: self.sample_opt(|| rng.gen()),
             l1_multicall3_addr: rng.gen(),
             ecosystem_contracts: self.sample(rng),
             base_token_addr: self.sample_opt(|| rng.gen()),
             chain_admin_addr: self.sample_opt(|| rng.gen()),
+            l2_da_validator_addr: self.sample_opt(|| rng.gen()),
         }
     }
 }
@@ -305,6 +305,7 @@ impl Distribution<configs::ExperimentalDBConfig> for EncodeDist {
             protective_reads_persistence_enabled: self.sample(rng),
             processing_delay_ms: self.sample(rng),
             include_indices_and_filters_in_block_cache: self.sample(rng),
+            merkle_tree_repair_stale_keys: self.sample(rng),
         }
     }
 }
@@ -334,6 +335,7 @@ impl Distribution<configs::ExperimentalVmConfig> for EncodeDist {
         configs::ExperimentalVmConfig {
             playground: self.sample(rng),
             state_keeper_fast_vm_mode: gen_fast_vm_mode(rng),
+            api_fast_vm_mode: gen_fast_vm_mode(rng),
         }
     }
 }
@@ -675,7 +677,11 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
         configs::ProofDataHandlerConfig {
             http_port: self.sample(rng),
             proof_generation_timeout_in_secs: self.sample(rng),
-            tee_support: self.sample(rng),
+            tee_config: configs::TeeConfig {
+                tee_support: self.sample(rng),
+                first_tee_processed_batch: L1BatchNumber(rng.gen()),
+                tee_proof_generation_timeout_in_secs: self.sample(rng),
+            },
         }
     }
 }
@@ -942,7 +948,7 @@ impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::da_client::DAClientConfig {
         Avail(AvailConfig {
             bridge_api_url: self.sample(rng),
-            timeout: self.sample(rng),
+            timeout_ms: self.sample(rng),
             config: AvailClientConfig::FullClient(AvailDefaultConfig {
                 api_node_url: self.sample(rng),
                 app_id: self.sample(rng),
@@ -1107,6 +1113,7 @@ impl Distribution<configs::external_price_api_client::ExternalPriceApiClientConf
                 numerator: self.sample(rng),
                 denominator: self.sample(rng),
                 fluctuation: self.sample(rng),
+                next_value_fluctuation: self.sample(rng),
             }),
         }
     }
@@ -1174,6 +1181,15 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             external_proof_integration_api_config: self.sample(rng),
             experimental_vm_config: self.sample(rng),
             prover_job_monitor_config: self.sample(rng),
+            timestamp_asserter_config: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<TimestampAsserterConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> TimestampAsserterConfig {
+        TimestampAsserterConfig {
+            min_time_till_end_sec: self.sample(rng),
         }
     }
 }

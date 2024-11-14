@@ -10,14 +10,16 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use ethabi::{
-    ethereum_types::{H256, U256},
-    Contract, Event, Function,
-};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, env::Workspace};
+use zksync_basic_types::{
+    bytecode::BytecodeHash,
+    ethabi::{Contract, Event, Function},
+    H256,
+};
+use zksync_utils::env::Workspace;
 
+mod serde_bytecode;
 pub mod test_contracts;
 
 #[derive(Debug, Clone)]
@@ -379,7 +381,8 @@ fn read_zbin_bytecode_from_hex_file(bytecode_path: PathBuf) -> Vec<u8> {
 /// Hash of code and code which consists of 32 bytes words
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemContractCode {
-    pub code: Vec<U256>,
+    #[serde(with = "serde_bytecode")]
+    pub code: Vec<u8>,
     pub hash: H256,
 }
 
@@ -409,18 +412,16 @@ impl PartialEq for BaseSystemContracts {
 
 impl BaseSystemContracts {
     fn load_with_bootloader(bootloader_bytecode: Vec<u8>) -> Self {
-        let hash = hash_bytecode(&bootloader_bytecode);
-
+        let hash = BytecodeHash::for_bytecode(&bootloader_bytecode).value();
         let bootloader = SystemContractCode {
-            code: bytes_to_be_words(bootloader_bytecode),
+            code: bootloader_bytecode,
             hash,
         };
 
         let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
-        let hash = hash_bytecode(&bytecode);
-
+        let hash = BytecodeHash::for_bytecode(&bytecode).value();
         let default_aa = SystemContractCode {
-            code: bytes_to_be_words(bytecode),
+            code: bytecode,
             hash,
         };
 
@@ -440,9 +441,9 @@ impl BaseSystemContracts {
     /// Loads the latest EVM emulator for these base system contracts. Logically, it only makes sense to do for the latest protocol version.
     pub fn with_latest_evm_emulator(mut self) -> Self {
         let bytecode = read_sys_contract_bytecode("", "EvmEmulator", ContractLanguage::Yul);
-        let hash = hash_bytecode(&bytecode);
+        let hash = BytecodeHash::for_bytecode(&bytecode).value();
         self.evm_emulator = Some(SystemContractCode {
-            code: bytes_to_be_words(bytecode),
+            code: bytecode,
             hash,
         });
         self
@@ -516,6 +517,13 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
+    pub fn playground_gateway() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_gateway/playground_batch.yul/playground_batch.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
     pub fn estimate_gas_pre_virtual_blocks() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_1_3_2/fee_estimate.yul/fee_estimate.yul.zbin",
@@ -582,6 +590,13 @@ impl BaseSystemContracts {
     pub fn estimate_gas_post_protocol_defense() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_protocol_defense/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn estimate_gas_gateway() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_gateway/fee_estimate.yul/fee_estimate.yul.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }

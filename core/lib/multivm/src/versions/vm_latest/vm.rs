@@ -1,12 +1,14 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
+    h256_to_u256,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    u256_to_h256,
     vm::VmVersion,
     Transaction, H256,
 };
-use zksync_utils::{be_words_to_bytes, h256_to_u256, u256_to_h256};
+use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{
     glue::GlueInto,
@@ -17,11 +19,11 @@ use crate::{
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
         VmTrackingContracts,
     },
-    utils::events::extract_l2tol1logs_from_l1_messenger,
+    utils::{bytecode::be_words_to_bytes, events::extract_l2tol1logs_from_l1_messenger},
     vm_latest::{
         bootloader_state::BootloaderState,
         old_vm::{events::merge_events, history_recorder::HistoryEnabled},
-        tracers::dispatcher::TracerDispatcher,
+        tracers::{dispatcher::TracerDispatcher, PubdataTracer},
         types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState},
     },
     HistoryMode,
@@ -33,14 +35,16 @@ use crate::{
 /// version was released with increased bootloader memory. The version with the small bootloader memory
 /// is available only on internal staging environments.
 #[derive(Debug, Copy, Clone)]
-pub(crate) enum MultiVMSubversion {
+pub(crate) enum MultiVmSubversion {
     /// The initial version of v1.5.0, available only on staging environments.
     SmallBootloaderMemory,
     /// The final correct version of v1.5.0
     IncreasedBootloaderMemory,
+    /// VM for post-gateway versions.
+    Gateway,
 }
 
-impl MultiVMSubversion {
+impl MultiVmSubversion {
     #[cfg(test)]
     pub(crate) fn latest() -> Self {
         Self::IncreasedBootloaderMemory
@@ -49,12 +53,13 @@ impl MultiVMSubversion {
 
 #[derive(Debug)]
 pub(crate) struct VmVersionIsNotVm150Error;
-impl TryFrom<VmVersion> for MultiVMSubversion {
+impl TryFrom<VmVersion> for MultiVmSubversion {
     type Error = VmVersionIsNotVm150Error;
     fn try_from(value: VmVersion) -> Result<Self, Self::Error> {
         match value {
             VmVersion::Vm1_5_0SmallBootloaderMemory => Ok(Self::SmallBootloaderMemory),
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => Ok(Self::IncreasedBootloaderMemory),
+            VmVersion::VmGateway => Ok(Self::Gateway),
             _ => Err(VmVersionIsNotVm150Error),
         }
     }
@@ -72,7 +77,7 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
     pub(crate) batch_env: L1BatchEnv,
     // Snapshots for the current run
     pub(crate) snapshots: Vec<VmSnapshot>,
-    pub(crate) subversion: MultiVMSubversion,
+    pub(crate) subversion: MultiVmSubversion,
     _phantom: std::marker::PhantomData<H>,
 }
 
@@ -81,16 +86,24 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         self.state.local_state.callstack.current.ergs_remaining
     }
 
-    pub(crate) fn decommit_bytecodes(&self, hashes: &[H256]) -> HashMap<H256, Vec<u8>> {
-        let bytecodes = hashes.iter().map(|&hash| {
-            let bytecode_words = self
-                .state
-                .decommittment_processor
+    pub(crate) fn decommit_dynamic_bytecodes(
+        &self,
+        candidate_hashes: impl Iterator<Item = H256>,
+    ) -> HashMap<H256, Vec<u8>> {
+        let decommitter = &self.state.decommittment_processor;
+        let bytecodes = candidate_hashes.filter_map(|hash| {
+            let int_hash = h256_to_u256(hash);
+            if !decommitter.dynamic_bytecode_hashes.contains(&int_hash) {
+                return None;
+            }
+            let bytecode = decommitter
                 .known_bytecodes
                 .inner()
-                .get(&h256_to_u256(hash))
-                .unwrap_or_else(|| panic!("Bytecode with hash {hash:?} not found"));
-            (hash, be_words_to_bytes(bytecode_words))
+                .get(&int_hash)
+                .unwrap_or_else(|| {
+                    panic!("Bytecode with hash {hash:?} not found");
+                });
+            Some((hash, be_words_to_bytes(bytecode)))
         });
         bytecodes.collect()
     }
@@ -148,9 +161,9 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     fn inspect(
         &mut self,
         tracer: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        self.inspect_inner(tracer, execution_mode, None)
+        self.inspect_inner(tracer, execution_mode.into(), None)
     }
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
@@ -182,19 +195,30 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         }
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        let result = self.inspect(&mut TracerDispatcher::default(), VmExecutionMode::Batch);
+    fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
+        let pubdata_tracer = Some(PubdataTracer::new(
+            self.batch_env.clone(),
+            VmExecutionMode::Batch,
+            self.subversion,
+            Some(pubdata_builder.clone()),
+        ));
+
+        let result = self.inspect_inner(
+            &mut TracerDispatcher::default(),
+            VmExecutionMode::Batch,
+            pubdata_tracer,
+        );
         let execution_state = self.get_current_execution_state();
-        let bootloader_memory = self.bootloader_state.bootloader_memory();
+        let bootloader_memory = self
+            .bootloader_state
+            .bootloader_memory(pubdata_builder.as_ref());
         FinishedL1Batch {
             block_tip_execution_result: result,
             final_execution_state: execution_state,
             final_bootloader_memory: Some(bootloader_memory),
             pubdata_input: Some(
                 self.bootloader_state
-                    .get_pubdata_information()
-                    .clone()
-                    .build_pubdata(false),
+                    .settlement_layer_pubdata(pubdata_builder.as_ref()),
             ),
             state_diffs: Some(
                 self.bootloader_state
@@ -223,7 +247,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: StoragePtr<S>,
-        subversion: MultiVMSubversion,
+        subversion: MultiVmSubversion,
     ) -> Self {
         let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
         Self {

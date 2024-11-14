@@ -1,7 +1,9 @@
 //! This module provides a "builder" for the main node,
 //! as well as an interface to run the node with the specified components.
 
-use anyhow::Context;
+use std::time::Duration;
+
+use anyhow::{bail, Context};
 use zksync_config::{
     configs::{
         da_client::DAClientConfig, secrets::DataAvailabilitySecrets, wallets::Wallets,
@@ -12,7 +14,7 @@ use zksync_config::{
 use zksync_core_leftovers::Component;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
-    tx_sender::TxSenderConfig,
+    tx_sender::{TimestampAsserterParams, TxSenderConfig},
     web3::{state::InternalApiConfig, Namespace},
 };
 use zksync_node_framework::{
@@ -26,8 +28,8 @@ use zksync_node_framework::{
         consensus::MainNodeConsensusLayer,
         contract_verification_api::ContractVerificationApiLayer,
         da_clients::{
-            avail::AvailWiringLayer, no_da::NoDAClientWiringLayer,
-            object_store::ObjectStorageClientWiringLayer,
+            avail::AvailWiringLayer, celestia::CelestiaWiringLayer, eigen::EigenWiringLayer,
+            no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
         },
         da_dispatcher::DataAvailabilityDispatcherLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
@@ -238,9 +240,7 @@ impl MainNodeBuilder {
         let wallets = self.wallets.clone();
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let persistence_layer = OutputHandlerLayer::new(
-            self.contracts_config
-                .l2_shared_bridge_addr
-                .context("L2 shared bridge address")?,
+            self.contracts_config.l2_legacy_shared_bridge_addr,
             sk_config.l2_block_seal_queue_capacity,
         )
         .with_protective_reads_persistence_enabled(sk_config.protective_reads_persistence_enabled);
@@ -249,6 +249,8 @@ impl MainNodeBuilder {
             sk_config.clone(),
             try_load_config!(self.configs.mempool_config),
             try_load_config!(wallets.state_keeper),
+            self.contracts_config.l2_da_validator_addr,
+            self.genesis_config.l1_batch_commit_data_generator_mode,
         );
         let db_config = try_load_config!(self.configs.db_config);
         let experimental_vm_config = self
@@ -303,16 +305,36 @@ impl MainNodeBuilder {
     fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
+
+        let timestamp_asserter_params = match self.contracts_config.l2_timestamp_asserter_addr {
+            Some(address) => {
+                let timestamp_asserter_config =
+                    try_load_config!(self.configs.timestamp_asserter_config);
+                Some(TimestampAsserterParams {
+                    address,
+                    min_time_till_end: Duration::from_secs(
+                        timestamp_asserter_config.min_time_till_end_sec.into(),
+                    ),
+                })
+            }
+            None => None,
+        };
         let postgres_storage_caches_config = PostgresStorageCachesConfig {
             factory_deps_cache_size: rpc_config.factory_deps_cache_size() as u64,
             initial_writes_cache_size: rpc_config.initial_writes_cache_size() as u64,
             latest_values_cache_size: rpc_config.latest_values_cache_size() as u64,
             latest_values_max_block_lag: rpc_config.latest_values_max_block_lag(),
         };
+        let vm_config = self
+            .configs
+            .experimental_vm_config
+            .clone()
+            .unwrap_or_default();
 
         // On main node we always use master pool sink.
         self.node.add_layer(MasterPoolSinkLayer);
-        self.node.add_layer(TxSenderLayer::new(
+
+        let layer = TxSenderLayer::new(
             TxSenderConfig::new(
                 &sk_config,
                 &rpc_config,
@@ -320,10 +342,13 @@ impl MainNodeBuilder {
                     .fee_account
                     .address(),
                 self.genesis_config.l2_chain_id,
+                timestamp_asserter_params,
             ),
             postgres_storage_caches_config,
             rpc_config.vm_concurrency_limit(),
-        ));
+        );
+        let layer = layer.with_vm_mode(vm_config.api_fast_vm_mode);
+        self.node.add_layer(layer);
         Ok(self)
     }
 
@@ -503,16 +528,25 @@ impl MainNodeBuilder {
         };
 
         let secrets = try_load_config!(self.secrets.data_availability);
-
         match (da_client_config, secrets) {
             (DAClientConfig::Avail(config), DataAvailabilitySecrets::Avail(secret)) => {
                 self.node.add_layer(AvailWiringLayer::new(config, secret));
+            }
+
+            (DAClientConfig::Celestia(config), DataAvailabilitySecrets::Celestia(secret)) => {
+                self.node
+                    .add_layer(CelestiaWiringLayer::new(config, secret));
+            }
+
+            (DAClientConfig::Eigen(config), DataAvailabilitySecrets::Eigen(secret)) => {
+                self.node.add_layer(EigenWiringLayer::new(config, secret));
             }
 
             (DAClientConfig::ObjectStore(config), _) => {
                 self.node
                     .add_layer(ObjectStorageClientWiringLayer::new(config));
             }
+            _ => bail!("invalid pair of da_client and da_secrets"),
         }
 
         Ok(self)
@@ -567,7 +601,11 @@ impl MainNodeBuilder {
     }
 
     fn add_vm_playground_layer(mut self) -> anyhow::Result<Self> {
-        let vm_config = try_load_config!(self.configs.experimental_vm_config);
+        let vm_config = self
+            .configs
+            .experimental_vm_config
+            .clone()
+            .unwrap_or_default();
         self.node.add_layer(VmPlaygroundLayer::new(
             vm_config.playground,
             self.genesis_config.l2_chain_id,

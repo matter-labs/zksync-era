@@ -1,15 +1,15 @@
 use ethabi::Token;
 use zksync_types::{
-    get_known_code_key, web3::keccak256, Address, Execute, StorageLogWithPreviousValue, U256,
+    bytecode::BytecodeHash, get_known_code_key, h256_to_u256, u256_to_h256, web3::keccak256,
+    Address, Execute, StorageLogWithPreviousValue, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
 use super::{
     get_empty_storage, load_precompiles_contract, read_precompiles_contract, read_test_contract,
     tester::VmTesterBuilder, TestedVm,
 };
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterfaceExt},
+    interface::{InspectExecutionMode, TxExecutionMode, VmInterfaceExt},
     versions::testonly::ContractToDeploy,
 };
 
@@ -24,7 +24,7 @@ pub(crate) fn test_code_oracle<VM: TestedVm>() {
 
     // Filling the zkevm bytecode
     let normal_zkevm_bytecode = read_test_contract();
-    let normal_zkevm_bytecode_hash = hash_bytecode(&normal_zkevm_bytecode);
+    let normal_zkevm_bytecode_hash = BytecodeHash::for_bytecode(&normal_zkevm_bytecode).value();
     let normal_zkevm_bytecode_keccak_hash = keccak256(&normal_zkevm_bytecode);
     let mut storage = get_empty_storage();
     storage.set_value(
@@ -68,7 +68,7 @@ pub(crate) fn test_code_oracle<VM: TestedVm>() {
     );
 
     vm.vm.push_transaction(tx1);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         !result.result.is_failed(),
         "Transaction wasn't successful: {result:#?}"
@@ -91,7 +91,7 @@ pub(crate) fn test_code_oracle<VM: TestedVm>() {
         None,
     );
     vm.vm.push_transaction(tx2);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         !result.result.is_failed(),
         "Transaction wasn't successful: {result:#?}"
@@ -114,7 +114,7 @@ pub(crate) fn test_code_oracle_big_bytecode<VM: TestedVm>() {
     let precompile_contract_bytecode = read_precompiles_contract();
 
     let big_zkevm_bytecode = generate_large_bytecode();
-    let big_zkevm_bytecode_hash = hash_bytecode(&big_zkevm_bytecode);
+    let big_zkevm_bytecode_hash = BytecodeHash::for_bytecode(&big_zkevm_bytecode).value();
     let big_zkevm_bytecode_keccak_hash = keccak256(&big_zkevm_bytecode);
 
     let mut storage = get_empty_storage();
@@ -160,7 +160,7 @@ pub(crate) fn test_code_oracle_big_bytecode<VM: TestedVm>() {
     );
 
     vm.vm.push_transaction(tx1);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         !result.result.is_failed(),
         "Transaction wasn't successful: {result:#?}"
@@ -172,7 +172,7 @@ pub(crate) fn test_refunds_in_code_oracle<VM: TestedVm>() {
     let precompile_contract_bytecode = read_precompiles_contract();
 
     let normal_zkevm_bytecode = read_test_contract();
-    let normal_zkevm_bytecode_hash = hash_bytecode(&normal_zkevm_bytecode);
+    let normal_zkevm_bytecode_hash = BytecodeHash::for_bytecode(&normal_zkevm_bytecode).value();
     let normal_zkevm_bytecode_keccak_hash = keccak256(&normal_zkevm_bytecode);
     let mut storage = get_empty_storage();
     storage.set_value(
@@ -222,7 +222,7 @@ pub(crate) fn test_refunds_in_code_oracle<VM: TestedVm>() {
         );
 
         vm.vm.push_transaction(tx);
-        let result = vm.vm.execute(VmExecutionMode::OneTx);
+        let result = vm.vm.execute(InspectExecutionMode::OneTx);
         assert!(
             !result.result.is_failed(),
             "Transaction wasn't successful: {result:#?}"

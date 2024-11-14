@@ -38,6 +38,7 @@ fn to_fetched_block(
         l1_gas_price: payload.l1_gas_price,
         l2_fair_gas_price: payload.l2_fair_gas_price,
         fair_pubdata_price: payload.fair_pubdata_price,
+        pubdata_params: payload.pubdata_params,
         virtual_blocks: payload.virtual_blocks,
         operator_address: payload.operator_address,
         transactions: payload
@@ -113,14 +114,12 @@ impl Store {
     }
 
     /// Number of the next block to queue.
-    pub(crate) async fn next_block(
-        &self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::OrCanceled<Option<validator::BlockNumber>> {
+    pub(crate) async fn next_block(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::BlockNumber> {
         Ok(sync::lock(ctx, &self.block_payloads)
             .await?
             .as_ref()
-            .map(|p| p.next()))
+            .context("payload_queue not set")?
+            .next())
     }
 
     /// Queues the next block.
@@ -254,9 +253,7 @@ impl StoreRunner {
                         Err(InsertCertificateError::Canceled(err)) => {
                             return Err(ctx::Error::Canceled(err))
                         }
-                        Err(InsertCertificateError::Inner(err)) => {
-                            return Err(ctx::Error::Internal(anyhow::Error::from(err)))
-                        }
+                        Err(err) => Err(err).context("insert_block_certificate()")?,
                     }
                 }
 

@@ -9,7 +9,7 @@ use futures::FutureExt;
 use zksync_config::GenesisConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core};
-use zksync_multivm::interface::TransactionExecutionMetrics;
+use zksync_multivm::interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch, create_l2_block, create_l2_transaction, execute_l2_transaction,
@@ -318,7 +318,7 @@ async fn loading_pending_batch_with_genesis() {
     .await;
 
     let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
-    let (system_env, l1_batch_env) = provider
+    let (system_env, l1_batch_env, pubdata_params) = provider
         .load_l1_batch_env(
             &mut storage,
             L1BatchNumber(1),
@@ -331,7 +331,7 @@ async fn loading_pending_batch_with_genesis() {
 
     assert_eq!(l1_batch_env.first_l2_block.number, 1);
 
-    let pending_batch = load_pending_batch(&mut storage, system_env, l1_batch_env)
+    let pending_batch = load_pending_batch(&mut storage, system_env, l1_batch_env, pubdata_params)
         .await
         .unwrap();
 
@@ -355,7 +355,11 @@ async fn store_pending_l2_blocks(
         let tx = create_l2_transaction(10, 100);
         storage
             .transactions_dal()
-            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         let mut new_l2_block = create_l2_block(l2_block_number);
@@ -396,7 +400,7 @@ async fn loading_pending_batch_after_snapshot_recovery() {
     .await;
 
     let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
-    let (system_env, l1_batch_env) = provider
+    let (system_env, l1_batch_env, pubdata_params) = provider
         .load_l1_batch_env(
             &mut storage,
             snapshot_recovery.l1_batch_number + 1,
@@ -406,7 +410,7 @@ async fn loading_pending_batch_after_snapshot_recovery() {
         .await
         .unwrap()
         .expect("no L1 batch");
-    let pending_batch = load_pending_batch(&mut storage, system_env, l1_batch_env)
+    let pending_batch = load_pending_batch(&mut storage, system_env, l1_batch_env, pubdata_params)
         .await
         .unwrap();
 

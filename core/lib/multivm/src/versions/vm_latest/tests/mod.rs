@@ -1,12 +1,18 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    rc::Rc,
+};
 
 use zk_evm_1_5_0::{
     aux_structures::{MemoryPage, Timestamp},
     vm_state::VmLocalState,
     zkevm_opcode_defs::{ContractCodeSha256Format, VersionedHashLen32},
 };
-use zksync_types::{writes::StateDiffRecord, StorageKey, StorageValue, Transaction, H256, U256};
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
+use zksync_types::{
+    bytecode::BytecodeHash, writes::StateDiffRecord, StorageKey, StorageValue, Transaction, H256,
+    U256,
+};
+use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use super::{HistoryEnabled, Vm};
 use crate::{
@@ -14,6 +20,7 @@ use crate::{
         storage::{InMemoryStorage, ReadStorage, StorageView, WriteStorage},
         CurrentExecutionState, L2BlockEnv, VmExecutionMode, VmExecutionResultAndLogs,
     },
+    utils::bytecode::bytes_to_be_words,
     versions::testonly::{filter_out_base_system_contracts, TestedVm},
     vm_latest::{
         constants::BOOTLOADER_HEAP_PAGE,
@@ -75,27 +82,40 @@ impl TestedVm for TestedLatestVm {
         self.get_used_contracts().into_iter().collect()
     }
 
-    fn execute_with_state_diffs(
+    fn finish_batch_with_state_diffs(
         &mut self,
         diffs: Vec<StateDiffRecord>,
-        mode: VmExecutionMode,
+        pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> VmExecutionResultAndLogs {
         let pubdata_tracer = PubdataTracer::new_with_forced_state_diffs(
             self.batch_env.clone(),
             VmExecutionMode::Batch,
             diffs,
-            crate::vm_latest::MultiVMSubversion::latest(),
+            crate::vm_latest::MultiVmSubversion::latest(),
+            Some(pubdata_builder),
         );
-        self.inspect_inner(&mut TracerDispatcher::default(), mode, Some(pubdata_tracer))
+        self.inspect_inner(
+            &mut TracerDispatcher::default(),
+            VmExecutionMode::Batch,
+            Some(pubdata_tracer),
+        )
+    }
+
+    fn finish_batch_without_pubdata(&mut self) -> VmExecutionResultAndLogs {
+        self.inspect_inner(
+            &mut TracerDispatcher::default(),
+            VmExecutionMode::Batch,
+            None,
+        )
     }
 
     fn insert_bytecodes(&mut self, bytecodes: &[&[u8]]) {
         let bytecodes = bytecodes
             .iter()
             .map(|&bytecode| {
-                let hash = hash_bytecode(bytecode);
-                let words = bytes_to_be_words(bytecode.to_vec());
-                (h256_to_u256(hash), words)
+                let hash = BytecodeHash::for_bytecode(bytecode).value_u256();
+                let words = bytes_to_be_words(bytecode);
+                (hash, words)
             })
             .collect();
         self.state

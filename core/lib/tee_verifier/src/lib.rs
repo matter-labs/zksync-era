@@ -15,6 +15,7 @@ use zksync_multivm::{
         FinishedL1Batch, L2BlockEnv, VmFactory, VmInterface, VmInterfaceExt,
         VmInterfaceHistoryEnabled,
     },
+    pubdata_builders::pubdata_params_to_builder,
     vm_latest::HistoryEnabled,
     LegacyVmInstance,
 };
@@ -22,9 +23,9 @@ use zksync_prover_interface::inputs::{
     StorageLogMetadata, V1TeeVerifierInput, WitnessInputMerklePaths,
 };
 use zksync_types::{
-    block::L2BlockExecutionData, L1BatchNumber, StorageLog, StorageValue, Transaction, H256,
+    block::L2BlockExecutionData, commitment::PubdataParams, u256_to_h256, L1BatchNumber,
+    StorageLog, StorageValue, Transaction, H256,
 };
-use zksync_utils::u256_to_h256;
 
 /// A structure to hold the result of verification.
 pub struct VerificationResult {
@@ -88,7 +89,7 @@ impl Verify for V1TeeVerifierInput {
         let storage_snapshot = StorageSnapshot::new(storage, factory_deps);
         let storage_view = StorageView::new(storage_snapshot).to_rc_ptr();
         let vm = LegacyVmInstance::new(self.l1_batch_env, self.system_env, storage_view);
-        let vm_out = execute_vm(self.l2_blocks_execution_data, vm)?;
+        let vm_out = execute_vm(self.l2_blocks_execution_data, vm, self.pubdata_params)?;
 
         let block_output_with_proofs = get_bowp(self.merkle_paths)?;
 
@@ -178,6 +179,7 @@ fn get_bowp(witness_input_merkle_paths: WitnessInputMerklePaths) -> Result<Block
 fn execute_vm<S: ReadStorage>(
     l2_blocks_execution_data: Vec<L2BlockExecutionData>,
     mut vm: LegacyVmInstance<S, HistoryEnabled>,
+    pubdata_params: PubdataParams,
 ) -> anyhow::Result<FinishedL1Batch> {
     let next_l2_blocks_data = l2_blocks_execution_data.iter().skip(1);
 
@@ -206,7 +208,7 @@ fn execute_vm<S: ReadStorage>(
 
     tracing::trace!("about to vm.finish_batch()");
 
-    Ok(vm.finish_batch())
+    Ok(vm.finish_batch(pubdata_params_to_builder(pubdata_params)))
 }
 
 /// Map `LogQuery` and `TreeLogEntry` to a `TreeInstruction`
@@ -302,7 +304,6 @@ mod tests {
     use zksync_contracts::{BaseSystemContracts, SystemContractCode};
     use zksync_multivm::interface::{L1BatchEnv, SystemEnv, TxExecutionMode};
     use zksync_prover_interface::inputs::{TeeVerifierInput, VMRunWitnessInputData};
-    use zksync_types::U256;
 
     use super::*;
 
@@ -342,11 +343,11 @@ mod tests {
                 version: Default::default(),
                 base_system_smart_contracts: BaseSystemContracts {
                     bootloader: SystemContractCode {
-                        code: vec![U256([1; 4])],
+                        code: vec![1; 32],
                         hash: H256([1; 32]),
                     },
                     default_aa: SystemContractCode {
-                        code: vec![U256([1; 4])],
+                        code: vec![1; 32],
                         hash: H256([1; 32]),
                     },
                     evm_emulator: None,
@@ -356,6 +357,7 @@ mod tests {
                 default_validation_computational_gas_limit: 0,
                 chain_id: Default::default(),
             },
+            Default::default(),
         );
         let tvi = TeeVerifierInput::new(tvi);
         let serialized = bincode::serialize(&tvi).expect("Failed to serialize TeeVerifierInput.");

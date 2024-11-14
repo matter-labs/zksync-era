@@ -5,8 +5,9 @@ use ethabi::Token;
 use zk_evm_1_3_1::zkevm_opcode_defs::decoding::{EncodingModeProduction, VmEncodingMode};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_test_account::{Account, TxType};
-use zksync_types::{AccountTreeId, Address, Execute, StorageKey, H256, U256};
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
+use zksync_types::{
+    bytecode::BytecodeHash, h256_to_u256, AccountTreeId, Address, Execute, StorageKey, H256, U256,
+};
 
 use super::{
     read_proxy_counter_contract, read_test_contract,
@@ -15,7 +16,8 @@ use super::{
 };
 use crate::{
     interface::{
-        ExecutionResult, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterfaceExt,
+        ExecutionResult, InspectExecutionMode, TxExecutionMode, VmExecutionResultAndLogs,
+        VmInterfaceExt,
     },
     versions::testonly::ContractToDeploy,
 };
@@ -35,7 +37,7 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
     let account = &mut vm.rich_accounts[0];
     let tx = account.get_deploy_tx(&contract_code, None, TxType::L1 { serial_id: 0 });
     vm.vm.push_transaction(tx.tx.clone());
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed());
 
     assert!(vm
@@ -70,13 +72,12 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
 
     vm.vm.push_transaction(tx2.clone());
 
-    let res2 = vm.vm.execute(VmExecutionMode::OneTx);
+    let res2 = vm.vm.execute(InspectExecutionMode::OneTx);
 
     assert!(res2.result.is_failed());
 
     for factory_dep in tx2.execute.factory_deps {
-        let hash = hash_bytecode(&factory_dep);
-        let hash_to_u256 = h256_to_u256(hash);
+        let hash_to_u256 = BytecodeHash::for_bytecode(&factory_dep).value_u256();
         assert!(vm.vm.known_bytecode_hashes().contains(&hash_to_u256));
         assert!(!vm.vm.decommitted_hashes().contains(&hash_to_u256));
     }
@@ -104,7 +105,7 @@ fn execute_proxy_counter<VM: TestedVm>(
     gas: u32,
 ) -> (VmTester<VM>, ProxyCounterData, VmExecutionResultAndLogs) {
     let counter_bytecode = inflated_counter_bytecode();
-    let counter_bytecode_hash = h256_to_u256(hash_bytecode(&counter_bytecode));
+    let counter_bytecode_hash = BytecodeHash::for_bytecode(&counter_bytecode).value_u256();
     let counter_address = Address::repeat_byte(0x23);
 
     let mut vm = VmTesterBuilder::new()

@@ -17,6 +17,7 @@ ignore = [
     "RUSTSEC-2021-0145",
     "RUSTSEC-2021-0139",
     "RUSTSEC-2024-0375",
+    "RUSTSEC-2024-0388", # `derivative` is unmaintained, crypto dependenicies (boojum, circuit_encodings and others) rely on it
 ]
 
 [licenses]

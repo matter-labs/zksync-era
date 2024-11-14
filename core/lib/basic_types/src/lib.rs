@@ -22,21 +22,32 @@ pub use ethabi::{
 };
 use serde::{de, Deserialize, Deserializer, Serialize};
 
+pub use self::conversions::{
+    address_to_h256, address_to_u256, h256_to_address, h256_to_u256, u256_to_address, u256_to_h256,
+};
+
 #[macro_use]
 mod macros;
-pub mod api_key;
 pub mod basic_fri_types;
+pub mod bytecode;
 pub mod commitment;
+mod conversions;
 pub mod network;
 pub mod protocol_version;
 pub mod prover_dal;
 pub mod pubdata_da;
-pub mod seed_phrase;
+pub mod secrets;
+pub mod serde_wrappers;
 pub mod settlement;
 pub mod tee_types;
 pub mod url;
 pub mod vm;
 pub mod web3;
+
+/// Computes `ceil(a / b)`.
+pub fn ceil_div_u256(a: U256, b: U256) -> U256 {
+    (a + b - U256::from(1)) / b
+}
 
 /// Parses H256 from a slice of bytes.
 pub fn parse_h256(bytes: &[u8]) -> anyhow::Result<H256> {

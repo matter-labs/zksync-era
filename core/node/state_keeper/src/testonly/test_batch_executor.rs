@@ -27,8 +27,9 @@ use zksync_multivm::{
 use zksync_node_test_utils::create_l2_transaction;
 use zksync_state::{interface::StorageView, OwnedStorage, ReadStorageFactory};
 use zksync_types::{
-    fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log, protocol_upgrade::ProtocolUpgradeTx,
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
+    commitment::PubdataParams, fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log,
+    protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
+    ProtocolVersionId, Transaction, H256,
 };
 
 use crate::{
@@ -257,14 +258,11 @@ pub(crate) fn random_upgrade_tx(tx_number: u64) -> ProtocolUpgradeTx {
 pub(crate) fn successful_exec_with_log() -> BatchTransactionExecutionResult {
     BatchTransactionExecutionResult {
         tx_result: Box::new(VmExecutionResultAndLogs {
-            result: ExecutionResult::Success { output: vec![] },
             logs: VmExecutionLogs {
                 user_l2_to_l1_logs: vec![UserL2ToL1Log::default()],
                 ..VmExecutionLogs::default()
             },
-            statistics: Default::default(),
-            refunds: Default::default(),
-            new_known_factory_deps: None,
+            ..VmExecutionResultAndLogs::mock_success()
         }),
         compressed_bytecodes: vec![],
         call_traces: vec![],
@@ -274,13 +272,9 @@ pub(crate) fn successful_exec_with_log() -> BatchTransactionExecutionResult {
 /// Creates a `TxExecutionResult` object denoting a tx that was rejected.
 pub(crate) fn rejected_exec(reason: Halt) -> BatchTransactionExecutionResult {
     BatchTransactionExecutionResult {
-        tx_result: Box::new(VmExecutionResultAndLogs {
-            result: ExecutionResult::Halt { reason },
-            logs: Default::default(),
-            statistics: Default::default(),
-            refunds: Default::default(),
-            new_known_factory_deps: None,
-        }),
+        tx_result: Box::new(VmExecutionResultAndLogs::mock(ExecutionResult::Halt {
+            reason,
+        })),
         compressed_bytecodes: vec![],
         call_traces: vec![],
     }
@@ -423,6 +417,7 @@ impl BatchExecutorFactory<OwnedStorage> for TestBatchExecutorBuilder {
         _storage: OwnedStorage,
         _l1_batch_env: L1BatchEnv,
         _system_env: SystemEnv,
+        _pubdata_params: PubdataParams,
     ) -> Box<dyn BatchExecutor<OwnedStorage>> {
         let executor =
             TestBatchExecutor::new(self.txs.pop_front().unwrap(), self.rollback_set.clone());
@@ -702,6 +697,7 @@ impl StateKeeperIO for TestIO {
                 timestamp: self.timestamp,
                 virtual_blocks: 1,
             },
+            pubdata_params: Default::default(),
         };
         self.l2_block_number += 1;
         self.timestamp += 1;
@@ -728,6 +724,7 @@ impl StateKeeperIO for TestIO {
     async fn wait_for_next_tx(
         &mut self,
         max_wait: Duration,
+        _l2_block_timestamp: u64,
     ) -> anyhow::Result<Option<Transaction>> {
         let action = self.pop_next_item("wait_for_next_tx");
 

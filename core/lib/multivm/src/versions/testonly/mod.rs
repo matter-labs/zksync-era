@@ -9,7 +9,7 @@
 //! - Tests use [`VmTester`] built using [`VmTesterBuilder`] to create a VM instance. This allows to set up storage for the VM,
 //!   custom [`SystemEnv`] / [`L1BatchEnv`], deployed contracts, pre-funded accounts etc.
 
-use std::collections::HashSet;
+use std::{collections::HashSet, rc::Rc};
 
 use ethabi::Contract;
 use once_cell::sync::Lazy;
@@ -18,16 +18,18 @@ use zksync_contracts::{
     SystemContractCode,
 };
 use zksync_types::{
-    block::L2BlockHasher, fee_model::BatchFeeInput, get_code_key, get_is_account_key,
-    utils::storage_key_for_eth_balance, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
-    ProtocolVersionId, U256,
+    block::L2BlockHasher, bytecode::BytecodeHash, fee_model::BatchFeeInput, get_code_key,
+    get_is_account_key, h256_to_u256, u256_to_h256, utils::storage_key_for_eth_balance, Address,
+    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
-use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
+use zksync_vm_interface::{
+    pubdata::PubdataBuilder, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
+};
 
 pub(super) use self::tester::{TestedVm, VmTester, VmTesterBuilder};
 use crate::{
-    interface::storage::InMemoryStorage, vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
+    interface::storage::InMemoryStorage, pubdata_builders::RollupPubdataBuilder,
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
 pub(super) mod block_tip;
@@ -36,6 +38,7 @@ pub(super) mod bytecode_publishing;
 pub(super) mod circuits;
 pub(super) mod code_oracle;
 pub(super) mod default_aa;
+pub(super) mod evm_emulator;
 pub(super) mod gas_limit;
 pub(super) mod get_used_contracts;
 pub(super) mod is_write_initial;
@@ -58,7 +61,7 @@ static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
 
 fn get_empty_storage() -> InMemoryStorage {
-    InMemoryStorage::with_system_contracts(hash_bytecode)
+    InMemoryStorage::with_system_contracts()
 }
 
 pub(crate) fn read_test_contract() -> Vec<u8> {
@@ -127,9 +130,9 @@ pub(crate) fn read_simple_transfer_contract() -> Vec<u8> {
 
 pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {
     let bootloader_code = read_bootloader_code(test);
-    let bootloader_hash = hash_bytecode(&bootloader_code);
+    let bootloader_hash = BytecodeHash::for_bytecode(&bootloader_code).value();
     SystemContractCode {
-        code: bytes_to_be_words(bootloader_code),
+        code: bootloader_code,
         hash: bootloader_hash,
     }
 }
@@ -175,6 +178,10 @@ pub(super) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
     }
 }
 
+pub(super) fn default_pubdata_builder() -> Rc<dyn PubdataBuilder> {
+    Rc::new(RollupPubdataBuilder::new(Address::zero()))
+}
+
 pub(super) fn make_address_rich(storage: &mut InMemoryStorage, address: Address) {
     let key = storage_key_for_eth_balance(&address);
     storage.set_value(key, u256_to_h256(U256::from(10_u64.pow(19))));
@@ -215,12 +222,13 @@ impl ContractToDeploy {
 
     pub fn insert(&self, storage: &mut InMemoryStorage) {
         let deployer_code_key = get_code_key(&self.address);
-        storage.set_value(deployer_code_key, hash_bytecode(&self.bytecode));
+        let bytecode_hash = BytecodeHash::for_bytecode(&self.bytecode).value();
+        storage.set_value(deployer_code_key, bytecode_hash);
         if self.is_account {
             let is_account_key = get_is_account_key(&self.address);
             storage.set_value(is_account_key, u256_to_h256(1_u32.into()));
         }
-        storage.store_factory_dep(hash_bytecode(&self.bytecode), self.bytecode.clone());
+        storage.store_factory_dep(bytecode_hash, self.bytecode.clone());
 
         if self.is_funded {
             make_address_rich(storage, self.address);

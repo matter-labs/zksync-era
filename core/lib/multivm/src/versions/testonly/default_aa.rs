@@ -1,15 +1,14 @@
 use zksync_test_account::{DeployContractsTx, TxType};
 use zksync_types::{
-    get_code_key, get_known_code_key, get_nonce_key,
+    get_code_key, get_known_code_key, get_nonce_key, h256_to_u256,
     system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT},
     utils::storage_key_for_eth_balance,
     U256,
 };
-use zksync_utils::h256_to_u256;
 
-use super::{read_test_contract, tester::VmTesterBuilder, TestedVm};
+use super::{default_pubdata_builder, read_test_contract, tester::VmTesterBuilder, TestedVm};
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterfaceExt},
+    interface::{InspectExecutionMode, TxExecutionMode, VmInterfaceExt},
     vm_latest::utils::fee::get_batch_base_fee,
 };
 
@@ -32,10 +31,10 @@ pub(crate) fn test_default_aa_interaction<VM: TestedVm>() {
     let maximal_fee = tx.gas_limit() * get_batch_base_fee(&vm.l1_batch_env);
 
     vm.vm.push_transaction(tx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
-    vm.vm.execute(VmExecutionMode::Batch);
+    vm.vm.finish_batch(default_pubdata_builder());
 
     vm.vm.get_current_execution_state();
 
