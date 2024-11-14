@@ -1442,7 +1442,7 @@ pub static POST_SHARED_BRIDGE_EXECUTE_FUNCTION: Lazy<Function> = Lazy::new(|| {
 // Temporary thing, should be removed when new contracts are merged.
 pub static MESSAGE_ROOT_CONTRACT: Lazy<Contract> = Lazy::new(|| {
     let abi = r#"
-    {
+    [{
       "inputs": [
         {
           "internalType": "uint256",
@@ -1460,6 +1460,6 @@ pub static MESSAGE_ROOT_CONTRACT: Lazy<Contract> = Lazy::new(|| {
       ],
       "stateMutability": "view",
       "type": "function"
-    }"#;
+    }]"#;
     serde_json::from_str(abi).unwrap()
 });
