@@ -1,7 +1,7 @@
 # Decentralization
 
-To enable support for synchronization over p2p network, the main node needs to have
-the "consensus" component configured and enabled.
+To enable support for synchronization over p2p network, the main node needs to have the "consensus" component configured
+and enabled.
 
 ## Generating the consensus secrets
 
@@ -16,7 +16,7 @@ chmod 600 consensus_secrets.yaml
 
 Create `consensus_config.yaml` file with the following content (remember to replace the placeholders):
 
-```yaml
+````yaml
 server_addr: '0.0.0.0:3054'
 public_addr:
     # Address under which the node is accessible to the other nodes.
@@ -61,35 +61,35 @@ metadata:
 type: Opaque
 stringData:
     .consensus_secrets.yaml: <here goes the content of the consensus_secrets.yaml file>
-```
+````
 
 You need to add the following sections to your kubernetes config for the core server:
 
 ```yaml
 spec:
-    values:
-        persistence:
-            consensus-secrets-volume:
-                name: consensus-secrets # this is the name of the secret kubernetes object we defined above
-                enabled: true
-                type: secret
-                mountPath: "/etc/consensus_secrets/"
-        args:
-            - --components=state_keeper,consensus
-        service:
-            main:
-                ports:
-                    consensus:
-                        enabled: true
-                        port: 3054
-        configMap:
-            consensus:
-                enabled: true
-                data:
-                    consensus_config.yaml: <here goes the content of the consensus_config.yaml file>
-        env:
-            - name: CONSENSUS_CONFIG_PATH
-              value: /etc/consensus_config.yaml # this is the location rendered by the helm chart, you can't change it
-            - name: CONSENSUS_SECRETS_PATH
-              value: /etc/consensus_secrets/.consensus_secrets.yaml
-
+  values:
+    persistence:
+      consensus-secrets-volume:
+        name: consensus-secrets # this is the name of the secret kubernetes object we defined above
+        enabled: true
+        type: secret
+        mountPath: '/etc/consensus_secrets/'
+    args:
+      - --components=state_keeper,consensus
+    service:
+      main:
+        ports:
+          consensus:
+            enabled: true
+            port: 3054
+    configMap:
+      consensus:
+        enabled: true
+        data:
+          consensus_config.yaml: <here goes the content of the consensus_config.yaml file>
+    env:
+      - name: CONSENSUS_CONFIG_PATH
+        value: /etc/consensus_config.yaml # this is the location rendered by the helm chart, you can't change it
+      - name: CONSENSUS_SECRETS_PATH
+        value: /etc/consensus_secrets/.consensus_secrets.yaml
+```
