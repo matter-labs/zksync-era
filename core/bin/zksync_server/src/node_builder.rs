@@ -322,7 +322,11 @@ impl MainNodeBuilder {
             latest_values_cache_size: rpc_config.latest_values_cache_size() as u64,
             latest_values_max_block_lag: rpc_config.latest_values_max_block_lag(),
         };
-        let vm_config = try_load_config!(self.configs.experimental_vm_config);
+        let vm_config = self
+            .configs
+            .experimental_vm_config
+            .clone()
+            .unwrap_or_default();
 
         // On main node we always use master pool sink.
         self.node.add_layer(MasterPoolSinkLayer);
@@ -594,7 +598,11 @@ impl MainNodeBuilder {
     }
 
     fn add_vm_playground_layer(mut self) -> anyhow::Result<Self> {
-        let vm_config = try_load_config!(self.configs.experimental_vm_config);
+        let vm_config = self
+            .configs
+            .experimental_vm_config
+            .clone()
+            .unwrap_or_default();
         self.node.add_layer(VmPlaygroundLayer::new(
             vm_config.playground,
             self.genesis_config.l2_chain_id,
