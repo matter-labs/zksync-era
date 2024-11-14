@@ -7,8 +7,8 @@ use zk_evm_1_4_0::{
     vm_state::VmLocalState,
 };
 use zksync_system_constants::{PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS};
-use zksync_types::{l2_to_l1_log::L2ToL1Log, L1BatchNumber, U256};
-use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256};
+use zksync_types::{ceil_div_u256, l2_to_l1_log::L2ToL1Log, u256_to_h256, L1BatchNumber, U256};
+use zksync_utils::bytecode::bytecode_len_in_bytes;
 
 use crate::{
     interface::{

@@ -109,11 +109,11 @@ pub struct InternalApiConfig {
     pub estimate_gas_acceptable_overestimation: u32,
     pub estimate_gas_optimize_search: bool,
     pub bridge_addresses: api::BridgeAddresses,
-    pub bridgehub_proxy_addr: Option<Address>,
-    pub state_transition_proxy_addr: Option<Address>,
-    pub transparent_proxy_admin_addr: Option<Address>,
     pub l1_bytecodes_supplier_addr: Option<Address>,
-    pub user_facing_diamond_proxy_addr: Address,
+    pub l1_bridgehub_proxy_addr: Option<Address>,
+    pub l1_state_transition_proxy_addr: Option<Address>,
+    pub l1_transparent_proxy_admin_addr: Option<Address>,
+    pub l1_diamond_proxy_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
     pub fee_history_limit: u64,
@@ -121,7 +121,6 @@ pub struct InternalApiConfig {
     pub filters_disabled: bool,
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
-    pub user_facing_bridgehub_addr: Option<Address>,
     pub timestamp_asserter_address: Option<Address>,
 }
 
@@ -131,14 +130,6 @@ impl InternalApiConfig {
         contracts_config: &ContractsConfig,
         genesis_config: &GenesisConfig,
     ) -> Self {
-        println!(
-            "contracts_config.user_facing_bridgehub_proxy_addr = {:#?}, 
-            contracts_config.user_facing_diamond_proxy_addr = {:#?}, 
-            contracts_config.diamond_proxy_addr = {:#?}",
-            contracts_config.user_facing_bridgehub_proxy_addr,
-            contracts_config.user_facing_diamond_proxy_addr,
-            contracts_config.diamond_proxy_addr
-        );
         Self {
             l1_chain_id: genesis_config.l1_chain_id,
             l2_chain_id: genesis_config.l2_chain_id,
@@ -166,15 +157,15 @@ impl InternalApiConfig {
                 ),
                 l2_legacy_shared_bridge: contracts_config.l2_legacy_shared_bridge_addr,
             },
-            bridgehub_proxy_addr: contracts_config
+            l1_bridgehub_proxy_addr: contracts_config
                 .ecosystem_contracts
                 .as_ref()
                 .map(|a| a.bridgehub_proxy_addr),
-            state_transition_proxy_addr: contracts_config
+            l1_state_transition_proxy_addr: contracts_config
                 .ecosystem_contracts
                 .as_ref()
                 .map(|a| a.state_transition_proxy_addr),
-            transparent_proxy_admin_addr: contracts_config
+            l1_transparent_proxy_admin_addr: contracts_config
                 .ecosystem_contracts
                 .as_ref()
                 .map(|a| a.transparent_proxy_admin_addr),
@@ -182,9 +173,7 @@ impl InternalApiConfig {
                 .ecosystem_contracts
                 .as_ref()
                 .and_then(|a| a.l1_bytecodes_supplier_addr),
-            user_facing_diamond_proxy_addr: contracts_config
-                .user_facing_diamond_proxy_addr
-                .unwrap_or(contracts_config.diamond_proxy_addr),
+            l1_diamond_proxy_addr: contracts_config.diamond_proxy_addr,
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
@@ -192,12 +181,6 @@ impl InternalApiConfig {
             filters_disabled: web3_config.filters_disabled,
             dummy_verifier: genesis_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
-            user_facing_bridgehub_addr: contracts_config.user_facing_bridgehub_proxy_addr.or(
-                contracts_config
-                    .ecosystem_contracts
-                    .as_ref()
-                    .map(|a| a.bridgehub_proxy_addr),
-            ),
             timestamp_asserter_address: contracts_config.l2_timestamp_asserter_addr,
         }
     }

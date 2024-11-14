@@ -1,21 +1,54 @@
-use std::{collections::HashMap, fs::File, io::Write, path::Path, process::Stdio};
+use std::{ffi::OsString, path, path::Path, process::Stdio};
 
 use anyhow::Context as _;
+use tokio::{fs, io::AsyncWriteExt};
 use zksync_queued_job_processor::async_trait;
-use zksync_types::contract_verification_api::{
-    CompilationArtifacts, SourceCodeData, VerificationIncomingRequest,
-};
+use zksync_types::contract_verification_api::CompilationArtifacts;
 
+use super::VyperInput;
 use crate::{
     error::ContractVerifierError,
     resolver::{Compiler, CompilerPaths},
 };
 
-#[derive(Debug)]
-pub(crate) struct ZkVyperInput {
-    pub contract_name: String,
-    pub sources: HashMap<String, String>,
-    pub optimizer_mode: Option<String>,
+impl VyperInput {
+    async fn write_files(&self, root_dir: &Path) -> anyhow::Result<Vec<OsString>> {
+        let mut paths = Vec::with_capacity(self.sources.len());
+        for (name, content) in &self.sources {
+            let mut name = name.clone();
+            if !name.ends_with(".vy") {
+                name += ".vy";
+            }
+
+            let name_path = Path::new(&name);
+            anyhow::ensure!(
+                !name_path.is_absolute(),
+                "absolute contract filename: {name}"
+            );
+            let normal_components = name_path
+                .components()
+                .all(|component| matches!(component, path::Component::Normal(_)));
+            anyhow::ensure!(
+                normal_components,
+                "contract filename contains disallowed components: {name}"
+            );
+
+            let path = root_dir.join(name_path);
+            if let Some(prefix) = path.parent() {
+                fs::create_dir_all(prefix)
+                    .await
+                    .with_context(|| format!("failed creating parent dir for `{name}`"))?;
+            }
+            let mut file = fs::File::create(&path)
+                .await
+                .with_context(|| format!("failed creating file for `{name}`"))?;
+            file.write_all(content.as_bytes())
+                .await
+                .with_context(|| format!("failed writing to `{name}`"))?;
+            paths.push(path.into_os_string());
+        }
+        Ok(paths)
+    }
 }
 
 #[derive(Debug)]
@@ -26,28 +59,6 @@ pub(crate) struct ZkVyper {
 impl ZkVyper {
     pub fn new(paths: CompilerPaths) -> Self {
         Self { paths }
-    }
-
-    pub fn build_input(
-        req: VerificationIncomingRequest,
-    ) -> Result<ZkVyperInput, ContractVerifierError> {
-        // Users may provide either just contract name or
-        // source file name and contract name joined with ":".
-        let contract_name = if let Some((_, contract_name)) = req.contract_name.rsplit_once(':') {
-            contract_name.to_owned()
-        } else {
-            req.contract_name.clone()
-        };
-
-        let sources = match req.source_code_data {
-            SourceCodeData::VyperMultiFile(s) => s,
-            other => unreachable!("unexpected `SourceCodeData` variant: {other:?}"),
-        };
-        Ok(ZkVyperInput {
-            contract_name,
-            sources,
-            optimizer_mode: req.optimizer_mode,
-        })
     }
 
     fn parse_output(
@@ -80,10 +91,10 @@ impl ZkVyper {
 }
 
 #[async_trait]
-impl Compiler<ZkVyperInput> for ZkVyper {
+impl Compiler<VyperInput> for ZkVyper {
     async fn compile(
         self: Box<Self>,
-        input: ZkVyperInput,
+        input: VyperInput,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let mut command = tokio::process::Command::new(&self.paths.zk);
         if let Some(o) = input.optimizer_mode.as_ref() {
@@ -97,22 +108,15 @@ impl Compiler<ZkVyperInput> for ZkVyper {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        let temp_dir = tempfile::tempdir().context("failed creating temporary dir")?;
-        for (mut name, content) in input.sources {
-            if !name.ends_with(".vy") {
-                name += ".vy";
-            }
-            let path = temp_dir.path().join(&name);
-            if let Some(prefix) = path.parent() {
-                std::fs::create_dir_all(prefix)
-                    .with_context(|| format!("failed creating parent dir for `{name}`"))?;
-            }
-            let mut file = File::create(&path)
-                .with_context(|| format!("failed creating file for `{name}`"))?;
-            file.write_all(content.as_bytes())
-                .with_context(|| format!("failed writing to `{name}`"))?;
-            command.arg(path.into_os_string());
-        }
+        let temp_dir = tokio::task::spawn_blocking(tempfile::tempdir)
+            .await
+            .context("panicked creating temporary dir")?
+            .context("failed creating temporary dir")?;
+        let file_paths = input
+            .write_files(temp_dir.path())
+            .await
+            .context("failed writing Vyper files to temp dir")?;
+        command.args(file_paths);
 
         let child = command.spawn().context("cannot spawn zkvyper")?;
         let output = child.wait_with_output().await.context("zkvyper failed")?;
@@ -126,5 +130,38 @@ impl Compiler<ZkVyperInput> for ZkVyper {
                 String::from_utf8_lossy(&output.stderr).to_string(),
             ))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn sanitizing_contract_paths() {
+        let mut input = VyperInput {
+            contract_name: "Test".to_owned(),
+            file_name: "test.vy".to_owned(),
+            sources: HashMap::from([("/etc/shadow".to_owned(), String::new())]),
+            optimizer_mode: None,
+        };
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let err = input
+            .write_files(temp_dir.path())
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("absolute"), "{err}");
+
+        input.sources = HashMap::from([("../../../etc/shadow".to_owned(), String::new())]);
+        let err = input
+            .write_files(temp_dir.path())
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("disallowed components"), "{err}");
     }
 }

@@ -8,12 +8,12 @@ use ethabi::{ParamType, Token};
 use zksync_system_constants::REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::{pack_block_info, L2BlockHasher},
-    AccountTreeId, Address, Execute, ExecuteTransactionCommon, L1BatchNumber, L1TxCommonData,
-    L2BlockNumber, ProtocolVersionId, StorageKey, Transaction, H256, SYSTEM_CONTEXT_ADDRESS,
-    SYSTEM_CONTEXT_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
-    SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, U256,
+    h256_to_u256, u256_to_h256, AccountTreeId, Address, Execute, ExecuteTransactionCommon,
+    L1BatchNumber, L1TxCommonData, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction, H256,
+    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+    SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
+    U256,
 };
-use zksync_utils::{h256_to_u256, u256_to_h256};
 use zksync_vm_interface::VmRevertReason;
 
 use super::{default_l1_batch, get_empty_storage, tester::VmTesterBuilder, TestedVm};
@@ -25,7 +25,7 @@ use crate::{
     vm_latest::{
         constants::{get_tx_operator_l2_block_info_offset, TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO},
         utils::l2_blocks::get_l2_block_hash_key,
-        MultiVMSubversion,
+        MultiVmSubversion,
     },
 };
 
@@ -479,7 +479,7 @@ pub(crate) fn test_l2_block_first_in_batch<VM: TestedVm>() {
 
 fn set_manual_l2_block_info(vm: &mut impl TestedVm, tx_number: usize, block_info: L2BlockEnv) {
     let fictive_miniblock_position =
-        get_tx_operator_l2_block_info_offset(MultiVMSubversion::latest())
+        get_tx_operator_l2_block_info_offset(MultiVmSubversion::latest())
             + TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO * tx_number;
     vm.write_to_bootloader_heap(&[
         (fictive_miniblock_position, block_info.number.into()),

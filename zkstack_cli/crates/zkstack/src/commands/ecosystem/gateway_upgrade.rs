@@ -146,9 +146,6 @@ async fn governance_stage_1(
 
     let mut contracts_config = ecosystem_config.get_contracts_config()?;
 
-    contracts_config.user_facing_bridgehub =
-        Some(contracts_config.ecosystem_contracts.bridgehub_proxy_addr);
-    contracts_config.user_facing_diamond_proxy = Some(contracts_config.l1.diamond_proxy_addr);
     contracts_config
         .ecosystem_contracts
         .stm_deployment_tracker_proxy_addr = Some(

@@ -10,7 +10,6 @@ use zksync_basic_types::{
     },
 };
 use zksync_contracts::{BaseSystemContractsHashes, DIAMOND_CUT};
-use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     abi::{
@@ -18,6 +17,7 @@ use crate::{
         ZkChainSpecificUpgradeData,
     },
     ethabi::{ParamType, Token},
+    h256_to_u256, u256_to_h256,
     web3::Log,
     Address, Execute, ExecuteTransactionCommon, Transaction, TransactionType, H256, U256,
 };
