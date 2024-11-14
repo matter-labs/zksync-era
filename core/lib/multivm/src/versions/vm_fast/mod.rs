@@ -2,14 +2,14 @@ pub use zksync_vm2::interface;
 
 pub(crate) use self::version::FastVmVersion;
 pub use self::{
-    vm::Vm,
-    with_builtin_tracers::{
-        DefaultTracers, WithBuiltinTracers, WithBuiltinTracersForApi,
-        WithBuiltinTracersForSequencer, WithBuiltinTracersForValidation,
+    builtin_tracers::{
+        ApiTracers, DefaultTracers, SequencerTracers, ValidationTracers, WithBuiltinTracers,
     },
+    vm::Vm,
 };
 
 mod bootloader_state;
+mod builtin_tracers;
 mod bytecode;
 mod circuits_tracer;
 mod events;
@@ -25,4 +25,3 @@ mod utils;
 mod validation_tracer;
 mod version;
 mod vm;
-mod with_builtin_tracers;

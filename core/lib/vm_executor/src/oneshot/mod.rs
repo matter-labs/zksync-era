@@ -27,7 +27,7 @@ use zksync_multivm::{
     is_supported_by_fast_vm,
     tracers::{CallTracer, StorageInvocations, TracerDispatcher, ValidationTracer},
     utils::adjust_pubdata_price_for_tx,
-    vm_fast::{self, WithBuiltinTracers, WithBuiltinTracersForApi},
+    vm_fast::{self, ApiTracers, WithBuiltinTracers},
     vm_latest::{HistoryDisabled, HistoryEnabled},
     zk_evm_latest::ethereum_types::U256,
     FastVmInstance, HistoryMode, LegacyVmInstance, MultiVmTracer,
@@ -317,7 +317,7 @@ enum Vm<S: ReadStorage, Tr = vm_fast::DefaultTracers> {
     Fast(FastVmInstance<S, Tr>),
 }
 
-impl<S: ReadStorage> Vm<S, WithBuiltinTracersForApi<()>> {
+impl<S: ReadStorage> Vm<S, ApiTracers<()>> {
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
         missed_storage_invocation_limit: usize,

@@ -4,7 +4,7 @@ use zksync_vm_interface::tracer::ValidationParams;
 use super::{
     circuits_tracer::CircuitsTracer,
     evm_deploy_tracer::{DynamicBytecodes, EvmDeployTracer},
-    validation_tracer::{ValidationGasLimitOnly, ValidationMode, ValidationTracer},
+    validation_tracer::{FullValidationTracer, ValidationGasLimitOnly, ValidationTracer},
 };
 
 #[derive(Debug, Default)]
@@ -12,11 +12,11 @@ pub struct WithBuiltinTracers<External, Validation>(
     (External, (Validation, (CircuitsTracer, EvmDeployTracer))),
 );
 
-pub type DefaultTracers = WithBuiltinTracersForSequencer<()>;
+pub type DefaultTracers = SequencerTracers<()>;
 
-pub type WithBuiltinTracersForValidation<Tr> = WithBuiltinTracers<Tr, ValidationTracer>;
+pub type ValidationTracers<Tr> = WithBuiltinTracers<Tr, FullValidationTracer>;
 
-impl<External> WithBuiltinTracersForValidation<External> {
+impl<External> ValidationTracers<External> {
     pub fn for_validation(
         external: External,
         validation_params: ValidationParams,
@@ -25,24 +25,24 @@ impl<External> WithBuiltinTracersForValidation<External> {
         Self((
             external,
             (
-                ValidationTracer::new(validation_params, timestamp),
+                FullValidationTracer::new(validation_params, timestamp),
                 Default::default(),
             ),
         ))
     }
 }
 
-pub type WithBuiltinTracersForApi<Tr> = WithBuiltinTracers<Tr, ValidationGasLimitOnly>;
+pub type ApiTracers<Tr> = WithBuiltinTracers<Tr, ValidationGasLimitOnly>;
 
-impl<External> WithBuiltinTracersForApi<External> {
+impl<External> ApiTracers<External> {
     pub fn for_api(external: External) -> Self {
         Self((external, Default::default()))
     }
 }
 
-pub type WithBuiltinTracersForSequencer<Tr> = WithBuiltinTracers<Tr, ValidationGasLimitOnly>;
+pub type SequencerTracers<Tr> = WithBuiltinTracers<Tr, ValidationGasLimitOnly>;
 
-impl<External> WithBuiltinTracersForSequencer<External> {
+impl<External> SequencerTracers<External> {
     pub fn for_sequencer(external: External) -> Self {
         Self((external, Default::default()))
     }
@@ -70,7 +70,7 @@ impl<External, Validation> WithBuiltinTracers<External, Validation> {
     }
 }
 
-impl<External: Tracer, Validation: ValidationMode> Tracer
+impl<External: Tracer, Validation: ValidationTracer> Tracer
     for WithBuiltinTracers<External, Validation>
 {
     fn before_instruction<

@@ -17,7 +17,7 @@ use zksync_vm_interface::tracer::{
 use super::utils::read_fat_pointer;
 use crate::tracers::TIMESTAMP_ASSERTER_FUNCTION_SELECTOR;
 
-pub trait ValidationMode: Tracer + Default {
+pub trait ValidationTracer: Tracer + Default {
     const STOP_AFTER_VALIDATION: bool;
     fn account_validation_entered(&mut self);
     fn validation_exited(&mut self);
@@ -26,7 +26,7 @@ pub trait ValidationMode: Tracer + Default {
 #[derive(Debug, Default)]
 pub struct ValidationGasLimitOnly;
 impl Tracer for ValidationGasLimitOnly {}
-impl ValidationMode for ValidationGasLimitOnly {
+impl ValidationTracer for ValidationGasLimitOnly {
     const STOP_AFTER_VALIDATION: bool = false;
     fn account_validation_entered(&mut self) {}
     fn validation_exited(&mut self) {}
@@ -57,7 +57,7 @@ impl ValidationMode for ValidationGasLimitOnly {
 /// that a contract adheres to the rules ahead of time would be challenging or even impossible,
 /// considering that contracts that the code depends on may get upgraded.
 #[derive(Debug, Default)]
-pub struct ValidationTracer {
+pub struct FullValidationTracer {
     in_validation: bool,
     add_return_value_to_allowed_slots: bool,
 
@@ -75,7 +75,7 @@ pub struct ValidationTracer {
     traces: ValidationTraces,
 }
 
-impl ValidationMode for ValidationTracer {
+impl ValidationTracer for FullValidationTracer {
     const STOP_AFTER_VALIDATION: bool = true;
 
     fn account_validation_entered(&mut self) {
@@ -87,7 +87,7 @@ impl ValidationMode for ValidationTracer {
     }
 }
 
-impl Tracer for ValidationTracer {
+impl Tracer for FullValidationTracer {
     fn before_instruction<OP: OpcodeType, S: GlobalStateInterface>(&mut self, state: &mut S) {
         if !self.in_validation {
             return;
@@ -223,7 +223,7 @@ impl Tracer for ValidationTracer {
     }
 }
 
-impl ValidationTracer {
+impl FullValidationTracer {
     pub fn new(params: ValidationParams, l1_batch_timestamp: u64) -> Self {
         let ValidationParams {
             user_address,

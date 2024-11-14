@@ -31,7 +31,7 @@ use super::{
     hook::Hook,
     initial_bootloader_memory::bootloader_initial_memory,
     transaction_data::TransactionData,
-    validation_tracer::ValidationMode,
+    validation_tracer::ValidationTracer,
     DefaultTracers, WithBuiltinTracers,
 };
 use crate::{
@@ -366,7 +366,12 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
     }
 }
 
-impl<S: ReadStorage, E, V: ValidationMode> Vm<S, WithBuiltinTracers<E, V>>
+struct AccountValidationGasSplit {
+    gas_given: u32,
+    gas_hidden: u32,
+}
+
+impl<S: ReadStorage, E, V: ValidationTracer> Vm<S, WithBuiltinTracers<E, V>>
 where
     WithBuiltinTracers<E, V>: Tracer,
 {
@@ -377,10 +382,6 @@ where
         track_refunds: bool,
         pubdata_builder: Option<&dyn PubdataBuilder>,
     ) -> VmRunResult {
-        struct AccountValidationGasSplit {
-            gas_given: u32,
-            gas_hidden: u32,
-        }
         let mut gas_left_for_account_validation =
             self.system_env.default_validation_computational_gas_limit;
         let mut account_validation_gas_split = None;
@@ -744,7 +745,7 @@ where
     }
 }
 
-impl<S: ReadStorage, E: Tracer + Default, V: ValidationMode> VmInterface
+impl<S: ReadStorage, E: Tracer + Default, V: ValidationTracer> VmInterface
     for Vm<S, WithBuiltinTracers<E, V>>
 {
     type TracerDispatcher = WithBuiltinTracers<E, V>;

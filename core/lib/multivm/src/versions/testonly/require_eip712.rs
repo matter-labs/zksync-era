@@ -98,7 +98,7 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
         vm.get_eth_balance(private_account.address)
     );
 
-    // // Now send the 'classic' EIP712 transaction
+    // Now send the 'classic' EIP712 transaction
 
     let transaction: Transaction =
         make_aa_transaction(aa_address, beneficiary_address, &private_account).into();
