@@ -7,12 +7,11 @@ use zk_evm_1_4_0::{
     },
 };
 use zksync_types::{u256_to_h256, U256};
-use zksync_utils::bytecode::bytecode_len_in_words;
 
 use super::OracleWithHistory;
 use crate::{
     interface::storage::{ReadStorage, StoragePtr},
-    utils::bytecode::bytes_to_be_words,
+    utils::bytecode::{bytecode_len_in_words, bytes_to_be_words},
     vm_boojum_integration::old_vm::history_recorder::{
         HistoryEnabled, HistoryMode, HistoryRecorder, WithHistory,
     },
