@@ -134,8 +134,13 @@ fn create_mock_sl(chain_id: u64, with_get_zk_chain: bool) -> MockSettlementLayer
             }
             Some(addr) if with_get_zk_chain && addr == L2_BRIDGEHUB_ADDRESS => {
                 let contract = zksync_contracts::bridgehub_contract();
+                let function_name = if contract.function("getZKChain").is_ok() {
+                    "getZKChain"
+                } else {
+                    "getHyperchain"
+                };
                 let expected_input = contract
-                    .function("getZKChain")
+                    .function(function_name)
                     .unwrap()
                     .encode_input(&[Token::Uint(ERA_CHAIN_ID.into())])
                     .unwrap();
@@ -192,7 +197,11 @@ fn build_commit_tx_input_data_is_correct(commitment_mode: L1BatchCommitmentMode)
             &commit_tx_input_data,
             commit_function,
             batch.header.number,
-            false,
+            batch
+                .header
+                .protocol_version
+                .map(|v| v.is_pre_gateway())
+                .unwrap_or(true),
         )
         .unwrap();
         assert_eq!(

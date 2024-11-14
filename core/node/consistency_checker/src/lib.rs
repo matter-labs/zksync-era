@@ -406,9 +406,15 @@ impl ConsistencyChecker {
         };
 
         let gateway_chain_data = if let Some(client) = gateway_client {
+            let contract = bridgehub_contract();
+            let function_name = if contract.function("getZKChain").is_ok() {
+                "getZKChain"
+            } else {
+                "getHyperchain"
+            };
             let gateway_diamond_proxy =
-                CallFunctionArgs::new("getZKChain", Token::Uint(l2_chain_id.as_u64().into()))
-                    .for_contract(L2_BRIDGEHUB_ADDRESS, &bridgehub_contract())
+                CallFunctionArgs::new(function_name, Token::Uint(l2_chain_id.as_u64().into()))
+                    .for_contract(L2_BRIDGEHUB_ADDRESS, &contract)
                     .call(&client)
                     .await?;
             let chain_id = client.fetch_chain_id().await?;
