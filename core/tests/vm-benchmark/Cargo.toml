@@ -9,7 +9,6 @@ publish = false
 zksync_contracts.workspace = true
 zksync_multivm.workspace = true
 zksync_types.workspace = true
-zksync_utils.workspace = true
 zksync_vlog.workspace = true
 zksync_vm2.workspace = true
 

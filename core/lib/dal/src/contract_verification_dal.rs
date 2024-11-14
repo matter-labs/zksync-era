@@ -567,11 +567,11 @@ mod tests {
     use std::collections::HashMap;
 
     use zksync_types::{
+        bytecode::BytecodeHash,
         contract_verification_api::{CompilerVersions, SourceCodeData},
         tx::IncludedTxLocation,
         Execute, L1BatchNumber, L2BlockNumber, ProtocolVersion,
     };
-    use zksync_utils::bytecode::hash_bytecode;
     use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
 
     use super::*;
@@ -598,7 +598,7 @@ mod tests {
         let deployed_address = Address::repeat_byte(12);
         let mut tx = mock_l2_transaction();
         let bytecode = vec![1; 32];
-        let bytecode_hash = hash_bytecode(&bytecode);
+        let bytecode_hash = BytecodeHash::for_bytecode(&bytecode).value();
         tx.execute = Execute::for_deploy(H256::zero(), bytecode.clone(), &[]);
         conn.transactions_dal()
             .insert_transaction_l2(

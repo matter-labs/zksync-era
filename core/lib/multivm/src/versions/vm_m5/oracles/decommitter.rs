@@ -7,11 +7,10 @@ use zk_evm_1_3_1::{
     },
 };
 use zksync_types::{u256_to_h256, U256};
-use zksync_utils::bytecode::bytecode_len_in_words;
 
 use super::OracleWithHistory;
 use crate::{
-    utils::bytecode::bytes_to_be_words,
+    utils::bytecode::{bytecode_len_in_words, bytes_to_be_words},
     vm_m5::{
         history_recorder::HistoryRecorder,
         storage::{Storage, StoragePtr},
