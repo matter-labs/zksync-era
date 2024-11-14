@@ -2,14 +2,10 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use zksync_health_check::ReactiveHealthCheck;
+use zksync_state::AsyncCatchupTask;
 pub use zksync_state::RocksdbStorageOptions;
-use zksync_state::{AsyncCatchupTask, OwnedStorage, ReadStorageFactory};
-use zksync_state_keeper::{
-    seal_criteria::ConditionalSealer, AsyncRocksdbCache, OutputHandler, StateKeeperIO,
-    ZkSyncStateKeeper,
-};
+use zksync_state_keeper::{AsyncRocksdbCache, ZkSyncStateKeeper};
 use zksync_storage::RocksDB;
-use zksync_vm_executor::interface::BatchExecutorFactory;
 
 use crate::{
     implementations::resources::{

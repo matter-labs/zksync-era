@@ -46,7 +46,7 @@ impl From<&EthTx> for EthTxDetails {
     fn from(tx: &EthTx) -> Self {
         Self {
             nonce: tx.nonce,
-            tx_type: tx.tx_type.into(),
+            tx_type: tx.tx_type,
             created_at_timestamp: tx.created_at_timestamp,
             predicted_gas_cost: tx.predicted_gas_cost,
         }
