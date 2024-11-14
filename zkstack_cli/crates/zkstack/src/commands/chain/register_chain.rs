@@ -59,7 +59,7 @@ pub async fn register_chain(
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
     chain_config: &ChainConfig,
-    contracts: &mut ContractsConfig,
+    contracts: &ContractsConfig,
     l1_rpc_url: String,
     sender: Option<String>,
     broadcast: bool,
@@ -86,11 +86,5 @@ pub async fn register_chain(
     }
 
     forge.run(shell)?;
-
-    let register_chain_output = RegisterChainOutput::read(
-        shell,
-        REGISTER_CHAIN_SCRIPT_PARAMS.output(&chain_config.link_to_code),
-    )?;
-    contracts.set_chain_contracts(&register_chain_output);
     Ok(())
 }

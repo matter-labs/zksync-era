@@ -5,7 +5,7 @@ use ethers::{
     contract::abigen,
     core::k256::U256,
     middleware::{Middleware, MiddlewareBuilder},
-    prelude::H160,
+    prelude::{Http, Provider, H160},
     types::{BlockNumber, Filter, H256, U64},
 };
 
@@ -16,7 +16,7 @@ abigen!(
         event NewChainDeployed(uint256 indexed chainId, address author, address diamondProxy, address chainAdmin)
         event NewChainRegistrationProposal(uint256 indexed chainId, address author, bytes32 key)
         event SharedBridgeRegistered(uint256 indexed chainId, address l2Address)
-        function proposeChainRegistration(uint256 chainId, uint8 pubdataPricingMode, address commitOperator,address operator,address governor,address tokenAddress,address tokenMultiplierSetter,uint128 gasPriceMultiplierNominator,uint128 gasPriceMultiplierDenominator)
+        function proposeChainRegistration(uint256 chainId, uint8 pubdataPricingMode, address blobOperator,address operator,address governor,address tokenAddress,address tokenMultiplierSetter,uint128 gasPriceMultiplierNominator,uint128 gasPriceMultiplierDenominator)
     ]"
 );
 
@@ -26,7 +26,7 @@ pub async fn propose_registration(
     l1_rpc: String,
     l1_chain_id: u64,
     l2_chain_id: u64,
-    commit_operator: Address,
+    blob_operator: Address,
     operator: Address,
     governor: Address,
     token_address: Address,
@@ -44,7 +44,7 @@ pub async fn propose_registration(
             l2_chain_id.into(),
             // TODO pass the correct value
             0,
-            commit_operator,
+            blob_operator,
             operator,
             governor,
             token_address,
@@ -109,17 +109,11 @@ pub struct ChainRegistrationResult {
 
 pub async fn load_contracts_for_chain(
     chain_registrar: Address,
-    main_wallet: Wallet,
     l1_rpc: String,
     l1_chain_id: u64,
     l2_chain_id: u64,
 ) -> anyhow::Result<ChainRegistrationResult> {
-    let client = Arc::new(create_ethers_client(
-        main_wallet.private_key.unwrap(),
-        l1_rpc,
-        Some(l1_chain_id),
-    )?);
-
+    let client = Arc::new(Provider::<Http>::try_from(l1_rpc)?);
     let block = client.get_block_number().await?;
     let contract = ChainRegistar::new(chain_registrar, client);
     let events = contract
@@ -129,7 +123,7 @@ pub async fn load_contracts_for_chain(
         .topic1(H256::from_low_u64_be(l2_chain_id));
     let result = events.query().await?;
     let mut builder = ChainRegistrationResultBuilder::new();
-    for event in result {
+    for event in &result {
         match event {
             ChainRegistarEvents::NewChainDeployedFilter(event) => {
                 builder = builder

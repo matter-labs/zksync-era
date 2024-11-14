@@ -1,9 +1,12 @@
 use anyhow::Context;
 use clap::{command, Parser, Subcommand};
-use common::{git, logger, spinner::Spinner};
-use config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
+use common::{ethereum, git, logger, spinner::Spinner, wallets::Wallet};
+use config::{
+    traits::SaveConfigWithBasePath, ChainConfig, ContractsConfig, EcosystemConfig, WalletsConfig,
+};
 use types::BaseToken;
 use xshell::Shell;
+use zksync_basic_types::{L1ChainId, L2ChainId};
 
 use crate::{
     accept_ownership::accept_admin,
@@ -95,25 +98,10 @@ pub async fn init(
         init_args.forge_args.clone(),
         ecosystem_config,
         chain_config,
-        &mut contracts_config,
+        &contracts_config,
         init_args.l1_rpc_url.clone(),
         None,
         true,
-    )
-    .await?;
-    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
-    spinner.finish();
-
-    // Accept ownership for DiamondProxy (run by L2 Governor)
-    let spinner = Spinner::new(MSG_ACCEPTING_ADMIN_SPINNER);
-    accept_admin(
-        shell,
-        ecosystem_config,
-        contracts_config.l1.chain_admin_addr,
-        &chain_config.get_wallets_config()?.governor,
-        contracts_config.l1.diamond_proxy_addr,
-        &init_args.forge_args.clone(),
-        init_args.l1_rpc_url.clone(),
     )
     .await?;
     spinner.finish();
@@ -150,6 +138,31 @@ pub async fn init(
     .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
+    let genesis_config = chain_config.get_genesis_config()?;
+
+    contracts_config = fill_contracts_config_from_l1(
+        contracts_config,
+        genesis_config.l1_chain_id,
+        genesis_config.l2_chain_id,
+        init_args.l1_rpc_url.clone(),
+    )
+    .await?;
+    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+
+    // Accept ownership for DiamondProxy (run by L2 Governor)
+    let spinner = Spinner::new(MSG_ACCEPTING_ADMIN_SPINNER);
+    accept_admin(
+        shell,
+        ecosystem_config,
+        contracts_config.l1.chain_admin_addr,
+        &chain_config.get_wallets_config()?.governor,
+        contracts_config.l1.diamond_proxy_addr,
+        &init_args.forge_args.clone(),
+        init_args.l1_rpc_url.clone(),
+    )
+    .await?;
+    spinner.finish();
+
     // Setup legacy bridge - shouldn't be used for new chains (run by L1 Governor)
     if let Some(true) = chain_config.legacy_bridge {
         setup_legacy_bridge(
@@ -183,4 +196,24 @@ pub async fn init(
         .context(MSG_GENESIS_DATABASE_ERR)?;
 
     Ok(())
+}
+
+async fn fill_contracts_config_from_l1(
+    mut contracts: ContractsConfig,
+    l1_chain_id: L1ChainId,
+    l2_chain_id: L2ChainId,
+    l1_rpc_url: String,
+) -> anyhow::Result<ContractsConfig> {
+    let res = ethereum::chain_registrar::load_contracts_for_chain(
+        contracts.ecosystem_contracts.chain_registrar,
+        l1_rpc_url,
+        l1_chain_id.0,
+        l2_chain_id.as_u64(),
+    )
+    .await?;
+    contracts.l1.chain_admin_addr = res.chain_admin;
+    contracts.l1.diamond_proxy_addr = res.diamond_proxy;
+    contracts.bridges.shared.l2_address = Some(res.l2_shared_bridge);
+    contracts.bridges.erc20.l2_address = Some(res.l2_shared_bridge);
+    Ok(contracts)
 }

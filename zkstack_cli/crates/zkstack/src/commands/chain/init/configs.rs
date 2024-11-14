@@ -12,6 +12,7 @@ use crate::{
         chain::{
             args::init::configs::{InitConfigsArgs, InitConfigsArgsFinal},
             genesis,
+            init::fill_contracts_config_from_l1,
         },
         portal::update_portal_config,
     },
@@ -33,24 +34,16 @@ pub async fn run(args: InitConfigsArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt(&chain_config);
 
     let mut contracts = init_configs(&args, shell, &ecosystem_config, &chain_config).await?;
-    let wallets = chain_config.get_wallets_config()?;
-    let secrets = chain_config.get_secrets_config()?;
     let genesis = chain_config.get_genesis_config()?;
-    let res = ethereum::chain_registrar::load_contracts_for_chain(
-        contracts.ecosystem_contracts.chain_registrar,
-        wallets.governor,
-        secrets.l1.unwrap().l1_rpc_url.expose_str().to_string(),
-        genesis.l1_chain_id.0,
-        genesis.l2_chain_id.as_u64(),
+    contracts = fill_contracts_config_from_l1(
+        contracts,
+        genesis.l1_chain_id,
+        genesis.l2_chain_id,
+        args.l1_rpc_url,
     )
     .await?;
-    contracts.l1.chain_admin_addr = res.chain_admin;
-    contracts.l1.diamond_proxy_addr = res.diamond_proxy;
-    contracts.bridges.shared.l2_address = Some(res.l2_shared_bridge);
-    contracts.bridges.erc20.l2_address = Some(res.l2_shared_bridge);
     contracts.save_with_base_path(shell, &chain_config.configs)?;
     logger::outro(MSG_CHAIN_CONFIGS_INITIALIZED);
-
     Ok(())
 }
 
