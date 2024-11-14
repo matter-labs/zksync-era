@@ -9,7 +9,10 @@ use super::{
 
 #[derive(Debug, Default)]
 pub struct WithBuiltinTracers<External, Validation>(
-    (External, (Validation, (CircuitsTracer, EvmDeployTracer))),
+    (
+        External,
+        (Validation, (CircuitsTracer, (EvmDeployTracer, ()))),
+    ),
 );
 
 pub type DefaultTracers = SequencerTracers<()>;
@@ -54,19 +57,16 @@ impl<External, Validation> WithBuiltinTracers<External, Validation> {
     }
 
     pub fn validation(&mut self) -> &mut Validation {
-        &mut self.0 .1 .0
+        self.0.get()
     }
 
     pub(super) fn circuit(&mut self) -> &mut CircuitsTracer {
-        &mut self.0 .1 .1 .0
+        self.0.get()
     }
 
     pub(super) fn insert_dynamic_bytecodes_handle(&mut self, dynamic_bytecodes: DynamicBytecodes) {
-        self.0
-             .1
-             .1
-             .1
-            .insert_dynamic_bytecodes_handle(dynamic_bytecodes)
+        let deploy_tracer: &mut EvmDeployTracer = self.0.get();
+        deploy_tracer.insert_dynamic_bytecodes_handle(dynamic_bytecodes)
     }
 }
 
@@ -95,5 +95,25 @@ impl<External: Tracer, Validation: ValidationTracer> Tracer
 
     fn on_extra_prover_cycles(&mut self, stats: zksync_vm2::interface::CycleStats) {
         self.0.on_extra_prover_cycles(stats);
+    }
+}
+
+// Heteregeneus list item access
+
+struct Here;
+struct Later<T>(T);
+trait ListGet<T, W> {
+    fn get(&mut self) -> &mut T;
+}
+
+impl<T, U> ListGet<T, Here> for (T, U) {
+    fn get(&mut self) -> &mut T {
+        &mut self.0
+    }
+}
+
+impl<T, W, U, V: ListGet<T, W>> ListGet<T, Later<W>> for (U, V) {
+    fn get(&mut self) -> &mut T {
+        self.1.get()
     }
 }
