@@ -1,10 +1,9 @@
 use ethabi::Token;
 use zksync_test_contracts::TestContract;
 use zksync_types::{
-    get_known_code_key, h256_to_u256, u256_to_h256, web3::keccak256, Address, Execute,
-    StorageLogWithPreviousValue, U256,
+    bytecode::BytecodeHash, get_known_code_key, h256_to_u256, u256_to_h256, web3::keccak256,
+    Address, Execute, StorageLogWithPreviousValue, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 use super::{get_empty_storage, tester::VmTesterBuilder, TestedVm};
 use crate::{
@@ -23,7 +22,7 @@ pub(crate) fn test_code_oracle<VM: TestedVm>() {
 
     // Filling the zkevm bytecode
     let normal_zkevm_bytecode = TestContract::counter().bytecode;
-    let normal_zkevm_bytecode_hash = hash_bytecode(normal_zkevm_bytecode);
+    let normal_zkevm_bytecode_hash = BytecodeHash::for_bytecode(normal_zkevm_bytecode).value();
     let normal_zkevm_bytecode_keccak_hash = keccak256(normal_zkevm_bytecode);
     let mut storage = get_empty_storage();
     storage.set_value(
@@ -113,7 +112,7 @@ pub(crate) fn test_code_oracle_big_bytecode<VM: TestedVm>() {
     let precompile_contract_bytecode = TestContract::precompiles_test().bytecode.to_vec();
 
     let big_zkevm_bytecode = generate_large_bytecode();
-    let big_zkevm_bytecode_hash = hash_bytecode(&big_zkevm_bytecode);
+    let big_zkevm_bytecode_hash = BytecodeHash::for_bytecode(&big_zkevm_bytecode).value();
     let big_zkevm_bytecode_keccak_hash = keccak256(&big_zkevm_bytecode);
 
     let mut storage = get_empty_storage();
@@ -170,7 +169,7 @@ pub(crate) fn test_refunds_in_code_oracle<VM: TestedVm>() {
     let precompiles_contract_address = Address::repeat_byte(1);
 
     let normal_zkevm_bytecode = TestContract::counter().bytecode;
-    let normal_zkevm_bytecode_hash = hash_bytecode(normal_zkevm_bytecode);
+    let normal_zkevm_bytecode_hash = BytecodeHash::for_bytecode(normal_zkevm_bytecode).value();
     let normal_zkevm_bytecode_keccak_hash = keccak256(normal_zkevm_bytecode);
     let mut storage = get_empty_storage();
     storage.set_value(

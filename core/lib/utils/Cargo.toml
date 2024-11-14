@@ -11,15 +11,11 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_basic_types.workspace = true
-zk_evm.workspace = true
 zksync_vlog.workspace = true
 
-const-decoder.workspace = true
 tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
 anyhow.workspace = true
-thiserror.workspace = true
 futures.workspace = true
 reqwest = { workspace = true, features = ["blocking"] }
 serde_json.workspace = true

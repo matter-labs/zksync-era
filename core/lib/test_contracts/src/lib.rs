@@ -4,11 +4,10 @@ use zksync_system_constants::{
     DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
 use zksync_types::{
-    abi, address_to_u256, fee::Fee, h256_to_u256, l2::L2Tx, utils::deployed_address_create,
-    Address, Execute, K256PrivateKey, L2ChainId, Nonce, Transaction, H256,
-    PRIORITY_OPERATION_L2_TX_TYPE, U256,
+    abi, address_to_u256, bytecode::BytecodeHash, fee::Fee, l2::L2Tx,
+    utils::deployed_address_create, Address, Execute, K256PrivateKey, L2ChainId, Nonce,
+    Transaction, H256, PRIORITY_OPERATION_L2_TX_TYPE, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 pub use self::contracts::{LoadnextContractExecutionParams, TestContract};
 
@@ -120,7 +119,7 @@ impl Account {
         tx_type: TxType,
     ) -> DeployContractsTx {
         let calldata = calldata.unwrap_or_default();
-        let code_hash = hash_bytecode(code);
+        let code_hash = BytecodeHash::for_bytecode(code).value();
         let mut execute = Execute::for_deploy(H256::zero(), code.to_vec(), calldata);
         execute.factory_deps.extend(factory_deps);
 
@@ -167,7 +166,7 @@ impl Account {
                 signature: vec![],
                 factory_deps: factory_deps
                     .iter()
-                    .map(|b| h256_to_u256(hash_bytecode(b)))
+                    .map(|b| BytecodeHash::for_bytecode(b).value_u256())
                     .collect(),
                 paymaster_input: vec![],
                 reserved_dynamic: vec![],

@@ -1,6 +1,7 @@
 use zksync_contracts::{deployer_contract, load_sys_contract};
 use zksync_test_contracts::{TestContract, TxType};
 use zksync_types::{
+    bytecode::BytecodeHash,
     ethabi::{Contract, Token},
     get_code_key, get_known_code_key, h256_to_u256,
     protocol_upgrade::ProtocolUpgradeTxCommonData,
@@ -8,7 +9,6 @@ use zksync_types::{
     COMPLEX_UPGRADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS, CONTRACT_FORCE_DEPLOYER_ADDRESS, H256,
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 use super::{get_empty_storage, tester::VmTesterBuilder, TestedVm};
 use crate::interface::{
@@ -20,7 +20,7 @@ use crate::interface::{
 /// - If present, this transaction must be the first one in block
 pub(crate) fn test_protocol_upgrade_is_first<VM: TestedVm>() {
     let mut storage = get_empty_storage();
-    let bytecode_hash = hash_bytecode(TestContract::counter().bytecode);
+    let bytecode_hash = BytecodeHash::for_bytecode(TestContract::counter().bytecode).value();
     storage.set_value(get_known_code_key(&bytecode_hash), u256_to_h256(1.into()));
 
     let mut vm = VmTesterBuilder::new()
@@ -112,7 +112,7 @@ pub(crate) fn test_protocol_upgrade_is_first<VM: TestedVm>() {
 /// In this test we try to test how force deployments could be done via protocol upgrade transactions.
 pub(crate) fn test_force_deploy_upgrade<VM: TestedVm>() {
     let mut storage = get_empty_storage();
-    let bytecode_hash = hash_bytecode(TestContract::counter().bytecode);
+    let bytecode_hash = BytecodeHash::for_bytecode(TestContract::counter().bytecode).value();
     let known_code_key = get_known_code_key(&bytecode_hash);
     // It is generally expected that all the keys will be set as known prior to the protocol upgrade.
     storage.set_value(known_code_key, u256_to_h256(1.into()));
@@ -158,9 +158,9 @@ pub(crate) fn test_force_deploy_upgrade<VM: TestedVm>() {
 pub(crate) fn test_complex_upgrader<VM: TestedVm>() {
     let mut storage = get_empty_storage();
     let upgrade_bytecode = TestContract::complex_upgrade().bytecode.to_vec();
-    let bytecode_hash = hash_bytecode(&upgrade_bytecode);
+    let bytecode_hash = BytecodeHash::for_bytecode(&upgrade_bytecode).value();
     let msg_sender_test_bytecode = TestContract::msg_sender_test().bytecode.to_vec();
-    let msg_sender_test_hash = hash_bytecode(&msg_sender_test_bytecode);
+    let msg_sender_test_hash = BytecodeHash::for_bytecode(&msg_sender_test_bytecode).value();
     // Let's assume that the bytecode for the implementation of the complex upgrade
     // is already deployed in some address in user space
     let upgrade_impl = Address::repeat_byte(1);

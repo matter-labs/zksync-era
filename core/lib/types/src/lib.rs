@@ -15,9 +15,9 @@ pub use protocol_upgrade::{ProtocolUpgrade, ProtocolVersion};
 use serde::{Deserialize, Serialize};
 pub use storage::*;
 pub use tx::Execute;
+use zksync_basic_types::bytecode::BytecodeHash;
 pub use zksync_basic_types::{protocol_version::ProtocolVersionId, vm, *};
 pub use zksync_crypto_primitives::*;
-use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{
     l2::{L2Tx, TransactionType},
@@ -284,7 +284,7 @@ impl TryFrom<Transaction> for abi::Transaction {
                     signature: vec![],
                     factory_deps: factory_deps
                         .iter()
-                        .map(|b| h256_to_u256(hash_bytecode(b)))
+                        .map(|b| BytecodeHash::for_bytecode(b).value_u256())
                         .collect(),
                     paymaster_input: vec![],
                     reserved_dynamic: vec![],
@@ -315,7 +315,7 @@ impl TryFrom<Transaction> for abi::Transaction {
                     signature: vec![],
                     factory_deps: factory_deps
                         .iter()
-                        .map(|b| h256_to_u256(hash_bytecode(b)))
+                        .map(|b| BytecodeHash::for_bytecode(b).value_u256())
                         .collect(),
                     paymaster_input: vec![],
                     reserved_dynamic: vec![],
@@ -344,7 +344,7 @@ impl Transaction {
             } => {
                 let factory_deps_hashes: Vec<_> = factory_deps
                     .iter()
-                    .map(|b| h256_to_u256(hash_bytecode(b)))
+                    .map(|b| BytecodeHash::for_bytecode(b).value_u256())
                     .collect();
                 anyhow::ensure!(tx.factory_deps == factory_deps_hashes);
                 for item in &tx.reserved[2..] {
