@@ -15,12 +15,12 @@ use zk_evm_1_3_1::{
 use zksync_contracts::deployer_contract;
 use zksync_types::{
     address_to_h256,
+    bytecode::BytecodeHash,
     ethabi::{Address, Token},
     h256_to_address, u256_to_h256,
     web3::keccak256,
     Execute, Nonce, StorageKey, StorageValue, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 use super::utils::StorageLogQuery;
 use crate::vm_m5::{
@@ -143,7 +143,7 @@ pub fn get_create_execute(code: &[u8], calldata: &[u8]) -> Execute {
 
     let params = [
         Token::FixedBytes(vec![0u8; 32]),
-        Token::FixedBytes(hash_bytecode(code).0.to_vec()),
+        Token::FixedBytes(BytecodeHash::for_bytecode(code).value().0.to_vec()),
         Token::Bytes(calldata.to_vec()),
     ];
     let calldata = contract_function

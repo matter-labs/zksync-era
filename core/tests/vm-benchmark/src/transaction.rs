@@ -3,6 +3,7 @@ pub use zksync_contracts::test_contracts::LoadnextContractExecutionParams as Loa
 use zksync_contracts::{deployer_contract, TestContract};
 use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_types::{
+    bytecode::BytecodeHash,
     ethabi::{encode, Token},
     fee::Fee,
     l2::L2Tx,
@@ -10,7 +11,6 @@ use zksync_types::{
     Address, K256PrivateKey, L2ChainId, Nonce, ProtocolVersionId, Transaction,
     CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 const LOAD_TEST_MAX_READS: usize = 3000;
 
@@ -37,7 +37,7 @@ pub fn get_deploy_tx_with_gas_limit(code: &[u8], gas_limit: u32, nonce: u32) -> 
     salt[28..32].copy_from_slice(&nonce.to_be_bytes());
     let params = [
         Token::FixedBytes(salt),
-        Token::FixedBytes(hash_bytecode(code).0.to_vec()),
+        Token::FixedBytes(BytecodeHash::for_bytecode(code).value().0.to_vec()),
         Token::Bytes([].to_vec()),
     ];
     let calldata = CREATE_FUNCTION_SIGNATURE
@@ -96,7 +96,12 @@ pub fn get_load_test_deploy_tx() -> Transaction {
     let calldata = [Token::Uint(LOAD_TEST_MAX_READS.into())];
     let params = [
         Token::FixedBytes(vec![0_u8; 32]),
-        Token::FixedBytes(hash_bytecode(&LOAD_TEST_CONTRACT.bytecode).0.to_vec()),
+        Token::FixedBytes(
+            BytecodeHash::for_bytecode(&LOAD_TEST_CONTRACT.bytecode)
+                .value()
+                .0
+                .to_vec(),
+        ),
         Token::Bytes(encode(&calldata)),
     ];
     let create_calldata = CREATE_FUNCTION_SIGNATURE
