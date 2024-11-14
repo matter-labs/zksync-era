@@ -111,7 +111,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 
     // We could've deployed the CTM at the beginning however, to be closer to how the actual upgrade
     // looks like we'll do it as the last step
-    
+
     call_script(
         shell,
         args.clone(),
@@ -120,9 +120,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
                 "grantWhitelist",
                 (
                     output.gateway_transaction_filterer_proxy,
-                    vec![
-                        ecosystem_config.get_contracts_config()?.l1.governance_addr
-                    ],
+                    vec![ecosystem_config.get_contracts_config()?.l1.governance_addr],
                 ),
             )
             .unwrap(),

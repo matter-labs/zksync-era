@@ -26,9 +26,9 @@ const fileConfig = shouldLoadConfigFromFile();
 
 const contracts: Contracts = initContracts(pathToHome, fileConfig.loadFromFile);
 
-const ZK_CHAIN_INTERFACE = JSON.parse(readFileSync(
-    pathToHome + '/contracts/l1-contracts/out/IZKChain.sol/IZKChain.json'
-).toString()).abi;
+const ZK_CHAIN_INTERFACE = JSON.parse(
+    readFileSync(pathToHome + '/contracts/l1-contracts/out/IZKChain.sol/IZKChain.json').toString()
+).abi;
 
 let serverComponents = [
     'api',
@@ -44,14 +44,14 @@ const depositAmount = ethers.parseEther('0.001');
 
 interface GatewayInfo {
     gatewayChainId: string;
-    gatewayProvider: zksync.Provider,
-    gatewayCTM: string,
-    l2ChainAdmin: string,
-    l2DiamondProxyAddress: string
+    gatewayProvider: zksync.Provider;
+    gatewayCTM: string;
+    l2ChainAdmin: string;
+    l2DiamondProxyAddress: string;
 }
 
 interface Call {
-    target: string,
+    target: string;
     value: BigNumberish;
     data: BytesLike;
 }
@@ -91,7 +91,6 @@ describe('Upgrade test', function () {
         deployerAddress = '0x0000000000000000000000000000000000008007';
         complexUpgraderAddress = '0x000000000000000000000000000000000000800f';
         logs = await fs.open('upgrade.log', 'a');
-
 
         if (fileConfig.loadFromFile) {
             const generalConfig = loadConfig({
@@ -142,13 +141,12 @@ describe('Upgrade test', function () {
                 };
             }
 
-
             mainNodeSpawner = new utils.NodeSpawner(pathToHome, logs, fileConfig, {
                 enableConsensus: false,
                 ethClientWeb3Url: ethProviderAddress!,
                 apiWeb3JsonRpcHttpUrl: web3JsonRpc!,
                 baseTokenAddress: contractsConfig.l1.base_token_addr
-            });    
+            });
         } else {
             // Since gateway config can not be imported
             // FIXME: potentially delete the non-file-based tests is enough
@@ -179,9 +177,9 @@ describe('Upgrade test', function () {
                 config: 'wallets.yaml'
             });
 
-            slAdminGovWallet = gatewayInfo ? 
-                new zksync.Wallet(chainWalletConfig.governor.private_key, gatewayInfo.gatewayProvider): 
-                new ethers.Wallet(chainWalletConfig.governor.private_key, alice._providerL1());
+            slAdminGovWallet = gatewayInfo
+                ? new zksync.Wallet(chainWalletConfig.governor.private_key, gatewayInfo.gatewayProvider)
+                : new ethers.Wallet(chainWalletConfig.governor.private_key, alice._providerL1());
 
             const ecosystemWalletConfig = loadConfig({
                 pathToHome,
@@ -190,7 +188,6 @@ describe('Upgrade test', function () {
                 config: 'wallets.yaml'
             });
 
-            
             ecosystemGovWallet = new ethers.Wallet(ecosystemWalletConfig.governor.private_key, alice._providerL1());
         } else {
             throw new Error('Not loading from file not supported');
@@ -241,14 +238,14 @@ describe('Upgrade test', function () {
         const governanceAddr = await stmContract.owner();
         governanceContract = new ethers.Contract(governanceAddr, contracts.governanceAbi, tester.syncWallet.providerL1);
         const chainAdminAddr = await mainContract.getAdmin();
-        
-        slChainAdminContract = gatewayInfo ? 
-            new ethers.Contract(gatewayInfo.l2ChainAdmin, contracts.chainAdminAbi, gatewayInfo.gatewayProvider) :
-            new ethers.Contract(chainAdminAddr, contracts.chainAdminAbi, tester.syncWallet.providerL1);
 
-        slMainContract = gatewayInfo ? 
-            new ethers.Contract(gatewayInfo.l2DiamondProxyAddress, ZKSYNC_MAIN_ABI, gatewayInfo.gatewayProvider) : 
-            mainContract;
+        slChainAdminContract = gatewayInfo
+            ? new ethers.Contract(gatewayInfo.l2ChainAdmin, contracts.chainAdminAbi, gatewayInfo.gatewayProvider)
+            : new ethers.Contract(chainAdminAddr, contracts.chainAdminAbi, tester.syncWallet.providerL1);
+
+        slMainContract = gatewayInfo
+            ? new ethers.Contract(gatewayInfo.l2DiamondProxyAddress, ZKSYNC_MAIN_ABI, gatewayInfo.gatewayProvider)
+            : mainContract;
 
         let blocksCommitted = await mainContract.getTotalBatchesCommitted();
 
@@ -316,21 +313,9 @@ describe('Upgrade test', function () {
         bootloaderHash = ethers.hexlify(zksync.utils.hashBytecode(bootloaderCode));
         defaultAccountHash = ethers.hexlify(zksync.utils.hashBytecode(defaultAACode));
 
-        await publishBytecode(
-            tester.ethWallet,
-            bytecodeSupplier,
-            bootloaderCode
-        );
-        await publishBytecode(
-            tester.ethWallet,
-            bytecodeSupplier,
-            defaultAACode
-        );
-        await publishBytecode(
-            tester.ethWallet,
-            bytecodeSupplier,
-            forceDeployBytecode
-        );
+        await publishBytecode(tester.ethWallet, bytecodeSupplier, bootloaderCode);
+        await publishBytecode(tester.ethWallet, bytecodeSupplier, defaultAACode);
+        await publishBytecode(tester.ethWallet, bytecodeSupplier, forceDeployBytecode);
     });
 
     step('Schedule governance call', async () => {
@@ -369,7 +354,11 @@ describe('Upgrade test', function () {
                     reserved: [0, 0, 0, 0],
                     data,
                     signature: '0x',
-                    factoryDeps: [bootloaderHash, defaultAccountHash, ethers.hexlify(zksync.utils.hashBytecode(forceDeployBytecode))],
+                    factoryDeps: [
+                        bootloaderHash,
+                        defaultAccountHash,
+                        ethers.hexlify(zksync.utils.hashBytecode(forceDeployBytecode))
+                    ],
                     paymasterInput: '0x',
                     reservedDynamic: '0x'
                 },
@@ -386,9 +375,12 @@ describe('Upgrade test', function () {
         console.log('hey3');
 
         console.log('Sending executeOperation');
-        await sendGovernanceOperation(stmUpgradeData.executeOperation, stmUpgradeData.executeOperationValue, gatewayInfo);
+        await sendGovernanceOperation(
+            stmUpgradeData.executeOperation,
+            stmUpgradeData.executeOperationValue,
+            gatewayInfo
+        );
         console.log('hey4');
-
 
         console.log('Sending chain admin operation');
         await sendChainAdminOperation({
@@ -473,11 +465,7 @@ describe('Upgrade test', function () {
         } catch (_) {}
     });
 
-    async function sendGovernanceOperation(
-        data: string,
-        value: BigNumberish,
-        gatewayInfo: GatewayInfo | null
-    ) {
+    async function sendGovernanceOperation(data: string, value: BigNumberish, gatewayInfo: GatewayInfo | null) {
         const transaction = await ecosystemGovWallet.sendTransaction({
             to: await governanceContract.getAddress(),
             value: value,
@@ -487,13 +475,13 @@ describe('Upgrade test', function () {
         console.log(`Sent governance operation, tx_hash=${transaction.hash}, nonce=${transaction.nonce}`);
         const receipt = await transaction.wait();
         console.log(`Governance operation succeeded, tx_hash=${transaction.hash}`);
-        
+
         // The governance operations may trigger additional L1->L2 transactions to gateway, which we should wait.
-        if(!gatewayInfo) {
+        if (!gatewayInfo) {
             return;
         }
 
-        // `try/catch` is needed since SDK will throw an error if the priority operation is not found. 
+        // `try/catch` is needed since SDK will throw an error if the priority operation is not found.
         // So it is not possible to disntiguish the case when it was not emitted on purpose or not
         let hash;
         try {
@@ -508,13 +496,8 @@ describe('Upgrade test', function () {
         console.log('Transaction complete!');
     }
 
-    async function sendChainAdminOperation(
-        call: Call,
-    ) {
-        const executeMulticallData = slChainAdminContract.interface.encodeFunctionData('multicall', [
-            [call],
-            true
-        ]);
+    async function sendChainAdminOperation(call: Call) {
+        const executeMulticallData = slChainAdminContract.interface.encodeFunctionData('multicall', [[call], true]);
 
         const transaction = await slAdminGovWallet.sendTransaction({
             to: await slChainAdminContract.getAddress(),
@@ -524,18 +507,16 @@ describe('Upgrade test', function () {
         console.log(`Sent chain admin operation, tx_hash=${transaction.hash}, nonce=${transaction.nonce}`);
         await transaction.wait();
         console.log(`Chain admin operation succeeded, tx_hash=${transaction.hash}`);
-
-        // return receipt;
     }
 
     async function deployDefaultUpgradeImpl(runner: ethers.Wallet): Promise<string> {
-        const bytecodePath = isGateway ?
-            pathToHome + '/contracts/l1-contracts/zkout/DefaultUpgrade.sol/DefaultUpgrade.json' : 
-            pathToHome + '/contracts/l1-contracts/out/DefaultUpgrade.sol/DefaultUpgrade.json';
+        const bytecodePath = isGateway
+            ? pathToHome + '/contracts/l1-contracts/zkout/DefaultUpgrade.sol/DefaultUpgrade.json'
+            : pathToHome + '/contracts/l1-contracts/out/DefaultUpgrade.sol/DefaultUpgrade.json';
 
         const bytecode = '0x' + JSON.parse(readFileSync(bytecodePath).toString()).bytecode.object;
 
-        if(isGateway) {
+        if (isGateway) {
             const factory = new zksync.ContractFactory([], bytecode, runner);
             return (await factory.deploy()).getAddress();
         } else {
@@ -545,10 +526,7 @@ describe('Upgrade test', function () {
     }
 });
 
-function readCode(
-    newPath: string,
-    legacyPath: string,
-): string {
+function readCode(newPath: string, legacyPath: string): string {
     let path = `${pathToHome}/${newPath}`;
     if (existsSync(path)) {
         return '0x'.concat(require(path).bytecode.object);
@@ -562,26 +540,18 @@ function readCode(
     }
 }
 
-async function publishBytecode(
-    wallet: ethers.Wallet,
-    bytecodeSupplierAddr: string,
-    bytecode: string
-) {
+async function publishBytecode(wallet: ethers.Wallet, bytecodeSupplierAddr: string, bytecode: string) {
     const hash = zksync.utils.hashBytecode(bytecode);
     const abi = [
         'function publishBytecode(bytes calldata _bytecode) public',
         'function publishingBlock(bytes32 _hash) public view returns (uint256)'
     ];
 
-    const contract =  new ethers.Contract(
-        bytecodeSupplierAddr,
-        abi,
-        wallet
-    );
+    const contract = new ethers.Contract(bytecodeSupplierAddr, abi, wallet);
     const block = await contract.publishingBlock(hash);
     if (block == BigInt(0)) {
         await (await contract.publishBytecode(bytecode)).wait();
-    } 
+    }
 }
 
 async function checkedRandomTransfer(sender: zksync.Wallet, amount: bigint): Promise<zksync.types.TransactionResponse> {
@@ -683,7 +653,11 @@ async function prepareUpgradeCalldata(
 
     let settlementLayerDiamondProxy: ethers.Contract;
     if (gatewayInfo) {
-        settlementLayerDiamondProxy = new ethers.Contract(gatewayInfo.l2DiamondProxyAddress, ZK_CHAIN_INTERFACE, gatewayInfo.gatewayProvider);
+        settlementLayerDiamondProxy = new ethers.Contract(
+            gatewayInfo.l2DiamondProxyAddress,
+            ZK_CHAIN_INTERFACE,
+            gatewayInfo.gatewayProvider
+        );
     } else {
         const zksyncAddress = await l2Provider.getMainContractAddress();
         settlementLayerDiamondProxy = new ethers.Contract(zksyncAddress, ZK_CHAIN_INTERFACE, l1Provider);
@@ -693,7 +667,6 @@ async function prepareUpgradeCalldata(
     const oldProtocolVersion = Number(await settlementLayerDiamondProxy.getProtocolVersion());
     const newProtocolVersion = addToProtocolVersion(oldProtocolVersion, 1, 1);
     console.log('hey1122');
-
 
     params.l2ProtocolUpgradeTx.nonce ??= BigInt(unpackNumberSemVer(newProtocolVersion)[1]);
     const upgradeInitData = contracts.l1DefaultUpgradeAbi.encodeFunctionData('upgrade', [
@@ -743,13 +716,11 @@ async function prepareUpgradeCalldata(
     ]);
     console.log('hey10');
 
-
     const bridgehubAddr = await l2Provider.getBridgehubContractAddress();
     console.log('hey11');
 
-
     const stmUpgradeData = await prepareGovernanceCalldata(
-        settlementLayerCTMAddress, 
+        settlementLayerCTMAddress,
         stmUpgradeCalldata,
         bridgehubAddr,
         l1Provider!,
@@ -774,9 +745,9 @@ async function prepareGovernanceCalldata(
     data: BytesLike,
     bridgehubAddr: string,
     l1Provider: ethers.Provider,
-    gatewayInfo: GatewayInfo | null,
+    gatewayInfo: GatewayInfo | null
 ): Promise<UpgradeCalldata> {
-    let call;   
+    let call;
     console.log('t1');
     if (gatewayInfo) {
         // We will have to perform an L1->L2 transaction to the gateway
@@ -795,7 +766,7 @@ async function prepareGovernanceCalldata(
             value: 0,
             data
         };
-    } 
+    }
 
     console.log('t2');
     const governanceOperation = {
@@ -821,9 +792,7 @@ async function prepareGovernanceCalldata(
     };
 }
 
-async function prepareAdminCalldata() {
-
-}
+async function prepareAdminCalldata() {}
 
 async function composeL1ToL2Call(
     chainId: string,
@@ -831,7 +800,7 @@ async function composeL1ToL2Call(
     data: BytesLike,
     bridgehubAddr: string,
     l1Provider: ethers.Provider,
-    refundRecipient: string,
+    refundRecipient: string
 ): Promise<Call> {
     const gasPerPubdata = zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
     // Just a constant that needs to be large enough to handle upgrade-related things
@@ -839,18 +808,9 @@ async function composeL1ToL2Call(
 
     const gasPrice = (await l1Provider.getFeeData()).gasPrice! * BigInt(5);
 
-    const bridgehub = new ethers.Contract(
-        bridgehubAddr,
-        zksync.utils.BRIDGEHUB_ABI,
-        l1Provider
-    );
+    const bridgehub = new ethers.Contract(bridgehubAddr, zksync.utils.BRIDGEHUB_ABI, l1Provider);
 
-    const baseCost = await bridgehub.l2TransactionBaseCost(
-        chainId,
-        gasPrice,
-        gasLimit,
-        gasPerPubdata
-    ) 
+    const baseCost = await bridgehub.l2TransactionBaseCost(chainId, gasPrice, gasLimit, gasPerPubdata);
 
     const encodedData = zksync.utils.BRIDGEHUB_ABI.encodeFunctionData('requestL2TransactionDirect', [
         {
@@ -860,18 +820,18 @@ async function composeL1ToL2Call(
             l2Value: 0,
             l2Calldata: data,
             l2GasLimit: gasLimit,
-            l2GasPerPubdataByteLimit: gasPerPubdata, 
+            l2GasPerPubdataByteLimit: gasPerPubdata,
             factoryDeps: [],
-            refundRecipient 
+            refundRecipient
         }
-    ]); 
+    ]);
 
     return {
         target: bridgehubAddr,
         data: encodedData,
         // Works when ETH is the base token
         value: baseCost
-    }
+    };
 }
 
 async function mintToAddress(

@@ -142,10 +142,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         shell,
         args.forge_args.clone(),
         &GATEWAY_PREPARATION_INTERFACE
-            .encode(
-                "deployL2ChainAdmin",
-                (),
-            )
+            .encode("deployL2ChainAdmin", ())
             .unwrap(),
         &ecosystem_config,
         &chain_config.get_wallets_config()?.governor,
@@ -153,8 +150,10 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     )
     .await?
     .l2_chain_admin_address;
-    println!("L2 chain admin deployed! Its address: {:#?}", l2_chain_admin);
-
+    println!(
+        "L2 chain admin deployed! Its address: {:#?}",
+        l2_chain_admin
+    );
 
     let hash = call_script(
         shell,
@@ -243,7 +242,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                         .da_validator_addr
                         .context("da_validator_addr")?,
                     new_diamond_proxy_address,
-                    l2_chain_admin
+                    l2_chain_admin,
                 ),
             )
             .unwrap(),
@@ -273,7 +272,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                     U256::from(chain_config.chain_id.0),
                     chain_secrets_config.blob_operator.address,
                     gateway_gateway_config.validator_timelock_addr,
-                    l2_chain_admin
+                    l2_chain_admin,
                 ),
             )
             .unwrap(),
@@ -323,7 +322,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                     U256::from(chain_config.chain_id.0),
                     chain_secrets_config.operator.address,
                     gateway_gateway_config.validator_timelock_addr,
-                    l2_chain_admin
+                    l2_chain_admin,
                 ),
             )
             .unwrap(),

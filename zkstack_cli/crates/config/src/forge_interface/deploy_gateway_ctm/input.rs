@@ -64,7 +64,9 @@ impl DeployGatewayCTMInput {
         initial_deployment_config: &InitialDeploymentConfig,
     ) -> Self {
         Self {
-            bridgehub_proxy_addr: ecosystem_contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+            bridgehub_proxy_addr: ecosystem_contracts_config
+                .ecosystem_contracts
+                .bridgehub_proxy_addr,
             ctm_deployment_tracker_proxy_addr: ecosystem_contracts_config
                 .ecosystem_contracts
                 .stm_deployment_tracker_proxy_addr

@@ -1,11 +1,11 @@
-import { killPidWithAllChilds } from "./kill";
+import { killPidWithAllChilds } from './kill';
 import { spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions } from 'child_process';
-import {exec, sleep} from "./index";
+import { exec, sleep } from './index';
 import fs from 'node:fs/promises';
 import * as zksync from 'zksync-ethers';
 import * as fsSync from 'fs';
 import YAML from 'yaml';
-import { FileConfig, getConfigPath } from "./file-configs";
+import { FileConfig, getConfigPath } from './file-configs';
 
 // executes a command in background and returns a child process handle
 // by default pipes data to parent's stdio but this can be overridden
