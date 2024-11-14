@@ -1,7 +1,7 @@
 # Decentralization
 
 To enable support for synchronization over p2p network, the main node needs to have the "consensus" component configured
-and enabled.
+and enabled as follows:
 
 ## Generating the consensus secrets
 
@@ -36,14 +36,16 @@ genesis_spec:
 
 ## Providing the configuration to the `zksync_server`.
 
-There are 2 ways (hopefully not for long) to provide configuration to `zksync_server` binary:
+To enable consensus component for the main node you need to append `--components=<whatever components you were running until now>,consensus` to the `zksync_server` command line arguments.
+In addition to that, you need to provide the configuration (from the files `consensus_config.yaml` and `consensus_secrets.yaml` that we have just prepared) to the `zksync_server` binary.
+There are 2 ways (hopefully not for long) to achieve that:
 
-In file-based configuration system, the consensus config is embedded in the [general config](https://github.com/matter-labs/zksync-era/blob/1edcabe0c6a02d5b6700c29c0d9f6220ec6fb03c/core/lib/config/src/configs/general.rs#L58),
-and the consensus secrets are embedded in the [secrets config](https://github.com/matter-labs/zksync-era/blob/main/core/bin/zksync_server/src/main.rs).
-Paste the content of the generated `consensus_secrets.yaml` file to the `secrets` config, and prepared config to the `general` config.
+* In file-based configuration system, the consensus config is embedded in the [general config](https://github.com/matter-labs/zksync-era/blob/1edcabe0c6a02d5b6700c29c0d9f6220ec6fb03c/core/lib/config/src/configs/general.rs#L58),
+  and the consensus secrets are embedded in the [secrets config](https://github.com/matter-labs/zksync-era/blob/main/core/bin/zksync_server/src/main.rs).
+  Paste the content of the generated `consensus_secrets.yaml` file to the `secrets` config, and prepared config to the `general` config.
 
-In env-var-based configuration system, the consensus config and consensus secrets files are passed as standalone files.
-The paths to these files need to be passed as env vars `CONSENSUS_CONFIG_PATH` and `CONSENSUS_SECRETS_PATH`.
+* In env-var-based configuration system, the consensus config and consensus secrets files are passed as standalone files.
+  The paths to these files need to be passed as env vars `CONSENSUS_CONFIG_PATH` and `CONSENSUS_SECRETS_PATH`.
 
 ## Gitops repo config
 
