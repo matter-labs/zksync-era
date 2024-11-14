@@ -478,28 +478,3 @@ async fn call_script(
 
     Ok(gateway_preparation_script_output)
 }
-
-/// Applies the L1 to L2 address aliasing by adding a constant offset.
-///
-/// # Arguments
-///
-/// * `l1_address` - The Layer 1 Ethereum address to be aliased.
-///
-/// # Returns
-///
-/// * `Address` - The aliased Layer 2 Ethereum address.
-fn apply_l1_to_l2_alias(l1_address: Address) -> Address {
-    // Define the constant offset as a U256 number.
-    let offset = U256::from_str_radix("1111000000000000000000000000000000001111", 16).unwrap();
-
-    // Convert the l1_address (which is 20 bytes) into a U256 number.
-    let l1_address_u256 = U256::from_big_endian(&l1_address.0);
-
-    // Perform the addition with wrapping to mimic Solidity's unchecked arithmetic.
-    let l2_address_u256 = l1_address_u256 + offset;
-
-    // Convert the resulting U256 back into a 20-byte address.
-    let mut l2_address_bytes = [0u8; 32];
-    l2_address_u256.to_big_endian(&mut l2_address_bytes);
-    Address::from_slice(&l2_address_bytes[12..32]) // Take the last 20 bytes.
-}

@@ -30,16 +30,6 @@ const ZK_CHAIN_INTERFACE = JSON.parse(
     readFileSync(pathToHome + '/contracts/l1-contracts/out/IZKChain.sol/IZKChain.json').toString()
 ).abi;
 
-let serverComponents = [
-    'api',
-    'tree',
-    'eth',
-    'state_keeper',
-    'commitment_generator',
-    'da_dispatcher',
-    'vm_runner_protective_reads'
-];
-
 const depositAmount = ethers.parseEther('0.001');
 
 interface GatewayInfo {
@@ -152,19 +142,19 @@ describe('Upgrade test', function () {
             // FIXME: potentially delete the non-file-based tests is enough
             throw new Error('Non file based not supported');
 
-            ethProviderAddress = process.env.L1_RPC_ADDRESS || process.env.ETH_CLIENT_WEB3_URL;
-            web3JsonRpc = process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL;
-            contractsL2DefaultUpgradeAddr = process.env.CONTRACTS_L2_DEFAULT_UPGRADE_ADDR!;
+            // ethProviderAddress = process.env.L1_RPC_ADDRESS || process.env.ETH_CLIENT_WEB3_URL;
+            // web3JsonRpc = process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL;
+            // contractsL2DefaultUpgradeAddr = process.env.CONTRACTS_L2_DEFAULT_UPGRADE_ADDR!;
 
-            // upgradeAddress = process.env.CONTRACTS_DEFAULT_UPGRADE_ADDR;
-            // if (!upgradeAddress) {
-            //     throw new Error('CONTRACTS_DEFAULT_UPGRADE_ADDR not set');
+            // // upgradeAddress = process.env.CONTRACTS_DEFAULT_UPGRADE_ADDR;
+            // // if (!upgradeAddress) {
+            // //     throw new Error('CONTRACTS_DEFAULT_UPGRADE_ADDR not set');
+            // // }
+            // bytecodeSupplier = process.env.CONTRACTS_L1_BYTECODE_SUPPLIER_ADDR as string;
+            // if (!bytecodeSupplier) {
+            //     throw new Error('CONTRACTS_L1_BYTECODE_SUPPLIER_ADDR not set');
             // }
-            bytecodeSupplier = process.env.CONTRACTS_L1_BYTECODE_SUPPLIER_ADDR as string;
-            if (!bytecodeSupplier) {
-                throw new Error('CONTRACTS_L1_BYTECODE_SUPPLIER_ADDR not set');
-            }
-            contractsPriorityTxMaxGasLimit = process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT!;
+            // contractsPriorityTxMaxGasLimit = process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT!;
         }
 
         tester = await Tester.init(ethProviderAddress!, web3JsonRpc!);
@@ -204,7 +194,6 @@ describe('Upgrade test', function () {
     });
 
     step('Run server and execute some transactions', async () => {
-        console.log('hi!');
         // Set small timeouts.
         process.env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_COMMIT_DEADLINE = '1';
         process.env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_PROVE_DEADLINE = '1';
@@ -212,26 +201,19 @@ describe('Upgrade test', function () {
         // Must be > 1s, because bootloader requires l1 batch timestamps to be incremental.
         process.env.CHAIN_STATE_KEEPER_BLOCK_COMMIT_DEADLINE_MS = '2000';
 
-        console.log('hi2!');
-
         if (fileConfig.loadFromFile) {
             setEthSenderSenderAggregatedBlockCommitDeadline(pathToHome, fileConfig, 1);
             setAggregatedBlockProveDeadline(pathToHome, fileConfig, 1);
             setAggregatedBlockExecuteDeadline(pathToHome, fileConfig, 1);
             setBlockCommitDeadlineMs(pathToHome, fileConfig, 2000);
         }
-
-        console.log('hi4!');
         await mainNodeSpawner.killAndSpawnMainNode();
 
-        console.log('hi5!');
         mainContract = new ethers.Contract(
             await tester.web3Provider.getMainContractAddress(),
             ZK_CHAIN_INTERFACE,
             tester.ethProvider
         );
-
-        console.log('hi3!');
 
         const stmAddr = await mainContract.getChainTypeManager();
         const stmContract = new ethers.Contract(stmAddr, contracts.stateTransitonManager, tester.syncWallet.providerL1);
@@ -335,7 +317,6 @@ describe('Upgrade test', function () {
             delegateCalldata
         ]);
 
-        console.log('hey');
         const { stmUpgradeData, chainUpgradeCalldata, setTimestampCalldata } = await prepareUpgradeCalldata(
             alice._providerL1(),
             alice._providerL2(),
@@ -369,10 +350,8 @@ describe('Upgrade test', function () {
         );
         executeOperation = chainUpgradeCalldata;
 
-        console.log('hey2');
         console.log('Sending scheduleTransparentOperation');
         await sendGovernanceOperation(stmUpgradeData.scheduleTransparentOperation, 0, gatewayInfo);
-        console.log('hey3');
 
         console.log('Sending executeOperation');
         await sendGovernanceOperation(
@@ -380,7 +359,6 @@ describe('Upgrade test', function () {
             stmUpgradeData.executeOperationValue,
             gatewayInfo
         );
-        console.log('hey4');
 
         console.log('Sending chain admin operation');
         await sendChainAdminOperation({
