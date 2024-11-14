@@ -5,7 +5,7 @@ use strum::{Display, EnumIter};
 
 use crate::{
     ethabi,
-    web3::contract::{Detokenize, Error as ContractError},
+    web3::contract::{Detokenize, Error as ContractError, Tokenize},
     Address, U256,
 };
 
@@ -40,6 +40,15 @@ impl Detokenize for L1BatchCommitmentMode {
                 }
             }
             _ => Err(error(&tokens)),
+        }
+    }
+}
+
+impl Into<u8> for L1BatchCommitmentMode {
+    fn into(self) -> u8 {
+        match self {
+            L1BatchCommitmentMode::Rollup => 0,
+            L1BatchCommitmentMode::Validium => 1,
         }
     }
 }

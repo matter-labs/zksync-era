@@ -6,10 +6,9 @@ use common::{
 };
 use config::{
     forge_interface::{
-        register_chain::{input::RegisterChainL1Config, output::RegisterChainOutput},
-        script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
+        register_chain::input::RegisterChainL1Config, script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
     },
-    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    traits::{SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use xshell::Shell;

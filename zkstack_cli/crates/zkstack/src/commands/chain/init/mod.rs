@@ -1,12 +1,10 @@
 use anyhow::Context;
 use clap::{command, Parser, Subcommand};
-use common::{ethereum, git, logger, spinner::Spinner, wallets::Wallet};
-use config::{
-    traits::SaveConfigWithBasePath, ChainConfig, ContractsConfig, EcosystemConfig, WalletsConfig,
-};
+use common::{ethereum, git, logger, spinner::Spinner};
+use config::{traits::SaveConfigWithBasePath, ChainConfig, ContractsConfig, EcosystemConfig};
 use types::BaseToken;
 use xshell::Shell;
-use zksync_basic_types::{L1ChainId, L2ChainId};
+use zksync_basic_types::L2ChainId;
 
 use crate::{
     accept_ownership::accept_admin,
@@ -138,12 +136,9 @@ pub async fn init(
     .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
-    let genesis_config = chain_config.get_genesis_config()?;
-
     contracts_config = fill_contracts_config_from_l1(
         contracts_config,
-        genesis_config.l1_chain_id,
-        genesis_config.l2_chain_id,
+        chain_config.chain_id,
         init_args.l1_rpc_url.clone(),
     )
     .await?;
@@ -200,14 +195,12 @@ pub async fn init(
 
 async fn fill_contracts_config_from_l1(
     mut contracts: ContractsConfig,
-    l1_chain_id: L1ChainId,
     l2_chain_id: L2ChainId,
     l1_rpc_url: String,
 ) -> anyhow::Result<ContractsConfig> {
     let res = ethereum::chain_registrar::load_contracts_for_chain(
         contracts.ecosystem_contracts.chain_registrar,
         l1_rpc_url,
-        l1_chain_id.0,
         l2_chain_id.as_u64(),
     )
     .await?;

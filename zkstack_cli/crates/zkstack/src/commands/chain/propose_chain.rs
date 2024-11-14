@@ -40,6 +40,7 @@ pub async fn run_propose_chain_registration(chain_config: &ChainConfig) -> anyho
         wallets.token_multiplier_setter.map(|a| a.address),
         chain_config.base_token.nominator,
         chain_config.base_token.denominator,
+        genesis.l1_batch_commit_data_generator_mode,
     )
     .await?;
     spinner.finish();

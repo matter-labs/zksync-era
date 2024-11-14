@@ -1,4 +1,3 @@
-use common::ethereum::chain_registrar::ChainRegistar;
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::L2ChainId;

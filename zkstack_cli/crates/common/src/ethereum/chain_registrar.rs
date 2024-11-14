@@ -3,11 +3,11 @@ use std::sync::Arc;
 use ethers::{
     abi::Address,
     contract::abigen,
-    core::k256::U256,
     middleware::{Middleware, MiddlewareBuilder},
-    prelude::{Http, Provider, H160},
-    types::{BlockNumber, Filter, H256, U64},
+    prelude::{Http, Provider},
+    types::{BlockNumber, H256, U64},
 };
+use types::L1BatchCommitmentMode;
 
 use crate::{ethereum::create_ethers_client, logger, wallets::Wallet};
 abigen!(
@@ -33,6 +33,7 @@ pub async fn propose_registration(
     token_multiplier_setter: Option<Address>,
     gas_price_multiplier_nominator: u64,
     gas_price_multiplier_denominator: u64,
+    l1batch_commitment_mode: L1BatchCommitmentMode,
 ) -> anyhow::Result<()> {
     let client = Arc::new(
         create_ethers_client(main_wallet.private_key.unwrap(), l1_rpc, Some(l1_chain_id))?
@@ -42,8 +43,7 @@ pub async fn propose_registration(
     contract
         .propose_chain_registration(
             l2_chain_id.into(),
-            // TODO pass the correct value
-            0,
+            l1batch_commitment_mode.into(),
             blob_operator,
             operator,
             governor,
@@ -110,7 +110,6 @@ pub struct ChainRegistrationResult {
 pub async fn load_contracts_for_chain(
     chain_registrar: Address,
     l1_rpc: String,
-    l1_chain_id: u64,
     l2_chain_id: u64,
 ) -> anyhow::Result<ChainRegistrationResult> {
     let client = Arc::new(Provider::<Http>::try_from(l1_rpc)?);
