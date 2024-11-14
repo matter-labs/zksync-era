@@ -1,5 +1,5 @@
 //! Types exposed by the prover DAL for general-purpose use.
-use std::{net::IpAddr, ops::Add, str::FromStr};
+use std::{net::IpAddr, ops::Add, str::FromStr, time::Instant};
 
 use chrono::{DateTime, Duration, NaiveDateTime, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -18,6 +18,7 @@ pub struct FriProverJobMetadata {
     pub sequence_number: usize,
     pub depth: u16,
     pub is_node_final_proof: bool,
+    pub start_time: Instant,
 }
 
 impl FriProverJobMetadata {

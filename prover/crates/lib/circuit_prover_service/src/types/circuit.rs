@@ -6,6 +6,7 @@ use zkevm_test_harness::{
     boojum::cs::implementations::setup::FinalizationHintsForProver,
     prover_utils::{verify_base_layer_proof, verify_recursion_layer_proof},
 };
+
 use zksync_prover_fri_types::{
     circuit_definitions::{
         base_layer_proof_config,
@@ -43,7 +44,6 @@ pub enum Circuit {
 }
 
 impl Circuit {
-    // #[cfg(feature = "gpu")]
     pub fn prove(
         &self,
         witness_vector: WitnessVec<GoldilocksField>,
@@ -69,13 +69,13 @@ impl Circuit {
         }
     }
 
-    // #[cfg(feature = "gpu")]
     fn prove_base(
         circuit: &ZkSyncBaseLayerCircuit,
         witness_vector: WitnessVec<GoldilocksField>,
         setup_data: Arc<GoldilocksGpuProverSetupData>,
         worker: Worker,
     ) -> anyhow::Result<Proof> {
+        let span = tracing::info_span!("prove_base_circuit").entered();
         let gpu_proof_config = GpuProofConfig::from_base_layer_circuit(circuit);
         let boojum_proof_config = base_layer_proof_config();
         let proof = gpu_prove_from_external_witness_data::<Transcript, Hasher, NoPow, _>(
@@ -87,21 +87,23 @@ impl Circuit {
             (),
             &worker,
         )
-        .context("failed to generate base proof")?
-        .into();
+            .context("failed to generate base proof")?
+            .into();
+        drop(span);
+        let _span = tracing::info_span!("verify_base_circuit").entered();
         if !verify_base_layer_proof::<NoPow>(circuit, &proof, &setup_data.vk) {
             return Err(anyhow::anyhow!("failed to verify base proof"));
         }
         Ok(proof)
     }
 
-    // #[cfg(feature = "gpu")]
     fn prove_recursive(
         circuit: &ZkSyncRecursiveLayerCircuit,
         witness_vector: WitnessVec<GoldilocksField>,
         setup_data: Arc<GoldilocksGpuProverSetupData>,
         worker: Worker,
     ) -> anyhow::Result<Proof> {
+        let span = tracing::info_span!("prove_recursive_circuit").entered();
         let gpu_proof_config = GpuProofConfig::from_recursive_layer_circuit(circuit);
         let boojum_proof_config = recursion_layer_proof_config();
         let proof = gpu_prove_from_external_witness_data::<Transcript, Hasher, NoPow, _>(
@@ -113,8 +115,10 @@ impl Circuit {
             (),
             &worker,
         )
-        .context("failed to generate recursive proof")?
-        .into();
+            .context("failed to generate recursive proof")?
+            .into();
+        drop(span);
+        let _span = tracing::info_span!("verify_recursive_circuit").entered();
         if !verify_recursion_layer_proof::<NoPow>(circuit, &proof, &setup_data.vk) {
             return Err(anyhow::anyhow!("failed to verify recursive proof"));
         }
@@ -125,6 +129,8 @@ impl Circuit {
         &self,
         finalization_hints: Arc<FinalizationHintsForProver>,
     ) -> anyhow::Result<WitnessVec<GoldilocksField>> {
+        let _span = tracing::info_span!("synthesize_vector").entered();
+
         let cs = match self {
             Circuit::Base(circuit) => circuit.synthesis::<GoldilocksField>(&finalization_hints),
             Circuit::Recursive(circuit) => {

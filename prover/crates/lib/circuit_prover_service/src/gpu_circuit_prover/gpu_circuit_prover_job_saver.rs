@@ -10,6 +10,7 @@ use zksync_prover_fri_types::FriProofWrapper;
 use zksync_prover_job_processor::JobSaver;
 
 use crate::gpu_circuit_prover::GpuCircuitProverExecutor;
+use crate::metrics::CIRCUIT_PROVER_METRICS;
 
 pub struct GpuCircuitProverJobSaver {
     connection_pool: ConnectionPool<Prover>,
@@ -35,12 +36,18 @@ impl GpuCircuitProverJobSaver {
 impl JobSaver for GpuCircuitProverJobSaver {
     type ExecutorType = GpuCircuitProverExecutor;
 
-    async fn save_result(
+    #[tracing::instrument(
+        name = "gpu_circuit_prover_job_saver",
+        skip_all,
+        fields(l1_batch = % data.1.block_number)
+    )]
+    async fn save_job_result(
         &self,
         data: (anyhow::Result<FriProofWrapper>, FriProverJobMetadata),
     ) -> anyhow::Result<()> {
-        tracing::info!("Started saving gpu circuit prover job");
+        let start_time = Instant::now();
         let (result, metadata) = data;
+        tracing::info!("Started saving gpu circuit prover job {}, on batch {}, for circuit {}, at round {}", metadata.id, metadata.block_number, metadata.circuit_id, metadata.aggregation_round);
 
         match result {
             Ok(proof_wrapper) => {
@@ -52,15 +59,11 @@ impl JobSaver for GpuCircuitProverJobSaver {
 
                 let is_scheduler_proof = metadata.is_scheduler_proof();
 
-                let upload_time = Instant::now();
                 let blob_url = self
                     .object_store
                     .put(metadata.id, &proof_wrapper)
                     .await
                     .context("failed to upload to object store")?;
-                // CIRCUIT_PROVER_METRICS
-                //     .artifact_upload_time
-                //     .observe(upload_time.elapsed());
 
                 let mut transaction = connection
                     .start_transaction()
@@ -84,16 +87,10 @@ impl JobSaver for GpuCircuitProverJobSaver {
                     .commit()
                     .await
                     .context("failed to commit db transaction")?;
-
-                //         tracing::info!(
-                //     "Circuit Prover saved job {:?} after {:?}",
-                //     job_id,
-                //     time.elapsed()
-                // );
             }
             Err(error) => {
                 let error_message = error.to_string();
-                println!("errored: {error_message:?}");
+                tracing::error!("GPU circuit prover failed: {:?}", error_message);
                 self.connection_pool
                     .connection()
                     .await
@@ -103,7 +100,9 @@ impl JobSaver for GpuCircuitProverJobSaver {
                     .await;
             }
         };
-        tracing::info!("Finished saving gpu circuit prover job");
+        tracing::info!("Finished saving gpu circuit prover job {}, on batch {}, for circuit {}, at round {} after {:?}", metadata.id, metadata.block_number, metadata.circuit_id, metadata.aggregation_round, start_time.elapsed());
+        CIRCUIT_PROVER_METRICS.save_time.observe(start_time.elapsed());
+        CIRCUIT_PROVER_METRICS.full_time.observe(metadata.start_time.elapsed());
         Ok(())
     }
 }

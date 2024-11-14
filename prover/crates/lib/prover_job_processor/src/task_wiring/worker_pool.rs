@@ -30,33 +30,26 @@ impl<E: Executor> WorkerPool<E> {
             result_tx,
         }
     }
-
-    pub fn start(self) -> impl std::future::Future<Output=()> {
-        let executor = Arc::new(self.executor);
-        let num_workers = self.num_workers;
-        let stream = ReceiverStream::new(self.input_rx);
-
-        async move {
-            stream
-                .for_each_concurrent(num_workers, move |(input, metadata)| {
-                    tracing::info!("got 1 value");
-                    let executor = executor.clone();
-                    let result_tx = self.result_tx.clone();
-                    async move {
-                        let payload = tokio::task::spawn_blocking(move || executor.execute(input)).await.expect("failed executing");
-                        let _ = result_tx.send((payload, metadata)).await;
-                    }
-                })
-                .await;
-        }
-    }
 }
 
 #[async_trait]
 impl<E: Executor> Task for WorkerPool<E> {
     async fn run(mut self) -> anyhow::Result<()> {
-        self.start().await;
+        let executor = Arc::new(self.executor);
+        let num_workers = self.num_workers;
+        let stream = ReceiverStream::new(self.input_rx);
 
+        stream
+            .for_each_concurrent(num_workers, move |(input, metadata)| {
+                let executor = executor.clone();
+                let result_tx = self.result_tx.clone();
+                let exec_metadata = metadata.clone();
+                async move {
+                    let payload = tokio::task::spawn_blocking(move || executor.execute(input, exec_metadata)).await.expect("failed executing");
+                    result_tx.send((payload, metadata)).await.expect("job saver channel has been closed unexpectedly");
+                }
+            })
+            .await;
         Ok(())
     }
 }

@@ -1,8 +1,5 @@
-use std::time::Duration;
-
 use anyhow::Context;
 use async_trait::async_trait;
-use tokio_util::sync::CancellationToken;
 
 use crate::{BackoffAndCancellable, Executor, JobPicker, task_wiring::task::Task};
 
@@ -58,17 +55,15 @@ impl<P: JobPicker> Task for JobPickerTask<P> {
         while !self.is_cancelled() {
             match self.picker.pick_job().await.context("failed to pick job")? {
                 Some((input, metadata)) => {
+                    self.input_tx.send((input, metadata)).await.map_err(|err| anyhow::anyhow!("job picker failed to pass job to executor: {}", err))?;
                     self.reset_backoff();
-                    if self.input_tx.send((input, metadata)).await.is_err() {
-                        return Ok(());
-                    }
                 }
                 None => {
                     self.backoff().await;
                 }
             }
         }
-        tracing::info!("Stop signal received, shutting down {} JobPickerTask...", "type");
+        tracing::info!("Stop signal received, shutting down JobPickerTask...");
         Ok(())
     }
 }

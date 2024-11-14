@@ -7796,6 +7796,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
+ "vise",
  "zkevm_test_harness",
  "zksync_object_store",
  "zksync_prover_dal",
@@ -8473,10 +8474,12 @@ dependencies = [
  "anyhow",
  "async-trait",
  "futures 0.3.31",
+ "strum",
  "tokio",
  "tokio-stream",
  "tokio-util",
  "tracing",
+ "vise",
 ]
 
 [[package]]

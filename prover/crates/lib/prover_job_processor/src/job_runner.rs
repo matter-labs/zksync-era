@@ -2,6 +2,9 @@ use tokio::task::JoinHandle;
 
 use crate::{BackoffAndCancellable, Executor, JobPicker, JobSaver, task_wiring::{JobPickerTask, JobSaverTask, Task, WorkerPool}};
 
+const CHANNEL_SIZE: usize = 1;
+
+#[derive(Debug)]
 pub struct JobRunner<E, P, S>
 where
     E: Executor,
@@ -32,10 +35,9 @@ where
     }
 
     pub fn run(self) -> Vec<JoinHandle<anyhow::Result<()>>> {
-        // TODO: make these 1s a constant all across the codebase
-        let (input_tx, input_rx) = tokio::sync::mpsc::channel::<(E::Input, E::Metadata)>(1);
+        let (input_tx, input_rx) = tokio::sync::mpsc::channel::<(E::Input, E::Metadata)>(CHANNEL_SIZE);
         let (result_tx, result_rx) =
-            tokio::sync::mpsc::channel::<(anyhow::Result<E::Output>, E::Metadata)>(1);
+            tokio::sync::mpsc::channel::<(anyhow::Result<E::Output>, E::Metadata)>(CHANNEL_SIZE);
 
         // Create tasks
         let picker_task = JobPickerTask::new(self.picker, input_tx, self.picker_backoff_and_cancellable);

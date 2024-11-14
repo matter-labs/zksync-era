@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use anyhow::Context;
 use async_trait::async_trait;
 use zksync_types::prover_dal::FriProverJobMetadata;
@@ -9,6 +11,7 @@ use crate::{
     types::witness_vector_generator_execution_output::WitnessVectorGeneratorExecutionOutput,
     witness_vector_generator::WitnessVectorGeneratorExecutor,
 };
+use crate::metrics::WITNESS_VECTOR_GENERATOR_METRICS;
 
 pub struct WitnessVectorGeneratorJobSaver {
     connection_pool: ConnectionPool<Prover>,
@@ -35,33 +38,35 @@ impl WitnessVectorGeneratorJobSaver {
 impl JobSaver for WitnessVectorGeneratorJobSaver {
     type ExecutorType = WitnessVectorGeneratorExecutor;
 
-    async fn save_result(
+    #[tracing::instrument(
+        name = "witness_vector_generator_save_job",
+        skip_all,
+        fields(l1_batch = % data.1.block_number)
+    )]
+    async fn save_job_result(
         &self,
         data: (
             anyhow::Result<WitnessVectorGeneratorExecutionOutput>,
             FriProverJobMetadata,
         ),
     ) -> anyhow::Result<()> {
-        tracing::info!("Started saving witness vector generator job");
+        let start_time = Instant::now();
         let (result, metadata) = data;
         match result {
             Ok(payload) => {
-                // let WitnessVectorGeneratorExecutionOutput { circuit, witness_vector } = output;
-                // let prover_job = ProverJob::new(metadata.block_number, metadata.id, circuit_wrapper, ProverServiceDataKey { circuit_id: metadata.circuit_id, round: metadata.aggregation_round });
-                // let output = WitnessVectorArtifactsTemp::new(
-                //     witness_vector,
-                //     prover_job,
-                //     Instant::now(),
-                // );
+                tracing::info!("Started transferring witness vector generator job {}, on batch {}, for circuit {}, at round {}", metadata.id, metadata.block_number, metadata.circuit_id, metadata.aggregation_round);
                 if self.sender
                     .send((payload, metadata))
                     .await.is_err() {
-                    tracing::info!("circuit prover is shut down");
+                    tracing::warn!("circuit prover shut down prematurely");
                     return Ok(());
                 }
+                tracing::info!("Finished transferring witness vector generator job {}, on batch {}, for circuit {}, at round {} in {:?}", metadata.id, metadata.block_number, metadata.circuit_id, metadata.aggregation_round, start_time.elapsed());
+                WITNESS_VECTOR_GENERATOR_METRICS.transfer_time.observe(start_time.elapsed());
             }
             Err(err) => {
-                println!("errored: {err:?}");
+                tracing::error!("Witness vector generation failed: {:?}", err);
+                tracing::info!("Started saving failure for witness vector generator job {}, on batch {}, for circuit {}, at round {}", metadata.id, metadata.block_number, metadata.circuit_id, metadata.aggregation_round);
                 self.connection_pool
                     .connection()
                     .await
@@ -69,9 +74,10 @@ impl JobSaver for WitnessVectorGeneratorJobSaver {
                     .fri_prover_jobs_dal()
                     .save_proof_error(metadata.id, err.to_string())
                     .await;
+                tracing::info!("Finished saving failure for witness vector generator job {}, on batch {}, for circuit {}, at round {} in {:?}", metadata.id, metadata.block_number, metadata.circuit_id, metadata.aggregation_round, start_time.elapsed());
+                WITNESS_VECTOR_GENERATOR_METRICS.save_time.observe(start_time.elapsed());
             }
         }
-        tracing::info!("Finished saving witness vector generator job");
         Ok(())
     }
 }

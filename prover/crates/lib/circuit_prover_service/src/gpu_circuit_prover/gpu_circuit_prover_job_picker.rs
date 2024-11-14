@@ -1,4 +1,5 @@
 use std::{collections::HashMap, sync::Arc};
+use std::time::Instant;
 
 use anyhow::Context;
 use async_trait::async_trait;
@@ -15,6 +16,7 @@ use crate::{
         witness_vector_generator_execution_output::WitnessVectorGeneratorExecutionOutput,
     },
 };
+use crate::metrics::CIRCUIT_PROVER_METRICS;
 
 pub struct GpuCircuitProverJobPicker {
     receiver:
@@ -44,12 +46,14 @@ impl JobPicker for GpuCircuitProverJobPicker {
     async fn pick_job(
         &mut self,
     ) -> anyhow::Result<Option<(GpuCircuitProverPayload, FriProverJobMetadata)>> {
+        let start_time = Instant::now();
         tracing::info!("Started picking gpu circuit prover job");
+
         let (wvg_output, metadata) = self
             .receiver
             .recv()
             .await
-            .context("no Witness Vector Generators are available")?;
+            .context("no witness vector generators are available, stopping...")?;
         let WitnessVectorGeneratorExecutionOutput {
             circuit,
             witness_vector,
@@ -67,7 +71,8 @@ impl JobPicker for GpuCircuitProverJobPicker {
             .clone();
 
         let payload = GpuCircuitProverPayload::new(circuit, witness_vector, setup_data);
-        tracing::info!("Finished picking gpu circuit prover job");
+        tracing::info!("Finished picking gpu circuit prover job {}, on batch {}, for circuit {}, at round {} in {:?}", metadata.id, metadata.block_number, metadata.circuit_id, metadata.aggregation_round, start_time.elapsed());
+        CIRCUIT_PROVER_METRICS.load_time.observe(start_time.elapsed());
         Ok(Some((payload, metadata)))
     }
 }

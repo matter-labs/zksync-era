@@ -1,4 +1,5 @@
 use std::{collections::HashMap, sync::Arc};
+use std::time::Instant;
 
 use anyhow::Context;
 use async_trait::async_trait;
@@ -25,6 +26,7 @@ use crate::{
     types::{circuit::Circuit, witness_vector_generator_payload::WitnessVectorGeneratorPayload},
     witness_vector_generator::WitnessVectorGeneratorExecutor,
 };
+use crate::metrics::WITNESS_VECTOR_GENERATOR_METRICS;
 use crate::witness_vector_generator::witness_vector_generator_metadata_loader::WitnessVectorMetadataLoader;
 
 #[derive(Debug)]
@@ -105,6 +107,7 @@ impl<ML: WitnessVectorMetadataLoader> JobPicker for WitnessVectorGeneratorJobPic
     async fn pick_job(
         &mut self,
     ) -> anyhow::Result<Option<(WitnessVectorGeneratorPayload, FriProverJobMetadata)>> {
+        let start_time = Instant::now();
         tracing::info!("Started picking witness vector generator job");
         let connection = self
             .connection_pool
@@ -142,7 +145,8 @@ impl<ML: WitnessVectorMetadataLoader> JobPicker for WitnessVectorGeneratorJobPic
             .clone();
 
         let payload = WitnessVectorGeneratorPayload::new(circuit, finalization_hints);
-        tracing::info!("Finished picking witness vector generator job");
+        tracing::info!("Finished picking witness vector generator job {}, on batch {}, for circuit {}, at round {} in {:?}", metadata.id, metadata.block_number, metadata.circuit_id, metadata.aggregation_round, start_time.elapsed());
+        WITNESS_VECTOR_GENERATOR_METRICS.pick_time.observe(start_time.elapsed());
         Ok(Some((payload, metadata)))
     }
 }

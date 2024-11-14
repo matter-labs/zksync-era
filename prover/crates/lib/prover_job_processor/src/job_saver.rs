@@ -6,7 +6,7 @@ use crate::Executor;
 pub trait JobSaver: Send + Sync + 'static {
     type ExecutorType: Executor;
 
-    async fn save_result(
+    async fn save_job_result(
         &self,
         data: (
             anyhow::Result<<Self::ExecutorType as Executor>::Output>,

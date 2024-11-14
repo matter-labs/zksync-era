@@ -29,3 +29,4 @@ shivini = { workspace = true, features = [
     "circuit_definitions",
 ] }
 zkevm_test_harness.workspace = true
+vise.workspace = true

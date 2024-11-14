@@ -1,5 +1,4 @@
 use std::{collections::HashMap, sync::Arc};
-use std::time::Duration;
 
 use shivini::ProverContext;
 use tokio_util::sync::CancellationToken;
@@ -109,7 +108,7 @@ pub fn wvg_runner<ML: WitnessVectorMetadataLoader>(
         metadata_loader,
     );
     let job_saver = WitnessVectorGeneratorJobSaver::new(connection_pool, sender);
-    let backoff = Backoff::new(Duration::from_secs(1), Duration::from_secs(5));
+    let backoff = Backoff::default();
 
     JobRunner::new(executor, job_picker, job_saver, count, Some(BackoffAndCancellable::new(backoff, cancellation_token)))
 }

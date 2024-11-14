@@ -28,7 +28,7 @@ impl<S: JobSaver> JobSaverTask<S> {
 impl<S: JobSaver> Task for JobSaverTask<S> {
     async fn run(mut self) -> anyhow::Result<()> {
         while let Some(data) = self.result_rx.recv().await {
-            self.saver.save_result(data).await.context("failed to save result")?;
+            self.saver.save_job_result(data).await.context("failed to save result")?;
         }
         Ok(())
     }

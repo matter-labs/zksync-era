@@ -1,5 +1,3 @@
-//! Prover job processor.
-
 pub use backoff_and_cancellable::{Backoff, BackoffAndCancellable};
 pub use executor::Executor;
 pub use job_picker::JobPicker;

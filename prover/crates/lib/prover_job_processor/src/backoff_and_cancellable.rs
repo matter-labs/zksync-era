@@ -2,6 +2,7 @@ use std::{ops::Mul, time::Duration};
 
 use tokio_util::sync::CancellationToken;
 
+#[derive(Debug, Clone)]
 pub struct BackoffAndCancellable {
     pub(crate) backoff: Backoff,
     pub(crate) cancellation_token: CancellationToken,
@@ -51,5 +52,11 @@ impl Backoff {
     /// Reset the backoff time for to base delay
     pub fn reset(&mut self) {
         self.current_delay = self.base_delay;
+    }
+}
+
+impl Default for Backoff {
+    fn default() -> Self {
+        Self::new(Duration::from_secs(1), Duration::from_secs(5))
     }
 }

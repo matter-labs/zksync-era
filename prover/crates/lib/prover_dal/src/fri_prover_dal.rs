@@ -1,16 +1,17 @@
 #![doc = include_str!("../doc/FriProverDal.md")]
 use std::{collections::HashMap, convert::TryFrom, str::FromStr, time::Duration};
+use std::time::Instant;
 
 use zksync_basic_types::{
     basic_fri_types::{
         AggregationRound, CircuitIdRoundTuple, CircuitProverStatsEntry,
         ProtocolVersionedCircuitProverStats,
     },
+    L1BatchNumber,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{
         FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo, ProverJobStatus, StuckJobs,
     },
-    L1BatchNumber,
 };
 use zksync_db_connection::{
     connection::Connection, instrument::InstrumentExt, metrics::MethodLatency,
@@ -46,11 +47,24 @@ impl FriProverDal<'_, '_> {
                 false,
                 protocol_version_id,
             )
-            .await;
+                .await;
         }
         drop(latency);
     }
 
+    /// Retrieves the next prover job to be proven. Called by WVGs.
+    ///
+    /// Prover jobs must be thought of as ordered.
+    /// Prover must prioritize proving such jobs that will make the chain move forward the fastest.
+    /// Current ordering:
+    /// - pick the lowest batch
+    /// - within the lowest batch, look at the lowest aggregation level (move up the proof tree)
+    /// - pick the same type of circuit for as long as possible, this maximizes GPU cache reuse
+    ///
+    /// Most of this function is similar to `get_light_job()`.
+    /// The 2 differ in the type of jobs they will load. Node jobs are heavy in resource utilization.
+    ///
+    /// NOTE: This function retrieves only node jobs.
     pub async fn get_heavy_job(
         &mut self,
         protocol_version: ProtocolSemanticVersion,
@@ -99,21 +113,35 @@ impl FriProverDal<'_, '_> {
             picked_by,
             AggregationRound::NodeAggregation as i64,
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .expect("failed to get prover job")
-        .map(|row| FriProverJobMetadata {
-            id: row.id as u32,
-            block_number: L1BatchNumber(row.l1_batch_number as u32),
-            circuit_id: row.circuit_id as u8,
-            aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
-                .unwrap(),
-            sequence_number: row.sequence_number as usize,
-            depth: row.depth as u16,
-            is_node_final_proof: row.is_node_final_proof,
-        })
+            .fetch_optional(self.storage.conn())
+            .await
+            .expect("failed to get prover job")
+            .map(|row| FriProverJobMetadata {
+                id: row.id as u32,
+                block_number: L1BatchNumber(row.l1_batch_number as u32),
+                circuit_id: row.circuit_id as u8,
+                aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
+                    .unwrap(),
+                sequence_number: row.sequence_number as usize,
+                depth: row.depth as u16,
+                is_node_final_proof: row.is_node_final_proof,
+                start_time: Instant::now(),
+            })
     }
 
+    /// Retrieves the next prover job to be proven. Called by WVGs.
+    ///
+    /// Prover jobs must be thought of as ordered.
+    /// Prover must prioritize proving such jobs that will make the chain move forward the fastest.
+    /// Current ordering:
+    /// - pick the lowest batch
+    /// - within the lowest batch, look at the lowest aggregation level (move up the proof tree)
+    /// - pick the same type of circuit for as long as possible, this maximizes GPU cache reuse
+    ///
+    /// Most of this function is similar to `get_heavy_job()`.
+    /// The 2 differ in the type of jobs they will load. Node jobs are heavy in resource utilization.
+    ///
+    /// NOTE: This function retrieves all jobs but nodes.
     pub async fn get_light_job(
         &mut self,
         protocol_version: ProtocolSemanticVersion,
@@ -163,91 +191,20 @@ impl FriProverDal<'_, '_> {
             picked_by,
             AggregationRound::NodeAggregation as i64
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .expect("failed to get prover job")
-        .map(|row| FriProverJobMetadata {
-            id: row.id as u32,
-            block_number: L1BatchNumber(row.l1_batch_number as u32),
-            circuit_id: row.circuit_id as u8,
-            aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
-                .unwrap(),
-            sequence_number: row.sequence_number as usize,
-            depth: row.depth as u16,
-            is_node_final_proof: row.is_node_final_proof,
-        })
-    }
-
-    /// Retrieves the next prover job to be proven. Called by WVGs.
-    ///
-    /// Prover jobs must be thought of as ordered.
-    /// Prover must prioritize proving such jobs that will make the chain move forward the fastest.
-    /// Current ordering:
-    /// - pick the lowest batch
-    /// - within the lowest batch, look at the lowest aggregation level (move up the proof tree)
-    /// - pick the same type of circuit for as long as possible, this maximizes GPU cache reuse
-    ///
-    /// NOTE: Most of this function is a duplicate of `get_next_job()`. Get next job will be deleted together with old prover.
-    pub async fn get_job(
-        &mut self,
-        protocol_version: ProtocolSemanticVersion,
-        picked_by: &str,
-    ) -> Option<FriProverJobMetadata> {
-        sqlx::query!(
-            r#"
-            UPDATE prover_jobs_fri
-            SET
-                status = 'in_progress',
-                attempts = attempts + 1,
-                updated_at = NOW(),
-                processing_started_at = NOW(),
-                picked_by = $3
-            WHERE
-                id = (
-                    SELECT
-                        id
-                    FROM
-                        prover_jobs_fri
-                    WHERE
-                        status = 'queued'
-                        AND protocol_version = $1
-                        AND protocol_version_patch = $2
-                    ORDER BY
-                        l1_batch_number ASC,
-                        aggregation_round ASC,
-                        circuit_id ASC,
-                        id ASC
-                    LIMIT
-                        1
-                    FOR UPDATE
-                    SKIP LOCKED
-                )
-            RETURNING
-            prover_jobs_fri.id,
-            prover_jobs_fri.l1_batch_number,
-            prover_jobs_fri.circuit_id,
-            prover_jobs_fri.aggregation_round,
-            prover_jobs_fri.sequence_number,
-            prover_jobs_fri.depth,
-            prover_jobs_fri.is_node_final_proof
-            "#,
-            protocol_version.minor as i32,
-            protocol_version.patch.0 as i32,
-            picked_by,
-        )
-        .fetch_optional(self.storage.conn())
-        .await
-        .expect("failed to get prover job")
-        .map(|row| FriProverJobMetadata {
-            id: row.id as u32,
-            block_number: L1BatchNumber(row.l1_batch_number as u32),
-            circuit_id: row.circuit_id as u8,
-            aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
-                .unwrap(),
-            sequence_number: row.sequence_number as usize,
-            depth: row.depth as u16,
-            is_node_final_proof: row.is_node_final_proof,
-        })
+            .fetch_optional(self.storage.conn())
+            .await
+            .expect("failed to get prover job")
+            .map(|row| FriProverJobMetadata {
+                id: row.id as u32,
+                block_number: L1BatchNumber(row.l1_batch_number as u32),
+                circuit_id: row.circuit_id as u8,
+                aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
+                    .unwrap(),
+                sequence_number: row.sequence_number as usize,
+                depth: row.depth as u16,
+                is_node_final_proof: row.is_node_final_proof,
+                start_time: Instant::now(),
+            })
     }
 
     pub async fn get_next_job(
@@ -296,19 +253,20 @@ impl FriProverDal<'_, '_> {
             protocol_version.patch.0 as i32,
             picked_by,
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| FriProverJobMetadata {
-            id: row.id as u32,
-            block_number: L1BatchNumber(row.l1_batch_number as u32),
-            circuit_id: row.circuit_id as u8,
-            aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
-                .unwrap(),
-            sequence_number: row.sequence_number as usize,
-            depth: row.depth as u16,
-            is_node_final_proof: row.is_node_final_proof,
-        })
+            .fetch_optional(self.storage.conn())
+            .await
+            .unwrap()
+            .map(|row| FriProverJobMetadata {
+                id: row.id as u32,
+                block_number: L1BatchNumber(row.l1_batch_number as u32),
+                circuit_id: row.circuit_id as u8,
+                aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
+                    .unwrap(),
+                sequence_number: row.sequence_number as usize,
+                depth: row.depth as u16,
+                is_node_final_proof: row.is_node_final_proof,
+                start_time: Instant::now(),
+            })
     }
 
     pub async fn get_next_job_for_circuit_id_round(
@@ -386,19 +344,20 @@ impl FriProverDal<'_, '_> {
             protocol_version.patch.0 as i32,
             picked_by,
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| FriProverJobMetadata {
-            id: row.id as u32,
-            block_number: L1BatchNumber(row.l1_batch_number as u32),
-            circuit_id: row.circuit_id as u8,
-            aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
-                .unwrap(),
-            sequence_number: row.sequence_number as usize,
-            depth: row.depth as u16,
-            is_node_final_proof: row.is_node_final_proof,
-        })
+            .fetch_optional(self.storage.conn())
+            .await
+            .unwrap()
+            .map(|row| FriProverJobMetadata {
+                id: row.id as u32,
+                block_number: L1BatchNumber(row.l1_batch_number as u32),
+                circuit_id: row.circuit_id as u8,
+                aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
+                    .unwrap(),
+                sequence_number: row.sequence_number as usize,
+                depth: row.depth as u16,
+                is_node_final_proof: row.is_node_final_proof,
+                start_time: Instant::now(),
+            })
     }
 
     pub async fn save_proof_error(&mut self, id: u32, error: String) {
@@ -417,9 +376,9 @@ impl FriProverDal<'_, '_> {
                 error,
                 i64::from(id)
             )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
+                .execute(self.storage.conn())
+                .await
+                .unwrap();
         }
     }
 
@@ -435,9 +394,9 @@ impl FriProverDal<'_, '_> {
             "#,
             i64::from(id)
         )
-        .fetch_optional(self.storage.conn())
-        .await?
-        .map(|row| row.attempts as u32);
+            .fetch_optional(self.storage.conn())
+            .await?
+            .map(|row| row.attempts as u32);
 
         Ok(attempts)
     }
@@ -471,23 +430,24 @@ impl FriProverDal<'_, '_> {
             blob_url,
             i64::from(id)
         )
-        .instrument("save_fri_proof")
-        .report_latency()
-        .with_arg("id", &id)
-        .fetch_optional(self.storage)
-        .await
-        .unwrap()
-        .map(|row| FriProverJobMetadata {
-            id: row.id as u32,
-            block_number: L1BatchNumber(row.l1_batch_number as u32),
-            circuit_id: row.circuit_id as u8,
-            aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
-                .unwrap(),
-            sequence_number: row.sequence_number as usize,
-            depth: row.depth as u16,
-            is_node_final_proof: row.is_node_final_proof,
-        })
-        .unwrap()
+            .instrument("save_fri_proof")
+            .report_latency()
+            .with_arg("id", &id)
+            .fetch_optional(self.storage)
+            .await
+            .unwrap()
+            .map(|row| FriProverJobMetadata {
+                id: row.id as u32,
+                block_number: L1BatchNumber(row.l1_batch_number as u32),
+                circuit_id: row.circuit_id as u8,
+                aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
+                    .unwrap(),
+                sequence_number: row.sequence_number as usize,
+                depth: row.depth as u16,
+                is_node_final_proof: row.is_node_final_proof,
+                start_time: Instant::now(),
+            })
+            .unwrap()
     }
 
     pub async fn requeue_stuck_jobs(
@@ -534,19 +494,19 @@ impl FriProverDal<'_, '_> {
                 &processing_timeout,
                 max_attempts as i32,
             )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| StuckJobs {
-                id: row.id as u64,
-                status: row.status,
-                attempts: row.attempts as u64,
-                circuit_id: Some(row.circuit_id as u32),
-                error: row.error,
-                picked_by: row.picked_by,
-            })
-            .collect()
+                .fetch_all(self.storage.conn())
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|row| StuckJobs {
+                    id: row.id as u64,
+                    status: row.status,
+                    attempts: row.attempts as u64,
+                    circuit_id: Some(row.circuit_id as u32),
+                    error: row.error,
+                    picked_by: row.picked_by,
+                })
+                .collect()
         }
     }
 
@@ -598,9 +558,9 @@ impl FriProverDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+            .execute(self.storage.conn())
+            .await
+            .unwrap();
     }
 
     pub async fn get_prover_jobs_stats(&mut self) -> ProtocolVersionedCircuitProverStats {
@@ -630,21 +590,21 @@ impl FriProverDal<'_, '_> {
                     protocol_version_patch
                 "#
             )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .iter()
-            .map(|row| {
-                CircuitProverStatsEntry::new(
-                    row.circuit_id,
-                    row.aggregation_round,
-                    row.protocol_version,
-                    row.protocol_version_patch,
-                    &row.status,
-                    row.count,
-                )
-            })
-            .collect()
+                .fetch_all(self.storage.conn())
+                .await
+                .unwrap()
+                .iter()
+                .map(|row| {
+                    CircuitProverStatsEntry::new(
+                        row.circuit_id,
+                        row.aggregation_round,
+                        row.protocol_version,
+                        row.protocol_version_patch,
+                        &row.status,
+                        row.count,
+                    )
+                })
+                .collect()
         }
     }
 
@@ -675,23 +635,23 @@ impl FriProverDal<'_, '_> {
                     protocol_version_patch
                 "#
             )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| {
-                let protocol_semantic_version = ProtocolSemanticVersion::new(
-                    ProtocolVersionId::try_from(row.protocol_version as u16).unwrap(),
-                    VersionPatch(row.protocol_version_patch as u32),
-                );
-                let key = protocol_semantic_version;
-                let value = JobCountStatistics {
-                    queued: row.queued.unwrap() as usize,
-                    in_progress: row.in_progress.unwrap() as usize,
-                };
-                (key, value)
-            })
-            .collect()
+                .fetch_all(self.storage.conn())
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|row| {
+                    let protocol_semantic_version = ProtocolSemanticVersion::new(
+                        ProtocolVersionId::try_from(row.protocol_version as u16).unwrap(),
+                        VersionPatch(row.protocol_version_patch as u32),
+                    );
+                    let key = protocol_semantic_version;
+                    let value = JobCountStatistics {
+                        queued: row.queued.unwrap() as usize,
+                        in_progress: row.in_progress.unwrap() as usize,
+                    };
+                    (key, value)
+                })
+                .collect()
         }
     }
 
@@ -712,17 +672,17 @@ impl FriProverDal<'_, '_> {
                     aggregation_round
                 "#
             )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| {
-                (
-                    (row.circuit_id as u8, row.aggregation_round as u8),
-                    L1BatchNumber(row.l1_batch_number as u32),
-                )
-            })
-            .collect()
+                .fetch_all(self.storage.conn())
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|row| {
+                    (
+                        (row.circuit_id as u8, row.aggregation_round as u8),
+                        L1BatchNumber(row.l1_batch_number as u32),
+                    )
+                })
+                .collect()
         }
     }
 
@@ -740,9 +700,9 @@ impl FriProverDal<'_, '_> {
             status,
             i64::from(id)
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+            .execute(self.storage.conn())
+            .await
+            .unwrap();
     }
 
     pub async fn get_scheduler_proof_job_id(
@@ -763,10 +723,10 @@ impl FriProverDal<'_, '_> {
             i64::from(l1_batch_number.0),
             AggregationRound::Scheduler as i16,
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .ok()?
-        .map(|row| row.id as u32)
+            .fetch_optional(self.storage.conn())
+            .await
+            .ok()?
+            .map(|row| row.id as u32)
     }
 
     pub async fn get_recursion_tip_proof_job_id(
@@ -787,10 +747,10 @@ impl FriProverDal<'_, '_> {
             l1_batch_number.0 as i64,
             AggregationRound::RecursionTip as i16,
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .ok()?
-        .map(|row| row.id as u32)
+            .fetch_optional(self.storage.conn())
+            .await
+            .ok()?
+            .map(|row| row.id as u32)
     }
     pub async fn archive_old_jobs(&mut self, archiving_interval: Duration) -> usize {
         let archiving_interval_secs = pg_interval_from_duration(archiving_interval);
@@ -815,10 +775,10 @@ impl FriProverDal<'_, '_> {
             "#,
             &archiving_interval_secs,
         )
-        .fetch_one(self.storage.conn())
-        .await
-        .unwrap()
-        .unwrap_or(0) as usize
+            .fetch_one(self.storage.conn())
+            .await
+            .unwrap()
+            .unwrap_or(0) as usize
     }
 
     pub async fn get_final_node_proof_job_ids_for(
@@ -841,12 +801,12 @@ impl FriProverDal<'_, '_> {
             "#,
             l1_batch_number.0 as i64
         )
-        .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|row| (row.circuit_id as u8, row.id as u32))
-        .collect()
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| (row.circuit_id as u8, row.id as u32))
+            .collect()
     }
 
     pub async fn get_prover_jobs_stats_for_batch(
@@ -867,33 +827,33 @@ impl FriProverDal<'_, '_> {
             i64::from(l1_batch_number.0),
             aggregation_round as i16
         )
-        .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
-        .iter()
-        .map(|row| ProverJobFriInfo {
-            id: row.id as u32,
-            l1_batch_number,
-            circuit_id: row.circuit_id as u32,
-            circuit_blob_url: row.circuit_blob_url.clone(),
-            aggregation_round,
-            sequence_number: row.sequence_number as u32,
-            status: ProverJobStatus::from_str(&row.status).unwrap(),
-            error: row.error.clone(),
-            attempts: row.attempts as u8,
-            processing_started_at: row.processing_started_at,
-            created_at: row.created_at,
-            updated_at: row.updated_at,
-            time_taken: row.time_taken,
-            depth: row.depth as u32,
-            is_node_final_proof: row.is_node_final_proof,
-            proof_blob_url: row.proof_blob_url.clone(),
-            protocol_version: row.protocol_version.map(|protocol_version| {
-                ProtocolVersionId::try_from(protocol_version as u16).unwrap()
-            }),
-            picked_by: row.picked_by.clone(),
-        })
-        .collect()
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .iter()
+            .map(|row| ProverJobFriInfo {
+                id: row.id as u32,
+                l1_batch_number,
+                circuit_id: row.circuit_id as u32,
+                circuit_blob_url: row.circuit_blob_url.clone(),
+                aggregation_round,
+                sequence_number: row.sequence_number as u32,
+                status: ProverJobStatus::from_str(&row.status).unwrap(),
+                error: row.error.clone(),
+                attempts: row.attempts as u8,
+                processing_started_at: row.processing_started_at,
+                created_at: row.created_at,
+                updated_at: row.updated_at,
+                time_taken: row.time_taken,
+                depth: row.depth as u32,
+                is_node_final_proof: row.is_node_final_proof,
+                proof_blob_url: row.proof_blob_url.clone(),
+                protocol_version: row.protocol_version.map(|protocol_version| {
+                    ProtocolVersionId::try_from(protocol_version as u16).unwrap()
+                }),
+                picked_by: row.picked_by.clone(),
+            })
+            .collect()
     }
 
     pub async fn delete_prover_jobs_fri_batch_data(
@@ -908,8 +868,8 @@ impl FriProverDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-        .execute(self.storage.conn())
-        .await
+            .execute(self.storage.conn())
+            .await
     }
 
     pub async fn delete_batch_data(
@@ -926,8 +886,8 @@ impl FriProverDal<'_, '_> {
             DELETE FROM prover_jobs_fri
             "#
         )
-        .execute(self.storage.conn())
-        .await
+            .execute(self.storage.conn())
+            .await
     }
 
     pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
@@ -967,19 +927,19 @@ impl FriProverDal<'_, '_> {
                 i64::from(block_number.0),
                 max_attempts as i32,
             )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| StuckJobs {
-                id: row.id as u64,
-                status: row.status,
-                attempts: row.attempts as u64,
-                circuit_id: Some(row.circuit_id as u32),
-                error: row.error,
-                picked_by: row.picked_by,
-            })
-            .collect()
+                .fetch_all(self.storage.conn())
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|row| StuckJobs {
+                    id: row.id as u64,
+                    status: row.status,
+                    attempts: row.attempts as u64,
+                    circuit_id: Some(row.circuit_id as u32),
+                    error: row.error,
+                    picked_by: row.picked_by,
+                })
+                .collect()
         }
     }
 }
