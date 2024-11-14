@@ -11100,6 +11100,9 @@ dependencies = [
  "anyhow",
  "async-recursion",
  "async-trait",
+ "bincode",
+ "hex",
+ "itertools 0.10.5",
  "test-log",
  "thiserror",
  "tokio",
@@ -11109,9 +11112,11 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
+ "zksync_mini_merkle_tree",
  "zksync_shared_metrics",
  "zksync_system_constants",
  "zksync_types",
+ "zksync_web3_decl",
 ]
 
 [[package]]
@@ -11465,6 +11470,7 @@ dependencies = [
  "zksync_config",
  "zksync_consensus_roles",
  "zksync_contracts",
+ "zksync_crypto_primitives",
  "zksync_dal",
  "zksync_health_check",
  "zksync_metadata_calculator",

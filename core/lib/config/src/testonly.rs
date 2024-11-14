@@ -851,6 +851,7 @@ impl Distribution<configs::secrets::L1Secrets> for EncodeDist {
         use configs::secrets::L1Secrets;
         L1Secrets {
             l1_rpc_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
+            gateway_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
         }
     }
 }
@@ -937,8 +938,6 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
                 _ => L1BatchCommitmentMode::Validium,
             },
             main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
-            gateway_url: self
-                .sample_opt(|| format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
             bridge_addresses_refresh_interval_sec: self.sample_opt(|| rng.gen()),
         }
     }

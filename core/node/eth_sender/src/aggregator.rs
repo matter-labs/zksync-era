@@ -181,7 +181,10 @@ impl Aggregator {
         )
         .await;
 
-        l1_batches.map(|l1_batches| ExecuteBatches { l1_batches })
+        l1_batches.map(|l1_batches| ExecuteBatches {
+            l1_batches,
+            priority_ops_proofs: Vec::new(),
+        })
     }
 
     async fn get_commit_operation(
