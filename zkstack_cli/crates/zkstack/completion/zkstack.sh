@@ -4740,7 +4740,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__test__revert)
-            opts="-e -n -v -h --external-node --no-deps --no-kill --verbose --chain --ignore-prerequisites --help"
+            opts="-e -n -v -h --enable-consensus --external-node --no-deps --no-kill --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5520,7 +5520,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__external__node__run)
-            opts="-a -v -h --reinit --components --additional-args --verbose --chain --ignore-prerequisites --help"
+            opts="-a -v -h --reinit --components --enable-consensus --additional-args --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5528,6 +5528,10 @@ _zkstack() {
             case "${prev}" in
                 --components)
                     COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --enable-consensus)
+                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
                     return 0
                     ;;
                 --additional-args)

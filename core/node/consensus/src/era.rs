@@ -38,6 +38,7 @@ pub async fn run_main_node(
 /// Runs the consensus node for the external node.
 /// If `cfg` is `None`, it will just fetch blocks from the main node
 /// using JSON RPC, without starting the consensus node.
+#[allow(clippy::too_many_arguments)]
 pub async fn run_external_node(
     ctx: &ctx::Ctx,
     cfg: ConsensusConfig,
