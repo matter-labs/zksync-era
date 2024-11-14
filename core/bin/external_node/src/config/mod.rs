@@ -1413,8 +1413,8 @@ impl ExternalNodeConfig {
             remote: RemoteENConfig::mock(),
             observability: ObservabilityENConfig::default(),
             experimental: ExperimentalENConfig::mock(),
-            consensus: None,
-            consensus_secrets: None,
+            consensus: ConsensusConfig::mock(),
+            consensus_secrets: ConsensusSecrets::mock(),
             api_component: ApiComponentConfig {
                 tree_api_remote_url: None,
             },
