@@ -16,7 +16,7 @@ chmod 600 consensus_secrets.yaml
 
 Create `consensus_config.yaml` file with the following content (remember to replace the placeholders):
 
-````yaml
+```yaml
 server_addr: '0.0.0.0:3054'
 public_addr:
     # Address under which the node is accessible to the other nodes.
