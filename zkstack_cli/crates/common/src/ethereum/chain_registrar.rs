@@ -117,7 +117,7 @@ pub async fn load_contracts_for_chain(
     let contract = ChainRegistar::new(chain_registrar, client);
     let events = contract
         .events()
-        .from_block(block - U64::from(100000))
+        .from_block(block.saturating_sub(U64::from(100000)))
         .to_block(BlockNumber::Latest)
         .topic1(H256::from_low_u64_be(l2_chain_id));
     let result = events.query().await?;

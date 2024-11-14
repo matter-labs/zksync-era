@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 
 use zksync_types::{
-    writes::compression::compress_with_best_strategy, StorageKey, StorageLogKind,
+    h256_to_u256, writes::compression::compress_with_best_strategy, StorageKey, StorageLogKind,
     StorageLogWithPreviousValue, H256,
 };
-use zksync_utils::h256_to_u256;
 
 use crate::interface::DeduplicatedWritesMetrics;
 
@@ -211,8 +210,7 @@ impl StorageWritesDeduplicator {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{AccountTreeId, StorageLog, H160, U256};
-    use zksync_utils::u256_to_h256;
+    use zksync_types::{u256_to_h256, AccountTreeId, StorageLog, H160, U256};
 
     use super::*;
 

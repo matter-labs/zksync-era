@@ -1,5 +1,4 @@
-use zksync_types::{ethabi, ProtocolVersionId, U256};
-use zksync_utils::{bytes_to_be_words, h256_to_u256};
+use zksync_types::{ethabi, h256_to_u256, ProtocolVersionId, U256};
 
 use super::tx::BootloaderTx;
 use crate::{
@@ -27,8 +26,7 @@ pub(super) fn get_memory_for_compressed_bytecodes(
         .iter()
         .flat_map(bytecode::encode_call)
         .collect();
-
-    bytes_to_be_words(memory_addition)
+    bytecode::bytes_to_be_words(&memory_addition)
 }
 
 #[allow(clippy::too_many_arguments)]

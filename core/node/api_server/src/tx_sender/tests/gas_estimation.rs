@@ -7,10 +7,10 @@ use test_casing::{test_casing, Product};
 use zksync_system_constants::CODE_ORACLE_ADDRESS;
 use zksync_types::{
     api::state_override::{OverrideAccount, OverrideState},
+    bytecode::BytecodeHash,
     web3::keccak256,
     K256PrivateKey,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 use super::*;
 use crate::{
@@ -116,7 +116,7 @@ async fn initial_estimate_for_deep_recursion(with_reads: bool) {
             (75, 1.2),
             (100, 1.4),
             (125, 1.7),
-            (150, 2.1),
+            (150, 2.2),
         ]
     };
     for &(recursion_depth, multiplier) in depths_and_multipliers {
@@ -216,7 +216,7 @@ async fn initial_estimate_for_code_oracle_tx() {
     // Add another contract that is never executed, but has a large bytecode.
     let huge_contact_address = Address::repeat_byte(23);
     let huge_contract_bytecode = vec![0_u8; 10_001 * 32];
-    let huge_contract_bytecode_hash = hash_bytecode(&huge_contract_bytecode);
+    let huge_contract_bytecode_hash = BytecodeHash::for_bytecode(&huge_contract_bytecode).value();
     let huge_contract_keccak_hash = H256(keccak256(&huge_contract_bytecode));
 
     let state_override = StateBuilder::default()
@@ -240,7 +240,7 @@ async fn initial_estimate_for_code_oracle_tx() {
             (*contract.account_id.address() == CODE_ORACLE_ADDRESS).then_some(&contract.bytecode)
         })
         .expect("no code oracle");
-    let code_oracle_bytecode_hash = hash_bytecode(code_oracle_bytecode);
+    let code_oracle_bytecode_hash = BytecodeHash::for_bytecode(code_oracle_bytecode).value();
     let code_oracle_keccak_hash = H256(keccak256(code_oracle_bytecode));
 
     let warm_bytecode_hashes = [
@@ -444,7 +444,7 @@ async fn estimating_gas_for_code_oracle_tx() {
     // Add another contract that is never executed, but has a large bytecode.
     let huge_contact_address = Address::repeat_byte(23);
     let huge_contract_bytecode = vec![0_u8; 10_001 * 32];
-    let huge_contract_bytecode_hash = hash_bytecode(&huge_contract_bytecode);
+    let huge_contract_bytecode_hash = BytecodeHash::for_bytecode(&huge_contract_bytecode).value();
     let huge_contract_keccak_hash = H256(keccak256(&huge_contract_bytecode));
 
     let state_override = StateBuilder::default()

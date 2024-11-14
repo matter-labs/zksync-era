@@ -3254,7 +3254,6 @@ dependencies = [
  "zksync_protobuf",
  "zksync_protobuf_config",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -9635,7 +9634,6 @@ dependencies = [
  "zksync_contracts",
  "zksync_multivm",
  "zksync_types",
- "zksync_utils",
  "zksync_vlog",
  "zksync_vm2",
 ]
@@ -10443,7 +10441,6 @@ dependencies = [
  "zksync_external_price_api",
  "zksync_node_fee_model",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -10453,6 +10450,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "chrono",
+ "const-decoder",
  "ethabi",
  "hex",
  "num_enum 0.7.3",
@@ -10460,6 +10458,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
+ "sha2 0.10.8",
  "strum",
  "thiserror",
  "tiny-keccak 2.0.2",
@@ -10557,7 +10556,6 @@ dependencies = [
  "zksync_node_test_utils",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
  "zksync_web3_decl",
 ]
 
@@ -10795,7 +10793,6 @@ dependencies = [
  "zksync_dal",
  "zksync_node_test_utils",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -10820,6 +10817,7 @@ name = "zksync_contract_verifier_lib"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "chrono",
  "ethabi",
  "hex",
@@ -10846,12 +10844,13 @@ dependencies = [
 name = "zksync_contracts"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "envy",
- "ethabi",
  "hex",
  "once_cell",
  "serde",
  "serde_json",
+ "zksync_basic_types",
  "zksync_utils",
 ]
 
@@ -10883,7 +10882,6 @@ dependencies = [
  "sha2 0.10.8",
  "thiserror",
  "zksync_basic_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -10965,7 +10963,6 @@ dependencies = [
  "zksync_da_client",
  "zksync_dal",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -11001,7 +10998,6 @@ dependencies = [
  "zksync_system_constants",
  "zksync_test_account",
  "zksync_types",
- "zksync_utils",
  "zksync_vm_interface",
 ]
 
@@ -11083,7 +11079,6 @@ dependencies = [
  "zksync_prover_interface",
  "zksync_shared_metrics",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -11169,7 +11164,6 @@ dependencies = [
  "zksync_state_keeper",
  "zksync_storage",
  "zksync_types",
- "zksync_utils",
  "zksync_vlog",
  "zksync_web3_decl",
 ]
@@ -11354,7 +11348,6 @@ dependencies = [
  "zksync_storage",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -11389,7 +11382,6 @@ dependencies = [
  "zksync_shared_metrics",
  "zksync_storage",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -11434,7 +11426,6 @@ dependencies = [
  "zksync_system_constants",
  "zksync_test_account",
  "zksync_types",
- "zksync_utils",
  "zksync_vm2",
  "zksync_vm_interface",
 ]
@@ -11487,7 +11478,6 @@ dependencies = [
  "zksync_state_keeper",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
  "zksync_vm_executor",
  "zksync_web3_decl",
 ]
@@ -11506,6 +11496,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "vise",
  "zksync_concurrency",
  "zksync_config",
  "zksync_consensus_bft",
@@ -11530,7 +11521,6 @@ dependencies = [
  "zksync_system_constants",
  "zksync_test_account",
  "zksync_types",
- "zksync_utils",
  "zksync_vm_executor",
  "zksync_vm_interface",
  "zksync_web3_decl",
@@ -11662,7 +11652,6 @@ dependencies = [
  "zksync_multivm",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -11707,6 +11696,7 @@ dependencies = [
  "vise",
  "zksync_concurrency",
  "zksync_config",
+ "zksync_consensus_roles",
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
@@ -11717,7 +11707,6 @@ dependencies = [
  "zksync_state_keeper",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
  "zksync_vm_executor",
  "zksync_web3_decl",
 ]
@@ -11731,7 +11720,6 @@ dependencies = [
  "zksync_merkle_tree",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
  "zksync_vm_interface",
 ]
 
@@ -11795,7 +11783,6 @@ dependencies = [
  "zksync_object_store",
  "zksync_prover_interface",
  "zksync_types",
- "zksync_utils",
  "zksync_vm_executor",
 ]
 
@@ -11933,7 +11920,6 @@ dependencies = [
  "zksync_protobuf_config",
  "zksync_storage",
  "zksync_types",
- "zksync_utils",
  "zksync_vlog",
 ]
 
@@ -11967,7 +11953,6 @@ dependencies = [
  "zksync_health_check",
  "zksync_object_store",
  "zksync_types",
- "zksync_utils",
  "zksync_web3_decl",
 ]
 
@@ -12010,7 +11995,6 @@ dependencies = [
  "zksync_shared_metrics",
  "zksync_storage",
  "zksync_types",
- "zksync_utils",
  "zksync_vm_interface",
 ]
 
@@ -12049,7 +12033,6 @@ dependencies = [
  "zksync_system_constants",
  "zksync_test_account",
  "zksync_types",
- "zksync_utils",
  "zksync_vm_executor",
 ]
 
@@ -12072,7 +12055,6 @@ version = "0.1.0"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -12116,7 +12098,6 @@ dependencies = [
  "zksync_multivm",
  "zksync_prover_interface",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -12130,7 +12111,6 @@ dependencies = [
  "zksync_eth_signer",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -12165,7 +12145,6 @@ dependencies = [
  "zksync_protobuf",
  "zksync_protobuf_build",
  "zksync_system_constants",
- "zksync_utils",
 ]
 
 [[package]]
@@ -12174,22 +12153,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_matches",
- "bigdecimal",
- "bincode",
- "const-decoder",
  "futures 0.3.31",
- "hex",
- "num",
  "once_cell",
- "rand 0.8.5",
  "reqwest 0.12.9",
- "serde",
  "serde_json",
- "thiserror",
  "tokio",
  "tracing",
- "zk_evm 0.133.0",
- "zksync_basic_types",
  "zksync_vlog",
 ]
 
@@ -12254,7 +12223,6 @@ dependencies = [
  "zksync_dal",
  "zksync_multivm",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -12305,7 +12273,6 @@ dependencies = [
  "zksync_storage",
  "zksync_test_account",
  "zksync_types",
- "zksync_utils",
  "zksync_vm_executor",
  "zksync_vm_interface",
 ]

@@ -1,7 +1,8 @@
 use std::{any::Any, collections::HashSet, fmt, rc::Rc};
 
-use zksync_types::{writes::StateDiffRecord, StorageKey, Transaction, H160, H256, U256};
-use zksync_utils::h256_to_u256;
+use zksync_types::{
+    h256_to_u256, writes::StateDiffRecord, StorageKey, Transaction, H160, H256, U256,
+};
 use zksync_vm2::interface::{Event, HeapId, StateInterface};
 use zksync_vm_interface::{
     pubdata::PubdataBuilder, storage::ReadStorage, CurrentExecutionState, L2BlockEnv,
@@ -111,7 +112,7 @@ impl TestedVm for Vm<ImmutableStorageView<InMemoryStorage>> {
     }
 
     fn finish_batch_without_pubdata(&mut self) -> VmExecutionResultAndLogs {
-        self.inspect_inner(&mut Default::default(), VmExecutionMode::Batch)
+        self.inspect_inner(&mut Default::default(), VmExecutionMode::Batch, None)
     }
 
     fn insert_bytecodes(&mut self, bytecodes: &[&[u8]]) {

@@ -5,7 +5,7 @@ use strum::{Display, EnumIter};
 
 use crate::{
     ethabi,
-    web3::contract::{Detokenize, Error as ContractError, Tokenize},
+    web3::contract::{Detokenize, Error as ContractError},
     Address, U256,
 };
 

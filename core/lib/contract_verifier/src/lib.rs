@@ -13,16 +13,16 @@ use tokio::time;
 use zksync_dal::{contract_verification_dal::DeployedContractData, ConnectionPool, Core, CoreDal};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
+    bytecode::{trim_padded_evm_bytecode, BytecodeMarker},
     contract_verification_api::{
         self as api, CompilationArtifacts, VerificationIncomingRequest, VerificationInfo,
         VerificationRequest,
     },
     Address, CONTRACT_DEPLOYER_ADDRESS,
 };
-use zksync_utils::bytecode::{prepare_evm_bytecode, BytecodeMarker};
 
 use crate::{
-    compilers::{Solc, ZkSolc, ZkVyper},
+    compilers::{Solc, VyperInput, ZkSolc},
     error::ContractVerifierError,
     metrics::API_CONTRACT_VERIFIER_METRICS,
     resolver::{CompilerResolver, EnvCompilerResolver},
@@ -47,7 +47,6 @@ struct ZkCompilerVersions {
 #[derive(Debug)]
 enum VersionedCompiler {
     Solc(String),
-    #[allow(dead_code)] // TODO (EVM-864): add vyper support
     Vyper(String),
     ZkSolc(ZkCompilerVersions),
     ZkVyper(ZkCompilerVersions),
@@ -231,7 +230,7 @@ impl ContractVerifier {
 
         let deployed_bytecode = match bytecode_marker {
             BytecodeMarker::EraVm => deployed_contract.bytecode.as_slice(),
-            BytecodeMarker::Evm => prepare_evm_bytecode(&deployed_contract.bytecode)
+            BytecodeMarker::Evm => trim_padded_evm_bytecode(&deployed_contract.bytecode)
                 .context("invalid stored EVM bytecode")?,
         };
 
@@ -292,7 +291,7 @@ impl ContractVerifier {
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let zkvyper = self.compiler_resolver.resolve_zkvyper(version).await?;
         tracing::debug!(?zkvyper, ?version, "resolved compiler");
-        let input = ZkVyper::build_input(req)?;
+        let input = VyperInput::new(req)?;
         time::timeout(self.compilation_timeout, zkvyper.compile(input))
             .await
             .map_err(|_| ContractVerifierError::CompilationTimeout)?
@@ -308,6 +307,20 @@ impl ContractVerifier {
         let input = Solc::build_input(req)?;
 
         time::timeout(self.compilation_timeout, solc.compile(input))
+            .await
+            .map_err(|_| ContractVerifierError::CompilationTimeout)?
+    }
+
+    async fn compile_vyper(
+        &self,
+        version: &str,
+        req: VerificationIncomingRequest,
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        let vyper = self.compiler_resolver.resolve_vyper(version).await?;
+        tracing::debug!(?vyper, ?req.compiler_versions, "resolved compiler");
+        let input = VyperInput::new(req)?;
+
+        time::timeout(self.compilation_timeout, vyper.compile(input))
             .await
             .map_err(|_| ContractVerifierError::CompilationTimeout)?
     }
@@ -340,11 +353,7 @@ impl ContractVerifier {
 
         match &compiler {
             VersionedCompiler::Solc(version) => self.compile_solc(version, req).await,
-            VersionedCompiler::Vyper(_) => {
-                // TODO (EVM-864): add vyper support
-                let err = anyhow::anyhow!("vyper toolchain is not yet supported for EVM contracts");
-                return Err(err.into());
-            }
+            VersionedCompiler::Vyper(version) => self.compile_vyper(version, req).await,
             VersionedCompiler::ZkSolc(version) => self.compile_zksolc(version, req).await,
             VersionedCompiler::ZkVyper(version) => self.compile_zkvyper(version, req).await,
         }
