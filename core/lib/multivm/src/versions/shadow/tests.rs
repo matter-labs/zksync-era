@@ -320,6 +320,7 @@ mod l1_messenger {
     use crate::versions::testonly::l1_messenger::*;
 
     #[test]
+    #[ignore] // Requires post-gateway system contracts
     fn rollup_da_output_hash_match() {
         test_rollup_da_output_hash_match::<super::ShadowedFastVm>();
     }
