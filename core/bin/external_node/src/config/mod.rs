@@ -1225,7 +1225,7 @@ pub(crate) fn read_consensus_secrets() -> anyhow::Result<ConsensusSecrets> {
 
 pub(crate) fn read_consensus_config() -> anyhow::Result<ConsensusConfig> {
     read_yaml_repr::<proto::consensus::Config>(&env::var("EN_CONSENSUS_CONFIG_PATH")?.into())
-            .context("failed decoding YAML")
+        .context("failed decoding YAML")
 }
 
 /// Configuration for snapshot recovery. Should be loaded optionally, only if snapshot recovery is enabled.
