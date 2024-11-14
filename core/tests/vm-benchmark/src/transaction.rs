@@ -101,7 +101,7 @@ pub fn get_erc20_transfer_tx(nonce: u32) -> Transaction {
     let transfer_fn = ERC20_TEST_CONTRACT.function("transfer").unwrap();
     let calldata = transfer_fn
         .encode_input(&[
-            Token::Address(Address::repeat_byte(1)),
+            Token::Address(Address::from_low_u64_be(nonce.into())), // send tokens to unique addresses
             Token::Uint(1.into()),
         ])
         .unwrap();
