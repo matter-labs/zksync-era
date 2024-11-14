@@ -10,10 +10,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use ethabi::{ethereum_types::H256, Contract, Event, Function};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use zksync_utils::{bytecode::hash_bytecode, env::Workspace};
+use zksync_basic_types::{
+    bytecode::BytecodeHash,
+    ethabi::{Contract, Event, Function},
+    H256,
+};
+use zksync_utils::env::Workspace;
 
 mod serde_bytecode;
 pub mod test_contracts;
@@ -408,14 +412,14 @@ impl PartialEq for BaseSystemContracts {
 
 impl BaseSystemContracts {
     fn load_with_bootloader(bootloader_bytecode: Vec<u8>) -> Self {
-        let hash = hash_bytecode(&bootloader_bytecode);
+        let hash = BytecodeHash::for_bytecode(&bootloader_bytecode).value();
         let bootloader = SystemContractCode {
             code: bootloader_bytecode,
             hash,
         };
 
         let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
-        let hash = hash_bytecode(&bytecode);
+        let hash = BytecodeHash::for_bytecode(&bytecode).value();
         let default_aa = SystemContractCode {
             code: bytecode,
             hash,
@@ -437,7 +441,7 @@ impl BaseSystemContracts {
     /// Loads the latest EVM emulator for these base system contracts. Logically, it only makes sense to do for the latest protocol version.
     pub fn with_latest_evm_emulator(mut self) -> Self {
         let bytecode = read_sys_contract_bytecode("", "EvmEmulator", ContractLanguage::Yul);
-        let hash = hash_bytecode(&bytecode);
+        let hash = BytecodeHash::for_bytecode(&bytecode).value();
         self.evm_emulator = Some(SystemContractCode {
             code: bytecode,
             hash,

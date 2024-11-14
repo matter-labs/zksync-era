@@ -3,8 +3,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use zksync_system_constants::{CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS};
-use zksync_types::{h256_to_u256, U256};
-use zksync_utils::bytecode::hash_evm_bytecode;
+use zksync_types::{bytecode::BytecodeHash, U256};
 use zksync_vm2::interface::{
     CallframeInterface, CallingMode, GlobalStateInterface, Opcode, OpcodeType, ShouldStop, Tracer,
 };
@@ -69,7 +68,8 @@ impl EvmDeployTracer {
             Ok(decoded) => {
                 // `unwrap`s should be safe since the function signature is checked above.
                 let published_bytecode = decoded.into_iter().next().unwrap().into_bytes().unwrap();
-                let bytecode_hash = h256_to_u256(hash_evm_bytecode(&published_bytecode));
+                let bytecode_hash =
+                    BytecodeHash::for_evm_bytecode(&published_bytecode).value_u256();
                 self.bytecodes
                     .as_ref()
                     .expect("not initialized")

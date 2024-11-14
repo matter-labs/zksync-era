@@ -11,7 +11,6 @@ use zksync_system_constants::{PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS}
 use zksync_types::{
     ceil_div_u256, l2_to_l1_log::L2ToL1Log, u256_to_h256, L1BatchNumber, H256, U256,
 };
-use zksync_utils::bytecode::bytecode_len_in_bytes;
 
 use crate::{
     interface::{
@@ -20,6 +19,7 @@ use crate::{
         L1BatchEnv, Refunds, VmEvent,
     },
     tracers::dynamic::vm_1_4_1::DynTracer,
+    utils::bytecode::bytecode_len_in_bytes,
     vm_1_4_1::{
         bootloader_state::BootloaderState,
         constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},
@@ -350,7 +350,7 @@ pub(crate) fn pubdata_published<S: WriteStorage, H: HistoryMode>(
 
     let published_bytecode_bytes: u32 = VmEvent::extract_published_bytecodes(&events)
         .iter()
-        .map(|bytecodehash| bytecode_len_in_bytes(*bytecodehash) as u32 + PUBLISH_BYTECODE_OVERHEAD)
+        .map(|bytecode_hash| bytecode_len_in_bytes(bytecode_hash) + PUBLISH_BYTECODE_OVERHEAD)
         .sum();
 
     storage_writes_pubdata_published

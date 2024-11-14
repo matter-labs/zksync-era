@@ -12,7 +12,6 @@ use zksync_types::{
     block::L2BlockHasher, fee::Fee, AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber,
     ProtocolVersionId, StorageKey, H256, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{
     interface::{
@@ -207,7 +206,7 @@ where
 {
     let system_env = default_system_env();
     let l1_batch_env = default_l1_batch(L1BatchNumber(1));
-    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+    let mut storage = InMemoryStorage::with_system_contracts();
     let mut harness = Harness::new(&l1_batch_env);
     harness.setup_storage(&mut storage);
 
@@ -231,7 +230,7 @@ fn sanity_check_harness_on_new_vm() {
 fn sanity_check_shadow_vm() {
     let system_env = default_system_env();
     let l1_batch_env = default_l1_batch(L1BatchNumber(1));
-    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+    let mut storage = InMemoryStorage::with_system_contracts();
     let mut harness = Harness::new(&l1_batch_env);
     harness.setup_storage(&mut storage);
 
@@ -258,7 +257,7 @@ fn shadow_vm_basics() {
     pretty_assertions::assert_eq!(replayed_dump, dump);
 
     // Check that the VM executes identically when reading from the original storage and one restored from the dump.
-    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+    let mut storage = InMemoryStorage::with_system_contracts();
     harness.setup_storage(&mut storage);
     let storage = StorageView::new(storage).to_rc_ptr();
 
