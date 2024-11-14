@@ -33,6 +33,7 @@ genesis_spec:
   - key: validator:public:??? # public key of the main node (copy this PUBLIC key from consensus_secrets.yaml)
     weight: 1
   leader: validator:public:??? # same as above - main node will be the only validator and the only leader.
+```
 
 ## Providing the configuration to the `zksync_server`.
 
