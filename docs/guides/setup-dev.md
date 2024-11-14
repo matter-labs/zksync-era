@@ -8,54 +8,49 @@ initializing the workspace, it's recommended that you read the whole guide below
 If you run on 'clean' Ubuntu on GCP:
 
 ```bash
-# For VMs only! They don't have SSH keys, so we override SSH with HTTPS
-git config --global url."https://github.com/".insteadOf git@github.com:
-git config --global url."https://".insteadOf git://
+# All necessary stuff
+sudo apt update
+sudo apt install --yes git build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates curl software-properties-common
 
 # Rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# NVM
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
-
-# All necessary stuff
-sudo apt-get update
-sudo apt-get install -y build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates curl software-properties-common
-
-# Install docker
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
-sudo apt install docker-ce
-sudo usermod -aG docker ${USER}
-
-# Start docker.
-sudo systemctl start docker
-
-## You might need to re-connect (due to usermod change).
-
-# Node & yarn
-nvm install 20
-# Important: there will be a note in the output to load
-# new paths in your local session, either run it or reload the terminal.
-npm install -g yarn
-yarn set version 1.22.19
-
 # For running unit tests
-cargo install cargo-nextest
+cargo install cargo-nextest --locked
 # SQL tools
 cargo install sqlx-cli --version 0.8.1
 
-# Foundry ZKsync
+# Install Docker
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
+sudo apt install docker-ce
+
+# Optional: If you wish to run Docker commands without sudo, you can run this command.
+# Otherwise, just ignore this line and run all Docker commands with sudo.
+# After this command, you might need to re-connect (due to usermod change).
+sudo usermod -aG docker ${USER}
+
+# Start Docker
+sudo systemctl start docker
+
+# NVM
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+nvm install 20
+
+# Yarn
+npm install -g yarn | bash
+yarn set version 1.22.19
+
+# Foundry ZK sync
 curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
 foundryup-zksync
 
 # Non CUDA (GPU) setup, can be skipped if the machine has a CUDA installed for provers
 # Don't do that if you intend to run provers on your machine. Check the prover docs for a setup instead.
 echo "export ZKSYNC_USE_CUDA_STUBS=true" >> ~/.bashrc
-# You will need to reload your `*rc` file here
+source ~/.bashrc
 
 # Clone the repo to the desired location
-git clone git@github.com:matter-labs/zksync-era.git
+git clone https://github.com/matter-labs/zksync-era.git
 cd zksync-era
 git submodule update --init --recursive
 ```
