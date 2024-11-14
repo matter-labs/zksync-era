@@ -11,7 +11,7 @@ use zksync_types::{
     snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
 };
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
+use zksync_utils::bytecode::hash_bytecode;
 
 const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 = u32::MAX;
 
@@ -434,11 +434,11 @@ async fn get_base_system_contracts(
 
     Ok(BaseSystemContracts {
         bootloader: SystemContractCode {
-            code: bytes_to_be_words(bootloader_preimage),
+            code: bootloader_preimage,
             hash: bootloader_hash,
         },
         default_aa: SystemContractCode {
-            code: bytes_to_be_words(default_aa_preimage),
+            code: default_aa_preimage,
             hash: default_aa_hash,
         },
         evm_emulator: None,

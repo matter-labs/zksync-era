@@ -1,5 +1,4 @@
-use zksync_types::{ethabi, vm::VmVersion, ProtocolVersionId, U256};
-use zksync_utils::{bytes_to_be_words, h256_to_u256};
+use zksync_types::{ethabi, h256_to_u256, vm::VmVersion, ProtocolVersionId, U256};
 
 use super::tx::BootloaderTx;
 use crate::{
@@ -18,7 +17,7 @@ use crate::{
             BOOTLOADER_TX_DESCRIPTION_SIZE, OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS,
             TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
         },
-        MultiVMSubversion,
+        MultiVmSubversion,
     },
 };
 
@@ -29,8 +28,7 @@ pub(super) fn get_memory_for_compressed_bytecodes(
         .iter()
         .flat_map(bytecode::encode_call)
         .collect();
-
-    bytes_to_be_words(memory_addition)
+    bytecode::bytes_to_be_words(&memory_addition)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -43,7 +41,7 @@ pub(super) fn apply_tx_to_memory(
     compressed_bytecodes_size: usize,
     execution_mode: TxExecutionMode,
     start_new_l2_block: bool,
-    subversion: MultiVMSubversion,
+    subversion: MultiVmSubversion,
 ) -> usize {
     let bootloader_description_offset = get_bootloader_tx_description_offset(subversion)
         + BOOTLOADER_TX_DESCRIPTION_SIZE * tx_index;
@@ -101,7 +99,7 @@ pub(crate) fn apply_l2_block(
     memory: &mut BootloaderMemory,
     bootloader_l2_block: &BootloaderL2Block,
     txs_index: usize,
-    subversion: MultiVMSubversion,
+    subversion: MultiVmSubversion,
 ) {
     apply_l2_block_inner(memory, bootloader_l2_block, txs_index, true, subversion)
 }
@@ -111,7 +109,7 @@ fn apply_l2_block_inner(
     bootloader_l2_block: &BootloaderL2Block,
     txs_index: usize,
     start_new_l2_block: bool,
-    subversion: MultiVMSubversion,
+    subversion: MultiVmSubversion,
 ) {
     // Since L2 block information start from the `TX_OPERATOR_L2_BLOCK_INFO_OFFSET` and each
     // L2 block info takes `TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO` slots, the position where the L2 block info
@@ -158,9 +156,9 @@ pub(crate) fn apply_pubdata_to_memory(
     pubdata_information: &PubdataInput,
     protocol_version: ProtocolVersionId,
 ) {
-    let subversion = MultiVMSubversion::try_from(VmVersion::from(protocol_version)).unwrap();
+    let subversion = MultiVmSubversion::try_from(VmVersion::from(protocol_version)).unwrap();
     let (l1_messenger_pubdata_start_slot, pubdata) = match subversion {
-        MultiVMSubversion::SmallBootloaderMemory | MultiVMSubversion::IncreasedBootloaderMemory => {
+        MultiVmSubversion::SmallBootloaderMemory | MultiVmSubversion::IncreasedBootloaderMemory => {
             // Skipping two slots as they will be filled by the bootloader itself:
             // - One slot is for the selector of the call to the L1Messenger.
             // - The other slot is for the 0x20 offset for the calldata.
@@ -181,7 +179,7 @@ pub(crate) fn apply_pubdata_to_memory(
 
             (l1_messenger_pubdata_start_slot, pubdata)
         }
-        MultiVMSubversion::Gateway => {
+        MultiVmSubversion::Gateway => {
             // Skipping the first slot as it will be filled by the bootloader itself:
             // It is for the selector of the call to the L1Messenger.
             let l1_messenger_pubdata_start_slot =

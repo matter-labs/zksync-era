@@ -22,11 +22,11 @@ use zksync_types::{
     helpers::unix_timestamp_ms,
     l2_to_l1_log::UserL2ToL1Log,
     tx::IncludedTxLocation,
+    u256_to_h256,
     utils::display_timestamp,
     Address, BloomInput, ExecuteTransactionCommon, ProtocolVersionId, StorageKey, StorageLog,
     Transaction, H256,
 };
-use zksync_utils::u256_to_h256;
 
 use crate::{
     io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess,

@@ -8,10 +8,11 @@ use zksync_system_constants::{
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
 use zksync_types::{
-    abi, fee::Fee, l2::L2Tx, utils::deployed_address_create, Address, Execute, K256PrivateKey,
-    L2ChainId, Nonce, Transaction, H256, PRIORITY_OPERATION_L2_TX_TYPE, U256,
+    abi, address_to_u256, fee::Fee, h256_to_u256, l2::L2Tx, utils::deployed_address_create,
+    Address, Execute, K256PrivateKey, L2ChainId, Nonce, Transaction, H256,
+    PRIORITY_OPERATION_L2_TX_TYPE, U256,
 };
-use zksync_utils::{address_to_u256, bytecode::hash_bytecode, h256_to_u256};
+use zksync_utils::bytecode::hash_bytecode;
 
 pub const L1_TEST_GAS_PER_PUBDATA_BYTE: u32 = 800;
 const BASE_FEE: u64 = 2_000_000_000;

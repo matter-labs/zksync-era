@@ -4,8 +4,7 @@ pub use zk_evm_1_5_0::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 
-use super::vm::MultiVMSubversion;
-use crate::vm_latest::old_vm::utils::heap_page_from_base;
+use crate::vm_latest::{old_vm::utils::heap_page_from_base, MultiVmSubversion};
 
 /// The amount of ergs to be reserved at the end of the batch to ensure that it has enough ergs to verify compression, etc.
 pub(crate) const BOOTLOADER_BATCH_TIP_OVERHEAD: u32 = 400_000_000;
@@ -21,15 +20,15 @@ pub(crate) const MAX_BASE_LAYER_CIRCUITS: usize = 34100;
 /// the requirements on RAM.
 /// In this version of the VM the used bootloader memory bytes has increased from `30_000_000` to `59_000_000`,
 /// and then to `63_800_000` in a subsequent upgrade.
-pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVMSubversion) -> usize {
+pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVmSubversion) -> usize {
     match subversion {
-        MultiVMSubversion::SmallBootloaderMemory => 59_000_000,
-        MultiVMSubversion::IncreasedBootloaderMemory => 63_800_000,
-        MultiVMSubversion::Gateway => 63_800_000,
+        MultiVmSubversion::SmallBootloaderMemory => 59_000_000,
+        MultiVmSubversion::IncreasedBootloaderMemory => 63_800_000,
+        MultiVmSubversion::Gateway => 63_800_000,
     }
 }
 
-pub(crate) const fn get_used_bootloader_memory_words(subversion: MultiVMSubversion) -> usize {
+pub(crate) const fn get_used_bootloader_memory_words(subversion: MultiVmSubversion) -> usize {
     get_used_bootloader_memory_bytes(subversion) / 32
 }
 
@@ -60,13 +59,13 @@ pub(crate) const MAX_POSTOP_SLOTS: usize = PAYMASTER_CONTEXT_SLOTS + 7;
 /// to be used for signing the transaction's content.
 const CURRENT_L2_TX_HASHES_SLOTS: usize = 2;
 
-pub(crate) const fn get_max_new_factory_deps(subversion: MultiVMSubversion) -> usize {
+pub(crate) const fn get_max_new_factory_deps(subversion: MultiVmSubversion) -> usize {
     match subversion {
-        MultiVMSubversion::SmallBootloaderMemory | MultiVMSubversion::IncreasedBootloaderMemory => {
+        MultiVmSubversion::SmallBootloaderMemory | MultiVmSubversion::IncreasedBootloaderMemory => {
             32
         }
         // With gateway upgrade we increased max number of factory dependencies
-        MultiVMSubversion::Gateway => 64,
+        MultiVmSubversion::Gateway => 64,
     }
 }
 
@@ -74,14 +73,14 @@ pub(crate) const fn get_max_new_factory_deps(subversion: MultiVMSubversion) -> u
 /// dependencies as known ones. Besides the slots for the new factory dependencies themselves
 /// another 4 slots are needed for: selector, marker of whether the user should pay for the pubdata,
 /// the offset for the encoding of the array as well as the length of the array.
-pub(crate) const fn get_new_factory_deps_reserved_slots(subversion: MultiVMSubversion) -> usize {
+pub(crate) const fn get_new_factory_deps_reserved_slots(subversion: MultiVmSubversion) -> usize {
     get_max_new_factory_deps(subversion) + 4
 }
 
 /// The operator can provide for each transaction the proposed minimal refund
 pub(crate) const OPERATOR_REFUNDS_SLOTS: usize = MAX_TXS_IN_BATCH;
 
-pub(crate) const fn get_operator_refunds_offset(subversion: MultiVMSubversion) -> usize {
+pub(crate) const fn get_operator_refunds_offset(subversion: MultiVmSubversion) -> usize {
     DEBUG_SLOTS_OFFSET
         + DEBUG_FIRST_SLOTS
         + PAYMASTER_CONTEXT_SLOTS
@@ -89,19 +88,19 @@ pub(crate) const fn get_operator_refunds_offset(subversion: MultiVMSubversion) -
         + get_new_factory_deps_reserved_slots(subversion)
 }
 
-pub(crate) const fn get_tx_overhead_offset(subversion: MultiVMSubversion) -> usize {
+pub(crate) const fn get_tx_overhead_offset(subversion: MultiVmSubversion) -> usize {
     get_operator_refunds_offset(subversion) + OPERATOR_REFUNDS_SLOTS
 }
 
 pub(crate) const TX_OVERHEAD_SLOTS: usize = MAX_TXS_IN_BATCH;
 
-pub(crate) const fn get_tx_trusted_gas_limit_offset(subversion: MultiVMSubversion) -> usize {
+pub(crate) const fn get_tx_trusted_gas_limit_offset(subversion: MultiVmSubversion) -> usize {
     get_tx_overhead_offset(subversion) + TX_OVERHEAD_SLOTS
 }
 
 pub(crate) const TX_TRUSTED_GAS_LIMIT_SLOTS: usize = MAX_TXS_IN_BATCH;
 
-pub(crate) const fn get_tx_operator_l2_block_info_offset(subversion: MultiVMSubversion) -> usize {
+pub(crate) const fn get_tx_operator_l2_block_info_offset(subversion: MultiVmSubversion) -> usize {
     get_tx_trusted_gas_limit_offset(subversion) + TX_TRUSTED_GAS_LIMIT_SLOTS
 }
 
@@ -109,20 +108,20 @@ pub(crate) const TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO: usize = 4;
 pub(crate) const TX_OPERATOR_L2_BLOCK_INFO_SLOTS: usize =
     (MAX_TXS_IN_BATCH + 1) * TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO;
 
-pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVMSubversion) -> usize {
+pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversion) -> usize {
     get_tx_operator_l2_block_info_offset(subversion) + TX_OPERATOR_L2_BLOCK_INFO_SLOTS
 }
 
 pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 196608;
 
-pub(crate) const fn get_priority_txs_l1_data_offset(subversion: MultiVMSubversion) -> usize {
+pub(crate) const fn get_priority_txs_l1_data_offset(subversion: MultiVmSubversion) -> usize {
     get_compressed_bytecodes_offset(subversion) + COMPRESSED_BYTECODES_SLOTS
 }
 
 pub(crate) const PRIORITY_TXS_L1_DATA_SLOTS: usize = 2;
 
 pub(crate) const fn get_operator_provided_l1_messenger_pubdata_offset(
-    subversion: MultiVMSubversion,
+    subversion: MultiVmSubversion,
 ) -> usize {
     get_priority_txs_l1_data_offset(subversion) + PRIORITY_TXS_L1_DATA_SLOTS
 }
@@ -137,13 +136,13 @@ pub(crate) const fn get_operator_provided_l1_messenger_pubdata_offset(
 /// operator to ensure that it can form the correct calldata for the L1Messenger.
 pub(crate) const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS: usize = 1360000;
 
-pub(crate) const fn get_bootloader_tx_description_offset(subversion: MultiVMSubversion) -> usize {
+pub(crate) const fn get_bootloader_tx_description_offset(subversion: MultiVmSubversion) -> usize {
     get_operator_provided_l1_messenger_pubdata_offset(subversion)
         + OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS
 }
 
 /// The size of the bootloader memory dedicated to the encodings of transactions
-pub(crate) const fn get_bootloader_tx_encoding_space(subversion: MultiVMSubversion) -> u32 {
+pub(crate) const fn get_bootloader_tx_encoding_space(subversion: MultiVmSubversion) -> u32 {
     (get_used_bootloader_memory_words(subversion)
         - get_tx_description_offset(subversion)
         - MAX_TXS_IN_BATCH) as u32
@@ -154,7 +153,7 @@ pub(crate) const BOOTLOADER_TX_DESCRIPTION_SIZE: usize = 2;
 
 /// The actual descriptions of transactions should start after the minor descriptions and a MAX_POSTOP_SLOTS
 /// free slots to allow postOp encoding.
-pub(crate) const fn get_tx_description_offset(subversion: MultiVMSubversion) -> usize {
+pub(crate) const fn get_tx_description_offset(subversion: MultiVmSubversion) -> usize {
     get_bootloader_tx_description_offset(subversion)
         + BOOTLOADER_TX_DESCRIPTION_SIZE * MAX_TXS_IN_BATCH
         + MAX_POSTOP_SLOTS
@@ -171,21 +170,21 @@ pub const BOOTLOADER_HEAP_PAGE: u32 = heap_page_from_base(MemoryPage(INITIAL_BAS
 /// So the layout looks like this:
 /// `[param 0][param 1][param 2][vmhook opcode]`
 pub const VM_HOOK_PARAMS_COUNT: u32 = 3;
-pub(crate) const fn get_vm_hook_position(subversion: MultiVMSubversion) -> u32 {
+pub(crate) const fn get_vm_hook_position(subversion: MultiVmSubversion) -> u32 {
     get_result_success_first_slot(subversion) - 1
 }
-pub(crate) const fn get_vm_hook_params_start_position(subversion: MultiVMSubversion) -> u32 {
+pub(crate) const fn get_vm_hook_params_start_position(subversion: MultiVmSubversion) -> u32 {
     get_vm_hook_position(subversion) - VM_HOOK_PARAMS_COUNT
 }
 
 /// Method that provides the start position of the vm hook in the memory for the latest version of v1.5.0.
 /// This method is used only in `test_infra` in the bootloader tests and that's why it should be exposed.
 pub const fn get_vm_hook_start_position_latest() -> u32 {
-    get_vm_hook_params_start_position(MultiVMSubversion::IncreasedBootloaderMemory)
+    get_vm_hook_params_start_position(MultiVmSubversion::IncreasedBootloaderMemory)
 }
 
 /// Arbitrary space in memory closer to the end of the page
-pub(crate) const fn get_result_success_first_slot(subversion: MultiVMSubversion) -> u32 {
+pub(crate) const fn get_result_success_first_slot(subversion: MultiVmSubversion) -> u32 {
     ((get_used_bootloader_memory_bytes(subversion) as u32) - (MAX_TXS_IN_BATCH as u32) * 32) / 32
 }
 

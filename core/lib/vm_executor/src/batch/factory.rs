@@ -18,7 +18,7 @@ use zksync_multivm::{
     tracers::CallTracer,
     vm_fast,
     vm_latest::HistoryEnabled,
-    FastVmInstance, LegacyVmInstance, MultiVMTracer,
+    FastVmInstance, LegacyVmInstance, MultiVmTracer,
 };
 use zksync_types::{commitment::PubdataParams, vm::FastVmMode, Transaction};
 

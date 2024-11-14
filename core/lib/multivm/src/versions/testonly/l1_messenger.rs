@@ -4,9 +4,9 @@ use ethabi::Token;
 use zksync_contracts::{l1_messenger_contract, l2_rollup_da_validator_bytecode};
 use zksync_test_account::TxType;
 use zksync_types::{
-    web3::keccak256, Address, Execute, ProtocolVersionId, L1_MESSENGER_ADDRESS, U256,
+    address_to_h256, u256_to_h256, web3::keccak256, Address, Execute, ProtocolVersionId,
+    L1_MESSENGER_ADDRESS, U256,
 };
-use zksync_utils::{address_to_h256, u256_to_h256};
 
 use super::{read_test_contract, ContractToDeploy, TestedVm, VmTesterBuilder};
 use crate::{

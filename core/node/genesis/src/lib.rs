@@ -22,11 +22,12 @@ use zksync_types::{
     protocol_upgrade::decode_genesis_upgrade_event,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     system_contracts::get_system_smart_contracts,
+    u256_to_h256,
     web3::{BlockNumber, FilterBuilder},
     AccountTreeId, Address, Bloom, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
     ProtocolVersion, ProtocolVersionId, StorageKey, H256, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
+use zksync_utils::bytecode::hash_bytecode;
 
 use crate::utils::{
     add_eth_token, get_deduped_log_queries, get_storage_logs,

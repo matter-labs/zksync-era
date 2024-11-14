@@ -1,6 +1,6 @@
 pub use zksync_vm2::interface;
 
-pub(crate) use self::version::FastVMVersion;
+pub(crate) use self::version::FastVmVersion;
 pub use self::vm::Vm;
 
 mod bootloader_state;

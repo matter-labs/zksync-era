@@ -40,16 +40,14 @@ use zksync_types::{
     system_contracts::get_system_smart_contracts,
     tokens::{TokenInfo, TokenMetadata},
     tx::IncludedTxLocation,
+    u256_to_h256,
     utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance},
     AccountTreeId, Address, L1BatchNumber, Nonce, ProtocolVersionId, StorageKey, StorageLog, H256,
     U256, U64,
 };
-use zksync_utils::{
-    bytecode::{
-        hash_bytecode, hash_evm_bytecode,
-        testonly::{PROCESSED_EVM_BYTECODE, RAW_EVM_BYTECODE},
-    },
-    u256_to_h256,
+use zksync_utils::bytecode::{
+    hash_bytecode, hash_evm_bytecode,
+    testonly::{PROCESSED_EVM_BYTECODE, RAW_EVM_BYTECODE},
 };
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 use zksync_web3_decl::{
