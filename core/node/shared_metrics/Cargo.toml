@@ -11,10 +11,13 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+async-trait.workspace = true
+serde.workspace = true
 vise.workspace = true
 tracing.workspace = true
 zksync_types.workspace = true
 zksync_dal.workspace = true
+zksync_health_check.workspace = true
 
 [build-dependencies]
 rustc_version.workspace = true

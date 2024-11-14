@@ -11239,13 +11239,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_git_version_macro"
-version = "0.1.0"
-dependencies = [
- "chrono",
-]
-
-[[package]]
 name = "zksync_health_check"
 version = "0.1.0"
 dependencies = [
@@ -11272,7 +11265,6 @@ dependencies = [
  "vise",
  "zksync_config",
  "zksync_dal",
- "zksync_git_version_macro",
  "zksync_health_check",
  "zksync_shared_metrics",
  "zksync_types",
@@ -11630,6 +11622,7 @@ dependencies = [
  "zksync_proof_data_handler",
  "zksync_queued_job_processor",
  "zksync_reorg_detector",
+ "zksync_shared_metrics",
  "zksync_state",
  "zksync_state_keeper",
  "zksync_storage",
@@ -11945,10 +11938,13 @@ dependencies = [
 name = "zksync_shared_metrics"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "rustc_version 0.4.1",
+ "serde",
  "tracing",
  "vise",
  "zksync_dal",
+ "zksync_health_check",
  "zksync_types",
 ]
 

@@ -1,3 +1,5 @@
+use async_trait::async_trait;
+use serde::Serialize;
 use vise::{EncodeLabelSet, Info, Metrics};
 
 mod values {
@@ -5,10 +7,11 @@ mod values {
     include!(concat!(env!("OUT_DIR"), "/metadata_values.rs"));
 }
 
-use values::RUSTC_METADATA;
+pub use values::RUSTC_METADATA;
+use zksync_health_check::{CheckHealth, Health, HealthStatus};
 
 /// Metadata of Rust compiler used to compile the crate.
-#[derive(Debug, EncodeLabelSet)]
+#[derive(Debug, EncodeLabelSet, Serialize)]
 pub struct RustcMetadata {
     pub version: &'static str,
     pub commit_hash: Option<&'static str>,
@@ -16,6 +19,8 @@ pub struct RustcMetadata {
     pub channel: &'static str,
     pub host: &'static str,
     pub llvm: Option<&'static str>,
+    pub git_branch: &'static str,
+    pub git_revision: &'static str,
 }
 
 #[derive(Debug, Metrics)]
@@ -34,3 +39,20 @@ impl RustMetrics {
 
 #[vise::register]
 pub static RUST_METRICS: vise::Global<RustMetrics> = vise::Global::new();
+
+impl From<&RustcMetadata> for Health {
+    fn from(details: &RustcMetadata) -> Self {
+        Self::from(HealthStatus::Ready).with_details(details)
+    }
+}
+
+#[async_trait]
+impl CheckHealth for RustcMetadata {
+    fn name(&self) -> &'static str {
+        "rustc_metadata"
+    }
+
+    async fn check_health(&self) -> Health {
+        self.into()
+    }
+}

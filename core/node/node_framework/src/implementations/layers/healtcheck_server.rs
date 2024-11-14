@@ -3,6 +3,7 @@ use std::sync::Arc;
 use zksync_config::configs::api::HealthCheckConfig;
 use zksync_health_check::AppHealthCheck;
 use zksync_node_api_server::healthcheck::HealthCheckHandle;
+use zksync_shared_metrics::rustc::RUSTC_METADATA;
 
 use crate::{
     implementations::resources::healthcheck::AppHealthCheckResource,
@@ -46,6 +47,10 @@ impl WiringLayer for HealthCheckLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let AppHealthCheckResource(app_health_check) = input.app_health_check;
         app_health_check.override_limits(self.0.slow_time_limit(), self.0.hard_time_limit());
+
+        app_health_check
+            .insert_custom_component(Arc::new(RUSTC_METADATA))
+            .map_err(WiringError::internal)?;
 
         let health_check_task = HealthCheckTask {
             config: self.0,

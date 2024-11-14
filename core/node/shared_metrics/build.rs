@@ -4,6 +4,7 @@ use std::{
     env, fs,
     io::{self, Write},
     path::Path,
+    process::Command,
 };
 
 use rustc_version::{Channel, LlvmVersion};
@@ -11,13 +12,15 @@ use rustc_version::{Channel, LlvmVersion};
 fn print_rust_meta(out: &mut impl Write, meta: &rustc_version::VersionMeta) -> io::Result<()> {
     writeln!(
         out,
-        "pub(crate) const RUSTC_METADATA: RustcMetadata = RustcMetadata {{ \
+        "pub const RUSTC_METADATA: RustcMetadata = RustcMetadata {{ \
             version: {semver:?}, \
             commit_hash: {commit_hash:?}, \
             commit_date: {commit_date:?}, \
             channel: {channel:?}, \
             host: {host:?}, \
-            llvm: {llvm:?} \
+            llvm: {llvm:?}, \
+            git_branch: {git_branch:?}, \
+            git_revision: {git_revision:?} \
         }};",
         semver = meta.semver.to_string(),
         commit_hash = meta.commit_hash,
@@ -30,7 +33,36 @@ fn print_rust_meta(out: &mut impl Write, meta: &rustc_version::VersionMeta) -> i
         },
         host = meta.host,
         llvm = meta.llvm_version.as_ref().map(LlvmVersion::to_string),
+        git_branch = git_branch(),
+        git_revision = git_revision()
     )
+}
+
+/// Outputs the current git branch as a string literal.
+pub fn git_branch() -> String {
+    run_cmd("git", &["rev-parse", "--abbrev-ref", "HEAD"])
+}
+
+/// Outputs the current git commit hash as a string literal.
+pub fn git_revision() -> String {
+    run_cmd("git", &["rev-parse", "--short", "HEAD"])
+}
+
+/// Tries to run the command, only returns `Some` if the command
+/// succeeded and the output was valid utf8.
+fn run_cmd(cmd: &str, args: &[&str]) -> String {
+    run_cmd_opt(cmd, args).unwrap_or("unknown".to_string())
+}
+
+fn run_cmd_opt(cmd: &str, args: &[&str]) -> Option<String> {
+    let output = Command::new(cmd).args(args).output().ok()?;
+    if output.status.success() {
+        String::from_utf8(output.stdout)
+            .ok()
+            .map(|s| s.trim().to_string())
+    } else {
+        None
+    }
 }
 
 fn main() {
