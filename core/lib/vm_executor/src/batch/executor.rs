@@ -99,11 +99,13 @@ where
         let elapsed = latency.observe();
 
         if !res.tx_result.result.is_failed() {
-            let gas_per_nanosecond =
-                res.tx_result.statistics.computational_gas_used as f64 / elapsed.as_nanos() as f64;
+            let gas_used = res.tx_result.statistics.computational_gas_used;
             EXECUTOR_METRICS
                 .computational_gas_per_nanosecond
-                .observe(gas_per_nanosecond);
+                .observe(gas_used as f64 / elapsed.as_nanos() as f64);
+            EXECUTOR_METRICS
+                .computational_gas_used
+                .observe(gas_used.into());
         } else {
             // The amount of computational gas paid for failed transactions is hard to get
             // but comparing to the gas limit makes sense, since we can burn all gas
@@ -111,6 +113,7 @@ where
             EXECUTOR_METRICS
                 .failed_tx_gas_limit_per_nanosecond
                 .observe(tx_gas_limit as f64 / elapsed.as_nanos() as f64);
+            EXECUTOR_METRICS.failed_tx_gas_limit.observe(tx_gas_limit);
         }
         Ok(res)
     }

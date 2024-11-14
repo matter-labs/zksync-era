@@ -238,7 +238,8 @@ async fn eth_call_with_load_test_transactions() {
         },
         LoadnextContractExecutionParams {
             reads: 100,
-            writes: 100,
+            initial_writes: 100,
+            repeated_writes: 100,
             ..LoadnextContractExecutionParams::empty()
         },
     ];

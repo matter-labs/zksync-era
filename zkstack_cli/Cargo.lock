@@ -7316,7 +7316,6 @@ dependencies = [
  "sha2",
  "thiserror",
  "zksync_basic_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -7420,7 +7419,6 @@ version = "0.1.0"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -7462,14 +7460,10 @@ name = "zksync_utils"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bigdecimal",
  "const-decoder",
  "futures",
- "hex",
- "num",
  "once_cell",
  "reqwest 0.12.8",
- "serde",
  "serde_json",
  "thiserror",
  "tokio",

@@ -82,4 +82,3 @@ jobs:
               docker push "${repo}/${tag}"
             done
           done
-

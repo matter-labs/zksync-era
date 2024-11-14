@@ -267,8 +267,6 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l2_timestamp_asserter_addr: self.sample_opt(|| rng.gen()),
             l1_multicall3_addr: rng.gen(),
             ecosystem_contracts: self.sample(rng),
-            user_facing_bridgehub_proxy_addr: rng.gen(),
-            user_facing_diamond_proxy_addr: rng.gen(),
             base_token_addr: self.sample_opt(|| rng.gen()),
             base_token_asset_id: self.sample_opt(|| rng.gen()),
             predeployed_l2_wrapped_base_token_address: self.sample_opt(|| rng.gen()),
@@ -311,6 +309,7 @@ impl Distribution<configs::ExperimentalDBConfig> for EncodeDist {
             protective_reads_persistence_enabled: self.sample(rng),
             processing_delay_ms: self.sample(rng),
             include_indices_and_filters_in_block_cache: self.sample(rng),
+            merkle_tree_repair_stale_keys: self.sample(rng),
         }
     }
 }
@@ -947,8 +946,6 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
                 _ => L1BatchCommitmentMode::Validium,
             },
             main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
-            gateway_url: self
-                .sample_opt(|| format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
             bridge_addresses_refresh_interval_sec: self.sample_opt(|| rng.gen()),
         }
     }

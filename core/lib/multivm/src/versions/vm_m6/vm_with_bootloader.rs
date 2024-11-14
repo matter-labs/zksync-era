@@ -14,16 +14,14 @@ use zk_evm_1_3_1::{
 use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{
-    fee_model::L1PeggedBatchFeeModelInput, Address, Transaction, BOOTLOADER_ADDRESS,
-    L1_GAS_PER_PUBDATA_BYTE, U256,
+    address_to_u256, fee_model::L1PeggedBatchFeeModelInput, h256_to_u256, Address, Transaction,
+    BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, U256,
 };
-use zksync_utils::{
-    address_to_u256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, misc::ceil_div,
-};
+use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{
     interface::{CompressedBytecodeInfo, L1BatchEnv},
-    utils::bytecode,
+    utils::{bytecode, bytecode::bytes_to_be_words},
     vm_m6::{
         bootloader_state::BootloaderState,
         history_recorder::HistoryMode,
@@ -32,7 +30,7 @@ use crate::{
         utils::{
             code_page_candidate_from_base, heap_page_from_base, BLOCK_GAS_LIMIT, INITIAL_BASE_PAGE,
         },
-        vm_instance::{MultiVMSubversion, ZkSyncVmState},
+        vm_instance::{MultiVmSubversion, ZkSyncVmState},
         OracleTools, VmInstance,
     },
 };
@@ -86,8 +84,11 @@ pub(crate) fn eth_price_per_pubdata_byte(l1_gas_price: u64) -> u64 {
 
 pub(crate) fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
     let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
-
-    ceil_div(eth_price_per_pubdata_byte, base_fee)
+    if eth_price_per_pubdata_byte == 0 {
+        0
+    } else {
+        eth_price_per_pubdata_byte.div_ceil(base_fee)
+    }
 }
 
 pub(crate) fn derive_base_fee_and_gas_per_pubdata(
@@ -104,7 +105,7 @@ pub(crate) fn derive_base_fee_and_gas_per_pubdata(
     // publish enough public data while compensating us for it.
     let base_fee = std::cmp::max(
         fair_l2_gas_price,
-        ceil_div(eth_price_per_pubdata_byte, MAX_GAS_PER_PUBDATA_BYTE),
+        eth_price_per_pubdata_byte.div_ceil(MAX_GAS_PER_PUBDATA_BYTE),
     );
 
     (
@@ -271,7 +272,7 @@ impl Default for TxExecutionMode {
 }
 
 pub fn init_vm<S: Storage, H: HistoryMode>(
-    vm_subversion: MultiVMSubversion,
+    vm_subversion: MultiVmSubversion,
     oracle_tools: OracleTools<false, S, H>,
     block_context: BlockContextMode,
     block_properties: BlockProperties,
@@ -290,7 +291,7 @@ pub fn init_vm<S: Storage, H: HistoryMode>(
 }
 
 pub fn init_vm_with_gas_limit<S: Storage, H: HistoryMode>(
-    vm_subversion: MultiVMSubversion,
+    vm_subversion: MultiVmSubversion,
     oracle_tools: OracleTools<false, S, H>,
     block_context: BlockContextMode,
     block_properties: BlockProperties,
@@ -387,7 +388,7 @@ impl BlockContextMode {
 // This method accepts a custom bootloader code.
 // It should be used only in tests.
 pub fn init_vm_inner<S: Storage, H: HistoryMode>(
-    vm_subversion: MultiVMSubversion,
+    vm_subversion: MultiVmSubversion,
     mut oracle_tools: OracleTools<false, S, H>,
     block_context: BlockContextMode,
     block_properties: BlockProperties,
@@ -398,7 +399,7 @@ pub fn init_vm_inner<S: Storage, H: HistoryMode>(
     oracle_tools.decommittment_processor.populate(
         vec![(
             h256_to_u256(base_system_contract.default_aa.hash),
-            base_system_contract.default_aa.code.clone(),
+            bytes_to_be_words(&base_system_contract.default_aa.code),
         )],
         Timestamp(0),
     );
@@ -406,7 +407,7 @@ pub fn init_vm_inner<S: Storage, H: HistoryMode>(
     oracle_tools.memory.populate(
         vec![(
             BOOTLOADER_CODE_PAGE,
-            base_system_contract.bootloader.code.clone(),
+            bytes_to_be_words(&base_system_contract.bootloader.code),
         )],
         Timestamp(0),
     );
@@ -435,7 +436,7 @@ fn bootloader_initial_memory(block_properties: &BlockContextMode) -> Vec<(usize,
 }
 
 pub fn get_bootloader_memory(
-    vm_subversion: MultiVMSubversion,
+    vm_subversion: MultiVmSubversion,
     txs: Vec<TransactionData>,
     predefined_refunds: Vec<u32>,
     predefined_compressed_bytecodes: Vec<Vec<CompressedBytecodeInfo>>,
@@ -443,14 +444,14 @@ pub fn get_bootloader_memory(
     block_context: BlockContextMode,
 ) -> Vec<(usize, U256)> {
     match vm_subversion {
-        MultiVMSubversion::V1 => get_bootloader_memory_v1(
+        MultiVmSubversion::V1 => get_bootloader_memory_v1(
             txs,
             predefined_refunds,
             predefined_compressed_bytecodes,
             execution_mode,
             block_context,
         ),
-        MultiVMSubversion::V2 => get_bootloader_memory_v2(
+        MultiVmSubversion::V2 => get_bootloader_memory_v2(
             txs,
             predefined_refunds,
             predefined_compressed_bytecodes,
@@ -577,14 +578,14 @@ pub fn push_raw_transaction_to_bootloader_memory<S: Storage, H: HistoryMode>(
     explicit_compressed_bytecodes: Option<Vec<CompressedBytecodeInfo>>,
 ) -> Vec<CompressedBytecodeInfo> {
     match vm.vm_subversion {
-        MultiVMSubversion::V1 => push_raw_transaction_to_bootloader_memory_v1(
+        MultiVmSubversion::V1 => push_raw_transaction_to_bootloader_memory_v1(
             vm,
             tx,
             execution_mode,
             predefined_overhead,
             explicit_compressed_bytecodes,
         ),
-        MultiVMSubversion::V2 => push_raw_transaction_to_bootloader_memory_v2(
+        MultiVmSubversion::V2 => push_raw_transaction_to_bootloader_memory_v2(
             vm,
             tx,
             execution_mode,
@@ -823,7 +824,7 @@ pub(crate) fn get_bootloader_memory_for_encoded_tx(
         .flat_map(bytecode::encode_call)
         .collect();
 
-    let memory_addition = bytes_to_be_words(memory_addition);
+    let memory_addition = bytes_to_be_words(&memory_addition);
 
     memory.extend(
         (compressed_bytecodes_offset..compressed_bytecodes_offset + memory_addition.len())
@@ -908,9 +909,7 @@ fn formal_calldata_abi() -> PrimitiveValue {
 pub(crate) fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> (U256, Vec<U256>) {
     let bytecode_hash = hash_bytecode(&bytecode);
     let bytecode_hash = U256::from_big_endian(bytecode_hash.as_bytes());
-
-    let bytecode_words = bytes_to_be_words(bytecode);
-
+    let bytecode_words = bytes_to_be_words(&bytecode);
     (bytecode_hash, bytecode_words)
 }
 

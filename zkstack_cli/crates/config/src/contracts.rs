@@ -23,11 +23,6 @@ pub struct ContractsConfig {
     pub bridges: BridgesContracts,
     pub l1: L1Contracts,
     pub l2: L2Contracts,
-    // TODO: maybe move these guys to L1
-    // Option is to support legacy protocol versions
-    pub user_facing_bridgehub: Option<Address>,
-    // Option is to support legacy protocol versions
-    pub user_facing_diamond_proxy: Option<Address>,
     #[serde(flatten)]
     pub other: serde_json::Value,
 }
@@ -115,19 +110,6 @@ impl ContractsConfig {
                 .validium_l1_da_validator_addr,
         );
         self.l1.chain_admin_addr = deploy_l1_output.deployed_addresses.chain_admin;
-
-        self.user_facing_bridgehub = Some(
-            deploy_l1_output
-                .deployed_addresses
-                .bridgehub
-                .bridgehub_proxy_addr,
-        );
-        self.user_facing_diamond_proxy = Some(
-            deploy_l1_output
-                .deployed_addresses
-                .state_transition
-                .diamond_proxy_addr,
-        );
     }
 
     pub fn set_chain_contracts(&mut self, register_chain_output: &RegisterChainOutput) {
@@ -137,14 +119,7 @@ impl ContractsConfig {
         self.l1.access_control_restriction_addr =
             Some(register_chain_output.access_control_restriction_addr);
         self.l1.chain_proxy_admin_addr = Some(register_chain_output.chain_proxy_admin_addr);
-        self.l2.legacy_shared_bridge_addr =
-            if register_chain_output.l2_legacy_shared_bridge_addr != Address::zero() {
-                Some(register_chain_output.l2_legacy_shared_bridge_addr)
-            } else {
-                None
-            };
-
-        self.user_facing_diamond_proxy = Some(register_chain_output.diamond_proxy_addr);
+        self.l2.legacy_shared_bridge_addr = register_chain_output.l2_legacy_shared_bridge_addr;
     }
 
     pub fn set_l2_shared_bridge(

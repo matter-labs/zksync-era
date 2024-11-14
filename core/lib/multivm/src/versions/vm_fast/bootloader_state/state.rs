@@ -17,7 +17,7 @@ use crate::{
     versions::vm_fast::transaction_data::TransactionData,
     vm_latest::{
         constants::get_tx_description_offset, utils::l2_blocks::assert_next_block,
-        MultiVMSubversion,
+        MultiVmSubversion,
     },
 };
 
@@ -51,7 +51,7 @@ pub struct BootloaderState {
     /// Protocol version.
     protocol_version: ProtocolVersionId,
     /// Protocol subversion
-    subversion: MultiVMSubversion,
+    subversion: MultiVmSubversion,
 }
 
 impl BootloaderState {
@@ -71,7 +71,7 @@ impl BootloaderState {
             free_tx_offset: 0,
             pubdata_information: Default::default(),
             protocol_version,
-            subversion: MultiVMSubversion::try_from(VmVersion::from(protocol_version)).unwrap(),
+            subversion: MultiVmSubversion::try_from(VmVersion::from(protocol_version)).unwrap(),
         }
     }
 
