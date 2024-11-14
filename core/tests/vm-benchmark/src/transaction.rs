@@ -4,7 +4,7 @@ use zksync_contracts::{deployer_contract, TestContract};
 use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_types::{
     bytecode::BytecodeHash,
-    ethabi::{encode, Token},
+    ethabi::{self, encode, Token},
     fee::Fee,
     l2::L2Tx,
     utils::deployed_address_create,
@@ -14,12 +14,17 @@ use zksync_types::{
 
 const LOAD_TEST_MAX_READS: usize = 3000;
 
+const ERC20_CONTRACT_PATH: &str =
+    "etc/contracts-test-data/artifacts-zk/contracts/transfer/ERC20.sol/TestERC20.json";
+
 pub(crate) static PRIVATE_KEY: Lazy<K256PrivateKey> =
     Lazy::new(|| K256PrivateKey::from_bytes(H256([42; 32])).expect("invalid key bytes"));
 static LOAD_TEST_CONTRACT_ADDRESS: Lazy<Address> =
     Lazy::new(|| deployed_address_create(PRIVATE_KEY.address(), 0.into()));
 
 static LOAD_TEST_CONTRACT: Lazy<TestContract> = Lazy::new(zksync_contracts::get_loadnext_contract);
+static ERC20_TEST_CONTRACT: Lazy<ethabi::Contract> =
+    Lazy::new(|| zksync_contracts::load_contract(ERC20_CONTRACT_PATH));
 
 static CREATE_FUNCTION_SIGNATURE: Lazy<[u8; 4]> = Lazy::new(|| {
     deployer_contract()
@@ -85,6 +90,63 @@ pub fn get_transfer_tx(nonce: u32) -> Transaction {
         &PRIVATE_KEY,
         vec![],             // factory deps
         Default::default(), // paymaster params
+    )
+    .expect("should create a signed execute transaction");
+
+    signed.set_input(H256::random().as_bytes().to_vec(), H256::random());
+    signed.into()
+}
+
+pub fn get_erc20_transfer_tx(nonce: u32) -> Transaction {
+    let transfer_fn = ERC20_TEST_CONTRACT.function("transfer").unwrap();
+    let calldata = transfer_fn
+        .encode_input(&[
+            Token::Address(Address::repeat_byte(1)),
+            Token::Uint(1.into()),
+        ])
+        .unwrap();
+
+    let mut signed = L2Tx::new_signed(
+        Some(*LOAD_TEST_CONTRACT_ADDRESS),
+        calldata,
+        Nonce(nonce),
+        tx_fee(1_000_000),
+        0.into(), // value
+        L2ChainId::from(270),
+        &PRIVATE_KEY,
+        vec![],             // factory deps
+        Default::default(), // paymaster params
+    )
+    .expect("should create a signed execute transaction");
+
+    signed.set_input(H256::random().as_bytes().to_vec(), H256::random());
+    signed.into()
+}
+
+pub fn get_erc20_deploy_tx() -> Transaction {
+    let bytecode = zksync_contracts::read_bytecode(ERC20_CONTRACT_PATH);
+    let calldata = [Token::Uint(U256::one() << 128)]; // initial token amount minted to the deployer
+    let params = [
+        Token::FixedBytes(vec![0_u8; 32]),
+        Token::FixedBytes(BytecodeHash::for_bytecode(&bytecode).value().0.to_vec()),
+        Token::Bytes(encode(&calldata)),
+    ];
+    let create_calldata = CREATE_FUNCTION_SIGNATURE
+        .iter()
+        .cloned()
+        .chain(encode(&params))
+        .collect();
+
+    let mut signed = L2Tx::new_signed(
+        Some(CONTRACT_DEPLOYER_ADDRESS),
+        create_calldata,
+        Nonce(0),
+        tx_fee(500_000_000),
+        U256::zero(),
+        L2ChainId::from(270),
+        &PRIVATE_KEY,
+        vec![bytecode],
+        Default::default(),
     )
     .expect("should create a signed execute transaction");
 
