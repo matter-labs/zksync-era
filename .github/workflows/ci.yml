@@ -80,22 +80,6 @@ jobs:
               - '!**/*.md'
               - '!**/*.MD'
 
-  setup:
-    name: Setup
-    runs-on: ubuntu-latest
-    outputs:
-      image_tag_suffix: ${{ steps.generate-tag-suffix.outputs.image_tag_suffix }}
-    steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
-
-      - name: Generate image tag suffix
-        id: generate-tag-suffix
-        run: |
-          sha=$(git rev-parse --short HEAD)
-          ts=$(date +%s%N | cut -b1-13)
-          echo "image_tag_suffix=${sha}-${ts}" >> $GITHUB_OUTPUT
-
-
   ci-for-core-lint:
     name: CI for Core lint Components
     needs: changed_files
@@ -135,7 +119,7 @@ jobs:
 
   build-core-images:
     name: Build core images
-    needs: [setup, changed_files]
+    needs: changed_files
     if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/new-build-core-template.yml
     with:
@@ -147,7 +131,7 @@ jobs:
 
   build-tee-prover-images:
     name: Build TEE Prover images
-    needs: [setup, changed_files]
+    needs: changed_files
     if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/build-tee-prover-template.yml
     with:
@@ -160,7 +144,7 @@ jobs:
 
   build-contract-verifier:
     name: Build contract verifier
-    needs: [setup, changed_files]
+    needs: changed_files
     if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/new-build-contract-verifier-template.yml
     with:
@@ -172,7 +156,7 @@ jobs:
 
   build-prover-images:
     name: Build prover images
-    needs: [setup, changed_files]
+    needs: changed_files
     if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/new-build-prover-template.yml
     with:
@@ -186,7 +170,7 @@ jobs:
 
   build-witness-generator-image-avx512:
     name: Build prover images with avx512 instructions
-    needs: [setup, changed_files]
+    needs: changed_files
     if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/new-build-witness-generator-template.yml
     with:
