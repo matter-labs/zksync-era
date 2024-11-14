@@ -3,9 +3,9 @@ import { Tester } from './tester';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { expect } from 'chai';
-import fs from 'fs';
+import fs from 'node:fs/promises';
+import { existsSync, readFileSync } from 'node:fs';
 import { BytesLike } from '@ethersproject/bytes';
-import { IZkSyncHyperchain } from 'zksync-ethers/build/typechain';
 import { BigNumberish } from 'ethers';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import {
@@ -19,11 +19,16 @@ import {
 } from './utils';
 import path from 'path';
 import internal from 'stream';
+import { ZKSYNC_MAIN_ABI } from 'zksync-ethers/build/utils';
 
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
 
 const contracts: Contracts = initContracts(pathToHome, fileConfig.loadFromFile);
+
+const ZK_CHAIN_INTERFACE = JSON.parse(readFileSync(
+    pathToHome + '/contracts/l1-contracts/out/IZKChain.sol/IZKChain.json'
+).toString()).abi;
 
 let serverComponents = [
     'api',
@@ -37,22 +42,36 @@ let serverComponents = [
 
 const depositAmount = ethers.parseEther('0.001');
 
+interface GatewayInfo {
+    gatewayChainId: string;
+    gatewayProvider: zksync.Provider,
+    gatewayCTM: string,
+    l2ChainAdmin: string,
+    l2DiamondProxyAddress: string
+}
+
+interface Call {
+    target: string,
+    value: BigNumberish;
+    data: BytesLike;
+}
+
 describe('Upgrade test', function () {
     let tester: Tester;
     let alice: zksync.Wallet;
     let ecosystemGovWallet: ethers.Wallet;
-    let adminGovWallet: ethers.Wallet;
-    let mainContract: IZkSyncHyperchain;
+    let slAdminGovWallet: ethers.Wallet;
+    let mainContract: ethers.Contract;
     let governanceContract: ethers.Contract;
-    let chainAdminContract: ethers.Contract;
+    let slChainAdminContract: ethers.Contract;
+    let slMainContract: ethers.Contract;
     let bootloaderHash: string;
     let defaultAccountHash: string;
-    let bootloaderCode: string;
     let bytecodeSupplier: string;
     let executeOperation: string;
     let forceDeployAddress: string;
     let forceDeployBytecode: string;
-    let logs: fs.WriteStream;
+    let logs: fs.FileHandle;
 
     let ethProviderAddress: string | undefined;
     let web3JsonRpc: string | undefined;
@@ -62,10 +81,17 @@ describe('Upgrade test', function () {
     let upgradeAddress: string | undefined;
     let contractsPriorityTxMaxGasLimit: string;
 
+    let isGateway: boolean;
+    let gatewayInfo: GatewayInfo | null = null;
+
+    let mainNodeSpawner: utils.NodeSpawner;
+
     before('Create test wallet', async () => {
         forceDeployAddress = '0xf04ce00000000000000000000000000000000000';
         deployerAddress = '0x0000000000000000000000000000000000008007';
         complexUpgraderAddress = '0x000000000000000000000000000000000000800f';
+        logs = await fs.open('upgrade.log', 'a');
+
 
         if (fileConfig.loadFromFile) {
             const generalConfig = loadConfig({
@@ -83,22 +109,59 @@ describe('Upgrade test', function () {
                 chain: fileConfig.chain,
                 config: 'secrets.yaml'
             });
+            const genesisConfig = loadConfig({
+                pathToHome,
+                chain: fileConfig.chain,
+                config: 'genesis.yaml'
+            });
 
             ethProviderAddress = secretsConfig.l1.l1_rpc_url;
             web3JsonRpc = generalConfig.api.web3_json_rpc.http_url;
             contractsL2DefaultUpgradeAddr = contractsConfig.l2.default_l2_upgrader;
-            upgradeAddress = contractsConfig.l1.default_upgrade_addr;
             bytecodeSupplier = contractsConfig.ecosystem_contracts.l1_bytecodes_supplier_addr;
             contractsPriorityTxMaxGasLimit = '72000000';
+
+            const slChainId = genesisConfig.sl_chain_id;
+            const l1ChainId = genesisConfig.l1_chain_id;
+
+            if (slChainId && l1ChainId != slChainId) {
+                isGateway = true;
+
+                const gatewayChainConfig = loadConfig({
+                    pathToHome,
+                    chain: fileConfig.chain,
+                    config: 'gateway_chain.yaml'
+                });
+
+                gatewayInfo = {
+                    gatewayChainId: slChainId,
+                    gatewayProvider: new zksync.Provider(secretsConfig.l1.gateway_url),
+                    gatewayCTM: gatewayChainConfig.state_transition_proxy_addr,
+                    l2ChainAdmin: gatewayChainConfig.chain_admin_addr,
+                    l2DiamondProxyAddress: gatewayChainConfig.diamond_proxy_addr
+                };
+            }
+
+
+            mainNodeSpawner = new utils.NodeSpawner(pathToHome, logs, fileConfig, {
+                enableConsensus: false,
+                ethClientWeb3Url: ethProviderAddress!,
+                apiWeb3JsonRpcHttpUrl: web3JsonRpc!,
+                baseTokenAddress: contractsConfig.l1.base_token_addr
+            });    
         } else {
+            // Since gateway config can not be imported
+            // FIXME: potentially delete the non-file-based tests is enough
+            throw new Error('Non file based not supported');
+
             ethProviderAddress = process.env.L1_RPC_ADDRESS || process.env.ETH_CLIENT_WEB3_URL;
             web3JsonRpc = process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL;
             contractsL2DefaultUpgradeAddr = process.env.CONTRACTS_L2_DEFAULT_UPGRADE_ADDR!;
 
-            upgradeAddress = process.env.CONTRACTS_DEFAULT_UPGRADE_ADDR;
-            if (!upgradeAddress) {
-                throw new Error('CONTRACTS_DEFAULT_UPGRADE_ADDR not set');
-            }
+            // upgradeAddress = process.env.CONTRACTS_DEFAULT_UPGRADE_ADDR;
+            // if (!upgradeAddress) {
+            //     throw new Error('CONTRACTS_DEFAULT_UPGRADE_ADDR not set');
+            // }
             bytecodeSupplier = process.env.CONTRACTS_L1_BYTECODE_SUPPLIER_ADDR as string;
             if (!bytecodeSupplier) {
                 throw new Error('CONTRACTS_L1_BYTECODE_SUPPLIER_ADDR not set');
@@ -116,7 +179,9 @@ describe('Upgrade test', function () {
                 config: 'wallets.yaml'
             });
 
-            adminGovWallet = new ethers.Wallet(chainWalletConfig.governor.private_key, alice._providerL1());
+            slAdminGovWallet = gatewayInfo ? 
+                new zksync.Wallet(chainWalletConfig.governor.private_key, gatewayInfo.gatewayProvider): 
+                new ethers.Wallet(chainWalletConfig.governor.private_key, alice._providerL1());
 
             const ecosystemWalletConfig = loadConfig({
                 pathToHome,
@@ -125,37 +190,32 @@ describe('Upgrade test', function () {
                 config: 'wallets.yaml'
             });
 
-            if (ecosystemWalletConfig.governor.private_key == chainWalletConfig.governor.private_key) {
-                ecosystemGovWallet = adminGovWallet;
-            } else {
-                ecosystemGovWallet = new ethers.Wallet(ecosystemWalletConfig.governor.private_key, alice._providerL1());
-            }
+            
+            ecosystemGovWallet = new ethers.Wallet(ecosystemWalletConfig.governor.private_key, alice._providerL1());
         } else {
-            let govMnemonic = ethers.Mnemonic.fromPhrase(
-                require('../../../../etc/test_config/constant/eth.json').mnemonic
-            );
-            let govWalletHD = ethers.HDNodeWallet.fromMnemonic(govMnemonic, "m/44'/60'/0'/0/1");
-            adminGovWallet = new ethers.Wallet(govWalletHD.privateKey, alice._providerL1());
-            ecosystemGovWallet = adminGovWallet;
+            throw new Error('Not loading from file not supported');
+            // let govMnemonic = ethers.Mnemonic.fromPhrase(
+            //     require('../../../../etc/test_config/constant/eth.json').mnemonic
+            // );
+            // let govWalletHD = ethers.HDNodeWallet.fromMnemonic(govMnemonic, "m/44'/60'/0'/0/1");
+            // adminGovWallet = new ethers.Wallet(govWalletHD.privateKey, alice._providerL1());
+            // ecosystemGovWallet = adminGovWallet;
         }
 
-        logs = fs.createWriteStream('upgrade.log', { flags: 'a' });
+        upgradeAddress = await deployDefaultUpgradeImpl(slAdminGovWallet);
+        forceDeployBytecode = contracts.counterBytecode;
     });
 
     step('Run server and execute some transactions', async () => {
-        // Make sure server isn't running.
-        try {
-            await utils.exec('pkill zksync_server');
-            // It may take some time for witness generator to stop.
-            await utils.sleep(10);
-        } catch (_) {}
-
+        console.log('hi!');
         // Set small timeouts.
         process.env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_COMMIT_DEADLINE = '1';
         process.env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_PROVE_DEADLINE = '1';
         process.env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = '1';
         // Must be > 1s, because bootloader requires l1 batch timestamps to be incremental.
         process.env.CHAIN_STATE_KEEPER_BLOCK_COMMIT_DEADLINE_MS = '2000';
+
+        console.log('hi2!');
 
         if (fileConfig.loadFromFile) {
             setEthSenderSenderAggregatedBlockCommitDeadline(pathToHome, fileConfig, 1);
@@ -164,34 +224,32 @@ describe('Upgrade test', function () {
             setBlockCommitDeadlineMs(pathToHome, fileConfig, 2000);
         }
 
-        // Run server in background.
-        runServerInBackground({
-            components: serverComponents,
-            stdio: ['ignore', logs, logs],
-            cwd: pathToHome,
-            useZkStack: fileConfig.loadFromFile,
-            chain: fileConfig.chain
-        });
-        // Server may need some time to recompile if it's a cold run, so wait for it.
-        let iter = 0;
-        while (iter < 30 && !mainContract) {
-            try {
-                mainContract = await tester.syncWallet.getMainContract();
-            } catch (_) {
-                await utils.sleep(1);
-            }
-            iter += 1;
-        }
-        if (!mainContract) {
-            throw new Error('Server did not start');
-        }
+        console.log('hi4!');
+        await mainNodeSpawner.killAndSpawnMainNode();
 
-        const stmAddr = await mainContract.getStateTransitionManager();
+        console.log('hi5!');
+        mainContract = new ethers.Contract(
+            await tester.web3Provider.getMainContractAddress(),
+            ZK_CHAIN_INTERFACE,
+            tester.ethProvider
+        );
+
+        console.log('hi3!');
+
+        const stmAddr = await mainContract.getChainTypeManager();
         const stmContract = new ethers.Contract(stmAddr, contracts.stateTransitonManager, tester.syncWallet.providerL1);
         const governanceAddr = await stmContract.owner();
         governanceContract = new ethers.Contract(governanceAddr, contracts.governanceAbi, tester.syncWallet.providerL1);
         const chainAdminAddr = await mainContract.getAdmin();
-        chainAdminContract = new ethers.Contract(chainAdminAddr, contracts.chainAdminAbi, tester.syncWallet.providerL1);
+        
+        slChainAdminContract = gatewayInfo ? 
+            new ethers.Contract(gatewayInfo.l2ChainAdmin, contracts.chainAdminAbi, gatewayInfo.gatewayProvider) :
+            new ethers.Contract(chainAdminAddr, contracts.chainAdminAbi, tester.syncWallet.providerL1);
+
+        slMainContract = gatewayInfo ? 
+            new ethers.Contract(gatewayInfo.l2DiamondProxyAddress, ZKSYNC_MAIN_ABI, gatewayInfo.gatewayProvider) : 
+            mainContract;
+
         let blocksCommitted = await mainContract.getTotalBatchesCommitted();
 
         const initialL1BatchNumber = await tester.web3Provider.getL1BatchNumber();
@@ -244,7 +302,7 @@ describe('Upgrade test', function () {
         }
     });
 
-    step('Send l1 tx for saving new bootloader', async () => {
+    step('Publish bytecodes', async () => {
         const bootloaderCode = readCode(
             'contracts/system-contracts/zkout/playground_batch.yul/contracts-preprocessed/bootloader/playground_batch.yul.json',
             'contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin'
@@ -276,8 +334,6 @@ describe('Upgrade test', function () {
     });
 
     step('Schedule governance call', async () => {
-        forceDeployBytecode = contracts.counterBytecode;
-
         const forceDeployment: ForceDeployment = {
             bytecodeHash: ethers.hexlify(zksync.utils.hashBytecode(forceDeployBytecode)),
             newAddress: forceDeployAddress,
@@ -294,8 +350,9 @@ describe('Upgrade test', function () {
             delegateCalldata
         ]);
 
+        console.log('hey');
         const { stmUpgradeData, chainUpgradeCalldata, setTimestampCalldata } = await prepareUpgradeCalldata(
-            adminGovWallet,
+            alice._providerL1(),
             alice._providerL2(),
             upgradeAddress!,
             {
@@ -318,16 +375,27 @@ describe('Upgrade test', function () {
                 },
                 bootloaderHash,
                 upgradeTimestamp: 0
-            }
+            },
+            isGateway ? gatewayInfo : null
         );
         executeOperation = chainUpgradeCalldata;
 
+        console.log('hey2');
         console.log('Sending scheduleTransparentOperation');
-        await sendGovernanceOperation(stmUpgradeData.scheduleTransparentOperation);
+        await sendGovernanceOperation(stmUpgradeData.scheduleTransparentOperation, 0, gatewayInfo);
+        console.log('hey3');
+
         console.log('Sending executeOperation');
-        await sendGovernanceOperation(stmUpgradeData.executeOperation);
+        await sendGovernanceOperation(stmUpgradeData.executeOperation, stmUpgradeData.executeOperationValue, gatewayInfo);
+        console.log('hey4');
+
+
         console.log('Sending chain admin operation');
-        await sendChainAdminOperation(setTimestampCalldata);
+        await sendChainAdminOperation({
+            target: await slChainAdminContract.getAddress(),
+            data: setTimestampCalldata,
+            value: 0
+        });
 
         // Wait for server to process L1 event.
         await utils.sleep(2);
@@ -349,25 +417,27 @@ describe('Upgrade test', function () {
             l1BatchNumber -= 1;
         }
 
-        let lastBatchExecuted = await mainContract.getTotalBatchesExecuted();
+        let lastBatchExecuted = await slMainContract.getTotalBatchesExecuted();
         let tryCount = 0;
         while (lastBatchExecuted < l1BatchNumber && tryCount < 40) {
-            lastBatchExecuted = await mainContract.getTotalBatchesExecuted();
+            lastBatchExecuted = await slMainContract.getTotalBatchesExecuted();
+            console.log(lastBatchExecuted);
             tryCount += 1;
             await utils.sleep(2);
         }
         if (lastBatchExecuted < l1BatchNumber) {
+            console.log(l1BatchNumber);
             throw new Error('Server did not execute old blocks');
         }
 
         // Execute the upgrade
-        const executeMulticallData = chainAdminContract.interface.encodeFunctionData('multicall', [
-            [[await mainContract.getAddress(), 0, executeOperation]],
-            true
-        ]);
-        await sendChainAdminOperation(executeMulticallData);
+        await sendChainAdminOperation({
+            target: gatewayInfo ? gatewayInfo.l2DiamondProxyAddress : await mainContract.getAddress(),
+            data: executeOperation,
+            value: 0
+        });
 
-        let bootloaderHashL1 = await mainContract.getL2BootloaderBytecodeHash();
+        let bootloaderHashL1 = await slMainContract.getL2BootloaderBytecodeHash();
         expect(bootloaderHashL1).eq(bootloaderHash);
     });
 
@@ -384,18 +454,7 @@ describe('Upgrade test', function () {
 
     step('Execute transactions after simple restart', async () => {
         // Stop server.
-        await utils.exec('pkill zksync_server');
-        await utils.sleep(10);
-
-        // Run again.
-        runServerInBackground({
-            components: serverComponents,
-            stdio: ['ignore', logs, logs],
-            cwd: pathToHome,
-            useZkStack: fileConfig.loadFromFile,
-            chain: fileConfig.chain
-        });
-        await utils.sleep(10);
+        await mainNodeSpawner.killAndSpawnMainNode();
 
         // Trying to send a transaction from the same address again
         await checkedRandomTransfer(alice, 1n);
@@ -414,26 +473,75 @@ describe('Upgrade test', function () {
         } catch (_) {}
     });
 
-    async function sendGovernanceOperation(data: string) {
+    async function sendGovernanceOperation(
+        data: string,
+        value: BigNumberish,
+        gatewayInfo: GatewayInfo | null
+    ) {
         const transaction = await ecosystemGovWallet.sendTransaction({
             to: await governanceContract.getAddress(),
+            value: value,
             data: data,
             type: 0
         });
         console.log(`Sent governance operation, tx_hash=${transaction.hash}, nonce=${transaction.nonce}`);
-        await transaction.wait();
+        const receipt = await transaction.wait();
         console.log(`Governance operation succeeded, tx_hash=${transaction.hash}`);
+        
+        // The governance operations may trigger additional L1->L2 transactions to gateway, which we should wait.
+        if(!gatewayInfo) {
+            return;
+        }
+
+        // `try/catch` is needed since SDK will throw an error if the priority operation is not found. 
+        // So it is not possible to disntiguish the case when it was not emitted on purpose or not
+        let hash;
+        try {
+            const contract = await gatewayInfo.gatewayProvider.getMainContractAddress();
+            hash = zksync.utils.getL2HashFromPriorityOp(receipt!, contract);
+            console.log(`Gateway L1->L2 transaction with hash ${hash} detected`);
+        } catch {
+            return;
+        }
+
+        await gatewayInfo.gatewayProvider.waitForTransaction(hash);
+        console.log('Transaction complete!');
     }
 
-    async function sendChainAdminOperation(data: string) {
-        const transaction = await adminGovWallet.sendTransaction({
-            to: await chainAdminContract.getAddress(),
-            data: data,
+    async function sendChainAdminOperation(
+        call: Call,
+    ) {
+        const executeMulticallData = slChainAdminContract.interface.encodeFunctionData('multicall', [
+            [call],
+            true
+        ]);
+
+        const transaction = await slAdminGovWallet.sendTransaction({
+            to: await slChainAdminContract.getAddress(),
+            data: executeMulticallData,
             type: 0
         });
         console.log(`Sent chain admin operation, tx_hash=${transaction.hash}, nonce=${transaction.nonce}`);
         await transaction.wait();
         console.log(`Chain admin operation succeeded, tx_hash=${transaction.hash}`);
+
+        // return receipt;
+    }
+
+    async function deployDefaultUpgradeImpl(runner: ethers.Wallet): Promise<string> {
+        const bytecodePath = isGateway ?
+            pathToHome + '/contracts/l1-contracts/zkout/DefaultUpgrade.sol/DefaultUpgrade.json' : 
+            pathToHome + '/contracts/l1-contracts/out/DefaultUpgrade.sol/DefaultUpgrade.json';
+
+        const bytecode = '0x' + JSON.parse(readFileSync(bytecodePath).toString()).bytecode.object;
+
+        if(isGateway) {
+            const factory = new zksync.ContractFactory([], bytecode, runner);
+            return (await factory.deploy()).getAddress();
+        } else {
+            const factory = new ethers.ContractFactory([], bytecode, runner);
+            return (await factory.deploy()).getAddress();
+        }
     }
 });
 
@@ -442,12 +550,12 @@ function readCode(
     legacyPath: string,
 ): string {
     let path = `${pathToHome}/${newPath}`;
-    if (fs.existsSync(path)) {
+    if (existsSync(path)) {
         return '0x'.concat(require(path).bytecode.object);
     } else {
         path = `${pathToHome}/${legacyPath}`;
         if (path.endsWith('.zbin')) {
-            return ethers.hexlify(fs.readFileSync(path));
+            return ethers.hexlify(readFileSync(path));
         } else {
             return require(path).bytecode;
         }
@@ -462,10 +570,9 @@ async function publishBytecode(
     const hash = zksync.utils.hashBytecode(bytecode);
     const abi = [
         'function publishBytecode(bytes calldata _bytecode) public',
-        'function publishingBlock(bytes32 _hash) public returns (uint256)'
+        'function publishingBlock(bytes32 _hash) public view returns (uint256)'
     ];
 
-    
     const contract =  new ethers.Contract(
         bytecodeSupplierAddr,
         abi,
@@ -536,7 +643,7 @@ async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.types.Tr
 }
 
 async function prepareUpgradeCalldata(
-    govWallet: ethers.Wallet,
+    l1Provider: ethers.Provider,
     l2Provider: zksync.Provider,
     upgradeAddress: string,
     params: {
@@ -569,14 +676,24 @@ async function prepareUpgradeCalldata(
         l1ContractsUpgradeCalldata?: BytesLike;
         postUpgradeCalldata?: BytesLike;
         upgradeTimestamp: BigNumberish;
-    }
+    },
+    gatewayInfo: GatewayInfo | null
 ) {
-    const zksyncAddress = await l2Provider.getMainContractAddress();
-    const zksyncContract = new ethers.Contract(zksyncAddress, zksync.utils.ZKSYNC_MAIN_ABI, govWallet);
-    const stmAddress = await zksyncContract.getStateTransitionManager();
+    console.log('hey5');
 
-    const oldProtocolVersion = Number(await zksyncContract.getProtocolVersion());
+    let settlementLayerDiamondProxy: ethers.Contract;
+    if (gatewayInfo) {
+        settlementLayerDiamondProxy = new ethers.Contract(gatewayInfo.l2DiamondProxyAddress, ZK_CHAIN_INTERFACE, gatewayInfo.gatewayProvider);
+    } else {
+        const zksyncAddress = await l2Provider.getMainContractAddress();
+        settlementLayerDiamondProxy = new ethers.Contract(zksyncAddress, ZK_CHAIN_INTERFACE, l1Provider);
+    }
+    const settlementLayerCTMAddress = await settlementLayerDiamondProxy.getChainTypeManager();
+
+    const oldProtocolVersion = Number(await settlementLayerDiamondProxy.getProtocolVersion());
     const newProtocolVersion = addToProtocolVersion(oldProtocolVersion, 1, 1);
+    console.log('hey1122');
+
 
     params.l2ProtocolUpgradeTx.nonce ??= BigInt(unpackNumberSemVer(newProtocolVersion)[1]);
     const upgradeInitData = contracts.l1DefaultUpgradeAbi.encodeFunctionData('upgrade', [
@@ -593,6 +710,7 @@ async function prepareUpgradeCalldata(
         ]
     ]);
 
+    console.log('hey6');
     // Prepare the diamond cut data
     const upgradeParam = {
         facetCuts: [],
@@ -600,6 +718,7 @@ async function prepareUpgradeCalldata(
         initCalldata: upgradeInitData
     };
 
+    console.log('hey7');
     // Prepare calldata for upgrading STM
     const stmUpgradeCalldata = contracts.stateTransitonManager.encodeFunctionData('setNewVersionUpgrade', [
         upgradeParam,
@@ -608,19 +727,34 @@ async function prepareUpgradeCalldata(
         ethers.MaxUint256,
         newProtocolVersion
     ]);
+    console.log('hey8');
 
     // Execute this upgrade on a specific chain under this STM.
     const chainUpgradeCalldata = contracts.adminFacetAbi.encodeFunctionData('upgradeChainFromVersion', [
         oldProtocolVersion,
         upgradeParam
     ]);
+    console.log('hey9');
+
     // Set timestamp for upgrade on a specific chain under this STM.
     const setTimestampCalldata = contracts.chainAdminAbi.encodeFunctionData('setUpgradeTimestamp', [
         newProtocolVersion,
         params.upgradeTimestamp
     ]);
+    console.log('hey10');
 
-    const stmUpgradeData = prepareGovernanceCalldata(stmAddress, stmUpgradeCalldata);
+
+    const bridgehubAddr = await l2Provider.getBridgehubContractAddress();
+    console.log('hey11');
+
+
+    const stmUpgradeData = await prepareGovernanceCalldata(
+        settlementLayerCTMAddress, 
+        stmUpgradeCalldata,
+        bridgehubAddr,
+        l1Provider!,
+        gatewayInfo
+    );
 
     return {
         stmUpgradeData,
@@ -632,18 +766,43 @@ async function prepareUpgradeCalldata(
 interface UpgradeCalldata {
     scheduleTransparentOperation: string;
     executeOperation: string;
+    executeOperationValue: BigNumberish;
 }
 
-function prepareGovernanceCalldata(to: string, data: BytesLike): UpgradeCalldata {
-    const call = {
-        target: to,
-        value: 0,
-        data
-    };
+async function prepareGovernanceCalldata(
+    to: string,
+    data: BytesLike,
+    bridgehubAddr: string,
+    l1Provider: ethers.Provider,
+    gatewayInfo: GatewayInfo | null,
+): Promise<UpgradeCalldata> {
+    let call;   
+    console.log('t1');
+    if (gatewayInfo) {
+        // We will have to perform an L1->L2 transaction to the gateway
+        call = await composeL1ToL2Call(
+            gatewayInfo.gatewayChainId,
+            to,
+            data,
+            bridgehubAddr,
+            l1Provider,
+            // It does not matter who is the refund recipient in this test
+            gatewayInfo.l2ChainAdmin
+        );
+    } else {
+        call = {
+            target: to,
+            value: 0,
+            data
+        };
+    } 
+
+    console.log('t2');
     const governanceOperation = {
         calls: [call],
         predecessor: ethers.ZeroHash,
-        salt: ethers.ZeroHash
+        // Use random salt for easier testing
+        salt: ethers.randomBytes(32)
     };
 
     // Get transaction data of the `scheduleTransparent`
@@ -657,8 +816,62 @@ function prepareGovernanceCalldata(to: string, data: BytesLike): UpgradeCalldata
 
     return {
         scheduleTransparentOperation,
-        executeOperation
+        executeOperation,
+        executeOperationValue: call.value
     };
+}
+
+async function prepareAdminCalldata() {
+
+}
+
+async function composeL1ToL2Call(
+    chainId: string,
+    to: string,
+    data: BytesLike,
+    bridgehubAddr: string,
+    l1Provider: ethers.Provider,
+    refundRecipient: string,
+): Promise<Call> {
+    const gasPerPubdata = zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
+    // Just a constant that needs to be large enough to handle upgrade-related things
+    const gasLimit = 40_000_000;
+
+    const gasPrice = (await l1Provider.getFeeData()).gasPrice! * BigInt(5);
+
+    const bridgehub = new ethers.Contract(
+        bridgehubAddr,
+        zksync.utils.BRIDGEHUB_ABI,
+        l1Provider
+    );
+
+    const baseCost = await bridgehub.l2TransactionBaseCost(
+        chainId,
+        gasPrice,
+        gasLimit,
+        gasPerPubdata
+    ) 
+
+    const encodedData = zksync.utils.BRIDGEHUB_ABI.encodeFunctionData('requestL2TransactionDirect', [
+        {
+            chainId: chainId,
+            mintValue: baseCost,
+            l2Contract: to,
+            l2Value: 0,
+            l2Calldata: data,
+            l2GasLimit: gasLimit,
+            l2GasPerPubdataByteLimit: gasPerPubdata, 
+            factoryDeps: [],
+            refundRecipient 
+        }
+    ]); 
+
+    return {
+        target: bridgehubAddr,
+        data: encodedData,
+        // Works when ETH is the base token
+        value: baseCost
+    }
 }
 
 async function mintToAddress(

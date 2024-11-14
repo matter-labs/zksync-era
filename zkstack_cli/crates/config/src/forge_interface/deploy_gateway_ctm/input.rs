@@ -60,26 +60,26 @@ impl DeployGatewayCTMInput {
         chain_config: &ChainConfig,
         ecosystem_config: &EcosystemConfig,
         genesis_config: &GenesisConfig,
-        contracts_config: &ContractsConfig,
+        ecosystem_contracts_config: &ContractsConfig,
         initial_deployment_config: &InitialDeploymentConfig,
     ) -> Self {
         Self {
-            bridgehub_proxy_addr: contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-            ctm_deployment_tracker_proxy_addr: contracts_config
+            bridgehub_proxy_addr: ecosystem_contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+            ctm_deployment_tracker_proxy_addr: ecosystem_contracts_config
                 .ecosystem_contracts
                 .stm_deployment_tracker_proxy_addr
                 .expect("stm_deployment_tracker_proxy_addr"),
-            native_token_vault_addr: contracts_config
+            native_token_vault_addr: ecosystem_contracts_config
                 .ecosystem_contracts
                 .native_token_vault_addr
                 .expect("native_token_vault_addr"),
-            chain_type_manager_proxy_addr: contracts_config
+            chain_type_manager_proxy_addr: ecosystem_contracts_config
                 .ecosystem_contracts
                 .state_transition_proxy_addr,
-            shared_bridge_proxy_addr: contracts_config.bridges.shared.l1_address,
-            governance: contracts_config.l1.governance_addr,
+            shared_bridge_proxy_addr: ecosystem_contracts_config.bridges.shared.l1_address,
+            governance: ecosystem_contracts_config.l1.governance_addr,
 
-            base_token: contracts_config.l1.base_token_addr,
+            base_token: chain_config.base_token.address,
 
             chain_chain_id: U256::from(chain_config.chain_id.0),
             era_chain_id: U256::from(ecosystem_config.era_chain_id.0),
@@ -117,12 +117,12 @@ impl DeployGatewayCTMInput {
 
             latest_protocol_version: genesis_config.protocol_version.unwrap().pack(),
 
-            expected_rollup_l2_da_validator: contracts_config
+            expected_rollup_l2_da_validator: ecosystem_contracts_config
                 .ecosystem_contracts
                 .expected_rollup_l2_da_validator
                 .unwrap(),
 
-            force_deployments_data: contracts_config
+            force_deployments_data: ecosystem_contracts_config
                 .ecosystem_contracts
                 .force_deployments_data
                 .clone()
