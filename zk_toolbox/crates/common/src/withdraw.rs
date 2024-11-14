@@ -143,7 +143,7 @@ where
         })?
         .ok_or_else(|| ProviderError::CustomError("Log proof not found!".into()))?;
 
-        let (sender, message) = get_message_from_log(&log).await?;
+        let (sender, message) = get_message_from_log(&log)?;
 
         Ok(FinalizeWithdrawalParams {
             l2_batch_number: log.l1_batch_number.unwrap_or_default(),
@@ -156,7 +156,7 @@ where
     }
 }
 
-pub async fn get_message_from_log(log: &Log) -> Result<(H160, Bytes), ProviderError> {
+pub fn get_message_from_log(log: &Log) -> Result<(H160, Bytes), ProviderError> {
     let sender = H160::from_slice(&log.topics[1][12..]);
     let message = ethers::abi::decode(&[ethers::abi::ParamType::Bytes], &log.data.0)
         .map_err(|e| ProviderError::CustomError(format!("Failed to decode log data: {}", e)))?
