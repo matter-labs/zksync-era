@@ -211,6 +211,11 @@ jobs:
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
           ci_run zkstackup -g --local
 
+      - name: Reinstall foundry
+        run: |
+          ci_run curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
+          ci_run foundryup-zksync --commit 953a1800eaa2cffe5cb272f96ff641cc7a3c1ba1
+
       - name: Create log directories
         run: |
           SERVER_LOGS_DIR=logs/server
