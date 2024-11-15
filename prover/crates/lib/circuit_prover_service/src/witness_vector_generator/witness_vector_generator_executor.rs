@@ -33,7 +33,13 @@ impl Executor for WitnessVectorGeneratorExecutor {
         metadata: Self::Metadata,
     ) -> anyhow::Result<Self::Output> {
         let start_time = Instant::now();
-        tracing::info!("Started executing witness vector generator job {}, on batch {}, for circuit {}, at round {}", metadata.id, metadata.block_number, metadata.circuit_id, metadata.aggregation_round);
+        tracing::info!(
+            "Started executing witness vector generator job {}, on batch {}, for circuit {}, at round {}",
+            metadata.id,
+            metadata.block_number,
+            metadata.circuit_id,
+            metadata.aggregation_round
+        );
         let WitnessVectorGeneratorPayload {
             circuit,
             finalization_hints,
@@ -41,7 +47,14 @@ impl Executor for WitnessVectorGeneratorExecutor {
         let witness_vector = circuit
             .synthesize_vector(finalization_hints)
             .context("failed to generate witness vector")?;
-        tracing::info!("Finished executing witness vector generator job {}, on batch {}, for circuit {}, at round {} in {:?}", metadata.id, metadata.block_number, metadata.circuit_id, metadata.aggregation_round, start_time.elapsed());
+        tracing::info!(
+            "Finished executing witness vector generator job {}, on batch {}, for circuit {}, at round {} in {:?}",
+            metadata.id,
+            metadata.block_number,
+            metadata.circuit_id,
+            metadata.aggregation_round,
+            start_time.elapsed()
+        );
         WITNESS_VECTOR_GENERATOR_METRICS
             .synthesize_time
             .observe(start_time.elapsed());

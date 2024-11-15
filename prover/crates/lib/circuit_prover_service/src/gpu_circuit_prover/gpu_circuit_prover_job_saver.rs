@@ -107,7 +107,14 @@ impl JobSaver for GpuCircuitProverJobSaver {
                     .await;
             }
         };
-        tracing::info!("Finished saving gpu circuit prover job {}, on batch {}, for circuit {}, at round {} after {:?}", metadata.id, metadata.block_number, metadata.circuit_id, metadata.aggregation_round, start_time.elapsed());
+        tracing::info!(
+            "Finished saving gpu circuit prover job {}, on batch {}, for circuit {}, at round {} after {:?}",
+            metadata.id,
+            metadata.block_number,
+            metadata.circuit_id,
+            metadata.aggregation_round,
+            start_time.elapsed()
+        );
         CIRCUIT_PROVER_METRICS
             .save_time
             .observe(start_time.elapsed());

@@ -57,7 +57,14 @@ impl Executor for GpuCircuitProverExecutor {
         let proof_wrapper = circuit
             .prove(witness_vector, setup_data)
             .context("failed to gpu prove circuit")?;
-        tracing::info!("Finished executing gpu circuit prover job {}, on batch {}, for circuit {}, at round {} after {:?}", metadata.id, metadata.block_number, metadata.circuit_id, metadata.aggregation_round, start_time.elapsed());
+        tracing::info!(
+            "Finished executing gpu circuit prover job {}, on batch {}, for circuit {}, at round {} after {:?}",
+            metadata.id,
+            metadata.block_number,
+            metadata.circuit_id,
+            metadata.aggregation_round,
+            start_time.elapsed()
+        );
         CIRCUIT_PROVER_METRICS
             .prove_and_verify_time
             .observe(start_time.elapsed());

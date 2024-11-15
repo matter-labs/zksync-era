@@ -151,7 +151,14 @@ impl<ML: WitnessVectorMetadataLoader> JobPicker for WitnessVectorGeneratorJobPic
             circuit,
             finalization_hints,
         };
-        tracing::info!("Finished picking witness vector generator job {}, on batch {}, for circuit {}, at round {} in {:?}", metadata.id, metadata.block_number, metadata.circuit_id, metadata.aggregation_round, start_time.elapsed());
+        tracing::info!(
+            "Finished picking witness vector generator job {}, on batch {}, for circuit {}, at round {} in {:?}",
+            metadata.id,
+            metadata.block_number,
+            metadata.circuit_id,
+            metadata.aggregation_round,
+            start_time.elapsed()
+        );
         WITNESS_VECTOR_GENERATOR_METRICS
             .pick_time
             .observe(start_time.elapsed());
