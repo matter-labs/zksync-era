@@ -1,0 +1,382 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Interop basics - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../favicon.svg">
+        <link rel="shortcut icon" href="../../favicon.png">
+        <link rel="stylesheet" href="../../css/variables.css">
+        <link rel="stylesheet" href="../../css/general.css">
+        <link rel="stylesheet" href="../../css/chrome.css">
+        <link rel="stylesheet" href="../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../css/version-box.css">
+        <link rel="stylesheet" href="../.././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/guides/advanced/19_interop_basics.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="interop-basics"><a class="header" href="#interop-basics">Interop basics</a></h1>
+<p>This guide explains the basic process of using the InteropMessage interface from protocol version v29. With this
+interface, a message is sent from one chain (chain A) and then verified on another chain (chain B).</p>
+<p>Note: This interface only broadcasts messages. It does not include features such as specifying a destination or replay
+protection, which are available in higher-level interfaces.</p>
+<h2 id="preparation"><a class="header" href="#preparation">Preparation</a></h2>
+<h3 id="setup-chains"><a class="header" href="#setup-chains">Setup chains</a></h3>
+<p>Follow the instructions at: <a href="https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/launch.md">launch doc</a></p>
+<p>This will help you set up the Era chain and the associated gateway. In this example, we will send and verify the message
+on Era. If you prefer to test on another chain (like era2), launch a new chain following the guide above and migrate it
+to the gateway.</p>
+<h3 id="fund-an-account"><a class="header" href="#fund-an-account">Fund an Account</a></h3>
+<p>Give funds to an account on your local Era using the following commands:</p>
+<pre><code>zkstack dev rich-account
+ACCOUNT="0x36615Cf349d7F6344891B1e7CA7C72883F5dc049"
+PRIVATE_KEY="0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
+</code></pre>
+<h2 id="sending-a-message"><a class="header" href="#sending-a-message">Sending a Message</a></h2>
+<p>While messages are usually sent by contracts, you can send one directly using:</p>
+<pre><code>cast send -r http://localhost:3050 0x0000000000000000000000000000000000008008 "sendToL1(bytes)" "0x1234" --private-key $PRIVATE_KEY
+</code></pre>
+<p>Here, <code>0x...8008</code> is the L1Messenger, a special system contract. Remember the transaction hash, as we’ll use it in
+commands below.</p>
+<p>Next, retrieve the interop proof from the sequencer (replace the transaction hash with your own). If you keep getting
+‘null’ answers, please wait a while, as the sequencer has to seal and commit the batch before this data can be returned.</p>
+<pre><code>curl --request POST \
+    --url http://localhost:3050/ \
+    --header 'Content-Type: application/json' \
+    --data '{
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "zks_getL2ToL1LogProof",
+            "params": [
+                "0xc9f09ef3cf6c31fe9f1376845a2900da7b68e6f31db1c10c90d965ec8a8a76d2", 0, "proof_based_gw"
+            ]
+        }'
+</code></pre>
+<p>The command returns a proof, that will look like this:</p>
+<pre><code class="language-json">{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "proof": [
+      "0x010f050000000000000000000000000000000000000000000000000000000000",
+      "0x72abee45b59e344af8a6e520241c4744aff26ed411f4c4b00f8af09adada43ba",
+      "0xc3d03eebfd83049991ea3d3e358b6712e7aa2e2e63dc2d4b438987cec28ac8d0",
+      "0xe3697c7f33c31a9b0f0aeb8542287d0d21e8c4cf82163d0c44c7a98aa11aa111",
+      "0x199cc5812543ddceeddd0fc82807646a4899444240db2c0d2f20c3cceb5f51fa",
+      "0xe4733f281f18ba3ea8775dd62d2fcd84011c8c938f16ea5790fd29a03bf8db89",
+      "0x1798a1fd9c8fbb818c98cff190daa7cc10b6e5ac9716b4a2649f7c2ebcef2272",
+      "0x66d7c5983afe44cf15ea8cf565b34c6c31ff0cb4dd744524f7842b942d08770d",
+      "0xb04e5ee349086985f74b73971ce9dfe76bbed95c84906c5dffd96504e1e5396c",
+      "0xac506ecb5465659b3a927143f6d724f91d8d9c4bdb2463aee111d9aa869874db",
+      "0x124b05ec272cecd7538fdafe53b6628d31188ffb6f345139aac3c3c1fd2e470f",
+      "0xc3be9cbd19304d84cca3d045e06b8db3acd68c304fc9cd4cbffe6d18036cb13f",
+      "0xfef7bd9f889811e59e4076a0174087135f080177302763019adaf531257e3a87",
+      "0xa707d1c62d8be699d34cb74804fdd7b4c568b6c1a821066f126c680d4b83e00b",
+      "0xf6e093070e0389d2e529d60fadb855fdded54976ec50ac709e3a36ceaa64c291",
+      "0xe4ed1ec13a28c40715db6399f6f99ce04e5f19d60ad3ff6831f098cb6cf75944",
+      "0x0000000000000000000000000000000000000000000000000000000000000015",
+      "0x156467afe10e8eb1dcac04cca213c53d4bade9d73edfe9410ea45c86ebd9804e",
+      "0xcc4c41edb0c2031348b292b768e9bac1ee8c92c09ef8a3277c2ece409c12d86a",
+      "0x183a40fea23b03351928919261dfc02e45b94b564e263d339a601b9740112ccc",
+      "0x4cd95f8962e2e3b5f525a0f4fdfbbf0667990c7159528a008057f3592bcb2c06",
+      "0x112038ecbdf21c5fc2ef97d9ec047402bba05d6ff2aa1b304dcfac974ebaa109",
+      "0x0000000000000000000000000000001900000000000000000000000000000003",
+      "0x00000000000000000000000000000000000000000000000000000000000001fa",
+      "0x0102000100000000000000000000000000000000000000000000000000000000",
+      "0xf84927dc03d95cc652990ba75874891ccc5a4d79a0e10a2ffdd238a34a39f828",
+      "0x2c21d37d09509f7ccb3d7d93c86ff4d7b29246113b0032dec9688c9e119d6872"
+    ],
+    "id": 0,
+    "root": "0xeb6861fa2f2fd60c93dba1343bf85e2312811fd23549b3df2b8017102430f086"
+  }
+}
+</code></pre>
+<p>getL2toL1LogProof can return different proof types depending on the interop mode specified. Currently, only
+“proof_based_gw” is supported.</p>
+<p>The second argument (0) is the index of the message - if your transaction created multiple interop messages, you have to
+select the correct one. You can figure out the correct one, by looking at the event logs from the transaction. In our
+case, we published just 1 interop transation from this method, so we can keep it at 0th.</p>
+<h2 id="receiving-a-message"><a class="header" href="#receiving-a-message">Receiving a Message</a></h2>
+<p>On the destination chain, a contract usually calls the <code>L2_MESSAGE_VERIFICATION_ADDRESS</code> (at <code>0x...10009</code>) with the
+proof. You can also call the method manually:</p>
+<pre><code>cast call 0x0000000000000000000000000000000000010009 \
+    "proveL2MessageInclusionShared(uint256,uint256,uint256,(uint16,address,bytes),bytes32[])" \
+    271 \
+    22 \
+    0 \
+    "(0,0x36615Cf349d7F6344891B1e7CA7C72883F5dc049,0x1234)" \
+    "["0x010f050000000000000000000000000000000000000000000000000000000000","0x72abee45b59e344af8a6e520241c4744aff26ed411f4c4b00f8af09adada43ba","0xc3d03eebfd83049991ea3d3e358b6712e7aa2e2e63dc2d4b438987cec28ac8d0","0xe3697c7f33c31a9b0f0aeb8542287d0d21e8c4cf82163d0c44c7a98aa11aa111","0x199cc5812543ddceeddd0fc82807646a4899444240db2c0d2f20c3cceb5f51fa","0xe4733f281f18ba3ea8775dd62d2fcd84011c8c938f16ea5790fd29a03bf8db89","0x1798a1fd9c8fbb818c98cff190daa7cc10b6e5ac9716b4a2649f7c2ebcef2272","0x66d7c5983afe44cf15ea8cf565b34c6c31ff0cb4dd744524f7842b942d08770d","0xb04e5ee349086985f74b73971ce9dfe76bbed95c84906c5dffd96504e1e5396c","0xac506ecb5465659b3a927143f6d724f91d8d9c4bdb2463aee111d9aa869874db","0x124b05ec272cecd7538fdafe53b6628d31188ffb6f345139aac3c3c1fd2e470f","0xc3be9cbd19304d84cca3d045e06b8db3acd68c304fc9cd4cbffe6d18036cb13f","0xfef7bd9f889811e59e4076a0174087135f080177302763019adaf531257e3a87","0xa707d1c62d8be699d34cb74804fdd7b4c568b6c1a821066f126c680d4b83e00b","0xf6e093070e0389d2e529d60fadb855fdded54976ec50ac709e3a36ceaa64c291","0xe4ed1ec13a28c40715db6399f6f99ce04e5f19d60ad3ff6831f098cb6cf75944","0x0000000000000000000000000000000000000000000000000000000000000015","0x156467afe10e8eb1dcac04cca213c53d4bade9d73edfe9410ea45c86ebd9804e","0xcc4c41edb0c2031348b292b768e9bac1ee8c92c09ef8a3277c2ece409c12d86a","0x183a40fea23b03351928919261dfc02e45b94b564e263d339a601b9740112ccc","0x4cd95f8962e2e3b5f525a0f4fdfbbf0667990c7159528a008057f3592bcb2c06","0x112038ecbdf21c5fc2ef97d9ec047402bba05d6ff2aa1b304dcfac974ebaa109","0x0000000000000000000000000000003100000000000000000000000000000001","0x00000000000000000000000000000000000000000000000000000000000001fa","0x0101000100000000000000000000000000000000000000000000000000000000","0xf84927dc03d95cc652990ba75874891ccc5a4d79a0e10a2ffdd238a34a39f828"]" \
+    --rpc-url http://localhost:3050
+</code></pre>
+<p>A successful verification will return a “true” value (or <code>0x00...01</code>), confirming that the InteropMessage was correctly
+received.</p>
+<p>The parameters used in the above call are as follows:</p>
+<ul>
+<li>First argument (271): Chain ID of the source chain.</li>
+<li>Second argument (22): Batch number from the source chain.</li>
+<li>Third argument (0): Transaction index within the batch.</li>
+<li>Fourth argument: A tuple containing the index in the batch (again), the interop sender, and the interop payload.</li>
+<li>Fifth argument: The proof obtained from <code>zks_getL2ToL1LogProof</code>.</li>
+</ul>
+<p>To determine the batch number and transaction index, fetch the receipt of your original transaction with:</p>
+<pre><code>cast receipt -r http://localhost:3050 0xc9f09ef3cf6c31fe9f1376845a2900da7b68e6f31db1c10c90d965ec8a8a76d2
+</code></pre>
+<p>Look for the following details in the receipt output:</p>
+<pre><code>blockNumber             43
+...
+l1BatchNumber           "0x16"    (which is 22 in decimal)
+l1BatchTxIndex          "0x0"
+</code></pre>
+<h2 id="debugging"><a class="header" href="#debugging">Debugging</a></h2>
+<p>If the <code>proveL2MessageInclusionShared</code> method returns false (or <code>0x0</code>), consider the following checks:</p>
+<h3 id="1-message-not-propagated-yet"><a class="header" href="#1-message-not-propagated-yet">1. Message Not Propagated Yet</a></h3>
+<ul>
+<li>
+<p><strong>Sender:</strong><br />
+The message might not have been sent to the gateway if the transaction is still pending (messages are queued until
+execution). Verify using the batch number. For instance, using the batch number (0x16 == 22):</p>
+<pre><code class="language-shell">curl --request POST \
+    --url localhost:3050 \
+    --header 'Content-Type: application/json' \
+    --data '{
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "zks_getL1BatchDetails",
+            "params": [22]
+        }'
+</code></pre>
+<p>Look for the <code>executeTxHash</code> field. If it exists, the message was sent to the gateway. If it’s missing or zero, the
+sequencer has not finalized the batch.</p>
+</li>
+<li>
+<p><strong>Receiver:</strong><br />
+On the destination chain, check the <code>InteropRootStorage</code> contract to see if the latest gateway batch has been
+fetched:</p>
+<pre><code>cast call -r http://localhost:3050 0x0000000000000000000000000000000000010008 "interopRoots(uint256,uint256)" 506 49
+</code></pre>
+<p>Here, 506 is the gateway’s chain ID and 49 is the gateway’s block number. A return value of 0 indicates the block root
+was not fetched yet.</p>
+</li>
+</ul>
+<h3 id="2-message-propagated-but-proof-failing"><a class="header" href="#2-message-propagated-but-proof-failing">2. Message Propagated but Proof Failing</a></h3>
+<p>If you are certain the message was propagated, ensure the following:</p>
+<ul>
+<li>You are using the correct indexes when there are multiple transactions in a batch or multiple messages within a
+transaction.</li>
+<li>Use the helper tool available at: <a href="https://github.com/mm-zk/zksync_tools/tree/main/simple_interop#tool">zksync tools</a></li>
+</ul>
+<p>This tool helps you view and prove interop messages with the following commands:</p>
+<pre><code>cargo run show-interop-message --source-rpc http://localhost:3050 --source-tx $TX_ID
+cargo run prove-interop-message --source-rpc http://localhost:3050 --source-tx $TX_ID --target-rpc http://localhost:3050
+</code></pre>
+<p>These steps should help you troubleshoot and verify that the interop messages are sent and received correctly.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../guides/advanced/18_allowlist.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../guides/advanced/90_advanced_debugging.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../guides/advanced/18_allowlist.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../guides/advanced/90_advanced_debugging.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../ace.js"></script>
+        <script src="../../editor.js"></script>
+        <script src="../../mode-rust.js"></script>
+        <script src="../../theme-dawn.js"></script>
+        <script src="../../theme-tomorrow_night.js"></script>
+
+        <script src="../../elasticlunr.min.js"></script>
+        <script src="../../mark.min.js"></script>
+        <script src="../../searcher.js"></script>
+
+        <script src="../../clipboard.min.js"></script>
+        <script src="../../highlight.js"></script>
+        <script src="../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../js/version-box.js"></script>
+        <script src="../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>
