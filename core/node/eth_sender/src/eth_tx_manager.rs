@@ -545,8 +545,6 @@ impl EthTxManager {
 
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, eth_tx_manager is shutting down");
-                self.health_updater
-                    .update(Health::from(HealthStatus::ShuttingDown));
                 break;
             }
             let operator_to_track = self.l1_interface.supported_operator_types()[0];
