@@ -57,7 +57,7 @@ jobs:
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
 
       - name: Deploy prover docs
-        uses: matter-labs/deploy-mdbooks@77856145362bf23834f2e54a44a928790c4bee7c # v1
+        uses: matter-labs/deploy-mdbooks@73f638643d1be948d1002fe5433747f4a3e37a29 # v1
         with:
           version: ${{ inputs.version || steps.extract-version.outputs.version || github.ref_name }}
           docs-dir: ${{ env.DOCS_DIR }}
