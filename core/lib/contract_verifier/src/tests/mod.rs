@@ -8,6 +8,7 @@ use zksync_dal::Connection;
 use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_types::{
     address_to_h256,
+    bytecode::BytecodeHash,
     contract_verification_api::{CompilerVersions, SourceCodeData, VerificationIncomingRequest},
     get_code_key, get_known_code_key,
     l2::L2Tx,
@@ -15,7 +16,6 @@ use zksync_types::{
     Execute, L1BatchNumber, L2BlockNumber, ProtocolVersion, StorageLog, CONTRACT_DEPLOYER_ADDRESS,
     H256, U256,
 };
-use zksync_utils::bytecode::{hash_bytecode, hash_evm_bytecode};
 use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics, VmEvent};
 
 use super::*;
@@ -139,7 +139,7 @@ async fn mock_deployment(
     bytecode: Vec<u8>,
     constructor_args: &[Token],
 ) {
-    let bytecode_hash = hash_bytecode(&bytecode);
+    let bytecode_hash = BytecodeHash::for_bytecode(&bytecode).value();
     let deployment = Execute::for_deploy(H256::zero(), bytecode.clone(), constructor_args);
     mock_deployment_inner(storage, address, bytecode_hash, bytecode, deployment).await;
 }
@@ -160,7 +160,7 @@ async fn mock_evm_deployment(
         factory_deps: vec![],
     };
     let bytecode = pad_evm_bytecode(deployed_bytecode);
-    let bytecode_hash = hash_evm_bytecode(&bytecode);
+    let bytecode_hash = BytecodeHash::for_evm_bytecode(&bytecode).value();
     mock_deployment_inner(storage, address, bytecode_hash, bytecode, deployment).await;
 }
 

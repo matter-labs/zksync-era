@@ -1,5 +1,8 @@
-use ethabi::{ethereum_types::U256, Bytes, Token};
 use serde::Deserialize;
+use zksync_basic_types::{
+    ethabi::{Bytes, Token},
+    U256,
+};
 
 use crate::get_loadnext_contract;
 

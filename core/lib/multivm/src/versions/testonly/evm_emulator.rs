@@ -9,11 +9,11 @@ use zksync_system_constants::{
 };
 use zksync_test_account::TxType;
 use zksync_types::{
+    bytecode::BytecodeHash,
     get_code_key, get_known_code_key, h256_to_u256,
     utils::{key_for_eth_balance, storage_key_for_eth_balance},
     AccountTreeId, Address, Execute, StorageKey, H256, U256,
 };
-use zksync_utils::bytecode::{hash_bytecode, hash_evm_bytecode};
 
 use super::{default_system_env, TestedVm, VmTester, VmTesterBuilder};
 use crate::interface::{
@@ -30,9 +30,9 @@ const INCREMENTING_CONTRACT_PATH: &str = "etc/contracts-test-data/artifacts-zk/c
 
 fn override_system_contracts(storage: &mut InMemoryStorage) {
     let mock_deployer = read_bytecode(MOCK_DEPLOYER_PATH);
-    let mock_deployer_hash = hash_bytecode(&mock_deployer);
+    let mock_deployer_hash = BytecodeHash::for_bytecode(&mock_deployer).value();
     let mock_known_code_storage = read_bytecode(MOCK_KNOWN_CODE_STORAGE_PATH);
-    let mock_known_code_storage_hash = hash_bytecode(&mock_known_code_storage);
+    let mock_known_code_storage_hash = BytecodeHash::for_bytecode(&mock_known_code_storage).value();
 
     storage.set_value(get_code_key(&CONTRACT_DEPLOYER_ADDRESS), mock_deployer_hash);
     storage.set_value(
@@ -62,7 +62,7 @@ impl EvmTestBuilder {
     fn new(deploy_emulator: bool, evm_contract_address: Address) -> Self {
         Self {
             deploy_emulator,
-            storage: InMemoryStorage::with_system_contracts(hash_bytecode),
+            storage: InMemoryStorage::with_system_contracts(),
             evm_contract_addresses: vec![evm_contract_address],
         }
     }
@@ -83,7 +83,7 @@ impl EvmTestBuilder {
         let mut system_env = default_system_env();
         if self.deploy_emulator {
             let evm_bytecode: Vec<_> = (0..32).collect();
-            let evm_bytecode_hash = hash_evm_bytecode(&evm_bytecode);
+            let evm_bytecode_hash = BytecodeHash::for_evm_bytecode(&evm_bytecode).value();
             storage.set_value(
                 get_known_code_key(&evm_bytecode_hash),
                 H256::from_low_u64_be(1),
@@ -93,11 +93,11 @@ impl EvmTestBuilder {
             }
 
             system_env.base_system_smart_contracts.evm_emulator = Some(SystemContractCode {
-                hash: hash_bytecode(&mock_emulator),
+                hash: BytecodeHash::for_bytecode(&mock_emulator).value(),
                 code: mock_emulator,
             });
         } else {
-            let emulator_hash = hash_bytecode(&mock_emulator);
+            let emulator_hash = BytecodeHash::for_bytecode(&mock_emulator).value();
             storage.set_value(get_known_code_key(&emulator_hash), H256::from_low_u64_be(1));
             storage.store_factory_dep(emulator_hash, mock_emulator);
 
@@ -121,7 +121,7 @@ impl EvmTestBuilder {
 }
 
 pub(crate) fn test_tracing_evm_contract_deployment<VM: TestedVm>() {
-    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+    let mut storage = InMemoryStorage::with_system_contracts();
     override_system_contracts(&mut storage);
 
     let mut system_env = default_system_env();
@@ -138,7 +138,7 @@ pub(crate) fn test_tracing_evm_contract_deployment<VM: TestedVm>() {
 
     let args = [Token::Bytes((0..32).collect())];
     let evm_bytecode = ethabi::encode(&args);
-    let expected_bytecode_hash = hash_evm_bytecode(&evm_bytecode);
+    let expected_bytecode_hash = BytecodeHash::for_evm_bytecode(&evm_bytecode).value();
     let execute = Execute::for_deploy(expected_bytecode_hash, vec![0; 32], &args);
     let deploy_tx = account.get_l2_tx_for_execute(execute, None);
     let (_, vm_result) = vm
@@ -155,7 +155,7 @@ pub(crate) fn test_tracing_evm_contract_deployment<VM: TestedVm>() {
     // "Deploy" a bytecode in another transaction and check that the first tx doesn't interfere with the returned `dynamic_factory_deps`.
     let args = [Token::Bytes((0..32).rev().collect())];
     let evm_bytecode = ethabi::encode(&args);
-    let expected_bytecode_hash = hash_evm_bytecode(&evm_bytecode);
+    let expected_bytecode_hash = BytecodeHash::for_evm_bytecode(&evm_bytecode).value();
     let execute = Execute::for_deploy(expected_bytecode_hash, vec![0; 32], &args);
     let deploy_tx = account.get_l2_tx_for_execute(execute, None);
     let (_, vm_result) = vm
@@ -334,7 +334,7 @@ pub(crate) fn test_mock_emulator_with_deployment<VM: TestedVm>(revert: bool) {
 
     let mock_emulator_abi = load_contract(MOCK_EMULATOR_PATH);
     let new_evm_bytecode = vec![0xfe; 96];
-    let new_evm_bytecode_hash = hash_evm_bytecode(&new_evm_bytecode);
+    let new_evm_bytecode_hash = BytecodeHash::for_evm_bytecode(&new_evm_bytecode).value();
 
     let test_fn = mock_emulator_abi.function("testDeploymentAndCall").unwrap();
     let test_tx = account.get_l2_tx_for_execute(
@@ -412,7 +412,7 @@ pub(crate) fn test_mock_emulator_with_recursive_deployment<VM: TestedVm>() {
     let bytecodes: HashMap<_, _> = (0_u8..10)
         .map(|byte| {
             let bytecode = vec![byte; 32];
-            (hash_evm_bytecode(&bytecode), bytecode)
+            (BytecodeHash::for_evm_bytecode(&bytecode).value(), bytecode)
         })
         .collect();
     let test_fn = mock_emulator_abi
@@ -458,7 +458,7 @@ fn test_mock_emulator_with_partial_reverts_and_rng<VM: TestedVm>(rng: &mut impl 
     let all_bytecodes: HashMap<_, _> = (0_u8..10)
         .map(|_| {
             let bytecode = vec![rng.gen(); 32];
-            (hash_evm_bytecode(&bytecode), bytecode)
+            (BytecodeHash::for_evm_bytecode(&bytecode).value(), bytecode)
         })
         .collect();
     let should_revert: Vec<_> = (0..10).map(|_| rng.gen::<bool>()).collect();

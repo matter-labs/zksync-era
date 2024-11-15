@@ -5,6 +5,7 @@ use zk_evm_1_5_0::{
 };
 use zksync_contracts::SystemContractCode;
 use zksync_types::{
+    bytecode::BytecodeHash,
     h256_to_u256,
     l1::is_l1_tx_type,
     l2_to_l1_log::UserL2ToL1Log,
@@ -18,7 +19,6 @@ use zksync_types::{
     Transaction, BOOTLOADER_ADDRESS, H160, H256, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
     L2_BASE_TOKEN_ADDRESS, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 use zksync_vm2::{
     interface::{CallframeInterface, HeapId, StateInterface, Tracer},
     ExecutionEnd, FatPointer, Program, Settings, StorageSlot, VirtualMachine,
@@ -463,7 +463,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
 
     pub(crate) fn insert_bytecodes<'a>(&mut self, bytecodes: impl IntoIterator<Item = &'a [u8]>) {
         for code in bytecodes {
-            let hash = h256_to_u256(hash_bytecode(code));
+            let hash = BytecodeHash::for_bytecode(code).value_u256();
             self.world.bytecode_cache.insert(hash, code.into());
         }
     }
