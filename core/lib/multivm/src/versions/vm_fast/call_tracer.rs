@@ -1,8 +1,10 @@
 use zksync_types::{zk_evm_types::FarCallOpcode, U256};
-use zksync_vm2::interface::{
-    CallframeInterface, Opcode, OpcodeType, ReturnType, ShouldStop, StateInterface, Tracer,
+use zksync_vm2::{
+    interface::{
+        CallframeInterface, Opcode, OpcodeType, ReturnType, ShouldStop, StateInterface, Tracer,
+    },
+    FatPointer,
 };
-use zksync_vm2::FatPointer;
 use zksync_vm_interface::{Call, VmRevertReason};
 
 #[derive(Debug, Clone, Default)]

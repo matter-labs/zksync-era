@@ -5,8 +5,7 @@ use crate::{
     interface::{TxExecutionMode, VmInterface},
     utils::testonly::check_call_tracer_test_result,
     versions::testonly::{read_test_contract, ContractToDeploy, VmTester, VmTesterBuilder},
-    vm_fast::call_tracer::CallTracer,
-    vm_fast::Vm,
+    vm_fast::{call_tracer::CallTracer, Vm},
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
