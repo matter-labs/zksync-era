@@ -1,0 +1,359 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>L2 Messaging - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../favicon.svg">
+        <link rel="shortcut icon" href="../../favicon.png">
+        <link rel="stylesheet" href="../../css/variables.css">
+        <link rel="stylesheet" href="../../css/general.css">
+        <link rel="stylesheet" href="../../css/chrome.css">
+        <link rel="stylesheet" href="../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../css/version-box.css">
+        <link rel="stylesheet" href="../.././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/guides/advanced/08_how_l2_messaging_works.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="how-l2-to-l1-messaging-works"><a class="header" href="#how-l2-to-l1-messaging-works">How L2 to L1 messaging works</a></h1>
+<p>In this article, we will explore the workings of Layer 2 (L2) to Layer 1 (L1) messaging in ZKsync Era.</p>
+<p>If you’re uncertain about why messaging is necessary in the first place, please refer to our <a href="https://code.zksync.io/tutorials/how-to-send-l2-l1-message">user
+documentation</a>.</p>
+<p>For ease of understanding, here’s a quick visual guide. We will unpack each part in detail as we progress.</p>
+<p><img src="https://user-images.githubusercontent.com/128217157/257739371-f971c10b-87c7-4ee9-bd0e-731670c616ac.png" alt="overview image" /></p>
+<h2 id="part-1---user-generates-a-message"><a class="header" href="#part-1---user-generates-a-message">Part 1 - User Generates a Message</a></h2>
+<p>Consider the following contract. Its main function is to forward any received string to L1:</p>
+<pre><code class="language-solidity">contract Messenger {
+  function sendMessage(string memory message) public returns (bytes32 messageHash) {
+    messageHash = L1_MESSENGER_CONTRACT.sendToL1(bytes(message));
+  }
+}
+
+</code></pre>
+<p>From a developer’s standpoint, you only need to invoke the <code>sendToL1</code> method, and your task is complete.</p>
+<p>It’s worth noting, however, that transferring data to L1 typically incurs high costs. These costs are associated with
+the ‘pubdata cost’ that is charged for each byte in the message. As a workaround, many individuals choose to send the
+hash of the message instead of the full message, as this helps to conserve resources.</p>
+<h2 id="part-2---system-contract-execution"><a class="header" href="#part-2---system-contract-execution">Part 2 - System Contract Execution</a></h2>
+<p>The previously mentioned <code>sendToL1</code> method executes a call to the <code>L1Messenger.sol</code> system contract
+<a href="https://github.com/matter-labs/era-system-contracts/blob/f01df555c03860b6093dd669d119eed4d9f8ec99/contracts/L1Messenger.sol#L22">here</a>. This system contract performs tasks such as computing the appropriate gas cost and hashes, and
+then it broadcasts an Event carrying the complete message.</p>
+<pre><code class="language-solidity">function sendToL1(bytes calldata _message) external override returns (bytes32 hash) {
+  // ...
+  SystemContractHelper.toL1(true, bytes32(uint256(uint160(msg.sender))), hash);
+  emit L1MessageSent(msg.sender, hash, _message);
+}
+
+</code></pre>
+<p>As depicted in the leading image, this stage is where the message data splits. The full body of the message is emitted
+for retrieval in Part 5 by the StateKeeper, while the hash of the message proceeds to be added to the Virtual Machine
+(VM) - as it has to be included in the proof.</p>
+<p>The method then sends the message’s hash to the <code>SystemContractHelper</code>, which makes an internal call:</p>
+<pre><code class="language-solidity">function toL1(
+  bool _isService,
+  bytes32 _key,
+  bytes32 _value
+) internal {
+  // ...
+  address callAddr = TO_L1_CALL_ADDRESS;
+  assembly {
+    call(_isService, callAddr, _key, _value, 0xFFFF, 0, 0)
+  }
+}
+
+</code></pre>
+<p>Following the <code>TO_L1_CALL_ADDRESS</code>, we discover that it’s set to a placeholder value. So what exactly is occurring here?</p>
+<h2 id="part-3---compiler-tricks-and-the-eravm"><a class="header" href="#part-3---compiler-tricks-and-the-eravm">Part 3 - Compiler Tricks and the EraVM</a></h2>
+<p>Our VM features special opcodes designed to manage operations that aren’t possible in the Ethereum Virtual Machine
+(EVM), such as publishing data to L1. But how can we make these features accessible to Solidity?</p>
+<p>We could expand the language by introducing new Solidity opcodes, but that would require modifying the solc compiler,
+among other things. Hence, we’ve adopted a different strategy.</p>
+<p>To access these unique eraVM opcodes, the Solidity code simply executes a call to a specific address (the full list can
+be seen <a href="https://github.com/matter-labs/era-system-contracts/blob/e96dfe0b5093fa95c2fb340c0411c646327db921/contracts/libraries/SystemContractsCaller.sol#L12">here</a>). This call is compiled by the solc frontend, and then on the compiler backend, we
+intercept it and replace it with the correct eraVM opcode call <a href="https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/evm/call.rs">here</a>.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>match simulation_address {
+  Some(compiler_common::ADDRESS_TO_L1) =&gt; {
+    return crate::zkevm::general::to_l1(context, is_first, in_0, in_1);
+  }
+}
+<span class="boring">}</span></code></pre></pre>
+<p>This method allows your message to reach the VM.</p>
+<h2 id="part-4---inside-the-virtual-machine"><a class="header" href="#part-4---inside-the-virtual-machine">Part 4 - Inside the Virtual Machine</a></h2>
+<p>The zkEVM assembly translates these <a href="https://github.com/matter-labs/era-zkEVM-assembly/blob/v1.3.2/src/assembly/instruction/log.rs#L32">opcodes</a> into LogOpcodes.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub const ALL_CANONICAL_MODIFIERS: [&amp;'static str; 5] =
+    ["sread", "swrite", "event", "to_l1", "precompile"];
+let variant = match idx {
+  0 =&gt; LogOpcode::StorageRead,
+  1 =&gt; LogOpcode::StorageWrite,
+  2 =&gt; LogOpcode::Event,
+  3 =&gt; LogOpcode::ToL1Message,
+  4 =&gt; LogOpcode::PrecompileCall,
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Each opcode is then converted into the corresponding <a href="https://github.com/matter-labs/era-zkevm_opcode_defs/blob/v1.3.2/src/definitions/log.rs#L16">LogOpcode</a> and written into the Log
+<a href="https://github.com/matter-labs/era-zk_evm/blob/v1.3.2/src/opcodes/execution/log.rs">here</a>, which is handled by the EventSink oracle.</p>
+<h2 id="part-5---the-role-of-the-state-keeper"><a class="header" href="#part-5---the-role-of-the-state-keeper">Part 5 - The Role of the State Keeper</a></h2>
+<p>At this stage, the state keeper needs to collect all the messages generated by the VM execution and append them to the
+calldata it transmits to Ethereum.</p>
+<p>This process is divided into two steps:</p>
+<ul>
+<li>Retrieval of the ‘full’ messages</li>
+<li>Extraction of all the message hashes.</li>
+</ul>
+<p>Why are these steps kept separate?</p>
+<p>To avoid overwhelming our circuits with the content of entire messages, we relay them through Events, sending only their
+hash to the VM. In this manner, the VM only adds to the proof the information that a message with a specific hash was
+sent.</p>
+<h3 id="retrieving-full-message-contents"><a class="header" href="#retrieving-full-message-contents">Retrieving Full Message Contents</a></h3>
+<p>We go through all the Events generated during the run <a href="https://github.com/matter-labs/zksync-era/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/types/src/event.rs#L147">here</a> and identify those coming from the
+<code>L1_MESSENGER_ADDRESS</code> that corresponds to the <code>L1MessageSent</code> topic. These Events represent the ‘emit’ calls executed
+in Part 2.</p>
+<h3 id="retrieving-message-hashes"><a class="header" href="#retrieving-message-hashes">Retrieving Message Hashes</a></h3>
+<p>Message hashes are transmitted alongside the other <code>l2_to_l1_logs</code> within the <a href="https://github.com/matter-labs/zksync-era/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/vm/src/vm.rs#L81">VmExecutionResult</a>.</p>
+<p>The StateKeeper collects them from the <a href="https://github.com/matter-labs/era-zk_evm_abstractions/blob/15a2af404902d5f10352e3d1fac693cc395fcff9/src/queries.rs#L30C2-L30C2">LogQueries</a> that the VM creates (these log queries also contain
+information about storage writes, so we use the AUX_BYTE filter to determine which ones contain L1 messages. The entire
+list can be found <a href="https://github.com/matter-labs/era-zkevm_opcode_defs/blob/v1.3.2/src/system_params.rs#L37C39-L37C39">here</a>). The StateKeeper employs the VM’s EventSink to filter them out <a href="https://github.com/matter-labs/zksync-era/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/vm/src/event_sink.rs#L116">here</a>.</p>
+<h2 id="part-6---interaction-with-ethereum-l1"><a class="header" href="#part-6---interaction-with-ethereum-l1">Part 6 - Interaction with Ethereum (L1)</a></h2>
+<p>After the StateKeeper has collected all the required data, it invokes the <code>CommitBlocks</code> method from the
+<a href="https://github.com/matter-labs/era-contracts/blob/b04dcaf2256a9b2626eeaefbf1b281f0119d30ab/l1-contracts/contracts/state-transition/chain-deps/facets/Executor.sol#L21">Executor.sol</a> contract.</p>
+<p>Inside the <code>processL2Blocks</code> method, we iterate through the list of L2 message hashes, ensuring that the appropriate
+full text is present for each:</p>
+<pre><code class="language-solidity">// show preimage for hashed message stored in log
+if (logSender == L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR) {
+    (bytes32 hashedMessage, ) = UnsafeBytes.readBytes32(emittedL2Logs, i + 56);
+    // check that the full message body matches the hash.
+    require(keccak256(l2Messages[currentMessage]) == hashedMessage, "k2");
+</code></pre>
+<p>Currently, the executor is deployed on Ethereum mainnet at
+<a href="https://etherscan.io/address/0x389a081BCf20e5803288183b929F08458F1d863D">0x389a081BCf20e5803288183b929F08458F1d863D</a>.</p>
+<p>You can view an example of our contract execution from Part 1, carrying the message “My sample message”, in this Sepolia
+transaction: <a href="https://sepolia.etherscan.io/tx/0x18c2a113d18c53237a4056403047ff9fafbf772cb83ccd44bb5b607f8108a64c">0x18c2a113d18c53237a4056403047ff9fafbf772cb83ccd44bb5b607f8108a64c</a>.</p>
+<h2 id="part-7---verifying-message-inclusion"><a class="header" href="#part-7---verifying-message-inclusion">Part 7 - Verifying Message Inclusion</a></h2>
+<p>We’ve now arrived at the final stage — how L1 users and contracts can confirm a message’s presence in L1.</p>
+<p>This is accomplished through the <code>ProveL2MessageInclusion</code> function call in <a href="https://github.com/matter-labs/era-contracts/blob/b04dcaf2256a9b2626eeaefbf1b281f0119d30ab/l1-contracts/contracts/state-transition/chain-deps/facets/Mailbox.sol#L70">Mailbox.sol</a>.</p>
+<p>Users supply the proof (merkle path) and the message, and the contract verifies that the merkle path is accurate and
+matches the root hash.</p>
+<pre><code class="language-solidity">bytes32 calculatedRootHash = Merkle.calculateRoot(_proof, _index, hashedLog);
+bytes32 actualRootHash = s.l2LogsRootHashes[_blockNumber];
+
+return actualRootHash == calculatedRootHash;
+</code></pre>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<p>In this article, we’ve traveled through a vast array of topics: from a user contract dispatching a message to L1 by
+invoking a system contract, to this message’s hash making its way all the way to the VM via special opcodes. We’ve also
+explored how it’s ultimately included in the execution results (as part of QueryLogs), gathered by the State Keeper, and
+transmitted to L1 for final verification.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../guides/advanced/07_fee_model.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../guides/advanced/09_pubdata.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../guides/advanced/07_fee_model.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../guides/advanced/09_pubdata.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../ace.js"></script>
+        <script src="../../editor.js"></script>
+        <script src="../../mode-rust.js"></script>
+        <script src="../../theme-dawn.js"></script>
+        <script src="../../theme-tomorrow_night.js"></script>
+
+        <script src="../../elasticlunr.min.js"></script>
+        <script src="../../mark.min.js"></script>
+        <script src="../../searcher.js"></script>
+
+        <script src="../../clipboard.min.js"></script>
+        <script src="../../highlight.js"></script>
+        <script src="../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../js/version-box.js"></script>
+        <script src="../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>
