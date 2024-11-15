@@ -49,7 +49,7 @@ fn test_max_depth() {
 #[test]
 fn test_basic_behavior() {
     let bytecode = read_test_contract();
-    let address = Address::random();
+    let address = Address::repeat_byte(0xA5);
     let mut vm: VmTester<Vm<_, CallTracer>> = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_rich_accounts(1)
