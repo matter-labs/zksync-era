@@ -20,6 +20,7 @@ way.
 - [ZK intuition](./13_zk_intuition.md)
 - [ZK deeper overview](./14_zk_deeper_overview.md)
 - [Prover keys](./15_prover_keys.md)
+- [Decentralization](./16_decentralization.md)
 
 Additionally, there are a few articles that cover specific topics that may be useful for developers actively working on
 `zksync-era` repo:
