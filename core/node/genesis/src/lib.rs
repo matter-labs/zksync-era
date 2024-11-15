@@ -13,7 +13,9 @@ use zksync_contracts::{
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_eth_client::{CallFunctionArgs, EthInterface};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
-use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
+use zksync_multivm::{
+    circuit_sequencer_api_latest::boojum::pairing::hex, utils::get_max_gas_per_pubdata_byte,
+};
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     block::{BlockGasCount, DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader},
@@ -218,6 +220,14 @@ pub async fn insert_genesis_batch(
     )
     .await?;
     tracing::info!("chain_schema_genesis is complete");
+
+    for contract in genesis_params.system_contracts() {
+        println!(
+            "contract {}: {}",
+            hex::encode(contract.account_id.address()),
+            hex::encode(hash_bytecode(&contract.bytecode))
+        );
+    }
 
     let deduped_log_queries =
         get_deduped_log_queries(&get_storage_logs(genesis_params.system_contracts()));
