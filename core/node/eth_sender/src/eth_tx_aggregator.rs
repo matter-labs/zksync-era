@@ -142,8 +142,6 @@ impl EthTxAggregator {
             if let Err(err) = self.loop_iteration(&mut storage).await {
                 // Web3 API request failures can cause this,
                 // and anything more important is already properly reported.
-                self.health_updater
-                    .update(Health::from(HealthStatus::ShuttingDown));
                 tracing::warn!("eth_sender error {err:?}");
             }
 
