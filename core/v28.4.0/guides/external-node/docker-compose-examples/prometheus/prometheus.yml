@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 3s  # By default, scrape targets every 15 seconds.
+
+scrape_configs:
+  - job_name: 'external-node'
+    static_configs:
+      - targets: ['external-node:3322']
