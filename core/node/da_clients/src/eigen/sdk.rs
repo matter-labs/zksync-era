@@ -344,8 +344,8 @@ impl RawEigenClient {
                 is_retriable: false,
             });
         }
-        //TODO: remove zkgpad_rs
-        let data = kzgpad_rs::remove_empty_byte_from_padded_bytes(&get_response.data);
+
+        let data = remove_empty_byte_from_padded_bytes(&get_response.data);
         Ok(Some(data))
     }
 }
@@ -382,4 +382,57 @@ fn convert_by_padding_empty_byte(data: &[u8]) -> Vec<u8> {
 
     valid_data.truncate(valid_end);
     valid_data
+}
+
+#[cfg(test)]
+fn remove_empty_byte_from_padded_bytes(data: &[u8]) -> Vec<u8> {
+    let parse_size = DATA_CHUNK_SIZE;
+
+    // Calculate the number of chunks
+    let data_len = (data.len() + parse_size - 1) / parse_size;
+
+    // Pre-allocate `valid_data` with enough space for all chunks
+    let mut valid_data = vec![0u8; data_len * (DATA_CHUNK_SIZE - 1)];
+    let mut valid_end = data_len * (DATA_CHUNK_SIZE - 1);
+
+    for (i, chunk) in data.chunks(parse_size).enumerate() {
+        let offset = i * (DATA_CHUNK_SIZE - 1);
+
+        let copy_end = offset + chunk.len() - 1;
+        valid_data[offset..copy_end].copy_from_slice(&chunk[1..]);
+
+        if i == data_len - 1 && chunk.len() < parse_size {
+            valid_end = offset + chunk.len() - 1;
+        }
+    }
+
+    valid_data.truncate(valid_end);
+    valid_data
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_pad_and_unpad() {
+        let data = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let padded_data = super::convert_by_padding_empty_byte(&data);
+        let unpadded_data = super::remove_empty_byte_from_padded_bytes(&padded_data);
+        assert_eq!(data, unpadded_data);
+    }
+
+    #[test]
+    fn test_pad_and_unpad_large() {
+        let data = vec![1; 1000];
+        let padded_data = super::convert_by_padding_empty_byte(&data);
+        let unpadded_data = super::remove_empty_byte_from_padded_bytes(&padded_data);
+        assert_eq!(data, unpadded_data);
+    }
+
+    #[test]
+    fn test_pad_and_unpad_empty() {
+        let data = Vec::new();
+        let padded_data = super::convert_by_padding_empty_byte(&data);
+        let unpadded_data = super::remove_empty_byte_from_padded_bytes(&padded_data);
+        assert_eq!(data, unpadded_data);
+    }
 }

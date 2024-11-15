@@ -5452,14 +5452,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kzgpad-rs"
-version = "0.1.0"
-source = "git+https://github.com/Layr-Labs/kzgpad-rs.git?tag=v0.1.0#b5f8c8d3d6482407dc118cb1f51597a017a1cc89"
-dependencies = [
- "rand 0.8.5",
-]
-
-[[package]]
 name = "lalrpop"
 version = "0.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12173,7 +12165,6 @@ dependencies = [
  "hex",
  "http 1.1.0",
  "jsonrpsee 0.23.2",
- "kzgpad-rs",
  "num-bigint 0.4.6",
  "parity-scale-codec 3.6.12",
  "pbjson-types",

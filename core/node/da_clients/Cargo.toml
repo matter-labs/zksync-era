@@ -56,7 +56,6 @@ pbjson-types.workspace = true
 # Eigen dependencies
 tokio-stream.workspace = true
 rlp.workspace = true
-kzgpad-rs = { git = "https://github.com/Layr-Labs/kzgpad-rs.git", tag = "v0.1.0" }
 rand.workspace = true
 sha3.workspace = true
 tiny-keccak.workspace = true
