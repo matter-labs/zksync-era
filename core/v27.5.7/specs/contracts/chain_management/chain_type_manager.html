@@ -1,0 +1,292 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Chain type manager - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../../favicon.svg">
+        <link rel="shortcut icon" href="../../../favicon.png">
+        <link rel="stylesheet" href="../../../css/variables.css">
+        <link rel="stylesheet" href="../../../css/general.css">
+        <link rel="stylesheet" href="../../../css/chrome.css">
+        <link rel="stylesheet" href="../../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../../../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../../../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../../css/version-box.css">
+        <link rel="stylesheet" href="../../.././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/specs/contracts/chain_management/chain_type_manager.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <!--- WIP --->
+<h1 id="chain-type-manager-ctm"><a class="header" href="#chain-type-manager-ctm">Chain Type Manager (CTM)</a></h1>
+<blockquote>
+<p>If someone is already familiar with the <a href="https://github.com/code-423n4/2024-03-zksync">previous version</a> of ZKsync architecture, this contract was previously known as “State Transition Manager (STM)”.</p>
+</blockquote>
+<p>Currently bridging between different zk rollups requires the funds to pass through L1. This is slow &amp; expensive.</p>
+<p>The vision of seamless internet of value requires transfers of value to be <em>both</em> seamless and trustless. This means that for instance different chains need to share the same L1 liquidity, i.e. a transfer of funds should never touch L1 in the process. However, it requires some sort of trust between two chains. If a malicious (or broken) rollup becomes a part of the shared liquidity pool it can steal all the funds.</p>
+<p>However, can two instances of the same zk rollup trust each other? The answer is yes, because no new additions of rollups introduce new trust assumptions. Assuming there are no bugs in circuits, the system will work as intended.</p>
+<p>How can two rollups know that they are two different instances of the same system? We can create a factory of such contracts (and so we would know that each new rollup created by this instance is correct one). But just creating correct contracts is not enough. Ethereum changes, new bugs may be found in the original system &amp; so an instance that does not keep itself up-to-date with the upgrades may exploit some bug from the past and jeopardize the entire system. Just deploying is not enough. We need to constantly make sure that all chains are up to date and maintain whatever other invariants are needed for these chains to trust each other.</p>
+<p>Let’s define as <em>Chain Type Manager</em> (CTM) **as a contract that is responsible for the following:</p>
+<ul>
+<li>It serves as a factory to deploy new ZK chains.</li>
+<li>It is responsible for ensuring that all the chains deployed by it are up-to-date.</li>
+</ul>
+<p>Note, that this means that chains have a “weaker” governance. I.e. governance can only do very limited number of things, such as setting the validator. Chain admin can not set its own upgrades and it can only “execute” the upgrade that has already been prepared by the CTM.</p>
+<p>In the long term vision chains deployment will be permissionless, however CTM will always remain the main point of trust and will have to be explicitly whitelisted by the decentralized governance of the entire ecosystem before its chain can get the access to the shared liquidity.</p>
+<h2 id="configurability-in-the-current-release"><a class="header" href="#configurability-in-the-current-release">Configurability in the current release</a></h2>
+<p>For now, only one CTM will be supported — the one that deploys instances of ZKsync Era, possibly using other DA layers. To read more about different DA layers, check out [this document][TODO].</p>
+<p>The exact process of deploying &amp; registering a chain can be <a href="./chain_genesis.html">read here</a>. Overall, each chain in the current release will have the following parameters:</p>
+<div class="table-wrapper"><table><thead><tr><th>Chain parameter</th><th>Updatability</th><th>Comment</th></tr></thead><tbody>
+<tr><td>chainId</td><td>Permanent</td><td>Permanent identifier of the chain. Due to wallet support reasons, for now chainId has to be small (48 bits). This is one of the reasons why for now we’ll deploy chains manually, to prevent them from having the same chainId as some another popular chain. In the future it will be trustlessly assigned as a random 32-byte value.</td></tr>
+<tr><td>baseTokenAssetId</td><td>Permanent</td><td>Each chain can have their own custom base token (i.e. token used for paying the fees). It is set once during creation and can never be changed. Note, that we refer to and “asset id” here instead of an L1 address. To read more about what is assetId and how it works check out the document for <a href="../bridging/asset_router_and_ntv/asset_router.html">asset router</a></td></tr>
+<tr><td>chainTypeManager</td><td>Permanent</td><td>The CTM that deployed the chain. In principle, it could be possible to migrate between CTMs (assuming both CTMs support that). However, in practice it may be very hard and as of now such functionality is not supported.</td></tr>
+<tr><td>admin</td><td>By admin of chain</td><td>The admin of the chain. It has some limited powers to govern the chain. To read more about which powers are available to a chain admin and which precautions should be taken, check <a href="./admin_role.html">out this document</a></td></tr>
+<tr><td>validatorTimelock</td><td>CTM</td><td>For now, we want all the chains to use the same 3h timelock period before their batches are finalized. Only CTM can update the address that can submit state transitions to the rollup (that is, the validatorTimelock).</td></tr>
+<tr><td>validatorTimelock.validator</td><td>By admin of chain</td><td>The admin of chain can choose who can submit new batches to the ValidatorTimelock.</td></tr>
+<tr><td>priorityTx FeeParams</td><td>By admin of chain</td><td>The admin of a ZK chain can amend the priority transaction fee params.</td></tr>
+<tr><td>transactionFilterer</td><td>By admin of chain</td><td>A chain may put an additional filter to the incoming L1-&gt;L2 transactions. This may be needed by a permissioned chain (e.g. a Validium bank-like corporate chain).</td></tr>
+<tr><td>DA validation / permanent rollup status</td><td>By admin of chain</td><td>A chain can decide which DA layer to use. You check out more about <a href="./admin_role.html">safe DA management here</a></td></tr>
+<tr><td>executing upgrades</td><td>By admin of chain</td><td>While exclusively CTM governance can set the content of the upgrade, chains will typically be able to choose suitable time for them to actually execute it. In the current release, chains will have to follow our upgrades.</td></tr>
+<tr><td>settlement layer</td><td>By admin of chain</td><td>The admin of the chain can enact migrations to other settlement layers.</td></tr>
+</tbody></table>
+</div>
+<blockquote>
+<p>Note, that if we take a look at the access control for the corresponding functions inside the <a href="https://github.com/matter-labs/era-contracts/tree/8222265420f362c853da7160769620d9fed7f834/l1-contracts/contracts/state-transition/chain-deps/facets/Admin.sol">AdminFacet</a>, the may see that a lot of methods from above that are marked as “By admin of chain” could be in theory amended by the ChainTypeManager. However, this sort of action requires approval from decentralized governance. Also, in case of an urgent high risk situation, the decentralized governance might force upgrade the contract via CTM.</p>
+</blockquote>
+<h2 id="upgradability-in-the-current-release"><a class="header" href="#upgradability-in-the-current-release">Upgradability in the current release</a></h2>
+<p>In the current release, each chain will be an instance of ZKsync Era and so the upgrade process of each individual chain will be similar to that of ZKsync Era.</p>
+<ol>
+<li>
+<p>Firstly, the governance of the CTM will publish the server (including sequencer, prover, etc) that support the new version . This is done offchain. Enough time should be given to various zkStack devs to update their version.</p>
+</li>
+<li>
+<p>The governance of the CTM will publish the upgrade onchain by automatically executing the following three transactions:</p>
+<ul>
+<li><code>setChainCreationParams</code> ⇒ to ensure that new chains will be created with the version</li>
+<li><code>setValidatorTimelock</code> (if needed) ⇒ to ensure that the new chains will use the new validator timelock right-away</li>
+<li><code>setNewVersionUpgrade</code> ⇒ to save the upgrade information that each chain will need to follow to conduct the upgrade on their side.</li>
+</ul>
+</li>
+<li>
+<p>After that, each ChainAdmin can upgrade to the new version in suitable time for them.</p>
+</li>
+</ol>
+<blockquote>
+<p>Note, that while the governance does try to give the maximal possible time for chains to upgrade, the governance will typically put restrictions (aka deadlines) on the time by which the chain has to be upgraded. If the deadline is passed, the chain can not commit new batches until the upgrade is executed.</p>
+</blockquote>
+<h3 id="emergency-upgrade"><a class="header" href="#emergency-upgrade">Emergency upgrade</a></h3>
+<p>In case of an emergency, the <a href="https://blog.zknation.io/introducing-zk-nation/">security council</a> has the ability to freeze the ecosystem and conduct an emergency upgrade.</p>
+<p>In case we are aware that some of the committed batches on a chain are dangerous to be executed, the CTM can call <code>revertBatches</code> on that chain. For faster reaction, the admin of the ChainTypeManager has the ability to do so without waiting for govenrnace approval that may take a lot of time. This action does not lead to funds being lost, so it is considered suitable for the partially trusted role of the admin of the ChainTypeManager.</p>
+<h3 id="issues--caveats"><a class="header" href="#issues--caveats">Issues &amp; caveats</a></h3>
+<ul>
+<li>If an ZK chain skips an upgrade (i.e. it has version X, it did not upgrade to <code>X + 1</code> and now the latest protocol version is <code>X + 2</code> there is no built-in way to upgrade). This team will require manual intervention from us to upgrade.</li>
+<li>The approach of calling <code>revertBatches</code> for malicious chains is not scalable (O(N) of the number of chains). The situation is very rare, so it is fine in the short term, but not in the long run.</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../../specs/contracts/chain_management/bridgehub.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../../specs/contracts/chain_management/admin_role.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../../specs/contracts/chain_management/bridgehub.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../../specs/contracts/chain_management/admin_role.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../../ace.js"></script>
+        <script src="../../../editor.js"></script>
+        <script src="../../../mode-rust.js"></script>
+        <script src="../../../theme-dawn.js"></script>
+        <script src="../../../theme-tomorrow_night.js"></script>
+
+        <script src="../../../elasticlunr.min.js"></script>
+        <script src="../../../mark.min.js"></script>
+        <script src="../../../searcher.js"></script>
+
+        <script src="../../../clipboard.min.js"></script>
+        <script src="../../../highlight.js"></script>
+        <script src="../../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../../js/version-box.js"></script>
+        <script src="../../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>
