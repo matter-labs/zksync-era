@@ -59,6 +59,8 @@ impl GenesisExportReader {
         let factory_deps_count = usize::from_le_bytes(randreadn(&file, factory_deps_count_offset));
         let factory_deps_offset = factory_deps_count_offset + 8;
 
+        eprintln!("Genesis export reader: {initial_writes_count}, {storage_logs_count}, {factory_deps_count}");
+
         Self {
             file,
             initial_writes_count,
@@ -175,5 +177,37 @@ impl ExportItem for FactoryDepExport {
             bytecode_hash,
             bytecode,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_genesis_reader() {
+        let path = "/Users/jacob/Projects/zksync-era/core/bin/custom_genesis_export/g2.bin";
+        let reader = GenesisExportReader::new(File::open(path).unwrap());
+
+        let mut count_iw = 0;
+        for _ in reader.initial_writes() {
+            count_iw += 1;
+        }
+        println!("Initial writes: {count_iw}");
+        assert_eq!(count_iw, 53);
+
+        let mut count_sl = 0;
+        for _ in reader.storage_logs() {
+            count_sl += 1;
+        }
+        println!("Storage logs: {count_sl}");
+        assert_eq!(count_sl, 53);
+
+        let mut count_fd = 0;
+        for _ in reader.factory_deps() {
+            count_fd += 1;
+        }
+        println!("Factory dependencies: {count_fd}");
+        assert_eq!(count_fd, 26);
     }
 }

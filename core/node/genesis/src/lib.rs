@@ -98,6 +98,7 @@ impl GenesisParams {
     pub fn storage_logs(&self) -> Vec<StorageLog> {
         let mut storage_logs = get_storage_logs(&self.system_contracts);
         if let Some(ref e) = self.genesis_export_reader {
+            let len = storage_logs.len();
             // TODO: This loads all of the exported storage logs into memory at once.
             storage_logs.extend(e.storage_logs().map(|s| {
                 StorageLog::new_write_log(
@@ -105,6 +106,8 @@ impl GenesisParams {
                     s.value,
                 )
             }));
+
+            eprintln!("Extended storage logs by {}", storage_logs.len() - len);
         }
         storage_logs
     }
@@ -147,11 +150,13 @@ impl GenesisParams {
         if config.protocol_version.is_none() {
             return Err(GenesisError::MalformedConfig("protocol_version"));
         }
-        let genesis_export_reader = std::env::var("CUSTOM_GENESIS").ok().map(|path| {
-            GenesisExportReader::new(
+        eprintln!("About to load custom genesis if specified...");
+        let path = "/Users/jacob/Projects/zksync-era/core/bin/custom_genesis_export/g3.bin";
+        let genesis_export_reader = //std::env::var("CUSTOM_GENESIS").ok().map(|path| {
+            Some(GenesisExportReader::new(
                 File::open(path).expect("custom genesis file could not be opened"),
-            )
-        });
+            ));
+        //});
         Ok(GenesisParams {
             base_system_contracts,
             system_contracts,

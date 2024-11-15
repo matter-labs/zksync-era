@@ -83,6 +83,9 @@ async fn main() {
             .await
             .unwrap()
             .get(0);
+    out.write_all(&i64::to_le_bytes(count_storage_logs))
+        .unwrap();
+
     let mut storage_logs = sqlx::query_as::<_, StorageLogRow>(
         r#"
         select address, key, value
@@ -120,6 +123,9 @@ async fn main() {
         .await
         .unwrap()
         .get(0);
+    out.write_all(&i64::to_le_bytes(count_factory_deps))
+        .unwrap();
+
     let mut factory_deps =
         sqlx::query_as::<_, FactoryDepRow>("select bytecode_hash, bytecode from factory_deps;")
             .fetch(&mut conn_source);
