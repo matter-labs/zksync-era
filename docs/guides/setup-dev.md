@@ -22,7 +22,7 @@ cargo install sqlx-cli --version 0.8.1
 # Install Docker
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
 sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
-sudo apt install docker-ce
+sudo apt install --yes docker-ce
 
 # Optional: If you wish to run Docker commands without sudo, you can run this command.
 # Otherwise, just ignore this line and run all Docker commands with sudo.
