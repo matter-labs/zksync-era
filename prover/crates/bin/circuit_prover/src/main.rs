@@ -97,7 +97,7 @@ async fn main() -> anyhow::Result<()> {
         object_store.clone(),
         PROVER_PROTOCOL_SEMANTIC_VERSION,
         hints.clone(),
-        witness_vector_sender.clone(),
+        witness_vector_sender,
         cancellation_token.clone(),
     );
 
