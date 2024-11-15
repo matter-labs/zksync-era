@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 main() {
-   say "Setting up the development environment for ZKSync"
+   say "Setting up the development environment for ZKsync"
 
    # All necessary stuff
    say "Installing apt dependencies..."
@@ -42,8 +42,8 @@ main() {
    npm install -g yarn
    yarn set version 1.22.19
 
-   # Foundry ZK sync
-   say "Installing Foundry ZK Sync..."
+   # Foundry ZKsync
+   say "Installing Foundry ZKsync..."
    curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
 
    # ZK Stack CLI
@@ -57,10 +57,10 @@ main() {
    echo "export ZKSYNC_USE_CUDA_STUBS=true" >> "$HOME/.bashrc"
 
    # Clone the repo
-   say "Cloning the ZK Sync repository..."
+   say "Cloning the ZKsync repository..."
    git clone --recurse-submodules https://github.com/matter-labs/zksync-era.git
 
-   say "Installation of the development environment for ZKSync complete!"
+   say "Installation of the development environment for ZKsync complete!"
    say "Please reload your shell configuration by running 'source ~/.bashrc'"
 }
 

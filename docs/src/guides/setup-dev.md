@@ -151,7 +151,7 @@ If logging out does not resolve the issue, restarting the computer should.
 
 ### Foundry ZKsync
 
-ZKSync depends on Foundry ZKsync (which is is a specialized fork of Foundry, tailored for ZKsync). Please follow this
+ZKsync depends on Foundry ZKsync (which is is a specialized fork of Foundry, tailored for ZKsync). Please follow this
 [installation guide](https://foundry-book.zksync.io/getting-started/installation) to get started with Foundry ZKsync.
 
 Foundry ZKsync can also be used for deploying smart contracts. For commands related to deployment, you can pass flags
