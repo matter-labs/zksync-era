@@ -11258,13 +11258,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "serde",
  "tokio",
  "tracing",
  "vise",
  "zksync_config",
  "zksync_dal",
- "zksync_health_check",
  "zksync_shared_metrics",
  "zksync_types",
 ]

@@ -11,10 +11,8 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-serde.workspace = true
 vise.workspace = true
 zksync_dal.workspace = true
-zksync_health_check.workspace = true
 zksync_shared_metrics.workspace = true
 zksync_types.workspace = true
 zksync_config.workspace = true
