@@ -134,21 +134,42 @@ impl ContractVerifier {
         connection_pool: ConnectionPool<Core>,
         compiler_resolver: Arc<dyn CompilerResolver>,
     ) -> anyhow::Result<Self> {
-        let this = Self {
+        Self::sync_compiler_versions(compiler_resolver.as_ref(), &connection_pool).await?;
+        Ok(Self {
             compilation_timeout,
             contract_deployer: zksync_contracts::deployer_contract(),
             connection_pool,
             compiler_resolver,
-        };
-        this.sync_compiler_versions().await?;
-        Ok(this)
+        })
+    }
+
+    /// Returns a future that would periodically update the supported compiler versions
+    /// in the database.
+    pub fn sync_compiler_versions_task(
+        &self,
+    ) -> impl std::future::Future<Output = anyhow::Result<()>> {
+        const UPDATE_INTERVAL: Duration = Duration::from_secs(60 * 60); // 1 hour.
+
+        let resolver = self.compiler_resolver.clone();
+        let pool = self.connection_pool.clone();
+        async move {
+            loop {
+                tracing::info!("Updating compiler versions");
+                if let Err(err) = Self::sync_compiler_versions(resolver.as_ref(), &pool).await {
+                    tracing::error!("Failed to sync compiler versions: {:?}", err);
+                }
+                tokio::time::sleep(UPDATE_INTERVAL).await;
+            }
+        }
     }
 
     /// Synchronizes compiler versions.
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn sync_compiler_versions(&self) -> anyhow::Result<()> {
-        let supported_versions = self
-            .compiler_resolver
+    async fn sync_compiler_versions(
+        resolver: &dyn CompilerResolver,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let supported_versions = resolver
             .supported_versions()
             .await
             .context("cannot get supported compilers")?;
@@ -163,10 +184,7 @@ impl ContractVerifier {
             "persisting supported compiler versions"
         );
 
-        let mut storage = self
-            .connection_pool
-            .connection_tagged("contract_verifier")
-            .await?;
+        let mut storage = pool.connection_tagged("contract_verifier").await?;
         let mut transaction = storage.start_transaction().await?;
         transaction
             .contract_verification_dal()

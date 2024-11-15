@@ -1,7 +1,10 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context as _;
-use tokio::io::AsyncWriteExt as _;
+use tokio::{io::AsyncWriteExt as _, sync::RwLock};
 use zksync_queued_job_processor::async_trait;
 
 use self::gh_api::GitHubApi;
@@ -29,63 +32,99 @@ pub(crate) struct GitHubCompilerResolver {
     artifacts_dir: tempfile::TempDir,
     gh_client: GitHubApi,
     client: reqwest::Client,
+    supported_versions: RwLock<SupportedVersions>,
+}
+
+#[derive(Debug)]
+struct SupportedVersions {
     /// Holds versions for both upstream and zkVM solc.
     solc_versions: HashMap<String, reqwest::Url>,
     zksolc_versions: HashMap<String, reqwest::Url>,
     vyper_versions: HashMap<String, reqwest::Url>,
     zkvyper_versions: HashMap<String, reqwest::Url>,
+    last_updated: Instant,
+}
+
+impl Default for SupportedVersions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SupportedVersions {
+    // Note: We assume that contract verifier will run the task to update supported versions
+    // rarely, but we still want to protect ourselves from accidentally spamming GitHub API.
+    // So, this interval is smaller than the expected time between updates (this way we don't
+    // run into an issue where intervals are slightly out of sync, causing a delay in "real"
+    // update tim).
+    const CACHE_INTERVAL: Duration = Duration::from_secs(10 * 60); // 10 minutes
+
+    fn new() -> Self {
+        Self {
+            solc_versions: HashMap::new(),
+            zksolc_versions: HashMap::new(),
+            vyper_versions: HashMap::new(),
+            zkvyper_versions: HashMap::new(),
+            last_updated: Instant::now(),
+        }
+    }
+
+    fn is_outdated(&self) -> bool {
+        self.last_updated.elapsed() > Self::CACHE_INTERVAL
+    }
+
+    async fn update(&mut self, gh_client: &GitHubApi) -> anyhow::Result<()> {
+        self.solc_versions = gh_client
+            .solc_versions()
+            .await
+            .context("failed fetching solc versions")?;
+        self.zksolc_versions = gh_client
+            .zksolc_versions()
+            .await
+            .context("failed fetching zksolc versions")?;
+        self.vyper_versions = gh_client
+            .vyper_versions()
+            .await
+            .context("failed fetching vyper versions")?;
+        self.zkvyper_versions = gh_client
+            .zkvyper_versions()
+            .await
+            .context("failed fetching zkvyper versions")?;
+        self.last_updated = Instant::now();
+        Ok(())
+    }
+
+    async fn update_if_needed(&mut self, gh_client: &GitHubApi) -> anyhow::Result<()> {
+        if self.is_outdated() {
+            tracing::info!("GH compiler versions cache outdated, updating");
+            self.update(gh_client).await?;
+        }
+        Ok(())
+    }
 }
 
 impl GitHubCompilerResolver {
     pub async fn new() -> anyhow::Result<Self> {
         let artifacts_dir = tempfile::tempdir().context("failed creating temp dir")?;
         let gh_client = GitHubApi::new();
-
-        let mut self_ = Self {
-            artifacts_dir,
-            gh_client,
-            client: reqwest::Client::new(),
-            solc_versions: HashMap::new(),
-            zksolc_versions: HashMap::new(),
-            vyper_versions: HashMap::new(),
-            zkvyper_versions: HashMap::new(),
-        };
-        if let Err(err) = self_.sync_compiler_versions().await {
+        let mut supported_versions = SupportedVersions::default();
+        if let Err(err) = supported_versions.update(&gh_client).await {
             // We don't want the resolver to fail at creation if versions can't be fetched.
             // It shouldn't bring down the whole application, so the expectation here is that
             // the versions will be fetched later.
             tracing::error!("failed syncing compiler versions at start: {:?}", err);
         }
 
-        Ok(self_)
+        Ok(Self {
+            artifacts_dir,
+            gh_client,
+            client: reqwest::Client::new(),
+            supported_versions: RwLock::new(supported_versions),
+        })
     }
 }
 
 impl GitHubCompilerResolver {
-    async fn sync_compiler_versions(&mut self) -> anyhow::Result<()> {
-        self.solc_versions = self
-            .gh_client
-            .solc_versions()
-            .await
-            .context("failed fetching solc versions")?;
-        self.zksolc_versions = self
-            .gh_client
-            .zksolc_versions()
-            .await
-            .context("failed fetching zksolc versions")?;
-        self.vyper_versions = self
-            .gh_client
-            .vyper_versions()
-            .await
-            .context("failed fetching vyper versions")?;
-        self.zkvyper_versions = self
-            .gh_client
-            .zkvyper_versions()
-            .await
-            .context("failed fetching zkvyper versions")?;
-        Ok(())
-    }
-
     async fn download_version_if_needed(
         &self,
         compiler: CompilerType,
@@ -97,11 +136,12 @@ impl GitHubCompilerResolver {
         }
 
         tracing::info!("Downloading {}:{}", compiler.as_str(), version);
+        let lock = self.supported_versions.read().await;
         let versions = match compiler {
-            CompilerType::Solc => &self.solc_versions,
-            CompilerType::ZkSolc => &self.zksolc_versions,
-            CompilerType::Vyper => &self.vyper_versions,
-            CompilerType::ZkVyper => &self.zkvyper_versions,
+            CompilerType::Solc => &lock.solc_versions,
+            CompilerType::ZkSolc => &lock.zksolc_versions,
+            CompilerType::Vyper => &lock.vyper_versions,
+            CompilerType::ZkVyper => &lock.zkvyper_versions,
         };
 
         let version_url = versions
@@ -110,6 +150,7 @@ impl GitHubCompilerResolver {
                 ContractVerifierError::UnknownCompilerVersion("solc", version.to_owned())
             })?
             .clone();
+        drop(lock);
         let path = compiler.bin_path_unchecked(self.artifacts_dir.path(), version);
 
         let response = self.client.get(version_url).send().await?;
@@ -149,11 +190,14 @@ impl GitHubCompilerResolver {
 #[async_trait]
 impl CompilerResolver for GitHubCompilerResolver {
     async fn supported_versions(&self) -> anyhow::Result<SupportedCompilerVersions> {
+        let mut lock = self.supported_versions.write().await;
+        lock.update_if_needed(&self.gh_client).await?;
+
         let versions = SupportedCompilerVersions {
-            solc: self.solc_versions.keys().cloned().collect(),
-            zksolc: self.zksolc_versions.keys().cloned().collect(),
-            vyper: self.vyper_versions.keys().cloned().collect(),
-            zkvyper: self.zkvyper_versions.keys().cloned().collect(),
+            solc: lock.solc_versions.keys().cloned().collect(),
+            zksolc: lock.zksolc_versions.keys().cloned().collect(),
+            vyper: lock.vyper_versions.keys().cloned().collect(),
+            zkvyper: lock.zkvyper_versions.keys().cloned().collect(),
         };
         tracing::info!("GitHubResolver supported versions: {:?}", versions);
         Ok(versions)
