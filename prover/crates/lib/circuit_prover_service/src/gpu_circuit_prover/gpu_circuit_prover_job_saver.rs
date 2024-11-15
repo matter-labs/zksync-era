@@ -64,7 +64,7 @@ impl JobSaver for GpuCircuitProverJobSaver {
                     .await
                     .context("failed to get db connection")?;
 
-                let is_scheduler_proof = metadata.is_scheduler_proof();
+                let is_scheduler_proof = metadata.is_scheduler_proof()?;
 
                 let blob_url = self
                     .object_store

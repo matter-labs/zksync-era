@@ -23,14 +23,17 @@ pub struct FriProverJobMetadata {
 
 impl FriProverJobMetadata {
     /// Checks whether the metadata corresponds to a scheduler proof or not.
-    pub fn is_scheduler_proof(&self) -> bool {
+    pub fn is_scheduler_proof(&self) -> anyhow::Result<bool> {
         if self.aggregation_round == AggregationRound::Scheduler {
             if self.circuit_id != 1 {
-                panic!("Invalid circuit id {} for Scheduler proof", self.circuit_id);
+                return Err(anyhow::anyhow!(
+                    "Invalid circuit id {} for Scheduler proof",
+                    self.circuit_id
+                ));
             }
-            return true;
+            return Ok(true);
         }
-        false
+        Ok(false)
     }
 }
 
