@@ -1,0 +1,365 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Settlement Contracts - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../../favicon.svg">
+        <link rel="shortcut icon" href="../../../favicon.png">
+        <link rel="stylesheet" href="../../../css/variables.css">
+        <link rel="stylesheet" href="../../../css/general.css">
+        <link rel="stylesheet" href="../../../css/chrome.css">
+        <link rel="stylesheet" href="../../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../../../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../../../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../../css/version-box.css">
+        <link rel="stylesheet" href="../../.././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/specs/contracts/settlement_contracts/zkchain_basics.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <!--- WIP --->
+<h1 id="l1-smart-contract-of-an-individual-chain"><a class="header" href="#l1-smart-contract-of-an-individual-chain">L1 smart contract of an individual chain</a></h1>
+<h2 id="diamond-also-mentioned-as-state-transition-contract"><a class="header" href="#diamond-also-mentioned-as-state-transition-contract">Diamond (also mentioned as State Transition contract)</a></h2>
+<p>Technically, this L1 smart contract acts as a connector between Ethereum (L1) and ZK Chain (L2). It checks the
+validity proof and data availability, handles L2 &lt;-&gt; L1 communication, finalizes L2 state transition, and more.</p>
+<p>There are also important contracts deployed on the L2 that can also execute logic called <em>system contracts</em>. Using L2
+&lt;-&gt; L1 communication can affect both the L1 and the L2.</p>
+<p><img src="./img/Diamond-scheme.png" alt="diamondProxy.png" /></p>
+<h3 id="diamondproxy"><a class="header" href="#diamondproxy">DiamondProxy</a></h3>
+<p>The main contract uses <a href="https://eips.ethereum.org/EIPS/eip-2535">EIP-2535</a> diamond proxy pattern. It is an in-house
+implementation that is inspired by the <a href="https://github.com/mudgen/Diamond">mudgen reference implementation</a>. It has no
+external functions, only the fallback that delegates a call to one of the facets (target/implementation contract). So
+even an upgrade system is a separate facet that can be replaced.</p>
+<p>One of the differences from the reference implementation is access freezability. Each of the facets has an associated
+parameter that indicates if it is possible to freeze access to the facet. Privileged actors can freeze the <strong>diamond</strong>
+(not a specific facet!) and all facets with the marker <code>isFreezable</code> should be inaccessible until the governor or admin
+unfreezes the diamond. Note that it is a very dangerous thing since the diamond proxy can freeze the upgrade system and then
+the diamond will be frozen forever.</p>
+<p>The diamond proxy pattern is very flexible and extendable. For now, it allows splitting implementation contracts by their logical meaning, removes the limit of bytecode size per contract and implements security features such as freezing. In the future, it can also be viewed as <a href="https://eips.ethereum.org/EIPS/eip-6900">EIP-6900</a> for <a href="https://blog.matter-labs.io/introducing-the-zk-stack-c24240c2532a">zkStack</a>, where each ZK Chain can implement a sub-set of allowed implementation contracts.</p>
+<h3 id="gettersfacet"><a class="header" href="#gettersfacet">GettersFacet</a></h3>
+<p>Separate facet, whose only function is providing <code>view</code> and <code>pure</code> methods. It also implements
+<a href="https://eips.ethereum.org/EIPS/eip-2535#diamond-loupe">diamond loupe</a> which makes managing facets easier.
+This contract must never be frozen.</p>
+<h3 id="adminfacet"><a class="header" href="#adminfacet">AdminFacet</a></h3>
+<p>This facet responsible for the configuration setup and upgradability, handling tasks such as:</p>
+<ul>
+<li>Privileged Address Management: Updating key roles, including the governor and validators.</li>
+<li>System Parameter Configuration: Adjusting critical system settings, such as the L2 bootloader bytecode hash, verifier address, changing DA layer or fee configurations.</li>
+<li>Freezability: Executing the freezing/unfreezing of facets within the diamond proxy to safeguard the ecosystem during upgrades or in response to detected vulnerabilities.</li>
+</ul>
+<p>Control over the AdminFacet is divided between two main entities:</p>
+<ul>
+<li>Chain Type Manager - Separate smart contract that can perform critical changes to the system as protocol upgrades. For more detailed information on its function and design, refer to <a href="../chain_management/chain_type_manager.html">this document</a>. Although currently only one version of the CTM exists, the architecture allows for future versions to be introduced via subsequent upgrades. The owner of the CTM is the <a href="https://blog.zknation.io/introducing-zk-nation/">decentralized governance</a>, while for non-critical an Admin entity is used (see details below).</li>
+<li>Chain Admin - Multisig smart contract managed by each individual chain that can perform non-critical changes to the system such as granting validator permissions.</li>
+</ul>
+<h3 id="mailboxfacet"><a class="header" href="#mailboxfacet">MailboxFacet</a></h3>
+<p>The facet that handles L2 &lt;-&gt; L1 communication.</p>
+<p>The Mailbox performs three functions:</p>
+<ul>
+<li>L1 ↔ L2 Communication: Enables data and transaction requests to be sent from L1 to L2 and vice versa, supporting the implementation of multi-layer protocols.</li>
+<li>Bridging Native Tokens: Allows the bridging of either ether or ERC20 tokens to L2, enabling users to use these assets within the L2 ecosystem.</li>
+<li>Censorship Resistance Mechanism: Currently in the research stage.</li>
+</ul>
+<p>L1 -&gt; L2 communication is implemented as requesting an L2 transaction on L1 and executing it on L2. This means a user
+can call the function on the L1 contract to save the data about the transaction in some queue. Later on, a validator can
+process it on L2 and mark it as processed on the L1 priority queue. Currently, it is used for sending information from
+L1 to L2 or implementing multi-layer protocols. Users pays for the transaction execution in the native token when requests L1 -&gt; L2 transaction.</p>
+<p><em>NOTE</em>: While user requests the transaction from L1, the initiated transaction on L2 will have such a <code>msg.sender</code>:</p>
+<pre><code class="language-solidity">  address sender = msg.sender;
+  if (sender != tx.origin) {
+      sender = AddressAliasHelper.applyL1ToL2Alias(msg.sender);
+  }
+</code></pre>
+<p>where</p>
+<pre><code class="language-solidity">uint160 constant offset = uint160(0x1111000000000000000000000000000000001111);
+
+function applyL1ToL2Alias(address l1Address) internal pure returns (address l2Address) {
+  unchecked {
+    l2Address = address(uint160(l1Address) + offset);
+  }
+}
+</code></pre>
+<p>For most of the rollups the address aliasing needs to prevent cross-chain exploits that would otherwise be possible if
+we simply reused the same L1 addresses as the L2 sender. In ZKsync Era address derivation rule is different from the
+Ethereum, so cross-chain exploits are already impossible. However, ZKsync Era may add full EVM support in the future, so
+applying address aliasing leaves room for future EVM compatibility.</p>
+<p>The L1 -&gt; L2 communication is also used for bridging <strong>base tokens</strong>. If base token is ether (the case for ZKsync Era) - user should include a <code>msg.value</code> when initiating a
+transaction request on the L1 contract, if base token is an ERC20 then contract will spend users allowance. Before executing a transaction on L2, the specified address will be credited
+with the funds. To withdraw funds user should call <code>withdraw</code> function on the <code>L2BaseToken</code> system contracts. This will
+burn the funds on L2, allowing the user to reclaim them through the <code>finalizeWithdrawal</code> function on the
+<code>SharedBridge</code> (more in ZK Chain section).</p>
+<p>More about L1-&gt;L2 operations can be found <a href="./priority_queue/l1_l2_communication/l1_to_l2.html">here</a>.</p>
+<p>L2 -&gt; L1 communication, in contrast to L1 -&gt; L2 communication, is based only on transferring the information, and not on
+the transaction execution on L1. The full description of the mechanism for sending information from L2 to L1 can be found <a href="./data_availability/standard_pubdata_format.html">here</a>.</p>
+<p>The Mailbox facet also facilitates L1&lt;&gt;L2 communications for those chains that settle on top of Gateway. The user interfaces for those are identical to the L1&lt;&gt;L2 communication described above. To learn more about L1&lt;&gt;L2 communication works, check out <a href="../settlement_contracts/data_availability/custom_da.html">this document</a> and [this one][TODO].</p>
+<h3 id="executorfacet"><a class="header" href="#executorfacet">ExecutorFacet</a></h3>
+<p>A contract that accepts L2 batches, enforces data availability via DA validators and checks the validity of zk-proofs. You can read more about DA validators <a href="../settlement_contracts/data_availability/custom_da.html">in this document</a>.</p>
+<p>The state transition is divided into three stages:</p>
+<ul>
+<li><code>commitBatches</code> - check L2 batch timestamp, process the L2 logs, save data for a batch, and prepare data for zk-proof.</li>
+<li><code>proveBatches</code> - validate zk-proof.</li>
+<li><code>executeBatches</code> - finalize the state, marking L1 -&gt; L2 communication processing, and saving Merkle tree with L2 logs.</li>
+</ul>
+<p>Each L2 -&gt; L1 system log will have a key that is part of the following:</p>
+<pre><code class="language-solidity">enum SystemLogKey {
+  L2_TO_L1_LOGS_TREE_ROOT_KEY,
+  PACKED_BATCH_AND_L2_BLOCK_TIMESTAMP_KEY,
+  CHAINED_PRIORITY_TXN_HASH_KEY,
+  NUMBER_OF_LAYER_1_TXS_KEY,
+  PREV_BATCH_HASH_KEY,
+  L2_DA_VALIDATOR_OUTPUT_HASH_KEY,
+  USED_L2_DA_VALIDATOR_ADDRESS_KEY,
+  EXPECTED_SYSTEM_CONTRACT_UPGRADE_TX_HASH_KEY
+}
+</code></pre>
+<p>When a batch is committed, we process L2 -&gt; L1 system logs. Here are the invariants that are expected there:</p>
+<ul>
+<li>In a given batch there will be either 7 or 8 system logs. The 8th log is only required for a protocol upgrade.</li>
+<li>There will be a single log for each key that is contained within <code>SystemLogKey</code></li>
+<li>Three logs from the <code>L2_TO_L1_MESSENGER</code> with keys:</li>
+<li><code>L2_TO_L1_LOGS_TREE_ROOT_KEY</code></li>
+<li><code>L2_DA_VALIDATOR_OUTPUT_HASH_KEY</code></li>
+<li><code>USED_L2_DA_VALIDATOR_ADDRESS_KEY</code></li>
+<li>Two logs from <code>L2_SYSTEM_CONTEXT_SYSTEM_CONTRACT_ADDR</code> with keys:
+<ul>
+<li><code>PACKED_BATCH_AND_L2_BLOCK_TIMESTAMP_KEY</code></li>
+<li><code>PREV_BATCH_HASH_KEY</code></li>
+</ul>
+</li>
+<li>Two or three logs from <code>L2_BOOTLOADER_ADDRESS</code> with keys:
+<ul>
+<li><code>CHAINED_PRIORITY_TXN_HASH_KEY</code></li>
+<li><code>NUMBER_OF_LAYER_1_TXS_KEY</code></li>
+<li><code>EXPECTED_SYSTEM_CONTRACT_UPGRADE_TX_HASH_KEY</code></li>
+</ul>
+</li>
+<li>None logs from other addresses (may be changed in the future).</li>
+</ul>
+<h3 id="diamondinit"><a class="header" href="#diamondinit">DiamondInit</a></h3>
+<p>It is a one-function contract that implements the logic of initializing a diamond proxy. It is called only once on the
+diamond constructor and is not saved in the diamond as a facet.</p>
+<p>Implementation detail - function returns a magic value just like it is designed in
+<a href="https://eips.ethereum.org/EIPS/eip-1271">EIP-1271</a>, but the magic value is 32 bytes in size.</p>
+<h2 id="validatortimelock"><a class="header" href="#validatortimelock">ValidatorTimelock</a></h2>
+<p>An intermediate smart contract between the validator EOA account and the ZK chain diamond contract. Its primary purpose is
+to provide a trustless means of delaying batch execution without modifying the main ZKsync contract. ZKsync actively
+monitors the chain activity and reacts to any suspicious activity by freezing the chain. This allows time for
+investigation and mitigation before resuming normal operations.</p>
+<p>It is a temporary solution to prevent any significant impact of the validator hot key leakage, while the network is in
+the Alpha stage.</p>
+<p>This contract consists of four main functions <code>commitBatches</code>, <code>proveBatches</code>, <code>executeBatches</code>, and <code>revertBatches</code>, which can be called only by the validator.</p>
+<p>When the validator calls <code>commitBatches</code>, the same calldata will be propagated to the ZKsync contract (<code>DiamondProxy</code> through
+<code>call</code> where it invokes the <code>ExecutorFacet</code> through <code>delegatecall</code>), and also a timestamp is assigned to these batches to track
+the time these batches are committed by the validator to enforce a delay between committing and execution of batches. Then, the
+validator can prove the already committed batches regardless of the mentioned timestamp, and again the same calldata (related
+to the <code>proveBatches</code> function) will be propagated to the ZKsync contract. After the <code>delay</code> is elapsed, the validator
+is allowed to call <code>executeBatches</code> to propagate the same calldata to ZKsync contract.</p>
+<p>The owner of the ValidatorTimelock contract is the decentralized governance. Note, that all the chains share the same ValidatorTimelock for simplicity.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../../specs/contracts/bridging/asset_router_and_ntv/native_token_vault.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../../specs/contracts/settlement_contracts/priority_queue/index.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../../specs/contracts/bridging/asset_router_and_ntv/native_token_vault.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../../specs/contracts/settlement_contracts/priority_queue/index.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../../ace.js"></script>
+        <script src="../../../editor.js"></script>
+        <script src="../../../mode-rust.js"></script>
+        <script src="../../../theme-dawn.js"></script>
+        <script src="../../../theme-tomorrow_night.js"></script>
+
+        <script src="../../../elasticlunr.min.js"></script>
+        <script src="../../../mark.min.js"></script>
+        <script src="../../../searcher.js"></script>
+
+        <script src="../../../clipboard.min.js"></script>
+        <script src="../../../highlight.js"></script>
+        <script src="../../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../../js/version-box.js"></script>
+        <script src="../../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>
