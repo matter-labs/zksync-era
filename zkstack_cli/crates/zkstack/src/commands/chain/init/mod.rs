@@ -81,9 +81,9 @@ pub async fn init(
     // Initialize configs
     let init_configs_args = InitConfigsArgsFinal::from_chain_init_args(init_args);
     let mut contracts_config = init_configs(&init_configs_args, shell, chain_config).await?;
+    let wallets = WalletsConfig::read(shell, init_args.wallets_path.clone())?;
 
     // Fund some wallet addresses with ETH or base token (only for Localhost)
-    let wallets = WalletsConfig::read(shell, init_args.wallets_path.clone())?;
     distribute_eth(chain_config, init_args.l1_rpc_url.clone(), &wallets).await?;
     mint_base_token(chain_config, init_args.l1_rpc_url.clone(), &wallets).await?;
 
@@ -92,9 +92,9 @@ pub async fn init(
     register_chain(
         shell,
         init_args.forge_args.clone(),
-        ecosystem_config,
         chain_config,
         &mut contracts_config,
+        &wallets,
         init_args.l1_rpc_url.clone(),
         None,
         true,

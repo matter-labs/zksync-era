@@ -11,7 +11,7 @@ use config::{
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     zkstack_config::ZkStackConfig,
-    ChainConfig, ContractsConfig, EcosystemConfig,
+    ChainConfig, ContractsConfig, WalletsConfig,
 };
 use xshell::Shell;
 
@@ -29,6 +29,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let mut contracts = chain_config.get_contracts_config()?;
+    let wallets = chain_config.get_wallets_config()?;
     let secrets = chain_config.get_secrets_config()?;
     let l1_rpc_url = secrets
         .l1
@@ -40,9 +41,9 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     register_chain(
         shell,
         args,
-        &ecosystem_config,
         &chain_config,
         &mut contracts,
+        &wallets,
         l1_rpc_url,
         None,
         true,
@@ -58,9 +59,9 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 pub async fn register_chain(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
-    config: &EcosystemConfig,
     chain_config: &ChainConfig,
     contracts: &mut ContractsConfig,
+    wallets: &WalletsConfig,
     l1_rpc_url: String,
     sender: Option<String>,
     broadcast: bool,
@@ -82,7 +83,7 @@ pub async fn register_chain(
     if let Some(address) = sender {
         forge = forge.with_sender(address);
     } else {
-        forge = fill_forge_private_key(forge, Some(&config.get_wallets()?.governor))?;
+        forge = fill_forge_private_key(forge, Some(&wallets.governor))?;
         check_the_balance(&forge).await?;
     }
 

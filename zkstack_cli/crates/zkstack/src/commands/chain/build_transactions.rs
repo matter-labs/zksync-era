@@ -53,14 +53,15 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
     spinner.finish();
 
     let spinner = Spinner::new(MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER);
-    let governor: String = config.get_wallets()?.governor.address.encode_hex_upper();
+    let wallets = chain_config.get_wallets_config()?;
+    let governor: String = wallets.governor.address.encode_hex_upper();
 
     register_chain(
         shell,
         args.forge_args.clone(),
-        &config,
         &chain_config,
         &mut contracts_config,
+        &wallets,
         args.l1_rpc_url.clone(),
         Some(governor),
         false,
