@@ -13,7 +13,8 @@ sudo apt update
 sudo apt install --yes git build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates curl software-properties-common
 
 # Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
 # For running unit tests
 cargo install cargo-nextest --locked
 # SQL tools
@@ -21,38 +22,38 @@ cargo install sqlx-cli --version 0.8.1
 
 # Install Docker
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
+sudo add-apt-repository --yes "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
 sudo apt install --yes docker-ce
-
-# Optional: If you wish to run Docker commands without sudo, you can run this command.
-# Otherwise, just ignore this line and run all Docker commands with sudo.
-# After this command, you might need to re-connect (due to usermod change).
-sudo usermod -aG docker ${USER}
 
 # Start Docker
 sudo systemctl start docker
 
 # NVM
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 nvm install 20
 
 # Yarn
-npm install -g yarn | bash
+npm install -g yarn
 yarn set version 1.22.19
 
 # Foundry ZK sync
 curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
-foundryup-zksync
+./foundryup-zksync
 
 # Non CUDA (GPU) setup, can be skipped if the machine has a CUDA installed for provers
 # Don't do that if you intend to run provers on your machine. Check the prover docs for a setup instead.
-echo "export ZKSYNC_USE_CUDA_STUBS=true" >> ~/.bashrc
-source ~/.bashrc
+echo "export ZKSYNC_USE_CUDA_STUBS=true" >> "$HOME/.bashrc"
 
 # Clone the repo to the desired location
 git clone https://github.com/matter-labs/zksync-era.git
 cd zksync-era
 git submodule update --init --recursive
+
+# Reload shell
+exec bash
 ```
 
 Don't forget to look at [tips](#tips).
