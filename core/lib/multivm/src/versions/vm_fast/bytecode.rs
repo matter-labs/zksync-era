@@ -1,6 +1,5 @@
 use itertools::Itertools;
-use zksync_types::{h256_to_u256, H256};
-use zksync_utils::bytecode::hash_bytecode;
+use zksync_types::{bytecode::BytecodeHash, h256_to_u256, H256};
 
 use super::Vm;
 use crate::{
@@ -15,7 +14,7 @@ impl<S: ReadStorage, Tr> Vm<S, Tr> {
             .get_last_tx_compressed_bytecodes()
             .iter()
             .any(|info| {
-                let hash_bytecode = hash_bytecode(&info.original);
+                let hash_bytecode = BytecodeHash::for_bytecode(&info.original).value();
                 let is_bytecode_known = self.world.storage.is_bytecode_known(&hash_bytecode);
 
                 let is_bytecode_known_cache = self
@@ -36,7 +35,7 @@ pub(crate) fn compress_bytecodes(
         .enumerate()
         .sorted_by_key(|(_idx, dep)| *dep)
         .dedup_by(|x, y| x.1 == y.1)
-        .filter(|(_idx, dep)| !is_bytecode_known(hash_bytecode(dep)))
+        .filter(|(_idx, dep)| !is_bytecode_known(BytecodeHash::for_bytecode(dep).value()))
         .sorted_by_key(|(idx, _dep)| *idx)
         .filter_map(|(_idx, dep)| bytecode::compress(dep.clone()).ok())
         .collect()

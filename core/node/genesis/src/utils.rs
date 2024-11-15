@@ -5,11 +5,12 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_multivm::{
     circuit_sequencer_api_latest::sort_storage_access::sort_storage_access_queries,
-    zk_evm_latest::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp},
+    zk_evm_latest::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVmTimestamp},
 };
 use zksync_system_constants::{DEFAULT_ERA_CHAIN_ID, ETHEREUM_ADDRESS};
 use zksync_types::{
     block::{DeployedContract, L1BatchTreeData},
+    bytecode::BytecodeHash,
     commitment::L1BatchCommitment,
     get_code_key, get_known_code_key, get_system_context_init_logs, h256_to_u256,
     tokens::{TokenInfo, TokenMetadata},
@@ -17,7 +18,6 @@ use zksync_types::{
     zk_evm_types::{LogQuery, Timestamp},
     AccountTreeId, L1BatchNumber, L2BlockNumber, L2ChainId, StorageKey, StorageLog, H256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 use crate::GenesisError;
 
@@ -51,7 +51,7 @@ pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<Sto
     let known_code_storage_logs: Vec<_> = system_contracts
         .iter()
         .map(|contract| {
-            let hash = hash_bytecode(&contract.bytecode);
+            let hash = BytecodeHash::for_bytecode(&contract.bytecode).value();
             let known_code_key = get_known_code_key(&hash);
             let marked_known_value = H256::from_low_u64_be(1u64);
 
@@ -63,7 +63,7 @@ pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<Sto
     let storage_logs: Vec<_> = system_contracts
         .iter()
         .map(|contract| {
-            let hash = hash_bytecode(&contract.bytecode);
+            let hash = BytecodeHash::for_bytecode(&contract.bytecode).value();
             let code_key = get_code_key(contract.account_id.address());
             StorageLog::new_write_log(code_key, hash)
         })
@@ -84,7 +84,7 @@ pub(super) fn get_deduped_log_queries(storage_logs: &[StorageLog]) -> Vec<LogQue
             MultiVmLogQuery {
                 // Timestamp and `tx_number` in block don't matter.
                 // `sort_storage_access_queries` assumes that the queries are in chronological order.
-                timestamp: MultiVMTimestamp(0),
+                timestamp: MultiVmTimestamp(0),
                 tx_number_in_block: 0,
                 aux_byte: 0,
                 shard_id: 0,

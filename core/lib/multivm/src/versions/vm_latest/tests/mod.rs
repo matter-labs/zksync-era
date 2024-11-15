@@ -9,9 +9,9 @@ use zk_evm_1_5_0::{
     zkevm_opcode_defs::{ContractCodeSha256Format, VersionedHashLen32},
 };
 use zksync_types::{
-    h256_to_u256, writes::StateDiffRecord, StorageKey, StorageValue, Transaction, H256, U256,
+    bytecode::BytecodeHash, writes::StateDiffRecord, StorageKey, StorageValue, Transaction, H256,
+    U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use super::{HistoryEnabled, Vm};
@@ -91,7 +91,7 @@ impl TestedVm for TestedLatestVm {
             self.batch_env.clone(),
             VmExecutionMode::Batch,
             diffs,
-            crate::vm_latest::MultiVMSubversion::latest(),
+            crate::vm_latest::MultiVmSubversion::latest(),
             Some(pubdata_builder),
         );
         self.inspect_inner(
@@ -113,9 +113,9 @@ impl TestedVm for TestedLatestVm {
         let bytecodes = bytecodes
             .iter()
             .map(|&bytecode| {
-                let hash = hash_bytecode(bytecode);
+                let hash = BytecodeHash::for_bytecode(bytecode).value_u256();
                 let words = bytes_to_be_words(bytecode);
-                (h256_to_u256(hash), words)
+                (hash, words)
             })
             .collect();
         self.state

@@ -10,7 +10,7 @@ pub use zksync_vm_interface as interface;
 pub use crate::{
     glue::{
         history_mode::HistoryMode,
-        tracers::{MultiVMTracer, MultiVmTracerPointer},
+        tracers::{MultiVmTracer, MultiVmTracerPointer},
     },
     versions::{
         vm_1_3_2, vm_1_4_1, vm_1_4_2, vm_boojum_integration, vm_fast, vm_latest, vm_m5, vm_m6,

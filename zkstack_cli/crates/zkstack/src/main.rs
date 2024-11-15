@@ -15,7 +15,7 @@ use config::EcosystemConfig;
 use xshell::Shell;
 
 use crate::commands::{
-    args::RunServerArgs, chain::ChainCommands, consensus, ecosystem::EcosystemCommands,
+    args::ServerArgs, chain::ChainCommands, consensus, ecosystem::EcosystemCommands,
     explorer::ExplorerCommands, external_node::ExternalNodeCommands, prover::ProverCommands,
 };
 
@@ -57,7 +57,7 @@ pub enum ZkStackSubcommands {
     #[command(subcommand, alias = "p")]
     Prover(ProverCommands),
     /// Run server
-    Server(RunServerArgs),
+    Server(ServerArgs),
     /// External Node related commands
     #[command(subcommand, alias = "en")]
     ExternalNode(ExternalNodeCommands),
@@ -136,7 +136,7 @@ async fn run_subcommand(zkstack_args: ZkStack) -> anyhow::Result<()> {
         ZkStackSubcommands::Chain(args) => commands::chain::run(&shell, *args).await?,
         ZkStackSubcommands::Dev(args) => commands::dev::run(&shell, args).await?,
         ZkStackSubcommands::Prover(args) => commands::prover::run(&shell, args).await?,
-        ZkStackSubcommands::Server(args) => commands::server::run(&shell, args)?,
+        ZkStackSubcommands::Server(args) => commands::server::run(&shell, args).await?,
         ZkStackSubcommands::Containers(args) => commands::containers::run(&shell, args)?,
         ZkStackSubcommands::ExternalNode(args) => {
             commands::external_node::run(&shell, args).await?

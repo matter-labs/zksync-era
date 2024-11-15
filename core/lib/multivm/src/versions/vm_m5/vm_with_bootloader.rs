@@ -14,10 +14,9 @@ use zk_evm_1_3_1::{
 use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{
-    address_to_u256, fee_model::L1PeggedBatchFeeModelInput, h256_to_u256, Address, Transaction,
-    BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
+    address_to_u256, bytecode::BytecodeHash, fee_model::L1PeggedBatchFeeModelInput, h256_to_u256,
+    Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{
     interface::L1BatchEnv,
@@ -30,7 +29,7 @@ use crate::{
         utils::{
             code_page_candidate_from_base, heap_page_from_base, BLOCK_GAS_LIMIT, INITIAL_BASE_PAGE,
         },
-        vm_instance::{MultiVMSubversion, VmInstance, ZkSyncVmState},
+        vm_instance::{MultiVmSubversion, VmInstance, ZkSyncVmState},
         OracleTools,
     },
 };
@@ -222,7 +221,7 @@ impl Default for TxExecutionMode {
 }
 
 pub fn init_vm<S: Storage>(
-    refund_state: MultiVMSubversion,
+    refund_state: MultiVmSubversion,
     oracle_tools: OracleTools<false, S>,
     block_context: BlockContextMode,
     block_properties: BlockProperties,
@@ -241,7 +240,7 @@ pub fn init_vm<S: Storage>(
 }
 
 pub fn init_vm_with_gas_limit<S: Storage>(
-    refund_state: MultiVMSubversion,
+    refund_state: MultiVmSubversion,
     oracle_tools: OracleTools<false, S>,
     block_context: BlockContextMode,
     block_properties: BlockProperties,
@@ -338,7 +337,7 @@ impl BlockContextMode {
 // This method accepts a custom bootloader code.
 // It should be used only in tests.
 pub fn init_vm_inner<S: Storage>(
-    refund_state: MultiVMSubversion,
+    refund_state: MultiVmSubversion,
     mut oracle_tools: OracleTools<false, S>,
     block_context: BlockContextMode,
     block_properties: BlockProperties,
@@ -585,8 +584,7 @@ fn formal_calldata_abi() -> PrimitiveValue {
 }
 
 pub(crate) fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> (U256, Vec<U256>) {
-    let bytecode_hash = hash_bytecode(&bytecode);
-    let bytecode_hash = U256::from_big_endian(bytecode_hash.as_bytes());
+    let bytecode_hash = BytecodeHash::for_bytecode(&bytecode).value_u256();
     let bytecode_words = bytes_to_be_words(&bytecode);
     (bytecode_hash, bytecode_words)
 }
