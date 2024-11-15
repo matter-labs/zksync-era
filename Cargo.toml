@@ -219,6 +219,11 @@ pbjson-types = "0.6.0"
 
 # Eigen
 tokio-stream = "0.1.16"
+alloy = { version = "0.3", features = ["full"] }
+rust-kzg-bn254 = {git = "https://github.com/lambdaclass/rust-kzg-bn254", branch = "bump-ark"}
+ark-bn254 = "0.5.0-alpha.0"
+num-bigint = "0.4.6"
+serial_test = "3.1.1"
 
 # Here and below:
 # We *always* pin the latest version of protocol to disallow accidental changes in the execution logic.
