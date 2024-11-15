@@ -1,10 +1,9 @@
 use anyhow::Context as _;
-use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{
+    bytecode::BytecodeHash,
     ethabi,
     ethabi::{ParamType, Token},
-    h256_to_u256,
     transaction_request::TransactionRequest,
     web3, Address, H256, U256,
 };
@@ -357,7 +356,7 @@ impl Transaction {
                 // verify data integrity
                 let factory_deps_hashes: Vec<_> = factory_deps
                     .iter()
-                    .map(|b| h256_to_u256(hash_bytecode(b)))
+                    .map(|b| BytecodeHash::for_bytecode(b).value_u256())
                     .collect();
                 anyhow::ensure!(tx.factory_deps == factory_deps_hashes);
                 tx.hash()

@@ -13,13 +13,13 @@ use tokio::time;
 use zksync_dal::{contract_verification_dal::DeployedContractData, ConnectionPool, Core, CoreDal};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
+    bytecode::{trim_padded_evm_bytecode, BytecodeMarker},
     contract_verification_api::{
         self as api, CompilationArtifacts, VerificationIncomingRequest, VerificationInfo,
         VerificationRequest,
     },
     Address, CONTRACT_DEPLOYER_ADDRESS,
 };
-use zksync_utils::bytecode::{prepare_evm_bytecode, BytecodeMarker};
 
 use crate::{
     compilers::{Solc, VyperInput, ZkSolc},
@@ -230,7 +230,7 @@ impl ContractVerifier {
 
         let deployed_bytecode = match bytecode_marker {
             BytecodeMarker::EraVm => deployed_contract.bytecode.as_slice(),
-            BytecodeMarker::Evm => prepare_evm_bytecode(&deployed_contract.bytecode)
+            BytecodeMarker::Evm => trim_padded_evm_bytecode(&deployed_contract.bytecode)
                 .context("invalid stored EVM bytecode")?,
         };
 

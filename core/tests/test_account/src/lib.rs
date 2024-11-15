@@ -8,11 +8,10 @@ use zksync_system_constants::{
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
 use zksync_types::{
-    abi, address_to_u256, fee::Fee, h256_to_u256, l2::L2Tx, utils::deployed_address_create,
-    Address, Execute, K256PrivateKey, L2ChainId, Nonce, Transaction, H256,
-    PRIORITY_OPERATION_L2_TX_TYPE, U256,
+    abi, address_to_u256, bytecode::BytecodeHash, fee::Fee, l2::L2Tx,
+    utils::deployed_address_create, Address, Execute, K256PrivateKey, L2ChainId, Nonce,
+    Transaction, H256, PRIORITY_OPERATION_L2_TX_TYPE, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 pub const L1_TEST_GAS_PER_PUBDATA_BYTE: u32 = 800;
 const BASE_FEE: u64 = 2_000_000_000;
@@ -124,7 +123,7 @@ impl Account {
         let contract_function = deployer.function("create").unwrap();
 
         let calldata = calldata.map(ethabi::encode);
-        let code_hash = hash_bytecode(code);
+        let code_hash = BytecodeHash::for_bytecode(code).value();
         let params = [
             Token::FixedBytes(vec![0u8; 32]),
             Token::FixedBytes(code_hash.0.to_vec()),
@@ -185,7 +184,7 @@ impl Account {
                 signature: vec![],
                 factory_deps: factory_deps
                     .iter()
-                    .map(|b| h256_to_u256(hash_bytecode(b)))
+                    .map(|b| BytecodeHash::for_bytecode(b).value_u256())
                     .collect(),
                 paymaster_input: vec![],
                 reserved_dynamic: vec![],
