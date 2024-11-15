@@ -110,10 +110,8 @@ impl InitArgs {
 
         let wallets_path = ecosystem.map_or_else(
             || {
-                self.wallets_path.map_or_else(
-                    || Prompt::new(MSG_WALLETS_PATH_PROMPT).allow_empty().ask(),
-                    PathBuf::from,
-                )
+                self.wallets_path
+                    .map_or_else(|| Prompt::new(MSG_WALLETS_PATH_PROMPT).ask(), PathBuf::from)
             },
             |e| e.get_wallets_path(),
         );

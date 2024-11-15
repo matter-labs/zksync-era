@@ -83,9 +83,9 @@ pub async fn init(
     let mut contracts_config = init_configs(&init_configs_args, shell, chain_config).await?;
 
     // Fund some wallet addresses with ETH or base token (only for Localhost)
-    let wallets = WalletsConfig::read(shell, init_args.wallets_path.clone()).ok();
-    distribute_eth(chain_config, init_args.l1_rpc_url.clone(), wallets.clone()).await?;
-    mint_base_token(chain_config, init_args.l1_rpc_url.clone(), wallets).await?;
+    let wallets = WalletsConfig::read(shell, init_args.wallets_path.clone())?;
+    distribute_eth(chain_config, init_args.l1_rpc_url.clone(), &wallets).await?;
+    mint_base_token(chain_config, init_args.l1_rpc_url.clone(), &wallets).await?;
 
     // Register chain on BridgeHub (run by L1 Governor)
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
