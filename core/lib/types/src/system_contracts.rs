@@ -216,7 +216,7 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 33] = [
     (
         "../../../l1-contracts/artifacts-zk/contracts/bridgehub/",
         "InteropAccount",
-        INTEROP_ACCOUNT_ADDRESS, // kl todo this is temporary
+        INTEROP_ACCOUNT_ADDRESS,
         ContractLanguage::Sol,
     ),
 ];

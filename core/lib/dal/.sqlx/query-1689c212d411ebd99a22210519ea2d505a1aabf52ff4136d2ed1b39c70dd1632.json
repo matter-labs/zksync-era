@@ -182,11 +182,6 @@
         "ordinal": 35,
         "name": "upgrade_id",
         "type_info": "Int4"
-      },
-      {
-        "ordinal": 36,
-        "name": "merkle_proof",
-        "type_info": "Bytea"
       }
     ],
     "parameters": {
@@ -226,7 +221,6 @@
       true,
       true,
       false,
-      true,
       true,
       true,
       true
