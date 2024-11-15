@@ -88,7 +88,12 @@ pub fn get_ecosystem_contracts_path(
 
     let ecosystem_contracts_path = ecosystem_contracts_path.map_or_else(
         || prompt_ecosystem_contracts_path(),
-        |path| Some(PathBuf::from(path)),
+        |path| {
+            if path.is_empty() {
+                return None;
+            }
+            Some(PathBuf::from(path))
+        },
     );
 
     if ecosystem_contracts_path.is_none() && !ecosystem_preexisting_configs_path.exists() {

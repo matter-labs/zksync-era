@@ -90,9 +90,14 @@ impl InitArgs {
         };
 
         let ecosystem_contracts_path = if self.dev {
-            ecosystem.map_or_else(
-                || chain.get_preexisting_ecosystem_contracts_path(),
-                |e| e.get_preexisting_ecosystem_contracts_path(),
+            self.ecosystem_contracts_path.map_or_else(
+                || {
+                    ecosystem.map_or_else(
+                        || chain.get_preexisting_ecosystem_contracts_path(),
+                        |e| e.get_contracts_path(),
+                    )
+                },
+                |path| PathBuf::from(path),
             )
         } else {
             get_ecosystem_contracts_path(self.ecosystem_contracts_path, ecosystem, chain)?

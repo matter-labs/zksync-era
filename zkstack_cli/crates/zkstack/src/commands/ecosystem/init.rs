@@ -350,6 +350,10 @@ async fn init_chains(
     }
     let ecosystem_contracts_path =
         Some(ecosystem_config.get_contracts_path().display().to_string());
+    logger::debug(format!(
+        "Ecosystem contracts path: {:?}",
+        ecosystem_contracts_path
+    ));
     // Initialize chains
     for chain_name in &list_of_chains {
         logger::info(msg_initializing_chain(chain_name));
