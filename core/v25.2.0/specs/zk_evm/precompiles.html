@@ -1,0 +1,463 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Precompiles - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../favicon.svg">
+        <link rel="shortcut icon" href="../../favicon.png">
+        <link rel="stylesheet" href="../../css/variables.css">
+        <link rel="stylesheet" href="../../css/general.css">
+        <link rel="stylesheet" href="../../css/chrome.css">
+        <link rel="stylesheet" href="../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../../highlight.css">
+        <link rel="stylesheet" href="../../tomorrow-night.css">
+        <link rel="stylesheet" href="../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../css/version-box.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/specs/zk_evm/precompiles.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="precompiles"><a class="header" href="#precompiles">Precompiles</a></h1>
+<p>Precompiled contracts for elliptic curve operations are required in order to perform zkSNARK verification.</p>
+<p>The operations that you need to be able to perform are elliptic curve point addition, elliptic curve point scalar
+multiplication, and elliptic curve pairing.</p>
+<p>This document explains the precompiles responsible for elliptic curve point addition and scalar multiplication and the
+design decisions. You can read the specification <a href="https://eips.ethereum.org/EIPS/eip-196">here</a>.</p>
+<h2 id="introduction"><a class="header" href="#introduction">Introduction</a></h2>
+<p>On top of having a set of opcodes to choose from, the EVM also offers a set of more advanced functionalities through
+precompiled contracts. These are a special kind of contracts that are bundled with the EVM at fixed addresses and can be
+called with a determined gas cost. The addresses start from 1, and increment for each contract. New hard forks may
+introduce new precompiled contracts. They are called from the opcodes like regular contracts, with instructions like
+CALL. The gas cost mentioned here is purely the cost of the contract and does not consider the cost of the call itself
+nor the instructions to put the parameters in memory.</p>
+<p>For Go-Ethereum, the code being run is written in Go, and the gas costs are defined in each precompile spec.</p>
+<p>In the case of ZKsync Era, ecAdd and ecMul precompiles are written as a smart contract for two reasons:</p>
+<ul>
+<li>zkEVM needs to be able to prove their execution (and at the moment it cannot do that if the code being run is executed
+outside the VM)</li>
+<li>Writing custom circuits for Elliptic curve operations is hard, and time-consuming, and after all such code is harder
+to maintain and audit.</li>
+</ul>
+<h2 id="field-arithmetic"><a class="header" href="#field-arithmetic">Field Arithmetic</a></h2>
+<p>The BN254 (also known as alt-BN128) is an elliptic curve defined by the equation $y^2 = x^3 + 3$ over the finite field
+$\mathbb{F}_p$, being $p = 218882428718392752222464057452572750886963111572978236626890378946452262$08583. The modulus
+is less than 256 bits, which is why every element in the field is represented as a <code>uint256</code>.</p>
+<p>The arithmetic is carried out with the field elements encoded in the Montgomery form. This is done not only because
+operating in the Montgomery form speeds up the computation but also because the native modular multiplication, which is
+carried out by Yul’s <code>mulmod</code> opcode, is very inefficient.</p>
+<p>Instructions set on ZKsync and EVM are different, so the performance of the same Yul/Solidity code can be efficient on
+EVM, but not on zkEVM and opposite.</p>
+<p>One such very inefficient command is <code>mulmod</code>. On EVM there is a native opcode that makes modulo multiplication and it
+costs only 8 gas, which compared to the other opcodes costs is only 2-3 times more expensive. On zkEVM we don’t have
+native <code>mulmod</code> opcode, instead, the compiler does full-with multiplication (e.g. it multiplies two <code>uint256</code>s and gets
+as a result an <code>uint512</code>). Then the compiler performs long division for reduction (but only the remainder is kept), in
+the generic form it is an expensive operation and costs many opcode executions, which can’t be compared to the cost of
+one opcode execution. The worst thing is that <code>mulmod</code> is used a lot for the modulo inversion, so optimizing this one
+opcode gives a huge benefit to the precompiles.</p>
+<h3 id="multiplication"><a class="header" href="#multiplication">Multiplication</a></h3>
+<p>As said before, multiplication was carried out by implementing the Montgomery reduction, which works with general moduli
+and provides a significant speedup compared to the naïve approach.</p>
+<p>The squaring operation is obtained by multiplying a number by itself. However, this operation can have an additional
+speedup by implementing the SOS Montgomery squaring.</p>
+<h3 id="inversion"><a class="header" href="#inversion">Inversion</a></h3>
+<p>Inversion was performed using the extended binary Euclidean algorithm (also known as extended binary greatest common
+divisor). This algorithm is a modification of Algorithm 3 <code>MontInvbEEA</code> from
+<a href="https://cetinkayakoc.net/docs/j82.pdf">Montgomery inversion</a>.</p>
+<h3 id="exponentiation"><a class="header" href="#exponentiation">Exponentiation</a></h3>
+<p>The exponentiation was carried out using the square and multiply algorithm, which is a standard technique for this
+operation.</p>
+<h2 id="montgomery-form"><a class="header" href="#montgomery-form">Montgomery Form</a></h2>
+<p>Let’s take a number <code>R</code>, such that <code>gcd(N, R) == 1</code> and <code>R</code> is a number by which we can efficiently divide and take
+module over it (for example power of two or better machine word, aka 2^256). Then transform every number to the form of
+<code>x * R mod N</code> / <code>y * R mod N</code> and then we get efficient modulo addition and multiplication. The only thing is that
+before working with numbers we need to transform them to the form from <code>x mod N</code> to the <code>x * R mod N</code> and after
+performing operations transform the form back.</p>
+<p>For the latter, we will assume that <code>N</code> is the module that we use in computations, and <code>R</code> is $2^{256}$, since we can
+efficiently divide and take module over this number and it practically satisfies the property of <code>gcd(N, R) == 1</code>.</p>
+<h3 id="montgomery-reduction-algorithm-redc"><a class="header" href="#montgomery-reduction-algorithm-redc">Montgomery Reduction Algorithm (REDC)</a></h3>
+<blockquote>
+<p>Reference: <a href="https://en.wikipedia.org/wiki/Montgomery_modular_multiplication#The_REDC_algorithm">https://en.wikipedia.org/wiki/Montgomery_modular_multiplication#The_REDC_algorithm</a></p>
+</blockquote>
+<pre><code class="language-solidity">/// @notice Implementation of the Montgomery reduction algorithm (a.k.a. REDC).
+/// @dev See &lt;https://en.wikipedia.org/wiki/Montgomery_modular_multiplication#The_REDC_algorithm&gt;
+/// @param lowestHalfOfT The lowest half of the value T.
+/// @param higherHalfOfT The higher half of the value T.
+/// @return S The result of the Montgomery reduction.
+function REDC(lowestHalfOfT, higherHalfOfT) -&gt; S {
+    let q := mul(lowestHalfOfT, N_PRIME())
+    let aHi := add(higherHalfOfT, getHighestHalfOfMultiplication(q, P()))
+    let aLo, overflowed := overflowingAdd(lowestHalfOfT, mul(q, P()))
+    if overflowed {
+        aHi := add(aHi, 1)
+    }
+    S := aHi
+    if iszero(lt(aHi, P())) {
+        S := sub(aHi, P())
+    }
+}
+
+</code></pre>
+<p>By choosing $R = 2^{256}$ we avoided 2 modulo operations and one division from the original algorithm. This is because
+in Yul, native numbers are uint256 and the modulo operation is native, but for the division, as we work with a 512-bit
+number split into two parts (high and low part) dividing by $R$ means shifting 256 bits to the right or what is the
+same, discarding the low part.</p>
+<h3 id="montgomery-additionsubtraction"><a class="header" href="#montgomery-additionsubtraction">Montgomery Addition/Subtraction</a></h3>
+<p>Addition and subtraction in Montgomery form are the same as ordinary modular addition and subtraction because of the
+distributive law</p>
+<p>$$
+\begin{align*}
+aR+bR=(a+b)R,\
+aR-bR=(a-b)R.
+\end{align*}
+$$</p>
+<pre><code class="language-solidity">/// @notice Computes the Montgomery addition.
+/// @dev See &lt;https://en.wikipedia.org/wiki/Montgomery_modular_multiplication#The_The_REDC_algorithm&gt; for further details on the Montgomery multiplication.
+/// @param augend The augend in Montgomery form.
+/// @param addend The addend in Montgomery form.
+/// @return ret The result of the Montgomery addition.
+function montgomeryAdd(augend, addend) -&gt; ret {
+    ret := add(augend, addend)
+    if iszero(lt(ret, P())) {
+        ret := sub(ret, P())
+    }
+}
+
+/// @notice Computes the Montgomery subtraction.
+/// @dev See &lt;https://en.wikipedia.org/wiki/Montgomery_modular_multiplication#The_The_REDC_algorithm&gt; for further details on the Montgomery multiplication.
+/// @param minuend The minuend in Montgomery form.
+/// @param subtrahend The subtrahend in Montgomery form.
+/// @return ret The result of the Montgomery addition.
+function montgomerySub(minuend, subtrahend) -&gt; ret {
+    ret := montgomeryAdd(minuend, sub(P(), subtrahend))
+}
+
+</code></pre>
+<p>We do not use <code>addmod</code>. That’s because in most cases the sum does not exceed the modulus.</p>
+<h3 id="montgomery-multiplication"><a class="header" href="#montgomery-multiplication">Montgomery Multiplication</a></h3>
+<p>The product of $aR \mod N$ and $bR \mod N$ is $REDC((aR \mod N)(bR \mod N))$.</p>
+<pre><code class="language-solidity">/// @notice Computes the Montgomery multiplication using the Montgomery reduction algorithm (REDC).
+/// @dev See &lt;https://en.wikipedia.org/wiki/Montgomery_modular_multiplication#The_The_REDC_algorithm&gt; for further details on the Montgomery multiplication.
+/// @param multiplicand The multiplicand in Montgomery form.
+/// @param multiplier The multiplier in Montgomery form.
+/// @return ret The result of the Montgomery multiplication.
+function montgomeryMul(multiplicand, multiplier) -&gt; ret {
+    let hi := getHighestHalfOfMultiplication(multiplicand, multiplier)
+    let lo := mul(multiplicand, multiplier)
+    ret := REDC(lo, hi)
+}
+
+</code></pre>
+<h3 id="montgomery-inversion"><a class="header" href="#montgomery-inversion">Montgomery Inversion</a></h3>
+<pre><code class="language-solidity">/// @notice Computes the Montgomery modular inverse skipping the Montgomery reduction step.
+/// @dev The Montgomery reduction step is skipped because a modification in the binary extended Euclidean algorithm is used to compute the modular inverse.
+/// @dev See the function `binaryExtendedEuclideanAlgorithm` for further details.
+/// @param a The field element in Montgomery form to compute the modular inverse of.
+/// @return invmod The result of the Montgomery modular inverse (in Montgomery form).
+function montgomeryModularInverse(a) -&gt; invmod {
+    invmod := binaryExtendedEuclideanAlgorithm(a)
+}
+</code></pre>
+<p>As said before, we use a modified version of the bEE algorithm that lets us “skip” the Montgomery reduction step.</p>
+<p>The regular algorithm would be $REDC((aR \mod N)^{−1}(R^3 \mod N))$ which involves a regular inversion plus a
+multiplication by a value that can be precomputed.</p>
+<h2 id="ecadd"><a class="header" href="#ecadd">ECADD</a></h2>
+<p>Precompile for computing elliptic curve point addition. The points are represented in affine form, given by a pair of
+coordinates $(x,y)$.</p>
+<p>Affine coordinates are the conventional way of expressing elliptic curve points, which use 2 coordinates. The math is
+concise and easy to follow.</p>
+<p>For a pair of constants $a$ and $b$, an elliptic curve is defined by the set of all points $(x,y)$ that satisfy the
+equation $y^2=x^3+ax+b$, plus a special “point at infinity” named $O$.</p>
+<h3 id="point-doubling"><a class="header" href="#point-doubling">Point Doubling</a></h3>
+<p>To compute $2P$ (or $P+P$), there are three cases:</p>
+<ul>
+<li>If $P = O$, then $2P = O$.</li>
+<li>Else $P = (x, y)$
+<ul>
+<li>If $y = 0$, then $2P = O$.</li>
+<li>Else $y≠0$, then
+$$
+\begin{gather*} \lambda = \frac{3x_{p}^{2} + a}{2y_{p}} \ x_{r} = \lambda^{2} - 2x_{p} \ y_{r} = \lambda(x_{p} - x_{r}) - y_{p}\end{gather*}
+$$</li>
+</ul>
+</li>
+</ul>
+<p>The complicated case involves approximately 6 multiplications, 4 additions/subtractions, and 1 division. There could
+also be 4 multiplications, 6 additions/subtractions, and 1 division, and if you want you could trade a multiplication
+with 2 more additions.</p>
+<h3 id="point-addition"><a class="header" href="#point-addition">Point Addition</a></h3>
+<p>To compute $P + Q$ where $P \neq Q$, there are four cases:</p>
+<ul>
+<li>If $P = 0$ and $Q \neq 0$, then $P + Q = Q$.</li>
+<li>If $Q = 0$ and $P \neq 0$, then $P + Q = P$.</li>
+<li>Else $P = (x_{p},\ y_{p})$ and$Q = (x_{q},\ y_{q})$
+<ul>
+<li>If $x_{p} = x_{q}$ (and necessarily $y_{p} \neq y_{q}$), then $P + Q = O$.</li>
+<li>Else $x_{p} \neq x_{q}$, then
+$$
+\begin{gather*} \lambda = \frac{y_{2} - y_{1}}{x_{2} - x_{1}} \ x_{r} = \lambda^{2} - x_{p} - x_{q} \ y_{r} = \lambda(x_{p} - x_{r}) - y_{p}\end{gather*}
+$$
+and $P + Q = R = (x_{r},\ y_{r})$.</li>
+</ul>
+</li>
+</ul>
+<p>The complicated case involves approximately 2 multiplications, 6 additions/subtractions, and 1 division.</p>
+<h2 id="ecmul"><a class="header" href="#ecmul">ECMUL</a></h2>
+<p>Precompile for computing elliptic curve point scalar multiplication. The points are represented in homogeneous
+projective coordinates, given by the coordinates $(x , y , z)$. Transformation into affine coordinates can be done by
+applying the following transformation: $(x,y) = (X.Z^{-1} , Y.Z^{-1} )$ if the point is not the point at infinity.</p>
+<p>The key idea of projective coordinates is that instead of performing every division immediately, we defer the divisions
+by multiplying them into a denominator. The denominator is represented by a new coordinate. Only at the very end, do we
+perform a single division to convert from projective coordinates back to affine coordinates.</p>
+<p>In affine form, each elliptic curve point has 2 coordinates, like $(x,y)$. In the new projective form, each point will
+have 3 coordinates, like $(X,Y,Z)$, with the restriction that $Z$ is never zero. The forward mapping is given by
+$(x,y)→(xz,yz,z)$, for any non-zero $z$ (usually chosen to be 1 for convenience). The reverse mapping is given by
+$(X,Y,Z)→(X/Z,Y/Z)$, as long as $Z$ is non-zero.</p>
+<h3 id="point-doubling-1"><a class="header" href="#point-doubling-1">Point Doubling</a></h3>
+<p>The affine form case $y=0$ corresponds to the projective form case $Y/Z=0$. This is equivalent to $Y=0$, since $Z≠0$.</p>
+<p>For the interesting case where $P=(X,Y,Z)$ and $Y≠0$, let’s convert the affine arithmetic to projective arithmetic.</p>
+<p>After expanding and simplifying the equations
+(<a href="https://www.nayuki.io/page/elliptic-curve-point-addition-in-projective-coordinates">demonstration here</a>), the
+following substitutions come out</p>
+<p>$$
+\begin{align*} T &amp;= 3X^{2} + aZ^{2},\ U &amp;= 2YZ,\ V &amp;= 2UXY,\ W &amp;= T^{2} - 2V \end{align*}
+$$</p>
+<p>Using them, we can write</p>
+<p>$$
+\begin{align*} X_{r}  &amp;= UW \ Y_{r} &amp;= T(V−W)−2(UY)^{2} \ Z_{r} &amp;= U^{3} \end{align*}
+$$</p>
+<p>As we can see, the complicated case involves approximately 18 multiplications, 4 additions/subtractions, and 0
+divisions.</p>
+<h3 id="point-addition-1"><a class="header" href="#point-addition-1">Point Addition</a></h3>
+<p>The affine form case $x_{p} = x_{q}$ corresponds to the projective form case $X_{p}/Z_{p} = X_{q}/Z_{q}$. This is
+equivalent to $X_{p}Z_{q} = X_{q}Z_{p}$, via cross-multiplication.</p>
+<p>For the interesting case where $P = (X_{p},\ Y_{p},\ Z_{p})$ , $Q = (X_{q},\ Y_{q},\ Z_{q})$, and
+$X_{p}Z_{q} ≠ X_{q}Z_{p}$, let’s convert the affine arithmetic to projective arithmetic.</p>
+<p>After expanding and simplifying the equations
+(<a href="https://www.nayuki.io/page/elliptic-curve-point-addition-in-projective-coordinates">demonstration here</a>), the
+following substitutions come out</p>
+<p>$$
+\begin{align*}
+T_{0} &amp;= Y_{p}Z_{q}\
+T_{1} &amp;= Y_{q}Z_{p}\
+T &amp;= T_{0} - T_{1}\
+U_{0} &amp;= X_{p}Z_{q}\
+U_{1} &amp;= X_{q}Z_{p}\
+U &amp;= U_{0} - U_{1}\
+U_{2} &amp;= U^{2}\
+V &amp;= Z_{p}Z_{q}\
+W &amp;= T^{2}V−U_{2}(U_{0}+U_{1}) \
+\end{align*}
+$$</p>
+<p>Using them, we can write</p>
+<p>$$
+\begin{align*} X_{r}  &amp;= UW \ Y_{r} &amp;= T(U_{0}U_{2}−W)−T_{0}U^{3} \ Z_{r} &amp;= U^{3}V \end{align*}
+$$</p>
+<p>As we can see, the complicated case involves approximately 15 multiplications, 6 additions/subtractions, and 0
+divisions.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../specs/zk_evm/fee_model.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../specs/zk_evm/system_contracts.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../specs/zk_evm/fee_model.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../specs/zk_evm/system_contracts.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../ace.js"></script>
+        <script src="../../editor.js"></script>
+        <script src="../../mode-rust.js"></script>
+        <script src="../../theme-dawn.js"></script>
+        <script src="../../theme-tomorrow_night.js"></script>
+
+        <script src="../../elasticlunr.min.js"></script>
+        <script src="../../mark.min.js"></script>
+        <script src="../../searcher.js"></script>
+
+        <script src="../../clipboard.min.js"></script>
+        <script src="../../highlight.js"></script>
+        <script src="../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../js/version-box.js"></script>
+        <script src="../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>

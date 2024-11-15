@@ -1,0 +1,46 @@
+#version-box {
+    display: flex;
+    align-items: center;
+    margin-right: 15px; /* Space from the right side */
+    background-color: transparent; /* Make the box background transparent */
+}
+
+/* Base styles for the version selector */
+#version-selector {
+    background-color: transparent; /* Remove background color */
+    border: 1px solid #4a5568;     /* Subtle border */
+    border-radius: 4px;            /* Rounded edges */
+    padding: 5px 10px;             /* Padding inside dropdown */
+    font-size: 0.9em;
+    font-weight: normal;
+    outline: none;                 /* Removes default focus outline */
+    cursor: pointer;
+}
+
+/* Text color for dark themes */
+.theme-navy #version-selector,
+.theme-coal #version-selector {
+    color: #f7fafc; /* Light text color for dark backgrounds */
+}
+
+/* Text color for light theme */
+.theme-light #version-selector {
+    color: #333333; /* Dark text color for light background */
+}
+
+/* Hover effect for better user feedback */
+#version-selector:hover {
+    background-color: rgba(255, 255, 255, 0.1); /* Light hover effect */
+}
+
+/* Optional: Style for when the selector is focused */
+#version-selector:focus {
+    border-color: #63b3ed; /* Accent color for focused state */
+}
+
+.right-buttons {
+    display: flex;
+    flex-direction: row;     /* Aligns items in a row, left to right */
+    align-items: center;     /* Centers items vertically */
+    gap: 10px;               /* Adds space between items */
+}
