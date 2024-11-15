@@ -25,6 +25,7 @@ use crate::{
 };
 
 /// Convenience struct helping with building Witness Vector Generator runners.
+#[derive(Debug)]
 pub struct WvgRunnerBuilder {
     connection_pool: ConnectionPool<Prover>,
     object_store: Arc<dyn ObjectStore>,
