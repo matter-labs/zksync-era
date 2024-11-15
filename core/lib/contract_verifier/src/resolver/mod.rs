@@ -10,13 +10,12 @@ use tokio::fs;
 use zksync_queued_job_processor::async_trait;
 use zksync_types::contract_verification_api::CompilationArtifacts;
 
+pub(crate) use self::{env::EnvCompilerResolver, github::GitHubCompilerResolver};
 use crate::{
     compilers::{SolcInput, VyperInput, ZkSolcInput},
     error::ContractVerifierError,
     ZkCompilerVersions,
 };
-
-pub(crate) use self::{env::EnvCompilerResolver, github::GitHubCompilerResolver};
 
 mod env;
 mod github;
