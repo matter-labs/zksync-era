@@ -1,19 +1,21 @@
-# Installing dependencies
+# Installing development setup for ZKsync
 
 ## TL;DR
 
-This is a shorter version of setup guide to make it easier subsequent initializations. If it's the first time you're
+This is a shorter version of setup guide to make it easier for initializations. If it's the first time you're
 initializing the workspace, it's recommended that you read the whole guide below, as it provides more context and tips.
 
-If you run on 'clean' Ubuntu on GCP:
+Just run the following command on Linux:
 
 ```bash
-
+curl -L https://raw.githubusercontent.com/matter-labs/zksync-era/main/docs/src/guides/setup-dev.sh | bash
 ```
 
 Don't forget to look at [tips](#tips).
 
-## Supported operating systems
+## Installation guide
+
+### Supported operating systems
 
 ZKsync currently can be launched on any \*nix operating system (e.g. any linux distribution or macOS).
 
@@ -28,7 +30,80 @@ Rosetta may cause problems that are hard to spot and debug, so make sure to chec
 
 If you are a NixOS user or would like to have a reproducible environment, skip to the section about `nix`.
 
-## Docker
+### Basic packages
+
+Install the basic packages:
+
+On debian-based linux:
+
+```bash
+sudo apt install git build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates curl software-properties-common
+```
+
+On mac:
+
+```bash
+brew install git build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates curl software-properties-common
+```
+
+Note that in order to install `clang` on MacOS you need to have an up-to-date `Xcode`. You can install it directly from `App Store`.
+With `Xcode` command line tools, you get the Clang compiler installed by default. Thus, having `Xcode` you don't need to install `clang`.
+
+### Rust
+
+Install `Rust`'s toolchain version reported in `/rust-toolchain.toml` (also a later stable version should work).
+
+Instructions can be found on the [official site](https://www.rust-lang.org/tools/install).
+
+Verify the `rust` installation:
+
+```bash
+rustc --version
+rustc 1.xx.y (xxxxxx 20xx-yy-zz) # Output may vary depending on actual version of rust
+```
+
+If you are using macOS with ARM processor (e.g. M1/M2), make sure that you use an `aarch64` toolchain. For example, when
+you run `rustup show`, you should see a similar input:
+
+```bash
+rustup show
+Default host: aarch64-apple-darwin
+rustup home:  /Users/user/.rustup
+
+installed toolchains
+--------------------
+
+...
+
+active toolchain
+----------------
+
+1.67.1-aarch64-apple-darwin (overridden by '/Users/user/workspace/zksync-era/rust-toolchain')
+```
+
+If you see `x86_64` mentioned in the output, probably you're running (or used to run) your IDE/terminal in Rosetta. If
+that's the case, you should probably change the way you run terminal, and/or reinstall your IDE, and then reinstall the
+Rust toolchain as well.
+
+#### Cargo nextest
+
+[cargo-nextest](https://nexte.st/) is the next-generation test runner for Rust projects. `zkstack dev test rust` uses
+`cargo nextest` by default.
+
+```bash
+cargo install cargo-nextest --locked
+```
+
+#### SQLx CLI
+
+SQLx is a Rust library we use to interact with Postgres, and its CLI is used to manage DB migrations and support several
+features of the library.
+
+```bash
+cargo install sqlx-cli --version 0.8.1
+```
+
+### Docker
 
 Install `docker`. It is recommended to follow the instructions from the
 [official site](https://docs.docker.com/install/).
@@ -68,127 +143,13 @@ at this step.
 
 If logging out does not resolve the issue, restarting the computer should.
 
-## Node.js & Yarn
+### Node.js & Yarn
 
 1. Install `Node` (requires version `v20`). The recommended way is via [nvm](https://github.com/nvm-sh/nvm).
 2. Install `yarn`. Can be done via `npm install -g yarn`. Make sure to get version 1.22.19 - you can change the version
    by running `yarn set version 1.22.19`.
 
-## clang
-
-In order to compile RocksDB, you must have LLVM available. On debian-based linux it can be installed as follows:
-
-On debian-based linux:
-
-```bash
-sudo apt-get install build-essential pkg-config cmake clang lldb lld
-```
-
-On macOS:
-
-You need to have an up-to-date `Xcode`. You can install it directly from `App Store`. With Xcode command line tools, you
-get the Clang compiler installed by default. Thus, having XCode you don't need to install `clang`.
-
-## OpenSSL
-
-Install OpenSSL:
-
-On mac:
-
-```bash
-brew install openssl
-```
-
-On debian-based linux:
-
-```bash
-sudo apt-get install libssl-dev
-```
-
-## Rust
-
-Install `Rust`'s toolchain version reported in `/rust-toolchain.toml` (also a later stable version should work).
-
-Instructions can be found on the [official site](https://www.rust-lang.org/tools/install).
-
-Verify the `rust` installation:
-
-```bash
-rustc --version
-rustc 1.xx.y (xxxxxx 20xx-yy-zz) # Output may vary depending on actual version of rust
-```
-
-If you are using macOS with ARM processor (e.g. M1/M2), make sure that you use an `aarch64` toolchain. For example, when
-you run `rustup show`, you should see a similar input:
-
-```bash
-rustup show
-Default host: aarch64-apple-darwin
-rustup home:  /Users/user/.rustup
-
-installed toolchains
---------------------
-
-...
-
-active toolchain
-----------------
-
-1.67.1-aarch64-apple-darwin (overridden by '/Users/user/workspace/zksync-era/rust-toolchain')
-```
-
-If you see `x86_64` mentioned in the output, probably you're running (or used to run) your IDE/terminal in Rosetta. If
-that's the case, you should probably change the way you run terminal, and/or reinstall your IDE, and then reinstall the
-Rust toolchain as well.
-
-## PostgreSQL Client Library
-
-For development purposes, you typically only need the PostgreSQL client library, not the full server installation.
-Here's how to install it:
-
-On macOS:
-
-```bash
-brew install libpq
-```
-
-On Debian-based Linux:
-
-```bash
-sudo apt-get install libpq-dev
-```
-
-### Cargo nextest
-
-[cargo-nextest](https://nexte.st/) is the next-generation test runner for Rust projects. `zkstack dev test rust` uses
-`cargo nextest` by default.
-
-```bash
-cargo install cargo-nextest
-```
-
-### SQLx CLI
-
-SQLx is a Rust library we use to interact with Postgres, and its CLI is used to manage DB migrations and support several
-features of the library.
-
-```bash
-cargo install sqlx-cli --version 0.8.1
-```
-
-## Easier method using `nix`
-
-Nix is a tool that can fetch _exactly_ the right dependencies specified via hashes. The current config is Linux-only but
-it is likely that it can be adapted to Mac.
-
-Install `nix`. Enable the nix command and flakes.
-
-Install docker, rustup and use rust to install SQLx CLI like described above. If you are on NixOS, you also need to
-enable nix-ld.
-
-Go to the zksync folder and run `nix develop`. After it finishes, you are in a shell that has all the dependencies.
-
-## Foundry ZKsync
+### Foundry ZKsync
 
 ZKSync depends on Foundry ZKsync (which is is a specialized fork of Foundry, tailored for ZKsync). Please follow this
 [installation guide](https://foundry-book.zksync.io/getting-started/installation) to get started with Foundry ZKsync.
@@ -196,7 +157,12 @@ ZKSync depends on Foundry ZKsync (which is is a specialized fork of Foundry, tai
 Foundry ZKsync can also be used for deploying smart contracts. For commands related to deployment, you can pass flags
 for Foundry integration.
 
-## Non-GPU setup
+### ZK Stack CLI
+
+Toolkit for creating and managing ZK Stack chains. `ZK Stack CLI` facilitates the creation and management of ZK Stacks.
+Commands are interactive but can also accept arguments via the command line. Follow the installation instructions [here](https://github.com/matter-labs/zksync-era/tree/main/zkstack_cli#installation).
+
+### Non-GPU setup
 
 Circuit Prover requires a CUDA bindings to run. If you still want to be able to build everything locally on non-CUDA
 setup, you'll need use CUDA stubs.
@@ -220,6 +186,18 @@ RUSTFLAGS as env var, or pass it in `config.toml` (either project level or globa
 [build]
 rustflags = ["--cfg=no_cuda"]
 ```
+
+## Easier method using `nix`
+
+Nix is a tool that can fetch _exactly_ the right dependencies specified via hashes. The current config is Linux-only but
+it is likely that it can be adapted to Mac.
+
+Install `nix`. Enable the nix command and flakes.
+
+Install docker, rustup and use rust to install SQLx CLI like described above. If you are on NixOS, you also need to
+enable nix-ld.
+
+Go to the zksync folder and run `nix develop`. After it finishes, you are in a shell that has all the dependencies.
 
 ## Tips
 

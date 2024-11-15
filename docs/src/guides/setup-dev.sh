@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 main() {
    say "Setting up the development environment for ZKSync"
@@ -51,14 +51,14 @@ main() {
    curl -L https://raw.githubusercontent.com/matter-labs/zksync-era/main/zkstack_cli/zkstackup/install | bash
    "$HOME/.local/bin/zkstackup"
 
-   # Clone the repo
-   say "Cloning the ZK Sync repository..."
-   git clone --recurse-submodules https://github.com/matter-labs/zksync-era.git
-
    # Non CUDA (GPU) setup, can be skipped if the machine has a CUDA installed for provers
    # Don't do that if you intend to run provers on your machine. Check the prover docs for a setup instead.
    say "Setting up the non-CUDA setup..."
    echo "export ZKSYNC_USE_CUDA_STUBS=true" >> "$HOME/.bashrc"
+
+   # Clone the repo
+   say "Cloning the ZK Sync repository..."
+   git clone --recurse-submodules https://github.com/matter-labs/zksync-era.git
 
    say "Installation of the development environment for ZKSync complete!"
    say "Please reload your shell configuration by running 'source ~/.bashrc'"
