@@ -9,6 +9,7 @@ use config::{
 };
 use xshell::Shell;
 
+use super::containers::{initialize_docker, start_containers};
 use crate::{
     commands::{
         chain::create_chain_inner,
@@ -27,8 +28,6 @@ use crate::{
         MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_SELECTED_CONFIG, MSG_STARTING_CONTAINERS_SPINNER,
     },
 };
-
-use super::containers::{initialize_docker, start_containers};
 
 pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     match ZkStackConfig::ecosystem(shell) {

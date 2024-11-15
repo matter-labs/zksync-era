@@ -8,6 +8,7 @@ use config::{
 };
 use xshell::Shell;
 
+use super::args::containers::ContainersArgs;
 use crate::{
     commands::ecosystem::setup_observability,
     messages::{
@@ -16,8 +17,6 @@ use crate::{
         MSG_STARTING_DOCKER_CONTAINERS_SPINNER,
     },
 };
-
-use super::args::containers::ContainersArgs;
 
 pub async fn run(shell: &Shell, args: ContainersArgs) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
