@@ -100,7 +100,11 @@ impl InitArgs {
                 |path| PathBuf::from(path),
             )
         } else {
-            get_ecosystem_contracts_path(self.ecosystem_contracts_path, ecosystem, chain)?
+            if let Some(ecosystem) = ecosystem {
+                ecosystem.get_contracts_path()
+            } else {
+                get_ecosystem_contracts_path(self.ecosystem_contracts_path, ecosystem, chain)?
+            }
         };
 
         Ok(InitArgsFinal {
