@@ -1,0 +1,592 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Pubdata - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../../../favicon.svg">
+        <link rel="shortcut icon" href="../../../../favicon.png">
+        <link rel="stylesheet" href="../../../../css/variables.css">
+        <link rel="stylesheet" href="../../../../css/general.css">
+        <link rel="stylesheet" href="../../../../css/chrome.css">
+        <link rel="stylesheet" href="../../../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../../../../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../../../../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../../../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../../../css/version-box.css">
+        <link rel="stylesheet" href="../../../.././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/specs/contracts/settlement_contracts/data_availability/pubdata.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="handling-pubdata-in-boojum"><a class="header" href="#handling-pubdata-in-boojum">Handling pubdata in Boojum</a></h1>
+<p>Pubdata in ZKsync can be divided up into 4 different categories:</p>
+<ol>
+<li>L2 to L1 Logs</li>
+<li>L2 to L1 Messages</li>
+<li>Smart Contract Bytecodes</li>
+<li>Storage writes</li>
+</ol>
+<p>Using data corresponding to these 4 facets, across all executed batches, we’re able to reconstruct the full state of L2.
+With the upgrade to our new proof system, Boojum, the way this data is represented will change. At a high level, in the
+pre-Boojum system these are represented as separate fields while for boojum they will be packed into a single bytes
+array. Once 4844 gets integrated this bytes array will move from being part of the calldata to blob data.</p>
+<p>While the structure of the pubdata changes, the way in which one can go about pulling the information will remain the
+same. Basically, we just need to filter all of the transactions to the L1 ZKsync contract for only the <code>commitBatches</code>
+transactions where the proposed block has been referenced by a corresponding <code>executeBatches</code> call (the reason for this
+is that a committed or even proven block can be reverted but an executed one cannot). Once we have all the committed
+batches that have been executed, we then will pull the transaction input and the relevant fields, applying them in order
+to reconstruct the current state of L2.</p>
+<h2 id="l2l1-communication"><a class="header" href="#l2l1-communication">L2→L1 communication</a></h2>
+<h3 id="l2l1-communication-before-boojum"><a class="header" href="#l2l1-communication-before-boojum">L2→L1 communication before Boojum</a></h3>
+<p>While there were quite some changes during Boojum upgrade, most of the scheme remains the same and so explaining how it
+worked before gives some background on why certain decisions are made and kept for backward compatibility.</p>
+<p><a href="https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20pubdata%20in%20Boojum/L2%E2%86%92L1%20communication%20before%20Boojum.md">L2→L1 communication before Boojum</a></p>
+<p>The most important feature that we’ll need to maintain in Boojum for backward compatibility is to provide a similar
+Merkle tree of L2→L1 logs with the long L2→L1 messages and priority operations’ status.</p>
+<p>Before Boojum, whenever we sent an L2→L1 long message, a <em>log</em> was appended to the Merkle tree of L2→L1 messages on L1
+due to necessity. In Boojum we’ll have to maintain this fact. Having the priority operations’ statuses is important to
+enable
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/bridge/L1ERC20Bridge.sol#L255">proving</a>
+failed deposits for bridges.</p>
+<h3 id="changes-with-boojum"><a class="header" href="#changes-with-boojum">Changes with Boojum</a></h3>
+<h4 id="problems-with-the-previous-approach"><a class="header" href="#problems-with-the-previous-approach">Problems with the previous approach</a></h4>
+<ul>
+<li>There was a limit of 512 L2→L1 logs per batch, which is very limiting. It causes our block to be forcefully closed
+based on the number of these messages instead of having the pubdata as the only limit.</li>
+<li>In the ideal world, we would like to have the tree adapt to the requirements of the batch, with any number of leaves
+possible (in practice, a maximum of 2048 would likely be enough for the foreseeable future).</li>
+<li>Extending the tree in the circuits will be hard to do and hard to maintain.</li>
+<li>The hash of the contents of the L2→L1 messages needs to be rehashed to support the danksharding blobs, so we want to
+keep only the essential logs as parts of calldata and the rest should be separated so that they could be moved the
+EIP4844 blob in the future.</li>
+</ul>
+<h4 id="solution"><a class="header" href="#solution">Solution</a></h4>
+<p>We will implement the calculation of the Merkle root of the L2→L1 messages via a system contract as part of the
+<code>L1Messenger</code>. Basically, whenever a new log emitted by users that needs to be Merklized is created, the <code>L1Messenger</code>
+contract will append it to its rolling hash and then at the end of the batch, during the formation of the blob it will
+receive the original preimages from the operator, verify, and include the logs to the blob.</p>
+<p>We will now call the logs that are created by users and are Merklized <em>user</em> logs and the logs that are emitted by
+natively by VM <em>system</em> logs. Here is a short comparison table for better understanding:</p>
+<div class="table-wrapper"><table><thead><tr><th>System logs</th><th>User logs</th></tr></thead><tbody>
+<tr><td>Emitted by VM via an opcode.</td><td>VM knows nothing about them.</td></tr>
+<tr><td>Consistency and correctness is enforced by the verifier on L1 (i.e. their hash is part of the block commitment.</td><td>Consistency and correctness is enforced by the L1Messenger system contract. The correctness of the behavior of the L1Messenger is enforced implicitly by prover in a sense that it proves the correctness of the execution overall.</td></tr>
+<tr><td>We don’t calculate their Merkle root.</td><td>We calculate their Merkle root on the L1Messenger system contract.</td></tr>
+<tr><td>We have constant small number of those.</td><td>We can have as much as possible as long as the commitBatches function on L1 remains executable (it is the job of the operator to ensure that only such transactions are selected)</td></tr>
+<tr><td>In EIP4844 they will remain part of the calldata.</td><td>In EIP4844 they will become part of the blobs.</td></tr>
+</tbody></table>
+</div>
+<h4 id="backwards-compatibility"><a class="header" href="#backwards-compatibility">Backwards-compatibility</a></h4>
+<p>Note, that to maintain a unified interface with the previous version of the protocol, the leaves of the Merkle tree will
+have to maintain the following structure:</p>
+<pre><code class="language-solidity">struct L2Log {
+  uint8 l2ShardId;
+  bool isService;
+  uint16 txNumberInBlock;
+  address sender;
+  bytes32 key;
+  bytes32 value;
+}
+
+</code></pre>
+<p>While the leaf will look the following way:</p>
+<pre><code class="language-solidity">bytes32 hashedLog = keccak256(
+    abi.encodePacked(_log.l2ShardId, _log.isService, _log.txNumberInBlock, _log.sender, _log.key, _log.value)
+);
+</code></pre>
+<p><code>keccak256</code> will continue being the function for the merkle tree.</p>
+<p>To put it shortly, the proofs for L2→L1 log inclusion will continue having exactly the same format as they did in the
+pre-Boojum system, which avoids breaking changes for SDKs and bridges alike.</p>
+<h4 id="implementation-of-l1messenger"><a class="header" href="#implementation-of-l1messenger">Implementation of <code>L1Messenger</code></a></h4>
+<p>The L1Messenger contract will maintain a rolling hash of all the L2ToL1 logs <code>chainedLogsHash</code> as well as the rolling
+hashes of messages <code>chainedMessagesHash</code>. Whenever a contract wants to send an L2→L1 log, the following operation will
+be
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/contracts/L1Messenger.sol#L110">applied</a>:</p>
+<p><code>chainedLogsHash = keccak256(chainedLogsHash, hashedLog)</code>. L2→L1 logs have the same 88-byte format as in the current
+version of ZKsync.</p>
+<p>Note, that the user is charged for necessary future the computation that will be needed to calculate the final merkle
+root. It is roughly 4x higher than the cost to calculate the hash of the leaf, since the eventual tree might have be 4x
+times the number nodes. In any case, this will likely be a relatively negligible part compared to the cost of the
+pubdata.</p>
+<p>At the end of the execution, the bootloader will
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/bootloader/bootloader.yul#L2470">provide</a>
+a list of all the L2ToL1 logs as well as the messages in this block to the L1Messenger (this will be provided by the
+operator in the memory of the bootloader). The L1Messenger checks that the rolling hash from the provided logs is the
+same as in the <code>chainedLogsHash</code> and calculate the merkle tree of the provided messages. Right now, we always build the
+Merkle tree of size <code>2048</code>, but we charge the user as if the tree was built dynamically based on the number of leaves in
+there. The implementation of the dynamic tree has been postponed until the later upgrades.</p>
+<h4 id="long-l2l1-messages--bytecodes"><a class="header" href="#long-l2l1-messages--bytecodes">Long L2→L1 messages &amp; bytecodes</a></h4>
+<p>Before, the fact that the correct preimages for L2→L1 messages as bytecodes were provided was checked on the L1 side.
+Now, it will be done on L2.</p>
+<p>If the user wants to send an L2→L1 message, its preimage is
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/contracts/L1Messenger.sol#L125">appended</a>
+to the message’s rolling hash too <code>chainedMessagesHash = keccak256(chainedMessagesHash, keccak256(message))</code>.</p>
+<p>A very similar approach for bytecodes is used, where their rolling hash is calculated and then the preimages are
+provided at the end of the batch to form the full pubdata for the batch.</p>
+<p>Note, that in for backward compatibility, just like before any long message or bytecode is accompanied by the
+corresponding user L2→L1 log.</p>
+<h4 id="using-system-l2l1-logs-vs-the-user-logs"><a class="header" href="#using-system-l2l1-logs-vs-the-user-logs">Using system L2→L1 logs vs the user logs</a></h4>
+<p>The content of the L2→L1 logs by the L1Messenger will go to the blob of EIP4844. Meaning, that all the data that belongs
+to the tree by L1Messenger’s L2→L1 logs should not be needed during block commitment. Also, note that in the future we
+will remove the calculation of the Merkle root of the built-in L2→L1 messages.</p>
+<p>The only places where the built-in L2→L1 messaging should continue to be used:</p>
+<ul>
+<li>Logs by SystemContext (they are needed on commit to check the previous block hash).</li>
+<li>Logs by L1Messenger for the merkle root of the L2→L1 tree as well as the hash of the <code>totalPubdata</code>.</li>
+<li><code>chainedPriorityTxsHash</code> and <code>numberOfLayer1Txs</code> from the bootloader (read more about it below).</li>
+</ul>
+<h4 id="obtaining-txnumberinblock"><a class="header" href="#obtaining-txnumberinblock">Obtaining <code>txNumberInBlock</code></a></h4>
+<p>To have the same log format, the <code>txNumberInBlock</code> must be obtained. While it is internally counted in the VM, there is
+currently no opcode to retrieve this number. We will have a public variable <code>txNumberInBlock</code> in the <code>SystemContext</code>,
+which will be incremented with each new transaction and retrieve this variable from there. It is
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/contracts/SystemContext.sol#L458">zeroed out</a>
+at the end of the batch.</p>
+<h3 id="bootloader-implementation"><a class="header" href="#bootloader-implementation">Bootloader implementation</a></h3>
+<p>The bootloader has a memory segment dedicated to the ABI-encoded data of the L1ToL2Messenger to perform the
+<code>publishPubdataAndClearState</code> call.</p>
+<p>At the end of the execution of the batch, the operator should provide the corresponding data into the bootloader memory,
+i.e user L2→L1 logs, long messages, bytecodes, etc. After that, the
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/bootloader/bootloader.yul#L2484">call</a>
+is performed to the <code>L1Messenger</code> system contract, that should validate the adherence of the pubdata to the required
+format</p>
+<h2 id="bytecode-publishing"><a class="header" href="#bytecode-publishing">Bytecode Publishing</a></h2>
+<p>Within pubdata, bytecodes are published in 1 of 2 ways: (1) uncompressed via <code>factoryDeps</code> (pre-boojum this is within
+its own field, and post-boojum as part of the <code>totalPubdata</code>) and (2) compressed via long l2 → l1 messages.</p>
+<h3 id="uncompressed-bytecode-publishing"><a class="header" href="#uncompressed-bytecode-publishing">Uncompressed Bytecode Publishing</a></h3>
+<p>With Boojum, <code>factoryDeps</code> are included within the <code>totalPubdata</code> bytes and have the following format:
+<code>number of bytecodes || forEachBytecode (length of bytecode(n) || bytecode(n))</code> .</p>
+<h3 id="compressed-bytecode-publishing"><a class="header" href="#compressed-bytecode-publishing">Compressed Bytecode Publishing</a></h3>
+<p>This part stays the same in a pre and post boojum ZKsync. Unlike uncompressed bytecode which are published as part of
+<code>factoryDeps</code>, compressed bytecodes are published as long l2 → l1 messages which can be seen
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/contracts/Compressor.sol#L80">here</a>.</p>
+<h4 id="bytecode-compression-algorithm--server-side"><a class="header" href="#bytecode-compression-algorithm--server-side">Bytecode Compression Algorithm — Server Side</a></h4>
+<p>This is the part that is responsible for taking bytecode, that has already been chunked into 8 byte words, performing
+validation, and compressing it.</p>
+<p>Each 8 byte word from the chunked bytecode is assigned a 2 byte index (constraint on size of dictionary of chunk → index
+is 2^16 - 1 elements). The length of the dictionary, dictionary entries (index assumed through order), and indexes are
+all concatenated together to yield the final compressed version.</p>
+<p>For bytecode to be considered valid it must satisfy the following:</p>
+<ol>
+<li>Bytecode length must be less than 2097120 ((2^16 - 1) * 32) bytes.</li>
+<li>Bytecode length must be a multiple of 32.</li>
+<li>Number of 32-byte words cannot be even.</li>
+</ol>
+<p>The following is a simplified version of the algorithm:</p>
+<pre><code class="language-python">statistic: Map[chunk, (count, first_pos)]
+dictionary: Map[chunk, index]
+encoded_data: List[index]
+
+for position, chunk in chunked_bytecode:
+ if chunk is in statistic:
+  statistic[chunk].count += 1
+ else:
+  statistic[chunk] = (count=1, first_pos=pos)
+
+# We want the more frequently used bytes to have smaller ids to save on calldata (zero bytes cost less)
+statistic.sort(primary=count, secondary=first_pos, order=desc)
+
+for index, chunk in enumerated(sorted_statistics):
+  dictionary[chunk] = index
+
+for chunk in chunked_bytecode:
+ encoded_data.append(dictionary[chunk])
+
+return [len(dictionary), dictionary.keys(order=index asc), encoded_data]
+</code></pre>
+<h4 id="verification-and-publishing--l2-contract"><a class="header" href="#verification-and-publishing--l2-contract">Verification And Publishing — L2 Contract</a></h4>
+<p>The function <code>publishCompressBytecode</code> takes in both the original <code>_bytecode</code> and the <code>_rawCompressedData</code> , the latter
+of which comes from the output of the server’s compression algorithm. Looping over the encoded data, derived from
+<code>_rawCompressedData</code> , the corresponding chunks are pulled from the dictionary and compared to the original byte code,
+reverting if there is a mismatch. After the encoded data has been verified, it is published to L1 and marked accordingly
+within the <code>KnownCodesStorage</code> contract.</p>
+<p>Pseudo-code implementation:</p>
+<pre><code class="language-python">length_of_dict = _rawCompressedData[:2]
+dictionary = _rawCompressedData[2:2 + length_of_dict * 8] # need to offset by bytes used to store length (2) and multiply by 8 for chunk size
+encoded_data = _rawCompressedData[2 + length_of_dict * 8:]
+
+assert(len(dictionary) % 8 == 0) # each element should be 8 bytes
+assert(num_entries(dictionary) &lt;= 2^16)
+assert(len(encoded_data) * 4 == len(_bytecode)) # given that each chunk is 8 bytes and each index is 2 bytes they should differ by a factor of 4
+
+for (index, dict_index) in list(enumerate(encoded_data)):
+ encoded_chunk = dictionary[dict_index]
+ real_chunk = _bytecode.readUint64(index * 8) # need to pull from index * 8 to account for difference in element size
+ verify(encoded_chunk == real_chunk)
+
+# Sending the compressed bytecode to L1 for data availability
+sendToL1(_rawCompressedBytecode)
+markAsPublished(hash(_bytecode))
+</code></pre>
+<h2 id="storage-diff-publishing"><a class="header" href="#storage-diff-publishing">Storage diff publishing</a></h2>
+<p>ZKsync is a statediff-based rollup and so publishing the correct state diffs plays an integral role in ensuring data
+availability.</p>
+<h3 id="how-publishing-of-storage-diffs-worked-before-boojum"><a class="header" href="#how-publishing-of-storage-diffs-worked-before-boojum">How publishing of storage diffs worked before Boojum</a></h3>
+<p>As always in order to understand the new system better, some information about the previous one is important.</p>
+<p>Before, the system contracts had no clue about storage diffs. It was the job of the operator to provide the
+<code>initialStorageChanges</code> and <code>reapeatedStorageWrites</code> (more on the differences will be explained below). The information
+to commit the block looked the following way:</p>
+<pre><code class="language-solidity">struct CommitBlockInfo {
+  uint64 blockNumber;
+  uint64 timestamp;
+  uint64 indexRepeatedStorageChanges;
+  bytes32 newStateRoot;
+  uint256 numberOfLayer1Txs;
+  bytes32 l2LogsTreeRoot;
+  bytes32 priorityOperationsHash;
+  bytes initialStorageChanges;
+  bytes repeatedStorageChanges;
+  bytes l2Logs;
+  bytes[] l2ArbitraryLengthMessages;
+  bytes[] factoryDeps;
+}
+
+</code></pre>
+<p>These two fields would be then included into the block commitment and checked by the verifier.</p>
+<h3 id="difference-between-initial-and-repeated-writes"><a class="header" href="#difference-between-initial-and-repeated-writes">Difference between initial and repeated writes</a></h3>
+<p>ZKsync publishes state changes that happened within the batch instead of transactions themselves. Meaning, that for
+instance some storage slot <code>S</code> under account <code>A</code> has changed to value <code>V</code>, we could publish a triple of <code>A,S,V</code>. Users
+by observing all the triples could restore the state of ZKsync. However, note that our tree unlike Ethereum’s one is not
+account based (i.e. there is no first layer of depth 160 of the merkle tree corresponding to accounts and second layer
+of depth 256 of the merkle tree corresponding to users). Our tree is “flat”, i.e. a slot <code>S</code> under account <code>A</code> is just
+stored in the leaf number <code>H(S,A)</code>. Our tree is of depth 256 + 8 (the 256 is for these hashed account/key pairs and 8 is
+for potential shards in the future, we currently have only one shard and it is irrelevant for the rest of the document).</p>
+<p>We call this <code>H(S,A)</code> <em>derived key</em>, because it is derived from the address and the actual key in the storage of the
+account. Since our tree is flat, whenever a change happens, we can publish a pair <code>DK, V</code>, where <code>DK=H(S,A)</code>.</p>
+<p>However, these is an optimization that could be done:</p>
+<ul>
+<li>Whenever a change to a key is used for the first time, we publish a pair of <code>DK,V</code> and we assign some sequential id to
+this derived key. This is called an <em>initial write</em>. It happens for the first time and that’s why we must publish the
+full key.</li>
+<li>If this storage slot is published in some of the subsequent batches, instead of publishing the whole <code>DK</code>, we can use
+the sequential id instead. This is called a <em>repeated write</em>.</li>
+</ul>
+<p>For instance, if the slots <code>A</code>,<code>B</code> (I’ll use latin letters instead of 32-byte hashes for readability) changed their
+values to <code>12</code>,<code>13</code> accordingly, in the batch it happened they will be published in the following format:</p>
+<ul>
+<li><code>(A, 12), (B, 13)</code>. Let’s say that the last sequential id ever used is 6. Then, <code>A</code> will receive the id of <code>7</code> and B
+will receive the id of <code>8</code>.</li>
+</ul>
+<p>Let’s say that in the next block, they changes their values to <code>13</code>,<code>14</code>. Then, their diff will be published in the
+following format:</p>
+<ul>
+<li><code>(7, 13), (8,14)</code>.</li>
+</ul>
+<p>The id is permanently assigned to each storage key that was ever published. While in the description above it may not
+seem like a huge boost, however, each <code>DK</code> is 32 bytes long and id is at most 8 bytes long.</p>
+<p>We call this id <em>enumeration_index</em>.</p>
+<p>Note, that the enumeration indexes are assigned in the order of sorted array of (address, key), i.e. they are internally
+sorted. The enumeration indexes are part of the state merkle tree, it is <strong>crucial</strong> that the initial writes are
+published in the correct order, so that anyone could restore the correct enum indexes for the storage slots. In
+addition, an enumeration index of <code>0</code> indicates that the storage write is an initial write.</p>
+<h3 id="state-diffs-after-boojum-upgrade"><a class="header" href="#state-diffs-after-boojum-upgrade">State diffs after Boojum upgrade</a></h3>
+<p>Firstly, let’s define what we’ll call the <code>stateDiffs</code>. A <em>state diff</em> is an element of the following structure.</p>
+<p><a href="https://github.com/matter-labs/era-zkevm_test_harness/blob/3cd647aa57fc2e1180bab53f7a3b61ec47502a46/circuit_definitions/src/encodings/state_diff_record.rs#L8">https://github.com/matter-labs/era-zkevm_test_harness/blob/3cd647aa57fc2e1180bab53f7a3b61ec47502a46/circuit_definitions/src/encodings/state_diff_record.rs#L8</a>.</p>
+<p>Basically, it contains all the values which might interest us about the state diff:</p>
+<ul>
+<li><code>address</code> where the storage has been changed.</li>
+<li><code>key</code> (the original key inside the address)</li>
+<li><code>derived_key</code> — <code>H(key, address)</code> as described in the previous section.
+<ul>
+<li>Note, the hashing algorithm currently used here is <code>Blake2s</code></li>
+</ul>
+</li>
+<li><code>enumeration_index</code> — Enumeration index as explained above. It is equal to 0 if the write is initial and contains the
+non-zero enumeration index if it is the repeated write (indexes are numerated starting from 1).</li>
+<li><code>initial_value</code> — The value that was present in the key at the start of the batch</li>
+<li><code>final_value</code> — The value that the key has changed to by the end of the batch.</li>
+</ul>
+<p>We will consider <code>stateDiffs</code> an array of such objects, sorted by (address, key).</p>
+<p>This is the internal structure that is used by the circuits to represent the state diffs. The most basic “compression”
+algorithm is the one described above:</p>
+<ul>
+<li>For initial writes, write the pair of (<code>derived_key</code>, <code>final_value</code>)</li>
+<li>For repeated writes write the pair of (<code>enumeration_index</code>, <code>final_value</code>).</li>
+</ul>
+<p>Note, that values like <code>initial_value</code>, <code>address</code> and <code>key</code> are not used in the “simplified” algorithm above, but they
+will be helpful for the more advanced compression algorithms in the future. The
+<a href="#state-diff-compression-format">algorithm</a> for Boojum will already utilize the difference between the <code>initial_value</code>
+and <code>final_value</code> for saving up on pubdata.</p>
+<h3 id="how-the-new-pubdata-verification-would-work"><a class="header" href="#how-the-new-pubdata-verification-would-work">How the new pubdata verification would work</a></h3>
+<h4 id="l2"><a class="header" href="#l2">L2</a></h4>
+<ol>
+<li>The operator provides both full <code>stateDiffs</code> (i.e. the array of the structs above) and the compressed state diffs
+(i.e. the array which contains the state diffs, compressed by the algorithm explained
+<a href="#state-diff-compression-format">below</a>).</li>
+<li>The L1Messenger must verify that the compressed version is consistent with the original stateDiffs.</li>
+<li>Once verified, the L1Messenger will publish the <em>hash</em> of the original state diff via a system log. It will also
+include the compressed state diffs into the totalPubdata to be published onto L1.</li>
+</ol>
+<h4 id="l1"><a class="header" href="#l1">L1</a></h4>
+<ol>
+<li>During committing the block, the L1
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Executor.sol#L139">verifies</a>
+that the operator has provided the full preimage for the totalPubdata (which includes L2→L1 logs, L2→L1 messages,
+bytecodes as well as the compressed state diffs).</li>
+<li>The block commitment
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Executor.sol#L462">includes</a>
+*the hash of the <code>stateDiffs</code>. Thus, during ZKP verification will fail if the provided stateDiff hash is not
+correct.</li>
+</ol>
+<p>It is a secure construction because the proof can be verified only if both the execution was correct and the hash of the
+provided hash of the <code>stateDiffs</code> is correct. This means that the L1Messenger indeed received the array of correct
+<code>stateDiffs</code> and, assuming the L1Messenger is working correctly, double-checked that the compression is of the correct
+format, while L1 contracts on the commit stage double checked that the operator provided the preimage for the compressed
+state diffs.</p>
+<h3 id="state-diff-compression-format"><a class="header" href="#state-diff-compression-format">State diff compression format</a></h3>
+<p>The following algorithm is used for the state diff compression:</p>
+<p><a href="https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20pubdata%20in%20Boojum/State%20diff%20compression%20v1%20spec.md">State diff compression v1 spec</a></p>
+<h2 id="general-pubdata-format"><a class="header" href="#general-pubdata-format">General pubdata format</a></h2>
+<p>At the end of the execution of the batch, the bootloader provides the <code>L1Messenger</code> with the preimages for the user
+L2→L1 logs, L2→L1 long messages as well as uncompressed bytecodes. It also provides with compressed state diffs as well
+as the original expanded state diff entries.</p>
+<p>It will check that the preimages are correct as well as the fact that the compression is correct. It will output the
+following three values via system logs:</p>
+<ul>
+<li>The root of the L2→L1 log Merkle tree. It will be stored and used for proving withdrawals.</li>
+<li>The hash of the <code>totalPubdata</code> (i.e. the pubdata that contains the preimages above as well as packed state diffs).</li>
+<li>The hash of the state diffs provided by the operator (it later on be included in the block commitment and its will be
+enforced by the circuits).</li>
+</ul>
+<p>The <code>totalPubdata</code> has the following structure:</p>
+<ol>
+<li>First 4 bytes — the number of user L2→L1 logs in the batch</li>
+<li>Then, the concatenation of packed L2→L1 user logs.</li>
+<li>Next, 4 bytes — the number of long L2→L1 messages in the batch.</li>
+<li>Then, the concatenation of L2→L1 messages, each in the format of <code>&lt;4 byte length || actual_message&gt;</code>.</li>
+<li>Next, 4 bytes — the number of uncompressed bytecodes in the batch.</li>
+<li>Then, the concatenation of uncompressed bytecodes, each in the format of <code>&lt;4 byte length || actual_bytecode&gt;</code>.</li>
+<li>Next, 4 bytes — the length of the compressed state diffs.</li>
+<li>Then, state diffs are compressed by the spec <a href="#state-diff-compression-format">above</a>.</li>
+</ol>
+<p>With Boojum, the interface for committing batches is the following one:</p>
+<pre><code class="language-solidity">/// @notice Data needed to commit new batch
+/// @param batchNumber Number of the committed batch
+/// @param timestamp Unix timestamp denoting the start of the batch execution
+/// @param indexRepeatedStorageChanges The serial number of the shortcut index that's used as a unique identifier for storage keys that were used twice or more
+/// @param newStateRoot The state root of the full state tree
+/// @param numberOfLayer1Txs Number of priority operations to be processed
+/// @param priorityOperationsHash Hash of all priority operations from this batch
+/// @param bootloaderHeapInitialContentsHash Hash of the initial contents of the bootloader heap. In practice it serves as the commitment to the transactions in the batch.
+/// @param eventsQueueStateHash Hash of the events queue state. In practice it serves as the commitment to the events in the batch.
+/// @param systemLogs concatenation of all L2 -&gt; L1 system logs in the batch
+/// @param totalL2ToL1Pubdata Total pubdata committed to as part of bootloader run. Contents are: l2Tol1Logs &lt;&gt; l2Tol1Messages &lt;&gt; publishedBytecodes &lt;&gt; stateDiffs
+struct CommitBatchInfo {
+  uint64 batchNumber;
+  uint64 timestamp;
+  uint64 indexRepeatedStorageChanges;
+  bytes32 newStateRoot;
+  uint256 numberOfLayer1Txs;
+  bytes32 priorityOperationsHash;
+  bytes32 bootloaderHeapInitialContentsHash;
+  bytes32 eventsQueueStateHash;
+  bytes systemLogs;
+  bytes totalL2ToL1Pubdata;
+}
+
+</code></pre>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../../../specs/contracts/settlement_contracts/data_availability/index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../../../specs/contracts/settlement_contracts/data_availability/compression.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../../../specs/contracts/settlement_contracts/data_availability/index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../../../specs/contracts/settlement_contracts/data_availability/compression.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../../../ace.js"></script>
+        <script src="../../../../editor.js"></script>
+        <script src="../../../../mode-rust.js"></script>
+        <script src="../../../../theme-dawn.js"></script>
+        <script src="../../../../theme-tomorrow_night.js"></script>
+
+        <script src="../../../../elasticlunr.min.js"></script>
+        <script src="../../../../mark.min.js"></script>
+        <script src="../../../../searcher.js"></script>
+
+        <script src="../../../../clipboard.min.js"></script>
+        <script src="../../../../highlight.js"></script>
+        <script src="../../../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../../../js/version-box.js"></script>
+        <script src="../../../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>
