@@ -3,11 +3,6 @@
 Toolkit for creating and managing ZK Stack chains. `ZK Stack CLI` facilitates the creation and management of ZK Stacks.
 Commands are interactive but can also accept arguments via the command line.
 
-### Dependencies
-
-Follow [these instructions](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/setup-dev.md) to set up
-dependencies on your machine. Ignore the Environment section for now.
-
 ### Installation
 
 You can use `zkstackup` to install and manage `zkstack`:
