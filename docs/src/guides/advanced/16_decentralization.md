@@ -35,7 +35,7 @@ genesis_spec:
   leader: validator:public:??? # same as above - main node will be the only validator and the only leader.
 ```
 
-## Providing the configuration to the `zksync_server`.
+## Providing the configuration to the `zksync_server`
 
 To enable consensus component for the main node you need to append
 `--components=<whatever components you were running until now>,consensus` to the `zksync_server` command line arguments.
