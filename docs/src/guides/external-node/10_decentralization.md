@@ -28,7 +28,7 @@ Each participant node of the gossipnet has to have an identity (a public/secret 
 the first time, generate the secrets by running:
 
 ```
-docker run --entrypoint /usr/bin/zksync_external_node "matterlabs/external-node:2.0-v24.12.0" generate-secrets > consensus_secrets.yaml
+docker run --entrypoint /usr/bin/zksync_external_node "matterlabs/external-node:2.0-v25.1.0" generate-secrets > consensus_secrets.yaml
 chmod 600 consensus_secrets.yaml
 ```
 
