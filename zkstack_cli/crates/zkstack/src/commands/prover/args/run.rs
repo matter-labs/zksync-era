@@ -178,13 +178,13 @@ impl ProverComponent {
                 };
                 if args.circuit_prover_args.light_wvg_count.is_some() {
                     additional_args.push(format!(
-                        "-l={}",
+                        "--light-wvg-count={}",
                         args.circuit_prover_args.light_wvg_count.unwrap()
                     ));
                 };
                 if args.circuit_prover_args.heavy_wvg_count.is_some() {
                     additional_args.push(format!(
-                        "-h={}",
+                        "--heavy-wvg-count={}",
                         args.circuit_prover_args.heavy_wvg_count.unwrap()
                     ));
                 };
