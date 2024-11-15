@@ -46,8 +46,9 @@ On mac:
 brew install git build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates curl software-properties-common
 ```
 
-Note that in order to install `clang` on MacOS you need to have an up-to-date `Xcode`. You can install it directly from `App Store`.
-With `Xcode` command line tools, you get the Clang compiler installed by default. Thus, having `Xcode` you don't need to install `clang`.
+Note that in order to install `clang` on MacOS you need to have an up-to-date `Xcode`. You can install it directly from
+`App Store`. With `Xcode` command line tools, you get the Clang compiler installed by default. Thus, having `Xcode` you
+don't need to install `clang`.
 
 ### Rust
 
@@ -160,7 +161,8 @@ for Foundry integration.
 ### ZK Stack CLI
 
 Toolkit for creating and managing ZK Stack chains. `ZK Stack CLI` facilitates the creation and management of ZK Stacks.
-Commands are interactive but can also accept arguments via the command line. Follow the installation instructions [here](https://github.com/matter-labs/zksync-era/tree/main/zkstack_cli#installation).
+Commands are interactive but can also accept arguments via the command line. Follow the installation instructions
+[here](https://github.com/matter-labs/zksync-era/tree/main/zkstack_cli#installation).
 
 ### Non-GPU setup
 
