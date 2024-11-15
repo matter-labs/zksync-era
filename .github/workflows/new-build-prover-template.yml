@@ -170,6 +170,7 @@ jobs:
             matterlabs/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:latest
             matterlabs/${{ matrix.components }}:latest
+
       - name: Push docker image
         if: ${{ inputs.action == 'push' }}
         run: |
@@ -179,6 +180,7 @@ jobs:
           docker push matterlabs/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
           docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:latest
           docker push matterlabs/${{ matrix.components }}:latest
+
   copy-images:
     name: Copy images between docker registries
     needs: [build-images, get-protocol-version]
