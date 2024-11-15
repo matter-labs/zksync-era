@@ -27,28 +27,28 @@ pub(super) enum CompilerGitHubRelease {
 impl CompilerGitHubRelease {
     fn organization(self) -> &'static str {
         match self {
-            CompilerGitHubRelease::Solc => "ethereum",
-            CompilerGitHubRelease::Vyper => "vyperlang",
-            CompilerGitHubRelease::ZkVmSolc => "matter-labs",
-            CompilerGitHubRelease::ZkSolc => "matter-labs",
-            CompilerGitHubRelease::ZkVyper => "matter-labs",
+            Self::Solc => "ethereum",
+            Self::Vyper => "vyperlang",
+            Self::ZkVmSolc => "matter-labs",
+            Self::ZkSolc => "matter-labs",
+            Self::ZkVyper => "matter-labs",
         }
     }
 
     fn repo(self) -> &'static str {
         match self {
-            CompilerGitHubRelease::Solc => "solidity",
-            CompilerGitHubRelease::Vyper => "vyper",
-            CompilerGitHubRelease::ZkVmSolc => "era-solidity",
-            CompilerGitHubRelease::ZkSolc => "era-compiler-solidity",
-            CompilerGitHubRelease::ZkVyper => "era-compiler-vyper",
+            Self::Solc => "solidity",
+            Self::Vyper => "vyper",
+            Self::ZkVmSolc => "era-solidity",
+            Self::ZkSolc => "era-compiler-solidity",
+            Self::ZkVyper => "era-compiler-vyper",
         }
     }
 
     /// Check if version is blacklisted, e.g. it shouldn't be available in the contract verifier.
     fn is_version_blacklisted(self, version: &str) -> bool {
         match self {
-            CompilerGitHubRelease::Solc => {
+            Self::Solc => {
                 let Ok(version) = semver::Version::parse(version) else {
                     tracing::error!(
                         "Incorrect version passed to blacklist check: {self:?}:{version}"
@@ -58,7 +58,7 @@ impl CompilerGitHubRelease {
                 // The earliest supported version is 0.4.10.
                 version < semver::Version::new(0, 4, 10)
             }
-            CompilerGitHubRelease::Vyper => {
+            Self::Vyper => {
                 let Ok(version) = semver::Version::parse(version) else {
                     tracing::error!(
                         "Incorrect version passed to blacklist check: {self:?}:{version}"
@@ -84,14 +84,14 @@ impl CompilerGitHubRelease {
 
     fn extract_version(self, tag_name: &str) -> Option<String> {
         match self {
-            CompilerGitHubRelease::Solc | CompilerGitHubRelease::Vyper => {
+            Self::Solc | Self::Vyper => {
                 // Solidity and Vyper releases are tagged with version numbers in form of `vX.Y.Z`.
                 tag_name
                     .strip_prefix('v')
                     .filter(|v| semver::Version::parse(v).is_ok())
                     .map(|v| v.to_string())
             }
-            CompilerGitHubRelease::ZkVmSolc => {
+            Self::ZkVmSolc => {
                 // ZkVmSolc releases are tagged with version numbers in form of `X.Y.Z-A.B.C`, where
                 // `X.Y.Z` is the version of the Solidity compiler, and `A.B.C` is the version of the ZkSync fork.
                 if let Some((main, fork)) = tag_name.split_once('-') {
@@ -103,7 +103,7 @@ impl CompilerGitHubRelease {
                 }
                 None
             }
-            CompilerGitHubRelease::ZkSolc | CompilerGitHubRelease::ZkVyper => {
+            Self::ZkSolc | Self::ZkVyper => {
                 // zksolc and zkvyper releases are tagged with version numbers in form of `X.Y.Z` (without 'v').
                 if semver::Version::parse(tag_name).is_ok() {
                     Some(tag_name.to_string())
@@ -116,11 +116,11 @@ impl CompilerGitHubRelease {
 
     fn match_asset(&self, asset_url: &str) -> bool {
         match self {
-            CompilerGitHubRelease::Solc => asset_url.contains("solc-static-linux"),
-            CompilerGitHubRelease::Vyper => asset_url.contains(".linux"),
-            CompilerGitHubRelease::ZkVmSolc => asset_url.contains("solc-linux-amd64"),
-            CompilerGitHubRelease::ZkSolc => asset_url.contains("zksolc-linux-amd64-musl"),
-            CompilerGitHubRelease::ZkVyper => asset_url.contains("zkvyper-linux-amd64-musl"),
+            Self::Solc => asset_url.contains("solc-static-linux"),
+            Self::Vyper => asset_url.contains(".linux"),
+            Self::ZkVmSolc => asset_url.contains("solc-linux-amd64"),
+            Self::ZkSolc => asset_url.contains("zksolc-linux-amd64-musl"),
+            Self::ZkVyper => asset_url.contains("zkvyper-linux-amd64-musl"),
         }
     }
 }

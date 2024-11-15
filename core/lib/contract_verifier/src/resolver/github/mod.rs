@@ -33,6 +33,9 @@ pub(crate) struct GitHubCompilerResolver {
     gh_client: GitHubApi,
     client: reqwest::Client,
     supported_versions: RwLock<SupportedVersions>,
+    /// List of downloads performed right now.
+    /// `broadcast` receiver can be used to wait until the download is finished.
+    active_downloads: RwLock<HashMap<(CompilerType, String), tokio::sync::broadcast::Receiver<()>>>,
 }
 
 #[derive(Debug)]
@@ -56,7 +59,7 @@ impl SupportedVersions {
     // rarely, but we still want to protect ourselves from accidentally spamming GitHub API.
     // So, this interval is smaller than the expected time between updates (this way we don't
     // run into an issue where intervals are slightly out of sync, causing a delay in "real"
-    // update tim).
+    // update time).
     const CACHE_INTERVAL: Duration = Duration::from_secs(10 * 60); // 10 minutes
 
     fn new() -> Self {
@@ -74,6 +77,10 @@ impl SupportedVersions {
     }
 
     async fn update(&mut self, gh_client: &GitHubApi) -> anyhow::Result<()> {
+        // Non-atomic update is fine here: the fields are independent, so if
+        // at least one update succeeds, it's worth persisting. We won't be changing
+        // the last update timestamp in case of failure though, so it will be retried
+        // next time.
         self.solc_versions = gh_client
             .solc_versions()
             .await
@@ -120,6 +127,7 @@ impl GitHubCompilerResolver {
             gh_client,
             client: reqwest::Client::new(),
             supported_versions: RwLock::new(supported_versions),
+            active_downloads: RwLock::default(),
         })
     }
 }
@@ -130,10 +138,30 @@ impl GitHubCompilerResolver {
         compiler: CompilerType,
         version: &str,
     ) -> anyhow::Result<()> {
+        // We need to check the lock first, because the compiler may still be downloading.
+        // We must hold the lock until we know if we need to download the compiler.
+        let mut lock = self.active_downloads.write().await;
+        if let Some(rx) = lock.get(&(compiler, version.to_string())) {
+            let mut rx = rx.resubscribe();
+            drop(lock);
+            tracing::debug!(
+                "Waiting for {}:{} download to finish",
+                compiler.as_str(),
+                version
+            );
+            rx.recv().await?;
+            return Ok(());
+        }
+
         if compiler.exists(self.artifacts_dir.path(), version).await? {
             tracing::debug!("Compiler {}:{} exists", compiler.as_str(), version);
             return Ok(());
         }
+
+        // Mark the compiler as downloading.
+        let (tx, rx) = tokio::sync::broadcast::channel(1);
+        lock.insert((compiler, version.to_string()), rx);
+        drop(lock);
 
         tracing::info!("Downloading {}:{}", compiler.as_str(), version);
         let lock = self.supported_versions.read().await;
@@ -160,17 +188,15 @@ impl GitHubCompilerResolver {
 
         tokio::fs::create_dir_all(path.parent().unwrap())
             .await
-            .map_err(|e| anyhow::anyhow!("failed to create dir: {}", e))?;
+            .context("failed to create dir")?;
 
-        let mut file = tokio::fs::File::create(path)
+        let mut file = tokio::fs::File::create_new(path)
             .await
-            .map_err(|e| anyhow::anyhow!("failed to create file: {}", e))?;
+            .context("failed to create file")?;
         file.write_all(&body)
             .await
-            .map_err(|e| anyhow::anyhow!("failed to write to file: {}", e))?;
-        file.flush()
-            .await
-            .map_err(|e| anyhow::anyhow!("failed to flush file: {}", e))?;
+            .context("failed to write to file")?;
+        file.flush().await.context("failed to flush file")?;
 
         // On UNIX-like systems, make file executable.
         #[cfg(unix)]
@@ -182,6 +208,12 @@ impl GitHubCompilerResolver {
         }
 
         tracing::info!("Finished downloading {}:{}", compiler.as_str(), version);
+
+        // Notify other waiters that the compiler is downloaded.
+        tx.send(()).ok();
+        let mut lock = self.active_downloads.write().await;
+        lock.remove(&(compiler, version.to_string()));
+        drop(lock);
 
         Ok(())
     }

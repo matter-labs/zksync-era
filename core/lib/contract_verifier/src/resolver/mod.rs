@@ -20,7 +20,7 @@ use crate::{
 mod env;
 mod github;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum CompilerType {
     Solc,
     ZkSolc,
@@ -197,21 +197,19 @@ impl CompilerResolver for ResolverMultiplexer {
         &self,
         version: &str,
     ) -> Result<Box<dyn Compiler<SolcInput>>, ContractVerifierError> {
-        let mut last_error = Err(ContractVerifierError::UnknownCompilerVersion(
-            "solc",
-            version.to_owned(),
-        ));
         for resolver in &self.resolvers {
             match resolver.resolve_solc(version).await {
                 Ok(compiler) => return Ok(compiler),
-                err @ Err(ContractVerifierError::UnknownCompilerVersion(..)) => {
-                    last_error = err;
+                Err(ContractVerifierError::UnknownCompilerVersion(..)) => {
                     continue;
                 }
                 Err(err) => return Err(err),
             }
         }
-        last_error
+        Err(ContractVerifierError::UnknownCompilerVersion(
+            "solc",
+            version.to_owned(),
+        ))
     }
 
     /// Resolves a `zksolc` compiler.
@@ -241,21 +239,19 @@ impl CompilerResolver for ResolverMultiplexer {
         &self,
         version: &str,
     ) -> Result<Box<dyn Compiler<VyperInput>>, ContractVerifierError> {
-        let mut last_error = Err(ContractVerifierError::UnknownCompilerVersion(
-            "vyper",
-            version.to_owned(),
-        ));
         for resolver in &self.resolvers {
             match resolver.resolve_vyper(version).await {
                 Ok(compiler) => return Ok(compiler),
-                err @ Err(ContractVerifierError::UnknownCompilerVersion(..)) => {
-                    last_error = err;
+                Err(ContractVerifierError::UnknownCompilerVersion(..)) => {
                     continue;
                 }
                 Err(err) => return Err(err),
             }
         }
-        last_error
+        Err(ContractVerifierError::UnknownCompilerVersion(
+            "vyper",
+            version.to_owned(),
+        ))
     }
 
     /// Resolves a `zkvyper` compiler.
