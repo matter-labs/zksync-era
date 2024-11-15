@@ -24,103 +24,104 @@ use crate::{
     },
 };
 
-/// Witness Vector Generator runner implementation for light jobs.
-// TODO: Encapsulate arguments, together when refactoring main; same for heavy
-pub fn light_wvg_runner(
+/// Convenience struct helping with building Witness Vector Generator runners.
+pub struct WvgRunnerBuilder {
     connection_pool: ConnectionPool<Prover>,
     object_store: Arc<dyn ObjectStore>,
     protocol_version: ProtocolSemanticVersion,
     finalization_hints_cache: HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>,
-    count: usize,
-    sender: tokio::sync::mpsc::Sender<(
-        WitnessVectorGeneratorExecutionOutput,
-        FriProverJobMetadata,
-    )>,
+    sender:
+        tokio::sync::mpsc::Sender<(WitnessVectorGeneratorExecutionOutput, FriProverJobMetadata)>,
     cancellation_token: CancellationToken,
-) -> JobRunner<
-    WitnessVectorGeneratorExecutor,
-    WitnessVectorGeneratorJobPicker<LightWitnessVectorMetadataLoader>,
-    WitnessVectorGeneratorJobSaver,
-> {
-    let pod_name = get_current_pod_name();
-    let metadata_loader = LightWitnessVectorMetadataLoader::new(pod_name, protocol_version);
-
-    wvg_runner(
-        connection_pool,
-        object_store,
-        finalization_hints_cache,
-        count,
-        sender,
-        metadata_loader,
-        cancellation_token,
-    )
+    pod_name: String,
 }
 
-/// Witness Vector Generator runner implementation that prioritizes heavy jobs over light jobs.
-pub fn heavy_wvg_runner(
-    connection_pool: ConnectionPool<Prover>,
-    object_store: Arc<dyn ObjectStore>,
-    protocol_version: ProtocolSemanticVersion,
-    finalization_hints_cache: HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>,
-    count: usize,
-    sender: tokio::sync::mpsc::Sender<(
-        WitnessVectorGeneratorExecutionOutput,
-        FriProverJobMetadata,
-    )>,
-    cancellation_token: CancellationToken,
-) -> JobRunner<
-    WitnessVectorGeneratorExecutor,
-    WitnessVectorGeneratorJobPicker<HeavyWitnessVectorMetadataLoader>,
-    WitnessVectorGeneratorJobSaver,
-> {
-    let pod_name = get_current_pod_name();
-    let metadata_loader = HeavyWitnessVectorMetadataLoader::new(pod_name, protocol_version);
-    wvg_runner(
-        connection_pool,
-        object_store,
-        finalization_hints_cache,
-        count,
-        sender,
-        metadata_loader,
-        cancellation_token,
-    )
-}
+impl WvgRunnerBuilder {
+    pub fn new(
+        connection_pool: ConnectionPool<Prover>,
+        object_store: Arc<dyn ObjectStore>,
+        protocol_version: ProtocolSemanticVersion,
+        finalization_hints_cache: HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>,
+        sender: tokio::sync::mpsc::Sender<(
+            WitnessVectorGeneratorExecutionOutput,
+            FriProverJobMetadata,
+        )>,
+        cancellation_token: CancellationToken,
+    ) -> Self {
+        Self {
+            connection_pool,
+            object_store,
+            protocol_version,
+            finalization_hints_cache,
+            sender,
+            cancellation_token,
+            pod_name: get_current_pod_name(),
+        }
+    }
 
-/// Creates a Witness Vector Generator job runner with specified MetadataLoader.
-/// The MetadataLoader makes the difference between heavy & light WVG runner.
-fn wvg_runner<ML: WitnessVectorMetadataLoader>(
-    connection_pool: ConnectionPool<Prover>,
-    object_store: Arc<dyn ObjectStore>,
-    finalization_hints_cache: HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>,
-    count: usize,
-    sender: tokio::sync::mpsc::Sender<(
-        WitnessVectorGeneratorExecutionOutput,
-        FriProverJobMetadata,
-    )>,
-    metadata_loader: ML,
-    cancellation_token: CancellationToken,
-) -> JobRunner<
-    WitnessVectorGeneratorExecutor,
-    WitnessVectorGeneratorJobPicker<ML>,
-    WitnessVectorGeneratorJobSaver,
-> {
-    let executor = WitnessVectorGeneratorExecutor;
-    let job_picker = WitnessVectorGeneratorJobPicker::new(
-        connection_pool.clone(),
-        object_store.clone(),
-        finalization_hints_cache,
-        metadata_loader,
-    );
-    let job_saver = WitnessVectorGeneratorJobSaver::new(connection_pool, sender);
-    let backoff = Backoff::default();
+    /// Witness Vector Generator runner implementation for light jobs.
+    pub fn light_wvg_runner(
+        &self,
+        count: usize,
+    ) -> JobRunner<
+        WitnessVectorGeneratorExecutor,
+        WitnessVectorGeneratorJobPicker<LightWitnessVectorMetadataLoader>,
+        WitnessVectorGeneratorJobSaver,
+    > {
+        let metadata_loader =
+            LightWitnessVectorMetadataLoader::new(self.pod_name.clone(), self.protocol_version);
 
-    JobRunner::new(
-        executor,
-        job_picker,
-        job_saver,
-        count,
-        Some(BackoffAndCancellable::new(backoff, cancellation_token)),
-    )
+        self.wvg_runner(count, metadata_loader)
+    }
+
+    /// Witness Vector Generator runner implementation that prioritizes heavy jobs over light jobs.
+    pub fn heavy_wvg_runner(
+        &self,
+        count: usize,
+    ) -> JobRunner<
+        WitnessVectorGeneratorExecutor,
+        WitnessVectorGeneratorJobPicker<HeavyWitnessVectorMetadataLoader>,
+        WitnessVectorGeneratorJobSaver,
+    > {
+        let metadata_loader =
+            HeavyWitnessVectorMetadataLoader::new(self.pod_name.clone(), self.protocol_version);
+
+        self.wvg_runner(count, metadata_loader)
+    }
+
+    /// Creates a Witness Vector Generator job runner with specified MetadataLoader.
+    /// The MetadataLoader makes the difference between heavy & light WVG runner.
+    fn wvg_runner<ML: WitnessVectorMetadataLoader>(
+        &self,
+        count: usize,
+        metadata_loader: ML,
+    ) -> JobRunner<
+        WitnessVectorGeneratorExecutor,
+        WitnessVectorGeneratorJobPicker<ML>,
+        WitnessVectorGeneratorJobSaver,
+    > {
+        let executor = WitnessVectorGeneratorExecutor;
+        let job_picker = WitnessVectorGeneratorJobPicker::new(
+            self.connection_pool.clone(),
+            self.object_store.clone(),
+            self.finalization_hints_cache.clone(),
+            metadata_loader,
+        );
+        let job_saver =
+            WitnessVectorGeneratorJobSaver::new(self.connection_pool.clone(), self.sender.clone());
+        let backoff = Backoff::default();
+
+        JobRunner::new(
+            executor,
+            job_picker,
+            job_saver,
+            count,
+            Some(BackoffAndCancellable::new(
+                backoff,
+                self.cancellation_token.clone(),
+            )),
+        )
+    }
 }
 
 /// Circuit Prover runner implementation.

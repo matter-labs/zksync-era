@@ -9,9 +9,7 @@ use clap::Parser;
 use shivini::{ProverContext, ProverContextConfig};
 use tokio_util::sync::CancellationToken;
 use zksync_circuit_prover::{FinalizationHintsCache, SetupDataCache, PROVER_BINARY_METRICS};
-use zksync_circuit_prover_service::job_runner::{
-    circuit_prover_runner, heavy_wvg_runner, light_wvg_runner,
-};
+use zksync_circuit_prover_service::job_runner::{circuit_prover_runner, WvgRunnerBuilder};
 use zksync_config::{
     configs::{FriProverConfig, ObservabilityConfig},
     ObjectStoreConfig,
@@ -94,29 +92,23 @@ async fn main() -> anyhow::Result<()> {
         opt.heavy_wvg_count
     );
 
-    let light_wvg_runner = light_wvg_runner(
+    let builder = WvgRunnerBuilder::new(
         connection_pool.clone(),
         object_store.clone(),
         PROVER_PROTOCOL_SEMANTIC_VERSION,
         hints.clone(),
-        opt.light_wvg_count,
         witness_vector_sender.clone(),
         cancellation_token.clone(),
     );
 
+    let light_wvg_runner = builder.light_wvg_runner(opt.light_wvg_count);
+    let heavy_wvg_runner = builder.heavy_wvg_runner(opt.heavy_wvg_count);
+
     tasks.extend(light_wvg_runner.run());
-
-    let heavy_wvg_runner = heavy_wvg_runner(
-        connection_pool.clone(),
-        object_store.clone(),
-        PROVER_PROTOCOL_SEMANTIC_VERSION,
-        hints,
-        opt.heavy_wvg_count,
-        witness_vector_sender,
-        cancellation_token.clone(),
-    );
-
     tasks.extend(heavy_wvg_runner.run());
+
+    // necessary as it has a connection_pool which will keep 1 connection active by default
+    drop(builder);
 
     let circuit_prover_runner = circuit_prover_runner(
         connection_pool,
@@ -199,8 +191,8 @@ async fn load_resources(
     let database_url = database_secrets
         .prover_url
         .context("no prover DB URl present")?;
-    // 1 connection for the witness vector generator job picker and 1 for gpu circuit prover job saver
-    let max_connections = 2;
+    // 2 connections for the witness vector generator job pickers (1 each) and 1 for gpu circuit prover job saver
+    let max_connections = 3;
     let connection_pool = ConnectionPool::<Prover>::builder(database_url, max_connections)
         .build()
         .await
