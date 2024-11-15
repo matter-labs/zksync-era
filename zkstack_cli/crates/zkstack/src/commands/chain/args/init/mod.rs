@@ -97,14 +97,12 @@ impl InitArgs {
                         |e| e.get_contracts_path(),
                     )
                 },
-                |path| PathBuf::from(path),
+                PathBuf::from,
             )
+        } else if let Some(ecosystem) = ecosystem {
+            ecosystem.get_contracts_path()
         } else {
-            if let Some(ecosystem) = ecosystem {
-                ecosystem.get_contracts_path()
-            } else {
-                get_ecosystem_contracts_path(self.ecosystem_contracts_path, ecosystem, chain)?
-            }
+            get_ecosystem_contracts_path(self.ecosystem_contracts_path, ecosystem, chain)?
         };
 
         Ok(InitArgsFinal {

@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use types::L1Network;
 use xshell::Shell;
@@ -20,7 +20,7 @@ pub fn find_file(shell: &Shell, path_buf: PathBuf, file_name: &str) -> Result<Pa
 }
 
 pub fn get_preexisting_ecosystem_contracts_path(
-    link_to_code: &PathBuf,
+    link_to_code: &Path,
     l1_network: L1Network,
 ) -> PathBuf {
     link_to_code
