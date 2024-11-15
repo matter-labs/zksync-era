@@ -2,9 +2,10 @@
 //! It initializes the Merkle tree with the basic setup (such as fields of special service accounts),
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
-use std::fmt::Formatter;
+use std::{collections::HashMap, fmt::Formatter, fs::File, io::BufReader};
 
 use anyhow::Context as _;
+use export::GenesisExportReader;
 use zksync_config::GenesisConfig;
 use zksync_contracts::{
     hyperchain_contract, verifier_contract, BaseSystemContracts, BaseSystemContractsHashes,
@@ -24,7 +25,7 @@ use zksync_types::{
     system_contracts::get_system_smart_contracts,
     web3::{BlockNumber, FilterBuilder},
     AccountTreeId, Address, Bloom, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
-    ProtocolVersion, ProtocolVersionId, StorageKey, H256, U256,
+    ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog, H256, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
@@ -34,6 +35,7 @@ use crate::utils::{
     save_genesis_l1_batch_metadata,
 };
 
+mod export;
 #[cfg(test)]
 mod tests;
 mod utils;
@@ -74,10 +76,11 @@ pub enum GenesisError {
     MalformedConfig(&'static str),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct GenesisParams {
     base_system_contracts: BaseSystemContracts,
     system_contracts: Vec<DeployedContract>,
+    genesis_export_reader: Option<GenesisExportReader>,
     config: GenesisConfig,
 }
 
@@ -90,6 +93,33 @@ impl GenesisParams {
     }
     pub fn config(&self) -> &GenesisConfig {
         &self.config
+    }
+
+    pub fn storage_logs(&self) -> Vec<StorageLog> {
+        let mut storage_logs = get_storage_logs(&self.system_contracts);
+        if let Some(ref e) = self.genesis_export_reader {
+            // TODO: This loads all of the exported storage logs into memory at once.
+            storage_logs.extend(e.storage_logs().map(|s| {
+                StorageLog::new_write_log(
+                    StorageKey::new(AccountTreeId::new(s.address), s.key),
+                    s.value,
+                )
+            }));
+        }
+        storage_logs
+    }
+
+    pub fn factory_deps(&self) -> HashMap<H256, Vec<u8>> {
+        let s = self
+            .system_contracts
+            .iter()
+            .map(|c| (hash_bytecode(&c.bytecode), c.bytecode.clone())); // TODO: Optimize. The call to `get_storage_logs` in the `storage_logs` implementation calls `hash_bytecode` on all of the system contracts already; there should be some way to avoid duplicating all of that work.
+        if let Some(ref e) = self.genesis_export_reader {
+            s.chain(e.factory_deps().map(|f| (f.bytecode_hash, f.bytecode)))
+                .collect()
+        } else {
+            s.collect()
+        }
     }
 
     pub fn from_genesis_config(
@@ -117,9 +147,15 @@ impl GenesisParams {
         if config.protocol_version.is_none() {
             return Err(GenesisError::MalformedConfig("protocol_version"));
         }
+        let genesis_export_reader = std::env::var("CUSTOM_GENESIS").ok().map(|path| {
+            GenesisExportReader::new(
+                File::open(path).expect("custom genesis file could not be opened"),
+            )
+        });
         Ok(GenesisParams {
             base_system_contracts,
             system_contracts,
+            genesis_export_reader,
             config,
         })
     }
@@ -137,6 +173,7 @@ impl GenesisParams {
         Self {
             base_system_contracts: BaseSystemContracts::load_from_disk(),
             system_contracts: get_system_smart_contracts(false),
+            genesis_export_reader: None,
             config: mock_genesis_config(),
         }
     }
@@ -197,18 +234,18 @@ pub async fn insert_genesis_batch(
         snark_wrapper_vk_hash: genesis_params.config.snark_wrapper_vk_hash,
     };
 
-    create_genesis_l1_batch(
+    create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         &mut transaction,
         genesis_params.protocol_version(),
         genesis_params.base_system_contracts(),
-        genesis_params.system_contracts(),
+        &genesis_params.storage_logs(),
+        genesis_params.factory_deps(),
         verifier_config,
     )
     .await?;
     tracing::info!("chain_schema_genesis is complete");
 
-    let deduped_log_queries =
-        get_deduped_log_queries(&get_storage_logs(genesis_params.system_contracts()));
+    let deduped_log_queries = get_deduped_log_queries(&genesis_params.storage_logs());
 
     let (deduplicated_writes, _): (Vec<_>, Vec<_>) = deduped_log_queries
         .into_iter()
@@ -370,12 +407,12 @@ pub async fn ensure_genesis_state(
     Ok(root_hash)
 }
 
-#[allow(clippy::too_many_arguments)]
-pub async fn create_genesis_l1_batch(
+pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
     storage: &mut Connection<'_, Core>,
     protocol_version: ProtocolSemanticVersion,
     base_system_contracts: &BaseSystemContracts,
-    system_contracts: &[DeployedContract],
+    storage_logs: &[StorageLog],
+    factory_deps: HashMap<H256, Vec<u8>>,
     l1_verifier_config: L1VerifierConfig,
 ) -> Result<(), GenesisError> {
     let version = ProtocolVersion {
@@ -442,6 +479,22 @@ pub async fn create_genesis_l1_batch(
         .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
         .await?;
 
+    insert_base_system_contracts_to_factory_deps(&mut transaction, base_system_contracts).await?;
+    insert_system_contracts(&mut transaction, factory_deps, storage_logs).await?;
+    add_eth_token(&mut transaction).await?;
+
+    transaction.commit().await?;
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn create_genesis_l1_batch(
+    storage: &mut Connection<'_, Core>,
+    protocol_version: ProtocolSemanticVersion,
+    base_system_contracts: &BaseSystemContracts,
+    system_contracts: &[DeployedContract],
+    l1_verifier_config: L1VerifierConfig,
+) -> Result<(), GenesisError> {
     let storage_logs = get_storage_logs(system_contracts);
 
     let factory_deps = system_contracts
@@ -449,12 +502,15 @@ pub async fn create_genesis_l1_batch(
         .map(|c| (hash_bytecode(&c.bytecode), c.bytecode.clone()))
         .collect();
 
-    insert_base_system_contracts_to_factory_deps(&mut transaction, base_system_contracts).await?;
-    insert_system_contracts(&mut transaction, factory_deps, &storage_logs).await?;
-    add_eth_token(&mut transaction).await?;
-
-    transaction.commit().await?;
-    Ok(())
+    create_genesis_l1_batch_from_storage_logs_and_factory_deps(
+        storage,
+        protocol_version,
+        base_system_contracts,
+        &storage_logs,
+        factory_deps,
+        l1_verifier_config,
+    )
+    .await
 }
 
 // Save chain id transaction into the database

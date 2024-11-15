@@ -20,6 +20,8 @@ pub struct GenesisArgs {
     pub server_db_url: Option<Url>,
     #[clap(long, help = MSG_SERVER_DB_NAME_HELP)]
     pub server_db_name: Option<String>,
+    // #[clap(long, help = "Run with custom genesis file")]
+    // pub custom_genesis: Option<std::path::PathBuf>,
     #[clap(long, short, help = MSG_USE_DEFAULT_DATABASES_HELP)]
     pub dev: bool,
     #[clap(long, short, action)]

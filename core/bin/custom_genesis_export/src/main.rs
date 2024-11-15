@@ -127,8 +127,9 @@ async fn main() {
     let mut actual_factory_deps_count = 0;
     while let Some(r) = factory_deps.try_next().await.unwrap() {
         out.write_all(&r.bytecode_hash).unwrap();
-        out.write_all(&bincode::serialize(&r.bytecode).unwrap())
+        out.write_all(&(r.bytecode.len() as u64).to_le_bytes())
             .unwrap();
+        out.write_all(&r.bytecode).unwrap();
         actual_factory_deps_count += 1;
     }
     if actual_factory_deps_count != count_factory_deps {

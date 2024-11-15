@@ -44,6 +44,7 @@ impl InitArgs {
         GenesisArgs {
             server_db_url: self.server_db_url.clone(),
             server_db_name: self.server_db_name.clone(),
+            // custom_genesis: None,
             dev: self.dev,
             dont_drop: self.dont_drop,
         }

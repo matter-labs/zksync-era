@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, io::Read};
 
 use itertools::Itertools;
 use zksync_contracts::BaseSystemContracts;
@@ -14,7 +14,7 @@ use zksync_types::{
     get_code_key, get_known_code_key, get_system_context_init_logs,
     tokens::{TokenInfo, TokenMetadata},
     zk_evm_types::{LogQuery, Timestamp},
-    AccountTreeId, L1BatchNumber, L2BlockNumber, L2ChainId, StorageKey, StorageLog, H256,
+    AccountTreeId, L1BatchNumber, L2BlockNumber, L2ChainId, StorageKey, StorageLog, H160, H256,
 };
 use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
@@ -216,4 +216,39 @@ pub(super) async fn insert_system_contracts(
 
     transaction.commit().await?;
     Ok(())
+}
+
+fn readn<const N: usize>(read: &mut dyn Read) -> [u8; N] {
+    let mut buf = [0u8; N];
+    read.read_exact(&mut buf).unwrap();
+    buf
+}
+
+pub(crate) fn read_export_file(read: &mut dyn Read) -> () {
+    let count_initial_writes = i64::from_le_bytes(readn(read)) as usize;
+    let mut initial_writes = Vec::with_capacity(count_initial_writes);
+    for _ in 0..count_initial_writes {
+        let hashed_key = H256(readn(read));
+        let index = i64::from_le_bytes(readn(read)) as usize;
+        initial_writes.push((hashed_key, index));
+    }
+
+    let count_storage_logs = i64::from_le_bytes(readn(read)) as usize;
+    let mut storage_logs = Vec::with_capacity(count_storage_logs);
+    for _ in 0..count_storage_logs {
+        let address = H160(readn(read));
+        let key = H256(readn(read));
+        let value = H256(readn(read));
+        storage_logs.push((address, key, value));
+    }
+
+    let count_factory_deps = i64::from_le_bytes(readn(read)) as usize;
+    let mut factory_deps = HashMap::with_capacity(count_factory_deps);
+    for _ in 0..count_factory_deps {
+        let bytecode_hash = H256(readn(read));
+        let bytecode_len = u64::from_le_bytes(readn(read)) as usize;
+        let mut bytecode = vec![0u8; bytecode_len];
+        read.read_exact(&mut bytecode).unwrap();
+        factory_deps.insert(bytecode_hash, bytecode);
+    }
 }
