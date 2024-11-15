@@ -124,9 +124,18 @@ impl ContractVerifier {
     ) -> anyhow::Result<Self> {
         let env_resolver = Arc::<EnvCompilerResolver>::default();
         let gh_resolver = Arc::new(GitHubCompilerResolver::new().await?);
-        let resolver = Arc::new(ResolverMultiplexer::new(env_resolver).with_resolver(gh_resolver));
+        let mut resolver = ResolverMultiplexer::new(env_resolver);
 
-        Self::with_resolver(compilation_timeout, connection_pool, resolver).await
+        // Killer switch: if anything goes wrong with GH resolver, we can disable it without having to rollback.
+        // TODO: Remove once GH resolver is proven to be stable.
+        let disable_gh_resolver = std::env::var("DISABLE_GITHUB_RESOLVER").is_ok();
+        if !disable_gh_resolver {
+            resolver = resolver.with_resolver(gh_resolver);
+        } else {
+            tracing::warn!("GitHub resolver was disabled via DISABLE_GITHUB_RESOLVER env variable")
+        }
+
+        Self::with_resolver(compilation_timeout, connection_pool, Arc::new(resolver)).await
     }
 
     async fn with_resolver(
