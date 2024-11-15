@@ -41,7 +41,6 @@ yarn set version 1.22.19
 
 # Foundry ZK sync
 curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
-./foundryup-zksync
 
 # ZK Stack CLI
 curl -L https://raw.githubusercontent.com/matter-labs/zksync-era/main/zkstack_cli/zkstackup/install | bash
@@ -54,8 +53,8 @@ git clone --recurse-submodules https://github.com/matter-labs/zksync-era.git
 # Don't do that if you intend to run provers on your machine. Check the prover docs for a setup instead.
 echo "export ZKSYNC_USE_CUDA_STUBS=true" >> "$HOME/.bashrc"
 
-# Reload shell
-exec bash
+echo "Installation of Dev setup complete!"
+echo "Please reload your terminal. You can do so by running `exec bash`."
 ```
 
 Don't forget to look at [tips](#tips).
