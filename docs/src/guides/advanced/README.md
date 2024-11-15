@@ -23,7 +23,7 @@ way.
 - [Decentralization](./16_decentralization.md)
 
 Additionally, there are a few articles that cover specific topics that may be useful for developers actively working on
-`zksync-era` repo.
+`zksync-era` repo:
 
 - [Advanced debugging](./90_advanced_debugging.md)
 - [Docker and CI](./91_docker_and_ci.md)
