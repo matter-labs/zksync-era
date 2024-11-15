@@ -1,0 +1,457 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Bundles and Calls - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../favicon.svg">
+        <link rel="shortcut icon" href="../../favicon.png">
+        <link rel="stylesheet" href="../../css/variables.css">
+        <link rel="stylesheet" href="../../css/general.css">
+        <link rel="stylesheet" href="../../css/chrome.css">
+        <link rel="stylesheet" href="../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../../highlight.css">
+        <link rel="stylesheet" href="../../tomorrow-night.css">
+        <link rel="stylesheet" href="../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../css/version-box.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/specs/interop/bundlesandcalls.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="bundles-and-calls"><a class="header" href="#bundles-and-calls">Bundles and Calls</a></h1>
+<h2 id="basics-calls"><a class="header" href="#basics-calls">Basics Calls</a></h2>
+<p>Interop Calls are the next level of interfaces, built on top of Interop Messages, enabling you to call contracts on
+other chains.</p>
+<p><img src="../img/interopcall.png" alt="interopcall.png" /></p>
+<p>At this level, the system handles replay protection—once a call is successfully executed, it cannot be executed again
+(eliminating the need for your own nullifiers or similar mechanisms).</p>
+<p>Additionally, these calls originate from aliased accounts, simplifying permission management (more details on this
+below).</p>
+<p>Cancellations and retries are managed at the next level (Bundles), which are covered in the following section.</p>
+<h3 id="interface"><a class="header" href="#interface">Interface</a></h3>
+<p>On the sending side, the interface provides the option to send this “call” to the destination contract.</p>
+<pre><code class="language-solidity">struct InteropCall {
+ address sourceSender,
+ address destinationAddress,
+ uint256 destinationChainId,
+ calldata data,
+ uint256 value
+}
+contract InteropCenter {
+ // On source chain.
+  // Sends a 'single' basic internal call to destination chain &amp; address.
+  // Internally, it starts a bundle, adds this call and sends it over.
+  function sendCall(destinationChain, destinationAddress, calldata, msgValue) returns bytes32 bundleId;
+}
+</code></pre>
+<p>In return, you receive a <code>bundleId</code> (we’ll explain bundles later, but for now, think of it as a unique identifier for
+your call).</p>
+<p>On the destination chain, you can execute the call using the execute method:</p>
+<pre><code class="language-solidity">contract InteropCenter {
+  // Executes a given bundle.
+  // interopMessage is the message that contains your bundle as payload.
+  // If it fails, it can be called again.
+  function executeInteropBundle(interopMessage, proof);
+
+  // If the bundle didn't execute succesfully yet, it can be marked as cancelled.
+  // See details below.
+  function cancelInteropBundle(interopMessage, proof);
+}
+
+</code></pre>
+<p>You can retrieve the <code>interopMessage</code> (which contains your entire payload) from the Gateway, or you can construct it
+yourself using L1 data.</p>
+<p>Under the hood, this process calls the <code>destinationAddress</code> with the specified calldata.</p>
+<p>This leads to an important question: <strong>Who is the msg.sender for this call?</strong></p>
+<h2 id="msgsender-of-the-destination-call"><a class="header" href="#msgsender-of-the-destination-call"><code>msg.sender</code> of the Destination Call</a></h2>
+<p>The <code>msg.sender</code> on the destination chain will be the <strong>AliasedAccount</strong> — an address created as a hash of the original
+sender and the original source chain.</p>
+<p>(Normally, we’d like to use <code>sourceAccount@sourceChain</code>, but since Ethereum limits the size of addresses to 20 bytes, we
+compute the Keccak hash of the string above and use this as the address.)</p>
+<p>One way to think about it is this: You (as account <code>0x5bFF1...</code> on chain A) can send a call to a contract on a
+destination chain, and for that contract, it will appear as if the call came locally from the address
+<code>keccak(0x5bFF1 || A)</code>. This means you are effectively “controlling” such an account address on <strong>every ZK Chain</strong> by
+sending interop messages from the <code>0x5bFF1...</code> account on chain A.</p>
+<p><img src="../img/msgdotsender.png" alt="msgdotsender.png" /></p>
+<h2 id="simple-example"><a class="header" href="#simple-example">Simple Example</a></h2>
+<p>Imagine you have contracts on chains B, C, and D, and you’d like them to send “reports” to the Headquarters (HQ)
+contract on chain A every time a customer makes a purchase.</p>
+<pre><code class="language-solidity">// Deployed on chains B, C, D.
+contract Shop {
+ /// Called by the customers when they buy something.
+ function buy(uint256 itemPrice) {
+   // handle payment etc.
+   ...
+   // report to HQ
+   InteropCenter(INTEROP_ADDRESS).sendCall(
+    324,       // chain id of chain A,
+    0xc425..,  // HQ contract on chain A,
+    createCalldata("reportSales(uint256)", itemPrice), // calldata
+    0,         // no value
+  );
+ }
+}
+
+// Deployed on chain A
+contract HQ {
+  // List of shops
+  mapping (address =&gt; bool) shops;
+  mapping (address =&gt; uint256) sales;
+  function addShop(address addressOnChain, uint256 chainId) onlyOwner {
+    // Adding aliased accounts.
+   shops[address(keccak(addressOnChain || chainId))] = true;
+  }
+
+  function reportSales(uint256 itemPrice) {
+    // only allow calls from our shops (their aliased accounts).
+   require(shops[msg.sender]);
+   sales[msg.sender] += itemPrice;
+  }
+}
+</code></pre>
+<h4 id="who-is-paying-for-gas-how-does-this-call-get-to-the-destination-chain"><a class="header" href="#who-is-paying-for-gas-how-does-this-call-get-to-the-destination-chain">Who is paying for gas? How does this Call get to the destination chain</a></h4>
+<p>At this level, the <strong>InteropCall</strong> acts like a hitchhiker — it relies on someone (anyone) to pick it up, execute it, and
+pay for the gas!</p>
+<p><img src="../img/callride.png" alt="callride.png" /></p>
+<p>While any transaction on the destination chain can simply call <code>InteropCenter.executeInteropBundle</code>, if you don’t want
+to rely on hitchhiking, you can create one yourself. We’ll discuss this in the section about <strong>Interop Transactions</strong>.</p>
+<h2 id="bundles"><a class="header" href="#bundles">Bundles</a></h2>
+<p>Before we proceed to discuss <strong>InteropTransactions</strong>, there is one more layer in between: <strong>InteropBundles</strong>.</p>
+<p><img src="../img/interopcallbundle.png" alt="interopcallbundle.png" /></p>
+<p><strong>Bundles Offer:</strong></p>
+<ul>
+<li><strong>Shared Fate</strong>: All calls in the bundle either succeed or fail together.</li>
+<li><strong>Retries</strong>: If a bundle fails, it can be retried (e.g., with more gas).</li>
+<li><strong>Cancellations</strong>: If a bundle has not been successfully executed yet, it can be cancelled.</li>
+</ul>
+<p>If you look closely at the interface we used earlier, you’ll notice that we were already discussing the execution of
+<strong>Bundles</strong> rather than single calls. So, let’s dive into what bundles are and the role they fulfill.</p>
+<p>The primary purpose of a bundle is to ensure that a given list of calls is executed in a specific order and has a shared
+fate (i.e., either all succeed or all fail).</p>
+<p>In this sense, you can think of a bundle as a <strong>“multicall”</strong>, but with two key differences:</p>
+<ol>
+<li>
+<p>You cannot “unbundle” items—an individual <code>InteropCall</code> cannot be run independently; it is tightly tied to the
+bundle.</p>
+</li>
+<li>
+<p>Each <code>InteropCall</code> within a bundle can use a different aliased account, enabling separate permissions for each call.</p>
+</li>
+</ol>
+<pre><code class="language-solidity">contract InteropCenter {
+ struct InteropBundle {
+  // Calls have to be done in this order.
+  InteropCall calls[];
+  uint256 destinationChain;
+
+  // If not set - anyone can execute it.
+  address executionAddresses[];
+  // Who can 'cancel' this bundle.
+  address cancellationAddress;
+ }
+
+ // Starts a new bundle.
+ // All the calls that will be added to this bundle (potentially by different contracts)
+ // will have a 'shared fate'.
+ // The whole bundle must be going to a single destination chain.
+ function startBundle(destinationChain) returns bundleId;
+ // Adds a new call to the opened bundle.
+ // Returns the messageId of this single message in the bundle.
+ function addToBundle(bundleId, destinationAddress, calldata, msgValue) return msgHash;
+ // Finishes a given bundle, and sends it.
+ function finishAndSendBundle(bundleId) return msgHash;
+}
+</code></pre>
+<h3 id="cross-chain-swap-example"><a class="header" href="#cross-chain-swap-example">Cross Chain Swap Example</a></h3>
+<p>Imagine you want to perform a swap on chain B, exchanging USDC for PEPE, but all your assets are currently on chain A.</p>
+<p>This process would typically involve four steps:</p>
+<ol>
+<li>Transfer USDC from chain A to chain B.</li>
+<li>Set allowance for the swap.</li>
+<li>Execute the swap.</li>
+<li>Transfer PEPE back to chain A.</li>
+</ol>
+<p>Each of these steps is a separate “call,” but you need them to execute in exactly this order and, ideally, atomically.
+If the swap fails, you wouldn’t want the allowance to remain set on the destination chain.</p>
+<p>Below is an example of how this process could look (note that the code is pseudocode; we’ll explain the helper methods
+required to make it work in a later section).</p>
+<pre><code class="language-solidity">bundleId = InteropCenter(INTEROP_CENTER).startBundle(chainD);
+// This will 'burn' the 1k USDC, create the special interopCall
+// when this call is executed on chainD, it will mint 1k USDC there.
+// BUT - this interopCall is tied to this bundle id.
+USDCBridge.transferWithBundle(
+  bundleId,
+  chainD,
+  aliasedAccount(this(account), block.chain_id),
+  1000);
+
+
+// This will create interopCall to set allowance.
+InteropCenter.addToBundle(bundleId,
+            USDCOnDestinationChain,
+            createCalldata("approve", 1000, poolOnDestinationChain),
+            0);
+// This will create interopCall to do the swap.
+InteropCenter.addToBundle(bundleId,
+            poolOnDestinationChain,
+            createCalldata("swap", "USDC_PEPE", 1000, ...),
+            0)
+// And this will be the interopcall to transfer all the assets back.
+InteropCenter.addToBundle(bundleId,
+            pepeBridgeOnDestinationChain,
+            createCalldata("transferAll", block.chain_id, this(account)),
+            0)
+
+
+bundleHash = interopCenter.finishAndSendBundle(bundleId);
+</code></pre>
+<p>In the code above, we created a bundle that anyone can execute on the destination chain. This bundle will handle the
+entire process: minting, approving, swapping, and transferring back.</p>
+<h3 id="bundle-restrictions"><a class="header" href="#bundle-restrictions">Bundle Restrictions</a></h3>
+<p>When starting a bundle, if you specify the <code>executionAddress</code>, only that account will be able to execute the bundle on
+the destination chain. If no <code>executionAddress</code> is specified, anyone can trigger the execution.</p>
+<h2 id="retries-and-cancellations"><a class="header" href="#retries-and-cancellations">Retries and Cancellations</a></h2>
+<p>If bundle execution fails — whether due to a contract error or running out of gas—none of its calls will be applied. The
+bundle can be re-run on the <strong>destination chain</strong> without requiring any updates or notifications to the source chain.
+More details about retries and gas will be covered in the next level, <strong>Interop Transactions</strong>.</p>
+<p>This process can be likened to a “hitchhiker” (or in the case of a bundle, a group of hitchhikers) — if the car they’re
+traveling in doesn’t reach the destination, they simply find another ride rather than returning home.</p>
+<p>However, there are cases where the bundle should be cancelled. Cancellation can be performed by the
+<code>cancellationAddress</code> specified in the bundle itself.</p>
+<h4 id="for-our-cross-chain-swap-example"><a class="header" href="#for-our-cross-chain-swap-example">For our cross chain swap example</a></h4>
+<ol>
+<li>Call <code>cancelInteropBundle(interopMessage, proof)</code> on the destination chain.
+<ul>
+<li>A helper method for this will be introduced in the later section.</li>
+</ul>
+</li>
+<li>When cancellation occurs, the destination chain will generate an <code>InteropMessage</code> containing cancellation
+information.</li>
+<li>Using the proof from this method, the user can call the USDC bridge to recover their assets:</li>
+</ol>
+<pre><code class="language-solidity">USDCBridge.recoverFailedTransfer(bundleId, cancellationMessage, proof);
+</code></pre>
+<h3 id="some-details-on-our-approach"><a class="header" href="#some-details-on-our-approach">Some details on our approach</a></h3>
+<h4 id="destination-contract"><a class="header" href="#destination-contract">Destination Contract</a></h4>
+<ul>
+<li>On ElasticChain, the destination contract does not need to know it is being called via an interop call. Requests
+arrive from `aliased accounts’.</li>
+</ul>
+<h4 id="batching"><a class="header" href="#batching">Batching</a></h4>
+<ul>
+<li>ElasticChain supports bundling of messages, ensuring shared fate and strict order.</li>
+</ul>
+<h4 id="execution-permissions"><a class="header" href="#execution-permissions">Execution Permissions</a></h4>
+<ul>
+<li>ElasticChain allows restricting who can execute the call or bundle on the destination chain.</li>
+</ul>
+<h4 id="cancellations"><a class="header" href="#cancellations">Cancellations</a></h4>
+<ul>
+<li>ElasticChain supports restricting who can cancel. Cancellation can happen at any time.</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../specs/interop/interopmessages.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../specs/interop/interoptransactions.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../specs/interop/interopmessages.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../specs/interop/interoptransactions.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../ace.js"></script>
+        <script src="../../editor.js"></script>
+        <script src="../../mode-rust.js"></script>
+        <script src="../../theme-dawn.js"></script>
+        <script src="../../theme-tomorrow_night.js"></script>
+
+        <script src="../../elasticlunr.min.js"></script>
+        <script src="../../mark.min.js"></script>
+        <script src="../../searcher.js"></script>
+
+        <script src="../../clipboard.min.js"></script>
+        <script src="../../highlight.js"></script>
+        <script src="../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../js/version-box.js"></script>
+        <script src="../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>
