@@ -6,17 +6,17 @@ use strum::Display;
 use zksync_basic_types::{
     tee_types::TeeType,
     web3::{AccessList, Bytes, Index},
-    Bloom, L1BatchNumber, H160, H256, H64, U256, U64,
+    Bloom, L1BatchNumber, SLChainId, H160, H256, H64, U256, U64,
 };
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_utils::u256_to_h256;
 
 pub use crate::transaction_request::{
     Eip712Meta, SerializationTransactionError, TransactionRequest,
 };
 use crate::{
-    debug_flat_call::DebugCallFlat, protocol_version::L1VerifierConfig, Address, L2BlockNumber,
-    ProtocolVersionId,
+    debug_flat_call::{DebugCallFlat, ResultDebugCallFlat},
+    protocol_version::L1VerifierConfig,
+    Address, L2BlockNumber, ProtocolVersionId,
 };
 
 pub mod en;
@@ -198,63 +198,9 @@ pub struct L2ToL1LogProof {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct LeafAggProof {
-    pub leaf_chain_proof: LeafChainProof,
-    pub chain_agg_proof: ChainAggProof,
-    pub local_msg_root: H256,
-    pub sl_batch_number: U256,
-    pub sl_chain_id: U256,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct LeafChainProof {
-    pub batch_leaf_proof: Vec<H256>,
-    pub batch_leaf_proof_mask: U256,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct ChainAggProof {
     pub chain_id_leaf_proof: Vec<H256>,
     pub chain_id_leaf_proof_mask: U256,
-}
-
-impl LeafAggProof {
-    pub fn encode(self) -> (u32, Vec<H256>) {
-        let mut encoded_result = vec![];
-
-        let LeafAggProof {
-            leaf_chain_proof,
-            chain_agg_proof,
-            sl_batch_number,
-            sl_chain_id,
-            ..
-        } = self;
-
-        let LeafChainProof {
-            batch_leaf_proof,
-            batch_leaf_proof_mask,
-        } = leaf_chain_proof;
-
-        let ChainAggProof {
-            chain_id_leaf_proof: _,
-            chain_id_leaf_proof_mask,
-        } = chain_agg_proof;
-
-        let batch_leaf_proof_len = batch_leaf_proof.len() as u32;
-
-        encoded_result.push(u256_to_h256(batch_leaf_proof_mask));
-        encoded_result.extend(batch_leaf_proof);
-
-        let sl_encoded_data =
-            sl_batch_number * U256::from(2).pow(128.into()) + chain_id_leaf_proof_mask;
-        encoded_result.push(u256_to_h256(sl_encoded_data));
-
-        encoded_result.push(u256_to_h256(sl_chain_id));
-
-        (batch_leaf_proof_len, encoded_result)
-    }
 }
 
 /// A struct with the two default bridge contracts.
@@ -318,8 +264,6 @@ pub struct TransactionReceipt {
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
     /// Status: either 1 (success) or 0 (failure).
     pub status: U64,
-    /// State root.
-    pub root: H256,
     /// Logs bloom
     #[serde(rename = "logsBloom")]
     pub logs_bloom: Bloom,
@@ -529,6 +473,45 @@ impl Log {
     }
 }
 
+impl From<Log> for zksync_basic_types::web3::Log {
+    fn from(log: Log) -> Self {
+        zksync_basic_types::web3::Log {
+            address: log.address,
+            topics: log.topics,
+            data: log.data,
+            block_hash: log.block_hash,
+            block_number: log.block_number,
+            transaction_hash: log.transaction_hash,
+            transaction_index: log.transaction_index,
+            log_index: log.log_index,
+            transaction_log_index: log.transaction_log_index,
+            log_type: log.log_type,
+            removed: log.removed,
+            block_timestamp: log.block_timestamp,
+        }
+    }
+}
+
+impl From<zksync_basic_types::web3::Log> for Log {
+    fn from(log: zksync_basic_types::web3::Log) -> Self {
+        Log {
+            address: log.address,
+            topics: log.topics,
+            data: log.data,
+            block_hash: log.block_hash,
+            block_number: log.block_number,
+            transaction_hash: log.transaction_hash,
+            transaction_index: log.transaction_index,
+            log_index: log.log_index,
+            transaction_log_index: log.transaction_log_index,
+            log_type: log.log_type,
+            removed: log.removed,
+            block_timestamp: log.block_timestamp,
+            l1_batch_number: None,
+        }
+    }
+}
+
 /// A log produced by a transaction.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -578,6 +561,9 @@ pub struct Transaction {
     pub gas: U256,
     /// Input data
     pub input: Bytes,
+    /// The parity (0 for even, 1 for odd) of the y-value of the secp256k1 signature
+    #[serde(rename = "yParity", default, skip_serializing_if = "Option::is_none")]
+    pub y_parity: Option<U64>,
     /// ECDSA recovery id
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub v: Option<U64>,
@@ -706,7 +692,7 @@ pub struct ProtocolVersion {
     /// Verifier configuration
     #[deprecated]
     pub verification_keys_hashes: Option<L1VerifierConfig>,
-    /// Hashes of base system contracts (bootloader and default account)
+    /// Hashes of base system contracts (bootloader, default account and evm emulator)
     #[deprecated]
     pub base_system_contracts: Option<BaseSystemContractsHashes>,
     /// Bootloader code hash
@@ -715,6 +701,9 @@ pub struct ProtocolVersion {
     /// Default account code hash
     #[serde(rename = "defaultAccountCodeHash")]
     pub default_account_code_hash: Option<H256>,
+    /// EVM emulator code hash
+    #[serde(rename = "evmSimulatorCodeHash")]
+    pub evm_emulator_code_hash: Option<H256>,
     /// L2 Upgrade transaction hash
     #[deprecated]
     pub l2_system_upgrade_tx_hash: Option<H256>,
@@ -730,6 +719,7 @@ impl ProtocolVersion {
         timestamp: u64,
         bootloader_code_hash: H256,
         default_account_code_hash: H256,
+        evm_emulator_code_hash: Option<H256>,
         l2_system_upgrade_tx_hash: Option<H256>,
     ) -> Self {
         Self {
@@ -740,9 +730,11 @@ impl ProtocolVersion {
             base_system_contracts: Some(BaseSystemContractsHashes {
                 bootloader: bootloader_code_hash,
                 default_aa: default_account_code_hash,
+                evm_emulator: evm_emulator_code_hash,
             }),
             bootloader_code_hash: Some(bootloader_code_hash),
             default_account_code_hash: Some(default_account_code_hash),
+            evm_emulator_code_hash,
             l2_system_upgrade_tx_hash,
             l2_system_upgrade_tx_hash_new: l2_system_upgrade_tx_hash,
         }
@@ -756,6 +748,13 @@ impl ProtocolVersion {
     pub fn default_account_code_hash(&self) -> Option<H256> {
         self.default_account_code_hash
             .or_else(|| self.base_system_contracts.map(|hashes| hashes.default_aa))
+    }
+
+    pub fn evm_emulator_code_hash(&self) -> Option<H256> {
+        self.evm_emulator_code_hash.or_else(|| {
+            self.base_system_contracts
+                .and_then(|hashes| hashes.evm_emulator)
+        })
     }
 
     pub fn minor_version(&self) -> Option<u16> {
@@ -813,11 +812,11 @@ pub enum BlockStatus {
 #[serde(untagged)]
 pub enum CallTracerBlockResult {
     CallTrace(Vec<ResultDebugCall>),
-    FlatCallTrace(Vec<DebugCallFlat>),
+    FlatCallTrace(Vec<ResultDebugCallFlat>),
 }
 
 impl CallTracerBlockResult {
-    pub fn unwrap_flat(self) -> Vec<DebugCallFlat> {
+    pub fn unwrap_flat(self) -> Vec<ResultDebugCallFlat> {
         match self {
             Self::CallTrace(_) => panic!("Result is a FlatCallTrace"),
             Self::FlatCallTrace(trace) => trace,
@@ -866,10 +865,13 @@ pub struct BlockDetailsBase {
     pub status: BlockStatus,
     pub commit_tx_hash: Option<H256>,
     pub committed_at: Option<DateTime<Utc>>,
+    pub commit_chain_id: Option<SLChainId>,
     pub prove_tx_hash: Option<H256>,
     pub proven_at: Option<DateTime<Utc>>,
+    pub prove_chain_id: Option<SLChainId>,
     pub execute_tx_hash: Option<H256>,
     pub executed_at: Option<DateTime<Utc>>,
+    pub execute_chain_id: Option<SLChainId>,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
     // Cost of publishing one byte (in wei).
@@ -991,6 +993,7 @@ mod tests {
             base_system_contracts: Some(Default::default()),
             bootloader_code_hash: Some(Default::default()),
             default_account_code_hash: Some(Default::default()),
+            evm_emulator_code_hash: Some(Default::default()),
             l2_system_upgrade_tx_hash: Default::default(),
             l2_system_upgrade_tx_hash_new: Default::default(),
         };

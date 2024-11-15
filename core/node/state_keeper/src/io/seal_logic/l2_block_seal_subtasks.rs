@@ -5,11 +5,10 @@ use zksync_dal::{Connection, Core, CoreDal};
 use zksync_multivm::interface::VmEvent;
 use zksync_system_constants::{CONTRACT_DEPLOYER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 use zksync_types::{
-    ethabi,
+    ethabi, h256_to_address,
     tokens::{TokenInfo, TokenMetadata},
     Address, L2BlockNumber, H256,
 };
-use zksync_utils::h256_to_account_address;
 
 use crate::{
     io::seal_logic::SealStrategy,
@@ -28,9 +27,9 @@ fn extract_added_tokens(
             event.address == CONTRACT_DEPLOYER_ADDRESS
                 && event.indexed_topics.len() == 4
                 && event.indexed_topics[0] == VmEvent::DEPLOY_EVENT_SIGNATURE
-                && h256_to_account_address(&event.indexed_topics[1]) == l2_token_deployer_addr
+                && h256_to_address(&event.indexed_topics[1]) == l2_token_deployer_addr
         })
-        .map(|event| h256_to_account_address(&event.indexed_topics[3]));
+        .map(|event| h256_to_address(&event.indexed_topics[3]));
 
     extract_added_token_info_from_addresses(all_generated_events, deployed_tokens)
 }
@@ -73,7 +72,7 @@ fn extract_added_token_info_from_addresses(
                             || event.indexed_topics[0] == *BRIDGE_INITIALIZATION_SIGNATURE_OLD)
                 })
                 .map(|event| {
-                    let l1_token_address = h256_to_account_address(&event.indexed_topics[1]);
+                    let l1_token_address = h256_to_address(&event.indexed_topics[1]);
                     let mut dec_ev = ethabi::decode(
                         &[
                             ethabi::ParamType::String,
@@ -333,12 +332,11 @@ impl L2BlockSealSubtask for InsertTokensSubtask {
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
         let is_fictive = command.is_l2_block_fictive();
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ExtractAddedTokens, is_fictive);
         let token_deployer_address = command
             .l2_legacy_shared_bridge_addr
             .unwrap_or(L2_NATIVE_TOKEN_VAULT_ADDRESS);
-        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ExtractAddedTokens, is_fictive);
         let added_tokens = extract_added_tokens(token_deployer_address, &command.l2_block.events);
-
         progress.observe(added_tokens.len());
 
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertTokens, is_fictive);
@@ -459,7 +457,7 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
 mod tests {
     use zksync_dal::{ConnectionPool, Core};
     use zksync_multivm::{
-        interface::{TransactionExecutionResult, TxExecutionStatus},
+        interface::{tracer::ValidationTraces, TransactionExecutionResult, TxExecutionStatus},
         utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte},
         zk_evm_latest::ethereum_types::H256,
         VmVersion,
@@ -468,11 +466,11 @@ mod tests {
     use zksync_types::{
         block::L2BlockHeader,
         commitment::PubdataParams,
+        h256_to_u256,
         l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
         AccountTreeId, Address, L1BatchNumber, ProtocolVersionId, StorageKey, StorageLog,
         StorageLogKind, StorageLogWithPreviousValue,
     };
-    use zksync_utils::h256_to_u256;
 
     use super::*;
     use crate::updates::L2BlockUpdates;
@@ -488,7 +486,7 @@ mod tests {
             .await
             .unwrap()
             .transactions_dal()
-            .insert_transaction_l2(&tx, Default::default())
+            .insert_transaction_l2(&tx, Default::default(), ValidationTraces::default())
             .await
             .unwrap();
         let tx_hash = tx.hash();
@@ -550,7 +548,6 @@ mod tests {
                 virtual_blocks: Default::default(),
                 protocol_version: ProtocolVersionId::latest(),
             },
-            pubdata_params: PubdataParams::default(),
             first_tx_index: 0,
             fee_account_address: Default::default(),
             fee_input: Default::default(),
@@ -559,6 +556,7 @@ mod tests {
             protocol_version: Some(ProtocolVersionId::latest()),
             l2_legacy_shared_bridge_addr: Default::default(),
             pre_insert_txs: false,
+            pubdata_params: PubdataParams::default(),
         };
 
         // Run.
@@ -614,7 +612,6 @@ mod tests {
             l2_tx_count: 1,
             fee_account_address: l2_block_seal_command.fee_account_address,
             base_fee_per_gas: l2_block_seal_command.base_fee_per_gas,
-            pubdata_params: l2_block_seal_command.pubdata_params,
             batch_fee_input: l2_block_seal_command.fee_input,
             base_system_contracts_hashes: l2_block_seal_command.base_system_contracts_hashes,
             protocol_version: l2_block_seal_command.protocol_version,
@@ -622,6 +619,7 @@ mod tests {
             virtual_blocks: l2_block_seal_command.l2_block.virtual_blocks,
             gas_limit: get_max_batch_gas_limit(VmVersion::latest()),
             logs_bloom: Default::default(),
+            pubdata_params: l2_block_seal_command.pubdata_params,
         };
         connection
             .protocol_versions_dal()

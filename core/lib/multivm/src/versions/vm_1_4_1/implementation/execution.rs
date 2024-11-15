@@ -1,4 +1,4 @@
-use std::mem;
+use std::{collections::HashMap, mem};
 
 use zk_evm_1_4_1::aux_structures::Timestamp;
 
@@ -99,6 +99,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             logs,
             statistics,
             refunds,
+            dynamic_factory_deps: HashMap::new(), // dynamic bytecode deployment is not supported
         };
 
         (stop_reason, result)

@@ -1,6 +1,11 @@
 name: Workflow template for CI jobs for Prover Components
 on:
   workflow_call:
+    secrets:
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE:
+        description: "Token which will be provided to checkout action to be able to clone private submodules"
+        required: true
+
 jobs:
   lint:
     runs-on: [ matterlabs-ci-runner-highmem-long ]
@@ -10,6 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
+          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
           submodules: "recursive"
 
       - name: Setup environment
@@ -27,16 +33,21 @@ jobs:
       - name: Start services
         run: |
           run_retried docker-compose -f ${RUNNER_COMPOSE_FILE} pull
-          mkdir -p ./volumes/postgres
           docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d zk postgres
 
-      - name: Init
+      - name: Install zkstack
         run: |
-          ci_run zkt
-          ci_run zk_supervisor db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
+          ci_run zkstackup -g --local
+
+      - name: Database setup
+        run: |
+          ci_run zkstack dev db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
 
       - name: Formatting
-        run: ci_run bash -c "cd prover && cargo fmt --check"
+        run: |
+          ci_run git config --global --add safe.directory /usr/src/zksync
+          ci_run zkstack dev fmt --check rustfmt
 
   unit-tests:
     runs-on: [ matterlabs-ci-runner-highmem-long ]
@@ -46,6 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
+          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
           submodules: "recursive"
 
       - name: Setup environment
@@ -62,15 +74,18 @@ jobs:
       - name: Start services
         run: |
           run_retried docker-compose -f ${RUNNER_COMPOSE_FILE} pull
-          mkdir -p ./volumes/postgres
           docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d zk postgres
+
+      - name: Install zkstack
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
+          ci_run zkstackup -g --local
 
       - name: Init
         run: |
-          ci_run zkt
           ci_run run_retried rustup show
 
       - name: Prover unit tests
         run: |
           # Not all tests are enabled, since prover and setup_key_generator_and_server requires bellman-cuda to be present
-          ci_run zk_supervisor test prover
+          ci_run zkstack dev test prover

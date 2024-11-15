@@ -11,15 +11,16 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+# **IMPORTANT.** Please do not add dependency on `zksync_config` etc. This crate has a heavy dependency graph as is.
 zksync_system_constants.workspace = true
 zksync_utils.workspace = true
 zksync_basic_types.workspace = true
 zksync_contracts.workspace = true
 zksync_mini_merkle_tree.workspace = true
-zksync_config.workspace = true
 zksync_protobuf.workspace = true
 zksync_crypto_primitives.workspace = true
 
+async-trait.workspace = true
 anyhow.workspace = true
 chrono = { workspace = true, features = ["serde"] }
 derive_more = { workspace = true, features = ["debug"] }
@@ -40,7 +41,6 @@ ethabi.workspace = true
 tracing.workspace = true
 
 # Crypto stuff
-secp256k1.workspace = true
 blake2.workspace = true
 
 [dev-dependencies]

@@ -239,16 +239,16 @@ pub fn get_bootloader_encoding_space(version: VmVersion) -> u32 {
         VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::BOOTLOADER_TX_ENCODING_SPACE,
         VmVersion::Vm1_5_0SmallBootloaderMemory => {
             crate::vm_latest::constants::get_bootloader_tx_encoding_space(
-                crate::vm_latest::MultiVMSubversion::SmallBootloaderMemory,
+                crate::vm_latest::MultiVmSubversion::SmallBootloaderMemory,
             )
         }
         VmVersion::Vm1_5_0IncreasedBootloaderMemory => {
             crate::vm_latest::constants::get_bootloader_tx_encoding_space(
-                crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory,
+                crate::vm_latest::MultiVmSubversion::IncreasedBootloaderMemory,
             )
         }
         VmVersion::VmGateway => crate::vm_latest::constants::get_bootloader_tx_encoding_space(
-            crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory,
+            crate::vm_latest::MultiVmSubversion::Gateway,
         ),
     }
 }
@@ -394,14 +394,17 @@ pub fn get_used_bootloader_memory_bytes(version: VmVersion) -> usize {
         VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::USED_BOOTLOADER_MEMORY_BYTES,
         VmVersion::Vm1_5_0SmallBootloaderMemory => {
             crate::vm_latest::constants::get_used_bootloader_memory_bytes(
-                crate::vm_latest::MultiVMSubversion::SmallBootloaderMemory,
+                crate::vm_latest::MultiVmSubversion::SmallBootloaderMemory,
             )
         }
-        VmVersion::Vm1_5_0IncreasedBootloaderMemory | VmVersion::VmGateway => {
+        VmVersion::Vm1_5_0IncreasedBootloaderMemory => {
             crate::vm_latest::constants::get_used_bootloader_memory_bytes(
-                crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory,
+                crate::vm_latest::MultiVmSubversion::IncreasedBootloaderMemory,
             )
         }
+        VmVersion::VmGateway => crate::vm_latest::constants::get_used_bootloader_memory_bytes(
+            crate::vm_latest::MultiVmSubversion::Gateway,
+        ),
     }
 }
 
@@ -427,14 +430,17 @@ pub fn get_used_bootloader_memory_words(version: VmVersion) -> usize {
         VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::USED_BOOTLOADER_MEMORY_WORDS,
         VmVersion::Vm1_5_0SmallBootloaderMemory => {
             crate::vm_latest::constants::get_used_bootloader_memory_bytes(
-                crate::vm_latest::MultiVMSubversion::SmallBootloaderMemory,
+                crate::vm_latest::MultiVmSubversion::SmallBootloaderMemory,
             )
         }
-        VmVersion::Vm1_5_0IncreasedBootloaderMemory | VmVersion::VmGateway => {
+        VmVersion::Vm1_5_0IncreasedBootloaderMemory => {
             crate::vm_latest::constants::get_used_bootloader_memory_bytes(
-                crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory,
+                crate::vm_latest::MultiVmSubversion::IncreasedBootloaderMemory,
             )
         }
+        VmVersion::VmGateway => crate::vm_latest::constants::get_used_bootloader_memory_bytes(
+            crate::vm_latest::MultiVmSubversion::Gateway,
+        ),
     }
 }
 
@@ -508,6 +514,32 @@ pub fn get_max_batch_base_layer_circuits(version: VmVersion) -> usize {
         VmVersion::Vm1_5_0SmallBootloaderMemory
         | VmVersion::Vm1_5_0IncreasedBootloaderMemory
         | VmVersion::VmGateway => crate::vm_latest::constants::MAX_BASE_LAYER_CIRCUITS,
+    }
+}
+
+pub fn get_max_new_factory_deps(version: VmVersion) -> usize {
+    match version {
+        VmVersion::M5WithRefunds | VmVersion::M5WithoutRefunds => {
+            crate::vm_m5::vm_with_bootloader::MAX_NEW_FACTORY_DEPS
+        }
+        VmVersion::M6Initial | VmVersion::M6BugWithCompressionFixed => {
+            crate::vm_m6::vm_with_bootloader::MAX_NEW_FACTORY_DEPS
+        }
+        VmVersion::Vm1_3_2 => crate::vm_1_3_2::vm_with_bootloader::MAX_NEW_FACTORY_DEPS,
+        VmVersion::VmVirtualBlocks => crate::vm_virtual_blocks::constants::MAX_NEW_FACTORY_DEPS,
+        VmVersion::VmVirtualBlocksRefundsEnhancement => {
+            crate::vm_refunds_enhancement::constants::MAX_NEW_FACTORY_DEPS
+        }
+        VmVersion::VmBoojumIntegration => {
+            crate::vm_boojum_integration::constants::MAX_NEW_FACTORY_DEPS
+        }
+        VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::MAX_NEW_FACTORY_DEPS,
+        VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::MAX_NEW_FACTORY_DEPS,
+        version @ VmVersion::Vm1_5_0SmallBootloaderMemory
+        | version @ VmVersion::Vm1_5_0IncreasedBootloaderMemory
+        | version @ VmVersion::VmGateway => {
+            crate::vm_latest::constants::get_max_new_factory_deps(version.try_into().unwrap())
+        }
     }
 }
 

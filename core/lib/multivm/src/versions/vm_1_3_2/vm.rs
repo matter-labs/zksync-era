@@ -1,14 +1,15 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, rc::Rc};
 
-use zksync_types::Transaction;
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
+use zksync_types::{h256_to_u256, Transaction};
+use zksync_utils::bytecode::hash_bytecode;
+use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{
     glue::{history_mode::HistoryMode, GlueInto},
     interface::{
         storage::{StoragePtr, WriteStorage},
         BytecodeCompressionError, BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv,
-        L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs,
+        L2BlockEnv, PushTransactionResult, SystemEnv, TxExecutionMode, VmExecutionResultAndLogs,
         VmFactory, VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     tracers::old::TracerDispatcher,
@@ -22,22 +23,45 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
     pub(crate) system_env: SystemEnv,
 }
 
+impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
+    pub(crate) fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
+        VmMemoryMetrics {
+            event_sink_inner: self.vm.state.event_sink.get_size(),
+            event_sink_history: self.vm.state.event_sink.get_history_size(),
+            memory_inner: self.vm.state.memory.get_size(),
+            memory_history: self.vm.state.memory.get_history_size(),
+            decommittment_processor_inner: self.vm.state.decommittment_processor.get_size(),
+            decommittment_processor_history: self
+                .vm
+                .state
+                .decommittment_processor
+                .get_history_size(),
+            storage_inner: self.vm.state.storage.get_size(),
+            storage_history: self.vm.state.storage.get_history_size(),
+        }
+    }
+}
+
 impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher;
 
-    fn push_transaction(&mut self, tx: Transaction) {
-        crate::vm_1_3_2::vm_with_bootloader::push_transaction_to_bootloader_memory(
-            &mut self.vm,
-            &tx,
-            self.system_env.execution_mode.glue_into(),
-            None,
-        )
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
+        let compressed_bytecodes =
+            crate::vm_1_3_2::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                &mut self.vm,
+                &tx,
+                self.system_env.execution_mode.glue_into(),
+                None,
+            );
+        PushTransactionResult {
+            compressed_bytecodes: compressed_bytecodes.into(),
+        }
     }
 
     fn inspect(
         &mut self,
         tracer: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
         if let Some(storage_invocations) = tracer.storage_invocations {
             self.vm
@@ -46,7 +70,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         }
 
         match execution_mode {
-            VmExecutionMode::OneTx => {
+            InspectExecutionMode::OneTx => {
                 match self.system_env.execution_mode {
                     TxExecutionMode::VerifyExecute => {
                         let enable_call_tracer = tracer
@@ -69,8 +93,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
                         .glue_into(),
                 }
             }
-            VmExecutionMode::Batch => self.finish_batch().block_tip_execution_result,
-            VmExecutionMode::Bootloader => self.vm.execute_block_tip().glue_into(),
+            InspectExecutionMode::Bootloader => self.vm.execute_block_tip().glue_into(),
         }
     }
 
@@ -160,24 +183,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         }
     }
 
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
-        VmMemoryMetrics {
-            event_sink_inner: self.vm.state.event_sink.get_size(),
-            event_sink_history: self.vm.state.event_sink.get_history_size(),
-            memory_inner: self.vm.state.memory.get_size(),
-            memory_history: self.vm.state.memory.get_history_size(),
-            decommittment_processor_inner: self.vm.state.decommittment_processor.get_size(),
-            decommittment_processor_history: self
-                .vm
-                .state
-                .decommittment_processor
-                .get_history_size(),
-            storage_inner: self.vm.state.storage.get_size(),
-            storage_history: self.vm.state.storage.get_history_size(),
-        }
-    }
-
-    fn finish_batch(&mut self) -> FinishedL1Batch {
+    fn finish_batch(&mut self, _pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
         self.vm
             .execute_till_block_end(
                 crate::vm_1_3_2::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,

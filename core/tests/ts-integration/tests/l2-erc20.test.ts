@@ -9,7 +9,7 @@ import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/b
 import * as zksync from 'zksync-ethers-interop-support';
 import * as ethers from 'ethers';
 import { Provider, Wallet } from 'ethers';
-import { scaledGasPrice, deployContract, readContract, waitForBlockToBeFinalizedOnL1 } from '../src/helpers';
+import { scaledGasPrice, deployContract, readContract, waitForL2ToL1LogProof } from '../src/helpers';
 import { ARTIFACTS_PATH } from '../src/constants';
 
 describe('L2 native ERC20 contract checks', () => {
@@ -36,10 +36,10 @@ describe('L2 native ERC20 contract checks', () => {
         l2Wallet = new Wallet(alice.privateKey, l2Provider);
         l1Wallet = new Wallet(alice.privateKey, l1Provider);
         const L2_NATIVE_TOKEN_VAULT_ADDRESS = '0x0000000000000000000000000000000000010004';
-        const l2NtvInterface = readContract(`${ARTIFACTS_PATH}/bridge/ntv`, 'L2NativeTokenVault').abi;
+        const l2NtvInterface = readContract(`${ARTIFACTS_PATH}`, 'L2NativeTokenVault').abi;
         const l2NativeTokenVault = new ethers.Contract(L2_NATIVE_TOKEN_VAULT_ADDRESS, l2NtvInterface, l2Wallet);
-        const l1AssetRouterInterface = readContract(`${ARTIFACTS_PATH}/bridge/asset-router`, 'L1AssetRouter').abi;
-        const l1NativeTokenVaultInterface = readContract(`${ARTIFACTS_PATH}/bridge/ntv`, 'L1NativeTokenVault').abi;
+        const l1AssetRouterInterface = readContract(`${ARTIFACTS_PATH}`, 'L1AssetRouter').abi;
+        const l1NativeTokenVaultInterface = readContract(`${ARTIFACTS_PATH}`, 'L1NativeTokenVault').abi;
         const l1AssetRouter = new ethers.Contract(await assetRouter.getAddress(), l1AssetRouterInterface, l1Wallet);
         l1NativeTokenVault = new ethers.Contract(
             await l1AssetRouter.nativeTokenVault(),
@@ -51,10 +51,7 @@ describe('L2 native ERC20 contract checks', () => {
         baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
         isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
 
-        const ZkSyncERC20 = await readContract(
-            '../../../contracts/l1-contracts/artifacts-zk/contracts/dev-contracts',
-            'TestnetERC20Token'
-        );
+        const ZkSyncERC20 = await readContract('../../../contracts/l1-contracts/zkout', 'TestnetERC20Token');
 
         aliceErc20 = await deployContract(alice, ZkSyncERC20, ['ZKsync', 'ZK', 18]);
         const l2TokenAddress = await aliceErc20.getAddress();
@@ -101,7 +98,7 @@ describe('L2 native ERC20 contract checks', () => {
         const withdrawalTx = await withdrawalPromise;
         const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
         await withdrawalTx.waitFinalize();
-        await waitForBlockToBeFinalizedOnL1(alice, l2TxReceipt!.blockNumber);
+        await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, withdrawalTx.hash);
 
         await alice.finalizeWithdrawalParams(withdrawalTx.hash); // kl todo finalize the Withdrawals with the params here. Alternatively do in the SDK.
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();
@@ -171,7 +168,8 @@ describe('L2 native ERC20 contract checks', () => {
         // It throws once it gets status == 0 in the receipt and doesn't wait for the finalization.
         const l2Hash = zksync.utils.getL2HashFromPriorityOp(l1Receipt, await alice.provider.getMainContractAddress());
         const l2TxReceipt = await alice.provider.getTransactionReceipt(l2Hash);
-        await waitForBlockToBeFinalizedOnL1(alice, l2TxReceipt!.blockNumber);
+        await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, l2Hash);
+
         // Claim failed deposit.
         await expect(alice.claimFailedDeposit(l2Hash)).toBeAccepted();
         await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.toEqual(initialBalance);

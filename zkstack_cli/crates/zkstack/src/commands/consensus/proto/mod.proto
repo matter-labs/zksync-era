@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package zksync.toolbox.consensus;
+
+import "zksync/core/consensus.proto";
+
+message SetAttesterCommitteeFile {
+  repeated core.consensus.WeightedAttester attesters = 1;
+}

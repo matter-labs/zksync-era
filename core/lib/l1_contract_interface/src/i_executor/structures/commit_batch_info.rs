@@ -6,7 +6,7 @@ use zksync_types::{
         L1BatchWithMetadata,
     },
     ethabi::{ParamType, Token},
-    pubdata_da::PubdataDA,
+    pubdata_da::PubdataSendingMode,
     web3::{contract::Error as ContractError, keccak256},
     ProtocolVersionId, H256, U256,
 };
@@ -17,23 +17,23 @@ use crate::{
 };
 
 /// These are used by the L1 Contracts to indicate what DA layer is used for pubdata
-const PUBDATA_SOURCE_CALLDATA: u8 = 0;
-const PUBDATA_SOURCE_BLOBS: u8 = 1;
-const PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY: u8 = 2;
+pub const PUBDATA_SOURCE_CALLDATA: u8 = 0;
+pub const PUBDATA_SOURCE_BLOBS: u8 = 1;
+pub const PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY: u8 = 2;
 
 /// Encoding for `CommitBatchInfo` from `IExecutor.sol` for a contract running in rollup mode.
 #[derive(Debug)]
 pub struct CommitBatchInfo<'a> {
     mode: L1BatchCommitmentMode,
     l1_batch_with_metadata: &'a L1BatchWithMetadata,
-    pubdata_da: PubdataDA,
+    pubdata_da: PubdataSendingMode,
 }
 
 impl<'a> CommitBatchInfo<'a> {
     pub fn new(
         mode: L1BatchCommitmentMode,
         l1_batch_with_metadata: &'a L1BatchWithMetadata,
-        pubdata_da: PubdataDA,
+        pubdata_da: PubdataSendingMode,
     ) -> Self {
         Self {
             mode,
@@ -221,22 +221,22 @@ impl Tokenizable for CommitBatchInfo<'_> {
                 // Here we're not pushing any pubdata on purpose; no pubdata is sent in Validium mode.
                 (
                     L1BatchCommitmentMode::Validium,
-                    PubdataDA::Calldata | PubdataDA::RelayedL2Calldata,
+                    PubdataSendingMode::Calldata | PubdataSendingMode::RelayedL2Calldata,
                 ) => {
                     vec![PUBDATA_SOURCE_CALLDATA]
                 }
-                (L1BatchCommitmentMode::Validium, PubdataDA::Blobs) => {
+                (L1BatchCommitmentMode::Validium, PubdataSendingMode::Blobs) => {
                     vec![PUBDATA_SOURCE_BLOBS]
                 }
-                (L1BatchCommitmentMode::Rollup, PubdataDA::Custom) => {
+                (L1BatchCommitmentMode::Rollup, PubdataSendingMode::Custom) => {
                     panic!("Custom pubdata DA is incompatible with Rollup mode")
                 }
-                (L1BatchCommitmentMode::Validium, PubdataDA::Custom) => {
+                (L1BatchCommitmentMode::Validium, PubdataSendingMode::Custom) => {
                     vec![PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY]
                 }
                 (
                     L1BatchCommitmentMode::Rollup,
-                    PubdataDA::Calldata | PubdataDA::RelayedL2Calldata,
+                    PubdataSendingMode::Calldata | PubdataSendingMode::RelayedL2Calldata,
                 ) => {
                     // We compute and add the blob commitment to the pubdata payload so that we can verify the proof
                     // even if we are not using blobs.
@@ -247,7 +247,7 @@ impl Tokenizable for CommitBatchInfo<'_> {
                         .chain(blob_commitment)
                         .collect()
                 }
-                (L1BatchCommitmentMode::Rollup, PubdataDA::Blobs) => {
+                (L1BatchCommitmentMode::Rollup, PubdataSendingMode::Blobs) => {
                     let pubdata = self.pubdata_input();
                     let pubdata_commitments =
                         pubdata.chunks(ZK_SYNC_BYTES_PER_BLOB).flat_map(|blob| {
@@ -267,7 +267,7 @@ impl Tokenizable for CommitBatchInfo<'_> {
                 .expect("Failed to get state_diff_hash from metadata");
             tokens.push(Token::Bytes(match (self.mode, self.pubdata_da) {
                 // Validiums with custom DA need the inclusion data to be part of operator_da_input
-                (L1BatchCommitmentMode::Validium, PubdataDA::Custom) => {
+                (L1BatchCommitmentMode::Validium, PubdataSendingMode::Custom) => {
                     let mut operator_da_input: Vec<u8> = state_diff_hash.0.into();
 
                     operator_da_input.extend(
@@ -284,14 +284,16 @@ impl Tokenizable for CommitBatchInfo<'_> {
                 // Here we're not pushing any pubdata on purpose; no pubdata is sent in Validium mode.
                 (
                     L1BatchCommitmentMode::Validium,
-                    PubdataDA::Calldata | PubdataDA::RelayedL2Calldata | PubdataDA::Blobs,
+                    PubdataSendingMode::Calldata
+                    | PubdataSendingMode::RelayedL2Calldata
+                    | PubdataSendingMode::Blobs,
                 ) => state_diff_hash.0.into(),
-                (L1BatchCommitmentMode::Rollup, PubdataDA::Custom) => {
+                (L1BatchCommitmentMode::Rollup, PubdataSendingMode::Custom) => {
                     panic!("Custom pubdata DA is incompatible with Rollup mode")
                 }
                 (
                     L1BatchCommitmentMode::Rollup,
-                    PubdataDA::Calldata | PubdataDA::RelayedL2Calldata,
+                    PubdataSendingMode::Calldata | PubdataSendingMode::RelayedL2Calldata,
                 ) => {
                     let pubdata = self.pubdata_input();
 
@@ -308,7 +310,7 @@ impl Tokenizable for CommitBatchInfo<'_> {
                         .chain(blob_commitment)
                         .collect()
                 }
-                (L1BatchCommitmentMode::Rollup, PubdataDA::Blobs) => {
+                (L1BatchCommitmentMode::Rollup, PubdataSendingMode::Blobs) => {
                     let pubdata = self.pubdata_input();
 
                     let header =

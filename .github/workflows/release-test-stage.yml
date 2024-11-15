@@ -19,6 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
+          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
           fetch-depth: 2
 
       - name: Get all test, doc and src files that have changed
@@ -39,7 +40,7 @@ jobs:
               - '!prover/**'
   setup:
     name: Setup
-    runs-on: [ matterlabs-deployer-stage ]
+    runs-on: [matterlabs-deployer-stage]
     outputs:
       image_tag_suffix: ${{ steps.generate-tag-suffix.outputs.image_tag_suffix }}
       prover_fri_gpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.gpu_short_commit_sha }}
@@ -58,10 +59,9 @@ jobs:
         run: |
           ./prover/extract-setup-data-keys.sh >> $GITHUB_OUTPUT
 
-
   build-push-core-images:
     name: Build and push images
-    needs: [ setup, changed_files ]
+    needs: [setup, changed_files]
     uses: ./.github/workflows/build-core-template.yml
     if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
     with:
@@ -69,10 +69,11 @@ jobs:
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
   build-push-tee-prover-images:
     name: Build and push images
-    needs: [ setup, changed_files ]
+    needs: [setup, changed_files]
     uses: ./.github/workflows/build-tee-prover-template.yml
     if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
     with:
@@ -81,10 +82,11 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
   build-push-contract-verifier:
     name: Build and push images
-    needs: [ setup, changed_files ]
+    needs: [setup, changed_files]
     uses: ./.github/workflows/build-contract-verifier-template.yml
     if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
     with:
@@ -92,10 +94,11 @@ jobs:
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
   build-push-prover-images:
     name: Build and push images
-    needs: [ setup, changed_files ]
+    needs: [setup, changed_files]
     uses: ./.github/workflows/build-prover-template.yml
     if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
     with:
@@ -105,10 +108,11 @@ jobs:
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
   build-push-witness-generator-image-avx512:
     name: Build and push prover images with avx512 instructions
-    needs: [ setup, changed_files ]
+    needs: [setup, changed_files]
     uses: ./.github/workflows/build-witness-generator-template.yml
     if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
     with:
@@ -119,13 +123,16 @@ jobs:
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
   build-gar-prover-fri-gpu-and-circuit-prover-gpu-gar:
     name: Build GAR prover FRI GPU
-    needs: [ setup, build-push-prover-images ]
+    needs: [setup, build-push-prover-images]
     uses: ./.github/workflows/build-prover-fri-gpu-gar-and-circuit-prover-gpu-gar.yml
     if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
     with:
       setup_keys_id: ${{ needs.setup.outputs.prover_fri_gpu_key_id }}
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       protocol_version: ${{ needs.build-push-prover-images.outputs.protocol_version }}
+    secrets:
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}

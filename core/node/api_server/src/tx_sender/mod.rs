@@ -1,6 +1,6 @@
 //! Helper module to submit transactions into the ZKsync Network.
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::sync::RwLock;
@@ -9,8 +9,13 @@ use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
 use zksync_multivm::{
-    interface::{OneshotTracingParams, TransactionExecutionMetrics, VmExecutionResultAndLogs},
-    utils::{derive_base_fee_and_gas_per_pubdata, get_max_batch_gas_limit},
+    interface::{
+        tracer::TimestampAsserterParams as TracerTimestampAsserterParams, OneshotTracingParams,
+        TransactionExecutionMetrics, VmExecutionResultAndLogs,
+    },
+    utils::{
+        derive_base_fee_and_gas_per_pubdata, get_max_batch_gas_limit, get_max_new_factory_deps,
+    },
 };
 use zksync_node_fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider};
 use zksync_state::PostgresStorageCaches;
@@ -22,15 +27,16 @@ use zksync_system_constants::L2_INTEROP_HANDLER_ADDRESS;
 use zksync_types::{
     api::state_override::StateOverride,
     fee_model::BatchFeeInput,
-    get_intrinsic_constants,
+    get_intrinsic_constants, h256_to_u256,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
-    AccountTreeId, Address, L2ChainId, Nonce, ProtocolVersionId, Transaction, H160, H256,
-    MAX_NEW_FACTORY_DEPS, U256,
+    vm::FastVmMode,
+    AccountTreeId, Address, L2ChainId, Nonce, ProtocolVersionId, Transaction, H160, H256, U256,
 };
-use zksync_utils::h256_to_u256;
-use zksync_vm_executor::oneshot::{CallOrExecute, EstimateGas, OneshotEnvParameters};
+use zksync_vm_executor::oneshot::{
+    CallOrExecute, EstimateGas, MultiVmBaseSystemContracts, OneshotEnvParameters,
+};
 
 pub(super) use self::{gas_estimation::BinarySearchKind, result::SubmitTxError};
 use self::{master_pool_sink::MasterPoolSink, result::ApiCallResult, tx_sink::TxSink};
@@ -88,6 +94,7 @@ pub async fn build_tx_sender(
 /// Oneshot executor options used by the API server sandbox.
 #[derive(Debug)]
 pub struct SandboxExecutorOptions {
+    pub(crate) fast_vm_mode: FastVmMode,
     /// Env parameters to be used when estimating gas.
     pub(crate) estimate_gas: OneshotEnvParameters<EstimateGas>,
     /// Env parameters to be used when performing `eth_call` requests.
@@ -103,16 +110,35 @@ impl SandboxExecutorOptions {
         operator_account: AccountTreeId,
         validation_computational_gas_limit: u32,
     ) -> anyhow::Result<Self> {
+        let estimate_gas_contracts =
+            tokio::task::spawn_blocking(MultiVmBaseSystemContracts::load_estimate_gas_blocking)
+                .await
+                .context("failed loading base contracts for gas estimation")?;
+        let call_contracts =
+            tokio::task::spawn_blocking(MultiVmBaseSystemContracts::load_eth_call_blocking)
+                .await
+                .context("failed loading base contracts for calls / tx execution")?;
+
         Ok(Self {
-            estimate_gas: OneshotEnvParameters::for_gas_estimation(chain_id, operator_account)
-                .await?,
-            eth_call: OneshotEnvParameters::for_execution(
+            fast_vm_mode: FastVmMode::Old,
+            estimate_gas: OneshotEnvParameters::new(
+                Arc::new(estimate_gas_contracts),
+                chain_id,
+                operator_account,
+                u32::MAX,
+            ),
+            eth_call: OneshotEnvParameters::new(
+                Arc::new(call_contracts),
                 chain_id,
                 operator_account,
                 validation_computational_gas_limit,
-            )
-            .await?,
+            ),
         })
+    }
+
+    /// Sets the fast VM mode used by this executor.
+    pub fn set_fast_vm_mode(&mut self, fast_vm_mode: FastVmMode) {
+        self.fast_vm_mode = fast_vm_mode;
     }
 
     pub(crate) async fn mock() -> Self {
@@ -183,6 +209,12 @@ impl TxSenderBuilder {
             executor_options,
             storage_caches,
             missed_storage_invocation_limit,
+            self.config.timestamp_asserter_params.clone().map(|params| {
+                TracerTimestampAsserterParams {
+                    address: params.address,
+                    min_time_till_end: params.min_time_till_end,
+                }
+            }),
         );
 
         TxSender(Arc::new(TxSenderInner {
@@ -212,6 +244,13 @@ pub struct TxSenderConfig {
     pub validation_computational_gas_limit: u32,
     pub chain_id: L2ChainId,
     pub whitelisted_tokens_for_aa: Vec<Address>,
+    pub timestamp_asserter_params: Option<TimestampAsserterParams>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimestampAsserterParams {
+    pub address: Address,
+    pub min_time_till_end: Duration,
 }
 
 impl TxSenderConfig {
@@ -220,6 +259,7 @@ impl TxSenderConfig {
         web3_json_config: &Web3JsonRpcConfig,
         fee_account_addr: Address,
         chain_id: L2ChainId,
+        timestamp_asserter_params: Option<TimestampAsserterParams>,
     ) -> Self {
         Self {
             fee_account_addr,
@@ -231,6 +271,7 @@ impl TxSenderConfig {
                 .validation_computational_gas_limit,
             chain_id,
             whitelisted_tokens_for_aa: web3_json_config.whitelisted_tokens_for_aa.clone(),
+            timestamp_asserter_params,
         }
     }
 }
@@ -281,13 +322,11 @@ impl TxSender {
     pub async fn submit_tx(
         &self,
         tx: L2Tx,
+        block_args: BlockArgs,
     ) -> Result<(L2TxSubmissionResult, VmExecutionResultAndLogs), SubmitTxError> {
         let tx_hash = tx.hash();
         let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::Validate);
-        let mut connection = self.acquire_replica_connection().await?;
-        let protocol_version = connection.blocks_dal().pending_protocol_version().await?;
-        drop(connection);
-        self.validate_tx(&tx, protocol_version).await?;
+        self.validate_tx(&tx, block_args.protocol_version()).await?;
         stage_latency.observe();
 
         let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DryRun);
@@ -306,9 +345,7 @@ impl TxSender {
             tx: tx.clone(),
         };
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
-        let mut connection = self.acquire_replica_connection().await?;
-        let block_args = BlockArgs::pending(&mut connection).await?;
-
+        let connection = self.acquire_replica_connection().await?;
         let execution_output = self
             .0
             .executor
@@ -343,14 +380,15 @@ impl TxSender {
         if !execution_output.are_published_bytecodes_ok {
             return Err(SubmitTxError::FailedToPublishCompressedBytecodes);
         }
-
         let mut stage_latency =
             SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DbInsert);
         self.ensure_tx_executable(&tx.clone().into(), &execution_output.metrics, true)?;
+
+        let validation_traces = validation_result?;
         let submission_res_handle = self
             .0
             .tx_sink
-            .submit_tx(&tx, execution_output.metrics)
+            .submit_tx(&tx, execution_output.metrics, validation_traces)
             .await?;
 
         match submission_res_handle {
@@ -439,10 +477,11 @@ impl TxSender {
             );
             return Err(SubmitTxError::MaxPriorityFeeGreaterThanMaxFee);
         }
-        if tx.execute.factory_deps.len() > MAX_NEW_FACTORY_DEPS {
+        let max_new_factory_deps = get_max_new_factory_deps(protocol_version.into());
+        if tx.execute.factory_deps.len() > max_new_factory_deps {
             return Err(SubmitTxError::TooManyFactoryDependencies(
                 tx.execute.factory_deps.len(),
-                MAX_NEW_FACTORY_DEPS,
+                max_new_factory_deps,
             ));
         }
 

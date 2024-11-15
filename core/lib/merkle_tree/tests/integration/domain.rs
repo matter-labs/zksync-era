@@ -68,6 +68,31 @@ fn basic_workflow() {
     tree.verify_consistency(L1BatchNumber(0)).unwrap();
     assert_eq!(tree.root_hash(), expected_root_hash);
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(1));
+
+    let keys = ["0:", "0:0"].map(|key| key.parse().unwrap());
+    let raw_nodes = tree.reader().raw_nodes(&keys);
+    assert_eq!(raw_nodes.len(), 2);
+    let raw_root = raw_nodes[0].as_ref().unwrap();
+    assert!(!raw_root.raw.is_empty());
+    assert!(raw_root.internal.is_some());
+    assert!(raw_root.leaf.is_none());
+
+    let raw_node = raw_nodes[1].as_ref().unwrap();
+    assert!(!raw_node.raw.is_empty());
+    assert!(raw_node.leaf.is_none());
+    let raw_node = raw_node.internal.as_ref().unwrap();
+
+    let (nibble, _) = raw_node
+        .children()
+        .find(|(_, child_ref)| child_ref.is_leaf)
+        .unwrap();
+    let leaf_key = format!("0:0{nibble:x}").parse().unwrap();
+    let raw_nodes = tree.reader().raw_nodes(&[leaf_key]);
+    assert_eq!(raw_nodes.len(), 1);
+    let raw_leaf = raw_nodes.into_iter().next().unwrap().expect("no leaf");
+    assert!(!raw_leaf.raw.is_empty());
+    assert!(raw_leaf.leaf.is_some());
+    assert!(raw_leaf.internal.is_none());
 }
 
 #[test]

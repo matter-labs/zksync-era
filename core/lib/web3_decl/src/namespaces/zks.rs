@@ -6,8 +6,8 @@ use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{
         state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
-        L1ProcessingDetails, L2ToL1LogProof, LeafAggProof, Proof, ProtocolVersion,
-        TransactionDetailedResult, TransactionDetails,
+        L1ProcessingDetails, L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetailedResult,
+        TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -52,6 +52,9 @@ pub trait ZksNamespace {
     #[method(name = "getTestnetPaymaster")]
     async fn get_testnet_paymaster(&self) -> RpcResult<Option<Address>>;
 
+    #[method(name = "getTimestampAsserter")]
+    async fn get_timestamp_asserter(&self) -> RpcResult<Option<Address>>;
+
     #[method(name = "getBridgeContracts")]
     async fn get_bridge_contracts(&self) -> RpcResult<BridgeAddresses>;
 
@@ -83,14 +86,6 @@ pub trait ZksNamespace {
         tx_hash: H256,
         index: Option<usize>,
     ) -> RpcResult<Option<L2ToL1LogProof>>;
-
-    #[method(name = "getAggBatchInclusionProof")]
-    async fn get_aggregated_batch_inclusion_proof(
-        &self,
-        message_root_addr: Address,
-        batch_number: L1BatchNumber,
-        chain_id: u32,
-    ) -> RpcResult<Option<LeafAggProof>>;
 
     #[method(name = "L1BatchNumber")]
     async fn get_l1_batch_number(&self) -> RpcResult<U64>;

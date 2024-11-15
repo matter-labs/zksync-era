@@ -1,6 +1,10 @@
 name: Workflow template for Core Linting CI jobs
 on:
   workflow_call:
+    secrets:
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE:
+        description: "Token which will be provided to checkout action to be able to clone private submodules"
+        required: true
 
 jobs:
   code_lint:
@@ -8,6 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
+          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
           submodules: "recursive"
 
       - name: Setup environment
@@ -26,24 +31,32 @@ jobs:
       - name: Start services
         run: |
           ci_localnet_up
+      
+      - name: Install zkstack
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
+          ci_run zkstackup -g --local
 
       - name: Build
         run: |
-          ci_run ./bin/zkt
           ci_run yarn install
           ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run zk_supervisor db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
 
+      - name: Database setup
+        run: |
+          ci_run zkstack dev db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
 
       - name: Lints
         run: |
-          ci_run zk_supervisor fmt --check
-          ci_run zk_supervisor lint -t md --check
-          ci_run zk_supervisor lint -t sol --check
-          ci_run zk_supervisor lint -t js --check
-          ci_run zk_supervisor lint -t ts --check
-          ci_run zk_supervisor lint -t rs --check
+          ci_run zkstack dev fmt --check
+          ci_run zkstack dev lint -t md --check
+          ci_run zkstack dev lint -t sol --check
+          ci_run zkstack dev lint -t js --check
+          ci_run zkstack dev lint -t ts --check
+          ci_run zkstack dev lint -t rs --check
+          ci_run zkstack dev lint -t autocompletion --check
+          ci_run zkstack dev lint -t rust-toolchain
 
       - name: Check Database
         run: |
-          ci_run zk_supervisor database check-sqlx-data --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
+          ci_run zkstack dev database check-sqlx-data --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}

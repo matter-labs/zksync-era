@@ -51,9 +51,7 @@ impl StorageType {
     const ALL: [Self; 3] = [Self::AsyncRocksdbCache, Self::Rocksdb, Self::Postgres];
 }
 
-// FIXME: uncomment when gateway support is added to fast vm.
-// const FAST_VM_MODES: [FastVmMode; 3] = [FastVmMode::Old, FastVmMode::New, FastVmMode::Shadow];
-const FAST_VM_MODES: [FastVmMode; 3] = [FastVmMode::Old, FastVmMode::Old, FastVmMode::Old];
+const FAST_VM_MODES: [FastVmMode; 3] = [FastVmMode::Old, FastVmMode::New, FastVmMode::Shadow];
 
 /// Checks that we can successfully execute a single L2 tx in batch executor on all storage types.
 #[test_casing(9, Product((StorageType::ALL, FAST_VM_MODES)))]
@@ -446,7 +444,7 @@ async fn deploy_and_call_loadtest(vm_mode: FastVmMode) {
     );
     assert_executed(
         &executor
-            .execute_tx(alice.loadnext_custom_writes_call(tx.address, 1, 500_000_000))
+            .execute_tx(alice.loadnext_custom_initial_writes_call(tx.address, 1, 500_000_000))
             .await
             .unwrap(),
     );
@@ -514,17 +512,15 @@ async fn execute_reverted_tx(vm_mode: FastVmMode) {
     let tx = alice.deploy_loadnext_tx();
     assert_executed(&executor.execute_tx(tx.tx).await.unwrap());
 
-    let txn = &executor
-        .execute_tx(alice.loadnext_custom_writes_call(
-            tx.address, 1,
-            1_000_000, // We provide enough gas for tx to be executed, but not enough for the call to be successful.
-        ))
-        .await
-        .unwrap();
-
-    dbg!(&txn);
-
-    assert_reverted(txn);
+    assert_reverted(
+        &executor
+            .execute_tx(alice.loadnext_custom_initial_writes_call(
+                tx.address, 1,
+                1_000_000, // We provide enough gas for tx to be executed, but not enough for the call to be successful.
+            ))
+            .await
+            .unwrap(),
+    );
     executor.finish_batch().await.unwrap();
 }
 

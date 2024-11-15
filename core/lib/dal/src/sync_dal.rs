@@ -35,6 +35,8 @@ impl SyncDal<'_, '_> {
                             (MAX(number) + 1)
                         FROM
                             l1_batches
+                        WHERE
+                            is_sealed
                     ),
                     (
                         SELECT
@@ -50,6 +52,7 @@ impl SyncDal<'_, '_> {
                 miniblocks.fair_pubdata_price,
                 miniblocks.bootloader_code_hash,
                 miniblocks.default_aa_code_hash,
+                miniblocks.evm_emulator_code_hash,
                 miniblocks.virtual_blocks,
                 miniblocks.hash,
                 miniblocks.protocol_version AS "protocol_version!",
@@ -110,7 +113,7 @@ mod tests {
         block::{L1BatchHeader, L2BlockHeader},
         Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction,
     };
-    use zksync_vm_interface::TransactionExecutionMetrics;
+    use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
 
     use super::*;
     use crate::{
@@ -165,7 +168,11 @@ mod tests {
         };
         let tx = mock_l2_transaction();
         conn.transactions_dal()
-            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         conn.blocks_dal()

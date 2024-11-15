@@ -1,7 +1,6 @@
-use std::{collections::HashMap, convert::TryInto};
+use std::collections::HashMap;
 
 use anyhow::Context as _;
-use once_cell::sync::Lazy;
 use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiError;
@@ -9,49 +8,39 @@ use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_multivm::interface::VmExecutionResultAndLogs;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
+    address_to_h256,
     api::{
-        state_override::StateOverride, BlockDetails, BridgeAddresses, ChainAggProof, GetLogsFilter,
-        L1BatchDetails, L1ProcessingDetails, L2ToL1LogProof, LeafAggProof, LeafChainProof, Proof,
-        ProtocolVersion, StorageProof, TransactionDetails,
+        state_override::StateOverride, BlockDetails, BridgeAddresses, GetLogsFilter,
+        L1BatchDetails, L1ProcessingDetails, L2ToL1LogProof, Proof, ProtocolVersion, StorageProof,
+        TransactionDetails,
     },
-    ethabi,
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
+    h256_to_u256,
     l1::L1Tx,
     l2::L2Tx,
-    l2_to_l1_log::{l2_to_l1_logs_tree_size, L2ToL1Log},
+    l2_to_l1_log::{l2_to_l1_logs_tree_size, L2ToL1Log, LOG_PROOF_SUPPORTED_METADATA_VERSION},
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
     utils::storage_key_for_standard_token_balance,
-    web3::{keccak256, Bytes},
+    web3::Bytes,
     AccountTreeId, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, StorageKey,
-    Transaction, L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, L2_MESSAGE_ROOT_ADDRESS,
+    Transaction, L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS,
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
-use zksync_utils::{address_to_h256, h256_to_u256, u256_to_h256};
 use zksync_web3_decl::{
     client::{Client, L2},
-    error::Web3Error,
+    error::{ClientRpcContext, Web3Error},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
     types::{Address, Token, H256},
 };
 
 use crate::{
+    execution_sandbox::BlockArgs,
     tx_sender::BinarySearchKind,
     utils::open_readonly_transaction,
     web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, RpcState},
 };
-
-pub static MESSAGE_ROOT_ADDED_CHAIN_BATCH_ROOT_EVENT: Lazy<H256> = Lazy::new(|| {
-    ethabi::long_signature(
-        "AppendedChainBatchRoot",
-        &[
-            ethabi::ParamType::Uint(256),
-            ethabi::ParamType::Uint(256),
-            ethabi::ParamType::FixedBytes(32),
-        ],
-    )
-});
 
 #[derive(Debug)]
 pub(crate) struct ZksNamespace {
@@ -81,16 +70,21 @@ impl ZksNamespace {
             eip712_meta.gas_per_pubdata = U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE);
         }
 
+        let mut connection = self.state.acquire_connection().await?;
+        let block_args = BlockArgs::pending(&mut connection).await?;
+        drop(connection);
         let mut tx = L2Tx::from_request(
             request_with_gas_per_pubdata_overridden.into(),
             self.state.api_config.max_tx_size,
+            block_args.use_evm_emulator(),
         )?;
 
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
         tx.common_data.fee.max_priority_fee_per_gas = 0u64.into();
         tx.common_data.fee.gas_per_pubdata_limit = U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE);
-        self.estimate_fee(tx.into(), state_override).await
+        self.estimate_fee(tx.into(), block_args, state_override)
+            .await
     }
 
     pub async fn estimate_l1_to_l2_gas_impl(
@@ -107,17 +101,25 @@ impl ZksNamespace {
             }
         }
 
-        let tx: L1Tx = request_with_gas_per_pubdata_overridden
-            .try_into()
-            .map_err(Web3Error::SerializationError)?;
+        let mut connection = self.state.acquire_connection().await?;
+        let block_args = BlockArgs::pending(&mut connection).await?;
+        drop(connection);
+        let tx = L1Tx::from_request(
+            request_with_gas_per_pubdata_overridden,
+            block_args.use_evm_emulator(),
+        )
+        .map_err(Web3Error::SerializationError)?;
 
-        let fee = self.estimate_fee(tx.into(), state_override).await?;
+        let fee = self
+            .estimate_fee(tx.into(), block_args, state_override)
+            .await?;
         Ok(fee.gas_limit)
     }
 
     async fn estimate_fee(
         &self,
         tx: Transaction,
+        block_args: BlockArgs,
         state_override: Option<StateOverride>,
     ) -> Result<Fee, Web3Error> {
         let scale_factor = self.state.api_config.estimate_gas_scale_factor;
@@ -130,6 +132,7 @@ impl ZksNamespace {
             .tx_sender
             .get_txs_fee_in_wei(
                 tx,
+                block_args,
                 scale_factor,
                 acceptable_overestimation as u64,
                 state_override,
@@ -139,19 +142,23 @@ impl ZksNamespace {
     }
 
     pub fn get_bridgehub_contract_impl(&self) -> Option<Address> {
-        self.state.api_config.user_facing_bridgehub_addr
+        self.state.api_config.l1_bridgehub_proxy_addr
     }
 
     pub fn get_main_contract_impl(&self) -> Address {
-        self.state.api_config.user_facing_diamond_proxy_addr
+        self.state.api_config.l1_diamond_proxy_addr
     }
 
     pub fn get_testnet_paymaster_impl(&self) -> Option<Address> {
         self.state.api_config.l2_testnet_paymaster_addr
     }
 
-    pub fn get_bridge_contracts_impl(&self) -> BridgeAddresses {
-        self.state.api_config.bridge_addresses.clone()
+    pub async fn get_bridge_contracts_impl(&self) -> BridgeAddresses {
+        self.state.bridge_addresses_handle.read().await
+    }
+
+    pub fn get_timestamp_asserter_impl(&self) -> Option<Address> {
+        self.state.api_config.timestamp_asserter_address
     }
 
     pub fn l1_chain_id_impl(&self) -> U64 {
@@ -234,6 +241,14 @@ impl ZksNamespace {
         msg: H256,
         l2_log_position: Option<usize>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
+        if let Some(handler) = &self.state.l2_l1_log_proof_handler {
+            return handler
+                .get_l2_to_l1_msg_proof(block_number, sender, msg, l2_log_position)
+                .rpc_context("get_l2_to_l1_msg_proof")
+                .await
+                .map_err(Into::into);
+        }
+
         let mut storage = self.state.acquire_connection().await?;
         self.state
             .start_info
@@ -344,69 +359,61 @@ impl ZksNamespace {
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
         let tree_size = l2_to_l1_logs_tree_size(protocol_version);
 
-        let (root, mut proof) = MiniMerkleTree::new(merkle_tree_leaves, Some(tree_size))
+        let (local_root, proof) = MiniMerkleTree::new(merkle_tree_leaves, Some(tree_size))
             .merkle_root_and_path(l1_log_index);
 
-        // FIXME Definitely refactor all of it
-        // For now it is always 0
-        let aggregated_root = batch_meta.metadata.aggregation_root.unwrap();
-        let final_root = KeccakHasher.compress(&root, &aggregated_root);
-        proof.push(aggregated_root);
-
-        println!("\n\nTrying to get the final proof! {}\n\n", l1_batch_number);
-
-        const EXPECTED_SYNC_LAYER_CHAIN_ID: u64 = 505;
-
-        let mut log_leaf_proof = LogLeafProof::new(proof);
-
-        let settlement_layer: u64 = self.state.api_config.sl_chain_id.0;
-
-        if settlement_layer == EXPECTED_SYNC_LAYER_CHAIN_ID {
-            println!("\nI am on sync layer!!\n");
-            // We are on top of sync layer.
-            // Maaybe there is an aggregation proof waiting
-
-            // Create a client for pinging the RPC.
-            let client: Client<L2> = Client::http(
-                self.state
-                    .api_config
-                    .settlement_layer_url
-                    .clone()
-                    .unwrap()
-                    .parse()
-                    .unwrap(),
-            )?
-            .for_network(L2::from(L2ChainId(self.state.api_config.l1_chain_id.0)))
-            .build();
-
-            println!("\ncreated client!!\n");
-
-            let proof = client
-                .get_aggregated_batch_inclusion_proof(
-                    L2_MESSAGE_ROOT_ADDRESS,
-                    l1_batch_number,
-                    self.state.api_config.l2_chain_id.0 as u32,
-                )
-                .await
-                .unwrap_or_else(|err| {
-                    panic!("Failed reaching to the SL: {:#?}", err);
-                });
-            println!("Proof: {:#?}", proof);
-
-            if let Some(proof) = proof {
-                println!("Found proof for my own batch");
-
-                log_leaf_proof.append_aggregation_layer(proof);
-            } else {
-                return Ok(None);
-            }
+        if protocol_version.is_pre_gateway() {
+            return Ok(Some(L2ToL1LogProof {
+                proof,
+                root: local_root,
+                id: l1_log_index as u32,
+            }));
         }
 
-        let proof = log_leaf_proof.encode();
+        let aggregated_root = batch_meta
+            .metadata
+            .aggregation_root
+            .expect("`aggregation_root` must be present for post-gateway branch");
+        let root = KeccakHasher.compress(&local_root, &aggregated_root);
+
+        let mut log_leaf_proof = proof;
+        log_leaf_proof.push(aggregated_root);
+
+        let settlement_layer_chain_id = self.state.api_config.sl_chain_id.0;
+        let l1_chain_id = self.state.api_config.l1_chain_id.0;
+
+        let (batch_proof_len, batch_chain_proof) = if settlement_layer_chain_id != l1_chain_id {
+            let Some(batch_chain_proof) = storage
+                .blocks_dal()
+                .get_l1_batch_chain_merkle_path(l1_batch_number)
+                .await
+                .map_err(DalError::generalize)?
+            else {
+                return Ok(None);
+            };
+
+            (batch_chain_proof.batch_proof_len, batch_chain_proof.proof)
+        } else {
+            (0, Vec::new())
+        };
+
+        let proof = {
+            let mut metadata = [0u8; 32];
+            metadata[0] = LOG_PROOF_SUPPORTED_METADATA_VERSION;
+            metadata[1] = log_leaf_proof.len() as u8;
+            metadata[2] = batch_proof_len as u8;
+
+            let mut result = vec![H256(metadata)];
+
+            result.extend(log_leaf_proof);
+            result.extend(batch_chain_proof);
+
+            result
+        };
 
         Ok(Some(L2ToL1LogProof {
             proof,
-            root: final_root,
+            root,
             id: l1_log_index as u32,
         }))
     }
@@ -416,6 +423,14 @@ impl ZksNamespace {
         tx_hash: H256,
         index: Option<usize>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
+        if let Some(handler) = &self.state.l2_l1_log_proof_handler {
+            return handler
+                .get_l2_to_l1_log_proof(tx_hash, index)
+                .rpc_context("get_l2_to_l1_log_proof")
+                .await
+                .map_err(Into::into);
+        }
+
         let mut storage = self.state.acquire_connection().await?;
         let Some((l1_batch_number, l1_batch_tx_index)) = storage
             .blocks_web3_dal()
@@ -426,6 +441,11 @@ impl ZksNamespace {
             return Ok(None);
         };
 
+        self.state
+            .start_info
+            .ensure_not_pruned(l1_batch_number, &mut storage)
+            .await?;
+
         let log_proof = self
             .get_l2_to_l1_log_proof_inner(
                 &mut storage,
@@ -435,401 +455,6 @@ impl ZksNamespace {
             )
             .await?;
         Ok(log_proof)
-    }
-
-    async fn l1_batch_number_with_agg_batch(
-        &self,
-        storage: &mut Connection<'_, Core>,
-        latest_sealed_block_number: L2BlockNumber,
-        message_root_addr: Address,
-        batch_number: L1BatchNumber,
-        chain_id: u32,
-    ) -> Result<Option<u32>, Web3Error> {
-        let add_chain_logs = storage
-            .events_web3_dal()
-            .get_logs(
-                GetLogsFilter {
-                    // FIXME: this is somewhat inefficient, better ways need to be created
-                    from_block: 0.into(),
-                    to_block: latest_sealed_block_number,
-                    addresses: vec![message_root_addr],
-                    topics: vec![
-                        (1, vec![*MESSAGE_ROOT_ADDED_CHAIN_BATCH_ROOT_EVENT]),
-                        (2, vec![u256_to_h256(U256::from(chain_id))]),
-                        (3, vec![u256_to_h256(U256::from(batch_number.0))]),
-                    ],
-                },
-                self.state.api_config.req_entities_limit,
-            )
-            .await
-            .map_err(DalError::generalize)?;
-
-        println!("LOGS = {:#?}", add_chain_logs);
-
-        // At most one such log is expected
-        assert!(add_chain_logs.len() <= 1);
-
-        if add_chain_logs.is_empty() {
-            return Ok(None);
-        }
-
-        let Some(l1_batch_number) = add_chain_logs[0].l1_batch_number else {
-            return Ok(None);
-        };
-
-        Ok(Some(l1_batch_number.as_u32()))
-    }
-
-    // FIXME: `message_root_addr` is most often constant. The only reason we may want to provide a custom value is
-    // for L1, but at this point maybe it could known from the config, not sure.
-    pub async fn get_aggregated_batch_inclusion_proof_impl(
-        &self,
-        message_root_addr: Address,
-        searched_batch_number: L1BatchNumber,
-        searched_chain_id: u32,
-    ) -> Result<Option<LeafAggProof>, Web3Error> {
-        println!("heee");
-        let mut storage = self.state.acquire_connection().await?;
-        // Proofs only available for finalized batches
-        let latest_sealed_block_number = storage
-            .blocks_dal()
-            .get_last_sealed_l2_block_header()
-            .await
-            .map_err(DalError::generalize)?
-            .map(|header| header.number)
-            .unwrap_or_default();
-
-        let l1_batch_number_with_agg_batch = self
-            .l1_batch_number_with_agg_batch(
-                &mut storage,
-                latest_sealed_block_number,
-                message_root_addr,
-                searched_batch_number,
-                searched_chain_id,
-            )
-            .await?;
-        println!("hee2");
-        let Some(l1_batch_number_with_agg_batch) = l1_batch_number_with_agg_batch else {
-            return Ok(None);
-        };
-        println!("\n\nhee3 -- {}\n\n", l1_batch_number_with_agg_batch);
-
-        let local_msg_root = storage
-            .blocks_dal()
-            .get_l1_batch_metadata(L1BatchNumber(l1_batch_number_with_agg_batch))
-            .await
-            .map_err(DalError::generalize)?
-            .and_then(|metadata| metadata.metadata.local_root);
-
-        let Some(local_msg_root) = local_msg_root else {
-            return Ok(None);
-        };
-
-        let batch_proof = self
-            .get_batch_inclusion_proof_impl(
-                message_root_addr,
-                searched_batch_number,
-                searched_chain_id,
-                latest_sealed_block_number,
-                l1_batch_number_with_agg_batch,
-            )
-            .await?;
-        let Some(leaf_proof) = batch_proof else {
-            return Ok(None);
-        };
-        let correct_l2_block_number = storage
-            .blocks_dal()
-            .get_l2_block_range_of_l1_batch(L1BatchNumber(l1_batch_number_with_agg_batch))
-            .await
-            .map_err(DalError::generalize)?;
-        let Some((_, max_l2_block_number)) = correct_l2_block_number else {
-            return Ok(None);
-        };
-
-        let chain_proof = self
-            .get_chain_inclusion_proof_impl(
-                message_root_addr,
-                searched_chain_id,
-                max_l2_block_number,
-                local_msg_root,
-            )
-            .await?;
-        let result = LeafAggProof {
-            leaf_chain_proof: leaf_proof,
-            chain_agg_proof: chain_proof.unwrap(),
-            local_msg_root,
-            sl_batch_number: l1_batch_number_with_agg_batch.into(),
-            // this is the settlement layer
-            sl_chain_id: self.state.api_config.l2_chain_id.0.into(),
-        };
-
-        Ok(Some(result))
-    }
-
-    pub async fn get_batch_inclusion_proof_impl(
-        &self,
-        message_root_addr: Address,
-        searched_batch_number: L1BatchNumber,
-        searched_chain_id: u32,
-        latest_sealed_block_number: L2BlockNumber,
-        l1_batch_number_with_agg_batch: u32,
-    ) -> Result<Option<LeafChainProof>, Web3Error> {
-        let mut storage = self.state.acquire_connection().await?;
-
-        // FIXME: move as api config
-        // Firstly, let's grab all events that correspond to batch being inserted into the chain_id tree.
-        println!("hee4");
-        let add_batch_logs = storage
-            .events_web3_dal()
-            .get_logs(
-                GetLogsFilter {
-                    // FIXME: this is somewhat inefficient, better ways need to be created
-                    from_block: 0.into(),
-                    to_block: latest_sealed_block_number,
-                    addresses: vec![message_root_addr],
-                    topics: vec![(1, vec![*MESSAGE_ROOT_ADDED_CHAIN_BATCH_ROOT_EVENT])],
-                },
-                // FIXME: this is a bit inefficient, better ways need to be created
-                i32::MAX as usize,
-            )
-            .await
-            .map_err(DalError::generalize)?;
-
-        println!("Add batch logs: {:#?}", add_batch_logs);
-
-        let mut batch_leaf_proof_mask = None;
-
-        let mut chain_id_merkle_tree =
-            MiniMerkleTree::<[u8; 96], KeccakHasher>::new(Vec::<[u8; 96]>::new().into_iter(), None);
-        let mut cnt = 0;
-
-        for add_batch_log in add_batch_logs.iter() {
-            let Some(batch_num) = add_batch_log.l1_batch_number else {
-                continue;
-            };
-            let batch_num: u32 = batch_num.as_u32();
-
-            if batch_num > l1_batch_number_with_agg_batch {
-                continue;
-            };
-
-            let chain_id = h256_to_u256(add_batch_log.topics[1]);
-            let batch_number = h256_to_u256(add_batch_log.topics[2]);
-
-            if chain_id.as_u32() != searched_chain_id {
-                continue;
-            }
-
-            if batch_number.as_u32() == searched_batch_number.0 {
-                println!("relevant batch found! {:#?}", add_batch_log);
-                batch_leaf_proof_mask = Some(cnt);
-            }
-
-            println!("appended log: {:#?}", add_batch_log);
-
-            let batch_root = H256::from_slice(&add_batch_log.data.0);
-            chain_id_merkle_tree.push(Self::batch_leaf_preimage(batch_root, batch_number.as_u32()));
-
-            println!("new batch root = {:#?}", chain_id_merkle_tree.merkle_root());
-
-            cnt += 1;
-        }
-        let Some(batch_leaf_proof_mask) = batch_leaf_proof_mask else {
-            return Ok(None);
-        };
-
-        let result = chain_id_merkle_tree.merkle_root_and_path(batch_leaf_proof_mask);
-        let root = result.0;
-        let batch_leaf_proof = result.1;
-
-        println!(
-            "EXPECTED ROOT FOR {} / {} = {}",
-            searched_chain_id, batch_leaf_proof_mask, root
-        );
-
-        Ok(Some(LeafChainProof {
-            batch_leaf_proof,
-            batch_leaf_proof_mask: batch_leaf_proof_mask.into(),
-        }))
-    }
-
-    pub async fn get_chain_inclusion_proof_impl(
-        &self,
-        message_root_addr: Address,
-        searched_chain_id: u32,
-        block_number: L2BlockNumber,
-        local_msg_root: H256,
-    ) -> Result<Option<ChainAggProof>, Web3Error> {
-        let mut storage = self.state.acquire_connection().await?;
-        let storage_key_num = U256::zero(); // kl todo
-        let storage_key = StorageKey::new(
-            AccountTreeId::new(message_root_addr),
-            u256_to_h256(storage_key_num),
-        );
-        let chain_count = storage
-            .storage_web3_dal()
-            .get_historical_value_unchecked(storage_key.hashed_key(), block_number)
-            .await
-            .map_err(DalError::generalize)?;
-        let chain_count_integer = chain_count.0[31];
-        println!("kl todo chain count = {:#?}", chain_count_integer);
-
-        let mut full_chain_merkle_tree =
-            MiniMerkleTree::<[u8; 96], KeccakHasher>::new(Vec::<[u8; 96]>::new().into_iter(), None);
-        let mut chain_id_leaf_proof_mask = None;
-
-        for i in 0..chain_count_integer {
-            let chain_id = self
-                .get_chain_id_from_index_impl(i.into(), block_number)
-                .await
-                .unwrap();
-            let chain_root = self
-                .get_chain_root_from_id_impl(chain_id, block_number)
-                .await
-                .unwrap();
-            full_chain_merkle_tree.push(Self::chain_id_leaf_preimage(chain_root, chain_id));
-
-            if h256_to_u256(chain_id).as_u32() == searched_chain_id {
-                chain_id_leaf_proof_mask = Some(i as usize);
-            }
-        }
-
-        let Some(chain_id_leaf_proof_mask) = chain_id_leaf_proof_mask else {
-            return Ok(None);
-        };
-
-        let chain_id_leaf_proof = full_chain_merkle_tree
-            .merkle_root_and_path(chain_id_leaf_proof_mask)
-            .1;
-
-        println!(
-            "kl todo 2 {:?}, {:?}",
-            chain_id_leaf_proof_mask,
-            chain_id_leaf_proof.len()
-        );
-
-        let full_agg_root = full_chain_merkle_tree.merkle_root();
-        println!(
-            "\n\n FULL AGG ROOT FOR BATCH = {:#?}\n\n",
-            hex::encode(full_agg_root.0)
-        );
-        let mut chain_id_leaf_proof = full_chain_merkle_tree
-            .merkle_root_and_path(chain_id_leaf_proof_mask)
-            .1;
-
-        chain_id_leaf_proof.push(local_msg_root);
-        let chain_id_leaf_proof_mask =
-            chain_id_leaf_proof_mask | (1 << (chain_id_leaf_proof.len() - 1));
-
-        Ok(Some(ChainAggProof {
-            chain_id_leaf_proof,
-            chain_id_leaf_proof_mask: chain_id_leaf_proof_mask.into(),
-        }))
-    }
-
-    pub async fn get_chain_id_from_index_impl(
-        &self,
-        index: u32,
-        block_number: L2BlockNumber,
-    ) -> Result<H256, Web3Error> {
-        let mut storage = self.state.acquire_connection().await?;
-
-        let chain_id_mapping_slot = U256::from(2);
-        let chain_id_index = H256::from_slice(&keccak256(
-            &[
-                u256_to_h256(U256::from(index)).0,
-                u256_to_h256(chain_id_mapping_slot).to_fixed_bytes(),
-            ]
-            .concat(),
-        ));
-        println!("kl todo chain_id_index = {:#?}", chain_id_index);
-
-        let storage_key = self.get_message_root_log_key(chain_id_index);
-        let chain_id = storage
-            .storage_web3_dal()
-            .get_historical_value_unchecked(storage_key.hashed_key(), block_number)
-            .await
-            .map_err(DalError::generalize)?;
-        println!("kl todo chain_id = {:#?}", chain_id);
-        Ok(chain_id)
-    }
-
-    pub async fn get_chain_root_from_id_impl(
-        &self,
-        chain_id: H256,
-        block_number: L2BlockNumber,
-    ) -> Result<H256, Web3Error> {
-        let mut storage = self.state.acquire_connection().await?;
-
-        let chain_tree_mapping_slot = U256::from(7);
-        let chain_tree_slot = H256::from_slice(&keccak256(
-            &[
-                chain_id.0,
-                u256_to_h256(chain_tree_mapping_slot).to_fixed_bytes(),
-            ]
-            .concat(),
-        ));
-        println!("kl todo chain_tree_slot = {:#?}", chain_tree_slot);
-
-        let chain_sides_slot = u256_to_h256(h256_to_u256(chain_tree_slot) + 1);
-        println!("kl todo chain_sides_slot = {:#?}", chain_sides_slot);
-
-        let length_storage_key = self.get_message_root_log_key(chain_sides_slot);
-        let length_encoding = storage
-            .storage_web3_dal()
-            .get_historical_value_unchecked(length_storage_key.hashed_key(), block_number)
-            .await
-            .map_err(DalError::generalize)?;
-
-        let length = h256_to_u256(length_encoding);
-        // Here we assume that length is non zero
-        assert!(length > U256::zero(), "Length is zero");
-        let last_elem_pos = length - 1;
-
-        let sides_data_start = H256(keccak256(chain_sides_slot.as_bytes()));
-
-        let chain_root_slot = self
-            .get_message_root_log_key(u256_to_h256(h256_to_u256(sides_data_start) + last_elem_pos));
-        println!("kl todo length_encoding = {:#?}", length_encoding);
-        println!("kl todo chain_root_slot = {:#?}", chain_root_slot);
-        let chain_root = storage
-            .storage_web3_dal()
-            .get_historical_value_unchecked(chain_root_slot.hashed_key(), block_number)
-            .await
-            .map_err(DalError::generalize)?;
-        println!("kl todo chain_root = {:#?}", chain_root);
-        Ok(chain_root)
-    }
-
-    pub fn get_message_root_log_key(&self, key: H256) -> StorageKey {
-        let message_root = AccountTreeId::new(L2_MESSAGE_ROOT_ADDRESS);
-        StorageKey::new(message_root, key)
-    }
-
-    pub fn batch_leaf_preimage(batch_root: H256, batch_number: u32) -> [u8; 96] {
-        let prefix =
-            hex::decode("d82fec4a37cbdc47f1e5cc4ad64deacf34a48e6f7c61fa5b68fd58e543259cf4")
-                .unwrap();
-        let mut full_preimage = [0u8; 96];
-
-        full_preimage[0..32].copy_from_slice(&prefix);
-        full_preimage[32..64].copy_from_slice(&batch_root.0);
-        full_preimage[64..96].copy_from_slice(&u256_to_h256(batch_number.into()).0);
-
-        full_preimage
-    }
-
-    pub fn chain_id_leaf_preimage(chain_root: H256, chain_id: H256) -> [u8; 96] {
-        let prefix =
-            hex::decode("39bc69363bb9e26cf14240de4e22569e95cf175cfbcf1ade1a47a253b4bf7f61")
-                .unwrap();
-        let mut full_preimage = [0u8; 96];
-
-        full_preimage[0..32].copy_from_slice(&prefix);
-        full_preimage[32..64].copy_from_slice(&chain_root.0);
-        full_preimage[64..96].copy_from_slice(&chain_id.0);
-
-        full_preimage
     }
 
     pub async fn get_l1_batch_number_impl(&self) -> Result<U64, Web3Error> {
@@ -1153,82 +778,19 @@ impl ZksNamespace {
         &self,
         tx_bytes: Bytes,
     ) -> Result<(H256, VmExecutionResultAndLogs), Web3Error> {
-        let (mut tx, hash) = self.state.parse_transaction_bytes(&tx_bytes.0)?;
+        let mut connection = self.state.acquire_connection().await?;
+        let block_args = BlockArgs::pending(&mut connection).await?;
+        drop(connection);
+        let (mut tx, hash) = self
+            .state
+            .parse_transaction_bytes(&tx_bytes.0, &block_args)?;
         tx.set_input(tx_bytes.0, hash);
 
-        let submit_result = self.state.tx_sender.submit_tx(tx).await;
+        let submit_result = self.state.tx_sender.submit_tx(tx, block_args).await;
         submit_result.map(|result| (hash, result.1)).map_err(|err| {
             tracing::debug!("Send raw transaction error: {err}");
             API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
             err.into()
-        })
-    }
-}
-
-struct TreeLeafProof {
-    leaf_proof: Vec<H256>,
-    batch_leaf_proof: Option<LeafAggProof>,
-}
-
-impl TreeLeafProof {
-    pub fn encode(self) -> Vec<H256> {
-        const SUPPORTED_METADATA_VERSION: u8 = 1;
-
-        let log_leaf_proof_len = self.leaf_proof.len();
-
-        let (batch_leaf_proof_len, batch_leaf_proof) = if let Some(x) = self.batch_leaf_proof {
-            x.encode()
-        } else {
-            (0, vec![])
-        };
-
-        assert!(log_leaf_proof_len < u8::MAX as usize);
-        assert!(batch_leaf_proof_len < u8::MAX as u32);
-
-        let mut metadata = [0u8; 32];
-        metadata[0] = SUPPORTED_METADATA_VERSION;
-        metadata[1] = log_leaf_proof_len as u8;
-        metadata[2] = batch_leaf_proof_len as u8;
-
-        let mut result = vec![H256(metadata)];
-
-        result.extend(self.leaf_proof);
-        result.extend(batch_leaf_proof);
-
-        result
-    }
-}
-
-struct LogLeafProof {
-    agg_proofs: Vec<TreeLeafProof>,
-}
-
-impl LogLeafProof {
-    pub fn new(leaf_proof: Vec<H256>) -> Self {
-        let bottom_layer = TreeLeafProof {
-            leaf_proof,
-            batch_leaf_proof: None,
-        };
-
-        Self {
-            agg_proofs: vec![bottom_layer],
-        }
-    }
-
-    pub fn encode(self) -> Vec<H256> {
-        let mut result = vec![];
-        for i in self.agg_proofs {
-            result.extend(i.encode());
-        }
-        result
-    }
-
-    pub fn append_aggregation_layer(&mut self, proof: LeafAggProof) {
-        let chain_id_leaf_proof = proof.chain_agg_proof.chain_id_leaf_proof.clone();
-        self.agg_proofs.last_mut().unwrap().batch_leaf_proof = Some(proof);
-        self.agg_proofs.push(TreeLeafProof {
-            leaf_proof: chain_id_leaf_proof,
-            batch_leaf_proof: None,
         })
     }
 }

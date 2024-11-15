@@ -1,24 +1,25 @@
 use std::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
-use zksync_types::{commitment::PubdataParams, L2ChainId, U256};
+use zksync_types::{vm::VmVersion, L2ChainId, ProtocolVersionId, U256};
+use zksync_vm_interface::pubdata::PubdataBuilder;
 
-use super::{
-    tx::BootloaderTx,
-    utils::{apply_pubdata_to_memory, get_encoded_pubdata},
-};
+use super::{tx::BootloaderTx, utils::apply_pubdata_to_memory};
 use crate::{
-    interface::{BootloaderMemory, CompressedBytecodeInfo, L2BlockEnv, TxExecutionMode},
+    interface::{
+        pubdata::PubdataInput, BootloaderMemory, CompressedBytecodeInfo, L2BlockEnv,
+        TxExecutionMode,
+    },
     vm_latest::{
         bootloader_state::{
             l2_block::BootloaderL2Block,
             snapshot::BootloaderStateSnapshot,
             utils::{apply_l2_block, apply_tx_to_memory},
         },
-        constants::TX_DESCRIPTION_OFFSET,
-        types::internals::{PubdataInput, TransactionData},
+        constants::get_tx_description_offset,
+        types::internals::TransactionData,
         utils::l2_blocks::assert_next_block,
-        MultiVMSubversion,
+        MultiVmSubversion,
     },
 };
 
@@ -49,10 +50,10 @@ pub struct BootloaderState {
     free_tx_offset: usize,
     /// Information about the the pubdata that will be needed to supply to the L1Messenger
     pubdata_information: OnceCell<PubdataInput>,
-    /// Params related to how the pubdata should be processed by the bootloader in the batch
-    pubdata_params: PubdataParams,
-    /// VM subversion
-    subversion: MultiVMSubversion,
+    /// Protocol version.
+    protocol_version: ProtocolVersionId,
+    /// Protocol subversion
+    subversion: MultiVmSubversion,
 }
 
 impl BootloaderState {
@@ -60,8 +61,7 @@ impl BootloaderState {
         execution_mode: TxExecutionMode,
         initial_memory: BootloaderMemory,
         first_l2_block: L2BlockEnv,
-        pubdata_params: PubdataParams,
-        subversion: MultiVMSubversion,
+        protocol_version: ProtocolVersionId,
     ) -> Self {
         let l2_block = BootloaderL2Block::new(first_l2_block, 0);
         Self {
@@ -72,8 +72,8 @@ impl BootloaderState {
             execution_mode,
             free_tx_offset: 0,
             pubdata_information: Default::default(),
-            pubdata_params,
-            subversion,
+            protocol_version,
+            subversion: MultiVmSubversion::try_from(VmVersion::from(protocol_version)).unwrap(),
         }
     }
 
@@ -107,6 +107,10 @@ impl BootloaderState {
             .push(BootloaderL2Block::new(l2_block, self.free_tx_index()))
     }
 
+    pub(crate) fn get_vm_subversion(&self) -> MultiVmSubversion {
+        self.subversion
+    }
+
     pub(crate) fn push_tx(
         &mut self,
         tx: TransactionData,
@@ -137,6 +141,7 @@ impl BootloaderState {
             self.compressed_bytecodes_encoding,
             self.execution_mode,
             self.last_l2_block().txs.is_empty(),
+            self.subversion,
         );
         self.compressed_bytecodes_encoding += compressed_bytecode_size;
         self.free_tx_offset = tx_offset + bootloader_tx.encoded_len();
@@ -154,22 +159,13 @@ impl BootloaderState {
             .expect("Pubdata information is not set")
     }
 
-    pub(crate) fn get_encoded_pubdata(&self) -> Vec<u8> {
+    pub(crate) fn settlement_layer_pubdata(&self, pubdata_builder: &dyn PubdataBuilder) -> Vec<u8> {
         let pubdata_information = self
             .pubdata_information
             .get()
-            .expect("Pubdata information is not set")
-            .clone();
+            .expect("Pubdata information is not set");
 
-        match self.subversion {
-            MultiVMSubversion::SmallBootloaderMemory
-            | MultiVMSubversion::IncreasedBootloaderMemory => {
-                pubdata_information.build_pubdata_legacy(false)
-            }
-            MultiVMSubversion::Gateway => {
-                get_encoded_pubdata(pubdata_information, self.pubdata_params, false)
-            }
-        }
+        pubdata_builder.settlement_layer_pubdata(pubdata_information, self.protocol_version)
     }
 
     fn last_mut_l2_block(&mut self) -> &mut BootloaderL2Block {
@@ -177,7 +173,10 @@ impl BootloaderState {
     }
 
     /// Apply all bootloader transaction to the initial memory
-    pub(crate) fn bootloader_memory(&self) -> BootloaderMemory {
+    pub(crate) fn bootloader_memory(
+        &self,
+        pubdata_builder: &dyn PubdataBuilder,
+    ) -> BootloaderMemory {
         let mut initial_memory = self.initial_memory.clone();
         let mut offset = 0;
         let mut compressed_bytecodes_offset = 0;
@@ -193,27 +192,27 @@ impl BootloaderState {
                     compressed_bytecodes_offset,
                     self.execution_mode,
                     num == 0,
+                    self.subversion,
                 );
                 offset += tx.encoded_len();
                 compressed_bytecodes_offset += compressed_bytecodes_size;
                 tx_index += 1;
             }
             if l2_block.txs.is_empty() {
-                apply_l2_block(&mut initial_memory, l2_block, tx_index)
+                apply_l2_block(&mut initial_memory, l2_block, tx_index, self.subversion)
             }
         }
 
         let pubdata_information = self
             .pubdata_information
-            .clone()
-            .into_inner()
+            .get()
             .expect("Empty pubdata information");
 
         apply_pubdata_to_memory(
             &mut initial_memory,
+            pubdata_builder,
             pubdata_information,
-            self.pubdata_params,
-            self.subversion,
+            self.protocol_version,
         );
         initial_memory
     }
@@ -258,7 +257,7 @@ impl BootloaderState {
 
     /// Get offset of tx description
     pub(crate) fn get_tx_description_offset(&self, tx_index: usize) -> usize {
-        TX_DESCRIPTION_OFFSET + self.find_tx(tx_index).offset
+        get_tx_description_offset(self.subversion) + self.find_tx(tx_index).offset
     }
 
     pub(crate) fn insert_fictive_l2_block(&mut self) -> &BootloaderL2Block {
@@ -328,11 +327,7 @@ impl BootloaderState {
         }
     }
 
-    pub(crate) fn get_pubdata_params(&self) -> PubdataParams {
-        self.pubdata_params
-    }
-
-    pub(crate) fn get_vm_subversion(&self) -> MultiVMSubversion {
-        self.subversion
+    pub(crate) fn protocol_version(&self) -> ProtocolVersionId {
+        self.protocol_version
     }
 }

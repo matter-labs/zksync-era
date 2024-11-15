@@ -1,13 +1,12 @@
 use std::str::FromStr;
 
-use ethabi::Address;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
 
 use crate::{
     ethabi,
     web3::contract::{Detokenize, Error as ContractError},
-    U256,
+    Address, U256,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, EnumIter, Display)]
@@ -62,6 +61,5 @@ impl FromStr for L1BatchCommitmentMode {
 #[derive(Default, Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PubdataParams {
     pub l2_da_validator_address: Address,
-    // TOODO: maybe rename / use new type.
     pub pubdata_type: L1BatchCommitmentMode,
 }

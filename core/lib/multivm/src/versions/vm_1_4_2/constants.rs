@@ -3,7 +3,9 @@ use zk_evm_1_4_1::aux_structures::MemoryPage;
 pub use zk_evm_1_4_1::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
-use zksync_system_constants::{MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS};
+use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
+
+pub(crate) const MAX_NEW_FACTORY_DEPS: usize = 32;
 
 use crate::vm_1_4_2::old_vm::utils::heap_page_from_base;
 

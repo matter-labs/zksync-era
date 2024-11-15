@@ -7,19 +7,19 @@ export function runServerInBackground({
     components,
     stdio,
     cwd,
-    useZkInception,
+    useZkStack,
     chain
 }: {
     components?: string[];
     stdio: any;
     cwd?: Parameters<typeof background>[0]['cwd'];
-    useZkInception?: boolean;
+    useZkStack?: boolean;
     chain?: string;
 }) {
     let command = '';
 
-    if (useZkInception) {
-        command = 'zk_inception server';
+    if (useZkStack) {
+        command = 'zkstack server';
         command += chain ? ` --chain ${chain}` : '';
     } else {
         command = 'cd $ZKSYNC_HOME && cargo run --bin zksync_server --release --';
@@ -71,8 +71,8 @@ export interface Contracts {
     stateTransitonManager: any;
 }
 
-export function initContracts(pathToHome: string, zkToolbox: boolean): Contracts {
-    if (zkToolbox) {
+export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
+    if (zkStack) {
         const CONTRACTS_FOLDER = `${pathToHome}/contracts`;
         return {
             l1DefaultUpgradeAbi: new ethers.Interface(
@@ -88,10 +88,10 @@ export function initContracts(pathToHome: string, zkToolbox: boolean): Contracts
                 require(`${CONTRACTS_FOLDER}/l1-contracts/out/ChainAdmin.sol/ChainAdmin.json`).abi
             ),
             l2ForceDeployUpgraderAbi: new ethers.Interface(
-                require(`${CONTRACTS_FOLDER}/l2-contracts/artifacts-zk/contracts/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
+                require(`${CONTRACTS_FOLDER}/l2-contracts/zkout/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
             ),
             complexUpgraderAbi: new ethers.Interface(
-                require(`${CONTRACTS_FOLDER}/system-contracts/artifacts-zk/contracts-preprocessed/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
+                require(`${CONTRACTS_FOLDER}/system-contracts/zkout/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
             ),
             counterBytecode:
                 require(`${pathToHome}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`)
@@ -116,14 +116,13 @@ export function initContracts(pathToHome: string, zkToolbox: boolean): Contracts
                 require(`${L1_CONTRACTS_FOLDER}/governance/ChainAdmin.sol/ChainAdmin.json`).abi
             ),
             l2ForceDeployUpgraderAbi: new ethers.Interface(
-                require(`${pathToHome}/contracts/l2-contracts/artifacts-zk/contracts/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
+                require(`${pathToHome}/contracts/l2-contracts/zkout/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
             ),
             complexUpgraderAbi: new ethers.Interface(
-                require(`${pathToHome}/contracts/system-contracts/artifacts-zk/contracts-preprocessed/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
+                require(`${pathToHome}/contracts/system-contracts/zkout/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
             ),
-            counterBytecode:
-                require(`${pathToHome}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`)
-                    .deployedBytecode,
+            counterBytecode: require(`${pathToHome}/core/tests/ts-integration/zkout/counter.sol/Counter.json`)
+                .deployedBytecode,
             stateTransitonManager: new ethers.Interface(
                 require(`${L1_CONTRACTS_FOLDER}/state-transition/StateTransitionManager.sol/StateTransitionManager.json`).abi
             )

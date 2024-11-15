@@ -19,7 +19,6 @@ zksync_types.workspace = true
 zksync_config.workspace = true
 zksync_storage.workspace = true
 zksync_shared_metrics.workspace = true
-zksync_utils.workspace = true
 zksync_object_store.workspace = true
 vise.workspace = true
 

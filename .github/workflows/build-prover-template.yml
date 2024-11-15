@@ -8,6 +8,9 @@ on:
       DOCKERHUB_TOKEN:
         description: "DOCKERHUB_TOKEN"
         required: true
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE:
+        description: "Token which will be provided to checkout action to be able to clone private submodules"
+        required: true
     inputs:
       ERA_BELLMAN_CUDA_RELEASE:
         description: "ERA_BELLMAN_CUDA_RELEASE"
@@ -45,7 +48,7 @@ jobs:
       RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
       ERA_BELLMAN_CUDA_RELEASE: ${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
       CUDA_ARCH: ${{ inputs.CUDA_ARCH }}
-    runs-on: [ matterlabs-ci-runner-high-performance ]
+    runs-on: [matterlabs-ci-runner-high-performance]
     strategy:
       matrix:
         component:
@@ -56,11 +59,13 @@ jobs:
           - prover-fri-gateway
           - prover-job-monitor
           - proof-fri-gpu-compressor
+          - prover-autoscaler
     outputs:
       protocol_version: ${{ steps.protocolversion.outputs.protocol_version }}
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
+          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
           submodules: "recursive"
 
       - name: setup-env
@@ -74,7 +79,6 @@ jobs:
       - name: start-services
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
-          mkdir -p ./volumes/postgres
           run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
           ci_run sccache --start-server
@@ -90,7 +94,6 @@ jobs:
         if: matrix.component == 'proof-fri-gpu-compressor'
         run: |
           ci_run run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
-
 
       - name: login to Docker registries
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))

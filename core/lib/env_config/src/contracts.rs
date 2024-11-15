@@ -22,6 +22,9 @@ impl FromEnvVariant for EcosystemContracts {
                 "{variant}CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR"
             ))?
             .parse()?,
+            l1_bytecodes_supplier_addr: Some(
+                std::env::var(format!("{variant}CONTRACTS_L1_BYTECODE_SUPPLIER_ADDR"))?.parse()?,
+            ),
         })
     }
 }
@@ -60,6 +63,9 @@ impl FromEnvVariant for ContractsConfig {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
+    use zksync_basic_types::H256;
     use zksync_config::configs::EcosystemContracts;
     use zksync_system_constants::SHARED_BRIDGE_ETHER_TOKEN_ADDRESS;
 
@@ -88,17 +94,24 @@ mod tests {
                 bridgehub_proxy_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
                 state_transition_proxy_addr: addr("0xd90f1c081c6117241624e97cb6147257c3cb2097"),
                 transparent_proxy_admin_addr: addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"),
+                l1_bytecodes_supplier_addr: Some(addr(
+                    "0x36ea7f92f4c5f433efe15284e99c040110cf6297",
+                )),
             }),
             base_token_addr: Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS),
-            user_facing_bridgehub_proxy_addr: Some(addr(
-                "0x35ea7f92f4c5f433efe15284e99c040110cf6297",
-            )),
-            user_facing_diamond_proxy_addr: Some(addr(
-                "0xF00B988a98Ca742e7958DeF9F7823b5908715f4a",
+            base_token_asset_id: Some(
+                H256::from_str(
+                    "0x0000000000000000000000000000000000000001000000000000000000000000",
+                )
+                .unwrap(),
+            ),
+            predeployed_l2_wrapped_base_token_address: Some(addr(
+                "0x35ea7f92f4c5f433efe15284e99c040110cf6299",
             )),
             chain_admin_addr: Some(addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
             l2_da_validator_addr: Some(addr("0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
             settlement_layer: Some(0),
+            l2_timestamp_asserter_addr: Some(addr("0x0000000000000000000000000000000000000002")),
         }
     }
 
@@ -120,17 +133,20 @@ CONTRACTS_L2_CONSENSUS_REGISTRY_ADDR="D64e136566a9E04eb05B30184fF577F52682D182"
 CONTRACTS_L1_MULTICALL3_ADDR="0xcA11bde05977b3631167028862bE2a173976CA11"
 CONTRACTS_L1_SHARED_BRIDGE_PROXY_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_L2_SHARED_BRIDGE_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
+CONTRACTS_L1_BYTECODE_SUPPLIER_ADDR="0x36ea7f92f4c5f433efe15284e99c040110cf6297"
 CONTRACTS_L2_LEGACY_SHARED_BRIDGE_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_BRIDGEHUB_PROXY_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
 CONTRACTS_STATE_TRANSITION_PROXY_ADDR="0xd90f1c081c6117241624e97cb6147257c3cb2097"
 CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"
 CONTRACTS_BASE_TOKEN_ADDR="0x0000000000000000000000000000000000000001"
-CONTRACTS_USER_FACING_BRIDGEHUB_PROXY_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
-CONTRACTS_USER_FACING_DIAMOND_PROXY_ADDR="0xF00B988a98Ca742e7958DeF9F7823b5908715f4a
+CONTRACTS_BASE_TOKEN_ASSET_ID="0x0000000000000000000000000000000000000001000000000000000000000000"
+CONTRACTS_PREDEPLOYED_L2_WETH_TOKEN_ADDRESS="0x35ea7f92f4c5f433efe15284e99c040110cf6299"
 CONTRACTS_L2_NATIVE_TOKEN_VAULT_PROXY_ADDR="0xfc073319977e314f251eae6ae6be76b0b3baeecf"
-CONTRACTS_L2_DA_VALIDATOR_ADDR="0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
+CONTRACTS_PREDEPLOYED_L2_WRAPPED_BASE_TOKEN_ADDRESS="0x35ea7f92f4c5f433efe15284e99c040110cf6299"
 CONTRACTS_CHAIN_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
 CONTRACTS_SETTLEMENT_LAYER="0"
+CONTRACTS_L2_DA_VALIDATOR_ADDR="0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
+CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR="0x0000000000000000000000000000000000000002"
         "#;
         lock.set_env(config);
 

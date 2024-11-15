@@ -4,13 +4,13 @@ use std::{
         atomic::{AtomicU32, Ordering},
         Arc,
     },
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use anyhow::Context as _;
 use futures::TryFutureExt;
 use lru::LruCache;
-use tokio::sync::{watch, Mutex};
+use tokio::sync::{Mutex, RwLock};
 use vise::GaugeGuard;
 use zksync_config::{
     configs::{api::Web3JsonRpcConfig, ContractsConfig},
@@ -23,7 +23,11 @@ use zksync_types::{
     api, commitment::L1BatchCommitmentMode, l2::L2Tx, transaction_request::CallRequest, Address,
     L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, SLChainId, H256, U256, U64,
 };
-use zksync_web3_decl::{error::Web3Error, types::Filter};
+use zksync_web3_decl::{
+    client::{DynClient, L2},
+    error::Web3Error,
+    types::Filter,
+};
 
 use super::{
     backend_jsonrpsee::MethodTracer,
@@ -105,10 +109,11 @@ pub struct InternalApiConfig {
     pub estimate_gas_acceptable_overestimation: u32,
     pub estimate_gas_optimize_search: bool,
     pub bridge_addresses: api::BridgeAddresses,
-    pub bridgehub_proxy_addr: Option<Address>,
-    pub state_transition_proxy_addr: Option<Address>,
-    pub transparent_proxy_admin_addr: Option<Address>,
-    pub user_facing_diamond_proxy_addr: Address,
+    pub l1_bytecodes_supplier_addr: Option<Address>,
+    pub l1_bridgehub_proxy_addr: Option<Address>,
+    pub l1_state_transition_proxy_addr: Option<Address>,
+    pub l1_transparent_proxy_admin_addr: Option<Address>,
+    pub l1_diamond_proxy_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
     pub fee_history_limit: u64,
@@ -116,7 +121,7 @@ pub struct InternalApiConfig {
     pub filters_disabled: bool,
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
-    pub user_facing_bridgehub_addr: Option<Address>,
+    pub timestamp_asserter_address: Option<Address>,
 }
 
 impl InternalApiConfig {
@@ -125,14 +130,6 @@ impl InternalApiConfig {
         contracts_config: &ContractsConfig,
         genesis_config: &GenesisConfig,
     ) -> Self {
-        println!(
-            "contracts_config.user_facing_bridgehub_proxy_addr = {:#?}, 
-            contracts_config.user_facing_diamond_proxy_addr = {:#?}, 
-            contracts_config.diamond_proxy_addr = {:#?}",
-            contracts_config.user_facing_bridgehub_proxy_addr,
-            contracts_config.user_facing_diamond_proxy_addr,
-            contracts_config.diamond_proxy_addr
-        );
         Self {
             l1_chain_id: genesis_config.l1_chain_id,
             l2_chain_id: genesis_config.l2_chain_id,
@@ -160,21 +157,23 @@ impl InternalApiConfig {
                 ),
                 l2_legacy_shared_bridge: contracts_config.l2_legacy_shared_bridge_addr,
             },
-            bridgehub_proxy_addr: contracts_config
+            l1_bridgehub_proxy_addr: contracts_config
                 .ecosystem_contracts
                 .as_ref()
                 .map(|a| a.bridgehub_proxy_addr),
-            state_transition_proxy_addr: contracts_config
+            l1_state_transition_proxy_addr: contracts_config
                 .ecosystem_contracts
                 .as_ref()
                 .map(|a| a.state_transition_proxy_addr),
-            transparent_proxy_admin_addr: contracts_config
+            l1_transparent_proxy_admin_addr: contracts_config
                 .ecosystem_contracts
                 .as_ref()
                 .map(|a| a.transparent_proxy_admin_addr),
-            user_facing_diamond_proxy_addr: contracts_config
-                .user_facing_diamond_proxy_addr
-                .unwrap_or(contracts_config.diamond_proxy_addr),
+            l1_bytecodes_supplier_addr: contracts_config
+                .ecosystem_contracts
+                .as_ref()
+                .and_then(|a| a.l1_bytecodes_supplier_addr),
+            l1_diamond_proxy_addr: contracts_config.diamond_proxy_addr,
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
@@ -182,12 +181,7 @@ impl InternalApiConfig {
             filters_disabled: web3_config.filters_disabled,
             dummy_verifier: genesis_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
-            user_facing_bridgehub_addr: contracts_config.user_facing_bridgehub_proxy_addr.or(
-                contracts_config
-                    .ecosystem_contracts
-                    .as_ref()
-                    .map(|a| a.bridgehub_proxy_addr),
-            ),
+            timestamp_asserter_address: contracts_config.l2_timestamp_asserter_addr,
         }
     }
 }
@@ -195,51 +189,16 @@ impl InternalApiConfig {
 /// Thread-safe updatable information about the last sealed L2 block number.
 ///
 /// The information may be temporarily outdated and thus should only be used where this is OK
-/// (e.g., for metrics reporting). The value is updated by [`Self::diff()`] and [`Self::diff_with_block_args()`]
-/// and on an interval specified when creating an instance.
-#[derive(Debug, Clone)]
-pub(crate) struct SealedL2BlockNumber(Arc<AtomicU32>);
+/// (e.g., for metrics reporting). The value is updated by [`Self::diff()`] and [`Self::diff_with_block_args()`].
+#[derive(Debug, Clone, Default)]
+pub struct SealedL2BlockNumber(Arc<AtomicU32>);
 
 impl SealedL2BlockNumber {
-    /// Creates a handle to the last sealed L2 block number together with a task that will update
-    /// it on a schedule.
-    pub fn new(
-        connection_pool: ConnectionPool<Core>,
-        update_interval: Duration,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> (Self, impl Future<Output = anyhow::Result<()>>) {
-        let this = Self(Arc::default());
-        let number_updater = this.clone();
-
-        let update_task = async move {
-            loop {
-                if *stop_receiver.borrow() {
-                    tracing::debug!("Stopping latest sealed L2 block updates");
-                    return Ok(());
-                }
-
-                let mut connection = connection_pool.connection_tagged("api").await.unwrap();
-                let Some(last_sealed_l2_block) =
-                    connection.blocks_dal().get_sealed_l2_block_number().await?
-                else {
-                    tokio::time::sleep(update_interval).await;
-                    continue;
-                };
-                drop(connection);
-
-                number_updater.update(last_sealed_l2_block);
-                tokio::time::sleep(update_interval).await;
-            }
-        };
-
-        (this, update_task)
-    }
-
     /// Potentially updates the last sealed L2 block number by comparing it to the provided
     /// sealed L2 block number (not necessarily the last one).
     ///
     /// Returns the last sealed L2 block number after the update.
-    fn update(&self, maybe_newer_l2_block_number: L2BlockNumber) -> L2BlockNumber {
+    pub fn update(&self, maybe_newer_l2_block_number: L2BlockNumber) -> L2BlockNumber {
         let prev_value = self
             .0
             .fetch_max(maybe_newer_l2_block_number.0, Ordering::Relaxed);
@@ -253,7 +212,7 @@ impl SealedL2BlockNumber {
 
     /// Returns the difference between the latest L2 block number and the resolved L2 block number
     /// from `block_args`.
-    pub fn diff_with_block_args(&self, block_args: &BlockArgs) -> u32 {
+    pub(crate) fn diff_with_block_args(&self, block_args: &BlockArgs) -> u32 {
         // We compute the difference in any case, since it may update the stored value.
         let diff = self.diff(block_args.resolved_block_number());
 
@@ -262,6 +221,23 @@ impl SealedL2BlockNumber {
         } else {
             diff
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BridgeAddressesHandle(Arc<RwLock<api::BridgeAddresses>>);
+
+impl BridgeAddressesHandle {
+    pub fn new(bridge_addresses: api::BridgeAddresses) -> Self {
+        Self(Arc::new(RwLock::new(bridge_addresses)))
+    }
+
+    pub async fn update(&self, bridge_addresses: api::BridgeAddresses) {
+        *self.0.write().await = bridge_addresses;
+    }
+
+    pub async fn read(&self) -> api::BridgeAddresses {
+        self.0.read().await.clone()
     }
 }
 
@@ -280,15 +256,24 @@ pub(crate) struct RpcState {
     pub(super) start_info: BlockStartInfo,
     pub(super) mempool_cache: Option<MempoolCache>,
     pub(super) last_sealed_l2_block: SealedL2BlockNumber,
+    pub(super) bridge_addresses_handle: BridgeAddressesHandle,
+    pub(super) l2_l1_log_proof_handler: Option<Box<DynClient<L2>>>,
 }
 
 impl RpcState {
-    pub fn parse_transaction_bytes(&self, bytes: &[u8]) -> Result<(L2Tx, H256), Web3Error> {
+    pub fn parse_transaction_bytes(
+        &self,
+        bytes: &[u8],
+        block_args: &BlockArgs,
+    ) -> Result<(L2Tx, H256), Web3Error> {
         let chain_id = self.api_config.l2_chain_id;
         let (tx_request, hash) = api::TransactionRequest::from_bytes(bytes, chain_id)?;
-
         Ok((
-            L2Tx::from_request(tx_request, self.api_config.max_tx_size)?,
+            L2Tx::from_request(
+                tx_request,
+                self.api_config.max_tx_size,
+                block_args.use_evm_emulator(),
+            )?,
             hash,
         ))
     }

@@ -11,6 +11,9 @@ on:
       ATTIC_TOKEN:
         description: "ATTIC_TOKEN"
         required: false
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE:
+        description: "Token which will be provided to checkout action to be able to clone private submodules"
+        required: true
     inputs:
       image_tag_suffix:
         description: "Optional suffix to override tag name generation"
@@ -32,9 +35,12 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' }}
         with:
           ref: ${{ github.event.inputs.target_branch }}
+          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         if: ${{ github.event_name != 'workflow_dispatch' }}
+        with:
+          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
       - uses: cachix/install-nix-action@ba0dd844c9180cbf77aa72a116d6fbc515d0e87b # v27
         with:
@@ -76,4 +82,3 @@ jobs:
               docker push "${repo}/${tag}"
             done
           done
-

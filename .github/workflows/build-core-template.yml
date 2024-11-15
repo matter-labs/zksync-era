@@ -8,6 +8,9 @@ on:
       DOCKERHUB_TOKEN:
         description: "DOCKERHUB_TOKEN"
         required: true
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE:
+        description: "Token which will be provided to checkout action to be able to clone private submodules"
+        required: true
     inputs:
       image_tag_suffix:
         description: "Optional suffix to override tag name generation"
@@ -49,6 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
+          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
           submodules: "recursive"
 
       - name: setup-env
@@ -71,11 +75,15 @@ jobs:
             if [ $(jq length <<<"$tags") -eq 0 ]; then
               echo "No tag found on all pages."
               echo "BUILD_CONTRACTS=true" >> "$GITHUB_ENV"
+              # TODO Remove it when we migrate to foundry inside contracts repository
+              mkdir -p contracts/l1-contracts/artifacts/
               exit 0
             fi
             filtered_tag=$(jq -r --arg commit_sha "$commit_sha" 'map(select(.commit.sha == $commit_sha)) | .[].name' <<<"$tags")
             if [[ ! -z "$filtered_tag" ]]; then
               echo "BUILD_CONTRACTS=false" >> "$GITHUB_ENV"
+              # TODO Remove it when we migrate to foundry inside contracts repository
+              mkdir -p contracts/l1-contracts/out
               break
             fi
             ((page++))
@@ -110,7 +118,6 @@ jobs:
       - name: start-services
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
-          mkdir -p ./volumes/postgres
           run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
           ci_run pre_download_compilers.sh
@@ -123,14 +130,19 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run ./bin/zk || true
-          ci_run ./bin/zkt || true
           ci_run run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+
+      - name: Install zkstack
+        if: env.BUILD_CONTRACTS == 'true'
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
+          ci_run zkstackup -g --local
 
       - name: build contracts
         if: env.BUILD_CONTRACTS == 'true'
         run: |
           ci_run cp etc/tokens/{test,localhost}.json
-          ci_run zk_supervisor contracts
+          ci_run zkstack dev contracts --system-contracts --l1-contracts --l2-contracts 
 
       - name: Login to Docker registries
         if: ${{ inputs.action == 'push' }}
@@ -173,6 +185,8 @@ jobs:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.component.name == 'external-node') && '-alpha' || '' }}
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+        with:
+          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
       - name: login to Docker registries
         run: |

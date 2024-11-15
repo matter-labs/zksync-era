@@ -1,6 +1,6 @@
 genesis_root: 0x4451d0b2d8ff95bb17cc803c0e6b72e2daa0c29dd05bcadce7c5d5df774373e4
 genesis_batch_commitment: 0x10dcefe1094c10bb40eaea8a933b1ffce70a42be7705f87228fdfa5b880e56ab
-genesis_rollup_leaf_index: 66
+genesis_rollup_leaf_index: 68
 genesis_protocol_version: 25
 bootloader_hash: 0x010009819bf40a7ddbf8a1e86ad510b74f1966a3c4e51145595e71d293212c79
 default_aa_hash: 0x0100055dbd629567931421dcebb4b38da3dab317ac5e0abacb7dedc14e3d033c
@@ -9,6 +9,8 @@ l2_chain_id: 270
 fee_account: '0x0000000000000000000000000000000000000001'
 prover:
   dummy_verifier: true
-  snark_wrapper_vk_hash: 0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2
-genesis_protocol_semantic_version: 0.25.0
+  recursion_scheduler_level_vk_hash: 0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2
+genesis_protocol_semantic_version: 0.27.0
 l1_batch_commit_data_generator_mode: Rollup
+# TODO: uncomment once EVM emulator is present in the `contracts` submodule
+# evm_emulator_hash: 0x01000e53aa35d9d19fa99341c2e2901cf93b3668f01569dd5c6ca409c7696b91

@@ -1,4 +1,7 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -8,10 +11,9 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_interface::inputs::VMRunWitnessInputData;
 use zksync_state::OwnedStorage;
 use zksync_types::{
-    block::StorageOracleInfo, witness_block_state::WitnessStorageState, L1BatchNumber, L2ChainId,
-    H256,
+    block::StorageOracleInfo, h256_to_u256, u256_to_h256, witness_block_state::WitnessStorageState,
+    L1BatchNumber, L2ChainId, H256,
 };
-use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 use zksync_vm_interface::{executor::BatchExecutorFactory, L1BatchEnv, L2BlockEnv, SystemEnv};
 
 use crate::{
@@ -209,6 +211,7 @@ async fn get_updates_manager_witness_input_data(
 ) -> anyhow::Result<VMRunWitnessInputData> {
     let initial_heap_content = output.batch.final_bootloader_memory.clone().unwrap(); // might be just empty
     let default_aa = system_env.base_system_smart_contracts.hashes().default_aa;
+    let evm_emulator = system_env.base_system_smart_contracts.hashes().evm_emulator;
     let bootloader = system_env.base_system_smart_contracts.hashes().bootloader;
     let bootloader_code_bytes = connection
         .factory_deps_dal()
@@ -223,7 +226,6 @@ async fn get_updates_manager_witness_input_data(
         .get_sealed_factory_dep(default_aa)
         .await?
         .ok_or_else(|| anyhow!("Default account bytecode should exist"))?;
-    let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
 
     let used_contract_hashes = &output.batch.final_execution_state.used_contract_hashes;
     let hashes: HashSet<H256> = used_contract_hashes
@@ -237,8 +239,23 @@ async fn get_updates_manager_witness_input_data(
         .get_factory_deps(&hashes)
         .await;
     if used_contract_hashes.contains(&account_code_hash) {
-        used_bytecodes.insert(account_code_hash, account_bytecode);
+        used_bytecodes.insert(account_code_hash, account_bytecode_bytes);
     }
+
+    let evm_emulator_code_hash = if let Some(evm_emulator) = evm_emulator {
+        let evm_emulator_code_hash = h256_to_u256(evm_emulator);
+        if used_contract_hashes.contains(&evm_emulator_code_hash) {
+            let evm_emulator_bytecode = connection
+                .factory_deps_dal()
+                .get_sealed_factory_dep(evm_emulator)
+                .await?
+                .ok_or_else(|| anyhow!("EVM emulator bytecode should exist"))?;
+            used_bytecodes.insert(evm_emulator_code_hash, evm_emulator_bytecode);
+        }
+        Some(evm_emulator_code_hash)
+    } else {
+        None
+    };
 
     let storage_refunds = output.batch.final_execution_state.storage_refunds.clone();
     let pubdata_costs = output.batch.final_execution_state.pubdata_costs.clone();
@@ -249,15 +266,26 @@ async fn get_updates_manager_witness_input_data(
 
     Ok(VMRunWitnessInputData {
         l1_batch_number,
-        used_bytecodes,
+        used_bytecodes: used_bytecodes
+            .into_iter()
+            .map(|(hash, code)| (hash, bytes_to_chunks(&code)))
+            .collect(),
         initial_heap_content,
         protocol_version: system_env.version,
         bootloader_code,
         default_account_code_hash: account_code_hash,
+        evm_emulator_code_hash,
         storage_refunds,
         pubdata_costs,
         witness_block_state,
     })
+}
+
+fn bytes_to_chunks(bytes: &[u8]) -> Vec<[u8; 32]> {
+    bytes
+        .chunks(32)
+        .map(|chunk| chunk.try_into().unwrap())
+        .collect()
 }
 
 #[tracing::instrument(skip_all)]
@@ -287,7 +315,6 @@ async fn assert_database_witness_input_data(
         .await
         .expect("Failed fetching default account bytecode from DB")
         .expect("Default account bytecode should exist");
-    let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
 
     let hashes: HashSet<H256> = block_header
         .used_contract_hashes
@@ -304,7 +331,7 @@ async fn assert_database_witness_input_data(
         .used_contract_hashes
         .contains(&account_code_hash)
     {
-        used_bytecodes.insert(account_code_hash, account_bytecode);
+        used_bytecodes.insert(account_code_hash, account_bytecode_bytes);
     }
 
     assert_eq!(
@@ -313,6 +340,10 @@ async fn assert_database_witness_input_data(
         "{} factory deps are not found in DB",
         hashes.len() - used_bytecodes.len()
     );
+    let used_bytecodes: HashMap<_, _> = used_bytecodes
+        .into_iter()
+        .map(|(hash, code)| (hash, bytes_to_chunks(&code)))
+        .collect();
 
     let StorageOracleInfo {
         storage_refunds,

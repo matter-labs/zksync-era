@@ -22,11 +22,11 @@ use zksync_types::{
     helpers::unix_timestamp_ms,
     l2_to_l1_log::UserL2ToL1Log,
     tx::IncludedTxLocation,
+    u256_to_h256,
     utils::display_timestamp,
     Address, BloomInput, ExecuteTransactionCommon, ProtocolVersionId, StorageKey, StorageLog,
     Transaction, H256,
 };
-use zksync_utils::u256_to_h256;
 
 use crate::{
     io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess,
@@ -132,6 +132,7 @@ impl UpdatesManager {
             protocol_version: Some(self.protocol_version()),
             system_logs: finished_batch.final_execution_state.system_logs.clone(),
             pubdata_input: finished_batch.pubdata_input.clone(),
+            fee_address: self.fee_account_address,
         };
 
         let final_bootloader_memory = finished_batch
@@ -141,7 +142,7 @@ impl UpdatesManager {
 
         transaction
             .blocks_dal()
-            .insert_l1_batch(
+            .mark_l1_batch_as_sealed(
                 &l1_batch,
                 &final_bootloader_memory,
                 self.pending_l1_gas_count(),
@@ -382,7 +383,6 @@ impl L2BlockSealCommand {
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
             fee_account_address: self.fee_account_address,
-            pubdata_params: self.pubdata_params,
             base_fee_per_gas: self.base_fee_per_gas,
             batch_fee_input: self.fee_input,
             base_system_contracts_hashes: self.base_system_contracts_hashes,
@@ -391,6 +391,7 @@ impl L2BlockSealCommand {
             virtual_blocks: self.l2_block.virtual_blocks,
             gas_limit: get_max_batch_gas_limit(definite_vm_version),
             logs_bloom,
+            pubdata_params: self.pubdata_params,
         };
 
         let mut connection = strategy.connection().await?;

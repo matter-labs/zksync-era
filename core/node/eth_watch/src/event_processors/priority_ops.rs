@@ -1,11 +1,10 @@
-use std::convert::TryFrom;
+use std::{convert::TryFrom, sync::Arc};
 
 use anyhow::Context;
 use zksync_contracts::hyperchain_contract;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
-use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_shared_metrics::{TxStage, APP_METRICS};
-use zksync_types::{l1::L1Tx, web3::Log, PriorityOpId, H256};
+use zksync_types::{api::Log, l1::L1Tx, PriorityOpId, H256};
 
 use crate::{
     client::EthClient,
@@ -18,13 +17,13 @@ use crate::{
 pub struct PriorityOpsEventProcessor {
     next_expected_priority_id: PriorityOpId,
     new_priority_request_signature: H256,
-    priority_merkle_tree: SyncMerkleTree<L1Tx>,
+    sl_client: Arc<dyn EthClient>,
 }
 
 impl PriorityOpsEventProcessor {
     pub fn new(
         next_expected_priority_id: PriorityOpId,
-        priority_merkle_tree: SyncMerkleTree<L1Tx>,
+        sl_client: Arc<dyn EthClient>,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             next_expected_priority_id,
@@ -32,7 +31,7 @@ impl PriorityOpsEventProcessor {
                 .event("NewPriorityRequest")
                 .context("NewPriorityRequest event is missing in ABI")?
                 .signature(),
-            priority_merkle_tree,
+            sl_client,
         })
     }
 }
@@ -42,14 +41,13 @@ impl EventProcessor for PriorityOpsEventProcessor {
     async fn process_events(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        sl_client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<usize, EventProcessorError> {
         let mut priority_ops = Vec::new();
         let events_count = events.len();
         for event in events {
             assert_eq!(event.topics[0], self.new_priority_request_signature); // guaranteed by the watcher
-            let tx = L1Tx::try_from(event)
+            let tx = L1Tx::try_from(Into::<zksync_types::web3::Log>::into(event))
                 .map_err(|err| EventProcessorError::log_parse(err, "priority op"))?;
             priority_ops.push(tx);
         }
@@ -90,22 +88,18 @@ impl EventProcessor for PriorityOpsEventProcessor {
         let stage_latency = METRICS.poll_eth_node[&PollStage::PersistL1Txs].start();
         APP_METRICS.processed_txs[&TxStage::added_to_mempool()].inc();
         APP_METRICS.processed_l1_txs[&TxStage::added_to_mempool()].inc();
-        let processed_priority_transactions = sl_client.get_total_priority_txs().await?;
+        let processed_priority_transactions = self.sl_client.get_total_priority_txs().await?;
         let ops_to_insert: Vec<&L1Tx> = new_ops
             .iter()
             .take_while(|op| processed_priority_transactions > op.serial_id().0)
             .collect();
 
         for new_op in &ops_to_insert {
-            let inserted = storage
+            storage
                 .transactions_dal()
                 .insert_transaction_l1(new_op, new_op.eth_block())
                 .await
                 .map_err(DalError::generalize)?;
-            // Transaction could have been a duplicate.
-            if inserted {
-                self.priority_merkle_tree.push_hash(new_op.hash());
-            }
         }
         stage_latency.observe();
         if let Some(last_op) = ops_to_insert.last() {
@@ -115,7 +109,7 @@ impl EventProcessor for PriorityOpsEventProcessor {
         Ok(skipped_ops + ops_to_insert.len())
     }
 
-    fn relevant_topic(&self) -> H256 {
+    fn topic1(&self) -> H256 {
         self.new_priority_request_signature
     }
 

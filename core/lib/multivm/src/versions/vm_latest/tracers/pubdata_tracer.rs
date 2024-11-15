@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, rc::Rc};
 
 use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
 use zk_evm_1_5_0::{
@@ -6,30 +6,34 @@ use zk_evm_1_5_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
 use zksync_types::{
-    l2_to_l1_log::l2_to_l1_logs_tree_size, writes::StateDiffRecord, AccountTreeId,
-    ProtocolVersionId, StorageKey, L1_MESSENGER_ADDRESS,
+    h256_to_u256, u256_to_h256, writes::StateDiffRecord, AccountTreeId, StorageKey,
+    L1_MESSENGER_ADDRESS,
 };
-use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
+use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use crate::{
     interface::{
+        pubdata::{L1MessengerL2ToL1Log, PubdataInput},
         storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         L1BatchEnv, VmEvent, VmExecutionMode,
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
-    utils::events::{
-        extract_bytecode_publication_requests_from_l1_messenger,
-        extract_l2tol1logs_from_l1_messenger, L1MessengerL2ToL1Log,
+    utils::{
+        bytecode::be_words_to_bytes,
+        events::{
+            extract_bytecode_publication_requests_from_l1_messenger,
+            extract_l2tol1logs_from_l1_messenger,
+        },
     },
     vm_latest::{
         bootloader_state::{utils::apply_pubdata_to_memory, BootloaderState},
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::{traits::VmTracer, utils::VmHook},
-        types::internals::{PubdataInput, ZkSyncVmState},
+        types::internals::ZkSyncVmState,
         utils::logs::collect_events_and_l1_system_logs_after_timestamp,
-        vm::MultiVMSubversion,
+        vm::MultiVmSubversion,
         StorageOracle,
     },
 };
@@ -43,8 +47,8 @@ pub(crate) struct PubdataTracer<S> {
     // For testing purposes it might be helpful to supply an exact set of state diffs to be provided
     // to the L1Messenger.
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
-    subversion: MultiVMSubversion,
-    protocol_version: ProtocolVersionId,
+    subversion: MultiVmSubversion,
+    pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     _phantom_data: PhantomData<S>,
 }
 
@@ -52,8 +56,8 @@ impl<S: WriteStorage> PubdataTracer<S> {
     pub(crate) fn new(
         l1_batch_env: L1BatchEnv,
         execution_mode: VmExecutionMode,
-        subversion: MultiVMSubversion,
-        protocol_version: ProtocolVersionId,
+        subversion: MultiVmSubversion,
+        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     ) -> Self {
         Self {
             l1_batch_env,
@@ -61,7 +65,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
             execution_mode,
             enforced_state_diffs: None,
             subversion,
-            protocol_version,
+            pubdata_builder,
             _phantom_data: Default::default(),
         }
     }
@@ -73,8 +77,8 @@ impl<S: WriteStorage> PubdataTracer<S> {
         l1_batch_env: L1BatchEnv,
         execution_mode: VmExecutionMode,
         forced_state_diffs: Vec<StateDiffRecord>,
-        subversion: MultiVMSubversion,
-        protocol_version: ProtocolVersionId,
+        subversion: MultiVmSubversion,
+        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     ) -> Self {
         Self {
             l1_batch_env,
@@ -82,7 +86,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
             execution_mode,
             enforced_state_diffs: Some(forced_state_diffs),
             subversion,
-            protocol_version,
+            pubdata_builder,
             _phantom_data: Default::default(),
         }
     }
@@ -133,15 +137,13 @@ impl<S: WriteStorage> PubdataTracer<S> {
         bytecode_publication_requests
             .iter()
             .map(|bytecode_publication_request| {
-                state
+                let bytecode_words = state
                     .decommittment_processor
                     .known_bytecodes
                     .inner()
                     .get(&h256_to_u256(bytecode_publication_request.bytecode_hash))
-                    .unwrap()
-                    .iter()
-                    .flat_map(u256_to_bytes_be)
-                    .collect()
+                    .unwrap();
+                be_words_to_bytes(bytecode_words)
             })
             .collect()
     }
@@ -192,7 +194,6 @@ impl<S: WriteStorage> PubdataTracer<S> {
             l2_to_l1_messages: self.get_total_l1_messenger_messages(state),
             published_bytecodes: self.get_total_published_bytecodes(state),
             state_diffs: self.get_state_diffs(&state.storage),
-            l2_to_l1_logs_tree_size: l2_to_l1_logs_tree_size(self.protocol_version),
         }
     }
 }
@@ -230,18 +231,22 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PubdataTracer<S> {
         if self.pubdata_info_requested {
             let pubdata_input = self.build_pubdata_input(state);
 
-            // Save the pubdata for the future initial bootloader memory building
-            bootloader_state.set_pubdata_input(pubdata_input.clone());
-
             // Apply the pubdata to the current memory
             let mut memory_to_apply = vec![];
 
             apply_pubdata_to_memory(
                 &mut memory_to_apply,
-                pubdata_input,
-                bootloader_state.get_pubdata_params(),
-                bootloader_state.get_vm_subversion(),
+                self.pubdata_builder
+                    .as_ref()
+                    .expect("`pubdata_builder` is required to finish batch")
+                    .as_ref(),
+                &pubdata_input,
+                bootloader_state.protocol_version(),
             );
+
+            // Save the pubdata for the future initial bootloader memory building
+            bootloader_state.set_pubdata_input(pubdata_input);
+
             state.memory.populate_page(
                 BOOTLOADER_HEAP_PAGE as usize,
                 memory_to_apply,

@@ -2,14 +2,9 @@
 
 use std::collections::HashMap;
 
-use zksync_contracts::BaseSystemContractsHashes;
+use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
-use zksync_multivm::{
-    interface::{TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics},
-    utils::get_max_gas_per_pubdata_byte,
-};
-use zksync_node_genesis::GenesisParams;
 use zksync_system_constants::{get_intrinsic_constants, ZKPORTER_IS_AVAILABLE};
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
@@ -27,6 +22,10 @@ use zksync_types::{
     Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersion,
     ProtocolVersionId, StorageLog, H256, U256,
 };
+use zksync_vm_interface::{TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics};
+
+/// Value for recent protocol versions.
+const MAX_GAS_PER_PUBDATA_BYTE: u64 = 50_000;
 
 /// Creates an L2 block header with the specified number and deterministic contents.
 pub fn create_l2_block(number: u32) -> L2BlockHeader {
@@ -39,13 +38,13 @@ pub fn create_l2_block(number: u32) -> L2BlockHeader {
         base_fee_per_gas: 100,
         batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
         fee_account_address: Address::zero(),
-        pubdata_params: Default::default(),
-        gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(ProtocolVersionId::latest().into()),
+        gas_per_pubdata_limit: MAX_GAS_PER_PUBDATA_BYTE,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         virtual_blocks: 1,
         gas_limit: 0,
         logs_bloom: Default::default(),
+        pubdata_params: Default::default(),
     }
 }
 
@@ -57,6 +56,7 @@ pub fn create_l1_batch(number: u32) -> L1BatchHeader {
         BaseSystemContractsHashes {
             bootloader: H256::repeat_byte(1),
             default_aa: H256::repeat_byte(42),
+            evm_emulator: None,
         },
         ProtocolVersionId::latest(),
     );
@@ -89,6 +89,7 @@ pub fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
             bootloader_code_hash: BaseSystemContractsHashes::default().bootloader,
             default_aa_code_hash: BaseSystemContractsHashes::default().default_aa,
+            evm_emulator_code_hash: BaseSystemContractsHashes::default().evm_emulator,
             protocol_version: Some(ProtocolVersionId::latest()),
         },
         aux_data_hash: H256::zero(),
@@ -115,13 +116,10 @@ pub fn l1_batch_metadata_to_commitment_artifacts(
             commitment: metadata.commitment,
         },
         l2_l1_merkle_root: metadata.l2_l1_merkle_root,
-        local_root: metadata.local_root.unwrap(),
-        aggregation_root: metadata.aggregation_root.unwrap(),
         compressed_state_diffs: Some(metadata.state_diffs_compressed.clone()),
         compressed_initial_writes: metadata.initial_writes_compressed.clone(),
         compressed_repeated_writes: metadata.repeated_writes_compressed.clone(),
         zkporter_is_available: ZKPORTER_IS_AVAILABLE,
-        state_diff_hash: metadata.state_diff_hash.unwrap(),
         aux_commitments: match (
             metadata.bootloader_initial_content_commitment,
             metadata.events_queue_commitment,
@@ -134,6 +132,9 @@ pub fn l1_batch_metadata_to_commitment_artifacts(
             }
             _ => None,
         },
+        local_root: metadata.local_root.unwrap(),
+        aggregation_root: metadata.aggregation_root.unwrap(),
+        state_diff_hash: metadata.state_diff_hash.unwrap(),
     }
 }
 
@@ -193,14 +194,14 @@ impl Snapshot {
         l1_batch: L1BatchNumber,
         l2_block: L2BlockNumber,
         storage_logs: Vec<SnapshotStorageLog>,
-        genesis_params: GenesisParams,
+        contracts: &BaseSystemContracts,
+        protocol_version: ProtocolVersionId,
     ) -> Self {
-        let contracts = genesis_params.base_system_contracts();
         let l1_batch = L1BatchHeader::new(
             l1_batch,
             l1_batch.0.into(),
             contracts.hashes(),
-            genesis_params.minor_protocol_version(),
+            protocol_version,
         );
         let l2_block = L2BlockHeader {
             number: l2_block,
@@ -211,22 +212,21 @@ impl Snapshot {
             base_fee_per_gas: 100,
             batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
             fee_account_address: Address::zero(),
-            gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(
-                genesis_params.minor_protocol_version().into(),
-            ),
-            pubdata_params: Default::default(),
+            gas_per_pubdata_limit: MAX_GAS_PER_PUBDATA_BYTE,
             base_system_contracts_hashes: contracts.hashes(),
-            protocol_version: Some(genesis_params.minor_protocol_version()),
+            protocol_version: Some(protocol_version),
             virtual_blocks: 1,
             gas_limit: 0,
             logs_bloom: Default::default(),
+            pubdata_params: Default::default(),
         };
         Snapshot {
             l1_batch,
             l2_block,
             factory_deps: [&contracts.bootloader, &contracts.default_aa]
                 .into_iter()
-                .map(|c| (c.hash, zksync_utils::be_words_to_bytes(&c.code)))
+                .chain(contracts.evm_emulator.as_ref())
+                .map(|c| (c.hash, c.code.clone()))
                 .collect(),
             storage_logs,
         }
@@ -250,7 +250,13 @@ pub async fn prepare_recovery_snapshot(
             enumeration_index: i as u64 + 1,
         })
         .collect();
-    let snapshot = Snapshot::new(l1_batch, l2_block, storage_logs, GenesisParams::mock());
+    let snapshot = Snapshot::new(
+        l1_batch,
+        l2_block,
+        storage_logs,
+        &BaseSystemContracts::load_from_disk(),
+        ProtocolVersionId::latest(),
+    );
     recover(storage, snapshot).await
 }
 
