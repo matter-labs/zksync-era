@@ -1,0 +1,390 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Gadgets - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../favicon.svg">
+        <link rel="shortcut icon" href="../../favicon.png">
+        <link rel="stylesheet" href="../../css/variables.css">
+        <link rel="stylesheet" href="../../css/general.css">
+        <link rel="stylesheet" href="../../css/chrome.css">
+        <link rel="stylesheet" href="../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../css/version-box.css">
+        <link rel="stylesheet" href="../.././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/specs/prover/boojum_gadgets.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="boojum-gadgets"><a class="header" href="#boojum-gadgets">Boojum gadgets</a></h1>
+<p>Boojum gadgets are low-level implementations of tools for constraint systems. They consist of various types: curves,
+hash functions, lookup tables, and different circuit types. These gadgets are mostly a reference from
+<a href="https://github.com/matter-labs/franklin-crypto">franklin-crypto</a>, with additional hash functions added. These gadgets
+have been changed to use the Goldilocks field (order 2^64 - 2^32 + 1), which is much smaller than bn256. This allows us
+to reduce the proof system.</p>
+<h2 id="circuits-types"><a class="header" href="#circuits-types">Circuits types</a></h2>
+<p>We have next types with we use for circuits:</p>
+<p><strong>Num (Number):</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct Num&lt;F: SmallField&gt; {
+    pub(crate) variable: Variable,
+    pub(crate) _marker: std::marker::PhantomData&lt;F&gt;,
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Boolean:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct Boolean&lt;F: SmallField&gt; {
+    pub(crate) variable: Variable,
+    pub(crate) _marker: std::marker::PhantomData&lt;F&gt;,
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>U8:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct UInt8&lt;F: SmallField&gt; {
+    pub(crate) variable: Variable,
+    pub(crate) _marker: std::marker::PhantomData&lt;F&gt;,
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>U16:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct UInt16&lt;F: SmallField&gt; {
+    pub(crate) variable: Variable,
+    pub(crate) _marker: std::marker::PhantomData&lt;F&gt;,
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>U32:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct UInt32&lt;F: SmallField&gt; {
+    pub(crate) variable: Variable,
+    pub(crate) _marker: std::marker::PhantomData&lt;F&gt;,
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>U160:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct UInt160&lt;F: SmallField&gt; {
+    pub inner: [UInt32&lt;F&gt;; 5],
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>U256:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct UInt256&lt;F: SmallField&gt; {
+    pub inner: [UInt32&lt;F&gt;; 8],
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>U512:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct UInt512&lt;F: SmallField&gt; {
+    pub inner: [UInt32&lt;F&gt;; 16],
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Every type consists of a Variable (the number inside Variable is just the index):</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct Variable(pub(crate) u64);
+<span class="boring">}</span></code></pre></pre>
+<p>which is represented in the current Field. Variable is quite diverse, and to have “good” alignment and size we manually
+do encoding management to be able to represent it as both copyable variable or witness.</p>
+<p>The implementation of this circuit type itself is similar. We can also divide them into classes as main and dependent:
+Such type like U8-U512 decoding inside functions to Num<F> for using them in logical operations. As mentioned above, the
+property of these types is to perform logical operations and allocate witnesses.</p>
+<p>Let’s demonstrate this in a Boolean example:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>impl&lt;F: SmallField&gt; CSAllocatable&lt;F&gt; for Boolean&lt;F&gt; {
+    type Witness = bool;
+    fn placeholder_witness() -&gt; Self::Witness {
+        false
+    }
+
+    #[inline(always)]
+    fn allocate_without_value&lt;CS: ConstraintSystem&lt;F&gt;&gt;(cs: &amp;mut CS) -&gt; Self {
+        let var = cs.alloc_variable_without_value();
+
+        Self::from_variable_checked(cs, var)
+    }
+
+    fn allocate&lt;CS: ConstraintSystem&lt;F&gt;&gt;(cs: &amp;mut CS, witness: Self::Witness) -&gt; Self {
+        let var = cs.alloc_single_variable_from_witness(F::from_u64_unchecked(witness as u64));
+
+        Self::from_variable_checked(cs, var)
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<p>As you see, you can allocate both with and without witnesses.</p>
+<h2 id="hash-function"><a class="header" href="#hash-function">Hash function</a></h2>
+<p>In gadgets we have a lot of hash implementation:</p>
+<ul>
+<li>blake2s</li>
+<li>keccak256</li>
+<li>poseidon/poseidon2</li>
+<li>sha256</li>
+</ul>
+<p>Each of them perform different functions in our proof system.</p>
+<h2 id="queues"><a class="header" href="#queues">Queues</a></h2>
+<p>One of the most important gadgets in our system is queue. It helps us to send data between circuits. Here is the quick
+explanation how it works:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>Struct CircuitQueue{
+ head: HashState,
+ tail: HashState,
+ length: UInt32,
+ witness: VecDeque&lt;Witness&gt;,
+}
+<span class="boring">}</span></code></pre></pre>
+<p>The structure consists of <code>head</code> and <code>tail</code> commitments that basically are rolling hashes. Also, it has a <code>length</code> of
+the queue. These three fields are allocated inside the constraint system. Also, there is a <code>witness</code>, that keeps actual
+values that are now stored in the queue.</p>
+<p>And here is the main functions:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn push(&amp;mut self, value: Element) {
+ // increment length
+ // head - hash(head, value)
+ // witness.push_back(value.witness)
+}
+
+fn pop(&amp;mut self) -&gt; Element {
+ // check length &gt; 0
+ // decrement length
+ // value = witness.pop_front()
+ // tail = hash(tail, value)
+ // return value
+}
+
+fn final_check(&amp;self) -&gt; Element {
+ // check that length == 0
+ // check that head == tail
+}
+<span class="boring">}</span></code></pre></pre>
+<p>So the key point, of how the queue proofs that popped elements are the same as pushed ones, is equality of rolling
+hashes that stored in fields <code>head</code> and <code>tail</code>.</p>
+<p>Also, we check that we can’t pop an element before it was pushed. This is done by checking that <code>length &gt;= 0</code>.</p>
+<p>Very important is making the <code>final_check</code> that basically checks the equality of two hashes. So if the queue is never
+empty, and we haven’t checked the equality of <code>head</code> and <code>tail</code> in the end, we also haven’t proven that the elements we
+popped are correct.</p>
+<p>For now, we use poseidon2 hash. Here is the link to queue implementations:</p>
+<ul>
+<li><a href="https://github.com/matter-labs/era-boojum/blob/main/src/gadgets/queue/mod.rs#L29">CircuitQueue</a></li>
+<li><a href="https://github.com/matter-labs/era-boojum/blob/main/src/gadgets/queue/full_state_queue.rs#L20C12-L20C33">FullStateCircuitQueue</a></li>
+</ul>
+<p>The difference is that we actually compute and store a hash inside CircuitQueue during <code>push</code> and <code>pop</code> operations. But
+in FullStateCircuitQueue our <code>head</code> and <code>tail</code> are just states of sponges. So instead of computing a full hash, we just
+absorb a pushed (popped) element.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../specs/prover/boojum_function_check_if_satisfied.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../specs/prover/circuit_testing.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../specs/prover/boojum_function_check_if_satisfied.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../specs/prover/circuit_testing.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../ace.js"></script>
+        <script src="../../editor.js"></script>
+        <script src="../../mode-rust.js"></script>
+        <script src="../../theme-dawn.js"></script>
+        <script src="../../theme-tomorrow_night.js"></script>
+
+        <script src="../../elasticlunr.min.js"></script>
+        <script src="../../mark.min.js"></script>
+        <script src="../../searcher.js"></script>
+
+        <script src="../../clipboard.min.js"></script>
+        <script src="../../highlight.js"></script>
+        <script src="../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../js/version-box.js"></script>
+        <script src="../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>

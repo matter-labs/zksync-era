@@ -1,0 +1,357 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Gateway protocol versioning - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../../favicon.svg">
+        <link rel="shortcut icon" href="../../../favicon.png">
+        <link rel="stylesheet" href="../../../css/variables.css">
+        <link rel="stylesheet" href="../../../css/general.css">
+        <link rel="stylesheet" href="../../../css/chrome.css">
+        <link rel="stylesheet" href="../../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../../../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../../../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../../css/version-box.css">
+        <link rel="stylesheet" href="../../.././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/specs/contracts/gateway/gateway_protocol_upgrades.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="gateway-protocol-versioning-and-upgradability"><a class="header" href="#gateway-protocol-versioning-and-upgradability">Gateway protocol versioning and upgradability</a></h1>
+<p>One of the hardest part about gateway (GW) is how do we synchronize interaction between L1 and L2 parts that can potentially have different versions of contracts. This synchronization should be compatible with any future CTM that may be present on the gateway.</p>
+<p>Here we describe various scenarios of standard/emergency upgrades and how will those play out in the gateway setup.</p>
+<h2 id="general-idea"><a class="header" href="#general-idea">General idea</a></h2>
+<p>We do not enshrine any particular approach on the protocol level of the GW. The following is the approach used by the standard Era CTM, which also manages GW.</p>
+<p>Upgrades will be split into two parts:</p>
+<ul>
+<li>“Inactive chain upgrades” ⇒ intended to update contract code only and not touch the state or touch it very little. The main motivation is to be able to upgrade the L1 contracts without e.g. adding new upgrade transactions.</li>
+<li>“Active chain upgrades” ⇒ same as the ones that we have today: full-on upgrade that also updates bootloader, insert system upgrade transaction and so on.</li>
+</ul>
+<p>In other words:</p>
+<p><code>active upgrade = inactive upgrade + bootloader changes + setting upgrade tx</code></p>
+<p>The other difference is that while “active chain upgrades” are usually always needed to be forced in order to ensure that contracts/protocol are up to date, the “inactive chain upgrades” typically involve changes in the facets’ bytecode and will only be needed before migration is complete to ensure that contracts are compatible.</p>
+<p>To reduce the boilerplate / make management of the upgrades easier, the abstraction will be basically implemented at the upgrade implementation level, that will check <code>if block.chainid == s.settlementLayer { ... perform active upgrade stuff } else { ... perform inactive upgrade stuff, typically nothing m}.</code></p>
+<h2 id="lifecycle-of-a-chain"><a class="header" href="#lifecycle-of-a-chain">Lifecycle of a chain</a></h2>
+<p>While the chain settles on L1 only, it will just do “active chain upgrades”. Everything is the same as now.</p>
+<p>When a chain starts its migration to a new settlement layer (regardless of whether it is gateway or not):</p>
+<ol>
+<li>It will be checked the that the protocolVersion is the latest in the CTM in the current settlement layer (just in case to not have to bother with backwards compatibility).</li>
+<li>The <code>s.settlementLayer</code> will be set for the chain. Now the chain becomes inactive and it can only take “inactive” upgrades.</li>
+<li>When migration finishes, it will be double checked that the <code>protocolVersion</code> is the same as the one in the target chains’ CTM. If the chain has already been deployed there, it will be checked that the <code>protocolVersion</code> of the deployed contracts there is the same as the one of the chain that is being moved.</li>
+<li>All “inactive” instances of a chain can receive “inactive” upgrades of a chain. The single “active” instance of a chain (the one on the settlement layer) can receive only active upgrades.</li>
+</ol>
+<p>In case step (3) fails (or for any other reason the chain fails), the migration recovery process should be available. (<code>L1AssetRouter.bridgeRecoverFailedTransfer</code> method). Recovering a chain id basically just changing its <code>settlementLayerId</code> to the current block.chainid. It will be double checked that the chain has not conducted any inactive upgrades in the meantime, i.e. the <code>protocolVersion</code> of the chain is the same as the one when the chain started its migration.</p>
+<p>In case we ever do need to do more than simply resetting <code>settlementLayerId</code> for a chain in case of a failed migration, it is the responsibility of the CTM to ensure that the logic is compatible for all the versions.</p>
+<h2 id="stuck-state-for-l1gw-migration"><a class="header" href="#stuck-state-for-l1gw-migration">Stuck state for L1→GW migration</a></h2>
+<p>The only unrecoverable state that a chain can achieve is:</p>
+<ul>
+<li>It tries to migrate and it fails.</li>
+<li>While the migration has happening an “inactive” upgrade has been conducted.</li>
+<li>Now recovery of the chain is not possible as the “protocol version” check will fail.</li>
+</ul>
+<p>This is considered to be a rare event, but it will be strongly recommended that before conducting any inactive upgrades the migration transaction should be finalized.</p>
+<p>In the future, we could actively force it, i.e. require confirmation of a successful migration before any upgrades on a migrated chain could be done.</p>
+<h2 id="safety-guards-for-gwl1-migrations"><a class="header" href="#safety-guards-for-gwl1-migrations">Safety guards for GW→L1 migrations</a></h2>
+<p>Migrations from GW to L1 do not have any chain recovery mechanism, i.e. if the step (3) from the above fails for some reason (e.g. a new protocol version id is available on the CTM), then the chain is basically lost.</p>
+<h3 id="protocol-version-safety-guards"><a class="header" href="#protocol-version-safety-guards">Protocol version safety guards</a></h3>
+<ul>
+<li>Before a new protocol version is released, all the migrations will be paused, i.e. the <code>pauseMigration</code> function will be called by the owner of the Bridgehub on both L1 and L2. It should prevent migrations happening in the risky period when the new version is published to the CTM.</li>
+<li>Assuming that no new protocol versions are published to CTM during the migration, the migration must succeed, since both CTM on GW and on L1 will have the same version and so the checks will work fine.</li>
+<li>The finalization of any chain withdrawal is permissionless and so in the short term the team could help finalize the outstanding migrations to prevent funds loss.</li>
+</ul>
+<blockquote>
+<p>The approach above is somewhat tricky as it requires careful coordination with the governance to ensure that at the time of when the new protocol version is published to CTM, there are no outstanding migrations.</p>
+</blockquote>
+<p>In the future we will either make it more robust or add a recovery mechanism for failed GW → L1 migrations.</p>
+<blockquote>
+</blockquote>
+<h3 id="batch-number-safety-guards"><a class="header" href="#batch-number-safety-guards">Batch number safety guards</a></h3>
+<p>Another potential place that may lead for a chain to not be migratable to L1 is if the number of outstanding batches is very high, which can lead to migration to cost too much gas and being not executable no L1.</p>
+<p>To prevent that, it is required for chains that migrate from GW that all their batches are executed. This ensures that the number of batches’ hashes to be copied on L1 is constant (i.e. just 1 last batch).</p>
+<h2 id="motivation"><a class="header" href="#motivation">Motivation</a></h2>
+<p>The job of this proposal is to reduce the number of potential states in which the system can find itself in to a minimum. The cases that are removed:</p>
+<ul>
+<li>Need to be able to migrate to a chain that has contracts from a different protocol version</li>
+<li>Need to be able for CTM to support migration of chains with different versions. Only <code>bridgeRecoverFailedTransfer</code> has to be supported for all the versions, but its logic is very trivial.</li>
+</ul>
+<p>The reason why we can not conduct “active” upgrades everywhere on both L1 and L2 part is that for the settlement layer we need to write the new protocol upgrade tx, while NOT allowing to override it. On other hand, for the “inactive” chain contracts, we need to ignore the upgrade transaction.</p>
+<h2 id="forcing-active-chain-upgrade"><a class="header" href="#forcing-active-chain-upgrade">Forcing “active chain upgrade”</a></h2>
+<p>For L1-based chains, forcing those upgrades will work exactly same as before. Just during <code>commitBatches</code> the CTM double checks that the protocol version is up to date.</p>
+<p>The admin of the CTM (GW) will call the CTM (GW) with the new protocol version’s data. This transaction should not fail, but even if it does fail, we should be able to just re-try. For now, the GW operator will be trusted to not be malicious</p>
+<h3 id="case-of-malicious-gateway-operator"><a class="header" href="#case-of-malicious-gateway-operator">Case of malicious Gateway operator</a></h3>
+<p>In the future, malicious Gateway operator may try to exploit a vulnerability in an CTM.</p>
+<p>The recommended approach here is the following:</p>
+<ul>
+<li>Admin of the CTM (GW) will firstly commit to the upgrade (for example, preemptively freeze all the chains).</li>
+<li>Once the chains are frozen, it can use L1→L2 communication to pass the new protocol upgrade to CTM.</li>
+</ul>
+<blockquote>
+<p>The approach above basically states that “if operator is censoring, we’ll be able to use standard censorship-resistance mechanism of a chain to bypass it”. The freezing part is just a way to not tell to the world the issue before all chains are safe from exploits.</p>
+</blockquote>
+<p>It is the responsibility of the CTM to ensure that all the supported settlement layers are trusted enough to uphold to the above protocol. Using any sort of Validiums will be especially discouraged, since in theory those could get frozen forever without any true censorship resistance mechanisms.</p>
+<p>Also, note that the freezing period should be long enough to ensure that censorship resistance mechanisms have enough time to kick in</p>
+<h2 id="forcing-inactive-chain-upgrade"><a class="header" href="#forcing-inactive-chain-upgrade">Forcing “inactive chain upgrade”</a></h2>
+<p>Okay, imagine that there is a bug in an L1 implementation of a chain that has migrated to Gateway. This is a rather rare event as most of the action happens on the settlement layer, together with the ability to steal the most of funds.</p>
+<p>In case such situation does happen however, the current plan is just to:</p>
+<ul>
+<li>Freeze the ecosystem.</li>
+<li>Ask the admins nicely to upgrade their implementation. Decentralized token governance can also force-upgrade those via CTM on L1.</li>
+</ul>
+<h2 id="backwards-compatibility"><a class="header" href="#backwards-compatibility">Backwards compatibility</a></h2>
+<p>With this proposal the protocol version on the L1 part and on the settlement layer part is completely out of sync. This means that all new mailboxes need to support both accepting and sending all versions of relayed (L1 → GW → L2) transactions.</p>
+<p>For now, this is considered okay. In the future, some stricter versioning could apply.</p>
+<h2 id="notes"><a class="header" href="#notes">Notes</a></h2>
+<h3 id="regular-chain-migration-moving-chain-x-from-y-to-z-where-y-is-zs-settlement-layer"><a class="header" href="#regular-chain-migration-moving-chain-x-from-y-to-z-where-y-is-zs-settlement-layer">Regular chain migration moving chain X from Y to Z (where Y is Z’s settlement layer)</a></h3>
+<p>So assume that Y is L1, and Z is ‘Gateway’.</p>
+<p>Definition:</p>
+<p><code>ZKChain(X)</code> - ‘a.k.a ST / DiamondProxy’ for a given chain id X</p>
+<p><code>CTM(X)</code> - the State transition manager for a given chain id X</p>
+<ol>
+<li>check that <code>ZKChain(X).protocol_version == CTM(X).protocol_version</code> on chain Y.</li>
+<li>Start ‘burn’ process (on chain Y)
+<ol>
+<li>collect <code>‘payload’</code> from <code>ZKChain(X)</code> and <code>CTM(X)</code> and <code>protocol_version</code> on chain Y.</li>
+<li>set <code>ZKChain(X).settlement_layer</code> to <code>address(ZKChain(Z))</code> on chain Y.</li>
+</ol>
+</li>
+<li>Start ‘mint’ process (on chain Z)
+<ol>
+<li>check that <code>CTM(X).protocol_version == payload.protocol_version</code></li>
+<li>Create new <code>ZKChain(X)</code> on chain Z and register in the local bridgehub &amp; CTM.</li>
+<li>pass <code>payload</code> to <code>ZKChain(X)</code> and <code>CTM(X)</code> to initialize the state.</li>
+</ol>
+</li>
+<li>If ‘mint’ fails - recover (on chain Y)
+<ol>
+<li>check that <code>ZKChain(X).protocol_version == payload.protocol_version</code>
+<ol>
+<li>important, here we’re actually looking at the ‘HYPERCHAIN’ protocol version and not necessarily CTM protocol version.</li>
+</ol>
+</li>
+<li>set <code>ZKChain(X).settlement_layer</code> to <code>0</code> on chain Y.</li>
+<li>pass <code>payload</code> to <code>IZKChain(X)</code> and <code>CTM(X)</code> to initialize the state.</li>
+</ol>
+</li>
+</ol>
+<h3 id="reverse-chain-migration---moving-chain-x-back-from-z-to-y"><a class="header" href="#reverse-chain-migration---moving-chain-x-back-from-z-to-y">‘Reverse’ chain migration - moving chain X ‘back’ from Z to Y</a></h3>
+<p>(moving back from gateway to L1).</p>
+<ol>
+<li>Same as above (check protocol version - but on chain Z)</li>
+<li>Same as above (start burn process - but on chain Z)</li>
+<li>Same as above (start ‘mint’ - but on chain Y)
+<ol>
+<li>same as above</li>
+<li>creation is probably not needed - as the contract was already there in a first place.</li>
+<li>same as above - but the state is ‘re-initialized’</li>
+</ol>
+</li>
+<li>Same as above - but on chain ‘Z’</li>
+</ol>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../../specs/contracts/gateway/l2_gw_l1_messaging.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../../specs/contracts/gateway/gateway_da.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../../specs/contracts/gateway/l2_gw_l1_messaging.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../../specs/contracts/gateway/gateway_da.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../../ace.js"></script>
+        <script src="../../../editor.js"></script>
+        <script src="../../../mode-rust.js"></script>
+        <script src="../../../theme-dawn.js"></script>
+        <script src="../../../theme-tomorrow_night.js"></script>
+
+        <script src="../../../elasticlunr.min.js"></script>
+        <script src="../../../mark.min.js"></script>
+        <script src="../../../searcher.js"></script>
+
+        <script src="../../../clipboard.min.js"></script>
+        <script src="../../../highlight.js"></script>
+        <script src="../../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../../js/version-box.js"></script>
+        <script src="../../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>

@@ -1,0 +1,422 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Bridging - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../../favicon.svg">
+        <link rel="shortcut icon" href="../../../favicon.png">
+        <link rel="stylesheet" href="../../../css/variables.css">
+        <link rel="stylesheet" href="../../../css/general.css">
+        <link rel="stylesheet" href="../../../css/chrome.css">
+        <link rel="stylesheet" href="../../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../../../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../../../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../../css/version-box.css">
+        <link rel="stylesheet" href="../../.././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/specs/contracts/bridging/overview.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="bridgehub--asset-routers"><a class="header" href="#bridgehub--asset-routers">BridgeHub &amp; Asset Routers</a></h1>
+<p><a href="../README.html">back to readme</a></p>
+<h2 id="bridgehub-as-the-main-chain-registry"><a class="header" href="#bridgehub-as-the-main-chain-registry">Bridgehub as the main chain registry</a></h2>
+<p>Bridgehub is the most important contract in the system, that stores:</p>
+<ul>
+<li>A mapping from chainId to chains address</li>
+<li>A mapping from chainId to the CTM it belongs to.</li>
+<li>A mapping from chainId to its base token (i.e. the token that is used for paying fees)</li>
+<li>etc</li>
+</ul>
+<blockquote>
+<p>Not sure what CTM is? Check out the <a href="../chain_management/chain_type_manager.html">Chain Type Manager</a> page for details.</p>
+</blockquote>
+<p>Overall, it is the main registry for all the contracts. Note, that a clone of Bridgehub is also deployed on each L2 chain, but this clone is only used on settlement layers. All the in all, the architecture of the entire ecosystem can be seen below:</p>
+<p><img src="./img/gateway_architecture.png" alt="Contracts" /></p>
+<blockquote>
+<p>This document will not cover how ZK Gateway works, you can check it out in <a href="../gateway/overview.html">a separate doc</a>.</p>
+</blockquote>
+<h2 id="asset-router-as-the-main-asset-bridging-entrypoint"><a class="header" href="#asset-router-as-the-main-asset-bridging-entrypoint">Asset router as the main asset bridging entrypoint</a></h2>
+<p>The main entry for passing value between chains is the AssetRouter, it is responsible for facilitating bridging between multiple asset types. To read more in detail on how it works, please refer to custom <a href="./asset_router_and_ntv/overview.html">asset bridging documentation</a>.</p>
+<p>For the purpose of this document, it is enough to treat the Asset Router as a blackbox that is responsible for processing escrowing funds on the source chain and minting them on the destination chain.</p>
+<blockquote>
+<p>For those that are aware of the <a href="https://github.com/code-423n4/2024-03-zksync/blob/main/docs/Smart%20contract%20Section/L1%20ecosystem%20contracts.md">previous ZKsync architecture</a>, its role is similar to L1SharedBridge that we had before. Note, however, that it is a different contract with much enhanced functionality. Also, note that the L1SharedBridge will NOT be upgraded to the L1AssetRouter. For more details about migration, please check out <a href="../../upgrade_history/gateway_upgrade/gateway_diff_review.html">the migration doc</a>.</p>
+</blockquote>
+<h3 id="handling-base-tokens"><a class="header" href="#handling-base-tokens">Handling base tokens</a></h3>
+<p>On L2, <em>a base token</em> (not to be consfused with a <em>native token</em>, i.e. an ERC20 token with a main contract on the chain) is the one that is used for <code>msg.value</code> and it is managed at <code>L2BaseToken</code> system contract. We need its logic to be strictly defined in <code>L2BaseToken</code>, since the base asset is expected to behave the exactly the same as ether on EVM. For now this token contract does not support base minting and burning of the asset, nor further customization.</p>
+<p>In other words, in the current release base assets can only be transferred through <code>msg.value</code>. They can also only be minted when they are backed 1-1 on L1.</p>
+<h2 id="l1l2-communication-via-bridgehubrequestl2transactiondirect"><a class="header" href="#l1l2-communication-via-bridgehubrequestl2transactiondirect">L1→L2 communication via <code>Bridgehub.requestL2TransactionDirect</code></a></h2>
+<p>L1→L2 communication allows users on L1 to create a request for a transaction to happen on L2. This is the primary censorship resistance mechanism. If you are interested, you can read more on L1→L2 communications <a href="../settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.html">here</a>, but for now just understanding that L1→L2 communication allows to request transactions to happen on L2 is enough.</p>
+<p>The L1→L2 communication is also the only way to mint a base asset at the moment. Fees to the operator as well as <code>msg.value</code> will be minted on <code>L2BaseToken</code> after the corresponding L1→L2 tx has been processed.</p>
+<p>To request an L1→L2 transaction, the <code>BridgeHub.requestL2TransactionDirect</code> function needs to be invoked. The user should pass the struct with the following parameters:</p>
+<pre><code class="language-solidity">struct L2TransactionRequestDirect {
+  uint256 chainId;
+  uint256 mintValue;
+  address l2Contract;
+  uint256 l2Value;
+  bytes l2Calldata;
+  uint256 l2GasLimit;
+  uint256 l2GasPerPubdataByteLimit;
+  bytes[] factoryDeps;
+  address refundRecipient;
+}
+</code></pre>
+<p>Most of the params are self-explanatory &amp; replicate the logic of ZKsync Era. The only non-trivial fields are:</p>
+<ul>
+<li><code>mintValue</code> is the total amount of the base tokens that should be minted on L2 as the result of this transaction. The requirement is that <code>request.mintValue &gt;= request.l2Value + request.l2GasLimit * derivedL2GasPrice(...)</code>, where <code>derivedL2GasPrice(...)</code> is the gas price to be used by this L1→L2 transaction. The exact price is defined by the ZKChain.</li>
+</ul>
+<p>Here is a quick guide on how this transaction is routed through the bridgehub.</p>
+<ol>
+<li>
+<p>The bridgehub retrieves the <code>baseTokenAssetId</code> of the chain with the corresponding <code>chainId</code> and calls <code>L1AssetRouter.bridgehubDepositBaseToken</code> method. The <code>L1AssetRouter</code> will then use standard token depositing mechanism to burn/escrow the respective amount of the <code>baseTokenAssetId</code>. You can read more about it in <a href="./asset_router_and_ntv/overview.html">the asset router doc</a>. This step ensures that the baseToken will be backed 1-1 on L1.</p>
+</li>
+<li>
+<p>After that, it just routes the corresponding call to the ZKChain with the corresponding <code>chainId</code> . It is now the responsibility of the ZKChain to validate that the transaction is correct and can be accepted by it. This validation includes, but not limited to:</p>
+<ul>
+<li>The fact that the user paid enough funds for the transaction (basically <code>request.l2GasLimit * derivedL2GasPrice(...) + request.l2Value &gt;= request.mintValue</code>.</li>
+<li>The fact the transaction is always executable (the <code>request.l2GasLimit</code> is not high enough).</li>
+<li>etc.</li>
+</ul>
+</li>
+<li>
+<p>After the ZKChain validates the tx, it includes it into its priority queue. Once the operator executes this transaction on L2, the <code>mintValue</code> of the baseToken will be minted on L2. The <code>derivedL2GasPrice(...) * gasUsed</code> will be given to the operator’s balance. The other funds can be routed either of the following way:</p>
+</li>
+</ol>
+<p>If the transaction is successful, the <code>request.l2Value</code> will be minted on the <code>request.l2Contract</code> address (it can potentially transfer these funds within the transaction). The rest are minted to the <code>request.refundRecipient</code> address. In case the transaction is not successful, all of the base token will be minted to the <code>request.refundRecipient</code> address. These are the same rules as for the ZKsync Era.</p>
+<p><strong><em>Diagram of the L1→L2 transaction flow on L1 for direct user calls, the baseToken can be ETH or an ERC20:</em></strong></p>
+<p><img src="./img/requestL2TransactionDirect.png" alt="requestL2TransactionDirect (ETH) (2).png" /></p>
+<p><strong><em>Diagram of the L1→L2 transaction flow on L2 (it is the same regardless of the baseToken):</em></strong></p>
+<p><img src="./img/requestL2TransactionTwoBridges_token.png" alt="requestL2TransactionTwoBridges" /></p>
+<p><img src="./img/L1_L2_tx_processing_on_L2.png" alt="L1-_L2 tx processing on L2.png" /></p>
+<h3 id="limitations-of-custom-base-tokens-in-the-current-release"><a class="header" href="#limitations-of-custom-base-tokens-in-the-current-release">Limitations of custom base tokens in the current release</a></h3>
+<p>ZKsync Era uses ETH as a base token. Upon creation of an ZKChain other chains may want to use their own custom base tokens. Note, that for the current release all the possible base tokens are whitelisted. The other limitation is that all the base tokens must be backed 1-1 on L1 as well as they are solely implemented with <code>L2BaseToken</code> contract. In other words:</p>
+<ul>
+<li>No custom logic is allowed on L2 for base tokens</li>
+<li>Base tokens can not be minted on L2 without being backed by the corresponding L1 amount.</li>
+</ul>
+<p>If someone wants to build a protocol that mints base tokens on L2, the option for now is to “mint” an infinite amount of those on L1, deposit on L2 and then give those out as a way to “mint”. We will update this in the future.</p>
+<h2 id="general-architecture-and-initialization-of-sharedbridge-for-a-new-zkchain"><a class="header" href="#general-architecture-and-initialization-of-sharedbridge-for-a-new-zkchain">General architecture and initialization of SharedBridge for a new ZKChain</a></h2>
+<p>Once the chain is created, its L2AssetRouter will be automatically deployed upon genesis. You can read more about it in the <a href="../chain_management/chain_genesis.html">Chain creation flow</a>.</p>
+<h2 id="requestl2transactiontwobridges"><a class="header" href="#requestl2transactiontwobridges"><code>requestL2TransactionTwoBridges</code></a></h2>
+<p><code>L1AssetRouter</code> is used as the main “glue” for value bridging across chains. Whenever a token that is not native needs to be bridged between two chains an L1&lt;&gt;L2 transaction out of the name of an AssetRouter needs to be performed. For more details, check out the <a href="./asset_router_and_ntv/overview.html">asset router documentation</a>. But for this section it is enough to understand that we need to somehow make a transaction out of the name of <code>L1AssetRouter</code> to its L2 counterpart to deliver the message about certain amount of asset being bridged.</p>
+<blockquote>
+<p>In the next paragraphs we will often refer to <code>L1AssetRouter</code> as performing something. It is good enough for understanding of how bridgehub functionality works. Under the hood though, it mainly serves as common entry that calls various asset handlers that are chosen based on asset id. You can read more about it in the <a href="./asset_router_and_ntv/asset_router.html">asset router documentation</a>.</p>
+</blockquote>
+<p>Let’s say that a ZKChain has ETH as its base token. Let’s say that the depositor wants to bridge USDC to that chain. We can not use <code>BridgeHub.requestL2TransactionDirect</code>, because it only takes base token <code>mintValue</code> and then starts an L1→L2 transaction rightaway out of the name of the user and not the <code>L1AssetRouter</code>.</p>
+<p>We need some way to atomically deposit both ETH and USDC to the shared bridge + start a transaction from <code>L1AssetRouter</code>. For that we have a separate function on <code>Bridgehub</code>: <code>BridgeHub.requestL2TransactionTwoBridges</code>. The reason behind the name “two bridges” is a bit historical: the transaction supposed compose to do actions with two bridges: the bridge responsible for base tokens and the second bridge responsible for any other token.</p>
+<p>Note, however, that only <code>L1AssetRouter</code> can be used to bridge base tokens. And the role of the second bridge can be played by any contract that supports the protocol desrcibed below.</p>
+<p>When calling <code>BridgeHub.requestL2TransactionTwoBridges</code> the following struct needs to be provided:</p>
+<pre><code class="language-solidity">struct L2TransactionRequestTwoBridgesOuter {
+  uint256 chainId;
+  uint256 mintValue;
+  uint256 l2Value;
+  uint256 l2GasLimit;
+  uint256 l2GasPerPubdataByteLimit;
+  address refundRecipient;
+  address secondBridgeAddress;
+  uint256 secondBridgeValue;
+  bytes secondBridgeCalldata;
+}
+</code></pre>
+<p>The first few fields are the same as for the simple L1→L2 transaction case. However there are three new fields:</p>
+<ul>
+<li><code>secondBridgeAddress</code> is the address of the bridge (or contract in general) which will need to perform the L1-&gt;L2 transaction. In this case it should be the same <code>L1AssetRouter</code></li>
+<li><code>secondBridgeValue</code> is the <code>msg.value</code> to be sent to the bridge which is responsible for the asset being deposited (in this case it is <code>L1AssetRouter</code> ). This can be used to deposit ETH to ZKChains that have base token that is not ETH.</li>
+<li><code>secondBridgeCalldata</code> is the data to pass to the second contract. <code>L1AssetRouter</code> supports multiple formats of calldata, the list can be seen in the <code>bridgehubDeposit</code> function of the <code>L1AssetRouter</code>.</li>
+</ul>
+<p>The function will do the following:</p>
+<h4 id="l1"><a class="header" href="#l1">L1</a></h4>
+<ol>
+<li>It will deposit the <code>request.mintValue</code> of the ZKChain’s base token the same way as during a simple L1→L2 transaction. These funds will be used for funding the <code>l2Value</code> and the fee to the operator.</li>
+<li>It will call the <code>secondBridgeAddress</code> (<code>L1AssetRouter</code>) once again and this time it will deposit the funds to the <code>L1AssetRouter</code>, but this time it will be deposit not to pay the fees, but rather for the sake of bridging the desired token.</li>
+</ol>
+<p>This call will return the parameters to call the l2 contract with (the address of the L2 bridge counterpart, the calldata and factory deps to call it with). 3. After the BridgeHub will call the ZKChain to add the corresponding L1→L2 transaction to the priority queue. 4. The BridgeHub will call the <code>SharedBridge</code> once again so that it can remember the hash of the corresponding deposit transaction. <a href="#claiming-failed-deposits">This is needed in case the deposit fails</a>.</p>
+<h4 id="l2"><a class="header" href="#l2">L2</a></h4>
+<ol>
+<li>After some time, the corresponding L1→L2 is created.</li>
+<li>The L2AssetRouter will receive the message and re-route it to the asset handler of the bridged token. To read more about how it works, check out the <a href="./asset_router_and_ntv/overview.html">asset router documentation</a>.</li>
+</ol>
+<p><strong><em>Diagram of a depositing ETH onto a chain with USDC as the baseToken. Note that some contract calls (like <code>USDC.transferFrom</code> are omitted for the sake of consiceness):</em></strong></p>
+<p><img src="./img/requestL2TransactionTwoBridges_depositEthToUSDC.png" alt="requestL2TransactionTwoBridges (SharedBridge) (1).png" /></p>
+<h2 id="generic-usage-of-bridgehubrequestl2transactiontwobridges"><a class="header" href="#generic-usage-of-bridgehubrequestl2transactiontwobridges">Generic usage of <code>BridgeHub.requestL2TransactionTwoBridges</code></a></h2>
+<p><code>L1AssetRouter</code> is the only bridge that can handle base tokens. However, the <code>BridgeHub.requestL2TransactionTwoBridges</code> could be used by <code>secondBridgeAddress</code> on L1. A notable example of how it is done is how our CTMDeploymentTracker uses it to register the correct CTM address on Gateway. You can read more about how Gateway works in <a href="../gateway/overview.html">its documentation</a>.</p>
+<p>Let’s do a quick recap on how it works:</p>
+<p>When calling <code>BridgeHub.requestL2TransactionTwoBridges</code> the following struct needs to be provided:</p>
+<pre><code class="language-solidity">struct L2TransactionRequestTwoBridgesOuter {
+  uint256 chainId;
+  uint256 mintValue;
+  uint256 l2Value;
+  uint256 l2GasLimit;
+  uint256 l2GasPerPubdataByteLimit;
+  address refundRecipient;
+  address secondBridgeAddress;
+  uint256 secondBridgeValue;
+  bytes secondBridgeCalldata;
+}
+</code></pre>
+<ul>
+<li><code>secondBridgeAddress</code> is the address of the L1 contract that needs to perform the L1-&gt;L2 transaction.</li>
+<li><code>secondBridgeValue</code> is the <code>msg.value</code> to be sent to the <code>secondBridgeAddress</code>.</li>
+<li><code>secondBridgeCalldata</code> is the data to pass to the <code>secondBridgeAddress</code>. This can be interpreted any way it wants.</li>
+</ul>
+<ol>
+<li>Firstly, the Bridgehub will deposit the <code>request.mintValue</code> the same way as during a simple L1→L2 transaction. These funds will be used for funding the <code>l2Value</code> and the fee to the operator.</li>
+<li>After that, the <code>secondBridgeAddress.bridgehubDeposit</code> with the following signature is called</li>
+</ol>
+<pre><code class="language-solidity">struct L2TransactionRequestTwoBridgesInner {
+  // Should be equal to a constant `keccak256("TWO_BRIDGES_MAGIC_VALUE")) - 1`
+  bytes32 magicValue;
+  // The L2 contract to call
+  address l2Contract;
+  // The calldata to call it with
+  bytes l2Calldata;
+  // The factory deps to call it with
+  bytes[] factoryDeps;
+  // Just some 32-byte value that can be used for later processing
+  // It is called `txDataHash` as it *should* be used as a way to facilitate
+  // reclaiming failed deposits.
+  bytes32 txDataHash;
+}
+
+function bridgehubDeposit(
+  uint256 _chainId,
+  // The actual user that does the deposit
+  address _prevMsgSender,
+  // The msg.value of the L1-&gt;L2 transaction to be created
+  uint256 _l2Value,
+  // Custom bridge-specific data
+  bytes calldata _data
+) external payable returns (L2TransactionRequestTwoBridgesInner memory request);
+</code></pre>
+<p>Now the job of the contract will be to “validate” whether they are okay with the transaction to come. For instance, the <code>CTMDeploymentTracker</code> checks that the <code>_prevMsgSender</code> is the owner of <code>CTMDeploymentTracker</code> and has the necessary rights to perform the transaction out of the name of it.</p>
+<p>Ultimately, the correctly processed <code>bridgehubDeposit</code> function basically grants <code>BridgeHub</code> the right to create an L1→L2 transaction out of the name of the <code>secondBridgeAddress</code>. Since it is so powerful, the first returned value must be a magical constant that is equal to <code>keccak256("TWO_BRIDGES_MAGIC_VALUE")) - 1</code>. The fact that it was a somewhat non standard signature and a struct with the magical value is the major defense against “accidental” approvals to start a transaction out of the name of an account.</p>
+<p>Aside from the magical constant, the method should also return the information an L1→L2 transaction will start its call with: the <code>l2Contract</code> , <code>l2Calldata</code>, <code>factoryDeps</code>. It also should return the <code>txDataHash</code> field. The meaning <code>txDataHash</code> will be needed in the next paragraphs. But generally it can be any 32-byte value the bridge wants.</p>
+<ol>
+<li>After that, an L1→L2 transaction is invoked. Note, that the “trusted” <code>L1AssetRouter</code> has enforced that the baseToken was deposited correctly (again, the step (1) can <em>only</em> be handled by the <code>L1AssetRouter</code>), while the second bridge can provide any data to call its L2 counterpart with.</li>
+<li>As a final step, following function is called:</li>
+</ol>
+<pre><code class="language-solidity">function bridgehubConfirmL2Transaction(
+  // `chainId` of the ZKChain
+  uint256 _chainId,
+  // the same value that was returned by `bridgehubDeposit`
+  bytes32 _txDataHash,
+  // the hash of the L1-&gt;L2 transaction
+  bytes32 _txHash
+) external;
+</code></pre>
+<p>This function is needed for whatever actions are needed to be done after the L1→L2 transaction has been invoked.</p>
+<p>On <code>L1AssetRouter</code> it is used to remember the hash of each deposit transaction, so that later on, the funds could be returned to user if the <code>L1-&gt;L2</code> transaction fails. The <code>_txDataHash</code> is stored so that the whenever the users will want to reclaim funds from a failed deposit, they would provide the token and the amount as well as the sender to send the money to.</p>
+<h2 id="claiming-failed-deposits"><a class="header" href="#claiming-failed-deposits">Claiming failed deposits</a></h2>
+<p>In case a deposit fails, the <code>L1AssetRouter</code> allows users to recover the deposited funds by providing a proof that the corresponding transaction indeed failed. The logic is the same as in the current Era implementation.</p>
+<h2 id="withdrawing-funds-from-l2"><a class="header" href="#withdrawing-funds-from-l2">Withdrawing funds from L2</a></h2>
+<p>Funds withdrawal is a similar way to how it is done currently on Era.</p>
+<p>The user needs to call the <code>L2AssetRouter.withdraw</code> function on L2, while providing the token they want to withdraw. This function would then calls the corresponding L2 asset handler and ask him to burn the funds. We expand a bit more about it in the <a href="./asset_router_and_ntv/overview.html">asset router documentation</a>.</p>
+<p>Note, however, that it is not the way to withdraw base token. To withdraw base token, <code>L2BaseToken.withdraw</code> needs to be called.</p>
+<p>After the batch with the withdrawal request has been executed, the user can finalize the withdrawal on L1 by calling <code>L1AssetRouter.finalizeWithdrawal</code>, where the user provides the proof of the corresponding withdrawal message.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../../specs/contracts/chain_management/upgrade_process.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../../specs/contracts/bridging/asset_router_and_ntv/overview.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../../specs/contracts/chain_management/upgrade_process.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../../specs/contracts/bridging/asset_router_and_ntv/overview.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../../ace.js"></script>
+        <script src="../../../editor.js"></script>
+        <script src="../../../mode-rust.js"></script>
+        <script src="../../../theme-dawn.js"></script>
+        <script src="../../../theme-tomorrow_night.js"></script>
+
+        <script src="../../../elasticlunr.min.js"></script>
+        <script src="../../../mark.min.js"></script>
+        <script src="../../../searcher.js"></script>
+
+        <script src="../../../clipboard.min.js"></script>
+        <script src="../../../highlight.js"></script>
+        <script src="../../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../../js/version-box.js"></script>
+        <script src="../../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>

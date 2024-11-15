@@ -1,0 +1,277 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Asset Router - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../../../favicon.svg">
+        <link rel="shortcut icon" href="../../../../favicon.png">
+        <link rel="stylesheet" href="../../../../css/variables.css">
+        <link rel="stylesheet" href="../../../../css/general.css">
+        <link rel="stylesheet" href="../../../../css/chrome.css">
+        <link rel="stylesheet" href="../../../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../../../../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../../../../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../../../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../../../css/version-box.css">
+        <link rel="stylesheet" href="../../../.././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/specs/contracts/bridging/asset_router_and_ntv/asset_router.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="assetrouter"><a class="header" href="#assetrouter">AssetRouter</a></h1>
+<blockquote>
+<p><strong>Overview:</strong></p>
+<ul>
+<li><strong>On L1:</strong> The <strong>L1 Asset Router</strong> handles cross‑chain asset coordination <em>and</em> is complemented by the <strong>L1 Nullifier</strong> for additional finalization and recovery features.</li>
+<li><strong>On L2:</strong> Only the <strong>L2 Asset Router</strong> is pre-deployed at the same address (<code>0x10003</code>) on every L2 chain.</li>
+</ul>
+</blockquote>
+<h3 id="assetrouter-l1l2"><a class="header" href="#assetrouter-l1l2">AssetRouter (L1/L2)</a></h3>
+<p>The main job of the asset router is to be the central point of coordination for asset bridging. All crosschain token bridging is done between asset routers only and once the message reaches asset router, it then routes it to the corresponding asset handler.</p>
+<p>In order to make this easier, all L2 chains have the asset router located on the same address on every chain. It is <code>0x10003</code> and it is pre-deployed contract. More on how it is deployed can be seen in the <a href="../../chain_management/chain_genesis.html">Chain Genesis</a> section.</p>
+<p>The endgame is to have L1 asset router have the same functionality as the L2 one. This is not the case yet, but some progress has been made: L2AssetRouter can now bridge L2-native assets to L1, from which it could be bridged to other chains in the ecosystem.</p>
+<p>Examples of differences in functionality are:</p>
+<ol>
+<li>Failed‐deposit recovery.
+The <code>L1AssetRouter</code> provides on-chain recovery for failed L1→L2 deposits via its <code>bridgeRecoverFailedTransfer</code> and <code>claimFailedDeposit</code> functions. The <code>L2AssetRouter</code> has no equivalent, because L2→L1 withdrawals are atomic on L2: burning the L2 token and sending the L2→L1 withdrawal message occur in the same transaction. If anything goes wrong, the entire transaction reverts and no token is burned and no message is sent.</li>
+<li>User-initiated L1→L2 deposits must go through Bridgehub (or the legacy bridge), not directly.
+There is no public <code>deposit(...)</code> on <code>L1AssetRouter</code> you can call as a user—only, by contrast, on L2 you have a public <code>withdraw(...)</code> method.
+In case of <code>L1AssetRouter</code> user has to start deposit through either <code>Bridgehub</code> or <code>L1ERC20Bridge</code> (legacy bridge).
+However in case of <code>L2AssetRouter</code> user is able to simply call <code>withdraw</code> function in <code>L2AssetRouter</code>.</li>
+</ol>
+<p>The specifics of the L2AssetRouter is the need to interact with the previously deployed L2SharedBridgeLegacy if it was already present. It has less “rights” than the L1AssetRouter: at the moment it is assumed that all asset deployment trackers are from L1, the only way to register an asset handler on L2 is to make an L1→L2 transaction.</p>
+<blockquote>
+<p>Note, that today registering new asset deployment trackers is permissioned, but the plan is to make it permissionless in the future</p>
+</blockquote>
+<p>The specifics of the L1AssetRouter come from the need to be backwards compatible with the old L1SharedBridge. Yes, it does not share the same storage, but it inherits the need to be backwards compatible with the current SDK. Also, L1AssetRouter needs to facilitate L1-only operations, such as recovering from failed deposits.</p>
+<p>Also, L1AssetRouter is the only base token bridge contract that can participate in initiation of cross chain transactions via the bridgehub. This might change in the future.</p>
+<h3 id="l1nullifier"><a class="header" href="#l1nullifier">L1Nullifier</a></h3>
+<p>While the endgoal is to unify L1 and L2 asset routers, in reality, it may not be that easy: while L2 asset routers get called by L1→L2 transactions, L1 ones don’t and require manual finalization of transactions, which involves proof verification, etc. To move this logic outside of the L1AssetRouter, it was moved into a separate L1Nullifier contract.</p>
+<p><em>This is the contract the previous L1SharedBridge had been upgraded to, so it has the backwards compatible storage.</em></p>
+<h3 id="a-separate-l2nullifier-does-not-exist"><a class="header" href="#a-separate-l2nullifier-does-not-exist">A separate L2Nullifier does not exist</a></h3>
+<p>The L1Nullifier stores two things:</p>
+<ol>
+<li>
+<p>finalized L2-&gt;L1 withdrawals</p>
+</li>
+<li>
+<p>initiated L1-&gt;L2 priority transactions</p>
+</li>
+<li>
+<p>is needed on L1 as L2-&gt;L1 txs are executed arbitrarily, so we need to record whether they happened or not to stop double spending. However, L1-&gt;L2 priority txs are enforced to be executed only once, so we don’t need a separate L2Nullifier.</p>
+</li>
+<li>
+<p>The initiated L2-&gt;L1 and L2-&gt;L2 transactions are not stored. This is needed for L1-&gt;L2 txs, as priority transactions have to be executed by the system, and cannot be retried if they fail. So failed deposits have to be redeemable on L1. L2-&gt;L2 and L2-&gt;L1 txs might also fail, but if they fail due to gas reasons, they can be retried. If they fail due to contract error, then the receiving contract has to be fixed ( another way of explaining it, there can always be a contract error even for claiming failed deposits. So the only sustainable way of fixing contract errors is to fix the contract).</p>
+</li>
+</ol>
+<p>For this reason, on the L2 claiming failed deposits and bridgehubConfirmL2Transaction are not implemented.</p>
+<h3 id="l2sharedbridgelegacy"><a class="header" href="#l2sharedbridgelegacy">L2SharedBridgeLegacy</a></h3>
+<p>L2AssetRouter is pre-deployed onto a specific address. The old L2SharedBridge is upgraded to L2SharedBridgeLegacy contract. The main purpose of this contract is to ensure compatibility with the incoming deposits and re-route them to the shared bridge.</p>
+<p>This contract is never deployed for new chains.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../../../specs/contracts/bridging/overview.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../../../specs/contracts/bridging/asset_router_and_ntv/native_token_vault.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../../../specs/contracts/bridging/overview.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../../../specs/contracts/bridging/asset_router_and_ntv/native_token_vault.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../../../ace.js"></script>
+        <script src="../../../../editor.js"></script>
+        <script src="../../../../mode-rust.js"></script>
+        <script src="../../../../theme-dawn.js"></script>
+        <script src="../../../../theme-tomorrow_night.js"></script>
+
+        <script src="../../../../elasticlunr.min.js"></script>
+        <script src="../../../../mark.min.js"></script>
+        <script src="../../../../searcher.js"></script>
+
+        <script src="../../../../clipboard.min.js"></script>
+        <script src="../../../../highlight.js"></script>
+        <script src="../../../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../../../js/version-box.js"></script>
+        <script src="../../../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>

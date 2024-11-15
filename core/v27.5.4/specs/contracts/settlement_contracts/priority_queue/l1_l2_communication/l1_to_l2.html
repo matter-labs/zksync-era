@@ -1,0 +1,360 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Handling L1→L2 operations - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../../../../favicon.svg">
+        <link rel="shortcut icon" href="../../../../../favicon.png">
+        <link rel="stylesheet" href="../../../../../css/variables.css">
+        <link rel="stylesheet" href="../../../../../css/general.css">
+        <link rel="stylesheet" href="../../../../../css/chrome.css">
+        <link rel="stylesheet" href="../../../../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../../../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../../../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../../../../../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../../../../../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../../../../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../../../../css/version-box.css">
+        <link rel="stylesheet" href="../../../../.././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../../../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../../../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../../../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../../../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/specs/contracts/settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="handling-l1l2-ops"><a class="header" href="#handling-l1l2-ops">Handling L1→L2 ops</a></h1>
+<p>The transactions on ZKsync can be initiated not only on L2, but also on L1. There are two types of transactions that can
+be initiated on L1:</p>
+<ul>
+<li>Priority operations. These are the kind of operations that any user can create.</li>
+<li>Upgrade transactions. These can be created only during upgrades.</li>
+</ul>
+<h3 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h3>
+<p>Please read the full
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/System%20contracts%20bootloader%20description.md">article</a>
+on the general system contracts / bootloader structure as well as the pubdata structure with Boojum system to understand
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20pubdata%20in%20Boojum.md">the difference</a>
+between system and user logs.</p>
+<h2 id="priority-operations"><a class="header" href="#priority-operations">Priority operations</a></h2>
+<h3 id="initiation"><a class="header" href="#initiation">Initiation</a></h3>
+<p>A new priority operation can be appended by calling the
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Mailbox.sol#L236">requestL2Transaction</a>
+method on L1. This method will perform several checks for the transaction, making sure that it is processable and
+provides enough fee to compensate the operator for this transaction. Then, this transaction will be
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Mailbox.sol#L369C1-L369C1">appended</a>
+to the priority queue.</p>
+<h3 id="bootloader"><a class="header" href="#bootloader">Bootloader</a></h3>
+<p>Whenever an operator sees a priority operation, it can include the transaction into the batch. While for normal L2
+transaction the account abstraction protocol will ensure that the <code>msg.sender</code> has indeed agreed to start a transaction
+out of this name, for L1→L2 transactions there is no signature verification. In order to verify that the operator
+includes only transactions that were indeed requested on L1, the bootloader
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/bootloader/bootloader.yul#L970">maintains</a>
+two variables:</p>
+<ul>
+<li><code>numberOfPriorityTransactions</code> (maintained at <code>PRIORITY_TXS_L1_DATA_BEGIN_BYTE</code> of bootloader memory)</li>
+<li><code>priorityOperationsRollingHash</code> (maintained at <code>PRIORITY_TXS_L1_DATA_BEGIN_BYTE + 32</code> of the bootloader memory)</li>
+</ul>
+<p>Whenever a priority transaction is processed, the <code>numberOfPriorityTransactions</code> gets incremented by 1, while
+<code>priorityOperationsRollingHash</code> is assigned to <code>keccak256(priorityOperationsRollingHash, processedPriorityOpHash)</code>,
+where <code>processedPriorityOpHash</code> is the hash of the priority operations that has been just processed.</p>
+<p>Also, for each priority transaction, we
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/bootloader/bootloader.yul#L966">emit</a>
+a user L2→L1 log with its hash and result, which basically means that it will get Merklized and users will be able to
+prove on L1 that a certain priority transaction has succeeded or failed (which can be helpful to reclaim your funds from
+bridges if the L2 part of the deposit has failed).</p>
+<p>Then, at the end of the batch, we
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/bootloader/bootloader.yul#L3819">submit</a>
+and 2 L2→L1 log system log with these values.</p>
+<h3 id="batch-commit"><a class="header" href="#batch-commit">Batch commit</a></h3>
+<p>During block commit, the contract will remember those values, but not validate them in any way.</p>
+<h3 id="batch-execution"><a class="header" href="#batch-execution">Batch execution</a></h3>
+<p>During batch execution, we would pop <code>numberOfPriorityTransactions</code> from the top of priority queue and
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Executor.sol#L282">verify</a>
+that their rolling hash does indeed equal to <code>priorityOperationsRollingHash</code>.</p>
+<h2 id="upgrade-transactions"><a class="header" href="#upgrade-transactions">Upgrade transactions</a></h2>
+<h3 id="initiation-1"><a class="header" href="#initiation-1">Initiation</a></h3>
+<p>Upgrade transactions can only be created during a system upgrade. It is done if the <code>DiamondProxy</code> delegatecalls to the
+implementation that manually puts this transaction into the storage of the DiamondProxy. Note, that since it happens
+during the upgrade, there is no “real” checks on the structure of this transaction. We do have
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/upgrades/BaseZkSyncUpgrade.sol#L175">some validation</a>,
+but it is purely on the side of the implementation which the <code>DiamondProxy</code> delegatecalls to and so may be lifted if the
+implementation is changed.</p>
+<p>The hash of the currently required upgrade transaction is
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/Storage.sol#L138">stored</a>
+under <code>l2SystemContractsUpgradeTxHash</code>.</p>
+<p>We will also track the batch where the upgrade has been committed in the <code>l2SystemContractsUpgradeBatchNumber</code>
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/Storage.sol#L141">variable</a>.</p>
+<p>We can not support multiple upgrades in parallel, i.e. the next upgrade should start only after the previous one has
+been complete.</p>
+<h3 id="bootloader-1"><a class="header" href="#bootloader-1">Bootloader</a></h3>
+<p>The upgrade transactions are processed just like with priority transactions, with only the following differences:</p>
+<ul>
+<li>We can have only one upgrade transaction per batch &amp; this transaction must be the first transaction in the batch.</li>
+<li>The system contracts upgrade transaction is not appended to <code>priorityOperationsRollingHash</code> and doesn’t increment
+<code>numberOfPriorityTransactions</code>. Instead, its hash is calculated via a system L2→L1 log <em>before</em> it gets executed.
+Note, that it is an important property. More on it <a href="#security-considerations">below</a>.</li>
+</ul>
+<h3 id="commit"><a class="header" href="#commit">Commit</a></h3>
+<p>After an upgrade has been initiated, it will be required that the next commit batches operation already contains the
+system upgrade transaction. It is
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Executor.sol#L157">checked</a>
+by verifying the corresponding L2→L1 log.</p>
+<p>We also remember that the upgrade transaction has been processed in this batch (by amending the
+<code>l2SystemContractsUpgradeBatchNumber</code> variable).</p>
+<h3 id="revert"><a class="header" href="#revert">Revert</a></h3>
+<p>In a very rare event when the team needs to revert the batch with the upgrade on ZKsync, the
+<code>l2SystemContractsUpgradeBatchNumber</code> is
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Executor.sol#L412">reset</a>.</p>
+<p>Note, however, that we do not “remember” that certain batches had a version before the upgrade, i.e. if the reverted
+batches will have to be re-executed, the upgrade transaction must still be present there, even if some of the deleted
+batches were committed before the upgrade and thus didn’t contain the transaction.</p>
+<h3 id="execute"><a class="header" href="#execute">Execute</a></h3>
+<p>Once batch with the upgrade transaction has been executed, we
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Executor.sol#L304">delete</a>
+them from storage for efficiency to signify that the upgrade has been fully processed and that a new upgrade can be
+initiated.</p>
+<h2 id="security-considerations"><a class="header" href="#security-considerations">Security considerations</a></h2>
+<p>Since the operator can put any data into the bootloader memory and for L1→L2 transactions the bootloader has to blindly
+trust it and rely on L1 contracts to validate it, it may be a very powerful tool for a malicious operator. Note, that
+while the governance mechanism is generally trusted, we try to limit our trust for the operator as much as possible,
+since in the future anyone would be able to become an operator.</p>
+<p>Some time ago, we <em>used to</em> have a system where the upgrades could be done via L1→L2 transactions, i.e. the
+implementation of the <code>DiamondProxy</code> upgrade would
+<a href="https://github.com/matter-labs/era-contracts/blob/f06a58360a2b8e7129f64413998767ac169d1efd/ethereum/contracts/zksync/upgrade-initializers/DIamondUpgradeInit2.sol#L27">include</a>
+a priority transaction (with <code>from</code> equal to for instance <code>FORCE_DEPLOYER</code>) with all the upgrade params.</p>
+<p>In the Boojum though having such logic would be dangerous and would allow for the following attack:</p>
+<ul>
+<li>Let’s say that we have at least 1 priority operations in the priority queue. This can be any operation, initiated by
+anyone.</li>
+<li>The operator puts a malicious priority operation with an upgrade into the bootloader memory. This operation was never
+included in the priority operations queue / and it is not an upgrade transaction. However, as already mentioned above
+the bootloader has no idea what priority / upgrade transactions are correct and so this transaction will be processed.</li>
+</ul>
+<p>The most important caveat of this malicious upgrade is that it may change implementation of the <code>Keccak256</code> precompile
+to return any values that the operator needs.</p>
+<ul>
+<li>When the<code>priorityOperationsRollingHash</code> will be updated, instead of the “correct” rolling hash of the priority
+transactions, the one which would appear with the correct topmost priority operation is returned. The operator can’t
+amend the behaviour of <code>numberOfPriorityTransactions</code>, but it won’t help much, since the
+the<code>priorityOperationsRollingHash</code> will match on L1 on the execution step.</li>
+</ul>
+<p>That’s why the concept of the upgrade transaction is needed: this is the only transaction that can initiate transactions
+out of the kernel space and thus change bytecodes of system contracts. That’s why it must be the first one and that’s
+why
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/bootloader/bootloader.yul#L587">emit</a>
+its hash via a system L2→L1 log before actually processing it.</p>
+<h3 id="why-it-doesnt-break-on-the-previous-version-of-the-system"><a class="header" href="#why-it-doesnt-break-on-the-previous-version-of-the-system">Why it doesn’t break on the previous version of the system</a></h3>
+<p>This section is not required for Boojum understanding but for those willing to analyze the production system that is
+deployed at the time of this writing.</p>
+<p>Note that the hash of the transaction is calculated before the transaction is executed:
+<a href="https://github.com/matter-labs/era-system-contracts/blob/3e954a629ad8e01616174bde2218241b360fda0a/bootloader/bootloader.yul#L1055">https://github.com/matter-labs/era-system-contracts/blob/3e954a629ad8e01616174bde2218241b360fda0a/bootloader/bootloader.yul#L1055</a></p>
+<p>And then we publish its hash on L1 via a <em>system</em> L2→L1 log:
+<a href="https://github.com/matter-labs/era-system-contracts/blob/3e954a629ad8e01616174bde2218241b360fda0a/bootloader/bootloader.yul#L1133">https://github.com/matter-labs/era-system-contracts/blob/3e954a629ad8e01616174bde2218241b360fda0a/bootloader/bootloader.yul#L1133</a></p>
+<p>In the new upgrade system, the <code>priorityOperationsRollingHash</code> is calculated on L2 and so if something in the middle
+changes the implementation of <code>Keccak256</code>, it may lead to the full <code>priorityOperationsRollingHash</code> be maliciously
+crafted. In the pre-Boojum system, we publish all the hashes of the priority transactions via system L2→L1 and then the
+rolling hash is calculated on L1. This means that if at least one of the hash is incorrect, then the entire rolling hash
+will not match also.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../../../../specs/contracts/settlement_contracts/priority_queue/index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../../../../specs/contracts/settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../../../../specs/contracts/settlement_contracts/priority_queue/index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../../../../specs/contracts/settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../../../../ace.js"></script>
+        <script src="../../../../../editor.js"></script>
+        <script src="../../../../../mode-rust.js"></script>
+        <script src="../../../../../theme-dawn.js"></script>
+        <script src="../../../../../theme-tomorrow_night.js"></script>
+
+        <script src="../../../../../elasticlunr.min.js"></script>
+        <script src="../../../../../mark.min.js"></script>
+        <script src="../../../../../searcher.js"></script>
+
+        <script src="../../../../../clipboard.min.js"></script>
+        <script src="../../../../../highlight.js"></script>
+        <script src="../../../../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../../../../js/version-box.js"></script>
+        <script src="../../../../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>

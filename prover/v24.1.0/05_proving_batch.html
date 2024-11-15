@@ -1,0 +1,336 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Proving a batch - ZKsync Prover Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="css/version-box.css">
+        <link rel="stylesheet" href="css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Prover Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/prover/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/prover/docs/src/05_proving_batch.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="proving-a-batch"><a class="header" href="#proving-a-batch">Proving a batch</a></h1>
+<p>If you got to this section, then most likely you are wondering how to prove and verify the batch by yourself. After
+releases <code>prover-v15.1.0</code> and <code>core-v24.9.0</code> prover subsystem doesn’t need access to core database anymore, which means
+you can run only prover subsystem and prove batches without running the whole core system. This guide will help you with
+that.</p>
+<h2 id="requirements"><a class="header" href="#requirements">Requirements</a></h2>
+<h3 id="hardware"><a class="header" href="#hardware">Hardware</a></h3>
+<p>Setup for running the whole process should be the same as described <a href="./01_gcp_vm.html">here</a>, except you need 48 GB of
+GPU, which requires an NVIDIA A100 80GB GPU.</p>
+<h3 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h3>
+<p>First of all, you need to install CUDA drivers, all other things will be dealt with by <code>zkstack</code> and <code>prover_cli</code> tools.
+For that, check the following <a href="./02_setup.html">guide</a>(you can skip bellman-cuda step).</p>
+<p>Install the prerequisites, which you can find
+<a href="https://matter-labs.github.io/zksync-era/core/latest/guides/setup-dev.html">here</a>. Note, that if you are not using
+Google VM instance, you also need to install <a href="https://cloud.google.com/sdk/docs/install#deb">gcloud</a>.</p>
+<p>Now, you can use <code>zkstack</code> and <code>prover_cli</code> tools for setting up the env and running prover subsystem.</p>
+<p>First, install <code>zkstackup</code> with:</p>
+<pre><code class="language-bash">curl -L https://raw.githubusercontent.com/matter-labs/zksync-era/main/zkstack_cli/zkstackup/install | bash
+</code></pre>
+<p>Then install the most recent version of <code>zkstack</code> with:</p>
+<pre><code class="language-bash">zkstackup
+</code></pre>
+<h2 id="initializing-system"><a class="header" href="#initializing-system">Initializing system</a></h2>
+<p>After you have installed the tool, you can create ecosystem(you need to run only if you are outside of <code>zksync-era</code>) by
+running:</p>
+<pre><code class="language-shell">zkstack ecosystem create --l1-network=localhost --prover-mode=gpu --wallet-creation=localhost --l1-batch-commit-data-generator-mode=rollup --start-containers=true
+</code></pre>
+<p>The command will create the ecosystem and all the necessary components for the prover subsystem. You can leave default
+values for all the prompts you will see Now, you need to initialize the prover subsystem by running:</p>
+<pre><code class="language-shell">zkstack prover init --setup-database=true --use-default=true --dont-drop=false
+</code></pre>
+<p>For prompts you can leave default values as well.</p>
+<h2 id="proving-the-batch"><a class="header" href="#proving-the-batch">Proving the batch</a></h2>
+<h3 id="getting-data-needed-for-proving"><a class="header" href="#getting-data-needed-for-proving">Getting data needed for proving</a></h3>
+<p>At this step, we need to get the witness inputs data for the batch you want to prove. Database information now lives in
+input file, called <code>witness_inputs_&lt;batch&gt;.bin</code> generated by different core components).</p>
+<ul>
+<li>
+<p>If batch was produced by your system, the file is stored by prover gateway in GCS (or your choice of object storage –
+check config). At the point of getting it, most likely there is no artifacts directory created. If you have cloned the
+zksync-era repo, then it is in the root of ecosystem directory. Create artifacts directory by running:</p>
+<pre><code class="language-shell">mkdir -p &lt;path/to/era/prover/artifacts/witness_inputs&gt;
+</code></pre>
+<p>To access it from GCS (assuming you have access to the bucket), run:</p>
+<pre><code class="language-shell">gsutil cp gs://your_bucket/witness_inputs/witness_inputs_&lt;batch&gt;.bin &lt;path/to/era/prover/artifacts/witness_inputs&gt;
+</code></pre>
+</li>
+<li>
+<p>If you want to prove the batch produced by zkSync, you can get the data from the <code>ExternalProofIntegrationAPI</code> using
+<code>{address}/proof_generation_data</code> endpoint. You need to replace <code>{address}</code> with the address of the API and provide
+the batch number as a query data to get the data for specific batch, otherwise, you will receive latest data for the
+batch, that was already proven. Example:</p>
+<pre><code class="language-shell">wget --content-disposition {address}/proof_generation_data
+</code></pre>
+<p>or</p>
+<pre><code class="language-shell">wget --content-disposition {address}/proof_generation_data/{l1_batch_number}
+</code></pre>
+</li>
+</ul>
+<h3 id="preparing-database"><a class="header" href="#preparing-database">Preparing database</a></h3>
+<p>After you have the data, you need to prepare the system to run the batch. So, database needs to know about the batch and
+the protocol version it should use. You can do that with running</p>
+<pre><code class="language-shell">zkstack dev prover info
+</code></pre>
+<p>Example output:</p>
+<pre><code class="language-shell">===============================
+
+Current prover setup information:
+
+Protocol version: 0.24.2
+
+Snark wrapper: 0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2
+
+Database URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_era
+
+===============================
+</code></pre>
+<p>This command will provide you with the information about the semantic protocol version(you need to know only minor and
+patch versions) and snark wrapper value. In the example, <code>MINOR_VERSION</code> is 24, <code>PATCH_VERSION</code> is 2, and
+<code>SNARK_WRAPPER</code> is <code>0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2</code>.</p>
+<p>Now, with the use of <code>prover_cli</code> tool, you can insert the data about the batch and protocol version into the database:</p>
+<p>First, get the database URL(you can find it in <code>&lt;ecosystem_dir&gt;/chains/&lt;chain_name&gt;/configs/secrets.yaml</code> - it is the
+<code>prover_url</code> value) Now, insert the information about protocol version in the database:</p>
+<pre><code class="language-shell">prover_cli &lt;DATABASE_URL&gt; insert-version --version=&lt;MINOR_VERSION&gt; --patch=&lt;PATCH_VERSION&gt; --snark-wrapper=&lt;SNARK_WRAPPER&gt;
+</code></pre>
+<p>And finally, provide the data about the batch:</p>
+<pre><code class="language-shell">prover_cli &lt;DATABASE_URL&gt; insert-batch --number=&lt;BATCH_NUMBER&gt; --version=&lt;MINOR_VERSION&gt; --patch=&lt;PATCH_VERSION&gt;
+</code></pre>
+<p>Also, provers need to know which setup keys they should use. It may take some time, but you can generate them with:</p>
+<pre><code class="language-shell">zkstack prover generate-sk
+</code></pre>
+<h2 id="running-prover-subsystem"><a class="header" href="#running-prover-subsystem">Running prover subsystem</a></h2>
+<p>At this step, all the data is prepared and you can run the prover subsystem. To do that, run the following commands:</p>
+<pre><code class="language-shell">zkstack prover run --component=prover
+zkstack prover run --component=witness-generator --round=all-rounds
+zkstack prover run --component=witness-vector-generator --threads=10
+zkstack prover run --component=compressor
+zkstack prover run --component=prover-job-monitor
+</code></pre>
+<p>And you are good to go! The prover subsystem will prove the batch and you can check the results in the database.</p>
+<h2 id="verifying-zksync-batch"><a class="header" href="#verifying-zksync-batch">Verifying zkSync batch</a></h2>
+<p>Now, assuming the proof is already generated, you can verify using <code>ExternalProofIntegrationAPI</code>. Usually proof is
+stored in GCS bucket(for which you can use the same steps as for getting the witness inputs data
+<a href="#getting-data-needed-for-proving">here</a>, but locally you can find it in <code>/artifacts/proofs_fri</code> directory). Now, simply
+send the data to the endpoint <code>{address}/verify_batch/{batch_number}</code>.</p>
+<p>Example:</p>
+<pre><code class="language-shell">curl -v  -F proof=@{path_to_proof_binary} {address_of_API}/verify_proof/{l1_batch_number}
+</code></pre>
+<p>API will respond with status 200 if the proof is valid and with the error message otherwise.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="04_flow.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="99_further_reading.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="04_flow.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="99_further_reading.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="ace.js"></script>
+        <script src="editor.js"></script>
+        <script src="mode-rust.js"></script>
+        <script src="theme-dawn.js"></script>
+        <script src="theme-tomorrow_night.js"></script>
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="js/version-box.js"></script>
+        <script src="js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>

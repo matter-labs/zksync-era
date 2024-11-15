@@ -1,0 +1,814 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>ZKsync Prover Documentation</title>
+        <meta name="robots" content="noindex">
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="css/version-box.css">
+        <link rel="stylesheet" href="css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Prover Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/prover/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="prover-subsystem-introduction"><a class="header" href="#prover-subsystem-introduction">Prover subsystem introduction</a></h1>
+<blockquote>
+<p>From protocol version v27 onwards Old Prover Stack (Witness Vector Generator &amp; Prover Fri) have been removed in favor
+of the new Prover Stack (Circuit Prover)</p>
+</blockquote>
+<p>The prover subsystem consists of several binaries that perform different steps of the batch proof generation process, as
+follows:</p>
+<ul>
+<li><a href="https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/prover_fri_gateway">Prover gateway</a>: interface between core and prover subsystems, fetches batch jobs from core, and sends batch
+proofs back to core.</li>
+<li><a href="https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/witness_generator">Witness generator</a>: component that takes batch information (tx execution/state diffs/computation results) and
+constructs witness for proof generation.</li>
+<li><a href="https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/circuit_prover">Circuit prover</a>: component that generates a circuit proof (GPU accelerated).</li>
+<li><a href="https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/proof_fri_compressor">Proof compressor</a>: component that “wraps” the generated proof so that it can be sent to L1 (GPU accelerated).</li>
+</ul>
+<p>While not technically a part of the prover workspace, the following components are essential for it:</p>
+<ul>
+<li><a href="https://github.com/matter-labs/zksync-era/tree/main/core/node/proof_data_handler">Proof data handler</a>: API on the core side which Prover gateway interacts with.</li>
+<li><a href="https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/prover-job-monitor">Prover Job Monitor</a>: Metrics exporter and job rescheduler. In it’s absence, jobs would not be rescheduled and
+metrics used for autoscaling would not exist, rendering internal autoscaling infrastructure useless.</li>
+</ul>
+<p>Finally, the prover workspace has several CLI tools:</p>
+<ul>
+<li><a href="https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/vk_setup_data_generator_server_fri">Circuit key generator</a>: CLI used to generate keys required for proving.</li>
+<li><a href="https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/prover_cli">Prover CLI</a>: CLI for observing and maintaining the production proving infrastructure.</li>
+</ul>
+<p>There are core components that also participate in the proof generation process by preparing the input data, such as
+<a href="https://github.com/matter-labs/zksync-era/tree/main/core/node/metadata_calculator">metadata calculator</a>, <a href="https://github.com/matter-labs/zksync-era/tree/main/core/node/commitment_generator">commitment generator</a>, <a href="https://github.com/matter-labs/zksync-era/blob/main/core/node/vm_runner/src/impls/bwip.rs">basic witness input producer</a>, and <a href="https://github.com/matter-labs/zksync-era/blob/main/core/node/vm_runner/src/impls/protective_reads.rs">protective reads
+writer</a>. We won’t cover them much in these docs, but it’s better to know that they exist and are important for the
+prover subsystem as well.</p>
+<p>We’ll cover how the components work further in documentation.</p>
+<h2 id="how-it-runs"><a class="header" href="#how-it-runs">How it runs</a></h2>
+<p>Proof generation is a multi-stage process, where the initial jobs are created by the Prover gateway, and then moved by
+the House Keeper until the proof is generated.</p>
+<p>The real-life deployment of prover subsystem looks as follows:</p>
+<ul>
+<li>1x prover gateway</li>
+<li>1x house keeper</li>
+<li>Many witness generators</li>
+<li>Many witness vector generators</li>
+<li>Many circuit provers</li>
+<li>1+ proof compressors</li>
+</ul>
+<p>Currently, the proving subsystem is designed to run in GCP. In theory, it’s mostly environment-agnostic, and all of the
+components can be launched locally, but more work is needed to run a production system in a distributed mode outside of
+GCP.</p>
+<p>Witness generators, witness vector generators, and provers are spawned on demand based on the current system load via an
+autoscaler (WIP, so not released publicly yet). They can be spawned in multiple clusters among different zones, based on
+the availability of machines with required specs.</p>
+<h2 id="how-to-develop"><a class="header" href="#how-to-develop">How to develop</a></h2>
+<p>Different parts of the subsystem have different hardware requirement, but the aggregated summary to be able to run
+everything on a single machine is as follows:</p>
+<ul>
+<li>CPU with 16+ physical cores.</li>
+<li>GPU with CUDA support and at least 24 GB of VRAM.</li>
+<li>At least 64GB of RAM.</li>
+<li>200+ GB of disk space. 400+ GB is recommended for development, as <code>/target</code> directory can get quite large.</li>
+</ul>
+<p>Given that the requirements are quite high, it’s often more convenient developing the prover in a GCP VM rather than on
+a local machine. Setting up a VM is covered further in docs.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="creating-a-gcp-vm"><a class="header" href="#creating-a-gcp-vm">Creating a GCP VM</a></h1>
+<p>In this section we will cover the creation of a VM suitable for prover development. We assume that you already have
+access to the GCP cluster.</p>
+<h2 id="when-you-need-a-vm"><a class="header" href="#when-you-need-a-vm">When you need a VM</a></h2>
+<p>Generally, you don’t always need a VM to work on prover. You typically need it to either modify the code under
+<code>cfg(feature = "gpu")</code> flag, or when you need to run some tests. Moreover, VMs are shared, e.g. many people have access
+to them, and you can’t store sensitive data (like SSH keys) there, so they can’t be used as primary workstations.
+Finally, the VMs with GPU aren’t cheap, so we expect you to use them when you really need them.</p>
+<p>A typical workflow so far is to instantiate a new VM when you need it, and remove once you’re done. Remember: even if
+the VM is stopped, the SSD is persisted, so it’s not free.</p>
+<h2 id="create-a-vm"><a class="header" href="#create-a-vm">Create a VM</a></h2>
+<p>Open <a href="https://console.cloud.google.com/">Google cloud console</a> and choose “Compute Engine”.</p>
+<p>On the “Compute Engine” page choose the cluster suitable for creating VMs with GPU, and then click on “Create instance”.</p>
+<p>We will need an GPU <strong>L4</strong> instance, so find the zone that is close to you geographically and has such instances. At the
+time of writing, <code>europe-west2</code> is one of the possible options. L4 is recommended as the cheapest option, but you may
+use a beefier machine if you need it.</p>
+<p>When you choose the region, set the following options:</p>
+<ul>
+<li>Name: A descriptive name that contains your name, e.g. <code>john-doe-prover-dev-machine</code>.</li>
+<li>Region and zone: Values you’ve found above.</li>
+<li>Machine configuration: “GPUs”, then:
+<ul>
+<li>GPU Type: NVIDIA L4</li>
+<li>Number of GPUs: 1</li>
+<li>Machine type: Preset, <code>g2-standard-16</code></li>
+</ul>
+</li>
+<li>Availability policies: Choose standard provisioning. Spot instances can be preempted while you work on them, which
+will disrupt your flow.</li>
+<li>Then click on “VM provisioning model advanced settings” and
+<ul>
+<li>Click on “Set a time limit for the VM”</li>
+<li>Set the limit to 8 hours</li>
+</ul>
+</li>
+<li>On VM termination: Stop</li>
+<li>Boot disk: Click on “Change”, then:
+<ul>
+<li>Operating system: Ubuntu</li>
+<li>Version: Ubuntu 22.04 LTS (x86/64)</li>
+<li>Boot disk type: SSD persistent disk</li>
+<li>Size: 300GB</li>
+</ul>
+</li>
+</ul>
+<p>Leave the remaining options as is and click on “Create”.</p>
+<p>You will have to wait a bit and then your instance will be created. Once you see that the machine is running, click on
+an arrow near “SSH” in the list of options, and choose “Open in browser window”.</p>
+<p>You should successfully connect to your machine now.</p>
+<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
+<div class="admonition-title">
+<div id="admonition-warning-title">
+<p>Warning</p>
+</div>
+<a class="admonition-anchor-link" href="01_gcp_vm.html#admonition-warning"></a>
+</div>
+<div>
+<p>Don’t forget to remove the VM once you’ve finished your scope of work. It’s OK to keep the machine if you expect to
+work with it on the next working day, but otherwise it’s better to remove and create a new one when needed.</p>
+</div>
+</div>
+<h2 id="adding-your-own-ssh-key-on-local-machine"><a class="header" href="#adding-your-own-ssh-key-on-local-machine">Adding your own ssh key (on local machine)</a></h2>
+<p>Using browser to connect to the machine may not be the most convenient option. Instead, we can add an SSH key to be able
+to connect there.</p>
+<p>It is highly recommended to generate a new SSH key specifically for this VM, for example:</p>
+<pre><code>ssh-keygen -t rsa -f ~/.ssh/gcp_vm -C &lt;YOUR WORK EMAIL&gt; -b 2048
+</code></pre>
+<p>…where “your work email” is the same email you use to access GCP.</p>
+<p>Check the contents of the public key:</p>
+<pre><code>cat ~/.ssh/gcp_vm.pub
+</code></pre>
+<p>Click on your machine name, then click on “Edit”. Scroll down until you see “SSH Keys” section and add the generated
+public key there. Then save.</p>
+<p>Get back to the list of VMs and find the external IP of your VM. Now you should be able to connect to the VM via ssh.
+Assuming that your work email is <code>abc@example.com</code> and the external IP is 35.35.35.35:</p>
+<pre><code>ssh -i ~/.ssh/gcp_vm abc@35.35.35.35
+</code></pre>
+<h2 id="make-the-vm-cozy"><a class="header" href="#make-the-vm-cozy">Make the VM cozy</a></h2>
+<p>If you intend to use the VM somewhat regularly, install all the tools you would normally install on your own machine,
+like <code>zsh</code> and <code>nvim</code>.</p>
+<p>It is also <em>highly recommended</em> to install <code>tmux</code>, as you will have to run multiple binaries and observe their output.
+If you don’t know what is it or why should you care, watch <a href="https://www.youtube.com/watch?v=DzNmUNvnB04">this video</a>.</p>
+<p>Native <code>tmux</code> may be hard to use, so you may also want to install some configuration for it, e.g.</p>
+<ul>
+<li><a href="https://github.com/gpakosz/.tmux">oh-my-tmux</a> or</li>
+<li><a href="https://github.com/tmux-plugins/tmux-sensible">tmux-sensible</a>.</li>
+</ul>
+<p>Finally, it is recommended to choose a different terminal theme or prompt than what you use locally, so that you can
+easily see whether you’re running in the VM or locally.</p>
+<h2 id="connecting-via-vs-code"><a class="header" href="#connecting-via-vs-code">Connecting via VS Code</a></h2>
+<p>VS Code can connect to VMs via SSH, so you can have the comfort of using your own IDE while still running everything on
+a remote machine.</p>
+<p>If you’re using WSL, note that VS Code will have to look up the keys in Windows, so you will have to copy your keys
+there as well, e.g.:</p>
+<pre><code>cp ~/.ssh/gcp_vm* /mnt/c/Users/User/.ssh
+</code></pre>
+<p>Then, when you open a fresh VS Code window, in the “Start” section:</p>
+<ul>
+<li>Choose “Connect to Host”</li>
+<li>Click on “Configure Hosts”</li>
+<li>Create a host entry.</li>
+</ul>
+<p>Host entry looks as follows:</p>
+<pre><code>Host &lt;host_name&gt;
+  HostName &lt;external IP&gt;
+  IdentityFile &lt;path to private SSH key&gt;
+  User &lt;your user name in VM&gt;
+</code></pre>
+<p>E.g. for the command we’ve used as an example before: <code>ssh -i ~/.ssh/gcp_vm abc@35.35.35.35</code>, the file will be:</p>
+<pre><code>Host gcp_vm
+  HostName 35.35.35.35
+  IdentityFile ~/.ssh/gcp_vm
+  User abc
+</code></pre>
+<p>Once you’ve configured the host, you can click on “Connect to” again, then “Connect to Host”, and your VM should be
+listed there. On the first connect you’ll have to confirm that you want to connect to it, and then choose the operating
+system (Linux).</p>
+<h2 id="on-security"><a class="header" href="#on-security">On security</a></h2>
+<p>Do not store SSH keys, tokens, or other private information on GCP VMs. Do not use SSH keys forwarding either. These VMs
+are shared, and every person has root access to all the VMs by default.</p>
+<p>You may, however, use tools like <code>rsync</code> or <code>sshfs</code>.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="development-environment-setup"><a class="header" href="#development-environment-setup">Development environment setup</a></h1>
+<p>In this section, we cover installing prerequisites for running prover subsystem. We assume that you have a prepared
+machine in place, e.g. a compatible local machine or a prepared GCP VM.</p>
+<h2 id="zksync-repo-setup"><a class="header" href="#zksync-repo-setup">ZKsync repo setup</a></h2>
+<p>If you haven’t already, you need to initialize the ZKsync repository first. Follow
+<a href="https://matter-labs.github.io/zksync-era/core/latest/guides/setup-dev.html">this guide</a> for that.</p>
+<p>Before proceeding, make sure that you can run the server and integration tests pass.</p>
+<h2 id="prover-specific-prerequisites"><a class="header" href="#prover-specific-prerequisites">Prover-specific prerequisites</a></h2>
+<h3 id="cmake-324-or-higher"><a class="header" href="#cmake-324-or-higher">Cmake 3.24 or higher</a></h3>
+<p>Use <a href="https://apt.kitware.com/">Kitware APT repository</a>.</p>
+<h3 id="cuda-runtime"><a class="header" href="#cuda-runtime">CUDA runtime</a></h3>
+<p>If you’re using a local machine, make sure that you have up-to-date GPU driver.</p>
+<p>Use <a href="https://developer.nvidia.com/cuda-downloads">Official CUDA downloads</a>.</p>
+<p>Choose: OS -&gt; Linux -&gt; x86_64 -&gt; Ubuntu (For WSL2 choose WSL-Ubuntu) -&gt; 22.04 -&gt; deb (network).</p>
+<p>Install both the base and driver (kernel module flavor).</p>
+<p>Setup environment variables: add the following to your configuration file (<code>.bashrc</code>/<code>.zshrc</code>):</p>
+<pre><code># CUDA
+export CUDA_HOME=/usr/local/cuda
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
+export PATH=$PATH:$CUDA_HOME/bin
+</code></pre>
+<p>Reboot for the drivers to kick-in.</p>
+<h3 id="bellman-cuda"><a class="header" href="#bellman-cuda">Bellman-CUDA</a></h3>
+<p>Bellman-CUDA is a library required for GPU proof compressor.</p>
+<p>Navigate to some directory where you want to store the code, and then do the following:</p>
+<pre><code>git clone git@github.com:matter-labs/era-bellman-cuda.git
+cmake -Bera-bellman-cuda/build -Sera-bellman-cuda/ -DCMAKE_BUILD_TYPE=Release
+cmake --build era-bellman-cuda/build/
+</code></pre>
+<p>After that add the following environment variable to your config (<code>.bashrc</code>/<code>.zshrc</code>):</p>
+<pre><code>export BELLMAN_CUDA_DIR=&lt;PATH_TO&gt;/era-bellman-cuda
+</code></pre>
+<p>Don’t forget to reload it (e.g. <code>source ~/.zshrc</code>).</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="running-provers"><a class="header" href="#running-provers">Running provers</a></h1>
+<h2 id="preparing"><a class="header" href="#preparing">Preparing</a></h2>
+<p>First, create a new chain with prover mode <code>GPU</code>:</p>
+<pre><code class="language-bash">zkstack chain create --prover-mode gpu
+</code></pre>
+<p>It will create a config similar to <code>era</code>, but with:</p>
+<ul>
+<li>Proof sending mode set to <code>OnlyRealProofs</code></li>
+<li>Prover mode set to <code>Local</code> instead of <code>GCS</code>.</li>
+</ul>
+<h2 id="key-generation"><a class="header" href="#key-generation">Key generation</a></h2>
+<p>This operation should only be done once; if you already generated keys, you can skip it.</p>
+<p>The following command will generate the required keys:</p>
+<pre><code class="language-bash">zkstack prover setup-keys
+</code></pre>
+<p>With that, you should be ready to run the prover.</p>
+<h2 id="running"><a class="header" href="#running">Running</a></h2>
+<p>Important! Generating a proof takes a lot of time, so if you just want to see whether you can generate a proof, do it
+against clean sequencer state (e.g. right after <code>zkstack chain init</code>).</p>
+<p>We will be running a bunch of binaries, it’s recommended to run each in a separate terminal.</p>
+<h3 id="server"><a class="header" href="#server">Server</a></h3>
+<pre><code class="language-bash">zkstack server --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip
+</code></pre>
+<h3 id="prover-gateway"><a class="header" href="#prover-gateway">Prover gateway</a></h3>
+<pre><code class="language-bash">zkstack prover run --component=gateway
+</code></pre>
+<p>Then wait until the first job is picked up. Prover gateway has to insert protocol information into the database, and
+until it happens, witness generators will panic and won’t be able to start.</p>
+<h3 id="witness-generator"><a class="header" href="#witness-generator">Witness generator</a></h3>
+<p>Once a job is created, start witness generators:</p>
+<pre><code class="language-bash">zkstack prover run --component=witness-generator --round=all-rounds
+</code></pre>
+<p><code>--all_rounds</code> means that witness generator will produce witnesses of all kinds. You can run a witness generator for
+each round separately, but it’s mostly useful in production environments.</p>
+<h3 id="circuit-prover"><a class="header" href="#circuit-prover">Circuit Prover</a></h3>
+<pre><code class="language-bash">zkstack prover run --component=circuit-prover -l 15 -h 1
+</code></pre>
+<p>Circuit prover takes outputs from witness generators and produces proofs out of it. As part of the process, there’s
+vector generation and GPU proving. Vector Generation is single-threaded time-consuming operation. You may run multiple
+jobs by changing <code>-l</code> and <code>-h</code> parameters. The exact amount depends strictly on your CPU/GPU specs, but a ballpark
+estimate (useful for local development) is 15 light &amp; 1 heavy.</p>
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="03_launch.html#admonition-note"></a>
+</div>
+<div>
+<p>The light threads typically uses approximately 2GB of RAM, with heavy ~10GB of RAM.</p>
+</div>
+</div>
+<h3 id="prover-job-monitor"><a class="header" href="#prover-job-monitor">Prover job monitor</a></h3>
+<p>You can start the prover job monitor by specifying its component as follows.</p>
+<pre><code class="language-bash">zkstack prover run --component=prover-job-monitor
+</code></pre>
+<h3 id="insert-protocol-version-in-prover-database"><a class="header" href="#insert-protocol-version-in-prover-database">Insert protocol version in prover database</a></h3>
+<p>Before running the prover, you can insert the protocol version in the prover database by executing the following
+command:</p>
+<pre><code class="language-bash">zkstack dev prover insert-version --version &lt;VERSION&gt; --snark-wrapper=&lt;SNARK_WRAPPER&gt;
+</code></pre>
+<p>To query this information, use the following command:</p>
+<pre><code class="language-bash">zkstack dev prover info
+</code></pre>
+<h3 id="proof-compressor"><a class="header" href="#proof-compressor">Proof compressor</a></h3>
+<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
+<div class="admonition-title">
+<div id="admonition-warning-title">
+<p>Warning</p>
+</div>
+<a class="admonition-anchor-link" href="03_launch.html#admonition-warning"></a>
+</div>
+<div>
+<p>Both prover and proof compressor require 24GB of VRAM, and currently it’s not possible to make them use different
+GPU. So unless you have a GPU with 48GB of VRAM, you won’t be able to run both at the same time.</p>
+</div>
+</div>
+<p>You should wait until the proof is generated, and once you see in the server logs that it tries to find available
+compressor, you can shut the prover down, and run the proof compressor:</p>
+<pre><code class="language-bash">zkstack prover run --component=compressor
+</code></pre>
+<p>Once the proof is compressed, proof gateway will see that and will send the generated proof back to core.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="prover-flow"><a class="header" href="#prover-flow">Prover flow</a></h1>
+<p>In this section, we’re going to learn what stages does the proof generation process have. It’s a complex process, so
+we’ll be looking at it from four perspectives:</p>
+<ul>
+<li>Core&lt;-&gt;Prover subsystem interactions.</li>
+<li>Core side of workflow.</li>
+<li>Prover pipeline.</li>
+<li>Batch proof generation.</li>
+<li>Infrastructure distribution.</li>
+</ul>
+<p>After that, we will touch on how this flow is mapped on the actual production infrastructure.</p>
+<h2 id="core---prover-subsystem-interactions"><a class="header" href="#core---prover-subsystem-interactions">Core &lt;-&gt; Prover subsystem interactions</a></h2>
+<p>Core and prover subsystem are built in such a way that they are mostly isolated from each other. Each side has its own
+database and GCS buckets, and both have “gateway” components they use for interaction.</p>
+<p>The only exception here is the <code>house_keeper</code>: it’s a component that exists as a part of the server, it’s main purpose
+is to manage jobs (and emit metrics for job management) in the prover workspace, but at the same time it has access to
+both core and prover databases. The component will probably be split in the future and most of it will be moved to the
+prover workspace.</p>
+<p>Otherwise, the interaction between subsystems can be expressed as follows:</p>
+<pre class="mermaid">sequenceDiagram
+  participant C as Core
+  participant P as Prover
+
+  loop In parallel, for each batch
+    P--&gt;&gt;+C: Get a job to prove
+    C-&gt;&gt;-P: Unproven batch
+    P-&gt;&gt;P: Calculate proof
+    P-&gt;&gt;C: Submit proof
+  end
+</pre>
+<p>Core exposes an API, and Prover repeatedly polls this API, fetching new batch proof jobs and submitting batch proofs.</p>
+<h2 id="core-side-of-workflow"><a class="header" href="#core-side-of-workflow">Core side of workflow</a></h2>
+<p>Despite the fact that the prover is isolated from the core, the core has multiple components specifically designed to
+prepare <em>inputs</em> for proving.</p>
+<p>The following diagram shows what happens under the hood when the prover subsystem requests a new job:</p>
+<pre class="mermaid">sequenceDiagram
+  box Core
+  participant Ob as GCS
+  participant DB as Core database
+  participant API as Proof data handler
+  end
+  participant P as Prover
+  P--&gt;&gt;+API: Get a job
+  API--&gt;&gt;DB: Lock a suitable job
+  DB-&gt;&gt;API: Job is marked as &quot;picked_up&quot;
+  API--&gt;&gt;Ob: Fetch BWIP data
+  Ob-&gt;&gt;API: Return BWIP data
+  API--&gt;&gt;Ob: Fetch Merkle Tree data
+  Ob-&gt;&gt;API: Return Merkle Tree data
+  API--&gt;&gt;DB: Fetch batch metadata
+  DB-&gt;&gt;API: Return batch metadata
+  API-&gt;&gt;-P: Return a job
+</pre>
+<p>First of all, <code>proof_data_handler</code> will check if all the data required for the proof generation is already prepared by
+the core. If so, it will lock the job so that it’s not assigned twice, and will fetch required information from multiple
+sources. Then this data is given to the prover together with the batch number.</p>
+<h2 id="prover-pipeline"><a class="header" href="#prover-pipeline">Prover pipeline</a></h2>
+<p>Once job is received by the prover, it has to go through several different stages. Consider this a mental model of the
+pipeline, since in reality some stages happen in parallel, and some have different degree of sequencing.</p>
+<pre class="mermaid">sequenceDiagram
+participant C as Core
+box Prover
+participant PG as Gateway
+participant BPG as Basic WG+Proving
+participant LPG as Leaf WG+Proving
+participant NPG as Node WG+Proving
+participant RTPG as Recursion tip WG+Proving
+participant SPG as Scheduler WG+Proving
+participant CP as Compressor
+end
+C--&gt;&gt;PG: Job
+PG-&gt;&gt;BPG: Batch data
+BPG-&gt;&gt;LPG: Basic proofs
+LPG-&gt;&gt;NPG: Aggregated proofs (round 1)
+NPG-&gt;&gt;NPG: Internal aggregation to get 1 proof per circuit type
+NPG-&gt;&gt;RTPG: Aggregated proofs (round 2)
+RTPG-&gt;&gt;SPG: Aggregated proofs (round 3)
+SPG-&gt;&gt;CP: Aggregated proof (round 4)
+CP-&gt;&gt;PG: SNARK proof
+PG--&gt;&gt;C: Proof
+</pre>
+<p>When we process the initial job (during basic witness generation) we create many sub-jobs for basic proof generation.
+Once they are processed, we start to aggregate generated proofs, and we do it in “levels”. With each aggregation level,
+we reduce the number of jobs.</p>
+<p>Aggregation levels are commonly referred by numbers in the prover workspace, from 0 to 4. So if someone mentions
+“aggregation round 2”, they refer to the “node” stage, and round 4 corresponds to the “scheduler” stage. Proof
+compression is considered separate operation, and doesn’t have a numeric value.</p>
+<p>Jobs within the aggregation round may also have different types, but this will be covered later.</p>
+<p>The actual numbers may vary, but just for example there might exist a batch, so that it initially creates 10000 jobs,
+which are processed as follows:</p>
+<ul>
+<li>On round 0, we also emit 10000 jobs. We aren’t doing “actual” aggregation here.</li>
+<li>On round 1, we’re turning 10000 jobs into 100.</li>
+<li>On round 2, we should turn these 100 jobs into at most 16. Depending on the batch parameters, it may required
+additional “iterations” of the stage. For example, after we processed the initial 100 jobs, we may get 35 proofs.
+Then, additional node level jobs will be created, until we reduce the number to at most 16.</li>
+<li>On round 3, we’re turning 16 jobs into 1.</li>
+<li>On round 4, we already have just 1 job, and we produce a single aggregated proof.</li>
+<li>Finally, the proof is processed by the proof compressor and sent back to the core.</li>
+</ul>
+<p>Once again, these numbers are just for example, and don’t necessarily represent the actual state of affairs. The exact
+number of jobs depend on number of txs in a batch (and what’s done inside those txs) while the aggregation split
+(mapping of <code>N circuits of level X</code> to <code>M circuits of level X + 1</code>) is determined by the config geometry.</p>
+<h2 id="actual-proof-generation"><a class="header" href="#actual-proof-generation">Actual proof generation</a></h2>
+<p>Every “job” we mentioned has several sub-stages. More precisely, it receives some kind of input, which is followed by
+witness generation, witness vector generation, and circuit proving. The output of circuit proving is passed as an input
+for the next “job” in the pipeline.</p>
+<p>For each aggregation level mentioned above the steps are the same, though the inputs and outputs are different.</p>
+<pre class="mermaid">sequenceDiagram
+participant Ob as Prover GCS
+participant DB as Prover DB
+participant WG as Witness Generator
+participant CP as Circuit Prover
+WG--&gt;&gt;DB: Get WG job
+DB-&gt;&gt;WG: Job
+WG--&gt;&gt;Ob: Get job data
+Ob-&gt;&gt;WG: Data for witness generation
+WG-&gt;&gt;WG: Build witness
+WG-&gt;&gt;Ob: Save witness
+WG-&gt;&gt;DB: Create prover job
+CP--&gt;&gt;DB: Get prover job
+DB-&gt;&gt;CP: Prover job
+CP-&gt;&gt;CP: Build witness vector
+CP-&gt;&gt;CP: Generate a proof
+CP-&gt;&gt;Ob: Store proof
+CP-&gt;&gt;DB: Mark proof as stored
+</pre>
+<h2 id="circuits"><a class="header" href="#circuits">Circuits</a></h2>
+<p>Finally, even within the same level, there may be different circuit types. Under the hood, they prove the correctness of
+different parts of computations. From a purely applied point of view, it mostly means that initially we receive X jobs
+of N types, which cause Y jobs of M types, and so on.</p>
+<p>So, in addition to the aggregation layer, we also have a circuit ID. A tuple of aggregation round and circuit ID form an
+unique job identifier, which allows us to understand which inputs we should receive, what processing logic we should
+run, and which outputs we should produce.</p>
+<p>As of Jul 2024, we have 35 circuit types mapped to 5 aggregation layers.</p>
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="04_flow.html#admonition-note"></a>
+</div>
+<div>
+<p>The specifics of each circuit type and aggregation layers are out of scope for this document, but you can find more
+information on that in the <a href="99_further_reading.html">further reading</a> section.</p>
+</div>
+</div>
+<h2 id="protocol-versions"><a class="header" href="#protocol-versions">Protocol versions</a></h2>
+<p>Finally, ZKsync has protocol versions, and it has upgrades from time to time. Each protocol version upgrade is defined
+on L1, and the version follows SemVer convention, e.g. each version is defined as <code>0.x.y</code>. During the protocol version
+upgrade, one of three things can change:</p>
+<ul>
+<li>Protocol <em>behavior</em>. For example, we add new functionality and our VM starts working differently.</li>
+<li>Circuits <em>implementation</em>. For example, VM behavior doesn’t change, but we add more constraints to the circuits.</li>
+<li>Contracts changes. For example, we add a new method to the contract, which doesn’t affect neither VM or circuits.</li>
+</ul>
+<p>For the first two cases, there will be changes in circuits, and there will be new verification keys. It means, that the
+proving process will be different. The latter has no implications for L2 behavior.</p>
+<p>As a result, after upgrade, we may need to generate different proofs. But given that upgrades happen asynchronously, we
+cannot guarantee that all the “old” batched will be proven at the time of upgrade.</p>
+<p>Because of that, prover is protocol version aware. Each binary that participates in proving is designed to only generate
+proofs for a single protocol version. Once the upgrade happens, “old” provers continue working on the “old” unproven
+batches, and simultaneously we start spawning “new” provers for the batches generated with the new protocol version.
+Once all the “old” batches are proven, no “old” provers will be spawned anymore.</p>
+<h2 id="recap"><a class="header" href="#recap">Recap</a></h2>
+<p>That’s a quite sophisticated infrastructure, and it may be hard to understand it in one go. Here’s a quick recap of this
+page:</p>
+<ul>
+<li>Main components of the prover subsystem are house keeper, prover gateway, witness generator, circuit prover, and proof
+compressor.</li>
+<li>House keeper and prover gateway don’t perform any significant computations, and there is just one instance of each.</li>
+<li>Witness generator, witness vector generator, and GPU prover work together as a “sub-pipeline”.</li>
+<li>As of Jul 2024, the pipeline consists of 5 aggregation rounds, which are further split into 35
+<code>(aggregation_round, circuit_id)</code> pairs, followed by the proof compression.</li>
+<li>Provers are versioned according to the L1 protocol version. There may be provers with different versions running at
+the same time.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="proving-a-batch"><a class="header" href="#proving-a-batch">Proving a batch</a></h1>
+<p>If you got to this section, then most likely you are wondering how to prove and verify the batch by yourself. After
+releases <code>prover-v15.1.0</code> and <code>core-v24.9.0</code> prover subsystem doesn’t need access to core database anymore, which means
+you can run only prover subsystem and prove batches without running the whole core system. This guide will help you with
+that.</p>
+<h2 id="requirements"><a class="header" href="#requirements">Requirements</a></h2>
+<h3 id="hardware"><a class="header" href="#hardware">Hardware</a></h3>
+<p>Setup for running the whole process should be the same as described <a href="./01_gcp_vm.html">here</a>, except you need 48 GB of
+GPU, which requires an NVIDIA A100 80GB GPU.</p>
+<h3 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h3>
+<p>First of all, you need to install CUDA drivers, all other things will be dealt with by <code>zkstack</code> and <code>prover_cli</code> tools.
+For that, check the following <a href="./02_setup.html">guide</a>(you can skip bellman-cuda step).</p>
+<p>Install the prerequisites, which you can find
+<a href="https://matter-labs.github.io/zksync-era/core/latest/guides/setup-dev.html">here</a>. Note, that if you are not using
+Google VM instance, you also need to install <a href="https://cloud.google.com/sdk/docs/install#deb">gcloud</a>.</p>
+<p>Now, you can use <code>zkstack</code> and <code>prover_cli</code> tools for setting up the env and running prover subsystem.</p>
+<p>First, install <code>zkstackup</code> with:</p>
+<pre><code class="language-bash">curl -L https://raw.githubusercontent.com/matter-labs/zksync-era/main/zkstack_cli/zkstackup/install | bash
+</code></pre>
+<p>Then install the most recent version of <code>zkstack</code> with:</p>
+<pre><code class="language-bash">zkstackup
+</code></pre>
+<h2 id="initializing-system"><a class="header" href="#initializing-system">Initializing system</a></h2>
+<p>After you have installed the tool, you can create ecosystem(you need to run only if you are outside of <code>zksync-era</code>) by
+running:</p>
+<pre><code class="language-shell">zkstack ecosystem create --l1-network=localhost --prover-mode=gpu --wallet-creation=localhost --l1-batch-commit-data-generator-mode=rollup --start-containers=true
+</code></pre>
+<p>The command will create the ecosystem and all the necessary components for the prover subsystem. You can leave default
+values for all the prompts you will see Now, you need to initialize the prover subsystem by running:</p>
+<pre><code class="language-shell">zkstack prover init --setup-database=true --use-default=true --dont-drop=false
+</code></pre>
+<p>For prompts you can leave default values as well.</p>
+<h2 id="proving-the-batch"><a class="header" href="#proving-the-batch">Proving the batch</a></h2>
+<h3 id="getting-data-needed-for-proving"><a class="header" href="#getting-data-needed-for-proving">Getting data needed for proving</a></h3>
+<p>At this step, we need to get the witness inputs data for the batch you want to prove. Database information now lives in
+input file, called <code>witness_inputs_&lt;batch&gt;.bin</code> generated by different core components).</p>
+<ul>
+<li>
+<p>If batch was produced by your system, the file is stored by prover gateway in GCS (or your choice of object storage –
+check config). At the point of getting it, most likely there is no artifacts directory created. If you have cloned the
+zksync-era repo, then it is in the root of ecosystem directory. Create artifacts directory by running:</p>
+<pre><code class="language-shell">mkdir -p &lt;path/to/era/prover/artifacts/witness_inputs&gt;
+</code></pre>
+<p>To access it from GCS (assuming you have access to the bucket), run:</p>
+<pre><code class="language-shell">gsutil cp gs://your_bucket/witness_inputs/witness_inputs_&lt;batch&gt;.bin &lt;path/to/era/prover/artifacts/witness_inputs&gt;
+</code></pre>
+</li>
+<li>
+<p>If you want to prove the batch produced by zkSync, you can get the data from the <code>ExternalProofIntegrationAPI</code> using
+<code>{address}/proof_generation_data</code> endpoint. You need to replace <code>{address}</code> with the address of the API and provide
+the batch number as a query data to get the data for specific batch, otherwise, you will receive latest data for the
+batch, that was already proven. Example:</p>
+<pre><code class="language-shell">wget --content-disposition {address}/proof_generation_data
+</code></pre>
+<p>or</p>
+<pre><code class="language-shell">wget --content-disposition {address}/proof_generation_data/{l1_batch_number}
+</code></pre>
+</li>
+</ul>
+<h3 id="preparing-database"><a class="header" href="#preparing-database">Preparing database</a></h3>
+<p>After you have the data, you need to prepare the system to run the batch. So, database needs to know about the batch and
+the protocol version it should use. You can do that with running</p>
+<pre><code class="language-shell">zkstack dev prover info
+</code></pre>
+<p>Example output:</p>
+<pre><code class="language-shell">===============================
+
+Current prover setup information:
+
+Protocol version: 0.24.2
+
+Snark wrapper: 0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2
+
+Database URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_era
+
+===============================
+</code></pre>
+<p>This command will provide you with the information about the semantic protocol version(you need to know only minor and
+patch versions) and snark wrapper value. In the example, <code>MINOR_VERSION</code> is 24, <code>PATCH_VERSION</code> is 2, and
+<code>SNARK_WRAPPER</code> is <code>0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2</code>.</p>
+<p>Now, with the use of <code>prover_cli</code> tool, you can insert the data about the batch and protocol version into the database:</p>
+<p>First, get the database URL(you can find it in <code>&lt;ecosystem_dir&gt;/chains/&lt;chain_name&gt;/configs/secrets.yaml</code> - it is the
+<code>prover_url</code> value) Now, insert the information about protocol version in the database:</p>
+<pre><code class="language-shell">prover_cli &lt;DATABASE_URL&gt; insert-version --version=&lt;MINOR_VERSION&gt; --patch=&lt;PATCH_VERSION&gt; --snark-wrapper=&lt;SNARK_WRAPPER&gt;
+</code></pre>
+<p>And finally, provide the data about the batch:</p>
+<pre><code class="language-shell">prover_cli &lt;DATABASE_URL&gt; insert-batch --number=&lt;BATCH_NUMBER&gt; --version=&lt;MINOR_VERSION&gt; --patch=&lt;PATCH_VERSION&gt;
+</code></pre>
+<p>Also, provers need to know which setup keys they should use. It may take some time, but you can generate them with:</p>
+<pre><code class="language-shell">zkstack prover generate-sk
+</code></pre>
+<h2 id="running-prover-subsystem"><a class="header" href="#running-prover-subsystem">Running prover subsystem</a></h2>
+<p>At this step, all the data is prepared and you can run the prover subsystem. To do that, run the following commands:</p>
+<pre><code class="language-shell">zkstack prover run --component=prover
+zkstack prover run --component=witness-generator --round=all-rounds
+zkstack prover run --component=witness-vector-generator --threads=10
+zkstack prover run --component=compressor
+zkstack prover run --component=prover-job-monitor
+</code></pre>
+<p>And you are good to go! The prover subsystem will prove the batch and you can check the results in the database.</p>
+<h2 id="verifying-zksync-batch"><a class="header" href="#verifying-zksync-batch">Verifying zkSync batch</a></h2>
+<p>Now, assuming the proof is already generated, you can verify using <code>ExternalProofIntegrationAPI</code>. Usually proof is
+stored in GCS bucket(for which you can use the same steps as for getting the witness inputs data
+<a href="05_proving_batch.html#getting-data-needed-for-proving">here</a>, but locally you can find it in <code>/artifacts/proofs_fri</code> directory). Now, simply
+send the data to the endpoint <code>{address}/verify_batch/{batch_number}</code>.</p>
+<p>Example:</p>
+<pre><code class="language-shell">curl -v  -F proof=@{path_to_proof_binary} {address_of_API}/verify_proof/{l1_batch_number}
+</code></pre>
+<p>API will respond with status 200 if the proof is valid and with the error message otherwise.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="further-reading"><a class="header" href="#further-reading">Further reading</a></h1>
+<p>The documentation in this section aimed to provide a practical overview of the prover workspace, e.g. help people to
+understand how to run provers and what they do.</p>
+<p>However, we have some documentation that is more focused on theory of proving in the
+<a href="https://matter-labs.github.io/zksync-era/core/latest">core workspace docs</a>.</p>
+<p>You may find the following articles helpful for general understanding of ZK proofs:</p>
+<ul>
+<li><a href="https://matter-labs.github.io/zksync-era/core/latest/guides/advanced/13_zk_intuition.html">ZK intuition</a>.</li>
+<li><a href="https://matter-labs.github.io/zksync-era/core/latest/guides/advanced/14_zk_deeper_overview.html">ZK deeper overview</a>.</li>
+<li><a href="https://matter-labs.github.io/zksync-era/core/latest/guides/advanced/15_prover_keys.html">Prover keys</a>.</li>
+<li><a href="https://matter-labs.github.io/zksync-era/core/latest/specs/prover/overview.html">Overview of our ZK proving system implementation</a>.</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="ace.js"></script>
+        <script src="editor.js"></script>
+        <script src="mode-rust.js"></script>
+        <script src="theme-dawn.js"></script>
+        <script src="theme-tomorrow_night.js"></script>
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="js/version-box.js"></script>
+        <script src="js/mermaid-init.js"></script>
+
+        <script>
+        window.addEventListener('load', function() {
+            MathJax.Hub.Register.StartupHook('End', function() {
+                window.setTimeout(window.print, 100);
+            });
+        });
+        </script>
+
+    </div>
+    </body>
+</html>

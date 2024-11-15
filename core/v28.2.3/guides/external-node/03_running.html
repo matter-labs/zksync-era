@@ -1,0 +1,314 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Running - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../favicon.svg">
+        <link rel="shortcut icon" href="../../favicon.png">
+        <link rel="stylesheet" href="../../css/variables.css">
+        <link rel="stylesheet" href="../../css/general.css">
+        <link rel="stylesheet" href="../../css/chrome.css">
+        <link rel="stylesheet" href="../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../css/version-box.css">
+        <link rel="stylesheet" href="../.././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/guides/external-node/03_running.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="running-the-node"><a class="header" href="#running-the-node">Running the Node</a></h1>
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-note"></a>
+</div>
+<div>
+<p>If you want to just run ZKSync node with recommended default setting, please see the <a href="00_quick_start.html">quick start</a>
+page.</p>
+</div>
+</div>
+<p>This section assumes that you have prepared a configuration file as described on the
+<a href="02_configuration.html">previous page</a>.</p>
+<h2 id="system-requirements-for-nodes-started-from-db-dumps"><a class="header" href="#system-requirements-for-nodes-started-from-db-dumps">System Requirements for nodes started from DB dumps</a></h2>
+<p>This configuration is approximate and should be considered as <strong>minimal</strong> requirements.</p>
+<ul>
+<li>32-core CPU</li>
+<li>64GB RAM</li>
+<li>SSD storage (NVME recommended):
+<ul>
+<li>ZKsync Sepolia Testnet - 10GB Node + 50GB PostgreSQL (at the time of writing, will grow over time, so should be
+constantly monitored)</li>
+<li>ZKsync Mainnet - 3TB Node + 8TB PostgreSQL (at the time of writing, will grow over time, so should be constantly
+monitored)</li>
+</ul>
+</li>
+<li>100 Mbps connection (1 Gbps+ recommended)</li>
+</ul>
+<p>For smaller chains, less powerful hardware may be sufficient, especially in terms of disk space.</p>
+<h2 id="a-note-about-postgresql-storage"><a class="header" href="#a-note-about-postgresql-storage">A note about PostgreSQL storage</a></h2>
+<p>By far, the heaviest table to maintain is the <code>call_traces</code> table. This table is only required for the <code>debug</code>
+namespace. If you want to clear some space and aren’t using the <code>debug</code> namespace, you can</p>
+<ul>
+<li>clear it with a simple query <code>DELETE FROM call_traces;</code></li>
+<li>leave the <code>debug</code> namespace disabled via the <code>EN_API_NAMESPACES</code> env var as described in the
+<a href="prepared_configs/mainnet-config.env">example config</a>.</li>
+</ul>
+<h2 id="infrastructure"><a class="header" href="#infrastructure">Infrastructure</a></h2>
+<p>You need to set up a PostgreSQL server, however it is out of the scope of these docs, but the popular choice is to run
+it in Docker. There are many of guides on that,
+<a href="https://www.docker.com/blog/how-to-use-the-postgres-docker-official-image/">here’s one example</a>.</p>
+<p>Note however that if you run PostgresSQL as a stand-alone Docker image (e.g. not in Docker-compose with a network shared
+between Node and Postgres), Node won’t be able to access Postgres via <code>localhost</code> or <code>127.0.0.1</code> URLs. To make it work,
+you’ll have to either run it with a <code>--network host</code> (on Linux) or use <code>host.docker.internal</code> instead of <code>localhost</code> in
+the Node configuration (<a href="https://docs.docker.com/desktop/networking/#i-want-to-connect-from-a-container-to-a-service-on-the-host">official docs</a>).</p>
+<p>Besides running Postgres, you are expected to have a DB dump from a corresponding env. You can restore it using
+<code>pg_restore -O -C &lt;DUMP_PATH&gt; --dbname=&lt;DB_URL&gt;</code>.</p>
+<p>You can also refer to
+<a href="https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/external-node/00_quick_start.md#advanced-setup">Node configuration management blueprint</a>
+for advanced DB instance configurations.</p>
+<h2 id="running"><a class="header" href="#running">Running</a></h2>
+<p>Assuming you have the Node Docker image, an env file with the prepared configuration, and you have restored your DB with
+the pg dump, that is all you need.</p>
+<p>Sample running command:</p>
+<pre><code class="language-sh">docker run --env-file &lt;path_to_env_file&gt; --mount type=bind,source=&lt;local_rocksdb_data_path&gt;,target=&lt;configured_rocksdb_data_path&gt; &lt;image&gt;
+</code></pre>
+<p>Helm charts and other infrastructure configuration options, if required, would be available later.</p>
+<h2 id="first-start"><a class="header" href="#first-start">First start</a></h2>
+<p>When you start the node for the first time, the state in PostgreSQL corresponds to the dump you have used, but the state
+in RocksDB (mainly the Merkle tree) is absent. Before the node can make any progress, it has to rebuild the state in
+RocksDB and verify consistency. The exact time required for that depends on the hardware configuration, but it is
+reasonable to expect the state rebuild on the mainnet to take more than 20 hours.</p>
+<h2 id="genesis-synchronization"><a class="header" href="#genesis-synchronization">Genesis synchronization</a></h2>
+<p>While it’s technically possible to synchronize an External Node from genesis, this process is not recommended for any
+users. The synchronization algorithm used for External Nodes is designed for keeping the live node up-to-date but
+doesn’t implement optimizations to re-execute large amounts of historical blocks. As a result, genesis synchronization
+on ZKsync Era can take multiple months for a single node, and it is not being continuously tested for each release. The
+node is guaranteed to never be in an incorrect state, but issues unrelated to correctness may occur (such as
+synchronization getting stuck).</p>
+<p>The recommended ways to run the External Node are:</p>
+<ul>
+<li><a href="./07_snapshots_recovery.html">Snapshot synchronization</a> for full nodes (if you don’t need historical data).</li>
+<li><a href="./00_quick_start.html#advanced-setup">Restoration from a DB dump</a> for archival nodes.</li>
+</ul>
+<h2 id="redeploying-the-node-with-a-new-pg-dump"><a class="header" href="#redeploying-the-node-with-a-new-pg-dump">Redeploying the Node with a new PG dump</a></h2>
+<p>If you’ve been running the Node for some time and are going to redeploy it using a new PG dump, you should</p>
+<ul>
+<li>Stop the EN</li>
+<li>Remove SK cache (corresponding to <code>EN_STATE_CACHE_PATH</code>)</li>
+<li>Remove your current DB</li>
+<li>Restore with the new dump</li>
+<li>Start the EN</li>
+</ul>
+<p>Monitoring the node behavior and analyzing the state it’s in is covered in the
+<a href="04_observability.html">observability section</a>.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../guides/external-node/02_configuration.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../guides/external-node/04_observability.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../guides/external-node/02_configuration.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../guides/external-node/04_observability.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../ace.js"></script>
+        <script src="../../editor.js"></script>
+        <script src="../../mode-rust.js"></script>
+        <script src="../../theme-dawn.js"></script>
+        <script src="../../theme-tomorrow_night.js"></script>
+
+        <script src="../../elasticlunr.min.js"></script>
+        <script src="../../mark.min.js"></script>
+        <script src="../../searcher.js"></script>
+
+        <script src="../../clipboard.min.js"></script>
+        <script src="../../highlight.js"></script>
+        <script src="../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../js/version-box.js"></script>
+        <script src="../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>
