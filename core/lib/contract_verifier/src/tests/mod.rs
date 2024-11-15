@@ -1,6 +1,9 @@
 //! Tests for the contract verifier.
 
-use std::{collections::HashMap, iter};
+use std::{
+    collections::{HashMap, HashSet},
+    iter,
+};
 
 use test_casing::{test_casing, Product};
 use tokio::sync::watch;
@@ -289,10 +292,10 @@ impl Compiler<SolcInput> for MockCompilerResolver {
 impl CompilerResolver for MockCompilerResolver {
     async fn supported_versions(&self) -> anyhow::Result<SupportedCompilerVersions> {
         Ok(SupportedCompilerVersions {
-            solc: vec![SOLC_VERSION.to_owned()],
-            zksolc: vec![ZKSOLC_VERSION.to_owned()],
-            vyper: vec![],
-            zkvyper: vec![],
+            solc: [SOLC_VERSION.to_owned()].into_iter().collect(),
+            zksolc: [ZKSOLC_VERSION.to_owned()].into_iter().collect(),
+            vyper: HashSet::default(),
+            zkvyper: HashSet::default(),
         })
     }
 

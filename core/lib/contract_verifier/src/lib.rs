@@ -9,6 +9,7 @@ use std::{
 use anyhow::Context as _;
 use chrono::Utc;
 use ethabi::{Contract, Token};
+use resolver::{GitHubCompilerResolver, ResolverMultiplexer};
 use tokio::time;
 use zksync_dal::{contract_verification_dal::DeployedContractData, ConnectionPool, Core, CoreDal};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
@@ -121,12 +122,11 @@ impl ContractVerifier {
         compilation_timeout: Duration,
         connection_pool: ConnectionPool<Core>,
     ) -> anyhow::Result<Self> {
-        Self::with_resolver(
-            compilation_timeout,
-            connection_pool,
-            Arc::<EnvCompilerResolver>::default(),
-        )
-        .await
+        let env_resolver = Arc::<EnvCompilerResolver>::default();
+        let gh_resolver = Arc::new(GitHubCompilerResolver::new().await?);
+        let resolver = Arc::new(ResolverMultiplexer::new(env_resolver).with_resolver(gh_resolver));
+
+        Self::with_resolver(compilation_timeout, connection_pool, resolver).await
     }
 
     async fn with_resolver(
@@ -170,19 +170,19 @@ impl ContractVerifier {
         let mut transaction = storage.start_transaction().await?;
         transaction
             .contract_verification_dal()
-            .set_zksolc_versions(&supported_versions.zksolc)
+            .set_zksolc_versions(&supported_versions.zksolc.into_iter().collect::<Vec<_>>())
             .await?;
         transaction
             .contract_verification_dal()
-            .set_solc_versions(&supported_versions.solc)
+            .set_solc_versions(&supported_versions.solc.into_iter().collect::<Vec<_>>())
             .await?;
         transaction
             .contract_verification_dal()
-            .set_zkvyper_versions(&supported_versions.zkvyper)
+            .set_zkvyper_versions(&supported_versions.zkvyper.into_iter().collect::<Vec<_>>())
             .await?;
         transaction
             .contract_verification_dal()
-            .set_vyper_versions(&supported_versions.vyper)
+            .set_vyper_versions(&supported_versions.vyper.into_iter().collect::<Vec<_>>())
             .await?;
         transaction.commit().await?;
         Ok(())
