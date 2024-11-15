@@ -2,7 +2,9 @@ use anyhow::Context;
 use clap::{command, Parser, Subcommand};
 use common::{git, logger, spinner::Spinner};
 use config::{
-    traits::SaveConfigWithBasePath, zkstack_config::ZkStackConfig, ChainConfig, EcosystemConfig,
+    traits::{ReadConfig, SaveConfigWithBasePath},
+    zkstack_config::ZkStackConfig,
+    ChainConfig, EcosystemConfig, WalletsConfig,
 };
 use types::BaseToken;
 use xshell::Shell;
@@ -81,8 +83,9 @@ pub async fn init(
     let mut contracts_config = init_configs(&init_configs_args, shell, chain_config).await?;
 
     // Fund some wallet addresses with ETH or base token (only for Localhost)
-    distribute_eth(ecosystem_config, chain_config, init_args.l1_rpc_url.clone()).await?;
-    mint_base_token(ecosystem_config, chain_config, init_args.l1_rpc_url.clone()).await?;
+    let wallets = WalletsConfig::read(shell, init_args.wallets_path.clone()).ok();
+    distribute_eth(chain_config, init_args.l1_rpc_url.clone(), wallets.clone()).await?;
+    mint_base_token(chain_config, init_args.l1_rpc_url.clone(), wallets).await?;
 
     // Register chain on BridgeHub (run by L1 Governor)
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);

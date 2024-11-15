@@ -62,6 +62,7 @@ pub(super) fn msg_path_to_zksync_does_not_exist_err(path: &str) -> String {
 
 /// Ecosystem and chain init related messages
 pub(super) const MSG_ECOSYSTEM_CONTRACTS_PATH_HELP: &str = "Ecosystem contracts path";
+pub(super) const MSG_WALLETS_PATH_HELP: &str = "Wallets path";
 pub(super) const MSG_L1_RPC_URL_HELP: &str = "L1 RPC URL";
 pub(super) const MSG_NO_PORT_REALLOCATION_HELP: &str = "Do not reallocate ports";
 pub(super) const MSG_GENESIS_ARGS_HELP: &str = "Genesis options";
@@ -103,6 +104,8 @@ pub(super) const MSG_RECREATE_ROCKS_DB_ERRROR: &str = "Failed to create rocks db
 pub(super) const MSG_ERA_OBSERVABILITY_ALREADY_SETUP: &str = "Era observability already setup";
 pub(super) const MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER: &str =
     "Downloading era observability...";
+pub(super) const MSG_MISSING_WALLETS_CONFIG: &str = "Missing wallets config";
+pub(super) const MSG_WALLETS_PATH_PROMPT: &str = "Provide the path to the wallets";
 
 pub(super) fn msg_ecosystem_no_found_preexisting_contract(chains: &str) -> String {
     format!("Not found preexisting ecosystem Contracts with chains {chains}")

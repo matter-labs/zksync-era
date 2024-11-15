@@ -197,7 +197,7 @@ impl EcosystemConfig {
     }
 
     pub fn get_wallets(&self) -> anyhow::Result<WalletsConfig> {
-        let path = self.config.join(WALLETS_FILE);
+        let path = self.get_wallets_path();
         if self.get_shell().path_exists(&path) {
             return WalletsConfig::read(self.get_shell(), &path);
         }
@@ -275,6 +275,10 @@ impl EcosystemConfig {
 
     pub fn get_contracts_path(&self) -> PathBuf {
         self.config.join(CONTRACTS_FILE)
+    }
+
+    pub fn get_wallets_path(&self) -> PathBuf {
+        self.config.join(WALLETS_FILE)
     }
 }
 
