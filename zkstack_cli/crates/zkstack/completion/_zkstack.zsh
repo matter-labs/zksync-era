@@ -165,6 +165,18 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
+(containers)
+_arguments "${_arguments_options[@]}" : \
+'-o+[Enable Grafana]' \
+'--observability=[Enable Grafana]' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_zkstack__ecosystem__help_commands" \
@@ -194,6 +206,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (setup-observability)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(containers)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2507,18 +2523,6 @@ esac
     ;;
 esac
 ;;
-(containers)
-_arguments "${_arguments_options[@]}" : \
-'-o+[Enable Grafana]' \
-'--observability=[Enable Grafana]' \
-'--chain=[Chain to use]:CHAIN:_default' \
-'-v[Verbose mode]' \
-'--verbose[Verbose mode]' \
-'--ignore-prerequisites[Ignores prerequisites checks]' \
-'-h[Print help]' \
-'--help[Print help]' \
-&& ret=0
-;;
 (portal)
 _arguments "${_arguments_options[@]}" : \
 '--chain=[Chain to use]:CHAIN:_default' \
@@ -2680,6 +2684,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (setup-observability)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(containers)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -3219,10 +3227,6 @@ _arguments "${_arguments_options[@]}" : \
     ;;
 esac
 ;;
-(containers)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
 (portal)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -3285,7 +3289,6 @@ _zkstack_commands() {
 'dev:Supervisor related commands' \
 'prover:Prover related commands' \
 'external-node:External Node related commands' \
-'containers:Run containers for local development' \
 'portal:Run dapp-portal' \
 'explorer:Run block-explorer' \
 'update:Update ZKsync' \
@@ -3830,11 +3833,6 @@ _zkstack__chain__server__wait_commands() {
 _zkstack__chain__update-token-multiplier-setter_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain update-token-multiplier-setter commands' commands "$@"
-}
-(( $+functions[_zkstack__containers_commands] )) ||
-_zkstack__containers_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack ecosystem containers commands' commands "$@"
 }
 (( $+functions[_zkstack__dev_commands] )) ||
 _zkstack__dev_commands() {
@@ -4634,6 +4632,7 @@ _zkstack__ecosystem_commands() {
 'init:Initialize ecosystem and chain, deploying necessary contracts and performing on-chain operations' \
 'change-default-chain:Change the default chain' \
 'setup-observability:Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo' \
+'containers:Run containers for local development' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack ecosystem commands' commands "$@"
@@ -4648,6 +4647,11 @@ _zkstack__ecosystem__change-default-chain_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack ecosystem change-default-chain commands' commands "$@"
 }
+(( $+functions[_zkstack__ecosystem__containers_commands] )) ||
+_zkstack__ecosystem__containers_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack ecosystem containers commands' commands "$@"
+}
 (( $+functions[_zkstack__ecosystem__create_commands] )) ||
 _zkstack__ecosystem__create_commands() {
     local commands; commands=()
@@ -4661,6 +4665,7 @@ _zkstack__ecosystem__help_commands() {
 'init:Initialize ecosystem and chain, deploying necessary contracts and performing on-chain operations' \
 'change-default-chain:Change the default chain' \
 'setup-observability:Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo' \
+'containers:Run containers for local development' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack ecosystem help commands' commands "$@"
@@ -4674,6 +4679,11 @@ _zkstack__ecosystem__help__build-transactions_commands() {
 _zkstack__ecosystem__help__change-default-chain_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack ecosystem help change-default-chain commands' commands "$@"
+}
+(( $+functions[_zkstack__ecosystem__help__containers_commands] )) ||
+_zkstack__ecosystem__help__containers_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack ecosystem help containers commands' commands "$@"
 }
 (( $+functions[_zkstack__ecosystem__help__create_commands] )) ||
 _zkstack__ecosystem__help__create_commands() {
@@ -4848,7 +4858,6 @@ _zkstack__help_commands() {
 'dev:Supervisor related commands' \
 'prover:Prover related commands' \
 'external-node:External Node related commands' \
-'containers:Run containers for local development' \
 'portal:Run dapp-portal' \
 'explorer:Run block-explorer' \
 'update:Update ZKsync' \
@@ -5052,11 +5061,6 @@ _zkstack__help__chain__server__wait_commands() {
 _zkstack__help__chain__update-token-multiplier-setter_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain update-token-multiplier-setter commands' commands "$@"
-}
-(( $+functions[_zkstack__help__containers_commands] )) ||
-_zkstack__help__containers_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack help containers commands' commands "$@"
 }
 (( $+functions[_zkstack__help__dev_commands] )) ||
 _zkstack__help__dev_commands() {
@@ -5325,6 +5329,7 @@ _zkstack__help__ecosystem_commands() {
 'init:Initialize ecosystem and chain, deploying necessary contracts and performing on-chain operations' \
 'change-default-chain:Change the default chain' \
 'setup-observability:Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo' \
+'containers:Run containers for local development' \
     )
     _describe -t commands 'zkstack help ecosystem commands' commands "$@"
 }
@@ -5337,6 +5342,11 @@ _zkstack__help__ecosystem__build-transactions_commands() {
 _zkstack__help__ecosystem__change-default-chain_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help ecosystem change-default-chain commands' commands "$@"
+}
+(( $+functions[_zkstack__help__ecosystem__containers_commands] )) ||
+_zkstack__help__ecosystem__containers_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help ecosystem containers commands' commands "$@"
 }
 (( $+functions[_zkstack__help__ecosystem__create_commands] )) ||
 _zkstack__help__ecosystem__create_commands() {

@@ -18,9 +18,6 @@ _zkstack() {
             zkstack,chain)
                 cmd="zkstack__chain"
                 ;;
-            zkstack,containers)
-                cmd="zkstack__containers"
-                ;;
             zkstack,dev)
                 cmd="zkstack__dev"
                 ;;
@@ -690,6 +687,9 @@ _zkstack() {
             zkstack__ecosystem,change-default-chain)
                 cmd="zkstack__ecosystem__change__default__chain"
                 ;;
+            zkstack__ecosystem,containers)
+                cmd="zkstack__ecosystem__containers"
+                ;;
             zkstack__ecosystem,create)
                 cmd="zkstack__ecosystem__create"
                 ;;
@@ -707,6 +707,9 @@ _zkstack() {
                 ;;
             zkstack__ecosystem__help,change-default-chain)
                 cmd="zkstack__ecosystem__help__change__default__chain"
+                ;;
+            zkstack__ecosystem__help,containers)
+                cmd="zkstack__ecosystem__help__containers"
                 ;;
             zkstack__ecosystem__help,create)
                 cmd="zkstack__ecosystem__help__create"
@@ -785,9 +788,6 @@ _zkstack() {
                 ;;
             zkstack__help,chain)
                 cmd="zkstack__help__chain"
-                ;;
-            zkstack__help,containers)
-                cmd="zkstack__help__containers"
                 ;;
             zkstack__help,dev)
                 cmd="zkstack__help__dev"
@@ -1035,6 +1035,9 @@ _zkstack() {
             zkstack__help__ecosystem,change-default-chain)
                 cmd="zkstack__help__ecosystem__change__default__chain"
                 ;;
+            zkstack__help__ecosystem,containers)
+                cmd="zkstack__help__ecosystem__containers"
+                ;;
             zkstack__help__ecosystem,create)
                 cmd="zkstack__help__ecosystem__create"
                 ;;
@@ -1126,7 +1129,7 @@ _zkstack() {
 
     case "${cmd}" in
         zkstack)
-            opts="-v -h -V --verbose --chain --ignore-prerequisites --help --version autocomplete ecosystem chain dev prover external-node containers portal explorer update markdown help"
+            opts="-v -h -V --verbose --chain --ignore-prerequisites --help --version autocomplete ecosystem chain dev prover external-node portal explorer update markdown help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2971,32 +2974,6 @@ _zkstack() {
                     ;;
                 -a)
                     COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --chain)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        zkstack__containers)
-            opts="-o -v -h --observability --verbose --chain --ignore-prerequisites --help"
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                --observability)
-                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
-                    return 0
-                    ;;
-                -o)
-                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
                     return 0
                     ;;
                 --chain)
@@ -5215,7 +5192,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__ecosystem)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help create build-transactions init change-default-chain setup-observability help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --help create build-transactions init change-default-chain setup-observability containers help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5297,6 +5274,32 @@ _zkstack() {
                 return 0
             fi
             case "${prev}" in
+                --chain)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__ecosystem__containers)
+            opts="-o -v -h --observability --verbose --chain --ignore-prerequisites --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --observability)
+                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
+                    return 0
+                    ;;
                 --chain)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
@@ -5401,7 +5404,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__ecosystem__help)
-            opts="create build-transactions init change-default-chain setup-observability help"
+            opts="create build-transactions init change-default-chain setup-observability containers help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5429,6 +5432,20 @@ _zkstack() {
             return 0
             ;;
         zkstack__ecosystem__help__change__default__chain)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__ecosystem__help__containers)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -5983,7 +6000,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__help)
-            opts="autocomplete ecosystem chain dev prover external-node containers portal explorer update markdown help"
+            opts="autocomplete ecosystem chain dev prover external-node portal explorer update markdown help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -6433,20 +6450,6 @@ _zkstack() {
         zkstack__help__chain__update__token__multiplier__setter)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        zkstack__help__containers)
-            opts=""
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
@@ -7047,7 +7050,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__ecosystem)
-            opts="create build-transactions init change-default-chain setup-observability"
+            opts="create build-transactions init change-default-chain setup-observability containers"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7075,6 +7078,20 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__ecosystem__change__default__chain)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__help__ecosystem__containers)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
