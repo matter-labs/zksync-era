@@ -208,14 +208,11 @@ jobs:
       
       - name: Reinstall foundry
         run: |
-          ci_run git clone https://github.com/matter-labs/foundry-zksync ./foundry-zksync-2
-      
-      - name: Reinstall foundry 2 
-        working-directory: ./foundry-zksync-2 
-        run: |
-          ci_run git checkout 953a1800eaa2cffe5cb272f96ff641cc7a3c1ba1 && cargo build --release --bins
-          ci_run mv ./target/release/forge /usr/local/cargo/bin/
-          ci_run mv ./target/release/cast /usr/local/cargo/bin/
+          mkdir ./foundry-zksync
+          curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/nightly/foundry_nightly_linux_amd64.tar.gz
+          tar zxf foundry_nightly_linux_amd64.tar.gz -C ./foundry-zksync
+          chmod +x ./foundry-zksync/forge ./foundry-zksync/cast
+          echo "$PWD/foundry-zksync" >> $GITHUB_PATH
 
       - name: Install zkstack
         run: |
