@@ -1,6 +1,6 @@
 use clap::{command, Parser, Subcommand};
 use commands::{
-    args::{AutocompleteArgs, ContainersArgs, UpdateArgs},
+    args::{AutocompleteArgs, UpdateArgs},
     dev::DevCommands,
 };
 use common::{
@@ -58,9 +58,6 @@ pub enum ZkStackSubcommands {
     /// External Node related commands
     #[command(subcommand, alias = "en")]
     ExternalNode(ExternalNodeCommands),
-    /// Run containers for local development
-    #[command(alias = "up")]
-    Containers(ContainersArgs),
     /// Run dapp-portal
     Portal,
     /// Run block-explorer
@@ -127,7 +124,6 @@ async fn run_subcommand(zkstack_args: ZkStack) -> anyhow::Result<()> {
         ZkStackSubcommands::Chain(args) => commands::chain::run(&shell, *args).await?,
         ZkStackSubcommands::Dev(args) => commands::dev::run(&shell, args).await?,
         ZkStackSubcommands::Prover(args) => commands::prover::run(&shell, args).await?,
-        ZkStackSubcommands::Containers(args) => commands::containers::run(&shell, args)?,
         ZkStackSubcommands::ExternalNode(args) => {
             commands::external_node::run(&shell, args).await?
         }

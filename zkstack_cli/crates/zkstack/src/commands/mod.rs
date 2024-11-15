@@ -1,7 +1,6 @@
 pub mod args;
 pub mod autocomplete;
 pub mod chain;
-pub mod containers;
 pub mod dev;
 pub mod ecosystem;
 pub mod explorer;

@@ -13,7 +13,7 @@ Prepare dev environment prerequisites: see
 Run the required containers with:
 
 ```bash
-zkstack containers
+zkstack ecosystem containers
 ```
 
 Setup:
@@ -33,7 +33,7 @@ To completely reset the dev environment:
 - Repeat the setup procedure above
 
   ```bash
-  zkstack containers
+  zkstack ecosystem containers
   zkstack ecosystem init
   ```
 
@@ -43,7 +43,7 @@ If you want to run [Dockprom](https://github.com/stefanprodan/dockprom/) stack (
 containers - add `--observability` parameter during initialisation.
 
 ```bash
-zkstack containers --observability
+zkstack ecosystem containers --observability
 ```
 
 or select `yes` when prompted during the interactive execution of the command.
@@ -198,5 +198,5 @@ It appears that no containers are currently running, which is likely the reason 
 Ensure that the necessary containers have been started and are functioning correctly to resolve the issue.
 
 ```bash
-zkstack containers
+zkstack ecosystem containers
 ```

@@ -3834,7 +3834,7 @@ _zkstack__chain__update-token-multiplier-setter_commands() {
 (( $+functions[_zkstack__containers_commands] )) ||
 _zkstack__containers_commands() {
     local commands; commands=()
-    _describe -t commands 'zkstack containers commands' commands "$@"
+    _describe -t commands 'zkstack ecosystem containers commands' commands "$@"
 }
 (( $+functions[_zkstack__dev_commands] )) ||
 _zkstack__dev_commands() {

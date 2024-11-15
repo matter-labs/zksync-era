@@ -8,7 +8,6 @@ use config::{
 };
 use xshell::Shell;
 
-use super::args::ContainersArgs;
 use crate::{
     commands::ecosystem::setup_observability,
     messages::{
@@ -18,7 +17,9 @@ use crate::{
     },
 };
 
-pub fn run(shell: &Shell, args: ContainersArgs) -> anyhow::Result<()> {
+use super::args::containers::ContainersArgs;
+
+pub async fn run(shell: &Shell, args: ContainersArgs) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
     let ecosystem = ZkStackConfig::ecosystem(shell).context(MSG_FAILED_TO_FIND_ECOSYSTEM_ERR)?;
 

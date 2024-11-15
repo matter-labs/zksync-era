@@ -50,7 +50,7 @@ The project root directory includes configuration files for an ecosystem with a 
 ecosystem, first start the required containers:
 
 ```bash
-zkstack containers
+zkstack ecosystem containers
 ```
 
 Next, run:
@@ -79,7 +79,7 @@ zkstack dev clean all
 You can then reinitialize the ecosystem as described in the [Configure Ecosystem](#configure-ecosystem) section.
 
 ```bash
-zkstack containers
+zkstack ecosystem containers
 zkstack ecosystem init
 ```
 

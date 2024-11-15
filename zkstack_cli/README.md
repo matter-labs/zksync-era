@@ -69,7 +69,7 @@ zkstack ecosystem create
 If you choose not to start database & L1 containers after creating the ecosystem, you can later run:
 
 ```bash
-zkstack containers
+zkstack ecosystem containers
 ```
 
 Execute subsequent commands from within the created ecosystem folder:
@@ -133,7 +133,7 @@ zkstack ecosystem init --observability
 To start observability containers:
 
 ```bash
-zkstack containers --observability
+zkstack ecosystem containers --observability
 ```
 
 ### ZK Chain

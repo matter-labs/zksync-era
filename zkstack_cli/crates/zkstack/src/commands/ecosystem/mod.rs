@@ -1,4 +1,4 @@
-use args::build_transactions::BuildTransactionsArgs;
+use args::{build_transactions::BuildTransactionsArgs, containers::ContainersArgs};
 use clap::Subcommand;
 use xshell::Shell;
 
@@ -10,6 +10,7 @@ mod args;
 pub(crate) mod build_transactions;
 mod change_default;
 mod common;
+pub(crate) mod containers;
 mod create;
 pub mod create_configs;
 pub(crate) mod init;
@@ -34,6 +35,9 @@ pub enum EcosystemCommands {
     /// downloading Grafana dashboards from the era-observability repo
     #[command(alias = "obs")]
     SetupObservability,
+    /// Run containers for local development
+    #[command(alias = "up")]
+    Containers(ContainersArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Result<()> {
@@ -43,5 +47,6 @@ pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Resul
         EcosystemCommands::Init(args) => init::run(args, shell).await,
         EcosystemCommands::ChangeDefaultChain(args) => change_default::run(args, shell),
         EcosystemCommands::SetupObservability => setup_observability::run(shell),
+        EcosystemCommands::Containers(args) => containers::run(shell, args).await,
     }
 }
