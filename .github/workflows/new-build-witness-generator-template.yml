@@ -140,3 +140,5 @@ jobs:
             matterlabs/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
             matterlabs/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:latest
+            matterlabs/${{ matrix.components }}:latest
