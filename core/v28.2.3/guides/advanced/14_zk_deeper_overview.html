@@ -1,0 +1,602 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>ZK Deeper Dive - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../favicon.svg">
+        <link rel="shortcut icon" href="../../favicon.png">
+        <link rel="stylesheet" href="../../css/variables.css">
+        <link rel="stylesheet" href="../../css/general.css">
+        <link rel="stylesheet" href="../../css/chrome.css">
+        <link rel="stylesheet" href="../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../css/version-box.css">
+        <link rel="stylesheet" href="../.././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/guides/advanced/14_zk_deeper_overview.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="proof-system-deeper-overview"><a class="header" href="#proof-system-deeper-overview">Proof System Deeper Overview</a></h1>
+<p>The purpose of this section is to explain our new proof system from an engineering standpoint. We will examine the code
+examples and how the libraries communicate.</p>
+<p>Let’s begin by discussing our constraint system. In the previous prover, we utilized the Bellman repository. However, in
+the new prover, the constraint system is implemented in Boojum.</p>
+<h2 id="constraint-system"><a class="header" href="#constraint-system">Constraint system</a></h2>
+<p>If you look at boojum repo (src/cs/traits/cs.rs):</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub trait ConstraintSystem&lt;F: SmallField&gt;: Send + Sync {
+
+    ...
+    fn alloc_variable() -&gt; Variable;
+    fn alloc_witness_without_value(&amp;mut self) -&gt; Witness;
+    fn place_gate&lt;G: Gate&lt;F&gt;&gt;(&amp;mut self, gate: &amp;G, row: usize);
+    ...
+}
+<span class="boring">}</span></code></pre></pre>
+<p>We have three main components: <code>Variable</code>, <code>Witness</code>, and <code>Gate</code>.</p>
+<p>To understand the constraint system, imagine it as a list of “placeholders” called Variables. We define rules, referred
+to as “gates” for these Variables. The Witness represents a specific assignment of values to these Variables, ensuring
+that the rules still hold true.</p>
+<p>Conceptually, this is similar to how we implement functions. Consider the following example:</p>
+<pre><code>fn fun(x) {
+  y = x + A;
+  z = y * B;
+  w = if y { z } else { y }
+}
+</code></pre>
+<p>In this code snippet, <code>A</code>, <code>B</code>, <code>y</code>, <code>z</code>, and <code>w</code> are Variables (with <code>A</code> and <code>B</code> being constants). We establish rules,
+or gates, specifying that the Variable <code>z</code> must equal <code>y</code> multiplied by the Variable <code>B</code>.</p>
+<p>Example Witness assignment would be:</p>
+<pre><code> x = 1; A = 3; y = 3; B = 0; z = 0; w = 3;
+</code></pre>
+<p>Gates can become more complex. For instance, the <code>w</code> case demonstrates a “selection” gate, which chooses one of two
+options depending on a condition.</p>
+<p>Now, let’s delve into this gate for a more detailed examination:</p>
+<h3 id="selection-gate"><a class="header" href="#selection-gate">Selection gate</a></h3>
+<p>The code is in boojum/src/cs/gates/selection_gate.rs</p>
+<p>Let’s delve deeper into the concept. Our goal is to create a gate that implements the logic
+<code>result = if selector == true a else b;</code>. To accomplish this, we will require four variables.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct SelectionGate {
+    pub a: Variable,
+    pub b: Variable,
+    pub selector: Variable,
+    pub result: Variable,
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Internally the <code>Variable</code> object is <code>pub struct Variable(pub(crate) u64);</code> - so it is an index to the position within
+the constraint system object.</p>
+<p>And now let’s see how we can add this gate into the system.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub fn select&lt;F: SmallField, CS: ConstraintSystem&lt;F&gt;&gt;(
+    cs: &amp;mut CS,
+    a: Variable,
+    b: Variable,
+    selector: Variable,
+) -&gt; Variable {
+  //  First, let's allocate the output variable:
+  let output_variable = cs.alloc_variable_without_value();
+  ...
+}
+<span class="boring">}</span></code></pre></pre>
+<p>And then there is a block of code for witness evaluation (let’s skip it for now), and the final block that adds the gate
+to the constraint system <code>cs</code>:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>    if &lt;CS::Config as CSConfig&gt;::SetupConfig::KEEP_SETUP {
+        let gate = Self {
+            a,
+            b,
+            selector,
+            result: output_variable,
+        };
+        gate.add_to_cs(cs);
+    }
+
+    output_variable
+<span class="boring">}</span></code></pre></pre>
+<p>So to recap - we took 3 ‘Variables’, created the output one, created a <code>SelectionGate</code> object out of them, which we
+added to the system (by calling <code>add_to_cs</code>) - and the finally returned the output variable.</p>
+<p>But where is the ‘logic’? Where do we actually enforce the constraint?</p>
+<p>For this, we have to look at the <code>Evaluator</code>:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>impl&lt;F: SmallField&gt; Gate&lt;F&gt; for SelectionGate {
+    type Evaluator = SelectionGateConstraitEvaluator;
+
+    #[inline]
+    fn evaluator(&amp;self) -&gt; Self::Evaluator {
+        SelectionGateConstraitEvaluator
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>impl&lt;F: PrimeField&gt; GateConstraitEvaluator&lt;F&gt; for SelectionGateConstraitEvaluator {
+  fn evaluate_once{
+    let a = trace_source.get_variable_value(0);
+    let b = trace_source.get_variable_value(1);
+    let selector = trace_source.get_variable_value(2);
+    let result = trace_source.get_variable_value(3);
+
+    // contribution = a * selector
+    let mut contribution = a;
+    contribution.mul_assign(&amp;selector, ctx);
+
+    // tmp = 1 - selector
+    let mut tmp = P::one(ctx);
+    tmp.sub_assign(&amp;selector, ctx);
+
+    // contribution += tmp * b
+    // So:
+    // contribution = a*selector + (1-selector) * b
+    P::mul_and_accumulate_into(&amp;mut contribution, &amp;tmp, &amp;b, ctx);
+
+    // contribution = a*selector + (1-selector) * b - result
+    contribution.sub_assign(&amp;result, ctx);
+
+    // And if we're successful, the contribution == 0.
+    // Because result == a * selector + (1-selector) * b
+    destination.push_evaluation_result(contribution, ctx);
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<p>This evaluator is actually operating on top of the <code>Field</code> objects, trying to build &amp; evaluate the correct polynomials.
+The details of it will be covered in a separate article.</p>
+<p>Congratulations, you hopefully understood the code for the first gate. To recap - we created the ‘output’ Variable, and
+added the Gate to the CS system. Later when CS system ‘computes’ all the dependencies, it will run the constraint
+evaluator, to add the ‘raw’ dependency (which is basically an equation) to the list.</p>
+<p>You can look into other files in <code>src/cs/gates</code> to see other examples.</p>
+<h2 id="structures"><a class="header" href="#structures">Structures</a></h2>
+<p>Now, that we handled the basic variables, let’s see what we can do with more complex structures. Boojum has added a
+bunch of derive macros, to make development easier.</p>
+<p>Let’s look at the example:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[derive(Derivative, CSSelectable, CSAllocatable, CSVarLengthEncodable, WitnessHookable)]
+pub struct VmLocalState&lt;F: SmallField&gt; {
+    pub previous_code_word: UInt256&lt;F&gt;,
+    pub registers: [VMRegister&lt;F&gt;; REGISTERS_COUNT],
+    pub flags: ArithmeticFlagsPort&lt;F&gt;,
+    pub timestamp: UInt32&lt;F&gt;,
+    pub memory_page_counter: UInt32&lt;F&gt;,
+<span class="boring">}</span></code></pre></pre>
+<p>First - all the UInt that you see above, are actually implemented in Boojum:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct UInt32&lt;F: SmallField&gt; {
+    pub(crate) variable: Variable,
+}
+impl&lt;F: SmallField&gt; CSAllocatable&lt;F&gt; for UInt32&lt;F&gt; {
+    // So the 'witness' type (concrete value) for U32 is u32 - no surprises ;-)
+    type Witness = u32;
+    ...
+}
+
+pub struct UInt256&lt;F: SmallField&gt; {
+    pub inner: [UInt32&lt;F&gt;; 8],
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="witnesshookable"><a class="header" href="#witnesshookable">WitnessHookable</a></h3>
+<p>In the example above, the Witness type for U32, was u32 - easy. But what should we do, when we have more complex struct
+(like VmLocalState)?</p>
+<p>This derive will automatically create a new struct named XXWitness (in example above <code>VmLocalStateWitness</code>), that can be
+filled with concrete values.</p>
+<h3 id="csallocatable"><a class="header" href="#csallocatable">CsAllocatable</a></h3>
+<p>Implements CsAllocatable - which allows you to directly ‘allocate’ this struct within constraint system (similarly to
+how we were operating on regular ‘Variables’ above).</p>
+<h3 id="csselectable"><a class="header" href="#csselectable">CSSelectable</a></h3>
+<p>Implements the <code>Selectable</code> trait - that allows this struct to participate in operations like conditionally select (so
+it can be used as ‘a’ or ‘b’ in the Select gate example above).</p>
+<h3 id="csvarlengthencodable"><a class="header" href="#csvarlengthencodable">CSVarLengthEncodable</a></h3>
+<p>Implements CircuitVarLengthEncodable - which allows encoding the struct into a vector of variables (think about it as
+serializing to Bytes).</p>
+<h3 id="summary"><a class="header" href="#summary">Summary</a></h3>
+<p>Now with the tools above, we can do operations on our constraint system using more complex structures. So we have gates
+as ‘complex operators’ and structures as complex object. Now we’re ready to start taking it to the next level: Circuits.</p>
+<h2 id="circuits"><a class="header" href="#circuits">Circuits</a></h2>
+<p>Circuit’s definitions are spread across 2 separate repositories: <code>zkevm_circuits</code> and <code>zkevm_test_harness</code>.</p>
+<p>While we have around 9 different circuits (log_sorter, ram_permutation etc) - in this article we’ll focus only on the
+one: MainVM - which is responsible for handling almost all of the VM operations (other circuits are used to handle some
+of the precompiles, and operations that happen after VM was run - like preparing pubdata etc).</p>
+<p>Looking at zkevm_test_harness, we can see the definition:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub type VMMainCircuit&lt;F, W, R&gt; =
+    ZkSyncUniformCircuitInstance&lt;F, VmMainInstanceSynthesisFunction&lt;F, W, R&gt;&gt;;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="so-what-is-a-circuit"><a class="header" href="#so-what-is-a-circuit">So what is a circuit</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct ZkSyncUniformCircuitInstance&lt;F: SmallField, S: ZkSyncUniformSynthesisFunction&lt;F&gt;&gt; {
+    // Assignment of values to all the Variables.
+    pub witness: AtomicCell&lt;Option&lt;S::Witness&gt;&gt;,
+
+    // Configuration - that is circuit specific, in case of MainVM - the configuration
+    // is simply the amount of opcodes that we put within 1 circuit.
+    pub config: std::sync::Arc&lt;S::Config&gt;,
+
+    // Circuit 'friendly' hash function.
+    pub round_function: std::sync::Arc&lt;S::RoundFunction&gt;,
+
+    // Inputs to the circuits.
+    pub expected_public_input: Option&lt;[F; INPUT_OUTPUT_COMMITMENT_LENGTH]&gt;,
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Notice - that circuit doesn’t have any ‘explicit’ outputs.</p>
+<p>Where ZkSyncUniformCircuitInstance is a proxy, so let’s look deeper, into the main function:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>impl VmMainInstanceSynthesisFunction {
+    fn synthesize_into_cs_inner&lt;CS: ConstraintSystem&lt;F&gt;&gt;(
+        cs: &amp;mut CS,
+        witness: Self::Witness,
+        round_function: &amp;Self::RoundFunction,
+        config: Self::Config,
+    ) -&gt; [Num&lt;F&gt;; INPUT_OUTPUT_COMMITMENT_LENGTH] {
+        main_vm_entry_point(cs, witness, round_function, config)
+    }
+}
+
+<span class="boring">}</span></code></pre></pre>
+<p>This is the main logic, that takes the witness (remember - Witness is a concrete assignment of values to Variables) -
+and returns the public input.</p>
+<p>If we look deeper into ‘main_vm_entry_point’ (which is already in zkevm_circuits repo), we can see:</p>
+<pre><pre class="playground"><code class="language-rust">pub fn main_vm_entry_point(
+    cs: &amp;mut CS,
+    witness: VmCircuitWitness&lt;F, W&gt;,
+    round_function: &amp;R,
+    limit: usize,
+) -&gt; [Num&lt;F&gt;; INPUT_OUTPUT_COMMITMENT_LENGTH]</code></pre></pre>
+<p>And in this function we do following operations:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>    // Prepare current 'state'
+    //
+    // First - unpack the witness
+    let VmCircuitWitness {
+        closed_form_input,
+        witness_oracle,
+    } = witness;
+
+    // And add it to the constraint system
+    let mut structured_input =
+        VmCircuitInputOutput::alloc_ignoring_outputs(cs, closed_form_input.clone());
+
+    let mut state =
+        VmLocalState::conditionally_select(cs, start_flag, &amp;bootloader_state, &amp;hidden_fsm_input);
+
+    // Notice, that now state is a VmLocalState object -- which contains 'Variables' inside.
+
+    // And now run the cycles
+    for _cycle_idx in 0..limit {
+        state = vm_cycle(
+            cs,
+            state,
+            &amp;synchronized_oracle,
+            &amp;per_block_context,
+            round_function,
+        );
+    }
+<span class="boring">}</span></code></pre></pre>
+<p>The <code>vm_cycle</code> method is where the magic is - it takes a given opcode, and creates all the necessary gates, temporary
+Variables etc inside the Constraint system. This method is around 800 lines long, so I’d encourage you to take a sneak
+peek if you’re interested.</p>
+<p>Now that we’ve added all the constraints for the ‘limit’ number of opcodes, we have to do some additional housekeeping -
+like storing the Queue hashes (for memory, code decommitment etc).</p>
+<p>And then we’re ready to prepare the result of this method (input_commitment).</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>    // Prepare compact form (that contains just the hashes of values, rather than full values).
+    let compact_form =
+        ClosedFormInputCompactForm::from_full_form(cs, &amp;structured_input, round_function);
+
+    // And serialize it.
+    let input_commitment: [_; INPUT_OUTPUT_COMMITMENT_LENGTH] =
+        commit_variable_length_encodable_item(cs, &amp;compact_form, round_function);
+    input_commitment
+<span class="boring">}</span></code></pre></pre>
+<h2 id="and-now-putting-it-all-together"><a class="header" href="#and-now-putting-it-all-together">And now putting it all together</a></h2>
+<p>Now let’s look at the zkevm_test_harness repo, ‘/src/external_calls.rs’ run method. This is used in many tests, and
+tries to execute the whole flow end to end.</p>
+<p>And while the signature is quite scary - let’s walk through this together:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub fn run&lt;
+    F: SmallField,
+    R: BuildableCircuitRoundFunction&lt;F, 8, 12, 4&gt; + AlgebraicRoundFunction&lt;F, 8, 12, 4&gt; + serde::Serialize + serde::de::DeserializeOwned,
+    H: RecursiveTreeHasher&lt;F, Num&lt;F&gt;&gt;,
+    EXT: FieldExtension&lt;2, BaseField = F&gt;,
+    S: Storage
+&gt;(
+caller: Address, // for real block must be zero
+entry_point_address: Address, // for real block must be the bootloader
+entry_point_code: Vec&lt;[u8; 32]&gt;, // for read lobkc must be a bootloader code
+initial_heap_content: Vec&lt;u8&gt;, // bootloader starts with non-deterministic heap
+    zk_porter_is_available: bool,
+    default_aa_code_hash: U256,
+used_bytecodes: std::collections::HashMap&lt;U256, Vec&lt;[u8; 32]&gt;&gt;, // auxiliary information to avoid passing a full set of all used codes
+ram_verification_queries: Vec&lt;(u32, U256)&gt;, // we may need to check that after the bootloader's memory is filled
+    cycle_limit: usize,
+round_function: R, // used for all queues implementation
+    geometry: GeometryConfig,
+    storage: S,
+    tree: &amp;mut impl BinarySparseStorageTree&lt;256, 32, 32, 8, 32, Blake2s256, ZkSyncStorageLeaf&gt;,
+) -&gt; (
+    BlockBasicCircuits&lt;F, R&gt;,
+    BlockBasicCircuitsPublicInputs&lt;F&gt;,
+    BlockBasicCircuitsPublicCompactFormsWitnesses&lt;F&gt;,
+    SchedulerCircuitInstanceWitness&lt;F, H, EXT&gt;,
+    BlockAuxilaryOutputWitness&lt;F&gt;,
+)
+    where [(); &lt;crate::zkevm_circuits::base_structures::log_query::LogQuery&lt;F&gt; as CSAllocatableExt&lt;F&gt;&gt;::INTERNAL_STRUCT_LEN]:,
+    [(); &lt;crate::zkevm_circuits::base_structures::memory_query::MemoryQuery&lt;F&gt; as CSAllocatableExt&lt;F&gt;&gt;::INTERNAL_STRUCT_LEN]:,
+    [(); &lt;crate::zkevm_circuits::base_structures::decommit_query::DecommitQuery&lt;F&gt; as CSAllocatableExt&lt;F&gt;&gt;::INTERNAL_STRUCT_LEN]:,
+    [(); &lt;crate::boojum::gadgets::u256::UInt256&lt;F&gt; as CSAllocatableExt&lt;F&gt;&gt;::INTERNAL_STRUCT_LEN]:,
+    [(); &lt;crate::boojum::gadgets::u256::UInt256&lt;F&gt; as CSAllocatableExt&lt;F&gt;&gt;::INTERNAL_STRUCT_LEN + 1]:,
+    [(); &lt;crate::zkevm_circuits::base_structures::vm_state::saved_context::ExecutionContextRecord&lt;F&gt; as CSAllocatableExt&lt;F&gt;&gt;::INTERNAL_STRUCT_LEN]:,
+    [(); &lt;crate::zkevm_circuits::storage_validity_by_grand_product::TimestampedStorageLogRecord&lt;F&gt; as CSAllocatableExt&lt;F&gt;&gt;::INTERNAL_STRUCT_LEN]:,
+
+<span class="boring">}</span></code></pre></pre>
+<p>The first section, is adding some decommitments (explain later).</p>
+<p>Then we create a vm:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>    let mut out_of_circuit_vm =
+        create_out_of_circuit_vm(&amp;mut tools, &amp;block_properties, caller, entry_point_address);
+<span class="boring">}</span></code></pre></pre>
+<p>And we’ll run it over all the operands:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>    for _cycle in 0..cycle_limit {
+
+        out_of_circuit_vm
+            .cycle(&amp;mut tracer)
+            .expect("cycle should finish successfully");
+    }
+<span class="boring">}</span></code></pre></pre>
+<p>While doing it, we collect ‘snapshots’ - the detailed information of the state of the system between each operand.</p>
+<p>Then we create a <code>Vec&lt;VmInstanceWitness&gt;</code> - let’s see what’s inside:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct VmInstanceWitness&lt;F: SmallField, O: WitnessOracle&lt;F&gt;&gt; {
+    // we need everything to start a circuit from this point of time
+
+    // initial state (state of registers etc)
+    pub initial_state: VmLocalState,
+    pub witness_oracle: O,
+    pub auxilary_initial_parameters: VmInCircuitAuxilaryParameters&lt;F&gt;,
+    pub cycles_range: std::ops::Range&lt;u32&gt;,
+
+    // final state for test purposes
+    pub final_state: VmLocalState,
+    pub auxilary_final_parameters: VmInCircuitAuxilaryParameters&lt;F&gt;,
+}
+<span class="boring">}</span></code></pre></pre>
+<p>With this, let’s finally start creating circuits (via <code>create_leaf_level_circuits_and_scheduler_witness</code>)</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span>
+<span class="boring">fn main() {
+</span>    for (instance_idx, vm_instance) in vm_instances_witness.into_iter().enumerate() {
+         let instance = VMMainCircuit {
+            witness: AtomicCell::new(Some(circuit_input)),
+            config: Arc::new(geometry.cycles_per_vm_snapshot as usize),
+            round_function: round_function.clone(),
+            expected_public_input: Some(proof_system_input),
+        };
+
+        main_vm_circuits.push(instance);
+    }
+<span class="boring">}</span></code></pre></pre>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../guides/advanced/13_zk_intuition.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../guides/advanced/15_prover_keys.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../guides/advanced/13_zk_intuition.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../guides/advanced/15_prover_keys.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../ace.js"></script>
+        <script src="../../editor.js"></script>
+        <script src="../../mode-rust.js"></script>
+        <script src="../../theme-dawn.js"></script>
+        <script src="../../theme-tomorrow_night.js"></script>
+
+        <script src="../../elasticlunr.min.js"></script>
+        <script src="../../mark.min.js"></script>
+        <script src="../../searcher.js"></script>
+
+        <script src="../../clipboard.min.js"></script>
+        <script src="../../highlight.js"></script>
+        <script src="../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../js/version-box.js"></script>
+        <script src="../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>

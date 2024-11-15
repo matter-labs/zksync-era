@@ -1,0 +1,699 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>VM primer - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../favicon.svg">
+        <link rel="shortcut icon" href="../../favicon.png">
+        <link rel="stylesheet" href="../../css/variables.css">
+        <link rel="stylesheet" href="../../css/general.css">
+        <link rel="stylesheet" href="../../css/chrome.css">
+        <link rel="stylesheet" href="../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../css/version-box.css">
+        <link rel="stylesheet" href="../.././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/specs/era_vm_specification/zkSync_era_virtual_machine_primer.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="zksync-virtual-machine-primer"><a class="header" href="#zksync-virtual-machine-primer">ZkSync Virtual Machine primer</a></h1>
+<p>Unlike EVM, zkEVM is a register machine. EVM instructions operate on a stack. Instead, zkEVM operates primarily on
+sixteen registers and memory like most modern computers. That simplifies zero-knowledge proofs, which largely rely on
+building arithmetic circuits.</p>
+<p>This document describes zkEVM assembly language, then the aspects of VM related to smart-contracts. Its purpose is not
+to be a complete reference, but to guide you through the main ideas.</p>
+<h2 id="vm-architecture"><a class="header" href="#vm-architecture">VM architecture</a></h2>
+<p>The native type for zkEVM is a 256-bits wide unsigned integer, we call it a <em>word</em>.</p>
+<p>Contracts are sequences of instructions. To support the execution of contracts, VM provides the following transient
+state:</p>
+<ul>
+<li><strong>registers</strong>: 16 general-purpose registers: <code>r0</code>, <code>r1</code>, …, <code>r15</code>.<br />
+<code>r0</code> is a special constant register: reading it yields 0, storing to it is ignored.</li>
+<li><strong>flags</strong>: three distinct boolean registers LT (less-than), EQ (equals, the result is zero) and GT (greater-than).
+Instructions may set or clear flags depending on computation results.</li>
+<li><strong>data</strong> <strong>stack</strong>: holds $2^{16}$ words, is free to use.</li>
+<li><strong>heap</strong>: for data that we want to pass around between functions and contracts. Heap is bounded, accesses are only
+free inside the bound, and we have to pay for growing the bound.</li>
+<li><strong>code memory</strong>: stores code of currently running contracts. May also be used as a constant pool.</li>
+</ul>
+<p>VM is aware of two data types:</p>
+<ul>
+<li>raw integers</li>
+<li>pointers (to fragments of other contracts’ heaps).</li>
+</ul>
+<p>Registers and data stack are tagged: VM keeps track of whether they hold pointers or raw integer values. Some
+instructions will only accept operands tagged as pointers.</p>
+<p>Heap and storage are not tagged, so if we store a pointer to the heap, its tag is lost.</p>
+<p>Contracts have key-value storages, where keys and values are untagged 256-bit integers. Instructions can change
+persistent contract storage.</p>
+<p>VM is capable of both near calls (to the code within the same contract) and far calls (to other contracts).</p>
+<p>Let us now gradually introduce the VM functionality guided by the instruction set.</p>
+<h2 id="basic-instructions"><a class="header" href="#basic-instructions">Basic instructions</a></h2>
+<p>Contract code consists of instructions, they are executed sequentially.</p>
+<p>Instructions usually operate with registers. For example, an instruction <code>add</code> may look like that:</p>
+<pre><code class="language-nasm">; this is a comment
+add 5, r2, r8  ; store (5 + r2) to r8
+</code></pre>
+<p>Or like that:</p>
+<pre><code class="language-nasm">add 5, r0, r8  ; store (5 + 0) to r8
+</code></pre>
+<p>Notice that register <code>r0</code> is used to feed constant zero values to instructions; this allows to use <code>add X, r0, Y</code> to
+copy a value <code>X</code> to <code>Y</code> .</p>
+<p>Commonly, instructions accept two inputs and one output operands, following the schema:</p>
+<p><img src="./img/arithmetic_opcode.png" alt="arithmetic opcode.png" /></p>
+<p>The first operand can be taken from:</p>
+<ul>
+<li>registers</li>
+<li>an immediate 16-bit value, like in the example above <code>add 5, r2, r8</code>. To use bigger numbers put them as constants in
+the code memory, see section <strong>Code Addressing</strong>.</li>
+<li>directly from the code memory</li>
+<li>stack in various ways, e.g. <code>add stack=[2], r2, r8</code> takes the first element from the stack memory area, by an absolute
+address 2.</li>
+<li>code memory</li>
+</ul>
+<p>Only registers can be the source of the second operand.</p>
+<pre><code class="language-nasm">add r0, 5, r8  ; error: 5 is an immediate value,
+               ; but only register is allowed as second operand
+</code></pre>
+<p>There is usually at most one output operand. Similarly, the first output operand can be stored to registers or stack. If
+there is a second output operand, it can only be stored to a register.</p>
+<p>Instructions are executed one after another, and every instruction has a gas cost measured in <em>gas</em>. A program that runs
+out of gas panics and none of its side effects are performed.</p>
+<p>Every contract may have at most $2^{16}$ instructions.</p>
+<h3 id="arithmetic-instructions"><a class="header" href="#arithmetic-instructions">Arithmetic instructions</a></h3>
+<p>Besides <code>add</code>, zkEVM implements <code>sub</code> for subtraction, <code>and</code>/ <code>or</code> / <code>xor</code> for bitwise logics, <code>shl</code>/ <code>shr</code> for logical
+shifts, <code>rol</code>/ <code>ror</code> for circular shifts. These instructions follow the same format, e.g.:</p>
+<pre><code class="language-nasm">shl r1, r4, r3 ; right shift r1 by value of r4, store result in r3
+</code></pre>
+<p>Instructions <code>mul</code> and <code>div</code> are particular: they have two output operands:</p>
+<ul>
+<li><code>mul r1, r2, r3, r4</code> stores the low 256 bits of r1<em>r2 in r3, high 256 bits of r1</em>r2 in r4</li>
+<li><code>div r1, r2, r3, r4</code> stores the quotient in <code>r3</code> and remainder in <code>r4</code>.</li>
+</ul>
+<h3 id="modifiers"><a class="header" href="#modifiers">Modifiers</a></h3>
+<p>Most instructions support modifiers that alter their behaviour. The modifiers are appended to the name of the
+instruction, separated by a dot e.g. <code>sub.s</code> . Three basic modifier types are: <code>set_flags</code> , predicates, and <code>swap</code>.</p>
+<h4 id="set-flags"><a class="header" href="#set-flags">Set flags</a></h4>
+<p>By default, most instructions preserve flags.</p>
+<pre><code class="language-nasm">sub r1, r2, r3 ; r3 &lt;- (r1 - r2), no flags are affected
+</code></pre>
+<p>The instruction <code>sub</code> is implemented so that it sets <code>EQ</code> if the result is zero (that is, if <code>r1</code> == <code>r2</code>). But in this
+case, even if <code>r1-r2</code> is zero, the EQ flag is not set, because we did not allow it explicitly. We allow instruction to
+set flags by appending a “set flags” modifier to them, like that:</p>
+<pre><code class="language-nasm">sub! r1, r2, r3 ; r3 &lt;- (r1 - r2); EQ = 1
+</code></pre>
+<p>You can learn more in the
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/main/docs/VM%20Section/EraVM%20Formal%20specification.pdf">formal specification</a>.</p>
+<h4 id="predicates"><a class="header" href="#predicates">Predicates</a></h4>
+<p>Another type of modifiers allows transforming any instruction into a <em>predicated</em>, conditional instruction. Predicated
+instructions are only executed if flags satisfy their condition.</p>
+<p>Recall the three flags: LT, EQ and GT.</p>
+<p>For example, this <code>sub</code> instruction is only executed if EQ is set:</p>
+<pre><code class="language-nasm">sub.if_eq r1, r2, r5
+</code></pre>
+<p>Here is how we can execute <code>jump</code> to a label <code>.label_if_equals</code> only if <code>r1 == r2</code> :</p>
+<pre><code class="language-nasm">sub! r1, r2, r3 ; r3 &lt;- (r1 - r2); EQ = 1 if r1 == r2
+jump.if_eq .label_if_equals
+</code></pre>
+<p>If the condition is not satisfied, we skip the instruction, but still pay its basic cost in gas.</p>
+<p>Here is a full list of available predicates:</p>
+<ul>
+<li><code>if_gt</code></li>
+<li><code>if_eq</code></li>
+<li><code>if_lt</code></li>
+<li><code>if_ge</code> (short for “GT or EQ”)</li>
+<li><code>if_le</code> (short for “LT or EQ”)</li>
+<li><code>if_not_eq</code></li>
+<li><code>if_gt_or_eq</code></li>
+</ul>
+<p>You can learn more in the
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/main/docs/VM%20Section/EraVM%20Formal%20specification.pdf">formal specification</a>.</p>
+<h4 id="swap"><a class="header" href="#swap">Swap</a></h4>
+<p>Recall that instructions may only accept data from stack as their first operand. What if we need the second operand from
+stack? For commutative operation, like <code>add</code> , <code>mul</code>, or <code>and</code>, the order of operands does not matter and we can just
+write <code>add x,y,z</code> instead of <code>add y,x,z</code>. However, for operations like <code>sub</code> or <code>div</code> we implement a special “swap”
+modifier which exchanges the operand values before executing the instruction. This is useful to work around the
+restriction that the second source operand has to be a register.</p>
+<p>For example:</p>
+<pre><code class="language-nasm">sub   r1, r2, r3 ; r3 &lt;- r1 - r2
+sub.s r1, r2, r3 ; r3 &lt;- r2 - r1
+
+</code></pre>
+<p>Finally, here is an example of an instruction adorned with all possible modifiers:</p>
+<pre><code class="language-nasm">sub.s.if_lt! r8, r4, r12
+</code></pre>
+<p>Here is a breakdown of modifiers:</p>
+<ul>
+<li><code>.if_lt</code> : is only executed if the LT flag is set</li>
+<li><code>.s</code> : computes <code>r4 - r8</code> instead of <code>r8 - r4</code></li>
+<li><code>!</code> : sets flags</li>
+</ul>
+<p>$$
+\begin{aligned}
+LT &amp;\leftarrow r_4 &lt; r_8 \
+EQ &amp;\leftarrow r_4 - r_8 = 0 \
+GT &amp;\leftarrow r_4 &gt; r_8
+\end{aligned}
+$$</p>
+<p>Other modifiers are instruction-specific. They are described in full in the instruction reference.</p>
+<h2 id="calls-and-returns"><a class="header" href="#calls-and-returns">Calls and returns</a></h2>
+<p>The <code>jump</code> instruction allows to continue execution from a different place, but it does not allow to return back. An
+alternative is using calls; zkEVM supports calling code inside the contract itself (near calls) as well as calling other
+contracts (far calls).</p>
+<h3 id="far-calls"><a class="header" href="#far-calls">Far calls</a></h3>
+<p>Far calls are the equivalent of calls in EVM.</p>
+<p>Each call gets its own stack, heap, code memories, and allocated gas.</p>
+<p>It is impossible to allocate more than 63/64 of the currently available gas to a far call.</p>
+<p>Calls can revert or panic (on executing an illegal instruction for example), which undoes all the changes to storage and
+events emitted during the call, and burns all remaining gas allocated to this call.</p>
+<p>Suppose we far called a contract $C$. After the execution of $C$, the register <code>r1</code> holds a pointer to the return value,
+allowing a read-only access to a fragment of $C$’s heap. Alternatively, <code>r1</code> can hold a pointer to the heap of some
+other contract that $C$ called internally. More on that in Pointers section.</p>
+<p><strong>Delegate calls.</strong> Beside normal <code>far_call</code>, there is a variant <code>far_call.delegate</code>. Delegate calls are a variation of
+far calls allowing to call a contract with the current storage space.</p>
+<p>For example, suppose we have contracts A,B,C. Contract A calls B normally, then B delegates to C. Then C’s code is
+executed in a context of B’s storage, as if contract A called contract C. If C returns normally, the execution will
+proceed from the next instruction of B after delegate call. In case of <code>revert</code> or <code>panic</code> in C, all the usual rules
+apply.</p>
+<p><strong>Mimic calls.</strong> The last variant of far calls is <code>far_call.mimic</code>; it is inaccessible to users and only allowed in
+system contracts.</p>
+<p>Any of far call variants can be additionally marked as <code>.static</code> to call a contract in static mode — see section
+<strong>Static Mode</strong>.</p>
+<h3 id="return-revert-panic"><a class="header" href="#return-revert-panic">Return, revert, panic</a></h3>
+<p>There are three types of situations where control returns to the caller:</p>
+<ul>
+<li>Return: a normal way of returning to the caller when no errors occurred. The instruction is <code>ret</code>.</li>
+<li>Revert: a recoverable error happened. Unspent gas is returned to the caller, which will execute the exception handler.
+The instruction is <code>revert</code>.</li>
+<li>Panic: an irrecoverable error happened. Same as revert, but unspent gas is burned. The instruction is <code>ret.panic</code>.</li>
+</ul>
+<h3 id="near-calls"><a class="header" href="#near-calls">Near calls</a></h3>
+<p>Instruction <code>near_call reg, address</code> passes the control to a different address inside the same contract, like <code>jump</code>.
+Additionally, it remembers the context of execution in a special <em>call stack</em> (it is different from data stack and not
+accessible to assembly programmers).</p>
+<p>Here is an example of calling function <code>f</code> .</p>
+<pre><code class="language-nasm">.text
+
+; here will be the code of exception handler
+eh:
+
+; caller function
+main:
+near_call r2, @f, @eh ; refer to labels in code using '@' symbol
+
+; callee function
+f:
+ret
+
+</code></pre>
+<p>Additional two arguments:</p>
+<ul>
+<li>label <code>@eh</code> is the address of exception handler. Functions, like contracts, may revert or panic, which leads to the
+execution of the exception handler.</li>
+<li>register <code>r2</code> holds how much gas we allocate to the function.</li>
+</ul>
+<p>As we see, zkEVM supports allocating ergs not only for far calls, but also for near calls. Passing zero will allocate
+all available gas. Unlike in far calls, near calls do not limit the amount of gas passed to 63/64 of available gas.</p>
+<ul>
+<li>On revert, unspent gas of the function is <strong>returned</strong></li>
+<li>On panic, unspent gas of the function is <strong>lost</strong></li>
+</ul>
+<p>All near calls inside the contract are sharing the same memory space (heap, stack), and do not roll back the changes to
+this memory if they fail. They do, however, roll back the changes to storage and events.</p>
+<p>Near calls cannot be used from Solidity to their full extent. Compiler generates them, but makes sure that if functions
+revert or panic, the whole contract reverts of panics. Explicit exception handlers and allocating just a portion of
+available gas are reserved for low-level code.</p>
+<h2 id="accessing-data-outside-registers"><a class="header" href="#accessing-data-outside-registers">Accessing data outside registers</a></h2>
+<h3 id="stack-addressing"><a class="header" href="#stack-addressing">Stack addressing</a></h3>
+<p>As we already know, instructions may accept data not only in registers or as immediate 16-bit values, but also on stack.</p>
+<p>Data stack is a collection of $2^{16}$ words with a pointer SP. This pointer contains the next address after the topmost
+stack element, so the topmost element has the address SP-1. Stack grows towards maximal address, i.e. pushing an element
+to stack increases SP.</p>
+<p>On far call, SP starts in a new stack memory at 1024.</p>
+<h4 id="reading-from-stack"><a class="header" href="#reading-from-stack">Reading from stack</a></h4>
+<p>There are several ways of accessing stack cells:</p>
+<pre><code class="language-nasm">.text
+main:
+
+; r0 &lt;- stack word by absolute index (r1+42), unrelated to SP
+add stack=[r1+42], r0, r2
+
+; r0 &lt;- stack word by index (SP - (r1 + 42))
+add stack[r1+42], r0, r2
+
+; r2 &lt;- stack word by index (SP - (r1 + 42)); additionally, SP += (r1+42)
+add stack-=[r1+42], r0, r2
+</code></pre>
+<p>As we see there are three stack address modes for input operands; all of them use (register + offset).</p>
+<p>Currently, the last mode is only used in a <code>nop</code> instruction as a way to rewind stack:</p>
+<pre><code class="language-nasm">; effectively, SP -= reg+imm
+nop stack-=[reg+imm]
+</code></pre>
+<h4 id="writing-to-stack"><a class="header" href="#writing-to-stack">Writing to stack</a></h4>
+<p>Storing results on stack is also possible:</p>
+<pre><code class="language-nasm">.text
+main:
+
+; r1 -&gt; word by absolute index (r2 + 42)
+add r1, r0, stack=[r2 + 42]
+
+; r1 -&gt;  word by absolute index SP - (r2 + 42)
+add r1, r0, stack[r2 + 42]
+
+; r1 -&gt;  word by absolute index SP + (r2 + 42)
+; additionally, SP += r2 + 42
+add r1, r0, stack+=[r2 + 42]
+</code></pre>
+<p>Currently, the last mode is only used in a <code>nop</code> instruction as a way to forward stack pointer:</p>
+<pre><code class="language-nasm">; effectively, SP += reg+imm
+nop r0, r0, stack+=[reg+imm]
+</code></pre>
+<h3 id="code-addressing"><a class="header" href="#code-addressing">Code addressing</a></h3>
+<p>Sometimes we might need to work with larger immediates that do not fit into 16-bit. In this case we can use the
+(read-only) code memory as a constant pool and read 256-bit constants from there.</p>
+<pre><code class="language-nasm">.rodata
+
+datavar:
+ .cell 42
+ .cell 999
+.text
+somelabel:
+
+; r2 &lt;- word by index (r0+0)  code memory
+add @datavar[0], r0, r2
+add @datavar[r2], r0, r2
+</code></pre>
+<p>Note: instructions are 64-bit wide, but when accessing data in code memory, this memory is treated as word-addressable.
+Therefore, e.g. reading the 0-th 256-bit word from this memory will yield a binary representation of the four first
+64-bit instructions in the contract.</p>
+<p>There is no distinction between static data and code: code can be read, data can be executed, but instructions that are
+not correctly encoded will trigger panic.</p>
+<p>Contracts always need to be divisible by 32 bytes (4 instructions) because of this addressing mode.</p>
+<h3 id="using-heap"><a class="header" href="#using-heap">Using heap</a></h3>
+<p>Heap is a bounded memory region to store data between near calls, and to communicate data between contracts.</p>
+<h4 id="heap-boundary-growth"><a class="header" href="#heap-boundary-growth">Heap boundary growth</a></h4>
+<p>Accessing an address beyond the heap bound leads to heap growth: the bound is adjusted to accommodate this address. The
+difference between old and new bounds is paid in gas.</p>
+<h4 id="instructions-to-access-heap"><a class="header" href="#instructions-to-access-heap">Instructions to access heap</a></h4>
+<p>Most instructions can not use heap directly. Instructions <code>ld.1</code> and <code>st.1</code> are used to load and store data on heap:</p>
+<pre><code class="language-nasm">; take a 32-bit number from r1, use it as an offset in heap,
+; load the word from heap by this offset to r4
+ld.1 r1, r4
+
+; take a 32-bit number from r3, use it as an offset in heap,
+; store the word from r5 to heap by this offset
+st.1 r3, r5
+</code></pre>
+<p>Heap is byte-addressable, but reads and writes operate in words. To read two consecutive words in heap starting at an
+address A, first, read from A, and then read from A+32. Reading any addresses in between is valid too.</p>
+<p>One of the modifiers allows to immediately form a new offset like that:</p>
+<pre><code class="language-nasm">; same as ld, but additionally r5 &lt;- r1 + 32
+ld.1.inc r1, r4, r5
+</code></pre>
+<p>This allows reading several consecutive words in a row:</p>
+<pre><code class="language-nasm">; reads four consecutive words from heap starting at address in r8
+; into registers r1, r2, r3, r4
+ld.1.inc r8, r1, r8
+ld.1.inc r8, r2, r8
+ld.1.inc r8, r3, r8
+ld.1.inc r8, r4, r8
+</code></pre>
+<p>In theory, heap can hold nearly $2^{32}$ bytes, but growing a heap so large is not affordable: the maximum gas allocated
+is $2^{32}-1$.</p>
+<p>The topmost 32 bytes of heap are considered forbidden addresses, trying to access them results in panic no matter how
+much gas is available.</p>
+<h4 id="heap-and-auxheap"><a class="header" href="#heap-and-auxheap">Heap and Auxheap</a></h4>
+<p>In zkEVM, there are two heaps; every far call allocates memory for both of them.</p>
+<p>Heaps are selected with modifiers <code>.1</code> or <code>.2</code> :</p>
+<ul>
+<li><code>ld.1</code> reads from heap;</li>
+<li><code>ld.2</code> reads from auxheap.</li>
+</ul>
+<p>The reason why we need two heaps is technical. Heap contains calldata and returndata for calls to user contracts, while
+auxheap contains calldata and returndata for calls to system contracts. This ensures better compatibility with EVM as
+users should be able to call zkEVM-specific system contracts without them affecting calldata or returndata.</p>
+<h2 id="fat-pointers"><a class="header" href="#fat-pointers">Fat pointers</a></h2>
+<p>A fat pointer is the second type of values in zkEVM, beside raw integers.</p>
+<p>As we noted, registers and stacks are internally tagged by VM to keep track of the cells containing pointers in their
+low 128 bits. Only cells with a set pointer tag are considered fat pointers.</p>
+<p>Fat pointers are used to pass read-only data between contracts. When choosing how to pass data to a contract (whether
+when calling or returning from a call) we have a choice:</p>
+<ul>
+<li>pass an existing fat pointer, or</li>
+<li>create a new fat pointer from a fragment of heap/auxheap.</li>
+</ul>
+<p>Fat pointers combine two aspects:</p>
+<ul>
+<li>Delimit a fragment accessible to other contract. Accesses outside this fragment through a pointer yield zero.</li>
+<li>Provide an offset inside this fragment. This offset can be increased or decreased.</li>
+</ul>
+<p>The restrictions on fat pointers provide allows to pass data between contracts safely and without excessive copying.</p>
+<p><strong>Implementation note.</strong> Internally, fat pointers hold four 32-bit values:</p>
+<ul>
+<li>bits 0..31 : offset</li>
+<li>bits 32..63: internal memory page ID</li>
+<li>bits 64…95 : starting address of the fragment</li>
+<li>bits 96…127 : length of the fragment</li>
+</ul>
+<h4 id="instructions-to-manipulate-fat-pointers"><a class="header" href="#instructions-to-manipulate-fat-pointers">Instructions to manipulate fat pointers</a></h4>
+<p>Only special instructions can manipulate fat pointers without automatically clearing its pointer tag.</p>
+<ul>
+<li><code>ptr.add</code>, <code>ptr.sub</code> modify the offset inside pointer</li>
+<li><code>ptr.shrink</code> reduces the associates fragment, so if we get a fat pointer from contract A, we can then shrink it and
+pass to another contract B up the call chain, again without copying data.</li>
+<li><code>ptr.pack</code> allows putting data in the top 128 bit of the pointer value without clearing the pointer tag.</li>
+</ul>
+<p>Doing e.g. <code>add r1, 0, r2</code> on a pointer in <code>r1</code> clears its tag, and it is now considered as a raw integer.</p>
+<p>Instructions <code>ld</code> and <code>[ld.inc](http://ld.inc)</code> (without indices 1 or 2) allow loading data by fat pointers, possibly
+incrementing the pointer. It is impossible to write by a fat pointer.</p>
+<h2 id="contracts-and-storage"><a class="header" href="#contracts-and-storage">Contracts and storage</a></h2>
+<p>All accounts are associated with contracts. There are $2^{160}$ valid account addresses.</p>
+<p>In zkEVM, contracts may have multiple <strong>functions</strong> in them; a contract may execute its functions by using <code>near_call</code> ;
+it may call other contracts by using <code>far_call</code> or its variations <code>delegate_call</code> / <code>mimic_call</code> (mimic is reserved for
+system contracts).</p>
+<p>Size of a contract should be divisible by 32 bytes (4 instructions).</p>
+<h3 id="storage-of-contracts"><a class="header" href="#storage-of-contracts">Storage of contracts</a></h3>
+<p>Every account has a storage. Storage maps $2^{256}$ keys to values; both keys and values are 256-bit untagged words.</p>
+<p>Contracts may write to their own storage by using <code>sstore key, value</code> and read from storage using <code>sload key, dest</code>.</p>
+<h3 id="static-mode"><a class="header" href="#static-mode">Static mode</a></h3>
+<p>Static mode prevents contracts from modifying their storage and emitting events. In static mode, executing an
+instruction like <code>sstore</code> sends VM into panic.</p>
+<p>To execute a contract C in static mode, use a <code>static</code> modifier: <code>far_call.static</code>. All contracts, called by C
+recursively, will also be executed in static mode. VM exits static mode automatically when C terminates.</p>
+<h3 id="system-contracts"><a class="header" href="#system-contracts">System contracts</a></h3>
+<p>Part of Era’s functionality is implemented through system contracts. These contracts have addresses from 0 to $2^{64}$
+and are executed in kernel mode, where they have access to privileged instructions. An example of such instruction is
+mimic call, a variant of far call where the caller can pretend to be another contract. This is useful for hiding the
+fact that something is implemented via a system contract but in the hands of users it would mean being able to steal
+anyone’s tokens.</p>
+<p>System contracts implement contract deployment, extensions such as keccak256, decommitting code etc.</p>
+<h2 id="server-and-vm-environment"><a class="header" href="#server-and-vm-environment">Server and VM environment</a></h2>
+<h3 id="decommitter"><a class="header" href="#decommitter">Decommitter</a></h3>
+<p>Decommitter is a module external to zkEVM allowing accessing deployed code by its hash.</p>
+<p><img src="./img/arch-overview.png" alt="arch-overview.png" /></p>
+<p>The system contracts at the address $2^{15}+2$ , called Deployer, keeps hashes of code of each contract in its storage.
+Far calls to a contract with address $C$ perform as follows:</p>
+<ul>
+<li>VM internally accesses the storage of <code>Deployer</code> contract by key $C$. This storage yields the hash value $H$<strong>.</strong></li>
+<li>then VM queries the decommitter, providing $H$. Decommitter answers with the contract code.</li>
+</ul>
+<p>If decommitter does not have the code for the requested hash, one of two things happen:</p>
+<ul>
+<li>if C is a system contract (i.e. address of $C &lt; 2^{16}$), the call will fail</li>
+<li>otherwise, VM will call the <code>DefaultAccount</code> contract.</li>
+</ul>
+<h3 id="server"><a class="header" href="#server">Server</a></h3>
+<p>The VM is controlled by a <em>server.</em> When the server needs to build a new batch, it starts an instance of zkEVM and feeds
+the transactions to the <a href="#bootloader">Bootloader</a>.</p>
+<p>zkEVM accepts three parameters:</p>
+<ol>
+<li>Bootloader’s hash. It is used to fetch the bootloader code from decommitter.</li>
+<li>Code hash of <code>DefaultAccount</code> contract code. It is used to fetch the default code from Decommitter in case of a far
+call to a contract without any associated code.</li>
+<li>A boolean flag <code>is_porter_available</code>, to determine the number of shards (two if zkPorter is available, one
+otherwise).</li>
+</ol>
+<p>zkEVM retrieves the code of bootloader from Decommitter and proceeds with sequential execution of instructions on the
+bootloader’s code page.</p>
+<h4 id="failures-and-rollbacks"><a class="header" href="#failures-and-rollbacks">Failures and rollbacks</a></h4>
+<p>There are three types of behaviour triggered by execution failures.</p>
+<ol>
+<li>
+<p>Skipping a malformed transaction. It is a mechanism implemented by the server, external to zkEVM. Server makes a
+snapshot of zkEVM state after completing every transaction. If the bootloader encounters a malformed transaction, it
+fails, and the server restarts zkEVM from the most recent snapshot, skipping this transaction.</p>
+<p>This behaviour is specific to server/bootloader; the contract code has no ways of invoking it.</p>
+</li>
+<li>
+<p>Revert is triggered by the contract code explicitly by executing <code>revert</code>. zkEVM saves its persistent state on every
+near or far call. If the contract code identifies a recoverable error, it may execute <code>revert</code>; then zkEVM rolls the
+storage and event queues back to the last checkpoint and executes the exception handler.</p>
+</li>
+<li>
+<p>Panic is triggered either explicitly by executing <code>panic</code> or internally when some execution invariants are violated
+e.g. attempt to use raw integer in <code>ptr.add</code> instruction.</p>
+<p>On panic, the persistent state of zkEVM is rolled back in the same way as on revert.</p>
+</li>
+</ol>
+<h3 id="bootloader"><a class="header" href="#bootloader">Bootloader</a></h3>
+<p>Bootloader is a system contract in charge of block construction
+(<strong><a href="https://github.com/matter-labs/era-system-contracts/blob/main/bootloader/bootloader.yul">sources</a></strong>).</p>
+<p>Formally, bootloader is assigned an address BOOTLOADER_SYSTEM_CONTRACT_ADDRESS = $2^{15}+1$, but zkEVM decommits its
+code directly by its hash.</p>
+<p>The heap of the bootloader is special: it acts as an interface between server and zkEVM. Server gradually fills the
+bootloader’s heap with transaction data, formatted according to an implementation-defined convention.</p>
+<p>The bootloader then acts roughly as the following code (not an actual implementation):</p>
+<pre><code class="language-solidity">contract Bootloader {
+  function executeBlock(address operatorAddress, Transaction[2] memory transactions) {
+    for (uint256 i = 0; i &lt; transactions.length; i++) {
+      validateTransaction(transactions[i]);
+      chargeFee(operatorAddress, transactions[i]);
+      executeTransaction(transactions[i]);
+    }
+  }
+
+  function validateTransaction(Transaction memory tx) {
+    // validation logic
+  }
+
+  function chargeFee(address operatorAddress, Transaction memory tx) {
+    // charge fee
+  }
+
+  function executeTransaction(Transaction memory tx) {
+    // execution logic
+  }
+}
+
+</code></pre>
+<p>The bootloader is therefore responsible for:</p>
+<ul>
+<li>validating transactions;</li>
+<li>executing transactions to form a new block;</li>
+<li>setting some of the transaction- or block-wide transaction parameters (e.g. <code>blockhash</code>, <code>tx.origin</code>).</li>
+</ul>
+<p>Server makes a snapshot of zkEVM state after completing every transaction. When the bootloader encounters a malformed
+transaction, it fails, and the server restarts zkEVM from the most recent snapshot, skipping this transaction. If a
+transaction is well-formed, zkEVM may still panic while handling it outside the bootloader code. This is a normal
+situation and is handled by zkEVM in a regular way, through panics.</p>
+<p>The exact code of the bootloader is a part of a protocol; its hash is included in the block header.</p>
+<h3 id="context-value"><a class="header" href="#context-value">Context value</a></h3>
+<p>A part of the zkEVM state is a 128-bit <em>context value</em>. It implements <code>msg.value</code> standing for the amount of wei sent in
+a transaction. In assembly, it is used as follows:</p>
+<ol>
+<li>Execute <code>context.set_context_u128 reg</code> to set the value;</li>
+<li>Perform a far call — it captures the context value;</li>
+<li>In a called contract, access the context value through <code>context.get_context_u128 reg</code>.</li>
+</ol>
+<p>Context value can not be set in static mode.</p>
+<p>The system contract <code>MsgValueSimulator</code> ensures that whenever this context value is set to <em>C</em>, there are indeed <em>C</em> wei
+transferred to the callee.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../specs/era_vm_specification/index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../announcements/index.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../specs/era_vm_specification/index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../announcements/index.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../ace.js"></script>
+        <script src="../../editor.js"></script>
+        <script src="../../mode-rust.js"></script>
+        <script src="../../theme-dawn.js"></script>
+        <script src="../../theme-tomorrow_night.js"></script>
+
+        <script src="../../elasticlunr.min.js"></script>
+        <script src="../../mark.min.js"></script>
+        <script src="../../searcher.js"></script>
+
+        <script src="../../clipboard.min.js"></script>
+        <script src="../../highlight.js"></script>
+        <script src="../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../js/version-box.js"></script>
+        <script src="../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>

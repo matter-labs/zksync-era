@@ -1,0 +1,4 @@
+server_addr: '0.0.0.0:3054'
+public_addr: '<your public IP goes here>:3054'
+max_payload_size: 5000000
+gossip_dynamic_inbound_limit: 100

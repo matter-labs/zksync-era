@@ -1,0 +1,291 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Contracts - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../favicon.svg">
+        <link rel="shortcut icon" href="../../favicon.png">
+        <link rel="stylesheet" href="../../css/variables.css">
+        <link rel="stylesheet" href="../../css/general.css">
+        <link rel="stylesheet" href="../../css/chrome.css">
+        <link rel="stylesheet" href="../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../css/version-box.css">
+        <link rel="stylesheet" href="../.././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/guides/advanced/04_contracts.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="zksync-contracts"><a class="header" href="#zksync-contracts">ZKsync contracts</a></h1>
+<p>Now that we know how to bridge tokens back and forth, let’s talk about running things on ZKsync.</p>
+<p>We have a bunch of great tutorials (like this one <a href="https://docs.zksync.io/build/tooling/hardhat/getting-started">https://docs.zksync.io/build/tooling/hardhat/getting-started</a>) that
+you can follow to get the exact code &amp; command line calls to create the contracts - so in this article, let’s focus on
+how things differ between ZKsync and Ethereum.</p>
+<p><strong>Note</strong> Before reading this article, I’d recommend doing the hardhat tutorial above.</p>
+<h2 id="ethereum-flow"><a class="header" href="#ethereum-flow">Ethereum flow</a></h2>
+<p>In case of Ethereum, you start by writing a contract code in solidity, then you compile it with <code>solc</code>, and you get the
+EVM bytecode, deployment bytecode (which is a function that should return the bytecode itself) and ABI (interface).</p>
+<p>Afterwards, you send the deployment bytecode to the 0x000 address on Ethereum, which does some magic (executes the
+deployment bytecode, that should contain the constructor etc) and puts the contract under the address that is generated
+based on your account id and a nonce.</p>
+<p>From this moment on, you can send the transactions to this new address (and most of the tools would ask you to provide
+the ABI, so that they can set the proper function arguments).</p>
+<p>All the bytecode will be run on the EVM (Ethereum Virtual Machine) - that has a stack, access to memory and storage, and
+a bunch of opcodes.</p>
+<h2 id="zksync-flow"><a class="header" href="#zksync-flow">ZKsync flow</a></h2>
+<p>The main part (and the main cost) of the ZKsync is the proving system. In order to make proof as fast as possible, we’re
+running a little bit different virtual machine (zkEVM) - that has a slightly different set of opcodes, and also contains
+a bunch of registers. More details on this will be written in the future articles.</p>
+<p>Having a different VM means that we must have a separate compiler <a href="https://github.com/matter-labs/zksolc-bin">zk-solc</a> -
+as the bytecode that is produced by this compiler has to use the zkEVM specific opcodes.</p>
+<p>While having a separate compiler introduces a bunch of challenges (for example, we need a custom
+<a href="https://github.com/matter-labs/hardhat-zksync">hardhat plugins</a> ), it brings a bunch of benefits too: for example it
+allows us to move some of the VM logic (like new contract deployment) into System contracts - which allows faster &amp;
+cheaper modifications and increased flexibility.</p>
+<h3 id="zksync-system-contracts"><a class="header" href="#zksync-system-contracts">ZKsync system contracts</a></h3>
+<p>Small note on system contracts: as mentioned above, we moved some of the VM logic into system contracts, which allows us
+to keep VM simpler (and with this - keep the proving system simpler).</p>
+<p>You can see the full list (and codes) of the system contracts here:
+<a href="https://github.com/matter-labs/era-system-contracts">https://github.com/matter-labs/era-system-contracts</a>.</p>
+<p>While some of them are not really visible to the contract developer (like the fact that we’re running a special
+<code>Bootleader</code> to package a bunch of transactions together - more info in a future article) - some others are very
+visible - like our <code>ContractDeployer</code></p>
+<h3 id="contractdeployer"><a class="header" href="#contractdeployer">ContractDeployer</a></h3>
+<p>Deploying a new contract differs on Ethereum and ZKsync.</p>
+<p>While on Ethereum - you send the transaction to 0x00 address - on ZKsync you have to call the special <code>ContractDeployer</code>
+system contract.</p>
+<p>If you look on your hardhat example, you’ll notice that your <code>deploy.ts</code> is actually using a <code>Deployer</code> class from the
+<code>hardhat-zksync-deploy</code> plugin.</p>
+<p>Which inside uses the ZKsync’s web3.js, that calls the contract deployer
+<a href="https://github.com/zksync-sdk/zksync2-js/blob/b1d11aa016d93ebba240cdeceb40e675fb948133/src/contract.ts#L76">here</a></p>
+<pre><code class="language-typescript">override getDeployTransaction(..) {
+    ...
+    txRequest.to = CONTRACT_DEPLOYER_ADDRESS;
+    ...
+}
+</code></pre>
+<p>Also <code>ContractDeployer</code> adding a special prefix for all the new contract addresses. This means that contract addresses
+WILL be different on <code>ZKsync</code> and Ethereum (and also leaves us the possibility of adding Ethereum addresses in the
+future if needed).</p>
+<p>You can look for <code>CREATE2_PREFIX</code> and <code>CREATE_PREFIX</code> in the code.</p>
+<h3 id="gas-costs"><a class="header" href="#gas-costs">Gas costs</a></h3>
+<p>Another part, where ZKsync differs from Ethereum is gas cost. The best example for this are storage slots.</p>
+<p>If you have two transactions that are updating the same storage slot - and they are in the same ‘batch’ - only the first
+one would be charged (as when we write the final storage to ethereum, we just write the final diff of what slots have
+changed - so updating the same slot multiple times doesn’t increase the amount of data that we have to write to L1).</p>
+<h3 id="account-abstraction-and-some-method-calls"><a class="header" href="#account-abstraction-and-some-method-calls">Account abstraction and some method calls</a></h3>
+<p>As <code>ZKsync</code> has a built-in Account Abstraction (more on this in a separate article) - you shouldn’t depend on some of
+the solidity functions (like <code>ecrecover</code> - that checks the keys, or <code>tx.origin</code>) - in all the cases, the compiler will
+try to warn you.</p>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<p>In this article, we looked at how contract development &amp; deployment differs on Ethereum and ZKsync (looking at
+differences in VMs, compilers and system contracts).</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../guides/advanced/03_withdrawals.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../guides/advanced/05_how_call_works.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../guides/advanced/03_withdrawals.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../guides/advanced/05_how_call_works.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../ace.js"></script>
+        <script src="../../editor.js"></script>
+        <script src="../../mode-rust.js"></script>
+        <script src="../../theme-dawn.js"></script>
+        <script src="../../theme-tomorrow_night.js"></script>
+
+        <script src="../../elasticlunr.min.js"></script>
+        <script src="../../mark.min.js"></script>
+        <script src="../../searcher.js"></script>
+
+        <script src="../../clipboard.min.js"></script>
+        <script src="../../highlight.js"></script>
+        <script src="../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../js/version-box.js"></script>
+        <script src="../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>

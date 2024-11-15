@@ -1,0 +1,301 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Admin role - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../../favicon.svg">
+        <link rel="shortcut icon" href="../../../favicon.png">
+        <link rel="stylesheet" href="../../../css/variables.css">
+        <link rel="stylesheet" href="../../../css/general.css">
+        <link rel="stylesheet" href="../../../css/chrome.css">
+        <link rel="stylesheet" href="../../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../../../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../../../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../../css/version-box.css">
+        <link rel="stylesheet" href="../../.././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/specs/contracts/chain_management/admin_role.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <!--- WIP --->
+<h1 id="safe-chainadmin-management"><a class="header" href="#safe-chainadmin-management">Safe ChainAdmin management</a></h1>
+<p>While the ecosystem does a <a href="https://blog.zknation.io/introducing-zk-nation/">decentralized trusted governance</a>, each chain has its own Chain Admin. While the upgrade parameters are chosen by the governance, chain admin is still a powerful role and should be managed carefully.</p>
+<p>In this document we will explore what are the abilities of the ChainAdmin, how dangerous they are and how to mitigate potential issues.</p>
+<h2 id="general-guidelines"><a class="header" href="#general-guidelines">General guidelines</a></h2>
+<p>The system does not restrict in any way how the admin of the chain should be implemented. However special caution should be taken to keep it safe.</p>
+<p>The general guideline is that an admin of a ZK chain should be <em>at least</em> a well-distributed multisig. Having it as an EOA is definitely a bad idea since having this address stolen can lead to <a href="#setting-da-layer">chain being permanently frozen</a>.</p>
+<p>Additional measures may be taken <a href="#proposed-modular-chainadmin-implementation">to self-restrict</a> the ChainAdmin to ensure that some operations can be only done in safe fashion.</p>
+<p>Generally all the functionality of chain admin should be treated with maximal security and caution, and having hotkey separate roles in rare circuimstances, e.g. to call <code>setTokenMultiplier</code> in case of an ERC-20 based chain.</p>
+<h2 id="chain-admin-functionality"><a class="header" href="#chain-admin-functionality">Chain Admin functionality</a></h2>
+<h3 id="setting-validators-for-a-chain"><a class="header" href="#setting-validators-for-a-chain">Setting validators for a chain</a></h3>
+<p>The admin of a chain can call <code>ValidatorTimelock</code> on the settlement layer to add or remove validators, i.e. addresses that have the right to <code>commit</code>/<code>verify</code>/<code>execute</code> batches etc.</p>
+<p>The system is protected against malicious validators, they can never steal funds from users. However, this role is still relatively powerful: If the DA layer is not reliable, and a batch does get executed, the funds may be frozen. This is why the chains should be <a href="#setting-da-layer">cautious about DA layers that they use</a>. Note, that on L1 the <code>ValidatorTimelock</code> has 3h delay, while on Gateway this timelock will not be present.</p>
+<p>In case the malicious block has not been executed yet, it can be reverted.</p>
+<h3 id="setting-da-layer"><a class="header" href="#setting-da-layer">Setting DA layer</a></h3>
+<p>This is one of the most powerful settings that a chain can have: setting a custom DA layer. The dangers of doing this wrong are obvious: lack of proper data availability solution may lead to funds being frozen. Term “frozen funds” mainly refers to the inability to reconstruct the complete state since externally only the root hash is visible, thus preventing the chain from progressing. (Note: that funds can never be <em>stolen</em> due to ZKP checks of the VM execution).</p>
+<p>Sometimes, users may need assurances that a chain will never become frozen even under a malicious chain admin. A general though unstable approach is discussed <a href="#proposed-modular-chainadmin-implementation">here</a>, however this release comes with a solution specially tailored for rollups: the <code>isPermanentRollup</code> setting.</p>
+<h4 id="ispermanentrollup-setting"><a class="header" href="#ispermanentrollup-setting"><code>isPermanentRollup</code> setting</a></h4>
+<p>Chain also exposes the <code>AdminFacet.makePermanentRollup</code> function. It will turn a chain into a permanent rollup, ensuring that DA validator pairs can be only set to values that are approved by decentralized governance to be used for rollups.</p>
+<p>This functionality is obviously dangerous in a sense that it is permanent and revokes the right of the chain to change its DA layer. On the other hand, it ensures perpetual safety for users. This is the option that ZKsync Era is using.</p>
+<p>This setting is preserved even when migrating to [gateway][TODO]. If this setting was set while chain is on top of Gateway, and it migrates back to L1, it will keep this status, i.e. it is fully irrevocable.</p>
+<h3 id="changefeeparams-method"><a class="header" href="#changefeeparams-method"><code>changeFeeParams</code> method</a></h3>
+<p>This method allows to change how the fees are charged for priority operations.</p>
+<p>The worst impact of setting this value wrongly is having L1-&gt;L2 transactions underpriced.</p>
+<h3 id="settokenmultiplier-method"><a class="header" href="#settokenmultiplier-method"><code>setTokenMultiplier</code> method</a></h3>
+<p>This method allows to set the token multiplier, i.e. the ratio between the price of ETH and the price of the token. It will be used for L1-&gt;L2 priority transactions.</p>
+<p>Typically, <code>ChainAdmin</code>s of ERC20 chains will have a special hotkey responsible for calling this function to keep the price up to date. An example on how it is implemented in the current system can be seen <a href="https://github.com/matter-labs/era-contracts/blob/aafee035db892689df3f7afe4b89fd6467a39313/l1-contracts/contracts/governance/ChainAdmin.sol#L23">here</a>.</p>
+<p>The worst impact of setting this value wrongly is having L1-&gt;L2 transactions underpriced.</p>
+<h3 id="setpubdatapricingmode"><a class="header" href="#setpubdatapricingmode"><code>setPubdataPricingMode</code></a></h3>
+<p>This method allows to set whether the pubdata price will be taken into account for priority operations.</p>
+<p>The worst impact of setting this value wrongly is having L1-&gt;L2 transactions underpriced.</p>
+<h3 id="settransactionfilterer"><a class="header" href="#settransactionfilterer"><code>setTransactionFilterer</code></a></h3>
+<p>This method allows to set a transaction filterer, i.e. an additional validator for all incoming L1-&gt;L2 transactions. The worst impact is users’ transactions being censored.</p>
+<h3 id="migration-to-another-settlement-layer"><a class="header" href="#migration-to-another-settlement-layer">Migration to another settlement layer</a></h3>
+<p>The upgrade can start migration of a chain to another settlement layer. Currently all the settlement layers are whitelisted, so generally this operation is harmless (except for the inconvenience in case the migration was unplanned).</p>
+<p>However, some caution needs to be applied to migrate properly as described in the section below.</p>
+<h2 id="chain-admin-when-migrating-to-gateway"><a class="header" href="#chain-admin-when-migrating-to-gateway">Chain admin when migrating to gateway</a></h2>
+<p>When a chain migrates to gateway, it provides the address of the new admin on L2. The following rules apply:</p>
+<ul>
+<li>If a ZK chain has already been deployed on a settlement layer, its admin stays the same.</li>
+<li>If a ZK chain has not been deployed yet, then the new admin is set.</li>
+</ul>
+<p>The above means that in the current release the admin of the chain on the new settlement layer is “detached” from the admin on L1. It is the responsibility of the chain to set the L2 admin correctly: either it should have the same signers or, even better in the long run, put the aliased L1 admin to have most of the abilities inside the L2 chain admin.</p>
+<p>Since most of the Admin’s functionality above are related to L1-&gt;L2 operations, the L1 chain admin will continue playing a crucial role even after the chain migrates to Gateway. However, some of the new functionality are relevant on the chain admin on the settlement layer only:</p>
+<ul>
+<li>Managing DA</li>
+<li>Managing new validators</li>
+<li>It is the admin of the settlement layer that do migrations of chains</li>
+</ul>
+<p>As such, the choice of the L2 Admin is very important. Also, if the chain admin on the new settlement layer is not accessible (e.g. accidentally wrong address was chosen), the chain is lost:</p>
+<ul>
+<li>No validators will be set</li>
+<li>The chain can not migrate back</li>
+</ul>
+<p>Overall <strong>very special care</strong> needs to be taken when selecting an admin for the migration to a new settlement layer.</p>
+<h2 id="proposed-modular-chainadmin-implementation"><a class="header" href="#proposed-modular-chainadmin-implementation">Proposed modular <code>ChainAdmin</code> implementation</a></h2>
+<blockquote>
+<p><strong>Warning</strong>. The proposed implementation here will likely <strong>not</strong> be used by the Matter Labs team for ZKsync Era due to the issues listed in the issues section. This code, however, is still in scope of the audit and may serve as a future basis of a more long term solution.</p>
+</blockquote>
+<p>In order to ensure that the architecture here flexible enough for future other chains to use, it uses a modular architecture to ensure that other chains could fit it to their needs. By default, this contract is not even <code>Ownable</code>, and anyone can execute transactions out of the name of it. In order to add new features such as restricting calling dangerous methods and access control, <em>restrictions</em> should be added there. Each restriction is a contract that implements the <code>IRestriction</code> interface. The following restrictions have been implemented so far:</p>
+<ul>
+<li>
+<p><code>AccessControlRestriction</code> that allows to specify which addresses can call which methods. In the case of Era, only the <code>DEFAULT_ADMIN_ROLE</code> will be able to call any methods. Other chains with non-ETH base token may need an account that would periodically call the L1 contract to update the ETH price there. They may create the <code>SET_TOKEN_MULTIPLIER_ROLE</code> role that is required to update the token price and give its rights to some hot private key.</p>
+</li>
+<li>
+<p><code>PermanentRestriction</code> that ensures that:</p>
+</li>
+</ul>
+<p>a) This restriction could not be lifted, i.e. the chain admin of the chain must forever have it. Even if the address of the <code>ChainAdmin</code> changes, it ensures that the new admin has this restriction turned on.
+b) It specifies the calldata this which certain methods can be called. For instance, in case a chain wants to keep itself permanently tied to certain DA, it will ensure that the only DA validation method that can be used is rollup. Some sort of decentralized governance could be chosen to select which DA validation pair corresponds to this DA method.</p>
+<p>The approach above does not only helps to protect the chain, but also provides correct information for chains that are present in our ecosystem. For instance, if a chain claims to perpetually have a certain property, having the <code>PermanentRestriction</code> as part of the chain admin can ensure all observers of that.</p>
+<h3 id="issues-and-limitations"><a class="header" href="#issues-and-limitations">Issues and limitations</a></h3>
+<p>Due to specifics of <a href="#migration-to-another-settlement-layer">migration to another settlement layers</a> (i.e. that migrations do not overwrite the admin), maintaining the same <code>PermanentRestriction</code> becomes hard in case a restriction has been added on top of the chain admin inside one chain, but not the other.</p>
+<p>While very flexible, this modular approach should still be polished enough before recommending it as a generic solution for everyone. However, the provided new <a href="https://github.com/matter-labs/era-contracts/blob/8222265420f362c853da7160769620d9fed7f834/l1-contracts/contracts/governance/ChainAdmin.sol">ChainAdmin</a> can still be helpful for new chains as with the <code>AccessControlRestriction</code> it provides a ready-to-use framework for role-based managing of the chain. Using <code>PermanentRestriction</code> for now is discouraged however.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../../specs/contracts/chain_management/chain_type_manager.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../../specs/contracts/chain_management/chain_genesis.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../../specs/contracts/chain_management/chain_type_manager.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../../specs/contracts/chain_management/chain_genesis.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../../ace.js"></script>
+        <script src="../../../editor.js"></script>
+        <script src="../../../mode-rust.js"></script>
+        <script src="../../../theme-dawn.js"></script>
+        <script src="../../../theme-tomorrow_night.js"></script>
+
+        <script src="../../../elasticlunr.min.js"></script>
+        <script src="../../../mark.min.js"></script>
+        <script src="../../../searcher.js"></script>
+
+        <script src="../../../clipboard.min.js"></script>
+        <script src="../../../highlight.js"></script>
+        <script src="../../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../../js/version-box.js"></script>
+        <script src="../../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>
