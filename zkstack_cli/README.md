@@ -275,7 +275,7 @@ contracts and more.
 First, each chain should be initialized:
 
 ```bash
-zkstack explorer init
+zkstack ecosystem explorer init
 ```
 
 This command creates a database to store explorer data and generatesdocker compose file with explorer services
@@ -284,7 +284,7 @@ This command creates a database to store explorer data and generatesdocker compo
 Next, for each chain you want to have an explorer, you need to start its backend services:
 
 ```bash
-zkstack explorer backend --chain <chain_name>
+zkstack ecosystem explorer backend --chain <chain_name>
 ```
 
 This command uses previously created docker compose file to start the services (api, data fetcher, worker) required for
@@ -293,7 +293,7 @@ the explorer.
 Finally, you can run the explorer app:
 
 ```bash
-zkstack explorer run
+zkstack ecosystem explorer run
 ```
 
 This command will start the dockerized explorer app using configuration from `apps/explorer.config.json` file inside

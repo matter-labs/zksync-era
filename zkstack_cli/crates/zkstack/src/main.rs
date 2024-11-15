@@ -14,8 +14,8 @@ use config::zkstack_config::ZkStackConfig;
 use xshell::Shell;
 
 use crate::commands::{
-    chain::ChainCommands, ecosystem::EcosystemCommands, explorer::ExplorerCommands,
-    external_node::ExternalNodeCommands, prover::ProverCommands,
+    chain::ChainCommands, ecosystem::EcosystemCommands, external_node::ExternalNodeCommands,
+    prover::ProverCommands,
 };
 
 pub mod accept_ownership;
@@ -60,9 +60,6 @@ pub enum ZkStackSubcommands {
     ExternalNode(ExternalNodeCommands),
     /// Run dapp-portal
     Portal,
-    /// Run block-explorer
-    #[command(subcommand)]
-    Explorer(ExplorerCommands),
     /// Update ZKsync
     #[command(alias = "u")]
     Update(UpdateArgs),
@@ -127,7 +124,6 @@ async fn run_subcommand(zkstack_args: ZkStack) -> anyhow::Result<()> {
         ZkStackSubcommands::ExternalNode(args) => {
             commands::external_node::run(&shell, args).await?
         }
-        ZkStackSubcommands::Explorer(args) => commands::explorer::run(&shell, args).await?,
         ZkStackSubcommands::Portal => commands::portal::run(&shell).await?,
         ZkStackSubcommands::Update(args) => commands::update::run(&shell, args).await?,
         ZkStackSubcommands::Markdown => {

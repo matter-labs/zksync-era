@@ -177,6 +177,90 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
+(explorer)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_zkstack__ecosystem__explorer_commands" \
+"*::: :->explorer" \
+&& ret=0
+
+    case $state in
+    (explorer)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-ecosystem-explorer-command-$line[1]:"
+        case $line[1] in
+            (init)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(run-backend)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_zkstack__ecosystem__explorer__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-ecosystem-explorer-help-command-$line[1]:"
+        case $line[1] in
+            (init)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(run-backend)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_zkstack__ecosystem__help_commands" \
@@ -212,6 +296,34 @@ _arguments "${_arguments_options[@]}" : \
 (containers)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
+;;
+(explorer)
+_arguments "${_arguments_options[@]}" : \
+":: :_zkstack__ecosystem__help__explorer_commands" \
+"*::: :->explorer" \
+&& ret=0
+
+    case $state in
+    (explorer)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-ecosystem-help-explorer-command-$line[1]:"
+        case $line[1] in
+            (init)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(run-backend)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
 ;;
 (help)
 _arguments "${_arguments_options[@]}" : \
@@ -2533,90 +2645,6 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
-(explorer)
-_arguments "${_arguments_options[@]}" : \
-'--chain=[Chain to use]:CHAIN:_default' \
-'-v[Verbose mode]' \
-'--verbose[Verbose mode]' \
-'--ignore-prerequisites[Ignores prerequisites checks]' \
-'-h[Print help]' \
-'--help[Print help]' \
-":: :_zkstack__explorer_commands" \
-"*::: :->explorer" \
-&& ret=0
-
-    case $state in
-    (explorer)
-        words=($line[1] "${words[@]}")
-        (( CURRENT += 1 ))
-        curcontext="${curcontext%:*:*}:zkstack-explorer-command-$line[1]:"
-        case $line[1] in
-            (init)
-_arguments "${_arguments_options[@]}" : \
-'--chain=[Chain to use]:CHAIN:_default' \
-'-v[Verbose mode]' \
-'--verbose[Verbose mode]' \
-'--ignore-prerequisites[Ignores prerequisites checks]' \
-'-h[Print help]' \
-'--help[Print help]' \
-&& ret=0
-;;
-(run-backend)
-_arguments "${_arguments_options[@]}" : \
-'--chain=[Chain to use]:CHAIN:_default' \
-'-v[Verbose mode]' \
-'--verbose[Verbose mode]' \
-'--ignore-prerequisites[Ignores prerequisites checks]' \
-'-h[Print help]' \
-'--help[Print help]' \
-&& ret=0
-;;
-(run)
-_arguments "${_arguments_options[@]}" : \
-'--chain=[Chain to use]:CHAIN:_default' \
-'-v[Verbose mode]' \
-'--verbose[Verbose mode]' \
-'--ignore-prerequisites[Ignores prerequisites checks]' \
-'-h[Print help]' \
-'--help[Print help]' \
-&& ret=0
-;;
-(help)
-_arguments "${_arguments_options[@]}" : \
-":: :_zkstack__explorer__help_commands" \
-"*::: :->help" \
-&& ret=0
-
-    case $state in
-    (help)
-        words=($line[1] "${words[@]}")
-        (( CURRENT += 1 ))
-        curcontext="${curcontext%:*:*}:zkstack-explorer-help-command-$line[1]:"
-        case $line[1] in
-            (init)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(run-backend)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(run)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(help)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-        esac
-    ;;
-esac
-;;
-        esac
-    ;;
-esac
-;;
 (update)
 _arguments "${_arguments_options[@]}" : \
 '--chain=[Chain to use]:CHAIN:_default' \
@@ -2690,6 +2718,34 @@ _arguments "${_arguments_options[@]}" : \
 (containers)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
+;;
+(explorer)
+_arguments "${_arguments_options[@]}" : \
+":: :_zkstack__help__ecosystem__explorer_commands" \
+"*::: :->explorer" \
+&& ret=0
+
+    case $state in
+    (explorer)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-help-ecosystem-explorer-command-$line[1]:"
+        case $line[1] in
+            (init)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(run-backend)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
 ;;
         esac
     ;;
@@ -3231,34 +3287,6 @@ esac
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(explorer)
-_arguments "${_arguments_options[@]}" : \
-":: :_zkstack__help__explorer_commands" \
-"*::: :->explorer" \
-&& ret=0
-
-    case $state in
-    (explorer)
-        words=($line[1] "${words[@]}")
-        (( CURRENT += 1 ))
-        curcontext="${curcontext%:*:*}:zkstack-help-explorer-command-$line[1]:"
-        case $line[1] in
-            (init)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(run-backend)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(run)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-        esac
-    ;;
-esac
-;;
 (update)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -3290,7 +3318,6 @@ _zkstack_commands() {
 'prover:Prover related commands' \
 'external-node:External Node related commands' \
 'portal:Run dapp-portal' \
-'explorer:Run block-explorer' \
 'update:Update ZKsync' \
 'markdown:Print markdown help' \
 'help:Print this message or the help of the given subcommand(s)' \
@@ -4633,6 +4660,7 @@ _zkstack__ecosystem_commands() {
 'change-default-chain:Change the default chain' \
 'setup-observability:Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo' \
 'containers:Run containers for local development' \
+'explorer:Run block-explorer' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack ecosystem commands' commands "$@"
@@ -4657,6 +4685,61 @@ _zkstack__ecosystem__create_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack ecosystem create commands' commands "$@"
 }
+(( $+functions[_zkstack__ecosystem__explorer_commands] )) ||
+_zkstack__ecosystem__explorer_commands() {
+    local commands; commands=(
+'init:Initialize explorer (create database to store explorer data and generate docker compose file with explorer services). Runs for all chains, unless --chain is passed' \
+'run-backend:Start explorer backend services (api, data_fetcher, worker) for a given chain. Uses default chain, unless --chain is passed' \
+'run:Run explorer app' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'zkstack ecosystem explorer commands' commands "$@"
+}
+(( $+functions[_zkstack__ecosystem__explorer__help_commands] )) ||
+_zkstack__ecosystem__explorer__help_commands() {
+    local commands; commands=(
+'init:Initialize explorer (create database to store explorer data and generate docker compose file with explorer services). Runs for all chains, unless --chain is passed' \
+'run-backend:Start explorer backend services (api, data_fetcher, worker) for a given chain. Uses default chain, unless --chain is passed' \
+'run:Run explorer app' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'zkstack ecosystem explorer help commands' commands "$@"
+}
+(( $+functions[_zkstack__ecosystem__explorer__help__help_commands] )) ||
+_zkstack__ecosystem__explorer__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack ecosystem explorer help help commands' commands "$@"
+}
+(( $+functions[_zkstack__ecosystem__explorer__help__init_commands] )) ||
+_zkstack__ecosystem__explorer__help__init_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack ecosystem explorer help init commands' commands "$@"
+}
+(( $+functions[_zkstack__ecosystem__explorer__help__run_commands] )) ||
+_zkstack__ecosystem__explorer__help__run_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack ecosystem explorer help run commands' commands "$@"
+}
+(( $+functions[_zkstack__ecosystem__explorer__help__run-backend_commands] )) ||
+_zkstack__ecosystem__explorer__help__run-backend_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack ecosystem explorer help run-backend commands' commands "$@"
+}
+(( $+functions[_zkstack__ecosystem__explorer__init_commands] )) ||
+_zkstack__ecosystem__explorer__init_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack ecosystem explorer init commands' commands "$@"
+}
+(( $+functions[_zkstack__ecosystem__explorer__run_commands] )) ||
+_zkstack__ecosystem__explorer__run_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack ecosystem explorer run commands' commands "$@"
+}
+(( $+functions[_zkstack__ecosystem__explorer__run-backend_commands] )) ||
+_zkstack__ecosystem__explorer__run-backend_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack ecosystem explorer run-backend commands' commands "$@"
+}
 (( $+functions[_zkstack__ecosystem__help_commands] )) ||
 _zkstack__ecosystem__help_commands() {
     local commands; commands=(
@@ -4666,6 +4749,7 @@ _zkstack__ecosystem__help_commands() {
 'change-default-chain:Change the default chain' \
 'setup-observability:Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo' \
 'containers:Run containers for local development' \
+'explorer:Run block-explorer' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack ecosystem help commands' commands "$@"
@@ -4689,6 +4773,30 @@ _zkstack__ecosystem__help__containers_commands() {
 _zkstack__ecosystem__help__create_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack ecosystem help create commands' commands "$@"
+}
+(( $+functions[_zkstack__ecosystem__help__explorer_commands] )) ||
+_zkstack__ecosystem__help__explorer_commands() {
+    local commands; commands=(
+'init:Initialize explorer (create database to store explorer data and generate docker compose file with explorer services). Runs for all chains, unless --chain is passed' \
+'run-backend:Start explorer backend services (api, data_fetcher, worker) for a given chain. Uses default chain, unless --chain is passed' \
+'run:Run explorer app' \
+    )
+    _describe -t commands 'zkstack ecosystem help explorer commands' commands "$@"
+}
+(( $+functions[_zkstack__ecosystem__help__explorer__init_commands] )) ||
+_zkstack__ecosystem__help__explorer__init_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack ecosystem help explorer init commands' commands "$@"
+}
+(( $+functions[_zkstack__ecosystem__help__explorer__run_commands] )) ||
+_zkstack__ecosystem__help__explorer__run_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack ecosystem help explorer run commands' commands "$@"
+}
+(( $+functions[_zkstack__ecosystem__help__explorer__run-backend_commands] )) ||
+_zkstack__ecosystem__help__explorer__run-backend_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack ecosystem help explorer run-backend commands' commands "$@"
 }
 (( $+functions[_zkstack__ecosystem__help__help_commands] )) ||
 _zkstack__ecosystem__help__help_commands() {
@@ -4714,61 +4822,6 @@ _zkstack__ecosystem__init_commands() {
 _zkstack__ecosystem__setup-observability_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack ecosystem setup-observability commands' commands "$@"
-}
-(( $+functions[_zkstack__explorer_commands] )) ||
-_zkstack__explorer_commands() {
-    local commands; commands=(
-'init:Initialize explorer (create database to store explorer data and generate docker compose file with explorer services). Runs for all chains, unless --chain is passed' \
-'run-backend:Start explorer backend services (api, data_fetcher, worker) for a given chain. Uses default chain, unless --chain is passed' \
-'run:Run explorer app' \
-'help:Print this message or the help of the given subcommand(s)' \
-    )
-    _describe -t commands 'zkstack explorer commands' commands "$@"
-}
-(( $+functions[_zkstack__explorer__help_commands] )) ||
-_zkstack__explorer__help_commands() {
-    local commands; commands=(
-'init:Initialize explorer (create database to store explorer data and generate docker compose file with explorer services). Runs for all chains, unless --chain is passed' \
-'run-backend:Start explorer backend services (api, data_fetcher, worker) for a given chain. Uses default chain, unless --chain is passed' \
-'run:Run explorer app' \
-'help:Print this message or the help of the given subcommand(s)' \
-    )
-    _describe -t commands 'zkstack explorer help commands' commands "$@"
-}
-(( $+functions[_zkstack__explorer__help__help_commands] )) ||
-_zkstack__explorer__help__help_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack explorer help help commands' commands "$@"
-}
-(( $+functions[_zkstack__explorer__help__init_commands] )) ||
-_zkstack__explorer__help__init_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack explorer help init commands' commands "$@"
-}
-(( $+functions[_zkstack__explorer__help__run_commands] )) ||
-_zkstack__explorer__help__run_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack explorer help run commands' commands "$@"
-}
-(( $+functions[_zkstack__explorer__help__run-backend_commands] )) ||
-_zkstack__explorer__help__run-backend_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack explorer help run-backend commands' commands "$@"
-}
-(( $+functions[_zkstack__explorer__init_commands] )) ||
-_zkstack__explorer__init_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack explorer init commands' commands "$@"
-}
-(( $+functions[_zkstack__explorer__run_commands] )) ||
-_zkstack__explorer__run_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack explorer run commands' commands "$@"
-}
-(( $+functions[_zkstack__explorer__run-backend_commands] )) ||
-_zkstack__explorer__run-backend_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack explorer run-backend commands' commands "$@"
 }
 (( $+functions[_zkstack__external-node_commands] )) ||
 _zkstack__external-node_commands() {
@@ -4859,7 +4912,6 @@ _zkstack__help_commands() {
 'prover:Prover related commands' \
 'external-node:External Node related commands' \
 'portal:Run dapp-portal' \
-'explorer:Run block-explorer' \
 'update:Update ZKsync' \
 'markdown:Print markdown help' \
 'help:Print this message or the help of the given subcommand(s)' \
@@ -5330,6 +5382,7 @@ _zkstack__help__ecosystem_commands() {
 'change-default-chain:Change the default chain' \
 'setup-observability:Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo' \
 'containers:Run containers for local development' \
+'explorer:Run block-explorer' \
     )
     _describe -t commands 'zkstack help ecosystem commands' commands "$@"
 }
@@ -5353,6 +5406,30 @@ _zkstack__help__ecosystem__create_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help ecosystem create commands' commands "$@"
 }
+(( $+functions[_zkstack__help__ecosystem__explorer_commands] )) ||
+_zkstack__help__ecosystem__explorer_commands() {
+    local commands; commands=(
+'init:Initialize explorer (create database to store explorer data and generate docker compose file with explorer services). Runs for all chains, unless --chain is passed' \
+'run-backend:Start explorer backend services (api, data_fetcher, worker) for a given chain. Uses default chain, unless --chain is passed' \
+'run:Run explorer app' \
+    )
+    _describe -t commands 'zkstack help ecosystem explorer commands' commands "$@"
+}
+(( $+functions[_zkstack__help__ecosystem__explorer__init_commands] )) ||
+_zkstack__help__ecosystem__explorer__init_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help ecosystem explorer init commands' commands "$@"
+}
+(( $+functions[_zkstack__help__ecosystem__explorer__run_commands] )) ||
+_zkstack__help__ecosystem__explorer__run_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help ecosystem explorer run commands' commands "$@"
+}
+(( $+functions[_zkstack__help__ecosystem__explorer__run-backend_commands] )) ||
+_zkstack__help__ecosystem__explorer__run-backend_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help ecosystem explorer run-backend commands' commands "$@"
+}
 (( $+functions[_zkstack__help__ecosystem__init_commands] )) ||
 _zkstack__help__ecosystem__init_commands() {
     local commands; commands=()
@@ -5362,30 +5439,6 @@ _zkstack__help__ecosystem__init_commands() {
 _zkstack__help__ecosystem__setup-observability_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help ecosystem setup-observability commands' commands "$@"
-}
-(( $+functions[_zkstack__help__explorer_commands] )) ||
-_zkstack__help__explorer_commands() {
-    local commands; commands=(
-'init:Initialize explorer (create database to store explorer data and generate docker compose file with explorer services). Runs for all chains, unless --chain is passed' \
-'run-backend:Start explorer backend services (api, data_fetcher, worker) for a given chain. Uses default chain, unless --chain is passed' \
-'run:Run explorer app' \
-    )
-    _describe -t commands 'zkstack help explorer commands' commands "$@"
-}
-(( $+functions[_zkstack__help__explorer__init_commands] )) ||
-_zkstack__help__explorer__init_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack help explorer init commands' commands "$@"
-}
-(( $+functions[_zkstack__help__explorer__run_commands] )) ||
-_zkstack__help__explorer__run_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack help explorer run commands' commands "$@"
-}
-(( $+functions[_zkstack__help__explorer__run-backend_commands] )) ||
-_zkstack__help__explorer__run-backend_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack help explorer run-backend commands' commands "$@"
 }
 (( $+functions[_zkstack__help__external-node_commands] )) ||
 _zkstack__help__external-node_commands() {

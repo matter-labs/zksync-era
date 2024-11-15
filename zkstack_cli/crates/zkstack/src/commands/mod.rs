@@ -3,7 +3,6 @@ pub mod autocomplete;
 pub mod chain;
 pub mod dev;
 pub mod ecosystem;
-pub mod explorer;
 pub mod external_node;
 pub mod portal;
 pub mod prover;

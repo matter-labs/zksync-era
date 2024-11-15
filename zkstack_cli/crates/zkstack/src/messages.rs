@@ -315,7 +315,7 @@ pub(super) const MSG_EXPLORER_FAILED_TO_RUN_DOCKER_ERR: &str =
 pub(super) const MSG_EXPLORER_FAILED_TO_CREATE_CONFIG_ERR: &str =
     "Failed to create explorer config";
 pub(super) const MSG_EXPLORER_FAILED_TO_FIND_ANY_CHAIN_ERR: &str =
-    "Failed to find any valid chain to run explorer for. Did you run `zkstack explorer init`?";
+    "Failed to find any valid chain to run explorer for. Did you run `zkstack ecosystem explorer init`?";
 pub(super) const MSG_EXPLORER_INITIALIZED: &str = "Explorer has been initialized successfully";
 pub(super) fn msg_explorer_initializing_database_for(chain: &str) -> String {
     format!("Initializing explorer database for {chain} chain")
@@ -330,7 +330,7 @@ pub(super) fn msg_explorer_starting_on(host: &str, port: u16) -> String {
     format!("Starting explorer on http://{host}:{port}")
 }
 pub(super) fn msg_explorer_chain_not_initialized(chain: &str) -> String {
-    format!("Chain {chain} is not initialized for explorer: run `zkstack explorer init --chain {chain}` first")
+    format!("Chain {chain} is not initialized for explorer: run `zkstack ecosystem explorer init --chain {chain}` first")
 }
 
 /// Forge utils related messages

@@ -1,5 +1,6 @@
 use args::{build_transactions::BuildTransactionsArgs, containers::ContainersArgs};
 use clap::Subcommand;
+use explorer::ExplorerCommands;
 use xshell::Shell;
 
 use crate::commands::ecosystem::args::{
@@ -13,6 +14,7 @@ mod common;
 pub(crate) mod containers;
 mod create;
 pub mod create_configs;
+mod explorer;
 pub(crate) mod init;
 pub(crate) mod setup_observability;
 mod utils;
@@ -38,6 +40,9 @@ pub enum EcosystemCommands {
     /// Run containers for local development
     #[command(alias = "up")]
     Containers(ContainersArgs),
+    /// Run block-explorer
+    #[command(subcommand)]
+    Explorer(ExplorerCommands),
 }
 
 pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Result<()> {
@@ -48,5 +53,6 @@ pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Resul
         EcosystemCommands::ChangeDefaultChain(args) => change_default::run(args, shell),
         EcosystemCommands::SetupObservability => setup_observability::run(shell),
         EcosystemCommands::Containers(args) => containers::run(shell, args).await,
+        EcosystemCommands::Explorer(args) => explorer::run(shell, args).await,
     }
 }
