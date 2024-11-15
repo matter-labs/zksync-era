@@ -1,18 +1,17 @@
+use std::fmt::{self, Debug, Formatter};
+
 use zksync_vm2::interface::Tracer;
 use zksync_vm_interface::tracer::ValidationParams;
 
 use super::{
     circuits_tracer::CircuitsTracer,
     evm_deploy_tracer::{DynamicBytecodes, EvmDeployTracer},
+    hlist::{debug_hlist, hlist, HListGet},
     validation_tracer::{FullValidationTracer, ValidationGasLimitOnly, ValidationTracer},
 };
 
-#[derive(Debug, Default)]
 pub struct WithBuiltinTracers<External, Validation>(
-    (
-        External,
-        (Validation, (CircuitsTracer, (EvmDeployTracer, ()))),
-    ),
+    hlist![External, Validation, CircuitsTracer, EvmDeployTracer],
 );
 
 pub type DefaultTracers = SequencerTracers<()>;
@@ -98,22 +97,14 @@ impl<External: Tracer, Validation: ValidationTracer> Tracer
     }
 }
 
-// Heteregeneus list item access
-
-struct Here;
-struct Later<T>(T);
-trait ListGet<T, W> {
-    fn get(&mut self) -> &mut T;
-}
-
-impl<T, U> ListGet<T, Here> for (T, U) {
-    fn get(&mut self) -> &mut T {
-        &mut self.0
+impl<E: Default, V: Default> Default for WithBuiltinTracers<E, V> {
+    fn default() -> Self {
+        Self(Default::default())
     }
 }
 
-impl<T, W, U, V: ListGet<T, W>> ListGet<T, Later<W>> for (U, V) {
-    fn get(&mut self) -> &mut T {
-        self.1.get()
+impl<E: Debug, V: Debug> Debug for WithBuiltinTracers<E, V> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        debug_hlist(&self.0, f)
     }
 }
