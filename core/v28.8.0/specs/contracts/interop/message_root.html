@@ -1,0 +1,338 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Message root - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../../favicon.svg">
+        <link rel="shortcut icon" href="../../../favicon.png">
+        <link rel="stylesheet" href="../../../css/variables.css">
+        <link rel="stylesheet" href="../../../css/general.css">
+        <link rel="stylesheet" href="../../../css/chrome.css">
+        <link rel="stylesheet" href="../../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../../../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../../../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../../css/version-box.css">
+        <link rel="stylesheet" href="../../.././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/specs/contracts/interop/message_root.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="messageroot"><a class="header" href="#messageroot">MessageRoot</a></h1>
+<h2 id="introduction"><a class="header" href="#introduction">Introduction</a></h2>
+<p>The message root is the contract on ZKsync chains that collects messages from different chains and aggregates them into a single Merkle tree. This makes interop more efficient, since instead of having to import each individual message, chains can import the <code>MessageRoot</code>, which is an aggregate of messages in a single batch, then across batches of a single chain, and then across chains.</p>
+<p>The <code>MessageRoot</code> contract is deployed both on L1 and all ZKsync chains, but on ZKsync chains it is only used on GW (since it’s the only ZKsync chain which is whitelisted as settlement layer, as of now). On GW it is used to aggregate messages for chains that are settling on GW, in the same way that it is done on L1. Read about it <a href="../gateway/messaging_via_gateway.html">here</a>.</p>
+<p><img src="../img/message_root.png" alt="MessageRoot" /></p>
+<p>The tree forming the whole <code>MessageRoot</code> at one given chain is called <code>sharedTree</code> on implementation level. It’s the tree formed by taking <code>MessageRoot</code> node, and all of it’s children in the picture above.</p>
+<blockquote>
+<p>The lines between <code>MessageRoot</code> and <code>chainRoot</code> and between each <code>chainRoot</code> and <code>ChainBatchRoot</code> show different binary merkle trees. The <code>MessageRoot</code> will be the root of a <code>FullMerkleTree</code> of <code>chainRoot</code>, while <code>chainRoot</code> is the merkle root of a <code>DynamicIncrementalMerkleTree</code> of <code>ChainBatchRoot</code>.</p>
+</blockquote>
+<p>The root has the following format:</p>
+<p><code>ChainBatchRoot = keccak256(LocalLogsRoot, MessageRoot)</code></p>
+<p>where <code>LocalLogsRoot</code> is the root of the tree of messages that come from the chain itself in the given batch, while the <code>MessageRoot</code> is the root of aggregated messages from all of the chains that settle on top of the chain. For most chains the <code>MessageRoot</code> is empty. The <code>ChainBatchRoot</code> will be settled on the layer below, and be used to update the <code>ChainRoot</code> in the <code>MessageRoot</code> contract on that layer.</p>
+<p>The structure has the following recursive format:</p>
+<ul>
+<li><code>ChainBatchRoot = keccak256(LocalLogsRoot, MessageRoot)</code></li>
+<li><code>BatchRootLeaf = keccak256(BATCH_LEAF_PADDING, chainBatchRoot, batchNumber)</code>, where:
+<ul>
+<li><code>BATCH_LEAF_PADDING</code>: a constant padding, needed to ensure that the preimage of the BatchRootLeaf is larger than 64 bytes and so it can not be an internal node.</li>
+</ul>
+</li>
+<li><code>ChainRoot</code> = the root of the binary dynamic incremental merkle tree <code>BatchRootLeaf[]</code>.</li>
+<li><code>ChainIdLeaf = keccak256(CHAIN_ID_LEAF_PADDING, chainRoot, chainId)</code>, where:
+<ul>
+<li><code>CHAIN_ID_LEAF_PADDING</code> — it is a constant padding, needed to ensure that the preimage of the ChainIdLeaf is larger than 64 bytes and so it can not be an internal node.</li>
+<li><code>chain_id</code> — the chain id of the chain the batches of which are aggregated.</li>
+</ul>
+</li>
+<li><code>MessageRoot</code> — the root of the binary full merkle tree over <code>ChainIdLeaf[]</code>.</li>
+</ul>
+<p>Note that the <code>MessageRoot</code> appears twice in the structure. So the structure is recursive, chains can aggregate other chains, this is used for the <a href="../gateway/l2_gw_l1_messaging.html"><code>Gateway</code></a></p>
+<h2 id="appending-new-batch-root-leaves"><a class="header" href="#appending-new-batch-root-leaves">Appending new batch root leaves</a></h2>
+<p>At the end of each batch, the <code>L1Messenger</code> system contract would query the <code>MessageRoot</code> contract for the total aggregated root (i.e., the root of all <code>ChainIdLeaf</code>s, which is the <code>sharedTree</code> root, the upmost node of the <code>MessageRoot</code> on the chain), calculate the <code>LocalLogsRoot</code> itself, and finally calculate the settled chain batch root <code>ChainBatchRoot = keccak256(LocalLogsRoot, AggregatedRootHash)</code> and propagate it to the settlement layer. We store <code>ChainBatchRoot</code> for each executed batch on settlement layer.</p>
+<p>When ZKsync chain’s batch gets executed on the settlement layer, the chain calls the <code>MessageRoot.addChainBatchRoot</code> function, while providing the <code>ChainBatchRoot</code> for the chain. Then, the <code>BatchRootLeaf</code> will be calculated and appended to the incremental merkle tree with which the <code>ChainRoot</code> &amp; <code>ChainIdLeaf</code> is calculated, which will be updated in the merkle tree of <code>ChainIdLeaf</code>s.</p>
+<h2 id="proving-that-a-message-belongs-to-a-messageroot"><a class="header" href="#proving-that-a-message-belongs-to-a-messageroot">Proving that a message belongs to a MessageRoot</a></h2>
+<h3 id="concepts"><a class="header" href="#concepts">Concepts</a></h3>
+<p>To prove that a message belongs to a <code>MessageRoot</code>, we need to understand the verification process conceptually. The proof system works through a hierarchical structure where messages are aggregated at multiple levels:</p>
+<ol>
+<li>Message to Batch: First, we prove that a specific message was included in a particular batch on its origin chain. This uses the same verification mechanism as standard L2-&gt;L1 log proofs.</li>
+<li>Batch to Chain: Next, we prove that the batch containing our message was included in the origin chain’s aggregated root (<code>ChainRoot</code>). This involves proving the <code>BatchRootLeaf</code>’s inclusion in the chain’s <code>DynamicIncrementalMerkle</code> tree.</li>
+<li>Chain to MessageRoot: Finally, we prove that the origin chain’s root was included in the <code>MessageRoo</code>t’s shared tree. This involves proving the <code>ChainIdLeaf</code>’s inclusion in the <code>MessageRoot</code>’s FullMerkle tree.</li>
+</ol>
+<p>The verification process follows the hierarchical structure described earlier in this document, working up through the tree levels from individual messages to the final <code>MessageRoot</code>. Each level uses Merkle proofs to cryptographically verify inclusion, ensuring that the message authentically belongs to the claimed <code>MessageRoot</code>.</p>
+<h3 id="technical-implementation"><a class="header" href="#technical-implementation">Technical Implementation</a></h3>
+<p>We construct concatenated Merkle proofs to prove that a message belongs to a <code>MessageRoot</code>. The process consists of two main steps:</p>
+<ol>
+<li>Construct the proof to the chain’s <code>ChainBatchRoot</code>. This is the same proof that is used to verify <a href="../settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.html">L2-&gt;L1 logs</a>.</li>
+<li>Prove that it belonged to the <code>MessageRoot</code>.</li>
+</ol>
+<p>The concatenated proof is passed into the <code>proveL2LogInclusion</code> method. This will split the proof into the two parts listed above, and then verify the two merkle proofs. The first verification is done via the normal process of log inclusion, while the second uses <code>proveL2LeafInclusion</code>. The final root is checked to be stored in storage.</p>
+<h4 id="rpc-method-and-proof-format"><a class="header" href="#rpc-method-and-proof-format">RPC Method and Proof Format</a></h4>
+<p>To avoid breaking changes to SDKs, the <code>zks_getL2ToL1LogProof</code> RPC method returns the proof data in a format directly supported by the <code>proveL2LogInclusion</code> contract method:</p>
+<p>First <code>bytes32</code> corresponds to the metadata of the proof. The zero-th byte should tell the version of the metadata and must be equal to the <code>SUPPORTED_PROOF_METADATA_VERSION</code> (a constant of <code>0x01</code>).</p>
+<p>Then, it should contain the number of 32-byte words that are needed to restore the current <code>BatchRootLeaf</code> , i.e. <code>logLeafProofLen</code> (it is called this way as it proves that a leaf belongs to the <code>ChainBatchRoot</code>). The second byte contains the <code>batchLeafProofLen</code>. It is the length of the merkle path to prove that the <code>BatchRootLeaf</code> belonged to the <code>ChainRoot</code>. The third byte, <code>isFinalNode</code>, is a boolean value representing if the proof is for the top level in the aggregation.</p>
+<h4 id="proof-verification-process"><a class="header" href="#proof-verification-process">Proof Verification Process</a></h4>
+<p>Then, the following happens:</p>
+<ul>
+<li>We consume the <code>logLeafProofLen</code> items to produce the <code>ChainBatchRoot</code>. The last word is typically the aggregated root for the chain.</li>
+</ul>
+<p>If we were verifying <code>ChainBatchRoot</code> inclusion we would end here: <code>isFinalNode</code> would be set to true, and <code>batchLeafProofLen</code> to zero. To continue to <code>MessageRoot</code> inclusion we would set <code>isFinalNode</code> to be false, define <code>batchLeafProofLen</code> accordingly, and:</p>
+<ul>
+<li>Compute <code>BatchRootLeaf = keccak256(BATCH_LEAF_PADDING, chainBatchRoot, batchNumber)</code>.</li>
+<li>Consume one element from the <code>_proofs</code> array to get the mask for the Merkle path of the batch leaf in the chain ID tree.</li>
+<li>Consume <code>batchLeafProofLen</code> elements to construct the <code>ChainRoot</code></li>
+<li>Compute the <code>chainIdLeaf = keccak256(CHAIN_ID_LEAF_PADDING, chainRoot, chainId)</code></li>
+</ul>
+<p>Now, we have the <em>supposed</em> <code>chainIdRoot</code> for the chain inside its settlement layer. The only thing left to prove is that this root belonged to some batch of the settlement layer.</p>
+<p>Then, the following happens:</p>
+<ul>
+<li>One element from <code>_proof</code> array is consumed and expected to maintain the block number of the settlement layer when this chain ID <code>ChainBatchRoot</code> was present concatenated with the mask for the reconstruction of the Merkle tree.</li>
+<li>The second element read from <code>_proof</code> contains the settlement layer Chain ID.</li>
+</ul>
+<p>The <code>proveL2LeafInclusion</code> function will be internally used by the existing <code>_proveL2LogInclusion</code> function to prove that a certain node existed in the tree.
+Now, we can call the function to verify that the batch belonged to the settlement layer’s <code>MessageRoot</code>:</p>
+<pre><code class="language-solidity">    proveL2LeafInclusion(
+        settlementLayerChainId,
+        settlementLayerBlockNumber,
+        settlementLayerBlockRootMask,
+        chainIdLeaf,
+        // Basically pass the rest of the `_proof` array
+        extractSliceUntilEnd(_proof, ptr)
+    );
+</code></pre>
+<p>The other slice of the <code>_proof</code> array is expected to have the same structure as before:</p>
+<ul>
+<li>Metadata</li>
+<li>Merkle path to construct the <code>ChainBatchRoot</code></li>
+<li>In case there are any more aggregation layers, additional info to prove that the batch belonged to it.</li>
+</ul>
+<h2 id="additional-notes-on-security"><a class="header" href="#additional-notes-on-security">Additional notes on security</a></h2>
+<h3 id="redundance-of-data"><a class="header" href="#redundance-of-data">Redundance of data</a></h3>
+<p>Currently, we never clear the <code>MessageRoot</code> in other words, the aggregated root contains more and more batches’ settlement roots, leading to the following two facts:</p>
+<ul>
+<li>The aggregated proofs’ length starts to logarithmically depend on the number of total batches ever finalized on top of this settlement layer (it also depends logarithmically on the number of chains in the settlement layer). I.e. it is <code>O(log(total_chains) + log(total_batches) + log(total_logs_in_the_batch))</code> in case of a single aggregation layer.</li>
+<li>The same data may be referenced from multiple final aggregated roots.</li>
+</ul>
+<p>It is the responsibility of the chain to ensure that each message has a unique id and can not be replayed. Currently a tuple of <code>chain_batch_number, chain_message_id</code> is used. While there are multiple message roots from which such a tuple could be proven from, it is still okay as it will be nullified only once.</p>
+<p>Another notable example of the redundancy of data, is that we also have total <code>MessageRoot</code> on L1, which contains the aggregated root of all chains, while for chains that settle on L1, we still store the <code>ChainBatchRoot</code> for the efficiency.</p>
+<h4 id="what-if-chain-doesnt-provide-the-proof"><a class="header" href="#what-if-chain-doesnt-provide-the-proof">What if Chain doesn’t provide the proof</a></h4>
+<p>If the chain doesn’t respond, users can manually re-create the Merkle proof using data available on its settlement layer.</p>
+<h4 id="message-roots-change-frequently"><a class="header" href="#message-roots-change-frequently">Message roots change frequently</a></h4>
+<p>Yes, message roots update continuously as new chains prove their blocks. However, chains retain historical message roots
+for a reasonable period (around 24 hours) to ensure that recently generated Merkle paths remain valid.</p>
+<h4 id="is-this-secure-could-a-chain-operator-like-chain-d-use-a-different-message-root"><a class="header" href="#is-this-secure-could-a-chain-operator-like-chain-d-use-a-different-message-root">Is this secure? Could a chain operator, like Chain D, use a different message root</a></h4>
+<p>Yes, it’s secure. If a malicious operator on Chain D attempted to use a different message root, they wouldn’t be able to
+submit the proof for their new batch to the Gateway. This is because the proof’s public inputs must include the valid
+message root.</p>
+<h3 id="other-features"><a class="header" href="#other-features">Other Features</a></h3>
+<h4 id="dependency-set"><a class="header" href="#dependency-set">Dependency Set</a></h4>
+<ul>
+<li>In ElasticChain, this is implicitly handled by the Gateway. Any chain that is part of the message root can exchange messages with any other chain, effectively forming an undirected graph.</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../../specs/contracts/interop/overview.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../../specs/contracts/interop/forms_of_finality.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../../specs/contracts/interop/overview.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../../specs/contracts/interop/forms_of_finality.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../../ace.js"></script>
+        <script src="../../../editor.js"></script>
+        <script src="../../../mode-rust.js"></script>
+        <script src="../../../theme-dawn.js"></script>
+        <script src="../../../theme-tomorrow_night.js"></script>
+
+        <script src="../../../elasticlunr.min.js"></script>
+        <script src="../../../mark.min.js"></script>
+        <script src="../../../searcher.js"></script>
+
+        <script src="../../../clipboard.min.js"></script>
+        <script src="../../../highlight.js"></script>
+        <script src="../../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../../js/version-box.js"></script>
+        <script src="../../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>

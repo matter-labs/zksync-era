@@ -1,0 +1,291 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Configuration - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../favicon.svg">
+        <link rel="shortcut icon" href="../../favicon.png">
+        <link rel="stylesheet" href="../../css/variables.css">
+        <link rel="stylesheet" href="../../css/general.css">
+        <link rel="stylesheet" href="../../css/chrome.css">
+        <link rel="stylesheet" href="../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../css/version-box.css">
+        <link rel="stylesheet" href="../.././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/guides/external-node/02_configuration.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="node-configuration"><a class="header" href="#node-configuration">Node Configuration</a></h1>
+<p>This document outlines various configuration options for the EN. Currently, the Node requires the definition of numerous
+environment variables. To streamline this process, we provide prepared configs for the ZKsync Era - for both
+<a href="prepared_configs/mainnet-config.env">mainnet</a> and <a href="prepared_configs/testnet-sepolia-config.env">testnet</a>. You can use
+these files as a starting point and modify only the necessary sections.</p>
+<p><strong>You can also see directory docker-compose-examples if you want to run external-node on your machine with recommended
+default settings.</strong></p>
+<h2 id="database"><a class="header" href="#database">Database</a></h2>
+<p>The Node uses two databases: PostgreSQL and RocksDB.</p>
+<p>PostgreSQL serves as the main source of truth in the EN, so all the API requests fetch the state from there. The
+PostgreSQL connection is configured by the <code>DATABASE_URL</code>. Additionally, the <code>DATABASE_POOL_SIZE</code> variable defines the
+size of the connection pool.</p>
+<p>RocksDB is used in components where IO is a bottleneck, such as the State Keeper and the Merkle tree. If possible, it is
+recommended to use an NVME SSD for RocksDB. RocksDB requires two variables to be set: <code>EN_STATE_CACHE_PATH</code> and
+<code>EN_MERKLE_TREE_PATH</code>, which must point to different directories. When running a Node inside Docker Compose, Kubernetes
+etc., these paths should point to dirs in a persistent volume (or 2 separate volumes). Persistent volumes <strong>must</strong> be
+exclusive to a node; i.e., they <strong>must not</strong> be shared among nodes concurrently or transferred from one node to another.
+Failing to adhere to this rule may result in RocksDB corruption or
+<a href="05_troubleshooting.html#rocksdb-issues">the Node crashing on start</a>.</p>
+<h2 id="l1-web3-client"><a class="header" href="#l1-web3-client">L1 Web3 client</a></h2>
+<p>Node requires a connection to an Ethereum node. The corresponding env variable is <code>EN_ETH_CLIENT_URL</code>. Make sure to set
+the URL corresponding to the correct L1 network (L1 mainnet for L2 mainnet and L1 sepolia for L2 testnet).</p>
+<p>Note: Currently, the Node makes 2 requests to the L1 per L1 batch, so the Web3 client usage for a synced node should not
+be high. However, during the synchronization phase the new batches would be persisted on the Node quickly, so make sure
+that the L1 client won’t exceed any limits (e.g. in case you use Infura).</p>
+<h2 id="exposed-ports"><a class="header" href="#exposed-ports">Exposed ports</a></h2>
+<p>The dockerized version of the server exposes the following ports:</p>
+<ul>
+<li>HTTP JSON-RPC: 3060</li>
+<li>WebSocket JSON-RPC: 3061</li>
+<li>Prometheus listener: 3322</li>
+<li>Healthcheck server: 3081</li>
+</ul>
+<p>While the configuration variables for them exist, you are not expected to change them unless you want to use the Node
+outside provided Docker environment (not supported at the time of writing).</p>
+<h2 id="api-limits"><a class="header" href="#api-limits">API limits</a></h2>
+<p>There are variables that allow you to fine-tune the limits of the RPC servers, such as limits on the number of returned
+entries or the limit for the accepted transaction size. Provided files contain sane defaults that are recommended for
+use, but these can be edited, e.g. to make the Node more/less restrictive.</p>
+<p><strong>Some common API limits config:</strong></p>
+<ul>
+<li><code>EN_MAX_RESPONSE_BODY_SIZE_MB</code> (default is 10 i.e. 10MB) controls max size of a single response. Hitting the limit
+will result in errors similar to: “Response is too big (…)”.</li>
+<li><code>EN_MAX_RESPONSE_BODY_SIZE_OVERRIDES_MB</code> overrides max response size for specific RPC methods. E.g., setting this var
+to <code>eth_getLogs=100,eth_getBlockReceipts=None</code> sets max response size for <code>eth_getLogs</code> to 100MB and disables size
+limiting for <code>eth_getBlockReceipts</code>, while other RPC methods will use the <code>EN_MAX_RESPONSE_BODY_SIZE_MB</code> setting.</li>
+<li><code>EN_REQ_ENTITIES_LIMIT</code> (default 10,000) controls max possible limit of entities to be requested at once. Hitting the
+limit will result in errors similar to: “Query returned more than 10000 results (…)”</li>
+</ul>
+<h2 id="json-rpc-api-namespaces"><a class="header" href="#json-rpc-api-namespaces">JSON-RPC API namespaces</a></h2>
+<p>There are 7 total supported API namespaces: <code>eth</code>, <code>net</code>, <code>web3</code>, <code>debug</code> - standard ones; <code>zks</code> - rollup-specific one;
+<code>pubsub</code> - a.k.a. <code>eth_subscribe</code>; <code>en</code> - used by Nodes while syncing. You can configure what namespaces you want to
+enable using <code>EN_API_NAMESPACES</code> and specifying namespace names in a comma-separated list. By default, all but the
+<code>debug</code> namespace are enabled.</p>
+<h2 id="logging-and-observability"><a class="header" href="#logging-and-observability">Logging and observability</a></h2>
+<ul>
+<li><code>MISC_LOG_FORMAT</code> defines the format in which logs are shown: <code>plain</code> corresponds to the human-readable format, while
+the other option is <code>json</code> (recommended for deployments).</li>
+<li><code>RUST_LOG</code> variable allows you to set up the logs granularity (e.g. make the Node emit fewer logs). You can read about
+the format <a href="https://docs.rs/env_logger/0.10.0/env_logger/#enabling-logging">here</a>.</li>
+<li><code>MISC_SENTRY_URL</code> and <code>MISC_OTLP_URL</code> variables can be configured to set up Sentry and OpenTelemetry exporters.</li>
+<li>If Sentry is configured, you also have to set <code>EN_SENTRY_ENVIRONMENT</code> variable to configure the environment in events
+reported to sentry.</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../guides/external-node/00_quick_start.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../guides/external-node/03_running.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../guides/external-node/00_quick_start.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../guides/external-node/03_running.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../ace.js"></script>
+        <script src="../../editor.js"></script>
+        <script src="../../mode-rust.js"></script>
+        <script src="../../theme-dawn.js"></script>
+        <script src="../../theme-tomorrow_night.js"></script>
+
+        <script src="../../elasticlunr.min.js"></script>
+        <script src="../../mark.min.js"></script>
+        <script src="../../searcher.js"></script>
+
+        <script src="../../clipboard.min.js"></script>
+        <script src="../../highlight.js"></script>
+        <script src="../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../js/version-box.js"></script>
+        <script src="../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>

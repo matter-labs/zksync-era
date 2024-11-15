@@ -1,0 +1,426 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Pubdata - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../favicon.svg">
+        <link rel="shortcut icon" href="../../favicon.png">
+        <link rel="stylesheet" href="../../css/variables.css">
+        <link rel="stylesheet" href="../../css/general.css">
+        <link rel="stylesheet" href="../../css/chrome.css">
+        <link rel="stylesheet" href="../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../css/version-box.css">
+        <link rel="stylesheet" href="../.././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/guides/advanced/09_pubdata.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="overview"><a class="header" href="#overview">Overview</a></h1>
+<p>Pubdata in ZKsync can be divided up into 4 different categories:</p>
+<ol>
+<li>L2 to L1 Logs</li>
+<li>L2 to L1 Messages</li>
+<li>Smart Contract Bytecodes</li>
+<li>Storage writes</li>
+</ol>
+<p>Using data corresponding to these 4 facets, across all executed batches, we’re able to reconstruct the full state of L2.
+One thing to note is that the way that the data is represented changes in a pre-boojum and post-boojum zkEVM. At a high
+level, in a pre-boojum era these are represented as separate fields while in boojum they are packed into a single bytes
+array.</p>
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-note"></a>
+</div>
+<div>
+<p>When the 4844 was integrated this bytes array was moved from being part of the calldata to blob data.</p>
+</div>
+</div>
+<p>While the structure of the pubdata changes, we can use the same strategy to pull the relevant information. First, we
+need to filter all of the transactions to the L1 ZKsync contract for only the <code>commitBlocks/commitBatches</code> transactions
+where the proposed block has been referenced by a corresponding <code>executeBlocks/executeBatches</code> call (the reason for this
+is that a committed or even proven block can be reverted but an executed one cannot). Once we have all the committed
+blocks that have been executed, we then will pull the transaction input and the relevant fields, applying them in order
+to reconstruct the current state of L2.</p>
+<p>One thing to note is that in both systems some of the contract bytecode is compressed into an array of indices where
+each 2 byte index corresponds to an 8 byte word in a dictionary. More on how that is done <a href="./11_compression.html">here</a>.
+Once the bytecode has been expanded, the hash can be taken and checked against the storage writes within the
+<code>AccountCodeStorage</code> contract which connects an address on L2 with the 32 byte code hash:</p>
+<pre><code class="language-solidity">function _storeCodeHash(address _address, bytes32 _hash) internal {
+  uint256 addressAsKey = uint256(uint160(_address));
+  assembly {
+    sstore(addressAsKey, _hash)
+  }
+}
+
+</code></pre>
+<h3 id="pre-boojum-era"><a class="header" href="#pre-boojum-era">Pre-Boojum Era</a></h3>
+<p>In pre-boojum era the superset of pubdata fields and input to the <code>commitBlocks</code> function follows the following format:</p>
+<pre><code class="language-solidity">/// @notice Data needed to commit new block
+/// @param blockNumber Number of the committed block
+/// @param timestamp Unix timestamp denoting the start of the block execution
+/// @param indexRepeatedStorageChanges The serial number of the shortcut index that's used as a unique identifier for storage keys that were used twice or more
+/// @param newStateRoot The state root of the full state tree
+/// @param numberOfLayer1Txs Number of priority operations to be processed
+/// @param l2LogsTreeRoot The root hash of the tree that contains all L2 -&gt; L1 logs in the block
+/// @param priorityOperationsHash Hash of all priority operations from this block
+/// @param initialStorageChanges Storage write access as a concatenation key-value
+/// @param repeatedStorageChanges Storage write access as a concatenation index-value
+/// @param l2Logs concatenation of all L2 -&gt; L1 logs in the block
+/// @param l2ArbitraryLengthMessages array of hash preimages that were sent as value of L2 logs by special system L2 contract
+/// @param factoryDeps (contract bytecodes) array of L2 bytecodes that were deployed
+struct CommitBlockInfo {
+  uint64 blockNumber;
+  uint64 timestamp;
+  uint64 indexRepeatedStorageChanges;
+  bytes32 newStateRoot;
+  uint256 numberOfLayer1Txs;
+  bytes32 l2LogsTreeRoot;
+  bytes32 priorityOperationsHash;
+  bytes initialStorageChanges;
+  bytes repeatedStorageChanges;
+  bytes l2Logs;
+  bytes[] l2ArbitraryLengthMessages;
+  bytes[] factoryDeps;
+}
+
+</code></pre>
+<p>The 4 main fields to look at here are:</p>
+<ol>
+<li><code>initialStorageChanges</code>: Storage slots being written to for the first time and the corresponding value
+<ol>
+<li>Structure: <code>num entries as u32 || for each entry: (32 bytes key, 32 bytes final value)</code></li>
+</ol>
+</li>
+<li><code>repeatedStorageChanges</code>: ids of the slots being written to and the corresponding value
+<ol>
+<li>Structure: <code>num entries as u32 || for each entry: (8 byte id, 32 bytes final value)</code></li>
+</ol>
+</li>
+<li><code>factoryDeps</code>: An array of uncompressed bytecodes</li>
+<li><code>l2ArbitraryLengthMessages</code> : L2 → L1 Messages
+<ol>
+<li>We don’t need them all, we are just concerned with messages sent from the <code>Compressor/BytecodeCompressor</code> contract</li>
+<li>These messages will follow the compression algorithm outline <a href="./11_compression.html">here</a></li>
+</ol>
+</li>
+</ol>
+<p>For the ids on the repeated writes, they are generated as we process the first time keys. For example: if we see
+<code>[&lt;key1, val1&gt;, &lt;key2, val2&gt;]</code> (starting from an empty state) then we can assume that the next time a write happens to
+<code>key1</code> it will be encoded as <code>&lt;1, new_val&gt;</code> and so on and so forth. There is a little shortcut here where the last new
+id generated as part of a batch will be in the <code>indexRepeatedStorageChanges</code> field.</p>
+<h3 id="post-boojum-era"><a class="header" href="#post-boojum-era">Post-Boojum Era</a></h3>
+<pre><code class="language-solidity">/// @notice Data needed to commit new batch
+/// @param batchNumber Number of the committed batch
+/// @param timestamp Unix timestamp denoting the start of the batch execution
+/// @param indexRepeatedStorageChanges The serial number of the shortcut index that's used as a unique identifier for storage keys that were used twice or more
+/// @param newStateRoot The state root of the full state tree
+/// @param numberOfLayer1Txs Number of priority operations to be processed
+/// @param priorityOperationsHash Hash of all priority operations from this batch
+/// @param bootloaderHeapInitialContentsHash Hash of the initial contents of the bootloader heap. In practice it serves as the commitment to the transactions in the batch.
+/// @param eventsQueueStateHash Hash of the events queue state. In practice it serves as the commitment to the events in the batch.
+/// @param systemLogs concatenation of all L2 -&gt; L1 system logs in the batch
+/// @param pubdataCommitments Packed pubdata commitments/data.
+/// @dev pubdataCommitments format: This will always start with a 1 byte pubdataSource flag. Current allowed values are 0 (calldata) or 1 (blobs)
+///                             kzg: list of: opening point (16 bytes) || claimed value (32 bytes) || commitment (48 bytes) || proof (48 bytes) = 144 bytes
+///                             calldata: pubdataCommitments.length - 1 - 32 bytes of pubdata
+///                                       and 32 bytes appended to serve as the blob commitment part for the aux output part of the batch commitment
+/// @dev For 2 blobs we will be sending 288 bytes of calldata instead of the full amount for pubdata.
+/// @dev When using calldata, we only need to send one blob commitment since the max number of bytes in calldata fits in a single blob and we can pull the
+///     linear hash from the system logs
+struct CommitBatchInfo {
+  uint64 batchNumber;
+  uint64 timestamp;
+  uint64 indexRepeatedStorageChanges;
+  bytes32 newStateRoot;
+  uint256 numberOfLayer1Txs;
+  bytes32 priorityOperationsHash;
+  bytes32 bootloaderHeapInitialContentsHash;
+  bytes32 eventsQueueStateHash;
+  bytes systemLogs;
+  bytes pubdataCommitments;
+}
+
+</code></pre>
+<p>The main difference between the two <code>CommitBatchInfo</code> and <code>CommitBlockInfo</code> structs is that we have taken a few of the
+fields and merged them into a single bytes array called <code>pubdataCommitments</code>. In the <code>calldata</code> mode, the pubdata is
+being passed using that field. In the <code>blobs</code> mode, that field is used to store the KZG commitments and proofs. More on
+EIP-4844 blobs <a href="./10_pubdata_with_blobs.html">here</a>. In the Validium mode, the field will either be empty or store the
+inclusion proof for the DA blob.</p>
+<p>The 2 main fields needed for state reconstruction are the bytecodes and the state diffs. The bytecodes follow the same
+structure and reasoning in the old system (as explained above). The state diffs will follow the compression illustrated
+below.</p>
+<h3 id="compression-of-state-diffs-in-post-boojum-era"><a class="header" href="#compression-of-state-diffs-in-post-boojum-era">Compression of State Diffs in Post-Boojum Era</a></h3>
+<h4 id="keys"><a class="header" href="#keys">Keys</a></h4>
+<p>Keys will be packed in the same way as they were before boojum. The only change is that we’ll avoid using the 8-byte
+enumeration index and will pack it to the minimal necessary number of bytes. This number will be part of the pubdata.
+Once a key has been used, it can already use the 4 or 5 byte enumeration index and it is very hard to have something
+cheaper for keys that has been used already. The opportunity comes when remembering the ids for accounts to spare some
+bytes on nonce/balance key, but ultimately the complexity may not be worth it.</p>
+<p>There is some room for the keys that are being written for the first time, however, these are rather more complex and
+achieve only a one-time effect (when the key is published for the first time).</p>
+<h4 id="values"><a class="header" href="#values">Values</a></h4>
+<p>Values are much easier to compress, since they usually contain only zeroes. Also, we can leverage the nature of how
+those values are changed. For instance if nonce has been increased only by 1, we do not need to write the entire 32-byte
+new value, we can just tell that the slot has been <em>increased</em> and then supply only 1-byte value of <em>the size by which</em>
+it was increased. This way instead of 32 bytes we need to publish only 2 bytes: first byte to denote which operation has
+been applied and the second by to denote the size by which the addition has been made.</p>
+<p>If we decide to have just the following 4 types of changes: <code>Add</code>, <code>Sub,</code> <code>Transform</code>, <code>NoCompression</code> where:</p>
+<ul>
+<li><code>Add</code> denotes that the value has been increased. (modulo 2^256)</li>
+<li><code>Sub</code> denotes that the value has been decreased. (modulo 2^256)</li>
+<li><code>Transform</code> denotes the value just has been changed (i.e. we disregard any potential relation between the previous and
+the new value, though the new value might be small enough to save up on the number of bytes).</li>
+<li><code>NoCompression</code> denotes that the whole 32 byte value will be used.</li>
+</ul>
+<p>Where the byte size of the output can be anywhere from 0 to 31 (also 0 makes sense for <code>Transform</code>, since it denotes
+that it has been zeroed out). For <code>NoCompression</code> the whole 32 byte value is used.</p>
+<p>So the format of the pubdata will be the following:</p>
+<h5 id="part-1-header"><a class="header" href="#part-1-header">Part 1. Header</a></h5>
+<ul>
+<li><code>&lt;version = 1 byte&gt;</code> — this will enable easier automated unpacking in the future. Currently, it will be only equal to
+<code>1</code>.</li>
+<li><code>&lt;total_logs_len = 3 bytes&gt;</code> — we need only 3 bytes to describe the total length of the L2→L1 logs.</li>
+<li><code>&lt;the number of bytes used for derived keys = 1 byte&gt;</code>. At the beginning it will be equal to <code>4</code>, but then it will
+automatically switch to <code>5</code> when needed.</li>
+</ul>
+<h5 id="part-2-initial-writes"><a class="header" href="#part-2-initial-writes">Part 2. Initial writes</a></h5>
+<ul>
+<li><code>&lt;num_of_initial_writes = 2 bytes&gt;</code> (since each initial write publishes at least 32 bytes for key, then
+<code>2^16 * 32 = 2097152</code> will be enough for a lot of time (right now with the limit of 120kb it will take more than 15 L1
+txs to use up all the space there).</li>
+<li>Then for each <code>&lt;key, value&gt;</code> pair for each initial write:
+<ul>
+<li>print key as 32-byte derived key.</li>
+<li>packing type as a 1 byte value, which consists of 5 bits to denote the length of the packing and 3 bits to denote
+the type of the packing (either <code>Add</code>, <code>Sub</code>, <code>Transform</code> or <code>NoCompression</code>). More on it
+<a href="https://www.notion.so/Pubdata-compression-v1-4b0dd8c151014c8ab96dbd7e66e17599?pvs=21">below</a>.</li>
+<li>The packed value itself.</li>
+</ul>
+</li>
+</ul>
+<h4 id="part-3-repeated-writes"><a class="header" href="#part-3-repeated-writes">Part 3. Repeated writes</a></h4>
+<p>Note, that there is no need to write the number of repeated writes, since we know that until the end of the pubdata, all
+the writes will be repeated ones.</p>
+<ul>
+<li>For each <code>&lt;key, value&gt;</code> pair for each repeated write:
+<ul>
+<li>print key as either 4 or 5 byte derived key.</li>
+<li>packing type as a 1 byte value, which consists of 5 bits to denote the length of the packing and 3 bits to denote
+the type of the packing (either <code>Add</code>, <code>Sub</code>, <code>Transform</code> or <code>NoCompression</code>).</li>
+<li>The packed value itself.</li>
+</ul>
+</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../guides/advanced/08_how_l2_messaging_works.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../guides/advanced/10_pubdata_with_blobs.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../guides/advanced/08_how_l2_messaging_works.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../guides/advanced/10_pubdata_with_blobs.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../ace.js"></script>
+        <script src="../../editor.js"></script>
+        <script src="../../mode-rust.js"></script>
+        <script src="../../theme-dawn.js"></script>
+        <script src="../../theme-tomorrow_night.js"></script>
+
+        <script src="../../elasticlunr.min.js"></script>
+        <script src="../../mark.min.js"></script>
+        <script src="../../searcher.js"></script>
+
+        <script src="../../clipboard.min.js"></script>
+        <script src="../../highlight.js"></script>
+        <script src="../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../js/version-box.js"></script>
+        <script src="../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>
