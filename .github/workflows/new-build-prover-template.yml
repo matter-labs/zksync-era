@@ -174,8 +174,8 @@ jobs:
         run: |
           docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
           docker push matterlabs/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
-          docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
-          docker push matterlabs/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
+          docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
+          docker push matterlabs/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
 
   copy-images:
     name: Copy images between docker registries
@@ -202,6 +202,10 @@ jobs:
           docker buildx imagetools create \
             --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ inputs.image_tag_suffix }}
+          docker buildx imagetools create \
+            --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }} \
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }}
+
 
       - name: Login and push to Europe GAR
         run: |
@@ -209,3 +213,6 @@ jobs:
           docker buildx imagetools create \
             --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ inputs.image_tag_suffix }}
+          docker buildx imagetools create \
+            --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }} \
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }}
