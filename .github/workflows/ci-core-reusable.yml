@@ -211,12 +211,12 @@ jobs:
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
           ci_run zkstackup -g --local
 
-      - name: Reinstall foundry
-        run: |
-          ci_run git clone https://github.com/matter-labs/foundry-zksync ~/foundry-zksync-2
-          ci_run cd ~/foundry-zksync-2 && git checkout 953a1800eaa2cffe5cb272f96ff641cc7a3c1ba1 && cargo build --release --bins
-          ci_run mv ~/foundry-zksync-2/target/release/forge /usr/local/cargo/bin/
-          ci_run mv ./foundry-zksync-2/target/release/cast /usr/local/cargo/bin/
+      # - name: Reinstall foundry
+      #   run: |
+      #     ci_run git clone https://github.com/matter-labs/foundry-zksync ~/foundry-zksync-2
+      #     ci_run cd ~/foundry-zksync-2 && git checkout 953a1800eaa2cffe5cb272f96ff641cc7a3c1ba1 && cargo build --release --bins
+      #     ci_run mv ~/foundry-zksync-2/target/release/forge /usr/local/cargo/bin/
+      #     ci_run mv ./foundry-zksync-2/target/release/cast /usr/local/cargo/bin/
 
       - name: Create log directories
         run: |
