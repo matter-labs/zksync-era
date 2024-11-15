@@ -8,53 +8,7 @@ initializing the workspace, it's recommended that you read the whole guide below
 If you run on 'clean' Ubuntu on GCP:
 
 ```bash
-# All necessary stuff
-sudo apt update
-sudo apt install --yes git build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates curl software-properties-common
 
-# Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y
-source "$HOME/.cargo/env"
-# For running unit tests
-cargo install cargo-nextest --locked
-# SQL tools
-cargo install sqlx-cli --version 0.8.1
-
-# Install Docker
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-sudo add-apt-repository --yes "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
-sudo apt install --yes docker-ce
-
-# Start Docker
-sudo systemctl start docker
-
-# NVM
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
-nvm install 20
-
-# Yarn
-npm install -g yarn
-yarn set version 1.22.19
-
-# Foundry ZK sync
-curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
-
-# ZK Stack CLI
-curl -L https://raw.githubusercontent.com/matter-labs/zksync-era/main/zkstack_cli/zkstackup/install | bash
-"$HOME/.local/bin/zkstackup"
-
-# Clone the repo
-git clone --recurse-submodules https://github.com/matter-labs/zksync-era.git
-
-# Non CUDA (GPU) setup, can be skipped if the machine has a CUDA installed for provers
-# Don't do that if you intend to run provers on your machine. Check the prover docs for a setup instead.
-echo "export ZKSYNC_USE_CUDA_STUBS=true" >> "$HOME/.bashrc"
-
-echo "Installation of Dev setup complete!"
-echo "Please reload your terminal. You can do so by running `exec bash`."
 ```
 
 Don't forget to look at [tips](#tips).
@@ -219,7 +173,7 @@ SQLx is a Rust library we use to interact with Postgres, and its CLI is used to 
 features of the library.
 
 ```bash
-cargo install --locked sqlx-cli --version 0.8.1
+cargo install sqlx-cli --version 0.8.1
 ```
 
 ## Easier method using `nix`
