@@ -1,0 +1,632 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Fee Model - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../favicon.svg">
+        <link rel="shortcut icon" href="../../favicon.png">
+        <link rel="stylesheet" href="../../css/variables.css">
+        <link rel="stylesheet" href="../../css/general.css">
+        <link rel="stylesheet" href="../../css/chrome.css">
+        <link rel="stylesheet" href="../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../../highlight.css">
+        <link rel="stylesheet" href="../../tomorrow-night.css">
+        <link rel="stylesheet" href="../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../css/version-box.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/specs/zk_evm/fee_model.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="zksync-fee-model"><a class="header" href="#zksync-fee-model">ZKsync fee model</a></h1>
+<p>This document will assume that you already know how gas &amp; fees work on Ethereum.</p>
+<p>On Ethereum, all the computational, as well as storage costs, are represented via one unit: gas. Each operation costs a
+certain amount of gas, which is generally constant (though it may change during
+<a href="https://blog.ethereum.org/2021/03/08/ethereum-berlin-upgrade-announcement">upgrades</a>).</p>
+<p>ZKsync as well as other L2s have the issue which does not allow to adopt the same model as the one for Ethereum so
+easily: the main reason is the requirement for publishing of the pubdata on Ethereum. This means that prices for L2
+transactions will depend on the volatile L1 gas prices and can not be simply hardcoded.</p>
+<h2 id="high-level-description"><a class="header" href="#high-level-description">High-level description</a></h2>
+<p>ZKsync, being a zkRollup is required to prove every operation with zero knowledge proofs. That comes with a few nuances.</p>
+<h3 id="gas_per_pubdata_limit"><a class="header" href="#gas_per_pubdata_limit"><code>gas_per_pubdata_limit</code></a></h3>
+<p>As already mentioned, the transactions on ZKsync depend on volatile L1 gas costs to publish the pubdata for batch,
+verify proofs, etc. For this reason, ZKsync-specific EIP712 transactions contain the <code>gas_per_pubdata_limit</code> field in
+them, denoting the maximum price in <em>gas</em> that the operator **can charge from users for a single byte of pubdata.</p>
+<p>For Ethereum transactions (which do not contain this field), it is enforced that the operator will not use a value
+larger value than a certain constant.</p>
+<h3 id="different-opcode-pricing"><a class="header" href="#different-opcode-pricing">Different opcode pricing</a></h3>
+<p>The operations tend to have different “complexity”/”pricing” in zero knowledge proof terms than in standard CPU terms.
+For instance, <code>keccak256</code> which was optimized for CPU performance, will cost more to prove.</p>
+<p>That’s why you will find the prices for operations on ZKsync a lot different from the ones on Ethereum.</p>
+<h3 id="different-intrinsic-costs"><a class="header" href="#different-intrinsic-costs">Different intrinsic costs</a></h3>
+<p>Unlike Ethereum, where the intrinsic cost of transactions (<code>21000</code> gas) is used to cover the price of updating the
+balances of the users, the nonce and signature verification, on ZKsync these prices are <em>not</em> included in the intrinsic
+costs for transactions, due to the native support of account abstraction, meaning that each account type may have their
+own transaction cost. In theory, some may even use more zk-friendly signature schemes or other kinds of optimizations to
+allow cheaper transactions for their users.</p>
+<p>That being said, ZKsync transactions do come with some small intrinsic costs, but they are mostly used to cover costs
+related to the processing of the transaction by the bootloader which can not be easily measured in code in real-time.
+These are measured via testing and are hard coded.</p>
+<h3 id="batch-overhead--limited-resources-of-the-batch"><a class="header" href="#batch-overhead--limited-resources-of-the-batch">Batch overhead &amp; limited resources of the batch</a></h3>
+<p>In order to process the batch, the ZKsync team has to pay for proving of the batch, committing to it, etc. Processing a
+batch involves some operational costs as well. All of these values we call “Batch overhead”. It consists of two parts:</p>
+<ul>
+<li>The L2 requirements for proving the circuits (denoted in L2 gas).</li>
+<li>The L1 requirements for the proof verification as well as general batch processing (denoted in L1 gas).</li>
+</ul>
+<p>We generally try to aggregate as many transactions as possible and each transaction pays for the batch overhead
+proportionally to how close did the transaction bring the batch to being <em>sealed,</em> i.e. closed and prepared for proof
+verification and submission on L1. A transaction gets closer to sealing a batch by using the batch’s <em>limited
+resources</em>.</p>
+<p>While on Ethereum, the main reason for the existence of batch gas limit is to keep the system decentralized &amp; load low,
+i.e. assuming the existence of the correct hardware, only time would be a requirement for a batch to adhere to. In the
+case of ZKsync batches, there are some limited resources the batch should manage:</p>
+<ul>
+<li><strong>Time.</strong> The same as on Ethereum, the batch should generally not take too much time to be closed in order to provide
+better UX. To represent the time needed we use a batch gas limit, note that it is higher than the gas limit for a
+single transaction.</li>
+<li><strong>Slots for transactions.</strong> The bootloader has a limited number of slots for transactions, i.e. it can not take more
+than a certain transactions per batch.</li>
+<li><strong>The memory of the bootloader.</strong> The bootloader needs to store the transaction’s ABI encoding in its memory &amp; this
+fills it up. In practical terms, it serves as a penalty for having transactions with large calldata/signatures in case
+of custom accounts.</li>
+<li><strong>Pubdata bytes.</strong> In order to fully appreciate the gains from the storage diffs, i.e. the fact that changes in a
+single slot happening in the same batch need to be published only once, we need to publish all the batch’s public data
+only after the transaction has been processed. Right now, we publish all the data with the storage diffs as well as
+L2→L1 messages, etc in a single transaction at the end of the batch. Most nodes have limit of 128kb per transaction
+and so this is the limit that each ZKsync batch should adhere to.</li>
+</ul>
+<p>Each transaction spends the batch overhead proportionally to how close it consumes the resources above.</p>
+<p>Note, that before the transaction is executed, the system can not know how many of the limited system resources the
+transaction will actually take, so we need to charge for the worst case and provide the refund at the end of the
+transaction.</p>
+<h3 id="how-basefee-works-on-zksync"><a class="header" href="#how-basefee-works-on-zksync">How <code>baseFee</code> works on ZKsync</a></h3>
+<p>In order to protect us from DDoS attacks we need to set a limited <code>MAX_TRANSACTION_GAS_LIMIT</code> per transaction. Since the
+computation costs are relatively constant for us, we <em>could</em> use a “fair” <code>baseFee</code> equal to the real costs for us to
+compute the proof for the corresponding 1 erg. Note, that <code>gas_per_pubdata_limit</code> should be then set high enough to
+cover the fees for the L1 gas needed to send a single pubdata byte on Ethereum. Under large L1 gas,
+<code>gas_per_pubdata_limit</code> would also need be large. That means that <code>MAX_TRANSACTION_GAS_LIMIT/gas_per_pubdata_limit</code>
+could become too low to allow for enough pubdata for lots of common use cases.</p>
+<p>To make common transactions always executable, we must enforce that the users are always able to send at least
+<code>GUARANTEED_PUBDATA_PER_TX</code> bytes of pubdata in their transaction. Because of that, the needed <code>gas_per_pubdata_limit</code>
+for transactions should never grow beyond <code>MAX_TRANSACTION_GAS_LIMIT/GUARANTEED_PUBDATA_PER_TX</code>. Setting a hard bound on
+<code>gas_per_pubdata_limit</code> also means that with the growth of L1 gas prices, the L2 <code>baseFee</code> will have to grow as well (to
+ensure that <code>base_fee * gas_per_pubdata_limit = L1_gas_price * l1_gas_per_pubdata)</code>).</p>
+<p>This does not actually matter a lot for normal transactions, since most of the costs will still go on pubdata for them.
+However, it may matter for computationally intensive tasks, meaning that for them a big upfront payment will be
+required, with the refund at the end of the transaction for all the overspent gas.</p>
+<h3 id="trusted-gas-limit"><a class="header" href="#trusted-gas-limit">Trusted gas limit</a></h3>
+<p>While it was mentioned above that the <code>MAX_TRANSACTION_GAS_LIMIT</code> is needed to protect the operator from users stalling
+the state keeper by using too much computation, in case the users may need to use a lot of pubdata (for instance to
+publish the bytecode of a new contract), the required gasLimit may go way beyond the <code>MAX_TRANSACTION_GAS_LIMIT</code> (since
+the contracts can be 10s of kilobytes in size). All the new contracts to be published are included as part of the
+factory dependencies field of the transaction and so the operator already knows how much pubdata will have to published
+&amp; how much gas will have to spent on it.</p>
+<p>That’s why, to provide the better UX for users, the operator may provide the
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/bootloader/bootloader.yul#L1137">trusted gas limit</a>,
+i.e. the limit which exceeds <code>MAX_TRANSACTION_GAS_LIMIT</code> assuming that the operator knows what he is doing (e.g. he is
+sure that the excess gas will be spent on the pubdata).</p>
+<h3 id="high-level-conclusion"><a class="header" href="#high-level-conclusion">High-level: conclusion</a></h3>
+<p>The ZKsync fee model is meant to be the basis of the long-term fee model, which provides both robustness and security.
+One of the most distinctive parts of it is the existing of the batch overhead, which is proportional for the resources
+consumed by the transaction.</p>
+<p>The other distinctive feature of the fee model used on ZKsync is the abundance of refunds, i.e.:</p>
+<ul>
+<li>For unused limited system resources.</li>
+<li>For overpaid computation.</li>
+</ul>
+<p>This is needed because of the relatively big upfront payments required in ZKsync to provide DDoS security.</p>
+<h2 id="formalization"><a class="header" href="#formalization">Formalization</a></h2>
+<p>After determining price for each opcode in gas according to the model above, the following formulas are to be used for
+calculating <code>baseFee</code> and <code>gasPerPubdata</code> for a batch.</p>
+<h4 id="system-wide-constants"><a class="header" href="#system-wide-constants">System-wide constants</a></h4>
+<p>These constants are to be hardcoded and can only be changed via either system contracts/bootloader or VM upgrade.</p>
+<p><code>BATCH_OVERHEAD_L1_GAS</code> (<em>L</em>1<em>O</em>)— The L1 gas overhead for a batch (proof verification, etc).</p>
+<p><code>L1_GAS_PER_PUBDATA_BYTE</code> (<em>L</em>1<em>PUB</em>) — The number of L1 gas needed for a single pubdata byte. It is slightly higher
+than 16 gas needed for publishing a non-zero byte of pubdata on-chain (currently the value of 17 is used).</p>
+<p><code>BATCH_OVERHEAD_L2_GAS</code> (<em>EO</em>)— The constant overhead denominated in gas. This overhead is created to cover the
+amortized costs of proving.</p>
+<p><code>BLOCK_GAS_LIMIT</code> (<em>B</em>) — The maximum number of computation gas per batch. This is the maximal number of gas that can be
+spent within a batch. This constant is rather arbitrary and is needed to prevent transactions from taking too much time
+from the state keeper. It can not be larger than the hard limit of 2^32 of gas for VM.</p>
+<p><code>MAX_TRANSACTION_GAS_LIMIT</code> (<em>TM</em>) — The maximal transaction gas limit. For <em>i</em>-th single instance circuit, the price of
+each of its units is $SC_i = \lceil \frac{T_M}{CC_i} \rceil$ to ensure that no transaction can run out of these single
+instance circuits.</p>
+<p><code>MAX_TRANSACTIONS_IN_BATCH</code> (<em>TXM</em>) — The maximum number of transactions per batch. A constant in bootloader. Can
+contain almost any arbitrary value depending on the capacity of batch that we want to have.</p>
+<p><code>BOOTLOADER_MEMORY_FOR_TXS</code> (<em>BM</em>) — The size of the bootloader memory that is used for transaction encoding
+(i.e. excluding the constant space, preallocated for other purposes).</p>
+<p><code>GUARANTEED_PUBDATA_PER_TX</code> (<em>PG</em>) — The guaranteed number of pubdata that should be possible to pay for in one ZKsync
+batch. This is a number that should be enough for most reasonable cases.</p>
+<h4 id="derived-constants"><a class="header" href="#derived-constants">Derived constants</a></h4>
+<p>Some of the constants are derived from the system constants above:</p>
+<p><code>MAX_GAS_PER_PUBDATA</code> (<em>EPMax</em>) — the <code>gas_price_per_pubdata</code> that should always be enough to cover for publishing a
+pubdata byte:</p>
+<p>$$
+EP_{Max} = \lfloor \frac{T_M}{P_G} \rfloor
+$$</p>
+<h4 id="externally-provided-batch-parameters"><a class="header" href="#externally-provided-batch-parameters">Externally-provided batch parameters</a></h4>
+<p><code>L1_GAS_PRICE</code> (<em>L</em>1<em>P</em>) — The price for L1 gas in ETH.</p>
+<p><code>FAIR_GAS_PRICE</code> (<em>Ef</em>) — The “fair” gas price in ETH, that is, the price of proving one circuit (in Ether) divided by
+the number we chose as one circuit price in gas.</p>
+<p>$$
+E_f = \frac{Price_C}{E_C}
+$$</p>
+<p>where <em>PriceC</em> is the price for proving a circuit in ETH. Even though this price will generally be volatile (due to the
+volatility of ETH price), the operator is discouraged to change it often, because it would volatile both volatile gas
+price and (most importantly) the required <code>gas_price_per_pubdata</code> for transactions.</p>
+<p>Both of the values above are currently provided by the operator. Later on, some decentralized/deterministic way to
+provide these prices will be utilized.</p>
+<h4 id="determining-base_fee"><a class="header" href="#determining-base_fee">Determining base_fee</a></h4>
+<p>When the batch opens, we can calculate the <code>FAIR_GAS_PER_PUBDATA_BYTE</code> (<em>EPf</em>) — “fair” gas per pubdata byte:</p>
+<p>$$
+EP_f = \lceil \frac{L1_p * L1_{PUB}}{E_f} \rceil
+$$</p>
+<p>There are now two situations that can be observed:</p>
+<p>I.</p>
+<p>$$
+EP_f &gt; EP_{Max}
+$$</p>
+<p>This means that the L1 gas price is so high that if we treated all the prices fairly, then the number of gas required to
+publish guaranteed pubdata is too high, i.e. allowing at least <em>PG</em> pubdata bytes per transaction would mean that we
+would to support <em>tx</em>.<em>gasLimit</em> greater that the maximum gas per transaction <em>TM</em>, allowing to run out of other finite
+resources.</p>
+<p>If $EP_f &gt; EP_{Max}$, then the user needs to artificially increase the provided <em>Ef</em> to bring the needed
+<em>tx</em>.<em>gasPerPubdataByte</em> to <em>EPmax</em></p>
+<p>In this case we set the EIP1559 <code>baseFee</code> (<em>Base</em>):</p>
+<p>$$
+Base = max(E_f, \lceil \frac{L1_P * L1_{PUB}}{EP_{max}} \rceil)
+$$</p>
+<p>Only transactions that have at least this high gasPrice will be allowed into the batch.</p>
+<p>II.</p>
+<p>Otherwise, we keep $Base* = E_f$</p>
+<p>Note, that both cases are covered with the formula in case (1), i.e.:</p>
+<p>$$
+Base = max(E_f, \lceil \frac{L1_P * L1_{PUB}}{EP_{max}} \rceil)
+$$</p>
+<p>This is the base fee that will be always returned from the API via <code>eth_gasGasPrice</code>.</p>
+<h4 id="calculating-overhead-for-a-transaction"><a class="header" href="#calculating-overhead-for-a-transaction">Calculating overhead for a transaction</a></h4>
+<p>Let’s define by <em>tx</em>.<em>actualGasLimit</em> as the actual gasLimit that is to be used for processing of the transaction
+(including the intrinsic costs). In this case, we will use the following formulas for calculating the upfront payment
+for the overhead:</p>
+<p>$$
+S_O = 1/TX_M
+$$</p>
+<p>$$
+M_O(tx) = encLen(tx) / B_M
+$$</p>
+<p>$$
+E_{AO}(tx) = tx.actualGasLimit / T_M
+$$</p>
+<p>$$
+O(tx) = max(S_O, M_O(tx), E_O(tx))
+$$</p>
+<p>where:</p>
+<p><em>SO</em> — is the overhead for taking up 1 slot for a transaction</p>
+<p><em>MO</em>(<em>tx</em>) — is the overhead for taking up the memory of the bootloader</p>
+<p><em>encLen</em>(<em>tx</em>) — the length of the ABI encoding of the transaction’s struct.</p>
+<p><em>EAO</em>(<em>tx</em>) — is the overhead for potentially taking up the gas for single instance circuits.</p>
+<p><em>O</em>(<em>tx</em>) — is the total share of the overhead that the transaction should pay for.</p>
+<p>Then we can calculate the overhead that the transaction should pay as the following one:</p>
+<p>$$
+L1_O(tx) = \lceil \frac{L1_O}{L1_{PUB}} \rceil * O(tx) \
+E_O(tx) = E_O * O(tx)
+$$</p>
+<p>Where</p>
+<p><em>L</em>1<em>O</em>(<em>tx</em>) — the number of L1 gas overhead (in pubdata equivalent) the transaction should compensate for gas.</p>
+<p><em>EO</em>(<em>tx</em>) — the number of L2 gas overhead the transaction should compensate for.</p>
+<p>Then:</p>
+<p><em>overhead</em>_<em>gas</em>(<em>tx</em>) = <em>EO</em>(<em>tx</em>) + <em>tx</em>.<em>gasPerPubdata</em> ⋅ <em>L</em>1<em>O</em>(<em>tx</em>)</p>
+<p>When a transaction is being estimated, the server returns the following gasLimit:</p>
+<p><em>tx</em>.<em>gasLimit</em> = <em>tx</em>.<em>actualGasLimit</em> + <em>overhead</em>_<em>gas</em>(<em>tx</em>)</p>
+<p>Note, that when the operator receives the transaction, it knows only <em>tx</em>.<em>gasLimit</em>. The operator could derive the
+<em>overhead<strong><em>gas</em>(<em>tx</em>) and provide the bootloader with it. The bootloader will then derive
+<em>tx</em>.<em>actualGasLimit</em> = <em>tx</em>.<em>gasLimit</em> − <em>overhead</em></strong>gas</em>(<em>tx</em>) and use the formulas above to derive the overhead that
+the user should’ve paid under the derived <em>tx</em>.<em>actualGasLimit</em> to ensure that the operator does not overcharge the
+user.</p>
+<h4 id="note-on-formulas"><a class="header" href="#note-on-formulas">Note on formulas</a></h4>
+<p>For the ease of integer calculation, we will use the following formulas to derive the <em>overhead</em>(<em>tx</em>):</p>
+<p>$B_O(tx) = E_O + tx.gasPerPubdataByte \cdot \lfloor \frac{L1_O}{L1_{PUB}} \rfloor$</p>
+<p>$B_O$ denotes the overhead for batch in gas that the transaction would have to pay if it consumed the resources for
+entire batch.</p>
+<p>Then, <em>overhead</em>_<em>gas</em>(<em>tx</em>) is the maximum of the following expressions:</p>
+<ol>
+<li>$S_O = \lceil \frac{B_O}{TX_M} \rceil$</li>
+<li>$M_O(tx) = \lceil \frac{B_O \cdot encodingLen(tx)}{B_M} \rceil$</li>
+<li>$E_O(tx) = \lceil \frac{B_O \cdot tx.gasBodyLimit}{T_M} \rceil$</li>
+</ol>
+<h4 id="deriving-overhead_gastx-from-txgaslimit"><a class="header" href="#deriving-overhead_gastx-from-txgaslimit">Deriving <code>overhead_gas(tx)</code> from <code>tx.gasLimit</code></a></h4>
+<p>The task that the operator needs to do is the following:</p>
+<p>Given the tx.gasLimit, it should find the maximal <code>overhead_gas(tx)</code>, such that the bootloader will accept such
+transaction, that is, if we denote by <em>Oop</em> the overhead proposed by the operator, the following equation should hold:</p>
+<p>$$
+O_{op} ≤ overhead_gas(tx)
+$$</p>
+<p>for the $tx.bodyGasLimit$ we use the $tx.bodyGasLimit$ = $tx.gasLimit − O_{op}$.</p>
+<p>There are a few approaches that could be taken here:</p>
+<ul>
+<li>Binary search. However, we need to be able to use this formula for the L1 transactions too, which would mean that
+binary search is too costly.</li>
+<li>The analytical way. This is the way that we will use and it will allow us to find such an overhead in O(1), which is
+acceptable for L1-&gt;L2 transactions.</li>
+</ul>
+<p>Let’s rewrite the formula above the following way:</p>
+<p>$$
+O_{op} ≤ max(SO, MO(tx), EO(tx))
+$$</p>
+<p>So we need to find the maximal $O_{op}$, such that $O_{op} ≤ max(S_O, M_O(tx), E_O(tx))$. Note, that it means ensuring
+that at least one of the following is true:</p>
+<ol>
+<li>$O_{op} ≤ S_O$</li>
+<li>$O_{op} ≤ M_O(tx)$</li>
+<li>$O_{op} ≤ E_O(tx)$</li>
+</ol>
+<p>So let’s find the largest <em>Oop</em> for each of these and select the maximum one.</p>
+<ul>
+<li>Solving for (1)</li>
+</ul>
+<p>$$
+O_{op} = \lceil \frac{B_O}{TX_M} \rceil
+$$</p>
+<ul>
+<li>Solving for (2)</li>
+</ul>
+<p>$$
+O_{op} = \lceil \frac{encLen(tx) \cdot B_O}{B_M} \rceil
+$$</p>
+<ul>
+<li>Solving for (3)</li>
+</ul>
+<p>This one is somewhat harder than the previous ones. We need to find the largest <em>O_{op}</em>, such that:</p>
+<p>$$
+O_{op} \le \lceil \frac{tx.actualErgsLimit \cdot B_O}{T_M} \rceil   \
+$$</p>
+<p>$$
+O_{op} \le \lceil \frac{(tx.ergsLimit - O_{op}) \cdot B_O}{T_M} \rceil   \
+$$</p>
+<p>$$
+O_{op}  ≤ \lceil \frac{B_O \cdot (tx.ergsLimit - O_{op})}{T_M} \rceil
+$$</p>
+<p>Note, that all numbers here are integers, so we can use the following substitution:</p>
+<p>$$
+O_{op} -1 \lt \frac{(tx.ergsLimit - O_{op}) \cdot B_O}{T_M}    \
+$$</p>
+<p>$$
+(O_{op} -1)T_M \lt (tx.ergsLimit - O_{op}) \cdot B_O    \
+$$</p>
+<p>$$
+O_{op} T_M + O_{op} B_O \lt tx.ergsLimit \cdot B_O + T_M    \
+$$</p>
+<p>$$
+O_{op} \lt \frac{tx.ergsLimit \cdot B_O + T_M}{B_O + T_M}    \
+$$</p>
+<p>Meaning, in other words:</p>
+<p>$$
+O_{op} = \lfloor \frac{tx.ergsLimit \cdot B_O + T_M - 1}{B_O + T_M} \rfloor
+$$</p>
+<p>Then, the operator can safely choose the largest one.</p>
+<h4 id="discounts-by-the-operator"><a class="header" href="#discounts-by-the-operator">Discounts by the operator</a></h4>
+<p>It is important to note that the formulas provided above are to withstand the worst-case scenario and these are the
+formulas used for L1-&gt;L2 transactions (since these are forced to be processed by the operator). However, in reality, the
+operator typically would want to reduce the overhead for users whenever it is possible. For instance, in the server, we
+underestimate the maximal potential <code>MAX_GAS_PER_TRANSACTION</code>, since usually the batches are closed because of either
+the pubdata limit or the transactions’ slots limit. For this reason, the operator also provides the operator’s proposed
+overhead. The only thing that the bootloader checks is that this overhead is <em>not larger</em> than the maximal required one.
+But the operator is allowed to provide a lower overhead.</p>
+<h4 id="refunds"><a class="header" href="#refunds">Refunds</a></h4>
+<p>As you could see above, this fee model introduces quite some places where users may overpay for transactions:</p>
+<ul>
+<li>For the pubdata when L1 gas price is too low</li>
+<li>For the computation when L1 gas price is too high</li>
+<li>The overhead, since the transaction may not use the entire batch resources they could.</li>
+</ul>
+<p>To compensate users for this, we will provide refunds for users. For all of the refunds to be provable, the counter
+counts the number of gas that was spent on pubdata (or the number of pubdata bytes published). We will denote this
+number by <em>pubdataused</em>. For now, this value can be provided by the operator.</p>
+<p>The fair price for a transaction is</p>
+<p>$$
+FairFee = E_f \cdot tx.computationalGas + EP_f \cdot pubdataused
+$$</p>
+<p>We can derive $tx.computationalGas = gasspent − pubdataused \cdot tx.gasPricePerPubdata$, where <em>gasspent</em> is the number
+of gas spent for the transaction (can be trivially fetched in Solidity).</p>
+<p>Also, the <em>FairFee</em> will include the actual overhead for batch that the users should pay for.</p>
+<p>The fee that the user has actually spent is:</p>
+<p>$$
+ActualFee = gasspent \cdot gasPrice
+$$</p>
+<p>So we can derive the overpay as</p>
+<p>$$
+ActualFee − FairFee
+$$</p>
+<p>In order to keep the invariant of $gasUsed \cdot gasPrice = fee$ , we will formally refund
+$\frac{ActualFee - FairFee}{Base}$ gas.</p>
+<p>At the moment, this counter is not accessible within the VM and so the operator is free to provide any refund it wishes
+(as long as it is greater than or equal to the actual amount of gasLeft after the transaction execution).</p>
+<h4 id="refunds-for-repeated-writes"><a class="header" href="#refunds-for-repeated-writes">Refunds for repeated writes</a></h4>
+<p>zkEVM is a statediff-based rollup, i.e. the pubdata is published not for transactions, but for storage changes. This
+means that whenever a user writes into a storage slot, he incurs certain amount of pubdata. However, not all writes are
+equal:</p>
+<ul>
+<li>If a slot has been already written to in one of the previous batches, the slot has received a short id, which allows
+it to require less pubdata in the state diff.</li>
+<li>Depending on the <code>value</code> written into a slot, various compression optimizations could be used and so we should reflect
+that too.</li>
+<li>Maybe the slot has been already written to in this batch and so we don’t to charge anything for it.</li>
+</ul>
+<p>You can read more about how we treat the pubdata
+<a href="https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20pubdata%20in%20Boojum.md">here</a>.</p>
+<p>The important part here is that while such refunds are inlined (i.e. unlike the refunds for overhead they happen
+in-place during execution and not after the whole transaction has been processed), they are enforced by the operator.
+Right now, the operator is the one that decides what refund to provide.</p>
+<h2 id="improvements-in-the-upcoming-releases"><a class="header" href="#improvements-in-the-upcoming-releases">Improvements in the upcoming releases</a></h2>
+<p>The fee model explained above, while fully functional, has some known issues. These will be tackled with the following
+upgrades.</p>
+<h3 id="the-quadratic-overhead-for-pubdata"><a class="header" href="#the-quadratic-overhead-for-pubdata">The quadratic overhead for pubdata</a></h3>
+<p>Note, that the computational overhead is proportional to the <code>tx.gasLimit</code> and the amount of funds the user will have to
+pay is proportional to the L1 gas price (recall the formula of <code>B_O</code>). We can roughly express the transaction overhead
+from computation as <code>tx.gasLimit * L1_GAS_PRICE * C</code> where <code>C</code> is just some constant. Note, that since a transaction
+typically contains some storage writes, and its
+<code>tx.gasLimit = gasSpentOnCompute + pubdataPublished * gasPricePerPubdata</code>, <code>tx.gasLimit</code> is roughly proportional to
+<code>gasPricePerPubdata</code> and so it is also proportional to <code>L1_GAS_PRICE</code>.</p>
+<p>This means that formula <code>tx.gasLimit * L1_GAS_PRICE * C</code> becomes <em>quadratic</em> to the <code>L1_GAS_PRICE</code>.</p>
+<h3 id="gasused-depends-to-gaslimit"><a class="header" href="#gasused-depends-to-gaslimit"><code>gasUsed</code> depends to <code>gasLimit</code></a></h3>
+<p>While in general it shouldn’t be the case assuming the correct implementation of <a href="#refunds">refunds</a>, in practice it
+turned out that the formulas above, while robust, estimate for the worst case which can be very difference from the
+average one. In order to improve the UX and reduce the overhead, the operator charges less for the execution overhead.
+However, as a compensation for the risk, it does not fully refund for it.</p>
+<h3 id="l1-l2-transactions-do-not-pay-for-their-execution-on-l1"><a class="header" href="#l1-l2-transactions-do-not-pay-for-their-execution-on-l1">L1-&gt;L2 transactions do not pay for their execution on L1</a></h3>
+<p>The <code>executeBatches</code> operation on L1 is executed in <code>O(N)</code> where N is the number of priority ops that we have in the
+batch. Each executed priority operation will be popped and so it incurs cost for storage modifications. As of now, we do
+not charge for it.</p>
+<h2 id="zkevm-fee-components-revenue--costs"><a class="header" href="#zkevm-fee-components-revenue--costs">zkEVM Fee Components (Revenue &amp; Costs)</a></h2>
+<ul>
+<li>On-Chain L1 Costs
+<ul>
+<li>L1 Commit Batches
+<ul>
+<li>The commit batches transaction submits pubdata (which is the list of updated storage slots) to L1. The cost of a
+commit transaction is calculated as <code>constant overhead + price of pubdata</code>. The <code>constant overhead</code> cost is evenly
+distributed among L2 transactions in the L1 commit transaction, but only at higher transaction loads. As for the
+<code>price of pubdata</code>, it is known how much pubdata each L2 transaction consumed, therefore, they are charged
+directly for that. Multiple L1 batches can be included in a single commit transaction.</li>
+</ul>
+</li>
+<li>L1 Prove Batches
+<ul>
+<li>Once the off-chain proof is generated, it is submitted to L1 to make the rollup batch final. Currently, each proof
+contains only one L1 batch.</li>
+</ul>
+</li>
+<li>L1 Execute Batches
+<ul>
+<li>The execute batches transaction processes L2 -&gt; L1 messages and marks executed priority operations as such.
+Multiple L1 batches can be included in a single execute transaction.</li>
+</ul>
+</li>
+<li>L1 Finalize Withdrawals
+<ul>
+<li>While not strictly part of the L1 fees, the cost to finalize L2 → L1 withdrawals are covered by Matter Labs. The
+finalize withdrawals transaction processes user token withdrawals from zkEVM to Ethereum. Multiple L2 withdrawal
+transactions are included in each finalize withdrawal transaction.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>On-Chain L2 Revenue
+<ul>
+<li>L2 Transaction Fee
+<ul>
+<li>This fee is what the user pays to complete a transaction on zkEVM. It is calculated as
+<code>gasLimit x baseFeePerGas - refundedGas x baseFeePerGas</code>, or more simply, <code>gasUsed x baseFeePerGas</code>.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Profit = L2 Revenue - L1 Costs - Off Chain Infrastructure Costs</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../specs/zk_evm/bootloader.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../specs/zk_evm/precompiles.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../specs/zk_evm/bootloader.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../specs/zk_evm/precompiles.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../ace.js"></script>
+        <script src="../../editor.js"></script>
+        <script src="../../mode-rust.js"></script>
+        <script src="../../theme-dawn.js"></script>
+        <script src="../../theme-tomorrow_night.js"></script>
+
+        <script src="../../elasticlunr.min.js"></script>
+        <script src="../../mark.min.js"></script>
+        <script src="../../searcher.js"></script>
+
+        <script src="../../clipboard.min.js"></script>
+        <script src="../../highlight.js"></script>
+        <script src="../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../js/version-box.js"></script>
+        <script src="../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>
