@@ -13,7 +13,7 @@ sudo apt update
 sudo apt install --yes git build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates curl software-properties-common
 
 # Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y
 source "$HOME/.cargo/env"
 # For running unit tests
 cargo install cargo-nextest --locked
@@ -43,14 +43,16 @@ yarn set version 1.22.19
 curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
 ./foundryup-zksync
 
+# ZK Stack CLI
+curl -L https://raw.githubusercontent.com/matter-labs/zksync-era/main/zkstack_cli/zkstackup/install | bash
+"$HOME/.local/bin/zkstackup"
+
+# Clone the repo
+git clone --recurse-submodules https://github.com/matter-labs/zksync-era.git
+
 # Non CUDA (GPU) setup, can be skipped if the machine has a CUDA installed for provers
 # Don't do that if you intend to run provers on your machine. Check the prover docs for a setup instead.
 echo "export ZKSYNC_USE_CUDA_STUBS=true" >> "$HOME/.bashrc"
-
-# Clone the repo to the desired location
-git clone https://github.com/matter-labs/zksync-era.git
-cd zksync-era
-git submodule update --init --recursive
 
 # Reload shell
 exec bash
