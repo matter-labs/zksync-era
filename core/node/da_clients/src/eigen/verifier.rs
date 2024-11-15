@@ -14,6 +14,11 @@ use super::{
     generated::eigendaservicemanager::EigenDAServiceManager,
 };
 
+type EigenDAServiceManagerContract = EigenDAServiceManager::EigenDAServiceManagerInstance<
+    alloy::transports::http::Http<alloy::transports::http::Client>,
+    RootProvider<alloy::transports::http::Http<alloy::transports::http::Client>>,
+>;
+
 #[derive(Debug)]
 pub enum VerificationError {
     ServiceManagerError,
@@ -47,10 +52,7 @@ pub struct VerifierConfig {
 #[derive(Debug, Clone)]
 pub struct Verifier {
     kzg: Kzg,
-    eigenda_svc_manager: EigenDAServiceManager::EigenDAServiceManagerInstance<
-        alloy::transports::http::Http<alloy::transports::http::Client>,
-        RootProvider<alloy::transports::http::Http<alloy::transports::http::Client>>,
-    >,
+    eigenda_svc_manager: EigenDAServiceManagerContract,
     cfg: VerifierConfig,
 }
 
