@@ -1,0 +1,328 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>ZK Intuition - ZKsync Era Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../favicon.svg">
+        <link rel="shortcut icon" href="../../favicon.png">
+        <link rel="stylesheet" href="../../css/variables.css">
+        <link rel="stylesheet" href="../../css/general.css">
+        <link rel="stylesheet" href="../../css/chrome.css">
+        <link rel="stylesheet" href="../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../css/version-box.css">
+        <link rel="stylesheet" href="../.././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ZKsync Era Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/zksync-era/tree/main/docs/src/guides/advanced/13_zk_intuition.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="intuition-guide-to-zk-in-zkevm"><a class="header" href="#intuition-guide-to-zk-in-zkevm">Intuition guide to ZK in zkEVM</a></h1>
+<p><strong>WARNING</strong>: This guide simplifies the complex details of how we use ZK in our systems, just to give you a better
+understanding. We’re leaving out a lot of details to keep things brief.</p>
+<h2 id="what-is-the-zero-knowledge"><a class="header" href="#what-is-the-zero-knowledge">What is the ‘Zero Knowledge’</a></h2>
+<p>In our case, the prover takes public input and witness (which is huge - you’ll see below), and produces a proof, but the
+verifier takes (public input, proof) only, without witness. This means that the huge witness doesn’t have to be
+submitted to L1. This property can be used for many things, like privacy, but here we use it to implement an efficient
+rollup that publishes the least required amount of data to L1.</p>
+<h2 id="basic-overview"><a class="header" href="#basic-overview">Basic overview</a></h2>
+<p>Let’s break down the basic steps involved when a transaction is made within our ZK system:</p>
+<ul>
+<li><strong>Execute transaction in State Keeper &amp; Seal the block:</strong> This part has been discussed in other articles.</li>
+<li><strong>Generate witness:</strong> What’s that? Let’s find out below!</li>
+<li><strong>Generate proof:</strong> This is where some fancy math and computing power comes in.</li>
+<li><strong>Verify proof on L1:</strong> This means checking that the fancy math was done right on the Ethereum network (referred to as
+L1).</li>
+</ul>
+<h2 id="what-it-means-to-generate-a-witness"><a class="header" href="#what-it-means-to-generate-a-witness">What It Means to Generate a Witness</a></h2>
+<p>When our State Keeper processes a transaction, it carries out a bunch of operations and assumes certain conditions
+without openly stating them. However, when it comes to ZK, we need to show clear evidence that these conditions hold.</p>
+<p>Take this simple example where we have a command that retrieves some data from storage and assigns it to a variable.</p>
+<p><code>a := SLOAD(0x100)</code></p>
+<p>In normal circumstances, the system would just read the data from storage and assign it. But in ZK, we need to provide
+evidence of what specific data was fetched and that it was indeed present in the storage beforehand.</p>
+<p>From the ZK point of view, this looks like:</p>
+<pre><code>circuit inputs:
+* current_state_hash = 0x1234;
+* read_value: 44
+* merkle_path proving that (0x100, 44) exists in tree with storage hash 0x1234
+circuit outputs:
+* new state hash (that includes the leaf saying that variable 'a' has value 44)
+</code></pre>
+<p><strong>Note</strong>: In reality, we also use multiple Queues with hashes (together with merkle trees), to track all the memory &amp;
+storage accesses.</p>
+<p>So, in our example, what seems like a simple action actually requires us to create a bunch of hashes and merkle paths.
+This is precisely what the Witness Generator does. It processes the transactions, one operation at a time, and generates
+the necessary data that will be used later in circuits.</p>
+<h3 id="a-closer-look"><a class="header" href="#a-closer-look">A Closer Look</a></h3>
+<p>Now let’s dive into a specific example <a href="https://github.com/matter-labs/era-zkevm_test_harness/tree/main/src/witness/individual_circuits/decommit_code.rs#L24">witness_example</a>:</p>
+<pre><pre class="playground"><code class="language-rust="><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub fn compute_decommitter_circuit_snapshots&lt;
+    E: Engine,
+    R: CircuitArithmeticRoundFunction&lt;E, 2, 3&gt;,
+&gt;(
+...
+) -&gt; (
+    Vec&lt;CodeDecommitterCircuitInstanceWitness&lt;E&gt;&gt;,
+    CodeDecommitmentsDeduplicatorInstanceWitness&lt;E&gt;,
+)
+<span class="boring">}</span></code></pre></pre>
+<p>In this code snippet, we’re looking at a function named <code>compute_decommitter_circuit_snapshots</code>. It uses some technical
+terms and concepts that may seem daunting, but let’s break them down:</p>
+<p><strong>Engine:</strong> This is a trait that specifically handles complex mathematical curves, called Elliptic curves. It’s like
+your uint64 on steroids!</p>
+<p><strong>CircuitArithmeticRoundFunction:</strong> This is a special kind of hashing function that’s more suited for the circuits we
+are using than the regular ones like keccak. In our case, we use Franklin and Rescue from <a href="https://github.com/matter-labs/franklin-crypto">franklin repo</a>.</p>
+<p>The function returns Witness classes, that contain queues such as <code>FixedWidthEncodingSpongeLikeQueueWitness</code> which hold
+the hashes we mentioned earlier. This is similar merkle paths that we discussed above.</p>
+<h3 id="where-is-the-code"><a class="header" href="#where-is-the-code">Where is the Code</a></h3>
+<p>The job of generating witnesses, which we discussed earlier, is handled by the witness generator. Initially, this was
+located in a module zksync core witness. However, for the new proof system, the team began to shift this function to a
+new location called <a href="https://github.com/matter-labs/zksync-era/blob/main/prover/crates/bin/witness_generator/src/main.rs">separate witness binary</a>.</p>
+<p>Inside this new location, after the necessary data is fetched from storage, the witness generator calls another piece of
+code from <a href="https://github.com/matter-labs/era-zkevm_test_harness/blob/fb47657ae3b6ff6e4bb5199964d3d37212978200/src/external_calls.rs#L579">zkevm_test_harness witness</a> named <code>run_with_fixed_params</code>. This code is responsible for creating the witnesses
+themselves (which can get really HUGE).</p>
+<h2 id="generating-the-proof"><a class="header" href="#generating-the-proof">Generating the Proof</a></h2>
+<p>Once we have the witness data lined up, it’s time to crunch the numbers and create the proofs.</p>
+<p>The main goal of this step is to take an operation (for example, a calculation called <code>ecrecover</code>) and break it down
+into smaller pieces. Then, we represent this information as a special mathematical expression called a polynomial.</p>
+<p>To construct these polynomials, we use something called a <code>ConstraintSystem</code>. The specific type that we use is called
+zkSNARK, and our custom version of it is named bellman. You can find our code for this in the <a href="https://github.com/matter-labs/bellman">bellman repo</a>. Additionally,
+we have an optimized version that’s designed to run faster on certain types of hardware (using CUDA technology), which you
+can find in the <a href="https://github.com/matter-labs/era-bellman-cuda">bellman cuda repo</a>.</p>
+<p>An <a href="https://github.com/matter-labs/era-sync_vm/blob/v1.3.2/src/glue/ecrecover_circuit/mod.rs#L157">example ecrecover circuit</a> might give you a clearer picture of what this looks like in practice.</p>
+<p>The proof itself is generated by evaluating this polynomial expression at many different points. Because this involves
+heavy calculations, we use GPUs to speed things up.</p>
+<h3 id="where-is-the-code-1"><a class="header" href="#where-is-the-code-1">Where is the Code</a></h3>
+<p>The main code that utilizes the GPUs to create proofs is located in a repository named <a href="https://github.com/matter-labs/era-heavy-ops-service">heavy_ops_service repo</a>. This code
+combines elements from the <a href="https://github.com/matter-labs/era-bellman-cuda">bellman cuda repo</a> that we mentioned earlier, along with a huge amount of data generated by the
+witness, to produce the final proofs.</p>
+<h2 id="what-does-verify-proof-on-l1-mean"><a class="header" href="#what-does-verify-proof-on-l1-mean">What Does “Verify Proof on L1” Mean</a></h2>
+<p>Finally, we reach the stage where we have to verify the proof on L1. But what does that really mean?</p>
+<p>We need to ensure that four specific values match:</p>
+<ul>
+<li><strong>C</strong>: This is a value that represents our circuits, also known as verification keys. It’s like a fingerprint of the
+circuit code and is hard-coded into the contract. Whenever the circuit changes, this value changes too.</li>
+<li><strong>In</strong>: This represents the root hash before the transaction block.</li>
+<li><strong>Out</strong>: This represents the root hash after the transaction block.</li>
+<li><strong>P</strong>: This is the proof provided by the prover.</li>
+</ul>
+<p>The logic behind this is that there can only be a matching proof ‘P’ if <code>C(In) == Out</code>. In simple terms, it means that
+the proof ‘P’ will only make sense if the values before and after the transaction block are consistent according to the
+circuit represented by ‘C’.</p>
+<p>If you’re eager to dive into the nitty-gritty, you can find the code in the <a href="https://github.com/matter-labs/era-contracts/blob/main/l1-contracts/contracts/zksync/Verifier.sol">verifier</a> repository. Also, if you’re
+interested in learning even more, you can look up KZG commitments.</p>
+<h2 id="a-heads-up-about-code-versions"><a class="header" href="#a-heads-up-about-code-versions">A Heads-Up About Code Versions</a></h2>
+<p>Please be aware that there are multiple versions of the proving systems, such as v1.3.1, v1.3.2, and so on. When you’re
+looking through the code, make sure you’re checking the version that’s relevant to what you’re working on. At the time
+this guide was written, the latest version was 1.3.4, but there was also ongoing development on a new proof system in
+version 1.4.0.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../guides/advanced/12_alternative_vm_intro.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../guides/advanced/14_zk_deeper_overview.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../guides/advanced/12_alternative_vm_intro.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../guides/advanced/14_zk_deeper_overview.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../../ace.js"></script>
+        <script src="../../editor.js"></script>
+        <script src="../../mode-rust.js"></script>
+        <script src="../../theme-dawn.js"></script>
+        <script src="../../theme-tomorrow_night.js"></script>
+
+        <script src="../../elasticlunr.min.js"></script>
+        <script src="../../mark.min.js"></script>
+        <script src="../../searcher.js"></script>
+
+        <script src="../../clipboard.min.js"></script>
+        <script src="../../highlight.js"></script>
+        <script src="../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../js/version-box.js"></script>
+        <script src="../../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>
