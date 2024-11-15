@@ -58,8 +58,6 @@ pub enum ZkStackSubcommands {
     /// External Node related commands
     #[command(subcommand, alias = "en")]
     ExternalNode(ExternalNodeCommands),
-    /// Run dapp-portal
-    Portal,
     /// Update ZKsync
     #[command(alias = "u")]
     Update(UpdateArgs),
@@ -124,7 +122,6 @@ async fn run_subcommand(zkstack_args: ZkStack) -> anyhow::Result<()> {
         ZkStackSubcommands::ExternalNode(args) => {
             commands::external_node::run(&shell, args).await?
         }
-        ZkStackSubcommands::Portal => commands::portal::run(&shell).await?,
         ZkStackSubcommands::Update(args) => commands::update::run(&shell, args).await?,
         ZkStackSubcommands::Markdown => {
             clap_markdown::print_help_markdown::<ZkStack>();

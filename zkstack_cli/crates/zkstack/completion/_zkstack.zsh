@@ -261,6 +261,16 @@ esac
     ;;
 esac
 ;;
+(portal)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_zkstack__ecosystem__help_commands" \
@@ -324,6 +334,10 @@ _arguments "${_arguments_options[@]}" : \
         esac
     ;;
 esac
+;;
+(portal)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
 ;;
 (help)
 _arguments "${_arguments_options[@]}" : \
@@ -2635,16 +2649,6 @@ esac
     ;;
 esac
 ;;
-(portal)
-_arguments "${_arguments_options[@]}" : \
-'--chain=[Chain to use]:CHAIN:_default' \
-'-v[Verbose mode]' \
-'--verbose[Verbose mode]' \
-'--ignore-prerequisites[Ignores prerequisites checks]' \
-'-h[Print help]' \
-'--help[Print help]' \
-&& ret=0
-;;
 (update)
 _arguments "${_arguments_options[@]}" : \
 '--chain=[Chain to use]:CHAIN:_default' \
@@ -2746,6 +2750,10 @@ _arguments "${_arguments_options[@]}" : \
         esac
     ;;
 esac
+;;
+(portal)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
 ;;
         esac
     ;;
@@ -3283,10 +3291,6 @@ _arguments "${_arguments_options[@]}" : \
     ;;
 esac
 ;;
-(portal)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
 (update)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -3317,7 +3321,6 @@ _zkstack_commands() {
 'dev:Supervisor related commands' \
 'prover:Prover related commands' \
 'external-node:External Node related commands' \
-'portal:Run dapp-portal' \
 'update:Update ZKsync' \
 'markdown:Print markdown help' \
 'help:Print this message or the help of the given subcommand(s)' \
@@ -4661,6 +4664,7 @@ _zkstack__ecosystem_commands() {
 'setup-observability:Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo' \
 'containers:Run containers for local development' \
 'explorer:Run block-explorer' \
+'portal:Run dapp-portal' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack ecosystem commands' commands "$@"
@@ -4750,6 +4754,7 @@ _zkstack__ecosystem__help_commands() {
 'setup-observability:Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo' \
 'containers:Run containers for local development' \
 'explorer:Run block-explorer' \
+'portal:Run dapp-portal' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack ecosystem help commands' commands "$@"
@@ -4808,6 +4813,11 @@ _zkstack__ecosystem__help__init_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack ecosystem help init commands' commands "$@"
 }
+(( $+functions[_zkstack__ecosystem__help__portal_commands] )) ||
+_zkstack__ecosystem__help__portal_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack ecosystem help portal commands' commands "$@"
+}
 (( $+functions[_zkstack__ecosystem__help__setup-observability_commands] )) ||
 _zkstack__ecosystem__help__setup-observability_commands() {
     local commands; commands=()
@@ -4817,6 +4827,11 @@ _zkstack__ecosystem__help__setup-observability_commands() {
 _zkstack__ecosystem__init_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack ecosystem init commands' commands "$@"
+}
+(( $+functions[_zkstack__ecosystem__portal_commands] )) ||
+_zkstack__ecosystem__portal_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack ecosystem portal commands' commands "$@"
 }
 (( $+functions[_zkstack__ecosystem__setup-observability_commands] )) ||
 _zkstack__ecosystem__setup-observability_commands() {
@@ -4911,7 +4926,6 @@ _zkstack__help_commands() {
 'dev:Supervisor related commands' \
 'prover:Prover related commands' \
 'external-node:External Node related commands' \
-'portal:Run dapp-portal' \
 'update:Update ZKsync' \
 'markdown:Print markdown help' \
 'help:Print this message or the help of the given subcommand(s)' \
@@ -5383,6 +5397,7 @@ _zkstack__help__ecosystem_commands() {
 'setup-observability:Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo' \
 'containers:Run containers for local development' \
 'explorer:Run block-explorer' \
+'portal:Run dapp-portal' \
     )
     _describe -t commands 'zkstack help ecosystem commands' commands "$@"
 }
@@ -5435,6 +5450,11 @@ _zkstack__help__ecosystem__init_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help ecosystem init commands' commands "$@"
 }
+(( $+functions[_zkstack__help__ecosystem__portal_commands] )) ||
+_zkstack__help__ecosystem__portal_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help ecosystem portal commands' commands "$@"
+}
 (( $+functions[_zkstack__help__ecosystem__setup-observability_commands] )) ||
 _zkstack__help__ecosystem__setup-observability_commands() {
     local commands; commands=()
@@ -5486,11 +5506,6 @@ _zkstack__help__markdown_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help markdown commands' commands "$@"
 }
-(( $+functions[_zkstack__help__portal_commands] )) ||
-_zkstack__help__portal_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack help portal commands' commands "$@"
-}
 (( $+functions[_zkstack__help__prover_commands] )) ||
 _zkstack__help__prover_commands() {
     local commands; commands=(
@@ -5536,11 +5551,6 @@ _zkstack__help__update_commands() {
 _zkstack__markdown_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack markdown commands' commands "$@"
-}
-(( $+functions[_zkstack__portal_commands] )) ||
-_zkstack__portal_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack portal commands' commands "$@"
 }
 (( $+functions[_zkstack__prover_commands] )) ||
 _zkstack__prover_commands() {

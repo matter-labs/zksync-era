@@ -16,6 +16,7 @@ mod create;
 pub mod create_configs;
 mod explorer;
 pub(crate) mod init;
+pub(crate) mod portal;
 pub(crate) mod setup_observability;
 mod utils;
 
@@ -43,6 +44,8 @@ pub enum EcosystemCommands {
     /// Run block-explorer
     #[command(subcommand)]
     Explorer(ExplorerCommands),
+    /// Run dapp-portal
+    Portal,
 }
 
 pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Result<()> {
@@ -54,5 +57,6 @@ pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Resul
         EcosystemCommands::SetupObservability => setup_observability::run(shell),
         EcosystemCommands::Containers(args) => containers::run(shell, args).await,
         EcosystemCommands::Explorer(args) => explorer::run(shell, args).await,
+        EcosystemCommands::Portal => portal::run(shell).await,
     }
 }

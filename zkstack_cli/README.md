@@ -259,7 +259,7 @@ Once you have at least one chain initialized, you can run the [portal](https://g
 web-app to bridge tokens between L1 and L2 and more:
 
 ```bash
-zkstack portal
+zkstack ecosystem portal
 ```
 
 This command will start the dockerized portal app using configuration from `apps/portal.config.json` file inside your

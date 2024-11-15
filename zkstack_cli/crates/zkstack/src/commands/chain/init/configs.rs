@@ -13,7 +13,7 @@ use crate::{
             args::init::configs::{InitConfigsArgs, InitConfigsArgsFinal},
             genesis,
         },
-        portal::update_portal_config,
+        ecosystem::portal::update_portal_config,
     },
     messages::{
         MSG_CHAIN_CONFIGS_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR, MSG_CONSENSUS_CONFIG_MISSING_ERR,
