@@ -96,6 +96,9 @@ _zkstack() {
             zkstack__chain,initialize-bridges)
                 cmd="zkstack__chain__initialize__bridges"
                 ;;
+            zkstack__chain,propose-chain)
+                cmd="zkstack__chain__propose__chain"
+                ;;
             zkstack__chain,register-chain)
                 cmd="zkstack__chain__register__chain"
                 ;;
@@ -158,6 +161,9 @@ _zkstack() {
                 ;;
             zkstack__chain__help,initialize-bridges)
                 cmd="zkstack__chain__help__initialize__bridges"
+                ;;
+            zkstack__chain__help,propose-chain)
+                cmd="zkstack__chain__help__propose__chain"
                 ;;
             zkstack__chain__help,register-chain)
                 cmd="zkstack__chain__help__register__chain"
@@ -798,6 +804,9 @@ _zkstack() {
             zkstack__help__chain,initialize-bridges)
                 cmd="zkstack__help__chain__initialize__bridges"
                 ;;
+            zkstack__help__chain,propose-chain)
+                cmd="zkstack__help__chain__propose__chain"
+                ;;
             zkstack__help__chain,register-chain)
                 cmd="zkstack__help__chain__register__chain"
                 ;;
@@ -1135,7 +1144,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help create build-transactions init genesis register-chain deploy-l2-contracts accept-chain-ownership initialize-bridges deploy-consensus-registry deploy-multicall3 deploy-timestamp-asserter deploy-upgrader deploy-paymaster update-token-multiplier-setter help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --help create build-transactions init genesis register-chain deploy-l2-contracts accept-chain-ownership initialize-bridges deploy-consensus-registry deploy-multicall3 deploy-timestamp-asserter deploy-upgrader deploy-paymaster update-token-multiplier-setter propose-chain help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1700,7 +1709,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__help)
-            opts="create build-transactions init genesis register-chain deploy-l2-contracts accept-chain-ownership initialize-bridges deploy-consensus-registry deploy-multicall3 deploy-timestamp-asserter deploy-upgrader deploy-paymaster update-token-multiplier-setter help"
+            opts="create build-transactions init genesis register-chain deploy-l2-contracts accept-chain-ownership initialize-bridges deploy-consensus-registry deploy-multicall3 deploy-timestamp-asserter deploy-upgrader deploy-paymaster update-token-multiplier-setter propose-chain help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1937,6 +1946,20 @@ _zkstack() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        zkstack__chain__help__propose__chain)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         zkstack__chain__help__register__chain)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
@@ -2123,6 +2146,32 @@ _zkstack() {
                     return 0
                     ;;
                 -a)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --chain)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__chain__propose__chain)
+            opts="-v -h --l1-rpc-url --chain-registrar --dev --verbose --chain --ignore-prerequisites --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --l1-rpc-url)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --chain-registrar)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -5612,7 +5661,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__chain)
-            opts="create build-transactions init genesis register-chain deploy-l2-contracts accept-chain-ownership initialize-bridges deploy-consensus-registry deploy-multicall3 deploy-timestamp-asserter deploy-upgrader deploy-paymaster update-token-multiplier-setter"
+            opts="create build-transactions init genesis register-chain deploy-l2-contracts accept-chain-ownership initialize-bridges deploy-consensus-registry deploy-multicall3 deploy-timestamp-asserter deploy-upgrader deploy-paymaster update-token-multiplier-setter propose-chain"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5822,6 +5871,20 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__chain__initialize__bridges)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__help__chain__propose__chain)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )

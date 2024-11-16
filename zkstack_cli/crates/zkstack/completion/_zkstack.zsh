@@ -603,6 +603,19 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
 ;;
+(propose-chain)
+_arguments "${_arguments_options[@]}" : \
+'--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
+'--chain-registrar=[]:CHAIN_REGISTRAR:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--dev[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_zkstack__chain__help_commands" \
@@ -704,6 +717,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (update-token-multiplier-setter)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(propose-chain)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2703,6 +2720,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(propose-chain)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
         esac
     ;;
 esac
@@ -3231,6 +3252,7 @@ _zkstack__chain_commands() {
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
+'propose-chain:' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack chain commands' commands "$@"
@@ -3340,6 +3362,7 @@ _zkstack__chain__help_commands() {
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
+'propose-chain:' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack chain help commands' commands "$@"
@@ -3429,6 +3452,11 @@ _zkstack__chain__help__initialize-bridges_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help initialize-bridges commands' commands "$@"
 }
+(( $+functions[_zkstack__chain__help__propose-chain_commands] )) ||
+_zkstack__chain__help__propose-chain_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help propose-chain commands' commands "$@"
+}
 (( $+functions[_zkstack__chain__help__register-chain_commands] )) ||
 _zkstack__chain__help__register-chain_commands() {
     local commands; commands=()
@@ -3474,6 +3502,11 @@ _zkstack__chain__init__help__help_commands() {
 _zkstack__chain__initialize-bridges_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain initialize-bridges commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__propose-chain_commands] )) ||
+_zkstack__chain__propose-chain_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain propose-chain commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__register-chain_commands] )) ||
 _zkstack__chain__register-chain_commands() {
@@ -4658,6 +4691,7 @@ _zkstack__help__chain_commands() {
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
+'propose-chain:' \
     )
     _describe -t commands 'zkstack help chain commands' commands "$@"
 }
@@ -4740,6 +4774,11 @@ _zkstack__help__chain__init__configs_commands() {
 _zkstack__help__chain__initialize-bridges_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain initialize-bridges commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__propose-chain_commands] )) ||
+_zkstack__help__chain__propose-chain_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain propose-chain commands' commands "$@"
 }
 (( $+functions[_zkstack__help__chain__register-chain_commands] )) ||
 _zkstack__help__chain__register-chain_commands() {

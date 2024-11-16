@@ -1,11 +1,13 @@
-use crate::commands::chain::args::propose_registration::ProposeRegistrationArgs;
 use anyhow::Context;
 use common::{ethereum, spinner::Spinner};
 use config::{ChainConfig, EcosystemConfig};
 use ethers::abi::Address;
 use xshell::Shell;
 
-use crate::messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_REGISTERING_CHAIN_SPINNER};
+use crate::{
+    commands::chain::args::propose_registration::ProposeRegistrationArgs,
+    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_REGISTERING_CHAIN_SPINNER},
+};
 
 pub async fn run(shell: &Shell, args: ProposeRegistrationArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;

@@ -44,9 +44,9 @@ impl Detokenize for L1BatchCommitmentMode {
     }
 }
 
-impl Into<u8> for L1BatchCommitmentMode {
-    fn into(self) -> u8 {
-        match self {
+impl From<L1BatchCommitmentMode> for u8 {
+    fn from(val: L1BatchCommitmentMode) -> Self {
+        match val {
             L1BatchCommitmentMode::Rollup => 0,
             L1BatchCommitmentMode::Validium => 1,
         }

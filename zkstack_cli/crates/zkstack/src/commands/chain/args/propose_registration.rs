@@ -1,5 +1,3 @@
-use crate::defaults::LOCAL_RPC_URL;
-use crate::messages::{MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT};
 use anyhow::Context;
 use clap::Parser;
 use common::Prompt;
@@ -7,6 +5,11 @@ use config::EcosystemConfig;
 use ethers::abi::Address;
 use serde::{Deserialize, Serialize};
 use url::Url;
+
+use crate::{
+    defaults::LOCAL_RPC_URL,
+    messages::{MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct ProposeRegistrationArgs {

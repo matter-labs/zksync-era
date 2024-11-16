@@ -40,7 +40,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         args,
         &ecosystem_config,
         &chain_config,
-        &mut contracts,
+        &contracts,
         l1_rpc_url,
         None,
         true,

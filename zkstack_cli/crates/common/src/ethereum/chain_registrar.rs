@@ -20,6 +20,7 @@ abigen!(
     ]"
 );
 
+#[allow(clippy::too_many_arguments)]
 pub async fn propose_registration(
     chain_registrar: Address,
     main_wallet: Wallet,

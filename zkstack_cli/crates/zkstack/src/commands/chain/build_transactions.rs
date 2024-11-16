@@ -59,7 +59,7 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
         args.forge_args.clone(),
         &config,
         &chain_config,
-        &mut contracts_config,
+        &contracts_config,
         args.l1_rpc_url.clone(),
         Some(governor),
         false,
