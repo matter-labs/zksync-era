@@ -84,10 +84,12 @@ pub async fn init(
     distribute_eth(ecosystem_config, chain_config, init_args.l1_rpc_url.clone()).await?;
     mint_base_token(ecosystem_config, chain_config, init_args.l1_rpc_url.clone()).await?;
     // Propose chain registration
+    let wallet = chain_config.get_wallets_config()?.governor;
     propose_chain::run_propose_chain_registration(
         chain_config,
         contracts_config.ecosystem_contracts.chain_registrar,
         init_args.l1_rpc_url.clone(),
+        wallet,
     )
     .await?;
 

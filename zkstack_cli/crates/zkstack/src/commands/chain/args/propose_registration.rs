@@ -1,8 +1,10 @@
+use std::str::FromStr;
+
 use anyhow::Context;
 use clap::Parser;
-use common::Prompt;
+use common::{wallets::Wallet, Prompt};
 use config::EcosystemConfig;
-use ethers::abi::Address;
+use ethers::{abi::Address, prelude::LocalWallet, types::H256};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -19,6 +21,8 @@ pub struct ProposeRegistrationArgs {
     pub chain_registrar: Option<Address>,
     #[clap(long)]
     pub dev: bool,
+    #[clap(long)]
+    pub private_key: Option<H256>,
 }
 
 impl ProposeRegistrationArgs {
@@ -41,9 +45,21 @@ impl ProposeRegistrationArgs {
             } else {
                 chain_registrar_default.context("Ecosystem must be provided for dev mode")?
             };
+
+            let main_wallet = if let Some(pk) = self.private_key {
+                let local_wallet = LocalWallet::from_bytes(pk.as_bytes())?;
+                Wallet::new(local_wallet)
+            } else {
+                config
+                    .map(|config| config.get_wallets().map(|wallets| wallets.governor))
+                    .transpose()?
+                    .context("Ecosystem must be provided for dev mode")?
+            };
+
             return Ok(ProposeRegistrationArgsFinal {
                 l1_rpc_url,
                 chain_registrar,
+                main_wallet,
             });
         }
 
@@ -67,9 +83,15 @@ impl ProposeRegistrationArgs {
                 .ask()
         });
 
+        let pk = self
+            .private_key
+            .unwrap_or_else(|| Prompt::new("Please specify your private key").ask());
+        let local_wallet = LocalWallet::from_bytes(pk.as_bytes())?;
+
         Ok(ProposeRegistrationArgsFinal {
             l1_rpc_url,
             chain_registrar,
+            main_wallet: Wallet::new(local_wallet),
         })
     }
 }
@@ -78,4 +100,5 @@ impl ProposeRegistrationArgs {
 pub struct ProposeRegistrationArgsFinal {
     pub l1_rpc_url: String,
     pub chain_registrar: Address,
+    pub main_wallet: Wallet,
 }
