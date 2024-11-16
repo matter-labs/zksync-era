@@ -35,6 +35,7 @@ pub async fn run(args: RegisterChainArgs, shell: &Shell) -> anyhow::Result<()> {
     let wallets = ecosystem_config.get_wallets()?;
     let final_args = args.fill_values_with_prompt(chain_config.chain_id, wallets.governor.address);
     let contracts = ecosystem_config.get_contracts_config()?;
+    dbg!(&final_args);
     let l1_rpc_url = final_args.l1_rpc_url;
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
     register_chain(

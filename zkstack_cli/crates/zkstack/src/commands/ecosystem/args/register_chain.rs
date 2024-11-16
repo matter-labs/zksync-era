@@ -26,7 +26,7 @@ pub struct RegisterChainArgs {
     pub proposal_author: Option<Address>,
     #[clap(flatten)]
     pub forge_script_args: ForgeScriptArgs,
-    #[clap(long)]
+    #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub no_broadcast: bool,
     #[arg(long, short)]
     pub out: Option<PathBuf>,
@@ -42,14 +42,15 @@ impl RegisterChainArgs {
     ) -> RegisterChainArgsFinal {
         let default_out = PathBuf::from(DEFAULT_UNSIGNED_TRANSACTIONS_DIR).join(CHAIN_SUBDIR);
         if self.dev {
-            let chain_id_str = &format!("{:?}", default_chain_id);
+            let chain_id = self.chain_id.unwrap_or(default_chain_id);
+            let chain_id_str = &format!("{:?}", chain_id.as_u64());
             return RegisterChainArgsFinal {
-                l1_rpc_url: LOCAL_RPC_URL.to_string(),
-                chain_id: default_chain_id,
-                proposal_author: chain_governor,
-                out: default_out.join(chain_id_str),
-                forge_script_args: Default::default(),
-                no_broadcast: false,
+                l1_rpc_url: self.l1_rpc_url.unwrap_or_else(|| LOCAL_RPC_URL.to_string()),
+                chain_id: self.chain_id.unwrap_or(default_chain_id),
+                proposal_author: self.proposal_author.unwrap_or(chain_governor),
+                out: self.out.unwrap_or_else(|| default_out.join(chain_id_str)),
+                forge_script_args: self.forge_script_args,
+                no_broadcast: self.no_broadcast,
             };
         }
 
@@ -91,6 +92,7 @@ impl RegisterChainArgs {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct RegisterChainArgsFinal {
     pub l1_rpc_url: String,
     pub chain_id: L2ChainId,
