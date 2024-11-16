@@ -16,9 +16,7 @@ use crate::commands::dev::messages::{
 
 pub const TEST_WALLETS_PATH: &str = "etc/test_config/constant/eth.json";
 const AMOUNT_FOR_DISTRIBUTION_TO_WALLETS: u128 = 1000000000000000000000;
-
 pub const TS_INTEGRATION_PATH: &str = "core/tests/ts-integration";
-const CONTRACTS_TEST_DATA_PATH: &str = "etc/contracts-test-data";
 
 #[derive(Deserialize)]
 pub struct TestWallets {
@@ -89,9 +87,6 @@ pub fn build_contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> any
 
     Cmd::new(cmd!(shell, "yarn build")).run()?;
     Cmd::new(cmd!(shell, "yarn build-yul")).run()?;
-
-    let _dir_guard = shell.push_dir(ecosystem_config.link_to_code.join(CONTRACTS_TEST_DATA_PATH));
-    Cmd::new(cmd!(shell, "yarn build")).run()?;
 
     spinner.finish();
     Ok(())

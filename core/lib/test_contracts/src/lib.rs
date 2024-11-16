@@ -1,17 +1,17 @@
 use ethabi::Token;
-use zksync_contracts::{
-    deployer_contract, load_contract, test_contracts::LoadnextContractExecutionParams,
-};
 use zksync_eth_signer::{PrivateKeySigner, TransactionParameters};
 use zksync_system_constants::{
-    CONTRACT_DEPLOYER_ADDRESS, DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE,
-    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+    DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
 use zksync_types::{
     abi, address_to_u256, bytecode::BytecodeHash, fee::Fee, l2::L2Tx,
     utils::deployed_address_create, Address, Execute, K256PrivateKey, L2ChainId, Nonce,
     Transaction, H256, PRIORITY_OPERATION_L2_TX_TYPE, U256,
 };
+
+pub use self::contracts::{LoadnextContractExecutionParams, TestContract};
+
+mod contracts;
 
 pub const L1_TEST_GAS_PER_PUBDATA_BYTE: u32 = 800;
 const BASE_FEE: u64 = 2_000_000_000;
@@ -115,31 +115,13 @@ impl Account {
         &mut self,
         code: &[u8],
         calldata: Option<&[Token]>,
-        mut factory_deps: Vec<Vec<u8>>,
+        factory_deps: Vec<Vec<u8>>,
         tx_type: TxType,
     ) -> DeployContractsTx {
-        let deployer = deployer_contract();
-
-        let contract_function = deployer.function("create").unwrap();
-
-        let calldata = calldata.map(ethabi::encode);
+        let calldata = calldata.unwrap_or_default();
         let code_hash = BytecodeHash::for_bytecode(code).value();
-        let params = [
-            Token::FixedBytes(vec![0u8; 32]),
-            Token::FixedBytes(code_hash.0.to_vec()),
-            Token::Bytes(calldata.unwrap_or_default().to_vec()),
-        ];
-        factory_deps.push(code.to_vec());
-        let calldata = contract_function
-            .encode_input(&params)
-            .expect("failed to encode parameters");
-
-        let execute = Execute {
-            contract_address: Some(CONTRACT_DEPLOYER_ADDRESS),
-            calldata,
-            factory_deps,
-            value: U256::zero(),
-        };
+        let mut execute = Execute::for_deploy(H256::zero(), code.to_vec(), calldata);
+        execute.factory_deps.extend(factory_deps);
 
         let tx = match tx_type {
             TxType::L2 => self.get_l2_tx_for_execute(execute, None),
@@ -204,16 +186,15 @@ impl Account {
         payable: bool,
         tx_type: TxType,
     ) -> Transaction {
-        let test_contract = load_contract(
-            "etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json",
-        );
+        let test_contract = TestContract::counter();
 
         let function = if payable {
             test_contract
+                .abi
                 .function("incrementWithRevertPayable")
                 .unwrap()
         } else {
-            test_contract.function("incrementWithRevert").unwrap()
+            test_contract.abi.function("incrementWithRevert").unwrap()
         };
 
         let calldata = function

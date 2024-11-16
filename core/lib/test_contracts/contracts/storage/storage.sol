@@ -37,7 +37,7 @@ contract StorageTester {
     }
 
     // This test aims to check that the tstore/sstore are writing into separate spaces.
-    function testTrasientAndNonTransientStore() external {
+    function testTransientAndNonTransientStore() external {
         value = 100;
 
         uint256 x;
@@ -95,7 +95,7 @@ contract StorageTester {
     }
 
     function testTransientStore() external {
-        this.testTrasientAndNonTransientStore();
+        this.testTransientAndNonTransientStore();
         this.testTstoreRollback();
     }
 
