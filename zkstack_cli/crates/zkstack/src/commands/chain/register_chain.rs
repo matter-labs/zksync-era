@@ -26,7 +26,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
-    let mut contracts = chain_config.get_contracts_config()?;
+    let contracts = chain_config.get_contracts_config()?;
     let secrets = chain_config.get_secrets_config()?;
     let l1_rpc_url = secrets
         .l1

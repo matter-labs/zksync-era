@@ -35,9 +35,12 @@ impl ProposeRegistrationArgs {
             .transpose()?;
 
         if self.dev {
-            let l1_rpc_url = LOCAL_RPC_URL.to_string();
-            let chain_registrar =
-                chain_registrar_default.context("Ecosystem must be provided for dev mode")?;
+            let l1_rpc_url = self.l1_rpc_url.unwrap_or(LOCAL_RPC_URL.to_string());
+            let chain_registrar = if let Some(chain_registrar) = self.chain_registrar {
+                chain_registrar
+            } else {
+                chain_registrar_default.context("Ecosystem must be provided for dev mode")?
+            };
             return Ok(ProposeRegistrationArgsFinal {
                 l1_rpc_url,
                 chain_registrar,
