@@ -4,6 +4,7 @@ use xshell::Shell;
 
 use crate::commands::ecosystem::args::{
     change_default::ChangeDefaultChain, create::EcosystemCreateArgs, init::EcosystemInitArgs,
+    register_chain::RegisterChainArgs,
 };
 
 mod args;
@@ -13,6 +14,7 @@ mod common;
 mod create;
 pub mod create_configs;
 pub(crate) mod init;
+pub mod register_chain;
 pub(crate) mod setup_observability;
 mod utils;
 
@@ -27,6 +29,12 @@ pub enum EcosystemCommands {
     /// Initialize ecosystem and chain,
     /// deploying necessary contracts and performing on-chain operations
     Init(EcosystemInitArgs),
+    /// Register a new chain on L1 (executed by L1 governor).
+    /// This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts,
+    /// registers chain with BridgeHub and sets pending admin for DiamondProxy.
+    /// Note: After completion, L2 governor can accept ownership by running `accept-chain-ownership`
+    #[command(alias = "register")]
+    RegisterChain(RegisterChainArgs),
     /// Change the default chain
     #[command(alias = "cd")]
     ChangeDefaultChain(ChangeDefaultChain),
@@ -43,5 +51,6 @@ pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Resul
         EcosystemCommands::Init(args) => init::run(args, shell).await,
         EcosystemCommands::ChangeDefaultChain(args) => change_default::run(args, shell),
         EcosystemCommands::SetupObservability => setup_observability::run(shell),
+        EcosystemCommands::RegisterChain(args) => register_chain::run(args, shell).await,
     }
 }

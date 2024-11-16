@@ -255,8 +255,6 @@ pub(super) const MSG_DEPLOYING_PAYMASTER: &str = "Deploying paymaster";
 pub(super) const MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER: &str =
     "Building chain registration transactions...";
 pub(super) const MSG_CHAIN_TXN_OUT_PATH_INVALID_ERR: &str = "Invalid path";
-pub(super) const MSG_CHAIN_TXN_MISSING_CONTRACT_CONFIG: &str =
-    "Missing contract.yaml, please be sure to run this command within initialized ecosystem";
 pub(super) const MSG_CHAIN_TRANSACTIONS_BUILT: &str = "Chain transactions successfully built";
 
 /// Run server related messages

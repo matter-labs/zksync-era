@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use common::{config::global_config, forge::ForgeScriptArgs, Prompt};
+use ethers::abi::Address;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -24,6 +25,8 @@ pub struct BuildTransactionsArgs {
     pub forge_args: ForgeScriptArgs,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub l1_rpc_url: Option<String>,
+    #[clap(long)]
+    pub proposal_author: Option<Address>,
 }
 
 impl BuildTransactionsArgs {
@@ -48,6 +51,7 @@ impl BuildTransactionsArgs {
                 .join(chain_name.unwrap_or(default_chain)),
             forge_args: self.forge_args,
             l1_rpc_url,
+            proposal_author: self.proposal_author,
         }
     }
 }
@@ -57,4 +61,5 @@ pub struct BuildTransactionsArgsFinal {
     pub out: PathBuf,
     pub forge_args: ForgeScriptArgs,
     pub l1_rpc_url: String,
+    pub proposal_author: Option<Address>,
 }

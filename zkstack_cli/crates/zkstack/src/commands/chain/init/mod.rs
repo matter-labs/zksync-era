@@ -7,18 +7,20 @@ use zksync_basic_types::L2ChainId;
 
 use crate::{
     accept_ownership::accept_admin,
-    commands::chain::{
-        args::init::{
-            configs::{InitConfigsArgs, InitConfigsArgsFinal},
-            InitArgs, InitArgsFinal,
+    commands::{
+        chain::{
+            args::init::{
+                configs::{InitConfigsArgs, InitConfigsArgsFinal},
+                InitArgs, InitArgsFinal,
+            },
+            common::{distribute_eth, mint_base_token},
+            deploy_l2_contracts, deploy_paymaster,
+            genesis::genesis,
+            init::configs::init_configs,
+            propose_chain,
+            setup_legacy_bridge::setup_legacy_bridge,
         },
-        common::{distribute_eth, mint_base_token},
-        deploy_l2_contracts, deploy_paymaster,
-        genesis::genesis,
-        init::configs::init_configs,
-        propose_chain,
-        register_chain::register_chain,
-        setup_legacy_bridge::setup_legacy_bridge,
+        ecosystem::register_chain::register_chain,
     },
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
@@ -89,7 +91,7 @@ pub async fn init(
         chain_config,
         contracts_config.ecosystem_contracts.chain_registrar,
         init_args.l1_rpc_url.clone(),
-        wallet,
+        &wallet,
     )
     .await?;
 
@@ -99,10 +101,11 @@ pub async fn init(
         shell,
         init_args.forge_args.clone(),
         ecosystem_config,
-        chain_config,
         &contracts_config,
+        chain_config.chain_id,
         init_args.l1_rpc_url.clone(),
         None,
+        wallet.address,
         true,
     )
     .await?;

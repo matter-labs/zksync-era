@@ -19,7 +19,7 @@ pub async fn run(shell: &Shell, args: ProposeRegistrationArgs) -> anyhow::Result
         &chain_config,
         args.chain_registrar,
         args.l1_rpc_url,
-        args.main_wallet,
+        &args.main_wallet,
     )
     .await
 }
@@ -28,7 +28,7 @@ pub async fn run_propose_chain_registration(
     chain_config: &ChainConfig,
     chain_registrar: Address,
     l1_rpc_url: String,
-    wallet: Wallet,
+    wallet: &Wallet,
 ) -> anyhow::Result<()> {
     let wallets = chain_config.get_wallets_config()?;
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
