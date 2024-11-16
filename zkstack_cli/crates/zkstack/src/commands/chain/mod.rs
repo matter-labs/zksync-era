@@ -5,6 +5,7 @@ use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
 use xshell::Shell;
 
+use crate::commands::chain::args::propose_registration::ProposeRegistrationArgs;
 use crate::commands::chain::{
     args::create::ChainCreateArgs, deploy_l2_contracts::Deploy2ContractsOption,
     genesis::GenesisCommand, init::ChainInitCommand,
@@ -68,7 +69,7 @@ pub enum ChainCommands {
     DeployPaymaster(ForgeScriptArgs),
     /// Update Token Multiplier Setter address on L1
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
-    ProposeChain,
+    ProposeChain(ProposeRegistrationArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
@@ -101,6 +102,6 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
             set_token_multiplier_setter::run(args, shell).await
         }
-        ChainCommands::ProposeChain => propose_chain::run(shell).await,
+        ChainCommands::ProposeChain(args) => propose_chain::run(shell, args).await,
     }
 }

@@ -2,7 +2,6 @@ use anyhow::Context;
 use clap::{command, Parser, Subcommand};
 use common::{ethereum, git, logger, spinner::Spinner};
 use config::{traits::SaveConfigWithBasePath, ChainConfig, ContractsConfig, EcosystemConfig};
-use types::BaseToken;
 use xshell::Shell;
 use zksync_basic_types::L2ChainId;
 
@@ -19,14 +18,12 @@ use crate::{
         init::configs::init_configs,
         propose_chain,
         register_chain::register_chain,
-        set_token_multiplier_setter::set_token_multiplier_setter,
         setup_legacy_bridge::setup_legacy_bridge,
     },
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DEPLOYING_PAYMASTER, MSG_GENESIS_DATABASE_ERR,
         MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
-        MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
 };
 
@@ -87,7 +84,12 @@ pub async fn init(
     distribute_eth(ecosystem_config, chain_config, init_args.l1_rpc_url.clone()).await?;
     mint_base_token(ecosystem_config, chain_config, init_args.l1_rpc_url.clone()).await?;
     // Propose chain registration
-    propose_chain::run_propose_chain_registration(chain_config).await?;
+    propose_chain::run_propose_chain_registration(
+        chain_config,
+        contracts_config.ecosystem_contracts.chain_registrar,
+        init_args.l1_rpc_url.clone(),
+    )
+    .await?;
 
     // Register chain on BridgeHub (run by L1 Governor)
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);

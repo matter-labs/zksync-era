@@ -61,7 +61,7 @@ jobs:
       - name: Init
         run: |
           ci_run run_retried rustup show
-      
+
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
@@ -132,7 +132,7 @@ jobs:
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
           ci_run zkstackup -g --local
-  
+
 
       - name: Create and initialize legacy chain
         run: |
@@ -201,7 +201,7 @@ jobs:
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
           ci_run zkstackup -g --local
-  
+
       - name: Create log directories
         run: |
           SERVER_LOGS_DIR=logs/server
@@ -306,6 +306,7 @@ jobs:
           --set-as-default false \
           --ignore-prerequisites
 
+          ci_run zkstack chain propose-chain --chain offline_chain --dev
           ci_run zkstack chain build-transactions --chain offline_chain --l1-rpc-url http://127.0.0.1:8545
 
           governor_pk=$(awk '/governor:/ {flag=1} flag && /private_key:/ {print $2; exit}' ./configs/wallets.yaml)
