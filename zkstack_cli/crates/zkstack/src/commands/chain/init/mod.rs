@@ -104,27 +104,6 @@ pub async fn init(
     .await?;
     spinner.finish();
 
-    // Set token multiplier setter address (run by L2 Governor)
-    if chain_config.base_token != BaseToken::eth() {
-        let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
-        set_token_multiplier_setter(
-            shell,
-            ecosystem_config,
-            &chain_config.get_wallets_config()?.governor,
-            contracts_config.l1.chain_admin_addr,
-            chain_config
-                .get_wallets_config()
-                .unwrap()
-                .token_multiplier_setter
-                .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
-                .address,
-            &init_args.forge_args.clone(),
-            init_args.l1_rpc_url.clone(),
-        )
-        .await?;
-        spinner.finish();
-    }
-
     // Deploy L2 contracts: L2SharedBridge, L2DefaultUpgrader, ... (run by L1 Governor)
     deploy_l2_contracts::deploy_l2_contracts(
         shell,
