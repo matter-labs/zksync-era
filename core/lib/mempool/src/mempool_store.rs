@@ -1,7 +1,8 @@
-use std::collections::{hash_map, BTreeSet, HashMap, HashSet};
+use std::collections::{hash_map, BTreeSet, HashMap};
 
 use zksync_types::{
     l1::L1Tx, l2::L2Tx, Address, ExecuteTransactionCommon, Nonce, PriorityOpId, Transaction,
+    TransactionTimeRangeConstraint,
 };
 
 use crate::types::{AccountTransactions, L2TxFilter, MempoolScore};
@@ -54,10 +55,10 @@ impl MempoolStore {
     /// in other cases mempool relies on state keeper and its internal state to keep that info up to date
     pub fn insert(
         &mut self,
-        transactions: Vec<Transaction>,
+        transactions: Vec<(Transaction, TransactionTimeRangeConstraint)>,
         initial_nonces: HashMap<Address, Nonce>,
     ) {
-        for transaction in transactions {
+        for (transaction, constraint) in transactions {
             let Transaction {
                 common_data,
                 execute,
@@ -85,6 +86,7 @@ impl MempoolStore {
                             received_timestamp_ms,
                             raw_bytes,
                         },
+                        constraint,
                         &initial_nonces,
                     );
                 }
@@ -95,20 +97,36 @@ impl MempoolStore {
         }
     }
 
+    #[cfg(test)]
+    pub fn insert_without_constraints(
+        &mut self,
+        transactions: Vec<Transaction>,
+        initial_nonces: HashMap<Address, Nonce>,
+    ) {
+        self.insert(
+            transactions
+                .into_iter()
+                .map(|x| (x, TransactionTimeRangeConstraint::default()))
+                .collect(),
+            initial_nonces,
+        );
+    }
+
     fn insert_l2_transaction(
         &mut self,
         transaction: L2Tx,
+        constraint: TransactionTimeRangeConstraint,
         initial_nonces: &HashMap<Address, Nonce>,
     ) {
         let account = transaction.initiator_account();
 
         let metadata = match self.l2_transactions_per_account.entry(account) {
-            hash_map::Entry::Occupied(mut txs) => txs.get_mut().insert(transaction),
+            hash_map::Entry::Occupied(mut txs) => txs.get_mut().insert(transaction, constraint),
             hash_map::Entry::Vacant(entry) => {
                 let account_nonce = initial_nonces.get(&account).cloned().unwrap_or(Nonce(0));
                 entry
                     .insert(AccountTransactions::new(account_nonce))
-                    .insert(transaction)
+                    .insert(transaction, constraint)
             }
         };
         if let Some(score) = metadata.previous_score {
@@ -133,10 +151,17 @@ impl MempoolStore {
     }
 
     /// Returns next transaction for execution from mempool
-    pub fn next_transaction(&mut self, filter: &L2TxFilter) -> Option<Transaction> {
+    pub fn next_transaction(
+        &mut self,
+        filter: &L2TxFilter,
+    ) -> Option<(Transaction, TransactionTimeRangeConstraint)> {
         if let Some(transaction) = self.l1_transactions.remove(&self.next_priority_id) {
             self.next_priority_id += 1;
-            return Some(transaction.into());
+            // L1 transactions can't use block.timestamp in AA and hence do not need to have a constraint
+            return Some((
+                transaction.into(),
+                TransactionTimeRangeConstraint::default(),
+            ));
         }
 
         let mut removed = 0;
@@ -163,7 +188,7 @@ impl MempoolStore {
             self.stashed_accounts.push(stashed_pointer.account);
         }
         // insert pointer to the next transaction if it exists
-        let (transaction, score) = self
+        let (transaction, constraint, score) = self
             .l2_transactions_per_account
             .get_mut(&tx_pointer.account)
             .expect("mempool: dangling pointer in priority queue")
@@ -176,28 +201,31 @@ impl MempoolStore {
             .size
             .checked_sub((removed + 1) as u64)
             .expect("mempool size can't be negative");
-        Some(transaction.into())
+        Some((transaction.into(), constraint))
     }
 
     /// When a state_keeper starts the block over after a rejected transaction,
     /// we have to rollback the nonces/ids in the mempool and
     /// reinsert the transactions from the block back into mempool.
-    pub fn rollback(&mut self, tx: &Transaction) {
+    pub fn rollback(&mut self, tx: &Transaction) -> TransactionTimeRangeConstraint {
         // rolling back the nonces and priority ids
         match &tx.common_data {
             ExecuteTransactionCommon::L1(data) => {
                 // reset next priority id
                 self.next_priority_id = self.next_priority_id.min(data.serial_id);
+                TransactionTimeRangeConstraint::default()
             }
             ExecuteTransactionCommon::L2(_) => {
-                if let Some(score) = self
+                if let Some((score, constraint)) = self
                     .l2_transactions_per_account
                     .get_mut(&tx.initiator_account())
                     .expect("account is not available in mempool")
                     .reset(tx)
                 {
                     self.l2_priority_queue.remove(&score);
+                    return constraint;
                 }
+                TransactionTimeRangeConstraint::default()
             }
             ExecuteTransactionCommon::ProtocolUpgrade(_) => {
                 panic!("Protocol upgrade tx is not supposed to be in mempool");
@@ -221,22 +249,57 @@ impl MempoolStore {
     }
 
     fn gc(&mut self) -> Vec<Address> {
-        if self.size >= self.capacity {
-            let index: HashSet<_> = self
+        if self.size > self.capacity {
+            let mut transactions = std::mem::take(&mut self.l2_transactions_per_account);
+            let mut possibly_kept: Vec<_> = self
                 .l2_priority_queue
                 .iter()
-                .map(|pointer| pointer.account)
+                .rev()
+                .filter_map(|pointer| {
+                    transactions
+                        .remove(&pointer.account)
+                        .map(|txs| (pointer.account, txs))
+                })
                 .collect();
-            let transactions = std::mem::take(&mut self.l2_transactions_per_account);
-            let (kept, drained) = transactions
+
+            let mut sum = 0;
+            let mut number_of_accounts_kept = 0;
+            for (_, txs) in &possibly_kept {
+                sum += txs.len();
+                if sum <= self.capacity as usize {
+                    number_of_accounts_kept += 1;
+                } else {
+                    break;
+                }
+            }
+            if number_of_accounts_kept == 0 && !possibly_kept.is_empty() {
+                tracing::warn!("mempool capacity is too low to handle txs from single account, consider increasing capacity");
+                // Keep at least one entry, otherwise mempool won't return any new L2 tx to process.
+                number_of_accounts_kept = 1;
+            }
+            let (kept, drained) = {
+                let mut drained: Vec<_> = transactions.into_keys().collect();
+                let also_drained = possibly_kept
+                    .split_off(number_of_accounts_kept)
+                    .into_iter()
+                    .map(|(address, _)| address);
+                drained.extend(also_drained);
+
+                (possibly_kept, drained)
+            };
+
+            let l2_priority_queue = std::mem::take(&mut self.l2_priority_queue);
+            self.l2_priority_queue = l2_priority_queue
                 .into_iter()
-                .partition(|(address, _)| index.contains(address));
-            self.l2_transactions_per_account = kept;
+                .rev()
+                .take(number_of_accounts_kept)
+                .collect();
+            self.l2_transactions_per_account = kept.into_iter().collect();
             self.size = self
                 .l2_transactions_per_account
                 .iter()
-                .fold(0, |agg, (_, tnxs)| agg + tnxs.len() as u64);
-            return drained.into_keys().collect();
+                .fold(0, |agg, (_, txs)| agg + txs.len() as u64);
+            return drained;
         }
         vec![]
     }

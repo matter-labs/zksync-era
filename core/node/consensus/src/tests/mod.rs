@@ -11,12 +11,12 @@ use zksync_consensus_roles::{
 };
 use zksync_consensus_storage::{BlockStore, PersistentBlockStore};
 use zksync_dal::consensus_dal;
-use zksync_test_account::Account;
+use zksync_test_contracts::Account;
 use zksync_types::ProtocolVersionId;
 use zksync_web3_decl::namespaces::EnNamespaceClient as _;
 
 use crate::{
-    en::TEMPORARY_FETCHER_THRESHOLD,
+    en::FALLBACK_FETCHER_THRESHOLD,
     mn::run_main_node,
     storage::{ConnectionPool, Store},
     testonly,
@@ -26,7 +26,6 @@ mod attestation;
 
 const VERSIONS: [ProtocolVersionId; 2] = [ProtocolVersionId::latest(), ProtocolVersionId::next()];
 const FROM_SNAPSHOT: [bool; 2] = [true, false];
-const PREGENESIS: [bool; 2] = [true, false];
 const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(500);
 
 #[test_casing(2, VERSIONS)]
@@ -190,14 +189,14 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
 // In the current implementation, consensus certificates are created asynchronously
 // for the L2 blocks constructed by the StateKeeper. This means that consensus actor
 // is effectively just back filling the consensus certificates for the L2 blocks in storage.
-#[test_casing(8, Product((FROM_SNAPSHOT,VERSIONS,PREGENESIS)))]
+#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
 #[tokio::test]
-async fn test_validator(from_snapshot: bool, version: ProtocolVersionId, pregenesis: bool) {
+async fn test_validator(from_snapshot: bool, version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
     let setup = Setup::new(rng, 1);
-    let cfg = testonly::new_configs(rng, &setup, 0, pregenesis)[0].clone();
+    let cfg = testonly::new_configs(rng, &setup, 0)[0].clone();
     let account = &mut Account::random();
 
     scope::run!(ctx, |ctx, s| async {
@@ -254,14 +253,14 @@ async fn test_validator(from_snapshot: bool, version: ProtocolVersionId, pregene
 }
 
 // Test running a validator node and 2 full nodes recovered from different snapshots.
-#[test_casing(4, Product((VERSIONS,PREGENESIS)))]
+#[test_casing(2, VERSIONS)]
 #[tokio::test]
-async fn test_nodes_from_various_snapshots(version: ProtocolVersionId, pregenesis: bool) {
+async fn test_nodes_from_various_snapshots(version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
     let setup = Setup::new(rng, 1);
-    let validator_cfg = testonly::new_configs(rng, &setup, 0, pregenesis)[0].clone();
+    let validator_cfg = testonly::new_configs(rng, &setup, 0)[0].clone();
     let account = &mut Account::random();
 
     scope::run!(ctx, |ctx, s| async {
@@ -335,14 +334,14 @@ async fn test_nodes_from_various_snapshots(version: ProtocolVersionId, pregenesi
     .unwrap();
 }
 
-#[test_casing(8, Product((FROM_SNAPSHOT,VERSIONS,PREGENESIS)))]
+#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
 #[tokio::test]
-async fn test_config_change(from_snapshot: bool, version: ProtocolVersionId, pregenesis: bool) {
+async fn test_config_change(from_snapshot: bool, version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
     let setup = Setup::new(rng, 1);
-    let mut validator_cfg = testonly::new_configs(rng, &setup, 0, pregenesis)[0].clone();
+    let mut validator_cfg = testonly::new_configs(rng, &setup, 0)[0].clone();
     let node_cfg = validator_cfg.new_fullnode(rng);
     let account = &mut Account::random();
 
@@ -412,16 +411,16 @@ async fn test_config_change(from_snapshot: bool, version: ProtocolVersionId, pre
 // Test running a validator node and a couple of full nodes.
 // Validator is producing signed blocks and fetchers are expected to fetch
 // them directly or indirectly.
-#[test_casing(8, Product((FROM_SNAPSHOT,VERSIONS,PREGENESIS)))]
+#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
 #[tokio::test]
-async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId, pregenesis: bool) {
+async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId) {
     const NODES: usize = 2;
 
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
     let setup = Setup::new(rng, 1);
-    let validator_cfg = testonly::new_configs(rng, &setup, 0, pregenesis)[0].clone();
+    let validator_cfg = testonly::new_configs(rng, &setup, 0)[0].clone();
     let account = &mut Account::random();
 
     // topology:
@@ -500,16 +499,16 @@ async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId, pregen
 }
 
 // Test running external node (non-leader) validators.
-#[test_casing(8, Product((FROM_SNAPSHOT,VERSIONS,PREGENESIS)))]
+#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
 #[tokio::test]
-async fn test_en_validators(from_snapshot: bool, version: ProtocolVersionId, pregenesis: bool) {
+async fn test_en_validators(from_snapshot: bool, version: ProtocolVersionId) {
     const NODES: usize = 3;
 
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
     let setup = Setup::new(rng, NODES);
-    let cfgs = testonly::new_configs(rng, &setup, 1, pregenesis);
+    let cfgs = testonly::new_configs(rng, &setup, 1);
     let account = &mut Account::random();
 
     // Run all nodes in parallel.
@@ -583,18 +582,14 @@ async fn test_en_validators(from_snapshot: bool, version: ProtocolVersionId, pre
 }
 
 // Test fetcher back filling missing certs.
-#[test_casing(8, Product((FROM_SNAPSHOT,VERSIONS,PREGENESIS)))]
+#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
 #[tokio::test]
-async fn test_p2p_fetcher_backfill_certs(
-    from_snapshot: bool,
-    version: ProtocolVersionId,
-    pregenesis: bool,
-) {
+async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool, version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
     let setup = Setup::new(rng, 1);
-    let validator_cfg = testonly::new_configs(rng, &setup, 0, pregenesis)[0].clone();
+    let validator_cfg = testonly::new_configs(rng, &setup, 0)[0].clone();
     let node_cfg = validator_cfg.new_fullnode(rng);
     let account = &mut Account::random();
 
@@ -668,16 +663,16 @@ async fn test_p2p_fetcher_backfill_certs(
 }
 
 // Test temporary fetcher fetching blocks if a lot of certs are missing.
-#[test_casing(8, Product((FROM_SNAPSHOT,VERSIONS,PREGENESIS)))]
+#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
 #[tokio::test]
-async fn test_temporary_fetcher(from_snapshot: bool, version: ProtocolVersionId, pregenesis: bool) {
+async fn test_fallback_fetcher(from_snapshot: bool, version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
     // We force certs to be missing on EN by having 1 of the validators permanently offline.
     // This way no blocks will be finalized at all, so no one will have certs.
     let setup = Setup::new(rng, 2);
-    let validator_cfg = testonly::new_configs(rng, &setup, 0, pregenesis)[0].clone();
+    let validator_cfg = testonly::new_configs(rng, &setup, 0)[0].clone();
     let node_cfg = validator_cfg.new_fullnode(rng);
     let account = &mut Account::random();
 
@@ -710,7 +705,7 @@ async fn test_temporary_fetcher(from_snapshot: bool, version: ProtocolVersionId,
             s.spawn_bg(runner.run(ctx));
             s.spawn_bg(node.run_fetcher(ctx, client.clone()));
             validator
-                .push_random_blocks(rng, account, TEMPORARY_FETCHER_THRESHOLD as usize + 1)
+                .push_random_blocks(rng, account, FALLBACK_FETCHER_THRESHOLD as usize + 1)
                 .await;
             node_pool
                 .wait_for_payload(ctx, validator.last_block())
@@ -720,9 +715,7 @@ async fn test_temporary_fetcher(from_snapshot: bool, version: ProtocolVersionId,
         .await
         .unwrap();
 
-        tracing::info!(
-            "Run p2p fetcher. Blocks should be fetched by the temporary fetcher anyway."
-        );
+        tracing::info!("Run p2p fetcher. Blocks should be fetched by the fallback fetcher anyway.");
         scope::run!(ctx, |ctx, s| async {
             let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
             s.spawn_bg(runner.run(ctx));
@@ -741,70 +734,14 @@ async fn test_temporary_fetcher(from_snapshot: bool, version: ProtocolVersionId,
     .unwrap();
 }
 
-// Test that temporary fetcher terminates once enough blocks have certs.
-#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
+#[test_casing(2, VERSIONS)]
 #[tokio::test]
-async fn test_temporary_fetcher_termination(from_snapshot: bool, version: ProtocolVersionId) {
-    zksync_concurrency::testonly::abort_on_panic();
-    let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
-    let rng = &mut ctx.rng();
-    let setup = Setup::new(rng, 1);
-    let pregenesis = true;
-    let validator_cfg = testonly::new_configs(rng, &setup, 0, pregenesis)[0].clone();
-    let node_cfg = validator_cfg.new_fullnode(rng);
-    let account = &mut Account::random();
-
-    scope::run!(ctx, |ctx, s| async {
-        tracing::info!("Spawn validator.");
-        let validator_pool = ConnectionPool::test(from_snapshot, version).await;
-        let (mut validator, runner) =
-            testonly::StateKeeper::new(ctx, validator_pool.clone()).await?;
-        s.spawn_bg(runner.run(ctx));
-        s.spawn_bg(run_main_node(
-            ctx,
-            validator_cfg.config.clone(),
-            validator_cfg.secrets.clone(),
-            validator_pool.clone(),
-        ));
-        // API server needs at least 1 L1 batch to start.
-        validator.seal_batch().await;
-        let client = validator.connect(ctx).await?;
-
-        let node_pool = ConnectionPool::test(from_snapshot, version).await;
-
-        // Run the EN so the consensus is initialized on EN and wait for it to sync.
-        scope::run!(ctx, |ctx, s| async {
-            let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
-            s.spawn_bg(runner.run(ctx));
-            s.spawn_bg(node.run_consensus(ctx, client.clone(), node_cfg.clone()));
-            validator.push_random_blocks(rng, account, 5).await;
-            node_pool
-                .wait_for_payload(ctx, validator.last_block())
-                .await?;
-            Ok(())
-        })
-        .await
-        .unwrap();
-
-        // Run the temporary fetcher. It should terminate immediately, since EN is synced.
-        let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
-        s.spawn_bg(runner.run(ctx));
-        node.run_temporary_fetcher(ctx, client).await?;
-
-        Ok(())
-    })
-    .await
-    .unwrap();
-}
-
-#[test_casing(4, Product((VERSIONS,PREGENESIS)))]
-#[tokio::test]
-async fn test_with_pruning(version: ProtocolVersionId, pregenesis: bool) {
+async fn test_with_pruning(version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
     let setup = Setup::new(rng, 1);
-    let validator_cfg = testonly::new_configs(rng, &setup, 0, pregenesis)[0].clone();
+    let validator_cfg = testonly::new_configs(rng, &setup, 0)[0].clone();
     let node_cfg = validator_cfg.new_fullnode(rng);
     let account = &mut Account::random();
 

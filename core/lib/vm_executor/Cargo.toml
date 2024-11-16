@@ -15,7 +15,6 @@ zksync_contracts.workspace = true
 zksync_dal.workspace = true
 zksync_types.workspace = true
 zksync_multivm.workspace = true
-zksync_utils.workspace = true
 
 async-trait.workspace = true
 once_cell.workspace = true
@@ -26,3 +25,4 @@ vise.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true
+test-casing.workspace = true

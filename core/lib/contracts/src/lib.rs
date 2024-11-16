@@ -10,15 +10,16 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use ethabi::{
-    ethereum_types::{H256, U256},
-    Contract, Event, Function,
-};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, env::Workspace};
+use zksync_basic_types::{
+    bytecode::BytecodeHash,
+    ethabi::{Contract, Event, Function},
+    H256,
+};
+use zksync_utils::env::Workspace;
 
-pub mod test_contracts;
+mod serde_bytecode;
 
 #[derive(Debug, Clone)]
 pub enum ContractLanguage {
@@ -60,10 +61,6 @@ const _IERC20_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
 const _FAIL_ON_RECEIVE_CONTRACT_FILE:  &str  =
     "contracts/l1-contracts/artifacts/contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
-const LOADNEXT_CONTRACT_FILE: &str =
-    "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json";
-const LOADNEXT_SIMPLE_CONTRACT_FILE: &str =
-    "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/Foo.json";
 
 fn home_path() -> PathBuf {
     Workspace::locate().core()
@@ -173,33 +170,6 @@ pub fn verifier_contract() -> Contract {
     load_contract_for_both_compilers(VERIFIER_CONTRACT_FILE)
 }
 
-#[derive(Debug, Clone)]
-pub struct TestContract {
-    /// Contract bytecode to be used for sending deploy transaction.
-    pub bytecode: Vec<u8>,
-    /// Contract ABI.
-    pub contract: Contract,
-
-    pub factory_deps: Vec<Vec<u8>>,
-}
-
-/// Reads test contract bytecode and its ABI.
-pub fn get_loadnext_contract() -> TestContract {
-    let bytecode = read_bytecode(LOADNEXT_CONTRACT_FILE);
-    let dep = read_bytecode(LOADNEXT_SIMPLE_CONTRACT_FILE);
-
-    TestContract {
-        bytecode,
-        contract: loadnext_contract(),
-        factory_deps: vec![dep],
-    }
-}
-
-// Returns loadnext contract and its factory dependencies
-fn loadnext_contract() -> Contract {
-    load_contract("etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json")
-}
-
 pub fn deployer_contract() -> Contract {
     load_sys_contract("ContractDeployer")
 }
@@ -295,10 +265,11 @@ impl SystemContractsRepo {
                 ))) {
                     contract
                 } else {
-                    read_zbin_bytecode_from_path(self.root.join(format!(
-                        "contracts-preprocessed/{0}artifacts/{1}.yul.zbin",
-                        directory, name
-                    )))
+                    read_yul_bytecode_by_path(
+                        self.root
+                            .join(format!("contracts-preprocessed/{directory}artifacts")),
+                        name,
+                    )
                 }
             }
         }
@@ -313,10 +284,10 @@ pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
     {
         return contract;
     };
-    read_zbin_bytecode(format!(
-        "contracts/system-contracts/bootloader/build/artifacts/{}.yul.zbin",
-        bootloader_type
-    ))
+    read_yul_bytecode(
+        "contracts/system-contracts/bootloader/build/artifacts",
+        bootloader_type,
+    )
 }
 
 fn read_proved_batch_bootloader_bytecode() -> Vec<u8> {
@@ -378,7 +349,8 @@ fn read_zbin_bytecode_from_hex_file(bytecode_path: PathBuf) -> Vec<u8> {
 /// Hash of code and code which consists of 32 bytes words
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemContractCode {
-    pub code: Vec<U256>,
+    #[serde(with = "serde_bytecode")]
+    pub code: Vec<u8>,
     pub hash: H256,
 }
 
@@ -408,18 +380,16 @@ impl PartialEq for BaseSystemContracts {
 
 impl BaseSystemContracts {
     fn load_with_bootloader(bootloader_bytecode: Vec<u8>) -> Self {
-        let hash = hash_bytecode(&bootloader_bytecode);
-
+        let hash = BytecodeHash::for_bytecode(&bootloader_bytecode).value();
         let bootloader = SystemContractCode {
-            code: bytes_to_be_words(bootloader_bytecode),
+            code: bootloader_bytecode,
             hash,
         };
 
         let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
-        let hash = hash_bytecode(&bytecode);
-
+        let hash = BytecodeHash::for_bytecode(&bytecode).value();
         let default_aa = SystemContractCode {
-            code: bytes_to_be_words(bytecode),
+            code: bytecode,
             hash,
         };
 
@@ -438,10 +408,10 @@ impl BaseSystemContracts {
 
     /// Loads the latest EVM emulator for these base system contracts. Logically, it only makes sense to do for the latest protocol version.
     pub fn with_latest_evm_emulator(mut self) -> Self {
-        let bytecode = read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Yul);
-        let hash = hash_bytecode(&bytecode);
+        let bytecode = read_sys_contract_bytecode("", "EvmEmulator", ContractLanguage::Yul);
+        let hash = BytecodeHash::for_bytecode(&bytecode).value();
         self.evm_emulator = Some(SystemContractCode {
-            code: bytes_to_be_words(bytecode),
+            code: bytecode,
             hash,
         });
         self
@@ -515,6 +485,13 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
+    pub fn playground_gateway() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_gateway/playground_batch.yul/playground_batch.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
     pub fn estimate_gas_pre_virtual_blocks() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_1_3_2/fee_estimate.yul/fee_estimate.yul.zbin",
@@ -581,6 +558,13 @@ impl BaseSystemContracts {
     pub fn estimate_gas_post_protocol_defense() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_protocol_defense/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn estimate_gas_gateway() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_gateway/fee_estimate.yul/fee_estimate.yul.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }

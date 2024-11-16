@@ -1,7 +1,7 @@
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
     ethabi::Token,
-    pubdata_da::PubdataDA,
+    pubdata_da::PubdataSendingMode,
 };
 
 use crate::{
@@ -14,7 +14,7 @@ use crate::{
 pub struct CommitBatches<'a> {
     pub last_committed_l1_batch: &'a L1BatchWithMetadata,
     pub l1_batches: &'a [L1BatchWithMetadata],
-    pub pubdata_da: PubdataDA,
+    pub pubdata_da: PubdataSendingMode,
     pub mode: L1BatchCommitmentMode,
 }
 

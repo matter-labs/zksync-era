@@ -6,21 +6,21 @@ use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use zksync_types::{
     api::{self, TransactionDetails, TransactionReceipt, TransactionStatus},
     fee::Fee,
+    h256_to_address,
     l1::{OpProcessingType, PriorityQueueType},
     l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTxCommonData,
     transaction_request::PaymasterParams,
     web3::Bytes,
     Address, Execute, ExecuteTransactionCommon, L1TxCommonData, L2ChainId, L2TxCommonData, Nonce,
-    PackedEthSignature, PriorityOpId, ProtocolVersionId, Transaction, EIP_1559_TX_TYPE,
-    EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160, H256, PRIORITY_OPERATION_L2_TX_TYPE,
-    PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
+    PackedEthSignature, PriorityOpId, ProtocolVersionId, Transaction,
+    TransactionTimeRangeConstraint, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160,
+    H256, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
 };
-use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 use zksync_vm_interface::Call;
 
 use super::call::{LegacyCall, LegacyMixedCall};
-use crate::BigDecimal;
+use crate::{models::bigdecimal_to_u256, BigDecimal};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 #[cfg_attr(test, derive(Default))]
@@ -67,6 +67,9 @@ pub struct StorageTransaction {
 
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+
+    pub timestamp_asserter_range_start: Option<NaiveDateTime>,
+    pub timestamp_asserter_range_end: Option<NaiveDateTime>,
 
     // DEPRECATED.
     pub l1_block_number: Option<i32>,
@@ -321,6 +324,18 @@ impl From<StorageTransaction> for Transaction {
     }
 }
 
+impl From<&StorageTransaction> for TransactionTimeRangeConstraint {
+    fn from(tx: &StorageTransaction) -> Self {
+        Self {
+            timestamp_asserter_range: tx.timestamp_asserter_range_start.and_then(|start| {
+                tx.timestamp_asserter_range_end.map(|end| {
+                    (start.and_utc().timestamp() as u64)..(end.and_utc().timestamp() as u64)
+                })
+            }),
+        }
+    }
+}
+
 #[derive(sqlx::FromRow)]
 pub(crate) struct StorageTransactionReceipt {
     pub error: Option<String>,
@@ -388,11 +403,10 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
             ),
             contract_address: storage_receipt
                 .contract_address
-                .map(|addr| h256_to_account_address(&H256::from_slice(&addr))),
+                .map(|addr| h256_to_address(&H256::from_slice(&addr))),
             logs: vec![],
             l2_to_l1_logs: vec![],
             status,
-            root: block_hash,
             logs_bloom: Default::default(),
             // Even though the Rust SDK recommends us to supply "None" for legacy transactions
             // we always supply some number anyway to have the same behavior as most popular RPCs
@@ -527,6 +541,13 @@ impl StorageApiTransaction {
                 .or_else(|| self.max_fee_per_gas.clone())
                 .unwrap_or_else(BigDecimal::zero),
         };
+        // Legacy transactions are not supposed to have `yParity` and are reliant on `v` instead.
+        // Other transactions are required to have `yParity` which replaces the deprecated `v` value
+        // (still included for backwards compatibility).
+        let y_parity = match self.tx_format {
+            None | Some(0) => None,
+            _ => signature.as_ref().map(|s| U64::from(s.v())),
+        };
         let mut tx = api::Transaction {
             hash: H256::from_slice(&self.tx_hash),
             nonce: U256::from(self.nonce.unwrap_or(0) as u64),
@@ -539,6 +560,7 @@ impl StorageApiTransaction {
             gas_price: Some(bigdecimal_to_u256(gas_price)),
             gas: bigdecimal_to_u256(self.gas_limit.unwrap_or_else(BigDecimal::zero)),
             input: serde_json::from_value(self.calldata).expect("incorrect calldata in Postgres"),
+            y_parity,
             v: signature.as_ref().map(|s| U64::from(s.v())),
             r: signature.as_ref().map(|s| U256::from(s.r())),
             s: signature.as_ref().map(|s| U256::from(s.s())),

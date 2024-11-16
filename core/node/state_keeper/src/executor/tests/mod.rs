@@ -5,14 +5,12 @@ use rand::{thread_rng, Rng};
 use test_casing::{test_casing, Product};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_multivm::interface::{BatchTransactionExecutionResult, ExecutionResult, Halt};
-use zksync_test_account::Account;
+use zksync_test_contracts::{Account, TestContract};
 use zksync_types::{
-    get_nonce_key, utils::storage_key_for_eth_balance, vm::FastVmMode, PriorityOpId,
+    get_nonce_key, utils::storage_key_for_eth_balance, vm::FastVmMode, web3, PriorityOpId, H256,
 };
 
-use self::tester::{
-    AccountFailedCall, AccountLoadNextExecutable, StorageSnapshot, TestConfig, Tester,
-};
+use self::tester::{AccountExt, StorageSnapshot, TestConfig, Tester};
 
 mod read_storage_factory;
 mod tester;
@@ -24,6 +22,11 @@ fn assert_executed(execution_result: &BatchTransactionExecutionResult) {
         result,
         ExecutionResult::Success { .. } | ExecutionResult::Revert { .. }
     );
+}
+
+fn assert_succeeded(execution_result: &BatchTransactionExecutionResult) {
+    let result = &execution_result.tx_result.result;
+    assert_matches!(result, ExecutionResult::Success { .. })
 }
 
 /// Ensures that the transaction was rejected by the VM.
@@ -173,6 +176,62 @@ async fn execute_l2_and_l1_txs(vm_mode: FastVmMode) {
     executor.finish_batch().await.unwrap();
 }
 
+#[tokio::test]
+async fn working_with_transient_storage() {
+    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut alice = Account::random();
+
+    let mut tester = Tester::new(connection_pool, FastVmMode::Shadow);
+    tester.genesis().await;
+    tester.fund(&[alice.address()]).await;
+    let mut executor = tester
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
+        .await;
+
+    let deploy_tx = alice.deploy_storage_tester();
+    let res = executor.execute_tx(deploy_tx.tx).await.unwrap();
+    assert_succeeded(&res);
+
+    let storage_test_address = deploy_tx.address;
+    let test_tx = alice.test_transient_store(storage_test_address);
+    let res = executor.execute_tx(test_tx).await.unwrap();
+    assert_succeeded(&res);
+
+    let test_tx = alice.assert_transient_value(storage_test_address, 0.into());
+    let res = executor.execute_tx(test_tx).await.unwrap();
+    assert_succeeded(&res);
+
+    executor.finish_batch().await.unwrap();
+}
+
+#[tokio::test]
+async fn decommitting_contract() {
+    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut alice = Account::random();
+
+    let mut tester = Tester::new(connection_pool, FastVmMode::Shadow);
+    tester.genesis().await;
+    tester.fund(&[alice.address()]).await;
+    let mut executor = tester
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
+        .await;
+
+    let deploy_tx = alice.deploy_precompiles_test();
+    let res = executor.execute_tx(deploy_tx.tx).await.unwrap();
+    assert_succeeded(&res);
+
+    let keccak_bytecode_hash = web3::keccak256(TestContract::precompiles_test().bytecode);
+    let test_tx = alice.test_decommit(
+        deploy_tx.address,
+        deploy_tx.bytecode_hash,
+        H256(keccak_bytecode_hash),
+    );
+    let res = executor.execute_tx(test_tx).await.unwrap();
+    assert_succeeded(&res);
+
+    executor.finish_batch().await.unwrap();
+}
+
 /// Checks that we can successfully rollback the transaction and execute it once again.
 #[test_casing(3, FAST_VM_MODES)]
 #[tokio::test]
@@ -296,7 +355,7 @@ async fn deploy_and_call_loadtest(vm_mode: FastVmMode) {
     );
     assert_executed(
         &executor
-            .execute_tx(alice.loadnext_custom_writes_call(tx.address, 1, 500_000_000))
+            .execute_tx(alice.loadnext_custom_initial_writes_call(tx.address, 1, 500_000_000))
             .await
             .unwrap(),
     );
@@ -316,7 +375,7 @@ async fn deploy_failedcall(vm_mode: FastVmMode) {
         .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
-    let tx = alice.deploy_failedcall_tx();
+    let tx = alice.deploy_failed_call_tx();
 
     let execute_tx = executor.execute_tx(tx.tx).await.unwrap();
     assert_executed(&execute_tx);
@@ -344,7 +403,7 @@ async fn execute_reverted_tx(vm_mode: FastVmMode) {
 
     assert_reverted(
         &executor
-            .execute_tx(alice.loadnext_custom_writes_call(
+            .execute_tx(alice.loadnext_custom_initial_writes_call(
                 tx.address, 1,
                 1_000_000, // We provide enough gas for tx to be executed, but not enough for the call to be successful.
             ))

@@ -1,6 +1,13 @@
 //! RocksDB implementation of [`Database`].
 
-use std::{any::Any, cell::RefCell, path::Path, sync::Arc};
+use std::{
+    any::Any,
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    ops,
+    path::Path,
+    sync::Arc,
+};
 
 use anyhow::Context as _;
 use rayon::prelude::*;
@@ -15,6 +22,7 @@ use zksync_storage::{
 use crate::{
     errors::{DeserializeError, ErrorContext},
     metrics::ApplyPatchStats,
+    repair::StaleKeysRepairData,
     storage::{
         database::{PruneDatabase, PrunePatchSet},
         Database, NodeKeys, PatchSet,
@@ -53,6 +61,32 @@ impl NamedColumnFamily for MerkleTreeColumnFamily {
 
 type LocalProfiledOperation = RefCell<Option<Arc<ProfiledOperation>>>;
 
+/// Unifies keys that can be used to load raw data from RocksDB.
+pub(crate) trait ToDbKey: Sync {
+    fn to_db_key(&self) -> Vec<u8>;
+}
+
+impl ToDbKey for NodeKey {
+    fn to_db_key(&self) -> Vec<u8> {
+        NodeKey::to_db_key(*self)
+    }
+}
+
+impl ToDbKey for (NodeKey, bool) {
+    fn to_db_key(&self) -> Vec<u8> {
+        NodeKey::to_db_key(self.0)
+    }
+}
+
+/// All node keys modified in a certain version of the tree, loaded via a prefix iterator.
+#[derive(Debug, Default)]
+pub(crate) struct VersionKeys {
+    /// Valid / reachable keys modified in the version.
+    pub valid_keys: HashSet<Nibbles>,
+    /// Unreachable keys modified in the version, e.g. as a result of truncating the tree and overwriting the version.
+    pub unreachable_keys: HashSet<Nibbles>,
+}
+
 /// Main [`Database`] implementation wrapping a [`RocksDB`] reference.
 ///
 /// # Cloning
@@ -79,6 +113,8 @@ impl RocksDBWrapper {
     // This key must not overlap with keys for nodes; easy to see that it's true,
     // since the minimum node key is [0, 0, 0, 0, 0, 0, 0, 0].
     const MANIFEST_KEY: &'static [u8] = &[0];
+
+    const STALE_KEYS_REPAIR_KEY: &'static [u8] = &[0, 0];
 
     /// Creates a new wrapper, initializing RocksDB at the specified directory.
     ///
@@ -112,7 +148,7 @@ impl RocksDBWrapper {
             .expect("Failed reading from RocksDB")
     }
 
-    fn raw_nodes(&self, keys: &NodeKeys) -> Vec<Option<DBPinnableSlice<'_>>> {
+    pub(crate) fn raw_nodes<T: ToDbKey>(&self, keys: &[T]) -> Vec<Option<DBPinnableSlice<'_>>> {
         // Propagate the currently profiled operation to rayon threads used in the parallel iterator below.
         let profiled_operation = self
             .profiled_operation
@@ -126,7 +162,7 @@ impl RocksDBWrapper {
                 let _guard = profiled_operation
                     .as_ref()
                     .and_then(ProfiledOperation::start_profiling);
-                let keys = chunk.iter().map(|(key, _)| key.to_db_key());
+                let keys = chunk.iter().map(ToDbKey::to_db_key);
                 let results = self.db.multi_get_cf(MerkleTreeColumnFamily::Tree, keys);
                 results
                     .into_iter()
@@ -144,9 +180,9 @@ impl RocksDBWrapper {
         // If we didn't succeed with the patch set, or the key version is old,
         // access the underlying storage.
         let node = if is_leaf {
-            LeafNode::deserialize(raw_node).map(Node::Leaf)
+            LeafNode::deserialize(raw_node, false).map(Node::Leaf)
         } else {
-            InternalNode::deserialize(raw_node).map(Node::Internal)
+            InternalNode::deserialize(raw_node, false).map(Node::Internal)
         };
         node.map_err(|err| {
             err.with_context(if is_leaf {
@@ -155,6 +191,83 @@ impl RocksDBWrapper {
                 ErrorContext::InternalNode(*key)
             })
         })
+    }
+
+    pub(crate) fn all_keys_for_version(
+        &self,
+        version: u64,
+    ) -> Result<VersionKeys, DeserializeError> {
+        let Some(Root::Filled {
+            node: root_node, ..
+        }) = self.root(version)
+        else {
+            return Ok(VersionKeys::default());
+        };
+
+        let cf = MerkleTreeColumnFamily::Tree;
+        let version_prefix = version.to_be_bytes();
+        let mut nodes = HashMap::from([(Nibbles::EMPTY, root_node)]);
+        let mut unreachable_keys = HashSet::new();
+
+        for (raw_key, raw_value) in self.db.prefix_iterator_cf(cf, &version_prefix) {
+            let key = NodeKey::from_db_key(&raw_key);
+            let Some((parent_nibbles, nibble)) = key.nibbles.split_last() else {
+                // Root node, already processed
+                continue;
+            };
+            let Some(Node::Internal(parent)) = nodes.get(&parent_nibbles) else {
+                unreachable_keys.insert(key.nibbles);
+                continue;
+            };
+            let Some(this_ref) = parent.child_ref(nibble) else {
+                unreachable_keys.insert(key.nibbles);
+                continue;
+            };
+            if this_ref.version != version {
+                unreachable_keys.insert(key.nibbles);
+                continue;
+            }
+
+            // Now we are sure that `this_ref` actually points to the node we're processing.
+            let node = Self::deserialize_node(&raw_value, &key, this_ref.is_leaf)?;
+            nodes.insert(key.nibbles, node);
+        }
+
+        Ok(VersionKeys {
+            valid_keys: nodes.into_keys().collect(),
+            unreachable_keys,
+        })
+    }
+
+    pub(crate) fn repair_stale_keys(
+        &mut self,
+        data: &StaleKeysRepairData,
+        removed_keys: &[StaleNodeKey],
+    ) -> anyhow::Result<()> {
+        let mut raw_value = vec![];
+        data.serialize(&mut raw_value);
+
+        let mut write_batch = self.db.new_write_batch();
+        write_batch.put_cf(
+            MerkleTreeColumnFamily::Tree,
+            Self::STALE_KEYS_REPAIR_KEY,
+            &raw_value,
+        );
+        for key in removed_keys {
+            write_batch.delete_cf(MerkleTreeColumnFamily::StaleKeys, &key.to_db_key());
+        }
+        self.db
+            .write(write_batch)
+            .context("Failed writing a batch to RocksDB")
+    }
+
+    pub(crate) fn stale_keys_repair_data(
+        &self,
+    ) -> Result<Option<StaleKeysRepairData>, DeserializeError> {
+        let Some(raw_value) = self.raw_node(Self::STALE_KEYS_REPAIR_KEY) else {
+            return Ok(None);
+        };
+        StaleKeysRepairData::deserialize(&raw_value).map(Some)
     }
 
     /// Returns the wrapped RocksDB instance.
@@ -187,7 +300,7 @@ impl Database for RocksDBWrapper {
         let Some(raw_root) = self.raw_node(&NodeKey::empty(version).to_db_key()) else {
             return Ok(None);
         };
-        Root::deserialize(&raw_root)
+        Root::deserialize(&raw_root, false)
             .map(Some)
             .map_err(|err| err.with_context(ErrorContext::Root(version)))
     }
@@ -328,6 +441,32 @@ impl PruneDatabase for RocksDBWrapper {
         let stale_keys_cf = MerkleTreeColumnFamily::StaleKeys;
         let first_version = &patch.deleted_stale_key_versions.start.to_be_bytes() as &[_];
         let last_version = &patch.deleted_stale_key_versions.end.to_be_bytes();
+        write_batch.delete_range_cf(stale_keys_cf, first_version..last_version);
+
+        self.db
+            .write(write_batch)
+            .context("Failed writing a batch to RocksDB")
+    }
+
+    fn truncate(
+        &mut self,
+        manifest: Manifest,
+        truncated_versions: ops::RangeTo<u64>,
+    ) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            manifest.version_count <= truncated_versions.end,
+            "Invalid truncate call: manifest={manifest:?}, truncated_versions={truncated_versions:?}"
+        );
+        let mut write_batch = self.db.new_write_batch();
+
+        let tree_cf = MerkleTreeColumnFamily::Tree;
+        let mut node_bytes = Vec::with_capacity(128);
+        manifest.serialize(&mut node_bytes);
+        write_batch.put_cf(tree_cf, Self::MANIFEST_KEY, &node_bytes);
+
+        let stale_keys_cf = MerkleTreeColumnFamily::StaleKeys;
+        let first_version = &manifest.version_count.to_be_bytes() as &[_];
+        let last_version = &truncated_versions.end.to_be_bytes();
         write_batch.delete_range_cf(stale_keys_cf, first_version..last_version);
 
         self.db

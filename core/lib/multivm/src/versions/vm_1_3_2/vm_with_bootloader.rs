@@ -15,16 +15,14 @@ use zk_evm_1_3_3::{
 use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{
-    fee_model::L1PeggedBatchFeeModelInput, l1::is_l1_tx_type, Address, Transaction,
-    BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
-};
-use zksync_utils::{
-    address_to_u256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, misc::ceil_div,
+    address_to_u256, bytecode::BytecodeHash, fee_model::L1PeggedBatchFeeModelInput, h256_to_u256,
+    l1::is_l1_tx_type, Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE,
+    MAX_NEW_FACTORY_DEPS, U256,
 };
 
 use crate::{
     interface::{storage::WriteStorage, CompressedBytecodeInfo, L1BatchEnv},
-    utils::bytecode,
+    utils::{bytecode, bytecode::bytes_to_be_words},
     vm_1_3_2::{
         bootloader_state::BootloaderState,
         history_recorder::HistoryMode,
@@ -84,8 +82,11 @@ pub(crate) fn eth_price_per_pubdata_byte(l1_gas_price: u64) -> u64 {
 
 pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
     let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
-
-    ceil_div(eth_price_per_pubdata_byte, base_fee)
+    if eth_price_per_pubdata_byte == 0 {
+        0
+    } else {
+        eth_price_per_pubdata_byte.div_ceil(base_fee)
+    }
 }
 
 pub(crate) fn derive_base_fee_and_gas_per_pubdata(
@@ -102,7 +103,7 @@ pub(crate) fn derive_base_fee_and_gas_per_pubdata(
     // publish enough public data while compensating us for it.
     let base_fee = std::cmp::max(
         fair_l2_gas_price,
-        ceil_div(eth_price_per_pubdata_byte, MAX_GAS_PER_PUBDATA_BYTE),
+        eth_price_per_pubdata_byte.div_ceil(MAX_GAS_PER_PUBDATA_BYTE),
     );
 
     (
@@ -391,7 +392,7 @@ pub fn init_vm_inner<S: WriteStorage, H: HistoryMode>(
     oracle_tools.decommittment_processor.populate(
         vec![(
             h256_to_u256(base_system_contract.default_aa.hash),
-            base_system_contract.default_aa.code.clone(),
+            bytes_to_be_words(&base_system_contract.default_aa.code),
         )],
         Timestamp(0),
     );
@@ -399,7 +400,7 @@ pub fn init_vm_inner<S: WriteStorage, H: HistoryMode>(
     oracle_tools.memory.populate(
         vec![(
             BOOTLOADER_CODE_PAGE,
-            base_system_contract.bootloader.code.clone(),
+            bytes_to_be_words(&base_system_contract.bootloader.code),
         )],
         Timestamp(0),
     );
@@ -442,7 +443,7 @@ pub fn get_bootloader_memory(
     let mut previous_compressed: usize = 0;
     let mut already_included_txs_size = 0;
     for (tx_index_in_block, tx) in txs.into_iter().enumerate() {
-        let compressed_bytecodes = predefined_compressed_bytecodes[tx_index_in_block].clone();
+        let compressed_bytecodes = &predefined_compressed_bytecodes[tx_index_in_block];
 
         let mut total_compressed_len_words = 0;
         for i in compressed_bytecodes.iter() {
@@ -475,7 +476,7 @@ pub fn push_transaction_to_bootloader_memory<H: HistoryMode, S: WriteStorage>(
     tx: &Transaction,
     execution_mode: TxExecutionMode,
     explicit_compressed_bytecodes: Option<Vec<CompressedBytecodeInfo>>,
-) {
+) -> Vec<CompressedBytecodeInfo> {
     let tx: TransactionData = tx.clone().into();
     let block_gas_per_pubdata_byte = vm.block_context.context.block_gas_price_per_pubdata();
     let overhead = tx.overhead_gas(block_gas_per_pubdata_byte as u32);
@@ -485,7 +486,7 @@ pub fn push_transaction_to_bootloader_memory<H: HistoryMode, S: WriteStorage>(
         execution_mode,
         overhead,
         explicit_compressed_bytecodes,
-    );
+    )
 }
 
 pub fn push_raw_transaction_to_bootloader_memory<H: HistoryMode, S: WriteStorage>(
@@ -494,7 +495,7 @@ pub fn push_raw_transaction_to_bootloader_memory<H: HistoryMode, S: WriteStorage
     execution_mode: TxExecutionMode,
     predefined_overhead: u32,
     explicit_compressed_bytecodes: Option<Vec<CompressedBytecodeInfo>>,
-) {
+) -> Vec<CompressedBytecodeInfo> {
     let tx_index_in_block = vm.bootloader_state.free_tx_index();
     let already_included_txs_size = vm.bootloader_state.free_tx_offset();
 
@@ -517,7 +518,7 @@ pub fn push_raw_transaction_to_bootloader_memory<H: HistoryMode, S: WriteStorage
             .enumerate()
             .sorted_by_key(|(_idx, dep)| *dep)
             .dedup_by(|x, y| x.1 == y.1)
-            .filter(|(_idx, dep)| !vm.is_bytecode_known(&hash_bytecode(dep)))
+            .filter(|(_idx, dep)| !vm.is_bytecode_known(&BytecodeHash::for_bytecode(dep).value()))
             .sorted_by_key(|(idx, _dep)| *idx)
             .filter_map(|(_idx, dep)| bytecode::compress(dep.clone()).ok())
             .collect()
@@ -555,7 +556,7 @@ pub fn push_raw_transaction_to_bootloader_memory<H: HistoryMode, S: WriteStorage
         predefined_overhead,
         trusted_ergs_limit,
         previous_bytecodes,
-        compressed_bytecodes,
+        &compressed_bytecodes,
     );
 
     vm.state.memory.populate_page(
@@ -566,6 +567,7 @@ pub fn push_raw_transaction_to_bootloader_memory<H: HistoryMode, S: WriteStorage
     vm.bootloader_state.add_tx_data(encoded_tx_size);
     vm.bootloader_state
         .add_compressed_bytecode(compressed_bytecodes_encoding_len_words);
+    compressed_bytecodes
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -577,7 +579,7 @@ fn get_bootloader_memory_for_tx(
     predefined_refund: u32,
     block_gas_per_pubdata: u32,
     previous_compressed_bytecode_size: usize,
-    compressed_bytecodes: Vec<CompressedBytecodeInfo>,
+    compressed_bytecodes: &[CompressedBytecodeInfo],
 ) -> Vec<(usize, U256)> {
     let overhead_gas = tx.overhead_gas(block_gas_per_pubdata);
     let trusted_gas_limit = tx.trusted_gas_limit(block_gas_per_pubdata);
@@ -604,7 +606,7 @@ pub(crate) fn get_bootloader_memory_for_encoded_tx(
     predefined_overhead: u32,
     trusted_gas_limit: u32,
     previous_compressed_bytecode_size: usize,
-    compressed_bytecodes: Vec<CompressedBytecodeInfo>,
+    compressed_bytecodes: &[CompressedBytecodeInfo],
 ) -> Vec<(usize, U256)> {
     let mut memory: Vec<(usize, U256)> = Vec::default();
     let bootloader_description_offset =
@@ -640,11 +642,11 @@ pub(crate) fn get_bootloader_memory_for_encoded_tx(
         COMPRESSED_BYTECODES_OFFSET + 1 + previous_compressed_bytecode_size;
 
     let memory_addition: Vec<_> = compressed_bytecodes
-        .into_iter()
-        .flat_map(|x| bytecode::encode_call(&x))
+        .iter()
+        .flat_map(bytecode::encode_call)
         .collect();
 
-    let memory_addition = bytes_to_be_words(memory_addition);
+    let memory_addition = bytes_to_be_words(&memory_addition);
 
     memory.extend(
         (compressed_bytecodes_offset..compressed_bytecodes_offset + memory_addition.len())
@@ -727,11 +729,8 @@ fn formal_calldata_abi() -> PrimitiveValue {
 }
 
 pub(crate) fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> (U256, Vec<U256>) {
-    let bytecode_hash = hash_bytecode(&bytecode);
-    let bytecode_hash = U256::from_big_endian(bytecode_hash.as_bytes());
-
-    let bytecode_words = bytes_to_be_words(bytecode);
-
+    let bytecode_hash = BytecodeHash::for_bytecode(&bytecode).value_u256();
+    let bytecode_words = bytes_to_be_words(&bytecode);
     (bytecode_hash, bytecode_words)
 }
 

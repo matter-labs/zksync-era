@@ -17,7 +17,6 @@ zksync_dal.workspace = true
 zksync_contracts.workspace = true
 zksync_state.workspace = true
 zksync_storage.workspace = true
-zksync_utils.workspace = true
 zksync_prover_interface.workspace = true
 zksync_object_store.workspace = true
 zksync_vm_executor.workspace = true
@@ -36,7 +35,7 @@ vise.workspace = true
 [dev-dependencies]
 zksync_node_test_utils.workspace = true
 zksync_node_genesis.workspace = true
-zksync_test_account.workspace = true
+zksync_test_contracts.workspace = true
 assert_matches.workspace = true
 backon.workspace = true
 futures = { workspace = true, features = ["compat"] }
