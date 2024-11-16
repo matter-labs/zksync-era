@@ -204,6 +204,8 @@ export function prepareUpgradeCalldata(
     genesisBatchHash: string,
     genesisIndexRepeatedStorageChanges: number,
     genesisBatchCommitment: string,
+    chainInitAddress: string,
+    chainInitCalldata: string,
     prepareDirectOperation?: boolean,
     chainId?: string
 ) {
@@ -215,8 +217,8 @@ export function prepareUpgradeCalldata(
 
     let chainCreationDiamondCut: DiamondCutData = {
         facetCuts: facetCuts.filter((cut) => cut.action == Action.Add),
-        initAddress: genesisUpgradeAddress,
-        initCalldata: '0x'
+        initAddress: chainInitAddress,
+        initCalldata: chainInitCalldata
     };
 
     let chainCreationParams: ChainCreationParams = {
@@ -284,6 +286,8 @@ export function buildDefaultUpgradeTx(
     genesisBatchHash,
     genesisIndexRepeatedStorageChanges,
     genesisBatchCommitment,
+    chainInitAddress,
+    chainInitCalldata,
     prepareDirectOperation?,
     chainId?
 ) {
@@ -375,6 +379,8 @@ export function buildDefaultUpgradeTx(
         genesisBatchHash,
         genesisIndexRepeatedStorageChanges,
         genesisBatchCommitment,
+        chainInitAddress,
+        chainInitCalldata,
         prepareDirectOperation,
         chainId
     );
@@ -427,6 +433,8 @@ command
     .option('--genesis-batch-hash <genesisBatchHash>')
     .option('--genesis-index-repeated-storage-changes <genesisIndexRepeatedStorageChanges>')
     .option('--genesis-batch-commitment <genesisBatchCommitment>')
+    .option('--chain-init-address <chainInitAddress>')
+    .option('--chain-init-calldata <chainInitCalldata>')
     .action(async (options) => {
         buildDefaultUpgradeTx(
             options.environment,
@@ -440,6 +448,8 @@ command
             options.genesisBatchHash,
             options.genesisIndexRepeatedStorageChanges,
             options.genesisBatchCommitment,
+            options.chainInitAddress,
+            options.chainInitCalldata,
             options.prepareDirectOperation,
             options.chainId
         );

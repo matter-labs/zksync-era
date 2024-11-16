@@ -194,7 +194,7 @@ command
 command
     .command('generate-facet-cuts')
     .description('Generate facet cuts')
-    .option('--l1rpc <l1Rpc>')
+    .option('--l1rpc <l1rpc>')
     .option('--zksync-address <zksyncAddress>')
     .option('--environment <environment>')
     .action(async (cmd) => {
