@@ -53,9 +53,9 @@ pub async fn propose_registration(
             gas_price_multiplier_nominator as u128,
             gas_price_multiplier_denominator as u128,
         )
+        .gas(5_000_000)
         .send()
         .await?
-        .confirmations(1)
         .await?;
     logger::info(format!(
         "Chain was proposed with chain id {} and author {:?}",
