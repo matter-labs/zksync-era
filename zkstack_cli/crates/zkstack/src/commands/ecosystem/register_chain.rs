@@ -31,26 +31,29 @@ const SCRIPT_CONFIG_FILE_DST: &str = "register-hyperchain.toml";
 
 pub async fn run(args: RegisterChainArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let chain_config = ecosystem_config.load_current_chain()?;
+    let wallets = ecosystem_config.get_wallets()?;
+    let final_args = args.fill_values_with_prompt(chain_config.chain_id, wallets.governor.address);
     let contracts = ecosystem_config.get_contracts_config()?;
-    let l1_rpc_url = args.l1_rpc_url.unwrap();
+    let l1_rpc_url = final_args.l1_rpc_url;
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
     register_chain(
         shell,
-        args.forge_script_args,
+        final_args.forge_script_args,
         &ecosystem_config,
         &contracts,
-        args.chain_id.unwrap(),
+        final_args.chain_id,
         l1_rpc_url,
         None,
-        args.proposal_author.unwrap(),
-        !args.no_broadcast,
+        final_args.proposal_author,
+        !final_args.no_broadcast,
     )
     .await?;
     spinner.finish();
     logger::success(MSG_CHAIN_REGISTERED);
 
-    if args.no_broadcast {
-        let out = args.out.context("Must be specified for no_broadcast")?;
+    if final_args.no_broadcast {
+        let out = final_args.out;
         let spinner = Spinner::new(MSG_WRITING_OUTPUT_FILES_SPINNER);
         shell
             .create_dir(&out)

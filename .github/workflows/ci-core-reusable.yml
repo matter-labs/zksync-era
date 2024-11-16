@@ -296,7 +296,7 @@ jobs:
         run: |
           ci_run zkstack chain create \
           --chain-name offline_chain \
-          --chain-id sequential \
+          --chain-id 384 \
           --prover-mode no-proofs \
           --wallet-creation localhost \
           --l1-batch-commit-data-generator-mode rollup \
@@ -307,12 +307,12 @@ jobs:
           --ignore-prerequisites
 
           ci_run zkstack chain propose-chain --chain offline_chain --dev
-          ci_run zkstack chain build-transactions --chain offline_chain --l1-rpc-url http://127.0.0.1:8545
+          ci_run zkstack ecosystem register-chain --no-broadcast --chain offline_chain --dev
 
           governor_pk=$(awk '/governor:/ {flag=1} flag && /private_key:/ {print $2; exit}' ./configs/wallets.yaml)
 
           ci_run zkstack dev send-transactions \
-          --file ./transactions/chain/offline_chain/register-hyperchain-txns.json \
+          --file ./transactions/chain/384/register-hyperchain-txns.json \
           --l1-rpc-url http://127.0.0.1:8545 \
           --private-key $governor_pk
 
