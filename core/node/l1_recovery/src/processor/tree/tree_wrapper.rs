@@ -8,9 +8,10 @@ use std::{
 use anyhow::Result;
 use tokio::sync::Mutex;
 use zksync_basic_types::{H256, U256};
-use zksync_merkle_tree::{Database, MerkleTree, RocksDBWrapper, TreeEntry};
+use zksync_merkle_tree::{Database, Key, MerkleTree, RocksDBWrapper, TreeEntry};
 use zksync_storage::{RocksDB, RocksDBOptions};
-use zksync_types::snapshots::SnapshotStorageLog;
+use zksync_types::{snapshots::SnapshotStorageLog, StorageKey};
+use zksync_utils::h256_to_u256;
 
 use super::RootHash;
 use crate::{
@@ -185,6 +186,19 @@ impl TreeWrapper {
 
     pub fn get_root_hash(&self) -> RootHash {
         self.tree.latest_root_hash()
+    }
+
+    pub fn read_storage_value(&self, hashed_key: H256) -> H256 {
+        let latest_version = self.tree.latest_version().unwrap();
+        self.tree
+            .entries(
+                latest_version,
+                &[Key::from(U256::from_little_endian(hashed_key.as_bytes()))],
+            )
+            .unwrap()
+            .last()
+            .unwrap()
+            .value
     }
 }
 

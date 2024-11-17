@@ -23,6 +23,7 @@ use zksync_node_framework::{
             base_token_ratio_persister::BaseTokenRatioPersisterLayer,
             base_token_ratio_provider::BaseTokenRatioProviderLayer, ExternalPriceApiLayer,
         },
+        blob_client::BlobClientLayer,
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
         consensus::MainNodeConsensusLayer,
@@ -202,6 +203,11 @@ impl MainNodeBuilder {
         let object_store_config = try_load_config!(self.configs.core_object_store);
         self.node
             .add_layer(ObjectStoreLayer::new(object_store_config));
+        Ok(self)
+    }
+
+    fn add_blob_client_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(BlobClientLayer::new());
         Ok(self)
     }
 
@@ -678,7 +684,10 @@ impl MainNodeBuilder {
     pub fn only_genesis(mut self) -> anyhow::Result<ZkStackService> {
         self = self
             .add_pools_layer()?
+            .add_object_store_layer()?
+            .add_blob_client_layer()?
             .add_query_eth_client_layer()?
+            .add_healthcheck_layer()?
             .add_storage_initialization_layer(LayerKind::Task, false)?;
 
         Ok(self.node.build())
@@ -687,6 +696,8 @@ impl MainNodeBuilder {
     pub fn only_l1_recovery(mut self) -> anyhow::Result<ZkStackService> {
         self = self
             .add_pools_layer()?
+            .add_object_store_layer()?
+            .add_blob_client_layer()?
             .add_query_eth_client_layer()?
             .add_healthcheck_layer()?
             .add_storage_initialization_layer(LayerKind::Task, true)?;
@@ -701,6 +712,7 @@ impl MainNodeBuilder {
             .add_sigint_handler_layer()?
             .add_pools_layer()?
             .add_object_store_layer()?
+            .add_blob_client_layer()?
             .add_circuit_breaker_checker_layer()?
             .add_healthcheck_layer()?
             .add_prometheus_exporter_layer()?

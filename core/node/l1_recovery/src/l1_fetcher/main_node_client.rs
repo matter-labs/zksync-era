@@ -7,6 +7,7 @@ use zksync_types::{
     snapshots::{SnapshotHeader, SnapshotStorageLogsChunkMetadata, SnapshotVersion},
     tokens::TokenInfo,
 };
+use zksync_vm_interface::L2Block;
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientResult},
@@ -78,6 +79,9 @@ impl SnapshotsApplierMainNodeClient for L1RecoveryOnlineMainNodeClient {
 #[derive(Debug, Clone)]
 pub struct L1RecoveryDetachedMainNodeClient {
     pub newest_l1_batch_number: L1BatchNumber,
+    pub newest_l1_batch_root_hash: H256,
+    pub newest_l1_batch_timestamp: u64,
+    pub newest_l2_block: L2Block,
     pub root_hash: H256,
 }
 
@@ -90,7 +94,7 @@ impl SnapshotsApplierMainNodeClient for L1RecoveryDetachedMainNodeClient {
         assert_eq!(self.newest_l1_batch_number, number);
         Ok(Some(L1BlockMetadata {
             root_hash: Some(self.root_hash),
-            timestamp: 0,
+            timestamp: self.newest_l1_batch_timestamp,
         }))
     }
 
@@ -99,14 +103,9 @@ impl SnapshotsApplierMainNodeClient for L1RecoveryDetachedMainNodeClient {
         _number: L2BlockNumber,
     ) -> EnrichedClientResult<Option<L2BlockMetadata>> {
         Ok(Some(L2BlockMetadata {
-            block_hash: Some(
-                H256::from_str(
-                    "0x2c20407b638b7e2cbe41a8af6be6c1cf3c8237e2f3ffff1fe674dd60aef5e772",
-                )
-                .unwrap(),
-            ),
+            block_hash: Some(self.newest_l2_block.hash),
             protocol_version: Some(ProtocolVersionId::latest()),
-            timestamp: 0,
+            timestamp: self.newest_l2_block.timestamp,
         }))
     }
 
@@ -124,7 +123,7 @@ impl SnapshotsApplierMainNodeClient for L1RecoveryDetachedMainNodeClient {
         Ok(Some(SnapshotHeader {
             version: SnapshotVersion::Version1.into(),
             l1_batch_number,
-            l2_block_number: L2BlockNumber(228),
+            l2_block_number: L2BlockNumber(self.newest_l2_block.number),
             storage_logs_chunks: vec![SnapshotStorageLogsChunkMetadata {
                 chunk_id: 0,
                 filepath: "".to_string(),

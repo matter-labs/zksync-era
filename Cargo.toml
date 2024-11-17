@@ -12,6 +12,7 @@ members = [
   "core/bin/zksync_server",
   "core/bin/genesis_generator",
   "core/bin/zksync_tee_prover",
+  "core/bin/local_blobs_dump",
   # Node services
   "core/node/node_framework",
   "core/node/proof_data_handler",

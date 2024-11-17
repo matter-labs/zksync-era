@@ -6,7 +6,7 @@ use zksync_db_connection::{connection::Connection, interpolate_query, match_quer
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::{EthTx, EthTxBlobSidecar, TxHistory, TxHistoryToSend},
-    Address, L1BatchNumber, H256, U256,
+    Address, L1BatchNumber, H160, H256, U256,
 };
 
 use crate::{
@@ -490,8 +490,9 @@ impl EthSenderDal<'_, '_> {
             // Insert general tx descriptor.
             let eth_tx_id = sqlx::query_scalar!(
                 "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, created_at, updated_at) \
-                VALUES ('\\x00', 0, $1, '', 0, now(), now()) \
+                VALUES ('\\x00', 0, $1, $2, 0, now(), now()) \
                 RETURNING id",
+                format!("{:#x}", H160::zero()),
                 tx_type.to_string()
             )
             .fetch_one(transaction.conn())

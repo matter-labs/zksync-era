@@ -2,7 +2,7 @@ import json
 import psycopg2
 import csv
 
-chain_name = "Local"
+chain_name = "V25"
 # Connect to PostgreSQL
 conn = psycopg2.connect(
     dbname="zksync_server_localhost_era",
@@ -32,7 +32,8 @@ ORDER BY operation_number;
 factory_deps_query = """
 SELECT bytecode_hash, bytecode
 FROM factory_deps
-WHERE miniblock_number = 0;
+WHERE miniblock_number = 0
+ORDER BY bytecode_hash;
 """
 
 

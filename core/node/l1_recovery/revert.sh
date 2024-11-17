@@ -5,4 +5,4 @@ cargo run --bin block_reverter --release -- \
   --secrets-path chains/era/configs/secrets.yaml \
   --wallets-path chains/era/configs/wallets.yaml \
   --genesis-path chains/era/configs/genesis.yaml \
-  send-eth-transaction --l1-batch-number 83 --nonce 248
+  send-eth-transaction --l1-batch-number 83

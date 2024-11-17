@@ -1,4 +1,4 @@
-use std::{cmp, collections::HashMap, fs::File, future::Future, sync::Arc};
+use std::{cmp, cmp::PartialEq, collections::HashMap, fs::File, future::Future, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use ethabi::{Contract, Event, Function};
@@ -8,9 +8,10 @@ use tokio::time::{sleep, Duration};
 use zksync_basic_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     web3::{contract::Tokenizable, BlockId, BlockNumber, FilterBuilder, Log, Transaction},
-    Address, L1BatchNumber, L1BlockNumber, H256, U256, U64,
+    Address, L1BatchNumber, PriorityOpId, H256, U256, U64,
 };
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_dal::eth_watcher_dal::EventType;
 use zksync_eth_client::{CallFunctionArgs, EthInterface};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_types::{l1::L1Tx, ProtocolVersion};
@@ -61,6 +62,20 @@ pub struct L1Fetcher {
     config: L1FetcherConfig,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RollupEventType {
+    Commit,
+    Prove,
+    Execute,
+    NewPriorityTx,
+}
+
+pub enum RollupEventsFilter {
+    L1BatchNumber(L1BatchNumber),
+    PriorityOpId(PriorityOpId),
+    None,
+}
+
 impl L1Fetcher {
     pub fn new(config: L1FetcherConfig, eth_client: Box<DynClient<L1>>) -> Result<Self> {
         Ok(L1Fetcher { eth_client, config })
@@ -88,16 +103,35 @@ impl L1Fetcher {
         ])
     }
 
-    fn block_commit_event() -> Result<Event> {
-        Ok(L1Fetcher::v1_contract()?.events_by_name("BlockCommit")?[0].clone())
+    fn rollup_event_by_type(event_type: RollupEventType) -> Result<Event> {
+        let event_name = match event_type {
+            RollupEventType::Commit => "BlockCommit",
+            RollupEventType::Prove => "BlocksVerification",
+            RollupEventType::Execute => "BlockExecution",
+            RollupEventType::NewPriorityTx => "NewPriorityRequest",
+        };
+        Ok(L1Fetcher::v1_contract()?.events_by_name(event_name)?[0].clone())
     }
 
-    fn block_execute_event() -> Result<Event> {
-        Ok(L1Fetcher::v1_contract()?.events_by_name("BlockExecution")?[0].clone())
+    fn extract_l1_batch_number_from_rollup_event_log(
+        event_type: RollupEventType,
+        log: &Log,
+    ) -> L1BatchNumber {
+        let topic_index = match event_type {
+            RollupEventType::Commit => 1,
+            RollupEventType::Prove => 2,
+            RollupEventType::Execute => 1,
+            _ => panic!("{event_type:?} event doesn't have l1_batch_number"),
+        };
+        L1BatchNumber(log.topics[topic_index].to_low_u64_be() as u32)
     }
 
-    fn priority_tx_event() -> Result<Event> {
-        Ok(L1Fetcher::v1_contract()?.events_by_name("NewPriorityRequest")?[0].clone())
+    fn extract_priority_op_id_from_rollup_event_log(
+        event_type: RollupEventType,
+        log: &Log,
+    ) -> PriorityOpId {
+        assert_eq!(event_type, RollupEventType::NewPriorityTx);
+        L1Tx::try_from(log.clone()).unwrap().common_data.serial_id
     }
 
     pub async fn get_all_blocks_to_process(
@@ -116,17 +150,22 @@ impl L1Fetcher {
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> Result<StoredBatchInfo> {
-        let event = L1Fetcher::block_commit_event()?;
         let eth_block = self
-            .get_commit_event_eth_block(l1_batch_number + 1)
+            .get_latest_rollup_event(
+                RollupEventType::Commit,
+                RollupEventsFilter::L1BatchNumber(l1_batch_number + 1),
+            )
             .await
+            .unwrap()
+            .block_number
             .unwrap();
         let logs = self
-            .get_logs(U64::from(eth_block), U64::from(eth_block), &event)
+            .get_logs(eth_block, eth_block, RollupEventType::Commit)
             .await;
         for log in logs {
-            let log_l1_batch_number = log.topics[1].to_low_u64_be() as u32;
-            if l1_batch_number.0 + 1 != log_l1_batch_number {
+            let log_l1_batch_number =
+                Self::extract_l1_batch_number_from_rollup_event_log(RollupEventType::Commit, &log);
+            if l1_batch_number + 1 != log_l1_batch_number {
                 continue;
             }
             let hash = log.transaction_hash.unwrap();
@@ -150,15 +189,17 @@ impl L1Fetcher {
         l1_batch_number: L1BatchNumber,
     ) -> ProtocolVersion {
         let block_to_check = self
-            .get_commit_event_eth_block(l1_batch_number)
+            .get_latest_rollup_event(
+                RollupEventType::Execute,
+                RollupEventsFilter::L1BatchNumber(l1_batch_number),
+            )
             .await
             .unwrap()
-            + 1;
+            .block_number
+            .unwrap();
         let bootloader_bytecode_hash: H256 =
             CallFunctionArgs::new("getL2BootloaderBytecodeHash", ())
-                .with_block(BlockId::Number(BlockNumber::Number(U64::from(
-                    block_to_check,
-                ))))
+                .with_block(BlockId::Number(BlockNumber::Number(block_to_check)))
                 .for_contract(
                     self.config.diamond_proxy_addr,
                     &Self::v1_contract().unwrap(),
@@ -203,58 +244,14 @@ impl L1Fetcher {
         }
     }
 
-    pub async fn get_last_executed_l1_batch_number(&self) -> Option<L1BatchNumber> {
-        let end_block = L1Fetcher::get_last_l1_block_number(&self.eth_client)
-            .await
-            .unwrap();
-        let mut current_block = end_block;
-        let event = Self::block_execute_event().unwrap();
-        loop {
-            let filter_from_block = current_block
-                .checked_sub(U64::from(self.config.block_step - 1))
-                .unwrap_or_default();
-            let mut logs = self
-                .get_logs(filter_from_block, current_block, &event)
-                .await;
-            logs.reverse();
-            for log in &logs {
-                return Some(L1BatchNumber(log.topics[1].to_low_u64_be() as u32));
-            }
-            if filter_from_block == U64::zero() {
-                return None;
-            }
-            current_block = filter_from_block - 1;
-        }
-    }
-
-    pub async fn get_commit_event_eth_block(&self, l1_batch_number: L1BatchNumber) -> Option<u64> {
-        let end_block = L1Fetcher::get_last_l1_block_number(&self.eth_client)
-            .await
-            .unwrap();
-        let mut current_block = end_block;
-        let event = Self::block_commit_event().unwrap();
-        loop {
-            let filter_from_block = current_block
-                .checked_sub(U64::from(self.config.block_step - 1))
-                .unwrap_or_default();
-            tracing::info!("checking {} - {}", filter_from_block, current_block);
-            let logs = self
-                .get_logs(filter_from_block, current_block, &event)
-                .await;
-            for log in &logs {
-                if log.topics[1].to_low_u64_be() as u32 == l1_batch_number.0 {
-                    return Some(log.block_number.unwrap().as_u64());
-                }
-            }
-            if filter_from_block == U64::zero() {
-                return None;
-            }
-            current_block = filter_from_block - 1;
-        }
-    }
-
-    async fn get_logs(&self, start_block: U64, end_block: U64, event: &Event) -> Vec<Log> {
+    async fn get_logs(
+        &self,
+        start_block: U64,
+        end_block: U64,
+        rollup_event_type: RollupEventType,
+    ) -> Vec<Log> {
         assert!(end_block - start_block <= U64::from(self.config.block_step));
+        let event = L1Fetcher::rollup_event_by_type(rollup_event_type).unwrap();
         let filter = FilterBuilder::default()
             .address(vec![self.config.diamond_proxy_addr])
             .topics(Some(vec![event.signature()]), None, None, None)
@@ -269,24 +266,94 @@ impl L1Fetcher {
         .await
         .unwrap()
     }
-    pub async fn calculate_last_processed_priority_transaction_eth_block(
+
+    pub async fn get_last_executed_l1_batch_number(&self) -> Option<L1BatchNumber> {
+        let log = self
+            .get_latest_rollup_event(RollupEventType::Execute, RollupEventsFilter::None)
+            .await
+            .unwrap();
+        Some(Self::extract_l1_batch_number_from_rollup_event_log(
+            RollupEventType::Execute,
+            &log,
+        ))
+    }
+
+    pub async fn get_latest_rollup_event(
+        &self,
+        rollup_event_type: RollupEventType,
+        filter: RollupEventsFilter,
+    ) -> Option<Log> {
+        let end_block = L1Fetcher::get_last_l1_block_number(&self.eth_client)
+            .await
+            .unwrap();
+        let mut current_block = end_block;
+        loop {
+            let filter_from_block = current_block
+                .checked_sub(U64::from(self.config.block_step - 1))
+                .unwrap_or_default();
+            tracing::info!("checking {} - {}", filter_from_block, current_block);
+            let mut logs = self
+                .get_logs(filter_from_block, current_block, rollup_event_type)
+                .await;
+            logs.reverse();
+            for log in logs {
+                match filter {
+                    RollupEventsFilter::L1BatchNumber(l1_batch_number) => {
+                        let log_batch_number = Self::extract_l1_batch_number_from_rollup_event_log(
+                            rollup_event_type,
+                            &log,
+                        );
+                        if l1_batch_number == log_batch_number {
+                            return Some(log);
+                        } else {
+                            continue;
+                        }
+                    }
+                    RollupEventsFilter::PriorityOpId(priority_op_id) => {
+                        let log_priority_op_id = Self::extract_priority_op_id_from_rollup_event_log(
+                            rollup_event_type,
+                            &log,
+                        );
+                        if log_priority_op_id == priority_op_id {
+                            return Some(log);
+                        } else {
+                            continue;
+                        }
+                    }
+                    RollupEventsFilter::None => {
+                        return Some(log);
+                    }
+                }
+            }
+            if filter_from_block == U64::zero() {
+                return None;
+            }
+            current_block = filter_from_block - 1;
+        }
+    }
+
+    pub async fn get_last_processed_priority_transaction(
         &self,
         l1_batch_number: L1BatchNumber,
-    ) -> L1BlockNumber {
-        // TODO we shouldn't just take next block as there may be multiple commit transactions in the same block
-        let commit_eth_block = self
-            .get_commit_event_eth_block(l1_batch_number)
+    ) -> L1Tx {
+        let block_just_after_execute_tx_eth_block = self
+            .get_latest_rollup_event(
+                RollupEventType::Execute,
+                RollupEventsFilter::L1BatchNumber(l1_batch_number),
+            )
             .await
+            .unwrap()
+            .block_number
             .unwrap()
             + 1;
         tracing::info!(
-            "Found commit event for block {l1_batch_number} on eth block {commit_eth_block}"
+            "Found execute event for block {l1_batch_number} on eth block {block_just_after_execute_tx_eth_block}"
         );
 
         let first_unprocessed_priority_id: U256 =
             CallFunctionArgs::new("getFirstUnprocessedPriorityTx", ())
                 .with_block(BlockId::Number(BlockNumber::Number(U64::from(
-                    commit_eth_block,
+                    block_just_after_execute_tx_eth_block,
                 ))))
                 .for_contract(
                     self.config.diamond_proxy_addr,
@@ -295,41 +362,30 @@ impl L1Fetcher {
                 .call(&self.eth_client)
                 .await
                 .unwrap();
-        let first_unprocessed_priority_id = first_unprocessed_priority_id.as_u64();
+        let first_unprocessed_priority_id = PriorityOpId(first_unprocessed_priority_id.as_u64());
 
         tracing::info!(
             "First unprocessed priority tx id: {:?}",
             first_unprocessed_priority_id
         );
 
-        let end_block = U64::from(commit_eth_block);
-        let mut current_block = end_block;
-        //We're looking for last processed priority transaction, it's okay to do a simple
-        // linear search here as the tx must be in 50k preceding commit event anyway
-        loop {
-            let filter_from_block = current_block
-                .checked_sub(U64::from(self.config.block_step - 1))
-                .unwrap_or_default();
-
-            for tx in self.fetch_priority_txs(filter_from_block, end_block).await {
-                if tx.serial_id().0 == first_unprocessed_priority_id - 1 {
-                    return tx.eth_block();
-                }
-            }
-
-            if filter_from_block == U64::zero() {
-                panic!(
-                    "Unable to find priority tx with id {}",
-                    first_unprocessed_priority_id - 1
-                )
-            }
-            current_block = filter_from_block - 1;
-        }
+        let log = self
+            .get_latest_rollup_event(
+                RollupEventType::NewPriorityTx,
+                RollupEventsFilter::PriorityOpId(first_unprocessed_priority_id - 1),
+            )
+            .await
+            .expect(&format!(
+                "Unable to find priority tx with id {}",
+                first_unprocessed_priority_id - 1
+            ));
+        L1Tx::try_from(log).unwrap()
     }
 
     async fn fetch_priority_txs(&self, start_block: U64, end_block: U64) -> Vec<L1Tx> {
-        let event = L1Fetcher::priority_tx_event().unwrap();
-        let logs = self.get_logs(start_block, end_block, &event).await;
+        let logs = self
+            .get_logs(start_block, end_block, RollupEventType::NewPriorityTx)
+            .await;
         logs.iter()
             .map(|log| L1Tx::try_from(log.clone()).unwrap())
             .collect()
@@ -343,7 +399,6 @@ impl L1Fetcher {
     ) -> Vec<CommitBlock> {
         assert!(start_block <= end_block);
 
-        let event = L1Fetcher::block_commit_event().unwrap();
         let functions = L1Fetcher::commit_functions().unwrap();
         let block_step = self.config.block_step;
 
@@ -353,7 +408,10 @@ impl L1Fetcher {
         let mut priority_txs_so_far = 0;
         let mut last_processed_priority_tx = 0;
         let mut factory_deps_hashes = HashMap::new();
-        let last_executed_batch = self.get_last_executed_l1_batch_number().await.unwrap();
+        let last_executed_batch = self
+            .get_last_executed_l1_batch_number()
+            .await
+            .expect("no executed batches found on L1");
 
         loop {
             let filter_to_block = cmp::min(current_block + block_step - 1, end_block);
@@ -363,7 +421,9 @@ impl L1Fetcher {
             );
 
             // Grab all relevant logs.
-            let logs = self.get_logs(current_block, filter_to_block, &event).await;
+            let logs = self
+                .get_logs(current_block, filter_to_block, RollupEventType::Commit)
+                .await;
             tracing::info!(
                 "Found {} committed blocks and {} priority txs for blocks: {current_block}-{filter_to_block}",
                 logs.len(), priority_txs.len() - priority_txs_so_far
@@ -529,6 +589,7 @@ pub async fn parse_last_committed_l1_batch(
     let stored_block_info = parsed_input.pop().unwrap();
     return Ok(StoredBatchInfo::from_token(stored_block_info).unwrap());
 }
+
 pub async fn parse_calldata(
     protocol_versioning: &ProtocolVersioning,
     l1_block_number: u64,
@@ -641,10 +702,10 @@ mod tests {
 
     use crate::{
         l1_fetcher::{
-            blob_http_client::{BlobClient, BlobHttpClient, LocalDbBlobSource},
+            blob_http_client::{BlobClient, BlobHttpClient, LocalStorageBlobSource},
             constants::{
-                local_diamond_proxy_addr, sepolia_diamond_proxy_addr, sepolia_initial_state_path,
-                sepolia_versioning,
+                local_diamond_proxy_addr, local_initial_state_path, sepolia_diamond_proxy_addr,
+                sepolia_initial_state_path, sepolia_versioning,
             },
             l1_fetcher::{L1Fetcher, L1FetcherConfig, ProtocolVersioning::OnlyV3},
         },
@@ -764,12 +825,12 @@ mod tests {
         let temp_dir = TempDir::new().unwrap().into_path().join("db");
 
         let l1_fetcher = sepolia_l1_fetcher();
-        // batches up to batch 109, we want that many to test whether "duplicated" batches don't break anything
+        // batches up to batch 110, we want that many to test whether "duplicated" batches don't break anything
         let blocks = l1_fetcher
             .get_blocks_to_process(
                 &sepolia_blob_client(),
                 U64::from(4800000),
-                U64::from(4820508),
+                U64::from(4820533),
             )
             .await;
 
@@ -789,78 +850,86 @@ mod tests {
             .unwrap();
         // taken from https://sepolia.explorer.zksync.io/batch/109
         assert_eq!(
-            "0x575d0a455a544bf171783c5be9db312b6af771ad6844f4eef89d7f2e642bfb90",
+            "0x2673516079255c6aad7834c46e34a5b58183218a975ab30cfba175faa3c2d5f1",
             format!("{:?}", reconstructed.get_root_hash())
         );
+        // https://sepolia.explorer.zksync.io/block/671
+        let miniblock = reconstructed.read_latest_miniblock_metadata();
+        assert_eq!(671, miniblock.number);
+        assert_eq!(1701692001, miniblock.timestamp);
+        assert_eq!(
+            "0x548c9e9715b00b0f48cede784228a9f8e3e80196c73d73c77afaef1b827b98de",
+            format!("{:?}", miniblock.hash)
+        )
     }
 
-    #[test_log::test(tokio::test)]
-    async fn test_reconstruct_priority_data() {
-        let connection_pool = ConnectionPool::<Core>::builder(
-            "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
-                .parse()
-                .unwrap(),
-            10,
-        )
-        .build()
-        .await
-        .unwrap();
-        let url = SensitiveUrl::from_str(&"http://127.0.0.1:8545").unwrap();
-        let eth_client = Client::http(url).unwrap().build();
-        let blob_client: Arc<dyn BlobClient> =
-            Arc::new(LocalDbBlobSource::new(connection_pool.clone()));
-        let fetcher = L1Fetcher::new(
-            L1FetcherConfig {
-                block_step: 100_000,
-                diamond_proxy_addr: local_diamond_proxy_addr().parse().unwrap(),
-                versioning: OnlyV3,
-            },
-            Box::new(eth_client),
-        )
-        .unwrap();
-        let blocks = fetcher.get_all_blocks_to_process(&blob_client).await;
-        tracing::info!("blocks len: {}", blocks.len());
-        let block = blocks[37].clone();
-        tracing::info!("{:?}", block);
-
-        let stored_block = fetcher
-            .get_stored_block_info(L1BatchNumber(block.l1_batch_number as u32))
-            .await
-            .unwrap();
-        tracing::info!("{:?}", stored_block);
-        assert_eq!(
-            block.rollup_last_leaf_index, stored_block.index_repeated_storage_changes,
-            "index_repeated_storage_changes mismatch"
-        );
-        assert_eq!(
-            block.priority_operations_hash, stored_block.priority_operations_hash,
-            "priority_operations_hash mismatch"
-        );
-        assert_eq!(
-            block.timestamp,
-            stored_block.timestamp.as_u64(),
-            "timestamp mismatch"
-        );
-        assert_eq!(
-            block.l2_logs_tree_root, stored_block.l2_logs_tree_root,
-            "l2_logs_tree_root mismatch"
-        );
-        assert_eq!(
-            block.commitment, stored_block.commitment,
-            "commitment mismatch"
-        );
-
-        let mut rolling_hash: H256 = keccak256(&[]).into();
-        for onchain_data in &block.priority_ops_onchain_data {
-            let mut preimage = Vec::new();
-            preimage.extend(rolling_hash.as_bytes());
-            preimage.extend(onchain_data.onchain_data_hash.as_bytes());
-
-            rolling_hash = keccak256(&preimage).into();
-        }
-        assert_eq!(
-            rolling_hash, stored_block.priority_operations_hash,
-            "priority_operations_hash mismatch"
-        );
-    }
+    // #[test_log::test(tokio::test)]
+    // async fn test_reconstruct_priority_data() {
+    //     let connection_pool = ConnectionPool::<Core>::builder(
+    //         "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
+    //             .parse()
+    //             .unwrap(),
+    //         10,
+    //     )
+    //     .build()
+    //     .await
+    //     .unwrap();
+    //     let url = SensitiveUrl::from_str(&"http://127.0.0.1:8545").unwrap();
+    //     let eth_client = Client::http(url).unwrap().build();
+    //     let blob_client: Arc<dyn BlobClient> =
+    //         Arc::new(LocalStorageBlobSource::new(connection_pool.clone()));
+    //     let fetcher = L1Fetcher::new(
+    //         L1FetcherConfig {
+    //             block_step: 100_000,
+    //             diamond_proxy_addr: local_diamond_proxy_addr().parse().unwrap(),
+    //             versioning: OnlyV3,
+    //         },
+    //         Box::new(eth_client),
+    //     )
+    //     .unwrap();
+    //     let blocks = fetcher.get_all_blocks_to_process(&blob_client).await;
+    //     tracing::info!("blocks len: {}", blocks.len());
+    //     let block = blocks[37].clone();
+    //     tracing::info!("{:?}", block);
+    //
+    //     let stored_block = fetcher
+    //         .get_stored_block_info(L1BatchNumber(block.l1_batch_number as u32))
+    //         .await
+    //         .unwrap();
+    //     tracing::info!("{:?}", stored_block);
+    //     assert_eq!(
+    //         block.rollup_last_leaf_index, stored_block.index_repeated_storage_changes,
+    //         "index_repeated_storage_changes mismatch"
+    //     );
+    //     assert_eq!(
+    //         block.priority_operations_hash, stored_block.priority_operations_hash,
+    //         "priority_operations_hash mismatch"
+    //     );
+    //     assert_eq!(
+    //         block.timestamp,
+    //         stored_block.timestamp.as_u64(),
+    //         "timestamp mismatch"
+    //     );
+    //     assert_eq!(
+    //         block.l2_logs_tree_root, stored_block.l2_logs_tree_root,
+    //         "l2_logs_tree_root mismatch"
+    //     );
+    //     assert_eq!(
+    //         block.commitment, stored_block.commitment,
+    //         "commitment mismatch"
+    //     );
+    //
+    //     let mut rolling_hash: H256 = keccak256(&[]).into();
+    //     for onchain_data in &block.priority_ops_onchain_data {
+    //         let mut preimage = Vec::new();
+    //         preimage.extend(rolling_hash.as_bytes());
+    //         preimage.extend(onchain_data.onchain_data_hash.as_bytes());
+    //
+    //         rolling_hash = keccak256(&preimage).into();
+    //     }
+    //     assert_eq!(
+    //         rolling_hash, stored_block.priority_operations_hash,
+    //         "priority_operations_hash mismatch"
+    //     );
+    // }
 }

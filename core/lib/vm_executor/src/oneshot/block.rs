@@ -315,14 +315,6 @@ async fn load_l2_block_info(
             prev_block_hash = snapshot_recovery.and_then(|recovery| {
                 (recovery.l2_block_number == prev_block_number).then_some(recovery.l2_block_hash)
             });
-            if prev_block_hash.is_none() {
-                prev_block_hash = Some(
-                    H256::from_str(
-                        &"0x3259078d280da94b303592f6640e70c723c24018ab6d592a45931477e6645ab5",
-                    )
-                    .unwrap(),
-                );
-            }
         }
 
         current_block = Some(prev_l2_block);

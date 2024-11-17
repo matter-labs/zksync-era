@@ -1,7 +1,4 @@
-use std::{
-    cmp::min,
-    collections::{hash_map, BTreeSet, HashMap},
-};
+use std::collections::{hash_map, BTreeSet, HashMap};
 
 use zksync_types::{
     l1::L1Tx, l2::L2Tx, Address, ExecuteTransactionCommon, Nonce, PriorityOpId, Transaction,
@@ -61,7 +58,6 @@ impl MempoolStore {
         transactions: Vec<(Transaction, TransactionTimeRangeConstraint)>,
         initial_nonces: HashMap<Address, Nonce>,
     ) {
-        let mut min_next_priority_id = None;
         for (transaction, constraint) in transactions {
             let Transaction {
                 common_data,
@@ -71,17 +67,6 @@ impl MempoolStore {
             } = transaction;
             match common_data {
                 ExecuteTransactionCommon::L1(data) => {
-                    tracing::info!(
-                        "inserting L1 transaction {}, current next_priority_id is {}",
-                        data.serial_id,
-                        self.next_priority_id
-                    );
-                    if min_next_priority_id.is_none() {
-                        min_next_priority_id = Some(data.serial_id);
-                    } else {
-                        min_next_priority_id =
-                            Some(min(min_next_priority_id.unwrap(), data.serial_id));
-                    }
                     self.l1_transactions.insert(
                         data.serial_id,
                         L1Tx {
@@ -107,11 +92,6 @@ impl MempoolStore {
                 ExecuteTransactionCommon::ProtocolUpgrade(_) => {
                     panic!("Protocol upgrade tx is not supposed to be inserted into mempool");
                 }
-            }
-        }
-        if let Some(min_next_priority_id) = min_next_priority_id {
-            if self.next_priority_id == PriorityOpId(0) {
-                self.next_priority_id = min_next_priority_id;
             }
         }
     }

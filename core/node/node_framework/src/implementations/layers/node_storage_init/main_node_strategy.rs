@@ -12,6 +12,7 @@ use zksync_node_storage_init::{
 use super::NodeInitializationStrategyResource;
 use crate::{
     implementations::resources::{
+        blob_client::BlobClientResource,
         eth_interface::EthInterfaceResource,
         healthcheck::AppHealthCheckResource,
         pools::{MasterPool, PoolResource},
@@ -34,6 +35,7 @@ pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub eth_interface: EthInterfaceResource,
     pub app_health: AppHealthCheckResource,
+    pub blob_client_resource: BlobClientResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -96,6 +98,7 @@ impl WiringLayer for MainNodeInitStrategyLayer {
                 },
                 app_health: input.app_health.0,
                 diamond_proxy_addr: self.contracts.diamond_proxy_addr.clone(),
+                blob_client: Some(input.blob_client_resource.0),
             });
             Some(recovery)
         } else {

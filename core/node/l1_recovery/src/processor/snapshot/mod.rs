@@ -1,7 +1,13 @@
 use std::path::PathBuf;
 
-use zksync_basic_types::{web3::Bytes, L1BatchNumber, H256, U256};
-use zksync_types::snapshots::{SnapshotFactoryDependency, SnapshotStorageLog};
+use zksync_basic_types::{web3::Bytes, AccountTreeId, L1BatchNumber, L2BlockNumber, H256, U256};
+use zksync_types::{
+    block::unpack_block_info,
+    snapshots::{SnapshotFactoryDependency, SnapshotStorageLog},
+    StorageKey, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+};
+use zksync_utils::h256_to_u256;
+use zksync_vm_interface::L2Block;
 
 use crate::{
     l1_fetcher::types::CommitBlock,
@@ -69,6 +75,10 @@ impl StateCompressor {
 
     pub fn get_root_hash(&self) -> H256 {
         self.tree_processor.get_root_hash()
+    }
+
+    pub fn read_latest_miniblock_metadata(&self) -> L2Block {
+        self.tree_processor.read_latest_miniblock_metadata()
     }
 
     pub async fn process_genesis_state(&mut self, path_buf: Option<PathBuf>) {

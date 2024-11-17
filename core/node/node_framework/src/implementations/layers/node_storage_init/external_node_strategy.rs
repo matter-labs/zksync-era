@@ -92,6 +92,7 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
                     recovery_config,
                     app_health,
                     diamond_proxy_addr: self.diamond_proxy_addr,
+                    blob_client: None,
                 });
                 Some(recovery)
             }

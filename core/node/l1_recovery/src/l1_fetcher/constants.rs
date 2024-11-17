@@ -36,7 +36,7 @@ pub fn mainnet_initial_state_path() -> PathBuf {
 #[allow(unused)]
 pub fn local_initial_state_path() -> PathBuf {
     let base_path = Workspace::locate().core();
-    base_path.join("core/node/l1_recovery/InitialStateV24.json")
+    base_path.join("core/node/l1_recovery/InitialStateV25.json")
 }
 
 #[allow(unused)]

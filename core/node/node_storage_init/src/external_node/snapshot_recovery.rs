@@ -5,9 +5,9 @@ use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::AppHealthCheck;
 use zksync_l1_recovery::{
-    create_l1_snapshot, insert_dummy_l1_batch, recover_eth_sender, recover_eth_watch,
-    recover_latest_protocol_version, CommitBlock, L1RecoveryDetachedMainNodeClient,
-    L1RecoveryOnlineMainNodeClient, LocalDbBlobSource,
+    create_l1_snapshot, insert_recovered_l1_batch, recover_eth_sender, recover_eth_watch,
+    recover_latest_protocol_version, BlobClient, CommitBlock, L1RecoveryDetachedMainNodeClient,
+    L1RecoveryOnlineMainNodeClient, LocalStorageBlobSource,
 };
 use zksync_object_store::ObjectStoreFactory;
 use zksync_shared_metrics::{SnapshotRecoveryStage, APP_METRICS};
@@ -29,6 +29,7 @@ pub struct ExternalNodeSnapshotRecovery {
     pub recovery_config: SnapshotRecoveryConfig,
     pub app_health: Arc<AppHealthCheck>,
     pub diamond_proxy_addr: Address,
+    pub blob_client: Option<Arc<dyn BlobClient>>,
 }
 
 #[async_trait::async_trait]
@@ -56,10 +57,9 @@ impl InitializeStorage for ExternalNodeSnapshotRecovery {
             )
                 .build()
                 .await?;
-                let blob_client = Arc::new(LocalDbBlobSource::new(main_node_connection_pool));
-                let last_block = create_l1_snapshot(
+                let (last_block, last_miniblock) = create_l1_snapshot(
                     self.l1_client.clone(),
-                    blob_client,
+                    self.blob_client.as_ref().unwrap(),
                     &object_store,
                     self.diamond_proxy_addr,
                 )
@@ -74,6 +74,11 @@ impl InitializeStorage for ExternalNodeSnapshotRecovery {
                 } else {
                     Box::new(L1RecoveryDetachedMainNodeClient {
                         newest_l1_batch_number: L1BatchNumber(last_block.l1_batch_number as u32),
+                        newest_l1_batch_root_hash: H256::from_slice(
+                            last_block.new_state_root.as_slice(),
+                        ),
+                        newest_l1_batch_timestamp: last_block.timestamp,
+                        newest_l2_block: last_miniblock,
                         root_hash: H256::from_slice(last_block.new_state_root.as_slice()),
                     })
                 }
@@ -138,7 +143,7 @@ impl InitializeStorage for ExternalNodeSnapshotRecovery {
                 snapshot_recovery.l1_batch_number,
             )
             .await;
-            insert_dummy_l1_batch(last_l1_block.unwrap(), self.pool.clone()).await;
+            insert_recovered_l1_batch(last_l1_block.unwrap(), self.pool.clone()).await;
             recover_eth_watch(
                 self.pool.clone(),
                 self.l1_client.clone(),
@@ -237,6 +242,7 @@ mod tests {
             },
             app_health,
             diamond_proxy_addr: Address::repeat_byte(1),
+            blob_client: None,
         };
 
         // Emulate recovery by indefinitely holding onto `max_concurrency` connections. In practice,

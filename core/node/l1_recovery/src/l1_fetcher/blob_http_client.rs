@@ -1,9 +1,8 @@
-use std::fmt;
+use std::{fmt, sync::Arc};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::time::{sleep, Duration};
-use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_types::eth_sender::EthTxBlobSidecar;
+use zksync_object_store::{serialize_using_bincode, Bucket, ObjectStore, StoredObject};
 
 use crate::l1_fetcher::types::ParseError;
 
@@ -17,48 +16,52 @@ struct JsonResponse {
     data: String,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct BlobKey {
+    pub kzg_commitment: [u8; 48],
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BlobWrapper {
+    pub blob: Vec<u8>,
+}
+
+impl StoredObject for BlobWrapper {
+    const BUCKET: Bucket = Bucket::LocalBlobs;
+    type Key<'a> = BlobKey;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        let BlobKey { kzg_commitment } = key;
+        format!("blob_{}.bin", hex::encode(kzg_commitment))
+    }
+
+    serialize_using_bincode!();
+}
+
 #[async_trait::async_trait]
 pub trait BlobClient: 'static + fmt::Debug + Send + Sync {
     async fn get_blob(&self, kzg_commitment: &[u8]) -> Result<Vec<u8>, ParseError>;
 }
 
 #[derive(Debug)]
-pub struct LocalDbBlobSource {
-    pool: ConnectionPool<Core>,
+pub struct LocalStorageBlobSource {
+    object_store: Arc<dyn ObjectStore>,
 }
 
-impl LocalDbBlobSource {
-    pub fn new(connection_pool: ConnectionPool<Core>) -> Self {
-        Self {
-            pool: connection_pool,
-        }
+impl LocalStorageBlobSource {
+    pub fn new(object_store: Arc<dyn ObjectStore>) -> Self {
+        Self { object_store }
     }
 }
 
 #[async_trait::async_trait]
-impl BlobClient for LocalDbBlobSource {
+impl BlobClient for LocalStorageBlobSource {
     async fn get_blob(&self, kzg_commitment: &[u8]) -> Result<Vec<u8>, ParseError> {
-        let mut storage = self.pool.connection().await.unwrap();
-        let mut id = 1;
-        loop {
-            let tx = storage.eth_sender_dal().get_eth_tx(id).await.unwrap();
-            id += 1;
-            if tx.is_none() {
-                panic!("No tx found");
-            }
-
-            if let Some(blob_sidecar) = tx.unwrap().blob_sidecar {
-                match blob_sidecar {
-                    EthTxBlobSidecar::EthTxBlobSidecarV1(sidecar) => {
-                        for blob in sidecar.blobs {
-                            if blob.commitment == kzg_commitment {
-                                return Ok(blob.blob);
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        let key = BlobKey {
+            kzg_commitment: kzg_commitment.try_into().unwrap(),
+        };
+        let blob: BlobWrapper = self.object_store.get(key).await.unwrap();
+        Ok(blob.blob)
     }
 }
 
