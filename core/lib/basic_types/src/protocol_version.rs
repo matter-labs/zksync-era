@@ -144,7 +144,11 @@ impl ProtocolVersionId {
     }
 
     pub fn is_pre_gateway(&self) -> bool {
-        self <= &Self::Version26
+        self < &Self::gateway_upgrade()
+    }
+
+    pub fn is_post_gateway(&self) -> bool {
+        self >= &Self::gateway_upgrade()
     }
 
     pub fn is_1_4_0(&self) -> bool {
@@ -181,6 +185,10 @@ impl ProtocolVersionId {
 
     pub fn is_post_1_5_0(&self) -> bool {
         self >= &ProtocolVersionId::Version23
+    }
+
+    pub const fn gateway_upgrade() -> Self {
+        ProtocolVersionId::Version26
     }
 }
 

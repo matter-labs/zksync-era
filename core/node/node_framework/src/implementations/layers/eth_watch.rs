@@ -72,6 +72,7 @@ impl WiringLayer for EthWatchLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let main_pool = input.master_pool.get().await?;
         let client = input.eth_client.0;
+
         let sl_diamond_proxy_addr = if self.settlement_mode.is_gateway() {
             self.gateway_contracts_config
                 .clone()
@@ -94,6 +95,11 @@ impl WiringLayer for EthWatchLayer {
             self.contracts_config.diamond_proxy_addr,
             self.contracts_config
                 .ecosystem_contracts
+                .as_ref()
+                .and_then(|a| a.l1_bytecodes_supplier_addr),
+            self.contracts_config
+                .ecosystem_contracts
+                .as_ref()
                 .map(|a| a.state_transition_proxy_addr),
             self.contracts_config.chain_admin_addr,
             self.contracts_config.governance_addr,
@@ -106,6 +112,8 @@ impl WiringLayer for EthWatchLayer {
             Some(Box::new(EthHttpQueryClient::new(
                 gateway_client,
                 contracts_config.diamond_proxy_addr,
+                // Bytecode supplier is only present on L1
+                None,
                 Some(contracts_config.state_transition_proxy_addr),
                 contracts_config.chain_admin_addr,
                 contracts_config.governance_addr,
@@ -121,6 +129,7 @@ impl WiringLayer for EthWatchLayer {
             sl_l2_client,
             main_pool,
             self.eth_watch_config.poll_interval(),
+            &self.contracts_config,
             self.chain_id,
         )
         .await?;

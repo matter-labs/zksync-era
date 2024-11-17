@@ -3,11 +3,9 @@ use std::{path::PathBuf, str::FromStr};
 use anyhow::Context;
 use common::{
     config::global_config,
-    contracts::build_system_contracts,
+    contracts::{build_l1_contracts, build_l2_contracts, build_system_contracts},
     forge::{Forge, ForgeScriptArgs},
-    git,
-    hardhat::{build_l1_contracts, build_l2_contracts},
-    logger,
+    git, logger,
     spinner::Spinner,
     Prompt,
 };
@@ -117,9 +115,9 @@ async fn init_ecosystem(
     install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
     if !init_args.skip_contract_compilation_override {
         build_da_contracts(shell, &ecosystem_config.link_to_code)?;
-        build_l1_contracts(shell, &ecosystem_config.link_to_code)?;
+        build_l1_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
         build_system_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
-        build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
+        build_l2_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
     }
     spinner.finish();
 
@@ -335,7 +333,8 @@ async fn deploy_ecosystem_inner(
         &config.get_wallets()?.governor,
         contracts_config
             .ecosystem_contracts
-            .stm_deployment_tracker_proxy_addr,
+            .stm_deployment_tracker_proxy_addr
+            .context("stm_deployment_tracker_proxy_addr")?,
         &forge_args,
         l1_rpc_url.clone(),
     )
@@ -382,8 +381,8 @@ async fn init_chains(
             deploy_paymaster,
             l1_rpc_url: Some(final_init_args.ecosystem.l1_rpc_url.clone()),
             no_port_reallocation: final_init_args.no_port_reallocation,
-            dev: final_init_args.dev,
             skip_submodules_checkout: final_init_args.skip_submodules_checkout,
+            dev: final_init_args.dev,
         };
         let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
 

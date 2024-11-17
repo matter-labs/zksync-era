@@ -16,7 +16,9 @@ pub struct DeployGatewayCTMInput {
     native_token_vault_addr: Address,
     chain_type_manager_proxy_addr: Address,
     shared_bridge_proxy_addr: Address,
+
     governance: Address,
+    base_token: Address,
 
     chain_chain_id: U256,
     era_chain_id: U256,
@@ -47,6 +49,8 @@ pub struct DeployGatewayCTMInput {
     latest_protocol_version: U256,
 
     force_deployments_data: String,
+
+    expected_rollup_l2_da_validator: Address,
 }
 
 impl ZkStackConfig for DeployGatewayCTMInput {}
@@ -63,13 +67,19 @@ impl DeployGatewayCTMInput {
             bridgehub_proxy_addr: contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
             ctm_deployment_tracker_proxy_addr: contracts_config
                 .ecosystem_contracts
-                .stm_deployment_tracker_proxy_addr,
-            native_token_vault_addr: contracts_config.ecosystem_contracts.native_token_vault_addr,
+                .stm_deployment_tracker_proxy_addr
+                .expect("stm_deployment_tracker_proxy_addr"),
+            native_token_vault_addr: contracts_config
+                .ecosystem_contracts
+                .native_token_vault_addr
+                .expect("native_token_vault_addr"),
             chain_type_manager_proxy_addr: contracts_config
                 .ecosystem_contracts
                 .state_transition_proxy_addr,
             shared_bridge_proxy_addr: contracts_config.bridges.shared.l1_address,
             governance: contracts_config.l1.governance_addr,
+
+            base_token: contracts_config.l1.base_token_addr,
 
             chain_chain_id: U256::from(chain_config.chain_id.0),
             era_chain_id: U256::from(ecosystem_config.era_chain_id.0),
@@ -107,10 +117,16 @@ impl DeployGatewayCTMInput {
 
             latest_protocol_version: genesis_config.protocol_version.unwrap().pack(),
 
+            expected_rollup_l2_da_validator: contracts_config
+                .ecosystem_contracts
+                .expected_rollup_l2_da_validator
+                .unwrap(),
+
             force_deployments_data: contracts_config
                 .ecosystem_contracts
                 .force_deployments_data
-                .clone(),
+                .clone()
+                .expect("force_deployments_data"),
         }
     }
 }

@@ -46,6 +46,7 @@ zksync_protobuf_config.workspace = true
 zksync_types.workspace = true
 zksync_web3_decl.workspace = true
 zksync_system_constants.workspace = true
+zksync_eth_client.workspace = true
 prost.workspace = true
 reqwest = "0.12.8"
 

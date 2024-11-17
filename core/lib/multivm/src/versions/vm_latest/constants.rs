@@ -3,10 +3,8 @@ use zk_evm_1_5_0::aux_structures::MemoryPage;
 pub use zk_evm_1_5_0::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
-use zksync_system_constants::MAX_NEW_FACTORY_DEPS;
 
-use super::vm::MultiVmSubversion;
-use crate::vm_latest::old_vm::utils::heap_page_from_base;
+use crate::vm_latest::{old_vm::utils::heap_page_from_base, MultiVmSubversion};
 
 /// The amount of ergs to be reserved at the end of the batch to ensure that it has enough ergs to verify compression, etc.
 pub(crate) const BOOTLOADER_BATCH_TIP_OVERHEAD: u32 = 400_000_000;
@@ -61,35 +59,72 @@ pub(crate) const MAX_POSTOP_SLOTS: usize = PAYMASTER_CONTEXT_SLOTS + 7;
 /// to be used for signing the transaction's content.
 const CURRENT_L2_TX_HASHES_SLOTS: usize = 2;
 
+pub(crate) const fn get_max_new_factory_deps(subversion: MultiVmSubversion) -> usize {
+    match subversion {
+        MultiVmSubversion::SmallBootloaderMemory | MultiVmSubversion::IncreasedBootloaderMemory => {
+            32
+        }
+        // With gateway upgrade we increased max number of factory dependencies
+        MultiVmSubversion::Gateway => 64,
+    }
+}
+
 /// Slots used to store the calldata for the KnownCodesStorage to mark new factory
 /// dependencies as known ones. Besides the slots for the new factory dependencies themselves
 /// another 4 slots are needed for: selector, marker of whether the user should pay for the pubdata,
 /// the offset for the encoding of the array as well as the length of the array.
-const NEW_FACTORY_DEPS_RESERVED_SLOTS: usize = MAX_NEW_FACTORY_DEPS + 4;
+pub(crate) const fn get_new_factory_deps_reserved_slots(subversion: MultiVmSubversion) -> usize {
+    get_max_new_factory_deps(subversion) + 4
+}
 
 /// The operator can provide for each transaction the proposed minimal refund
 pub(crate) const OPERATOR_REFUNDS_SLOTS: usize = MAX_TXS_IN_BATCH;
 
-pub(crate) const OPERATOR_REFUNDS_OFFSET: usize = DEBUG_SLOTS_OFFSET
-    + DEBUG_FIRST_SLOTS
-    + PAYMASTER_CONTEXT_SLOTS
-    + CURRENT_L2_TX_HASHES_SLOTS
-    + NEW_FACTORY_DEPS_RESERVED_SLOTS;
+pub(crate) const fn get_operator_refunds_offset(subversion: MultiVmSubversion) -> usize {
+    DEBUG_SLOTS_OFFSET
+        + DEBUG_FIRST_SLOTS
+        + PAYMASTER_CONTEXT_SLOTS
+        + CURRENT_L2_TX_HASHES_SLOTS
+        + get_new_factory_deps_reserved_slots(subversion)
+}
 
-pub(crate) const TX_OVERHEAD_OFFSET: usize = OPERATOR_REFUNDS_OFFSET + OPERATOR_REFUNDS_SLOTS;
+pub(crate) const fn get_tx_overhead_offset(subversion: MultiVmSubversion) -> usize {
+    get_operator_refunds_offset(subversion) + OPERATOR_REFUNDS_SLOTS
+}
+
 pub(crate) const TX_OVERHEAD_SLOTS: usize = MAX_TXS_IN_BATCH;
 
-pub(crate) const TX_TRUSTED_GAS_LIMIT_OFFSET: usize = TX_OVERHEAD_OFFSET + TX_OVERHEAD_SLOTS;
+pub(crate) const fn get_tx_trusted_gas_limit_offset(subversion: MultiVmSubversion) -> usize {
+    get_tx_overhead_offset(subversion) + TX_OVERHEAD_SLOTS
+}
+
 pub(crate) const TX_TRUSTED_GAS_LIMIT_SLOTS: usize = MAX_TXS_IN_BATCH;
+
+pub(crate) const fn get_tx_operator_l2_block_info_offset(subversion: MultiVmSubversion) -> usize {
+    get_tx_trusted_gas_limit_offset(subversion) + TX_TRUSTED_GAS_LIMIT_SLOTS
+}
+
+pub(crate) const TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO: usize = 4;
+pub(crate) const TX_OPERATOR_L2_BLOCK_INFO_SLOTS: usize =
+    (MAX_TXS_IN_BATCH + 1) * TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO;
+
+pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversion) -> usize {
+    get_tx_operator_l2_block_info_offset(subversion) + TX_OPERATOR_L2_BLOCK_INFO_SLOTS
+}
 
 pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 196608;
 
-pub(crate) const PRIORITY_TXS_L1_DATA_OFFSET: usize =
-    COMPRESSED_BYTECODES_OFFSET + COMPRESSED_BYTECODES_SLOTS;
+pub(crate) const fn get_priority_txs_l1_data_offset(subversion: MultiVmSubversion) -> usize {
+    get_compressed_bytecodes_offset(subversion) + COMPRESSED_BYTECODES_SLOTS
+}
+
 pub(crate) const PRIORITY_TXS_L1_DATA_SLOTS: usize = 2;
 
-pub const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET: usize =
-    PRIORITY_TXS_L1_DATA_OFFSET + PRIORITY_TXS_L1_DATA_SLOTS;
+pub(crate) const fn get_operator_provided_l1_messenger_pubdata_offset(
+    subversion: MultiVmSubversion,
+) -> usize {
+    get_priority_txs_l1_data_offset(subversion) + PRIORITY_TXS_L1_DATA_SLOTS
+}
 
 /// One of "worst case" scenarios for the number of state diffs in a batch is when 780kb of pubdata is spent
 /// on repeated writes, that are all zeroed out. In this case, the number of diffs is `780kb / 5 = 156k`. This means that they will have
@@ -101,12 +136,16 @@ pub const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET: usize =
 /// operator to ensure that it can form the correct calldata for the L1Messenger.
 pub(crate) const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS: usize = 1360000;
 
-pub(crate) const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
-    OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS;
+pub(crate) const fn get_bootloader_tx_description_offset(subversion: MultiVmSubversion) -> usize {
+    get_operator_provided_l1_messenger_pubdata_offset(subversion)
+        + OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS
+}
 
 /// The size of the bootloader memory dedicated to the encodings of transactions
 pub(crate) const fn get_bootloader_tx_encoding_space(subversion: MultiVmSubversion) -> u32 {
-    (get_used_bootloader_memory_words(subversion) - TX_DESCRIPTION_OFFSET - MAX_TXS_IN_BATCH) as u32
+    (get_used_bootloader_memory_words(subversion)
+        - get_tx_description_offset(subversion)
+        - MAX_TXS_IN_BATCH) as u32
 }
 
 // Size of the bootloader tx description in words
@@ -114,9 +153,11 @@ pub(crate) const BOOTLOADER_TX_DESCRIPTION_SIZE: usize = 2;
 
 /// The actual descriptions of transactions should start after the minor descriptions and a MAX_POSTOP_SLOTS
 /// free slots to allow postOp encoding.
-pub(crate) const TX_DESCRIPTION_OFFSET: usize = BOOTLOADER_TX_DESCRIPTION_OFFSET
-    + BOOTLOADER_TX_DESCRIPTION_SIZE * MAX_TXS_IN_BATCH
-    + MAX_POSTOP_SLOTS;
+pub(crate) const fn get_tx_description_offset(subversion: MultiVmSubversion) -> usize {
+    get_bootloader_tx_description_offset(subversion)
+        + BOOTLOADER_TX_DESCRIPTION_SIZE * MAX_TXS_IN_BATCH
+        + MAX_POSTOP_SLOTS
+}
 
 pub(crate) const TX_GAS_LIMIT_OFFSET: usize = 4;
 
@@ -165,16 +206,6 @@ pub const ETH_CALL_GAS_LIMIT: u64 = BATCH_GAS_LIMIT;
 
 /// ID of the transaction from L1
 pub const L1_TX_TYPE: u8 = 255;
-
-pub(crate) const TX_OPERATOR_L2_BLOCK_INFO_OFFSET: usize =
-    TX_TRUSTED_GAS_LIMIT_OFFSET + TX_TRUSTED_GAS_LIMIT_SLOTS;
-
-pub(crate) const TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO: usize = 4;
-pub(crate) const TX_OPERATOR_L2_BLOCK_INFO_SLOTS: usize =
-    (MAX_TXS_IN_BATCH + 1) * TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO;
-
-pub(crate) const COMPRESSED_BYTECODES_OFFSET: usize =
-    TX_OPERATOR_L2_BLOCK_INFO_OFFSET + TX_OPERATOR_L2_BLOCK_INFO_SLOTS;
 
 /// The maximal gas limit that gets passed as compute for an L2 transaction. This is also the maximal limit allowed
 /// for L1->L2 transactions.

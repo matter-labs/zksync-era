@@ -36,6 +36,8 @@ const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
     "IChainTypeManager.sol/IChainTypeManager.json",
 );
+const BYTECODE_SUPPLIER_CONTRACT_FILE: (&str, &str) =
+    ("upgrades", "BytecodesSupplier.sol/BytecodesSupplier.json");
 const ZKSYNC_HYPERCHAIN_CONTRACT_FILE: (&str, &str) = (
     "state-transition/chain-interfaces",
     "IZKChain.sol/IZKChain.json",
@@ -155,6 +157,10 @@ pub fn state_transition_manager_contract() -> Contract {
     load_contract_for_both_compilers(STATE_TRANSITION_CONTRACT_FILE)
 }
 
+pub fn bytecode_supplier_contract() -> Contract {
+    load_contract_for_both_compilers(BYTECODE_SUPPLIER_CONTRACT_FILE)
+}
+
 pub fn hyperchain_contract() -> Contract {
     load_contract_for_both_compilers(ZKSYNC_HYPERCHAIN_CONTRACT_FILE)
 }
@@ -207,13 +213,11 @@ pub fn l1_messenger_contract() -> Contract {
 }
 
 pub fn l2_message_root() -> Contract {
-    load_contract(
-        "contracts/l1-contracts/artifacts-zk/contracts/bridgehub/MessageRoot.sol/MessageRoot.json",
-    )
+    load_contract("contracts/l1-contracts/zkout/MessageRoot.sol/MessageRoot.json")
 }
 
 pub fn l2_rollup_da_validator_bytecode() -> Vec<u8> {
-    read_bytecode("contracts/l2-contracts/artifacts-zk/contracts/data-availability/RollupL2DAValidator.sol/RollupL2DAValidator.json")
+    read_bytecode("contracts/l2-contracts/zkout/RollupL2DAValidator.sol/RollupL2DAValidator.json")
 }
 
 /// Reads bytecode from the path RELATIVE to the Cargo workspace location.
@@ -324,21 +328,10 @@ pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
     {
         return contract;
     };
-
-    let artifacts_path =
-        Path::new(&home_path()).join("contracts/system-contracts/bootloader/build/artifacts");
-    let bytecode_path = artifacts_path.join(format!("{bootloader_type}.yul.zbin"));
-    if fs::exists(bytecode_path).unwrap_or_default() {
-        read_yul_bytecode(
-            "contracts/system-contracts/bootloader/build/artifacts",
-            bootloader_type,
-        )
-    } else {
-        read_yul_bytecode(
-            "contracts/system-contracts/bootloader/tests/artifacts",
-            bootloader_type,
-        )
-    }
+    read_yul_bytecode(
+        "contracts/system-contracts/bootloader/build/artifacts",
+        bootloader_type,
+    )
 }
 
 fn read_proved_batch_bootloader_bytecode() -> Vec<u8> {
@@ -537,10 +530,8 @@ impl BaseSystemContracts {
     }
 
     pub fn playground_gateway() -> Self {
-        let bootloader_bytecode = read_zbin_bytecode(
-            "contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin",
-            // "etc/multivm_bootloaders/vm_gateway/playground_batch.yul/playground_batch.yul.zbin",
-        );
+        // TODO: the value should be taken from the `multivm_bootloaders` folder
+        let bootloader_bytecode = read_bootloader_code("playground_batch");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
@@ -615,10 +606,8 @@ impl BaseSystemContracts {
     }
 
     pub fn estimate_gas_gateway() -> Self {
-        let bootloader_bytecode = read_zbin_bytecode(
-            "contracts/system-contracts/bootloader/build/artifacts/fee_estimate.yul.zbin",
-            // "etc/multivm_bootloaders/vm_gateway/fee_estimate.yul/fee_estimate.yul.zbin",
-        );
+        // TODO: the value should be taken from the `multivm_bootloaders` folder
+        let bootloader_bytecode = read_bootloader_code("fee_estimate");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 

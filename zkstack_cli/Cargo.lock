@@ -7173,6 +7173,7 @@ dependencies = [
  "zksync_consensus_crypto",
  "zksync_consensus_roles",
  "zksync_consensus_utils",
+ "zksync_eth_client",
  "zksync_protobuf",
  "zksync_protobuf_build",
  "zksync_protobuf_config",
@@ -7318,6 +7319,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_eth_client"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "jsonrpsee",
+ "rlp",
+ "thiserror",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_eth_signer",
+ "zksync_types",
+ "zksync_web3_decl",
+]
+
+[[package]]
+name = "zksync_eth_signer"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "rlp",
+ "thiserror",
+ "zksync_basic_types",
+ "zksync_crypto_primitives",
+]
+
+[[package]]
 name = "zksync_mini_merkle_tree"
 version = "0.1.0"
 dependencies = [
@@ -7397,6 +7426,7 @@ name = "zksync_types"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "bigdecimal",
  "blake2",
  "chrono",

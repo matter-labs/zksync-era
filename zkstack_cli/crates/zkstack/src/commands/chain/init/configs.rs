@@ -11,6 +11,7 @@ use crate::{
     commands::{
         chain::{
             args::init::configs::{InitConfigsArgs, InitConfigsArgsFinal},
+            gateway_upgrade::encode_ntv_asset_id,
             genesis,
         },
         portal::update_portal_config,
@@ -90,6 +91,10 @@ pub async fn init_configs(
     contracts_config.l1.governance_addr = Address::zero();
     contracts_config.l1.chain_admin_addr = Address::zero();
     contracts_config.l1.base_token_addr = chain_config.base_token.address;
+    contracts_config.l1.base_token_asset_id = Some(encode_ntv_asset_id(
+        genesis_config.l1_chain_id.0.into(),
+        contracts_config.l1.base_token_addr,
+    ));
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     // Initialize secrets config

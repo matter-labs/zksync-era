@@ -102,6 +102,7 @@ impl ConfigurationSource for Environment {
 /// This part of the external node config is fetched directly from the main node.
 #[derive(Debug, Deserialize)]
 pub(crate) struct RemoteENConfig {
+    pub l1_bytecodes_supplier_addr: Option<Address>,
     pub l1_bridgehub_proxy_addr: Option<Address>,
     pub l1_state_transition_proxy_addr: Option<Address>,
     pub l1_transparent_proxy_admin_addr: Option<Address>,
@@ -187,6 +188,9 @@ impl RemoteENConfig {
             l1_transparent_proxy_admin_addr: ecosystem_contracts
                 .as_ref()
                 .map(|a| a.transparent_proxy_admin_addr),
+            l1_bytecodes_supplier_addr: ecosystem_contracts
+                .as_ref()
+                .and_then(|a| a.l1_bytecodes_supplier_addr),
             l1_diamond_proxy_addr,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
@@ -212,6 +216,7 @@ impl RemoteENConfig {
     #[cfg(test)]
     fn mock() -> Self {
         Self {
+            l1_bytecodes_supplier_addr: None,
             l1_bridgehub_proxy_addr: None,
             l1_state_transition_proxy_addr: None,
             l1_transparent_proxy_admin_addr: None,
@@ -1471,6 +1476,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
                 l1_weth_bridge: config.remote.l1_weth_bridge_addr,
                 l2_weth_bridge: config.remote.l2_weth_bridge_addr,
             },
+            l1_bytecodes_supplier_addr: config.remote.l1_bytecodes_supplier_addr,
             l1_bridgehub_proxy_addr: config.remote.l1_bridgehub_proxy_addr,
             l1_state_transition_proxy_addr: config.remote.l1_state_transition_proxy_addr,
             l1_transparent_proxy_admin_addr: config.remote.l1_transparent_proxy_admin_addr,

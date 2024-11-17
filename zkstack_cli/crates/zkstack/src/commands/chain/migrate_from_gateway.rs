@@ -113,7 +113,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
                 "startMigrateChainFromGateway",
                 (
                     chain_admin_addr,
-                    chain_access_control_restriction,
+                    chain_access_control_restriction.context("chain_access_control_restriction")?,
                     U256::from(chain_config.chain_id.0),
                 ),
             )

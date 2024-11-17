@@ -36,6 +36,14 @@ lazy_static! {
         ])
         .unwrap(),
     );
+
+    static ref DEPLOY_GATEWAY_CTM_INTERFACE: BaseContract = BaseContract::from(
+        parse_abi(&[
+            "function prepareAddresses() public",
+            "function deployCTM() public",
+        ])
+        .unwrap(),
+    );
 }
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -55,7 +63,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_genesis_config = chain_config.get_genesis_config()?;
 
     // Firstly, deploying gateway contracts
-    let gateway_config = deploy_gateway_ctm(
+    let gateway_config = calculate_gateway_ctm(
         shell,
         args.clone(),
         &ecosystem_config,
@@ -87,25 +95,39 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 
     let output = call_script(
         shell,
-        args,
+        args.clone(),
         &GATEWAY_PREPARATION_INTERFACE
             .encode("deployAndSetGatewayTransactionFilterer", ())
             .unwrap(),
         &ecosystem_config,
         &chain_config,
         &chain_config.get_wallets_config()?.governor,
-        l1_url,
+        l1_url.clone(),
     )
     .await?;
 
     chain_contracts_config.set_transaction_filterer(output.gateway_transaction_filterer_proxy);
+
+    // We could've deployed the CTM at the beginning however, to be closer to how the actual upgrade
+    // looks like we'll do it as the last step
+
+    deploy_gateway_ctm(
+        shell,
+        args,
+        &ecosystem_config,
+        &chain_config,
+        &chain_genesis_config,
+        &ecosystem_config.get_initial_deployment_config().unwrap(),
+        l1_url,
+    )
+    .await?;
 
     chain_contracts_config.save_with_base_path(shell, chain_config.configs)?;
 
     Ok(())
 }
 
-async fn deploy_gateway_ctm(
+async fn calculate_gateway_ctm(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
@@ -126,10 +148,15 @@ async fn deploy_gateway_ctm(
     );
     deploy_config.save(shell, deploy_config_path)?;
 
+    let calldata = DEPLOY_GATEWAY_CTM_INTERFACE
+        .encode("deployCTM", ())
+        .unwrap();
+
     let mut forge = Forge::new(&config.path_to_l1_foundry())
         .script(&DEPLOY_GATEWAY_CTM.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
+        .with_calldata(&calldata)
         .with_broadcast();
 
     // Governor private key should not be needed for this script
@@ -145,6 +172,46 @@ async fn deploy_gateway_ctm(
     gateway_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
     Ok(gateway_config)
+}
+
+async fn deploy_gateway_ctm(
+    shell: &Shell,
+    forge_args: ForgeScriptArgs,
+    config: &EcosystemConfig,
+    chain_config: &ChainConfig,
+    chain_genesis_config: &GenesisConfig,
+    initial_deployemnt_config: &InitialDeploymentConfig,
+    l1_rpc_url: String,
+) -> anyhow::Result<()> {
+    let contracts_config = chain_config.get_contracts_config()?;
+    let deploy_config_path = DEPLOY_GATEWAY_CTM.input(&config.link_to_code);
+
+    let deploy_config = DeployGatewayCTMInput::new(
+        chain_config,
+        config,
+        chain_genesis_config,
+        &contracts_config,
+        initial_deployemnt_config,
+    );
+    deploy_config.save(shell, deploy_config_path)?;
+
+    let calldata = DEPLOY_GATEWAY_CTM_INTERFACE
+        .encode("prepareAddresses", ())
+        .unwrap();
+
+    let mut forge = Forge::new(&config.path_to_l1_foundry())
+        .script(&DEPLOY_GATEWAY_CTM.script(), forge_args.clone())
+        .with_ffi()
+        .with_rpc_url(l1_rpc_url)
+        .with_calldata(&calldata)
+        .with_broadcast();
+
+    // Governor private key should not be needed for this script
+    forge = fill_forge_private_key(forge, config.get_wallets()?.deployer.as_ref())?;
+    check_the_balance(&forge).await?;
+    forge.run(shell)?;
+
+    Ok(())
 }
 
 async fn gateway_governance_whitelisting(

@@ -29,7 +29,7 @@ pub const ZKSYNC_ERA_GIT_REPO: &str = "https://github.com/matter-labs/zksync-era
 /// Name of the docker-compose file inside zksync repository
 pub const DOCKER_COMPOSE_FILE: &str = "docker-compose.yml";
 /// Path to the config file with mnemonic for localhost wallets
-pub(crate) const CONFIGS_PATH: &str = "etc/env/file_based";
+pub const CONFIGS_PATH: &str = "etc/env/file_based";
 /// Path to the docker-compose file for grafana
 pub const ERA_OBSERVABILITY_COMPOSE_FILE: &str = "era-observability/docker-compose.yml";
 /// Path to era observability repository

@@ -52,8 +52,9 @@ use crate::{
         version::FastVmVersion,
     },
     vm_latest::constants::{
-        get_result_success_first_slot, get_vm_hook_params_start_position, get_vm_hook_position,
-        OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
+        get_operator_refunds_offset, get_result_success_first_slot,
+        get_vm_hook_params_start_position, get_vm_hook_position, TX_GAS_LIMIT_OFFSET,
+        VM_HOOK_PARAMS_COUNT,
     },
     VmVersion,
 };
@@ -286,7 +287,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
                         pubdata_before = pubdata_after;
                         let refund_value = refunds.operator_suggested_refund;
                         self.write_to_bootloader_heap([(
-                            OPERATOR_REFUNDS_OFFSET + current_tx_index,
+                            get_operator_refunds_offset(self.vm_version.into()) + current_tx_index,
                             refund_value.into(),
                         )]);
                         self.bootloader_state
@@ -319,7 +320,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
                     let txs_index = self.bootloader_state.free_tx_index();
                     let l2_block = self.bootloader_state.insert_fictive_l2_block();
                     let mut memory = vec![];
-                    apply_l2_block(&mut memory, l2_block, txs_index);
+                    apply_l2_block(&mut memory, l2_block, txs_index, self.vm_version.into());
                     self.write_to_bootloader_heap(memory);
                 }
                 Hook::PubdataRequested => {
