@@ -519,6 +519,9 @@ jobs:
       # TODO make upgrade tests safe to run multiple times
       - name: Run upgrade test
         run: |
+          ci_run killall -INT zksync_server || true
+          ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+          ci_run sleep 5
           ci_run zkstack dev test upgrade --no-deps --chain era
 
       - name: Upload logs
