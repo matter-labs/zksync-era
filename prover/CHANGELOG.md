@@ -1,5 +1,23 @@
 # Changelog
 
+## [17.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v17.0.0...prover-v17.1.0) (2024-11-18)
+
+
+### Features
+
+* Add min_replicas for SimpleScaler, apply_min_to_namespace config  ([#3282](https://github.com/matter-labs/zksync-era/issues/3282)) ([bc00c4a](https://github.com/matter-labs/zksync-era/commit/bc00c4a44a212def3cc25567f3b271530d76b6a4))
+* allow vm2 tracers to stop execution ([#3183](https://github.com/matter-labs/zksync-era/issues/3183)) ([9dae839](https://github.com/matter-labs/zksync-era/commit/9dae839935d82a1e73be220d17567f3382131039))
+* **contract-verifier:** Support Solidity contracts with EVM bytecode in contract verifier ([#3225](https://github.com/matter-labs/zksync-era/issues/3225)) ([8a3a82c](https://github.com/matter-labs/zksync-era/commit/8a3a82ca16479183e96505bc91011fc07bfc6889))
+* **prover:** Add cluster name autodetection ([#3227](https://github.com/matter-labs/zksync-era/issues/3227)) ([bd32aec](https://github.com/matter-labs/zksync-era/commit/bd32aecdf982c51202c1a69d12fcf1d878fe6d05))
+* **prover:** Add queue metric to report autoscaler view of the queue. ([#3206](https://github.com/matter-labs/zksync-era/issues/3206)) ([2721396](https://github.com/matter-labs/zksync-era/commit/272139690e028d3bdebdb6bcb1824fec23cefd0f))
+* ProverJobProcessor & circuit prover ([#3287](https://github.com/matter-labs/zksync-era/issues/3287)) ([98823f9](https://github.com/matter-labs/zksync-era/commit/98823f95c0b95feeb37eb9086cc88d4ac5220904))
+* **prover:** Move prover_autoscaler config into crate ([#3222](https://github.com/matter-labs/zksync-era/issues/3222)) ([1b33b5e](https://github.com/matter-labs/zksync-era/commit/1b33b5e9ec04bea0010350798332a90413c482d3))
+
+
+### Bug Fixes
+
+* **prover:** Remove unneeded dependencies, add default for graceful_shutdown_timeout ([#3242](https://github.com/matter-labs/zksync-era/issues/3242)) ([1bfff0e](https://github.com/matter-labs/zksync-era/commit/1bfff0e007e2fb5a4b4b885cf5c69a5cd290888b))
+
 ## [17.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v16.6.0...prover-v17.0.0) (2024-10-31)
 
 
