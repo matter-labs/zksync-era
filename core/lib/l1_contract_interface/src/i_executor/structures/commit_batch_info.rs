@@ -318,7 +318,7 @@ impl Tokenizable for CommitBatchInfo<'_> {
                     let blob_commitments: Vec<u8> = pubdata
                         .chunks(ZK_SYNC_BYTES_PER_BLOB)
                         .flat_map(|blob| {
-                            let blob_commitment = KzgInfo::new(&blob).to_blob_commitment();
+                            let blob_commitment = KzgInfo::new(blob).to_blob_commitment();
 
                             // We also append 0s to show that we do not reuse previously published blobs.
                             blob_commitment.into_iter().collect::<Vec<u8>>()

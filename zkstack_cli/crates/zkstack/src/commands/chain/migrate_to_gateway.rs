@@ -355,10 +355,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     let eth_config = general_config.eth.as_mut().context("eth")?;
     let api_config = general_config.api_config.as_mut().context("api config")?;
-    let state_keeper = general_config
-        .state_keeper_config
-        .as_mut()
-        .context("state_keeper")?;
 
     eth_config
         .gas_adjuster
