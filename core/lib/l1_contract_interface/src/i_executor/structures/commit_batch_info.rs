@@ -315,6 +315,8 @@ impl Tokenizable for CommitBatchInfo<'_> {
 
                     // We compute and add the blob commitment to the pubdata payload so that we can verify the proof
                     // even if we are not using blobs.
+                    // Note, that the only difference from the `PubdataSendingMode::Calldata` is that mutliple
+                    // commitments can be provided as the size of a transaction on top of Gateway can exceed 120kb.
                     let blob_commitments: Vec<u8> = pubdata
                         .chunks(ZK_SYNC_BYTES_PER_BLOB)
                         .flat_map(|blob| {
