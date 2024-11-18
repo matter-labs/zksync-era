@@ -59,7 +59,7 @@ impl TeeRequestProcessor {
                 .lock_batch_for_proving(request.tee_type, min_batch_number)
                 .await?
             else {
-                return Ok(None); // no job available
+                break Ok(None); // no job available
             };
             let batch_number = locked_batch.l1_batch_number;
 
