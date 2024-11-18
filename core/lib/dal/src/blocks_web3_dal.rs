@@ -11,12 +11,11 @@ use zksync_types::{
     web3::{BlockHeader, Bytes},
     Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H160, H256, U256, U64,
 };
-use zksync_utils::bigdecimal_to_u256;
 use zksync_vm_interface::Call;
 
 use crate::{
     models::{
-        parse_protocol_version,
+        bigdecimal_to_u256, parse_protocol_version,
         storage_block::{
             ResolvedL1BatchForL2Block, StorageBlockDetails, StorageL1BatchDetails,
             LEGACY_BLOCK_GAS_LIMIT,

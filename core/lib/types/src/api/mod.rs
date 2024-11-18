@@ -515,6 +515,9 @@ pub struct Transaction {
     pub gas: U256,
     /// Input data
     pub input: Bytes,
+    /// The parity (0 for even, 1 for odd) of the y-value of the secp256k1 signature
+    #[serde(rename = "yParity", default, skip_serializing_if = "Option::is_none")]
+    pub y_parity: Option<U64>,
     /// ECDSA recovery id
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub v: Option<U64>,

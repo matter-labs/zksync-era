@@ -117,11 +117,10 @@ pub fn parse_system_logs_for_blob_hashes_pre_gateway(
 
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::U256;
     use zksync_system_constants::L1_MESSENGER_ADDRESS;
-    use zksync_utils::u256_to_h256;
 
-    use super::L2ToL1Log;
+    use super::*;
+    use crate::{u256_to_h256, U256};
 
     #[test]
     fn l2_to_l1_log_to_bytes() {

@@ -2,11 +2,12 @@ use std::{collections::HashMap, rc::Rc};
 
 use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
+    h256_to_u256,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    u256_to_h256,
     vm::VmVersion,
     Transaction, H256,
 };
-use zksync_utils::{be_words_to_bytes, h256_to_u256, u256_to_h256};
 use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{
@@ -18,7 +19,7 @@ use crate::{
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
         VmTrackingContracts,
     },
-    utils::events::extract_l2tol1logs_from_l1_messenger,
+    utils::{bytecode::be_words_to_bytes, events::extract_l2tol1logs_from_l1_messenger},
     vm_latest::{
         bootloader_state::BootloaderState,
         old_vm::{events::merge_events, history_recorder::HistoryEnabled},
@@ -34,7 +35,7 @@ use crate::{
 /// version was released with increased bootloader memory. The version with the small bootloader memory
 /// is available only on internal staging environments.
 #[derive(Debug, Copy, Clone)]
-pub(crate) enum MultiVMSubversion {
+pub(crate) enum MultiVmSubversion {
     /// The initial version of v1.5.0, available only on staging environments.
     SmallBootloaderMemory,
     /// The final correct version of v1.5.0
@@ -43,7 +44,7 @@ pub(crate) enum MultiVMSubversion {
     Gateway,
 }
 
-impl MultiVMSubversion {
+impl MultiVmSubversion {
     #[cfg(test)]
     pub(crate) fn latest() -> Self {
         Self::IncreasedBootloaderMemory
@@ -52,7 +53,7 @@ impl MultiVMSubversion {
 
 #[derive(Debug)]
 pub(crate) struct VmVersionIsNotVm150Error;
-impl TryFrom<VmVersion> for MultiVMSubversion {
+impl TryFrom<VmVersion> for MultiVmSubversion {
     type Error = VmVersionIsNotVm150Error;
     fn try_from(value: VmVersion) -> Result<Self, Self::Error> {
         match value {
@@ -76,7 +77,7 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
     pub(crate) batch_env: L1BatchEnv,
     // Snapshots for the current run
     pub(crate) snapshots: Vec<VmSnapshot>,
-    pub(crate) subversion: MultiVMSubversion,
+    pub(crate) subversion: MultiVmSubversion,
     _phantom: std::marker::PhantomData<H>,
 }
 
@@ -85,16 +86,24 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         self.state.local_state.callstack.current.ergs_remaining
     }
 
-    pub(crate) fn decommit_bytecodes(&self, hashes: &[H256]) -> HashMap<H256, Vec<u8>> {
-        let bytecodes = hashes.iter().map(|&hash| {
-            let bytecode_words = self
-                .state
-                .decommittment_processor
+    pub(crate) fn decommit_dynamic_bytecodes(
+        &self,
+        candidate_hashes: impl Iterator<Item = H256>,
+    ) -> HashMap<H256, Vec<u8>> {
+        let decommitter = &self.state.decommittment_processor;
+        let bytecodes = candidate_hashes.filter_map(|hash| {
+            let int_hash = h256_to_u256(hash);
+            if !decommitter.dynamic_bytecode_hashes.contains(&int_hash) {
+                return None;
+            }
+            let bytecode = decommitter
                 .known_bytecodes
                 .inner()
-                .get(&h256_to_u256(hash))
-                .unwrap_or_else(|| panic!("Bytecode with hash {hash:?} not found"));
-            (hash, be_words_to_bytes(bytecode_words))
+                .get(&int_hash)
+                .unwrap_or_else(|| {
+                    panic!("Bytecode with hash {hash:?} not found");
+                });
+            Some((hash, be_words_to_bytes(bytecode)))
         });
         bytecodes.collect()
     }
@@ -238,7 +247,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: StoragePtr<S>,
-        subversion: MultiVMSubversion,
+        subversion: MultiVmSubversion,
     ) -> Self {
         let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
         Self {

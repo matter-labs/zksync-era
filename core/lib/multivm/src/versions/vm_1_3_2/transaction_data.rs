@@ -1,19 +1,23 @@
 use zk_evm_1_3_3::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT;
 use zksync_types::{
+    address_to_h256,
+    bytecode::BytecodeHash,
+    ceil_div_u256,
     ethabi::{encode, Address, Token},
     fee::encoding_len,
+    h256_to_u256,
     l1::is_l1_tx_type,
     l2::TransactionType,
     ExecuteTransactionCommon, Transaction, MAX_L2_TX_GAS_LIMIT, U256,
 };
-use zksync_utils::{
-    address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, ceil_div_u256, h256_to_u256,
-};
 
 use super::vm_with_bootloader::MAX_TXS_IN_BLOCK;
-use crate::vm_1_3_2::vm_with_bootloader::{
-    BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE,
-    MAX_GAS_PER_PUBDATA_BYTE,
+use crate::{
+    utils::bytecode::bytes_to_be_words,
+    vm_1_3_2::vm_with_bootloader::{
+        BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE,
+        MAX_GAS_PER_PUBDATA_BYTE,
+    },
 };
 
 // This structure represents the data that is used by
@@ -191,16 +195,13 @@ impl TransactionData {
         let factory_deps_hashes = self
             .factory_deps
             .iter()
-            .map(|dep| h256_to_u256(hash_bytecode(dep)))
+            .map(|dep| BytecodeHash::for_bytecode(dep).value_u256())
             .collect();
         self.abi_encode_with_custom_factory_deps(factory_deps_hashes)
     }
 
     pub fn into_tokens(self) -> Vec<U256> {
-        let bytes = self.abi_encode();
-        assert!(bytes.len() % 32 == 0);
-
-        bytes_to_be_words(bytes)
+        bytes_to_be_words(&self.abi_encode())
     }
 
     pub(crate) fn effective_gas_price_per_pubdata(&self, block_gas_price_per_pubdata: u32) -> u32 {

@@ -1,9 +1,59 @@
 use std::collections::HashMap;
 
-use zksync_types::ethabi::{self, Token};
-use zksync_utils::bytecode::{hash_bytecode, validate_bytecode, InvalidBytecodeError};
+use zksync_types::{
+    bytecode::{validate_bytecode, BytecodeHash, InvalidBytecodeError},
+    ethabi::{self, Token},
+    Address, H256, U256,
+};
 
 use crate::interface::CompressedBytecodeInfo;
+
+pub(crate) fn be_chunks_to_h256_words(chunks: Vec<[u8; 32]>) -> Vec<H256> {
+    chunks.into_iter().map(|el| H256::from_slice(&el)).collect()
+}
+
+pub(crate) fn be_words_to_bytes(words: &[U256]) -> Vec<u8> {
+    words
+        .iter()
+        .flat_map(|w| {
+            let mut bytes = [0u8; 32];
+            w.to_big_endian(&mut bytes);
+            bytes
+        })
+        .collect()
+}
+
+pub(crate) fn bytes_to_be_words(bytes: &[u8]) -> Vec<U256> {
+    assert_eq!(
+        bytes.len() % 32,
+        0,
+        "Bytes must be divisible by 32 to split into chunks"
+    );
+    bytes.chunks(32).map(U256::from_big_endian).collect()
+}
+
+pub(crate) fn be_bytes_to_safe_address(bytes: &[u8]) -> Option<Address> {
+    if bytes.len() < 20 {
+        return None;
+    }
+
+    let (zero_bytes, address_bytes) = bytes.split_at(bytes.len() - 20);
+
+    if zero_bytes.iter().any(|b| *b != 0) {
+        None
+    } else {
+        Some(Address::from_slice(address_bytes))
+    }
+}
+
+pub(crate) fn bytecode_len_in_words(bytecode_hash: &H256) -> u16 {
+    let bytes = bytecode_hash.as_bytes();
+    u16::from_be_bytes([bytes[2], bytes[3]])
+}
+
+pub(crate) fn bytecode_len_in_bytes(bytecode_hash: &H256) -> u32 {
+    u32::from(bytecode_len_in_words(bytecode_hash)) * 32
+}
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum FailedToCompressBytecodeError {
@@ -87,7 +137,10 @@ pub(crate) fn compress(
 }
 
 pub(crate) fn encode_call(bytecode: &CompressedBytecodeInfo) -> Vec<u8> {
-    let mut bytecode_hash = hash_bytecode(&bytecode.original).as_bytes().to_vec();
+    let mut bytecode_hash = BytecodeHash::for_bytecode(&bytecode.original)
+        .value()
+        .as_bytes()
+        .to_vec();
     let empty_cell = [0_u8; 32];
     bytecode_hash.extend_from_slice(&empty_cell);
 

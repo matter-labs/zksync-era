@@ -11,7 +11,10 @@ use zksync_config::configs::ObservabilityConfig;
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct ProverAutoscalerConfig {
     /// Amount of time ProverJobMonitor will wait all it's tasks to finish.
-    #[serde(with = "humantime_serde")]
+    #[serde(
+        with = "humantime_serde",
+        default = "ProverAutoscalerConfig::default_graceful_shutdown_timeout"
+    )]
     pub graceful_shutdown_timeout: Duration,
     pub agent_config: Option<ProverAutoscalerAgentConfig>,
     pub scaler_config: Option<ProverAutoscalerScalerConfig>,
@@ -56,8 +59,11 @@ pub struct ProverAutoscalerScalerConfig {
     pub prover_speed: HashMap<Gpu, u32>,
     /// Maximum number of provers which can be run per cluster/GPU.
     pub max_provers: HashMap<String, HashMap<Gpu, u32>>,
-    /// Minimum number of provers per namespace.
-    pub min_provers: HashMap<String, u32>,
+    /// Minimum number of provers globally.
+    #[serde(default)]
+    pub min_provers: u32,
+    /// Name of primary namespace, all min numbers are applied to it.
+    pub apply_min_to_namespace: Option<String>,
     /// Duration after which pending pod considered long pending.
     #[serde(
         with = "humantime_serde",
@@ -129,6 +135,9 @@ pub enum QueueReportFields {
 pub struct ScalerTarget {
     pub queue_report_field: QueueReportFields,
     pub deployment: String,
+    /// Min replicas globally.
+    #[serde(default)]
+    pub min_replicas: usize,
     /// Max replicas per cluster.
     pub max_replicas: HashMap<String, usize>,
     /// The queue will be divided by the speed and rounded up to get number of replicas.

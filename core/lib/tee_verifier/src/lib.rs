@@ -23,10 +23,9 @@ use zksync_prover_interface::inputs::{
     StorageLogMetadata, V1TeeVerifierInput, WitnessInputMerklePaths,
 };
 use zksync_types::{
-    block::L2BlockExecutionData, commitment::PubdataParams, L1BatchNumber, StorageLog,
-    StorageValue, Transaction, H256,
+    block::L2BlockExecutionData, commitment::PubdataParams, u256_to_h256, L1BatchNumber,
+    StorageLog, StorageValue, Transaction, H256,
 };
-use zksync_utils::u256_to_h256;
 
 /// A structure to hold the result of verification.
 pub struct VerificationResult {
@@ -305,7 +304,6 @@ mod tests {
     use zksync_contracts::{BaseSystemContracts, SystemContractCode};
     use zksync_multivm::interface::{L1BatchEnv, SystemEnv, TxExecutionMode};
     use zksync_prover_interface::inputs::{TeeVerifierInput, VMRunWitnessInputData};
-    use zksync_types::U256;
 
     use super::*;
 
@@ -345,11 +343,11 @@ mod tests {
                 version: Default::default(),
                 base_system_smart_contracts: BaseSystemContracts {
                     bootloader: SystemContractCode {
-                        code: vec![U256([1; 4])],
+                        code: vec![1; 32],
                         hash: H256([1; 32]),
                     },
                     default_aa: SystemContractCode {
-                        code: vec![U256([1; 4])],
+                        code: vec![1; 32],
                         hash: H256([1; 32]),
                     },
                     evm_emulator: None,
