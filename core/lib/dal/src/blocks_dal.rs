@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
-use chrono::NaiveDateTime;
+use sqlx::types::chrono::{DateTime, Utc};
 use zksync_db_connection::{
     connection::Connection,
     error::{DalResult, SqlxContext},
@@ -2396,10 +2396,10 @@ impl BlocksDal<'_, '_> {
         .flatten())
     }
 
-    pub async fn get_sealed_at(
+    pub async fn get_batch_sealed_at(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> DalResult<Option<NaiveDateTime>> {
+    ) -> DalResult<Option<DateTime<Utc>>> {
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -2407,16 +2407,15 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                is_sealed
-                AND number = $1
+                number = $1
             "#,
             i64::from(l1_batch_number.0)
         )
-        .instrument("get_sealed_at")
+        .instrument("get_batch_sealed_at")
         .with_arg("l1_batch_number", &l1_batch_number)
         .fetch_optional(self.storage)
         .await?
-        .and_then(|row| row.sealed_at))
+        .and_then(|row| row.sealed_at.map(|d| d.and_utc())))
     }
 
     pub async fn set_protocol_version_for_pending_l2_blocks(

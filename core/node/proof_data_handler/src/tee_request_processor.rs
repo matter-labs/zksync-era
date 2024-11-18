@@ -206,11 +206,10 @@ impl TeeRequestProcessor {
 
         let sealed_at = connection
             .blocks_dal()
-            .get_sealed_at(l1_batch_number)
+            .get_batch_sealed_at(l1_batch_number)
             .await?;
 
-        let duration =
-            sealed_at.and_then(|sealed_at| (Utc::now() - sealed_at.and_utc()).to_std().ok());
+        let duration = sealed_at.and_then(|sealed_at| (Utc::now() - sealed_at).to_std().ok());
 
         let duration_secs_f64 = if let Some(duration) = duration {
             METRICS.tee_proof_roundtrip_time[&proof.0.tee_type.into()].observe(duration);
@@ -221,7 +220,7 @@ impl TeeRequestProcessor {
 
         tracing::info!(
             l1_batch_number = %l1_batch_number,
-            sealed_to_proven_in_secs = %duration_secs_f64,
+            sealed_to_proven_in_secs = duration_secs_f64,
             "Received proof {:?}",
             proof
         );
