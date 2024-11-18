@@ -18,26 +18,12 @@ use crate::{
     FromContext, IntoContext,
 };
 
-const SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
+/// Execution interval for Postrgres metrics and healthcheck tasks
+const TASK_EXECUTION_INTERVAL: Duration = Duration::from_secs(60);
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct Config {
-    polling_interval_ms: u64,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            polling_interval_ms: 10_000,
-        }
-    }
-}
-
-/// Wiring layer for the Postgres metrics exporter.
+/// Wiring layer for the Postgres metrics exporter and healthcheck.
 #[derive(Debug, Default)]
-pub struct PostgresLayer {
-    config: Config,
-}
+pub struct PostgresLayer;
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
@@ -72,7 +58,7 @@ impl WiringLayer for PostgresLayer {
         };
 
         let app_health = input.app_health.0;
-        let health_task = DatabaseHealthTask::new(self.config.polling_interval_ms, pool);
+        let health_task = DatabaseHealthTask::new(pool);
 
         app_health
             .insert_component(health_task.health_check())
@@ -102,7 +88,7 @@ impl Task for PostgresMetricsScrapingTask {
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
         tokio::select! {
-            () = PostgresMetrics::run_scraping(self.pool_for_metrics, SCRAPE_INTERVAL) => {
+            () = PostgresMetrics::run_scraping(self.pool_for_metrics, TASK_EXECUTION_INTERVAL) => {
                 tracing::warn!("Postgres metrics scraping unexpectedly stopped");
             }
             _ = stop_receiver.0.changed() => {
@@ -126,15 +112,15 @@ impl From<DatabaseInfo> for Health {
 
 #[derive(Debug)]
 pub struct DatabaseHealthTask {
-    polling_interval_ms: u64,
+    polling_interval: Duration,
     connection_pool: ConnectionPool<Core>,
     updater: HealthUpdater,
 }
 
 impl DatabaseHealthTask {
-    fn new(polling_interval_ms: u64, connection_pool: ConnectionPool<Core>) -> Self {
+    fn new(connection_pool: ConnectionPool<Core>) -> Self {
         Self {
-            polling_interval_ms,
+            polling_interval: TASK_EXECUTION_INTERVAL,
             connection_pool,
             updater: ReactiveHealthCheck::new("database").1,
         }
@@ -144,7 +130,7 @@ impl DatabaseHealthTask {
     where
         Self: Sized,
     {
-        let timeout = Duration::from_millis(self.polling_interval_ms);
+        let timeout = self.polling_interval;
         let mut conn = self
             .connection_pool
             .connection_tagged("postgres_healthcheck")
