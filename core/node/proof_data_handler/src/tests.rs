@@ -6,12 +6,13 @@ use axum::{
 };
 use serde_json::json;
 use tower::ServiceExt;
-use zksync_basic_types::L2ChainId;
 use zksync_config::configs::{ProofDataHandlerConfig, TeeConfig};
 use zksync_dal::{ConnectionPool, CoreDal};
 use zksync_object_store::MockObjectStore;
 use zksync_prover_interface::api::SubmitTeeProofRequest;
-use zksync_types::{commitment::L1BatchCommitmentMode, tee_types::TeeType, L1BatchNumber};
+use zksync_types::{
+    commitment::L1BatchCommitmentMode, tee_types::TeeType, L1BatchNumber, L2ChainId,
+};
 
 use crate::create_proof_processing_router;
 
