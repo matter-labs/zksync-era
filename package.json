@@ -9,7 +9,6 @@
       "contracts/l1-contracts",
       "contracts/l2-contracts",
       "contracts/system-contracts",
-      "etc/contracts-test-data",
       "etc/ERC20",
       "etc/utils",
       "infrastructure/zk",
