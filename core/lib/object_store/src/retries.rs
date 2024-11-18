@@ -28,18 +28,6 @@ impl Request<'_> {
         self,
         store: &impl fmt::Debug,
         max_retries: u16,
-        f: F,
-    ) -> Result<T, ObjectStoreError>
-    where
-        Fut: Future<Output = Result<T, ObjectStoreError>>,
-        F: FnMut() -> Fut,
-    {
-        self.retry_internal(max_retries, f).await
-    }
-
-    async fn retry_internal<T, Fut, F>(
-        &self,
-        max_retries: u16,
         mut f: F,
     ) -> Result<T, ObjectStoreError>
     where
