@@ -12339,7 +12339,6 @@ dependencies = [
  "tower-http",
  "tracing",
  "vise",
- "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",
  "zksync_dal",
