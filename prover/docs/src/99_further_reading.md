@@ -9,6 +9,6 @@ However, we have some documentation that is more focused on theory of proving in
 You may find the following articles helpful for general understanding of ZK proofs:
 
 - [ZK intuition](https://matter-labs.github.io/zksync-era/core/latest/guides/advanced/13_zk_intuition.html).
-- [ZK deeper overview](https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/advanced/14_zk_deeper_overview.md).
-- [Prover keys](https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/advanced/15_prover_keys.md).
+- [ZK deeper overview](https://matter-labs.github.io/zksync-era/core/latest/guides/advanced/14_zk_deeper_overview.html).
+- [Prover keys](https://matter-labs.github.io/zksync-era/core/latest/guides/advanced/15_prover_keys.html).
 - [Overview of our ZK proving system implementation](https://matter-labs.github.io/zksync-era/core/latest/specs/prover/overview.html).
