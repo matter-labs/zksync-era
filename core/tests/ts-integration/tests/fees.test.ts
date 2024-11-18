@@ -160,126 +160,126 @@ testFees('Test fees', function () {
         }
     });
 
-    // test('Test all fees', async () => {
-    //     const receiver = ethers.Wallet.createRandom().address;
+    test('Test all fees', async () => {
+        const receiver = ethers.Wallet.createRandom().address;
 
-    //     // Getting ETH price in gas.
-    //     const feeTestL1Receipt = await (
-    //         await alice.ethWallet().sendTransaction({
-    //             to: receiver,
-    //             value: 1n
-    //         })
-    //     ).wait();
+        // Getting ETH price in gas.
+        const feeTestL1Receipt = await (
+            await alice.ethWallet().sendTransaction({
+                to: receiver,
+                value: 1n
+            })
+        ).wait();
 
-    //     if (feeTestL1Receipt === null) {
-    //         throw new Error('Failed to send ETH transaction');
-    //     }
+        if (feeTestL1Receipt === null) {
+            throw new Error('Failed to send ETH transaction');
+        }
 
-    //     const feeTestL1ReceiptERC20 = await (
-    //         await alice.ethWallet().sendTransaction({
-    //             to: aliceErc20.getAddress(),
-    //             data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, 1n])
-    //         })
-    //     ).wait();
+        const feeTestL1ReceiptERC20 = await (
+            await alice.ethWallet().sendTransaction({
+                to: aliceErc20.getAddress(),
+                data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, 1n])
+            })
+        ).wait();
 
-    //     if (feeTestL1ReceiptERC20 === null) {
-    //         throw new Error('Failed to send ERC20 transaction');
-    //     }
+        if (feeTestL1ReceiptERC20 === null) {
+            throw new Error('Failed to send ERC20 transaction');
+        }
 
-    //     // Warming up slots for the receiver
-    //     await (
-    //         await alice.sendTransaction({
-    //             to: receiver,
-    //             value: BigInt(1)
-    //         })
-    //     ).wait();
+        // Warming up slots for the receiver
+        await (
+            await alice.sendTransaction({
+                to: receiver,
+                value: BigInt(1)
+            })
+        ).wait();
 
-    //     await (
-    //         await alice.sendTransaction({
-    //             data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, 1n]),
-    //             to: tokenDetails.l2Address
-    //         })
-    //     ).wait();
+        await (
+            await alice.sendTransaction({
+                data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, 1n]),
+                to: tokenDetails.l2Address
+            })
+        ).wait();
 
-    //     let reports = [
-    //         'ETH transfer (to new):\n\n',
-    //         'ETH transfer (to old):\n\n',
-    //         'ERC20 transfer (to new):\n\n',
-    //         'ERC20 transfer (to old):\n\n'
-    //     ];
-    //     for (const gasPrice of L1_GAS_PRICES_TO_TEST) {
-    //         // For the sake of simplicity, we'll use the same pubdata price as the L1 gas price.
-    //         await mainNodeSpawner.killAndSpawnMainNode({
-    //             newL1GasPrice: gasPrice,
-    //             newPubdataPrice: gasPrice
-    //         });
+        let reports = [
+            'ETH transfer (to new):\n\n',
+            'ETH transfer (to old):\n\n',
+            'ERC20 transfer (to new):\n\n',
+            'ERC20 transfer (to old):\n\n'
+        ];
+        for (const gasPrice of L1_GAS_PRICES_TO_TEST) {
+            // For the sake of simplicity, we'll use the same pubdata price as the L1 gas price.
+            await mainNodeSpawner.killAndSpawnMainNode({
+                newL1GasPrice: gasPrice,
+                newPubdataPrice: gasPrice
+            });
 
-    //         reports = await appendResults(
-    //             alice,
-    //             [feeTestL1Receipt, feeTestL1Receipt, feeTestL1ReceiptERC20, feeTestL1ReceiptERC20],
-    //             // We always regenerate new addresses for transaction requests in order to estimate the cost for a new account
-    //             [
-    //                 {
-    //                     to: ethers.Wallet.createRandom().address,
-    //                     value: 1n
-    //                 },
-    //                 {
-    //                     to: receiver,
-    //                     value: 1n
-    //                 },
-    //                 {
-    //                     data: aliceErc20.interface.encodeFunctionData('transfer', [
-    //                         ethers.Wallet.createRandom().address,
-    //                         1n
-    //                     ]),
-    //                     to: tokenDetails.l2Address
-    //                 },
-    //                 {
-    //                     data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, 1n]),
-    //                     to: tokenDetails.l2Address
-    //                 }
-    //             ],
-    //             gasPrice,
-    //             reports
-    //         );
-    //     }
+            reports = await appendResults(
+                alice,
+                [feeTestL1Receipt, feeTestL1Receipt, feeTestL1ReceiptERC20, feeTestL1ReceiptERC20],
+                // We always regenerate new addresses for transaction requests in order to estimate the cost for a new account
+                [
+                    {
+                        to: ethers.Wallet.createRandom().address,
+                        value: 1n
+                    },
+                    {
+                        to: receiver,
+                        value: 1n
+                    },
+                    {
+                        data: aliceErc20.interface.encodeFunctionData('transfer', [
+                            ethers.Wallet.createRandom().address,
+                            1n
+                        ]),
+                        to: tokenDetails.l2Address
+                    },
+                    {
+                        data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, 1n]),
+                        to: tokenDetails.l2Address
+                    }
+                ],
+                gasPrice,
+                reports
+            );
+        }
 
-    //     console.log(`Full report: \n\n${reports.join('\n\n')}`);
-    // });
+        console.log(`Full report: \n\n${reports.join('\n\n')}`);
+    });
 
-    // test('Test gas price expected value', async () => {
-    //     const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
-    //     await mainNodeSpawner.killAndSpawnMainNode({
-    //         newL1GasPrice: l1GasPrice,
-    //         newPubdataPrice: l1GasPrice
-    //     });
+    test('Test gas price expected value', async () => {
+        const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
+        await mainNodeSpawner.killAndSpawnMainNode({
+            newL1GasPrice: l1GasPrice,
+            newPubdataPrice: l1GasPrice
+        });
 
-    //     // wait for new batch so gas price is updated with new config set above
-    //     await waitForNewL1Batch(alice);
+        // wait for new batch so gas price is updated with new config set above
+        await waitForNewL1Batch(alice);
 
-    //     const receipt = await anyTransaction(alice);
+        const receipt = await anyTransaction(alice);
 
-    //     const feeParams = await alice._providerL2().getFeeParams();
-    //     const feeConfig = feeParams.V2.config;
-    //     // type is missing conversion_ratio field
-    //     const conversionRatio: { numerator: bigint; denominator: bigint } = (feeParams.V2 as any)['conversion_ratio'];
-    //     if (isETHBasedChain) {
-    //         expect(conversionRatio.numerator).toBe(1); //number not bigint for some reason
-    //         expect(conversionRatio.denominator).toBe(1);
-    //     } else {
-    //         expect(conversionRatio.numerator).toBeGreaterThan(1n);
-    //     }
+        const feeParams = await alice._providerL2().getFeeParams();
+        const feeConfig = feeParams.V2.config;
+        // type is missing conversion_ratio field
+        const conversionRatio: { numerator: bigint; denominator: bigint } = (feeParams.V2 as any)['conversion_ratio'];
+        if (isETHBasedChain) {
+            expect(conversionRatio.numerator).toBe(1); //number not bigint for some reason
+            expect(conversionRatio.denominator).toBe(1);
+        } else {
+            expect(conversionRatio.numerator).toBeGreaterThan(1n);
+        }
 
-    //     // the minimum + compute overhead of 0.01gwei in validium mode
-    //     const expectedETHGasPrice =
-    //         feeConfig.minimal_l2_gas_price +
-    //         (feeConfig.compute_overhead_part * feeParams.V2.l1_gas_price * feeConfig.batch_overhead_l1_gas) /
-    //             feeConfig.max_gas_per_batch;
-    //     const expectedConvertedGasPrice =
-    //         (expectedETHGasPrice * conversionRatio.numerator) / conversionRatio.denominator;
+        // the minimum + compute overhead of 0.01gwei in validium mode
+        const expectedETHGasPrice =
+            feeConfig.minimal_l2_gas_price +
+            (feeConfig.compute_overhead_part * feeParams.V2.l1_gas_price * feeConfig.batch_overhead_l1_gas) /
+                feeConfig.max_gas_per_batch;
+        const expectedConvertedGasPrice =
+            (expectedETHGasPrice * conversionRatio.numerator) / conversionRatio.denominator;
 
-    //     expect(receipt.gasPrice).toBe(BigInt(expectedConvertedGasPrice));
-    // });
+        expect(receipt.gasPrice).toBe(BigInt(expectedConvertedGasPrice));
+    });
 
     test('Test base token ratio fluctuations', async () => {
         const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
