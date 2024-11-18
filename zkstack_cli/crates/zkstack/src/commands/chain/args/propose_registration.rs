@@ -1,12 +1,6 @@
-use std::str::FromStr;
-
 use anyhow::Context;
 use clap::Parser;
-use common::{
-    forge::{ForgeScriptArg, ForgeScriptArgs},
-    wallets::Wallet,
-    Prompt,
-};
+use common::{forge::ForgeScriptArgs, wallets::Wallet, Prompt};
 use config::EcosystemConfig;
 use ethers::{abi::Address, prelude::LocalWallet, types::H256};
 use serde::{Deserialize, Serialize};

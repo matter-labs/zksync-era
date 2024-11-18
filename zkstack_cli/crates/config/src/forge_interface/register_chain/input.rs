@@ -3,7 +3,7 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::L2ChainId;
 
-use crate::{traits::ZkStackConfig, ChainConfig, ContractsConfig};
+use crate::{traits::ZkStackConfig, ContractsConfig};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct Bridgehub {

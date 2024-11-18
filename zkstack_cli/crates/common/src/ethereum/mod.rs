@@ -3,7 +3,6 @@ pub mod token;
 
 use std::{ops::Add, time::Duration};
 
-pub use chain_registrar::propose_registration;
 use ethers::{
     core::k256::ecdsa::SigningKey,
     middleware::MiddlewareBuilder,

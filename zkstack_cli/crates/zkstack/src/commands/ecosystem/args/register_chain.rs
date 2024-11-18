@@ -2,14 +2,12 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use common::{forge::ForgeScriptArgs, Prompt};
-use config::{ChainConfig, EcosystemConfig};
 use ethers::abi::Address;
 use serde::{Deserialize, Serialize};
 use url::Url;
 use zksync_basic_types::L2ChainId;
 
 use crate::{
-    commands::chain::args::genesis::GenesisArgsFinal,
     consts::DEFAULT_UNSIGNED_TRANSACTIONS_DIR,
     defaults::LOCAL_RPC_URL,
     messages::{MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT},

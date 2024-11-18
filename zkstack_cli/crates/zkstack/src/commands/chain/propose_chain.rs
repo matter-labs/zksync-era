@@ -1,6 +1,5 @@
 use anyhow::Context;
 use common::{
-    ethereum,
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
     wallets::Wallet,
@@ -18,7 +17,7 @@ use xshell::Shell;
 
 use crate::{
     commands::chain::args::propose_registration::ProposeRegistrationArgs,
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_REGISTERING_CHAIN_SPINNER},
+    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_PROPOSE_CHAIN_SPINNER},
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
@@ -41,6 +40,7 @@ pub async fn run(shell: &Shell, args: ProposeRegistrationArgs) -> anyhow::Result
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn run_propose_chain_registration(
     shell: &Shell,
     chain_config: &ChainConfig,
@@ -52,7 +52,7 @@ pub async fn run_propose_chain_registration(
     wallet: &Wallet,
 ) -> anyhow::Result<()> {
     let wallets = chain_config.get_wallets_config()?;
-    let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
+    let spinner = Spinner::new(MSG_PROPOSE_CHAIN_SPINNER);
     let deploy_config_path = PROPOSE_CHAIN_SCRIPT_PARAMS.input(&chain_config.link_to_code);
 
     let deploy_config = ProposeRegistrationInputConfig::new(
@@ -79,7 +79,7 @@ pub async fn run_propose_chain_registration(
     if let Some(address) = sender {
         forge = forge.with_sender(address.encode_hex_upper());
     } else {
-        forge = fill_forge_private_key(forge, Some(&wallet))?;
+        forge = fill_forge_private_key(forge, Some(wallet))?;
         check_the_balance(&forge).await?;
     }
 

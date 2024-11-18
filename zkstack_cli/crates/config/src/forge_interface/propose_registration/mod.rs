@@ -31,6 +31,7 @@ pub struct ProposeRegistrationInputConfig {
 }
 
 impl ProposeRegistrationInputConfig {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         chain_registrar: Address,
         chain_id: u64,

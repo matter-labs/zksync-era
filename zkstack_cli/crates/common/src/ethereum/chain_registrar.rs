@@ -3,66 +3,19 @@ use std::sync::Arc;
 use ethers::{
     abi::Address,
     contract::abigen,
-    middleware::{Middleware, MiddlewareBuilder},
+    middleware::Middleware,
     prelude::{Http, Provider},
     types::{BlockNumber, H256, U64},
 };
-use types::L1BatchCommitmentMode;
 
-use crate::{ethereum::create_ethers_client, logger, wallets::Wallet};
 abigen!(
     ChainRegistar,
     r"[
         event NewChainDeployed(uint256 indexed chainId, address author, address diamondProxy, address chainAdmin)
         event NewChainRegistrationProposal(uint256 indexed chainId, address author, bytes32 key)
         event SharedBridgeRegistered(uint256 indexed chainId, address l2Address)
-        function proposeChainRegistration(uint256 chainId, uint8 pubdataPricingMode, address blobOperator,address operator,address governor,address tokenAddress,address tokenMultiplierSetter,uint128 gasPriceMultiplierNominator,uint128 gasPriceMultiplierDenominator)
     ]"
 );
-
-#[allow(clippy::too_many_arguments)]
-pub async fn propose_registration(
-    chain_registrar: Address,
-    main_wallet: Wallet,
-    l1_rpc: String,
-    l1_chain_id: u64,
-    l2_chain_id: u64,
-    blob_operator: Address,
-    operator: Address,
-    governor: Address,
-    token_address: Address,
-    token_multiplier_setter: Option<Address>,
-    gas_price_multiplier_nominator: u64,
-    gas_price_multiplier_denominator: u64,
-    l1batch_commitment_mode: L1BatchCommitmentMode,
-) -> anyhow::Result<()> {
-    let client = Arc::new(
-        create_ethers_client(main_wallet.private_key.unwrap(), l1_rpc, Some(l1_chain_id))?
-            .nonce_manager(main_wallet.address),
-    );
-    let contract = ChainRegistar::new(chain_registrar, client);
-    contract
-        .propose_chain_registration(
-            l2_chain_id.into(),
-            l1batch_commitment_mode.into(),
-            blob_operator,
-            operator,
-            governor,
-            token_address,
-            token_multiplier_setter.unwrap_or_default(),
-            gas_price_multiplier_nominator as u128,
-            gas_price_multiplier_denominator as u128,
-        )
-        .gas(5_000_000)
-        .send()
-        .await?
-        .await?;
-    logger::info(format!(
-        "Chain was proposed with chain id {} and author {:?}",
-        l2_chain_id, main_wallet.address
-    ));
-    Ok(())
-}
 
 #[derive(Clone, Copy)]
 struct ChainRegistrationResultBuilder {
