@@ -40,15 +40,17 @@ pub struct EthTxDetails {
     pub tx_type: AggregatedActionType,
     pub created_at_timestamp: u64,
     pub predicted_gas_cost: u64,
+    pub status: Option<TxStatus>,
 }
 
-impl From<&EthTx> for EthTxDetails {
-    fn from(tx: &EthTx) -> Self {
+impl EthTxDetails {
+    pub fn new(tx: &EthTx, status: Option<TxStatus>) -> Self {
         Self {
             nonce: tx.nonce,
             tx_type: tx.tx_type,
             created_at_timestamp: tx.created_at_timestamp,
             predicted_gas_cost: tx.predicted_gas_cost,
+            status: status,
         }
     }
 }
@@ -56,7 +58,6 @@ impl From<&EthTx> for EthTxDetails {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EthTxManagerHealthDetails {
     pub last_mined_tx: EthTxDetails,
-    pub tx_status: TxStatus,
     pub finalized_block: L1BlockNumber,
 }
 

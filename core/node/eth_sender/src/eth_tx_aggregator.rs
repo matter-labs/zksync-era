@@ -28,7 +28,7 @@ use zksync_types::{
 
 use super::aggregated_operations::AggregatedOperation;
 use crate::{
-    health::EthTxAggregatorHealthDetails,
+    health::{EthTxAggregatorHealthDetails, EthTxDetails},
     metrics::{PubdataKind, METRICS},
     utils::agg_l1_batch_base_cost,
     zksync_functions::ZkSyncFunctions,
@@ -441,7 +441,7 @@ impl EthTxAggregator {
 
             self.health_updater.update(
                 EthTxAggregatorHealthDetails {
-                    last_saved_tx: (&tx).into(),
+                    last_saved_tx: EthTxDetails::new(&tx, None),
                 }
                 .into(),
             );

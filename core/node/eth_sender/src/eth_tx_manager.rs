@@ -20,7 +20,7 @@ use crate::{
         AbstractL1Interface, L1BlockNumbers, OperatorNonce, OperatorType, RealL1Interface,
     },
     eth_fees_oracle::{EthFees, EthFeesOracle, GasAdjusterFeesOracle},
-    health::EthTxManagerHealthDetails,
+    health::{EthTxDetails, EthTxManagerHealthDetails},
     metrics::TransactionType,
 };
 
@@ -423,8 +423,7 @@ impl EthTxManager {
         if receipt_block_number <= finalized_block.0 {
             self.health_updater.update(
                 EthTxManagerHealthDetails {
-                    last_mined_tx: tx.into(),
-                    tx_status: (&tx_status).into(),
+                    last_mined_tx: EthTxDetails::new(tx, Some((&tx_status).into())),
                     finalized_block,
                 }
                 .into(),
