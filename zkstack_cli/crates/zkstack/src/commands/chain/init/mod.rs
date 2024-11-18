@@ -88,9 +88,13 @@ pub async fn init(
     // Propose chain registration
     let wallet = chain_config.get_wallets_config()?.governor;
     propose_chain::run_propose_chain_registration(
+        shell,
         chain_config,
         contracts_config.ecosystem_contracts.chain_registrar,
         init_args.l1_rpc_url.clone(),
+        init_args.forge_args.clone(),
+        true,
+        None,
         &wallet,
     )
     .await?;

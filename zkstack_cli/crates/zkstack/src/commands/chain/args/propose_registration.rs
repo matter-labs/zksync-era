@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use clap::Parser;
+use common::forge::{ForgeScriptArg, ForgeScriptArgs};
 use common::{wallets::Wallet, Prompt};
 use config::EcosystemConfig;
 use ethers::{abi::Address, prelude::LocalWallet, types::H256};
@@ -19,10 +20,17 @@ pub struct ProposeRegistrationArgs {
     pub l1_rpc_url: Option<String>,
     #[clap(long)]
     pub chain_registrar: Option<Address>,
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub forge_args: ForgeScriptArgs,
+    #[clap(long)]
+    pub broadcast: bool,
     #[clap(long)]
     pub dev: bool,
     #[clap(long)]
     pub private_key: Option<H256>,
+    #[clap(long)]
+    pub sender: Option<Address>,
 }
 
 impl ProposeRegistrationArgs {
@@ -60,6 +68,9 @@ impl ProposeRegistrationArgs {
                 l1_rpc_url,
                 chain_registrar,
                 main_wallet,
+                broadcast: true,
+                forge_args: Default::default(),
+                sender: None,
             });
         }
 
@@ -92,6 +103,9 @@ impl ProposeRegistrationArgs {
             l1_rpc_url,
             chain_registrar,
             main_wallet: Wallet::new(local_wallet),
+            broadcast: self.broadcast,
+            forge_args: self.forge_args,
+            sender: self.sender,
         })
     }
 }
@@ -101,4 +115,7 @@ pub struct ProposeRegistrationArgsFinal {
     pub l1_rpc_url: String,
     pub chain_registrar: Address,
     pub main_wallet: Wallet,
+    pub broadcast: bool,
+    pub forge_args: ForgeScriptArgs,
+    pub sender: Option<Address>,
 }
