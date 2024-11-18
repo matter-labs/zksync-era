@@ -190,10 +190,6 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
 
     let eth_config = general_config.eth.as_mut().context("eth")?;
     let api_config = general_config.api_config.as_mut().context("api config")?;
-    let state_keeper = general_config
-        .state_keeper_config
-        .as_mut()
-        .context("state_keeper")?;
 
     eth_config
         .gas_adjuster
@@ -220,8 +216,11 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         .as_mut()
         .expect("sender")
         .max_aggregated_tx_gas = 15000000;
-    // we need to ensure that this value is lower than in blob
-    state_keeper.max_pubdata_per_batch = 500000;
+    eth_config
+        .sender
+        .as_mut()
+        .expect("sender")
+        .max_eth_tx_data_size = 120_000;
     api_config.web3_json_rpc.settlement_layer_url = Some(l1_url);
 
     general_config.save_with_base_path(shell, chain_config.configs.clone())?;

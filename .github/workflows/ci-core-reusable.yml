@@ -500,10 +500,12 @@ jobs:
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites --external-node" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
-#      - name: Fee projection tests
-#        run: |
-#          ci_run killall -INT zksync_server || true
-#          ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}
+      - name: Fee projection tests
+        run: |
+          ci_run killall -INT zksync_server || true
+          ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+          ci_run sleep 5
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}
 #
 #      - name: Run revert tests
 #        run: |

@@ -62,8 +62,8 @@ message GasAdjuster {
   optional uint64 max_base_fee_samples = 2; // required;
   optional double pricing_formula_parameter_a = 3; // required
   optional double pricing_formula_parameter_b = 4; // required
-  optional double internal_l1_pricing_multiplier = 5; // required
-  optional uint64 internal_enforced_l1_gas_price = 6; // optional; wei
+  optional double internal_sl_pricing_multiplier = 5; // required
+  optional uint64 internal_enforced_sl_gas_price = 6; // optional; wei
   optional uint64 internal_enforced_pubdata_price = 12; // optional; wei
   optional uint64 poll_period = 7; // required; s
   optional uint64 max_l1_gas_price = 8; // optional; wei?

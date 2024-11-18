@@ -25,6 +25,7 @@ pub struct UpdateOnL1Params {
     pub gas_adjuster: Arc<dyn TxParamsProvider>,
     pub token_multiplier_setter_account_address: Address,
     pub chain_admin_contract: Contract,
+    pub admin_facet_contract: Contract,
     pub getters_facet_contract: Contract,
     pub diamond_proxy_contract_address: Address,
     pub chain_admin_contract_address: Option<Address>,
@@ -159,20 +160,35 @@ impl BaseTokenL1Behaviour {
         priority_fee_per_gas: u64,
     ) -> anyhow::Result<Option<U256>> {
         let fn_set_token_multiplier = l1_params
-            .chain_admin_contract
+            .admin_facet_contract
             .function("setTokenMultiplier")
             .context("`setTokenMultiplier` function must be present in the ChainAdmin contract")?;
 
-        let calldata = fn_set_token_multiplier
+        let diamond_proxy_calldata = fn_set_token_multiplier
             .encode_input(
                 &(
-                    Token::Address(l1_params.diamond_proxy_contract_address),
                     Token::Uint(api_ratio.numerator.get().into()),
                     Token::Uint(api_ratio.denominator.get().into()),
                 )
                     .into_tokens(),
             )
             .context("failed encoding `setTokenMultiplier` input")?;
+
+        // FIXME: the following logic is not compatible with the previous version.
+        // We should migrate to the new contracts.
+        let fn_multicall = l1_params
+            .chain_admin_contract
+            .function("multicall")
+            .context("no `multicall` function in chain admin")?;
+
+        let calldata = fn_multicall.encode_input(&[
+            Token::Array(vec![Token::Tuple(vec![
+                Token::Address(l1_params.diamond_proxy_contract_address),
+                Token::Uint(U256::zero()),
+                Token::Bytes(diamond_proxy_calldata),
+            ])]),
+            Token::Bool(true),
+        ])?;
 
         let nonce = (*l1_params.eth_client)
             .as_ref()
