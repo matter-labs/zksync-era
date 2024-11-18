@@ -41,6 +41,7 @@ jobs:
           ref: ${{ env.BASE }}
           path: before
           fetch-depth: 0 # fetches all branches and tags, which is needed to compute the LCA.
+          submodules: "recursive"
       - name: checkout LCA
         run:
           git checkout $(git merge-base $BASE $HEAD) --recurse-submodules
