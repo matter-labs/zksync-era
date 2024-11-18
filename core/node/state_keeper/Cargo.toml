@@ -24,7 +24,6 @@ zksync_config.workspace = true
 zksync_node_fee_model.workspace = true
 zksync_contracts.workspace = true
 zksync_protobuf.workspace = true
-zksync_test_account.workspace = true
 zksync_node_genesis.workspace = true
 zksync_node_test_utils.workspace = true
 zksync_vm_executor.workspace = true
@@ -46,7 +45,6 @@ assert_matches.workspace = true
 rand.workspace = true
 tempfile.workspace = true
 test-casing.workspace = true
-futures.workspace = true
 
 zksync_eth_client.workspace = true
-zksync_system_constants.workspace = true
+zksync_test_contracts.workspace = true
