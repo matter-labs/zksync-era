@@ -112,7 +112,7 @@ impl ZkSyncStateKeeper {
         let (cursor, pending_batch_params) = self.io.initialize().await?;
         self.output_handler.initialize(&cursor).await?;
         self.health_updater
-            .update(Health::from(HealthStatus::Ready));
+            .update(StateKeeperHealthDetails::from(&cursor).into());
         tracing::info!(
             "Starting state keeper. Next l1 batch to seal: {}, next L2 block to seal: {}",
             cursor.l1_batch,
