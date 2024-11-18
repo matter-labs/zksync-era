@@ -21,7 +21,7 @@ pub struct DatabaseMigration {
     pub installed_on: DateTime<chrono::Utc>,
     pub success: bool,
     pub checksum: String,
-    pub execution_time: i64,
+    pub execution_time: Duration,
 }
 
 #[derive(Debug)]
@@ -118,7 +118,7 @@ impl SystemDal<'_, '_> {
             installed_on: row.installed_on,
             success: row.success,
             checksum: hex::encode(row.checksum),
-            execution_time: row.execution_time,
+            execution_time: Duration::from_millis(u64::try_from(row.execution_time).unwrap_or(0)),
         })
     }
 }
