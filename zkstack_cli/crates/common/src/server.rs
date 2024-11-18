@@ -67,8 +67,6 @@ impl Server {
                 (None, None)
             };
 
-        print!("additional args: {:#?}", additional_args);
-
         let mut cmd = Cmd::new(
             cmd!(
                 shell,

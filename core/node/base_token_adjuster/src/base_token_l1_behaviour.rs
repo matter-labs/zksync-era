@@ -43,7 +43,6 @@ pub enum BaseTokenL1Behaviour {
 
 impl BaseTokenL1Behaviour {
     pub async fn update_l1(&mut self, new_ratio: BaseTokenAPIRatio) -> anyhow::Result<()> {
-        println!("Hello");
         let (l1_params, last_persisted_l1_ratio) = match self {
             BaseTokenL1Behaviour::UpdateOnL1 {
                 ref params,
@@ -68,7 +67,6 @@ impl BaseTokenL1Behaviour {
             .div(BigDecimal::from(new_ratio.denominator.get()));
         let deviation = Self::compute_deviation(prev_ratio.clone(), current_ratio.clone());
 
-        println!("deviation: {:#?}", deviation);
         if deviation < BigDecimal::from(l1_params.config.l1_update_deviation_percentage) {
             tracing::debug!(
                 "Skipping L1 update. current_ratio {}, previous_ratio {}, deviation {}",

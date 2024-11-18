@@ -196,8 +196,6 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    println!("components: {:#?}", opt.components.0);
-
     node.build(opt.components.0)?.run(observability_guard)?;
     Ok(())
 }

@@ -75,7 +75,6 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        println!("Trying to wire base token \n\n\n");
         let master_pool = input.master_pool.get().await?;
 
         let price_api_client = input.price_api_client;
@@ -116,8 +115,6 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                 }
             })
             .unwrap_or(BaseTokenL1Behaviour::NoOp);
-
-        println!("behavior: {:#?}", l1_behaviour);
 
         let persister = BaseTokenRatioPersister::new(
             master_pool,
