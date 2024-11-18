@@ -704,6 +704,8 @@ impl MainNodeBuilder {
             _ => 0,
         });
 
+        println!("node builder \n\n\n");
+
         // Add "component-specific" layers.
         // Note that the layers are added only once, so it's fine to add the same layer multiple times.
         for component in &components {
@@ -779,6 +781,7 @@ impl MainNodeBuilder {
                     self = self.add_vm_runner_protective_reads_layer()?;
                 }
                 Component::BaseTokenRatioPersister => {
+                    println!("\n\nBase token ratio persister included!\n\n");
                     self = self
                         .add_l1_gas_layer()?
                         .add_external_api_client_layer()?
