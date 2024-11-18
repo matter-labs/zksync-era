@@ -1,8 +1,5 @@
 use std::time::SystemTime;
 
-use std::str::FromStr;
-use std::time::SystemTime;
-
 use anyhow::Context;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_multivm::{

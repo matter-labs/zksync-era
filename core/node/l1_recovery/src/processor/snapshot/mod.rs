@@ -6,7 +6,6 @@ use zksync_types::{
     snapshots::{SnapshotFactoryDependency, SnapshotStorageLog},
     StorageKey, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
 };
-use zksync_utils::h256_to_u256;
 use zksync_vm_interface::L2Block;
 
 use crate::{

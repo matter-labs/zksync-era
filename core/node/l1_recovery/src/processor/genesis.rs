@@ -1,12 +1,11 @@
 use std::{collections::HashSet, fs, path::PathBuf, str::FromStr};
 
 use serde_json::Value;
-use zksync_basic_types::{Address, H160, H256, U256};
+use zksync_basic_types::{bytecode::BytecodeHash, Address, H160, H256, U256};
 use zksync_contracts::BaseSystemContracts;
 use zksync_merkle_tree::TreeEntry;
 use zksync_node_genesis::get_storage_logs;
 use zksync_types::system_contracts::get_system_smart_contracts;
-use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode};
 
 use crate::utils::derive_final_address_for_params;
 
@@ -101,15 +100,15 @@ pub fn get_genesis_factory_deps() -> Vec<Vec<u8>> {
     let mut hashes: HashSet<H256> = HashSet::new();
     let mut bytecodes: Vec<Vec<u8>> = vec![];
     for contract in &contracts {
-        if hashes.contains(&hash_bytecode(&contract.bytecode)) {
+        if hashes.contains(&BytecodeHash::for_bytecode(&contract.bytecode).value()) {
             continue;
         }
         bytecodes.push(contract.bytecode.clone());
-        hashes.insert(hash_bytecode(&contract.bytecode));
+        hashes.insert(BytecodeHash::for_bytecode(&contract.bytecode).value());
     }
     let base_contracts = BaseSystemContracts::load_from_disk();
-    bytecodes.push(be_words_to_bytes(&base_contracts.bootloader.code.clone()));
-    bytecodes.push(be_words_to_bytes(&base_contracts.default_aa.code.clone()));
+    bytecodes.push(base_contracts.bootloader.code.clone());
+    bytecodes.push(base_contracts.default_aa.code.clone());
     tracing::info!("Found {} system contracts", bytecodes.len());
 
     bytecodes

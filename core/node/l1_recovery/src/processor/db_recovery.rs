@@ -26,7 +26,6 @@ use zksync_types::{
     SYSTEM_CONTEXT_CURRENT_L2_BLOCK_HASHES_POSITION, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, SYSTEM_CONTEXT_STORED_L2_BLOCK_HASHES,
 };
-use zksync_utils::{h256_to_u256, u256_to_h256};
 use zksync_vm_interface::{
     CircuitStatistic, L2Block, TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics,
 };

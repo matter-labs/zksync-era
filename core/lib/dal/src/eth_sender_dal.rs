@@ -492,8 +492,8 @@ impl EthSenderDal<'_, '_> {
                 "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, created_at, updated_at) \
                 VALUES ('\\x00', 0, $1, $2, 0, now(), now()) \
                 RETURNING id",
+                tx_type.to_string(),
                 format!("{:#x}", H160::zero()),
-                tx_type.to_string()
             )
             .fetch_one(transaction.conn())
             .await?;

@@ -6,6 +6,7 @@ use rand::random;
 use thiserror::Error;
 use tokio::time::{sleep, Duration};
 use zksync_basic_types::{
+    bytecode::BytecodeHash,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     web3::{contract::Tokenizable, BlockId, BlockNumber, FilterBuilder, Log, Transaction},
     Address, L1BatchNumber, PriorityOpId, H256, U256, U64,
@@ -15,7 +16,7 @@ use zksync_dal::eth_watcher_dal::EventType;
 use zksync_eth_client::{CallFunctionArgs, EthInterface};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_types::{l1::L1Tx, ProtocolVersion};
-use zksync_utils::{bytecode::hash_bytecode, env::Workspace};
+use zksync_utils::env::Workspace;
 use zksync_web3_decl::client::{DynClient, L1};
 
 use crate::l1_fetcher::{
@@ -464,7 +465,7 @@ impl L1Fetcher {
                             .priority_ops_onchain_data
                             .push(priority_tx.common_data.onchain_data());
                         for factory_dep in &priority_tx.execute.factory_deps {
-                            let hashed = hash_bytecode(factory_dep);
+                            let hashed = BytecodeHash::for_bytecode(factory_dep).value();
                             if factory_deps_hashes.contains_key(&hashed) {
                                 continue;
                             } else {
@@ -695,9 +696,11 @@ mod tests {
     use std::{num::NonZero, str::FromStr, sync::Arc};
 
     use tempfile::TempDir;
-    use zksync_basic_types::{url::SensitiveUrl, web3::keccak256, L1BatchNumber, H256, U64};
+    use zksync_basic_types::{
+        bytecode::BytecodeHash, url::SensitiveUrl, web3::keccak256, L1BatchNumber, H256, U64,
+    };
     use zksync_dal::{ConnectionPool, Core};
-    use zksync_utils::{bytecode::hash_bytecode, env::Workspace};
+    use zksync_utils::env::Workspace;
     use zksync_web3_decl::client::{Client, DynClient, L1};
 
     use crate::{
@@ -760,7 +763,7 @@ mod tests {
         let block = &blocks[0];
         assert_eq!(9, block.factory_deps.len());
         assert_eq!(
-            hash_bytecode(&block.factory_deps[0]),
+            BytecodeHash::for_bytecode(&block.factory_deps[0]).value(),
             H256::from_str("0x010000418c2c6cddb87cc900cb58ff9fd387862d6f77d4e7d40dc35694ba1ae4")
                 .unwrap()
         );
@@ -790,7 +793,7 @@ mod tests {
         let block = &blocks[0];
         assert_eq!(6, block.factory_deps.len());
         assert_eq!(
-            hash_bytecode(&block.factory_deps[0]),
+            BytecodeHash::for_bytecode(&block.factory_deps[0]).value(),
             H256::from_str("0x0100009ffa898e7aa96817a2267079a0c8e92ce719b16b2be4cb17a4db04b0e2")
                 .unwrap()
         );

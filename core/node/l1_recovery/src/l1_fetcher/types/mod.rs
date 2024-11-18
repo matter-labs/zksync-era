@@ -4,9 +4,8 @@ use ethabi;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use zksync_basic_types::{web3::keccak256, Address, H160, H256, U256};
+use zksync_basic_types::{u256_to_h256, web3::keccak256, Address, H160, H256, U256};
 use zksync_types::{priority_op_onchain_data::PriorityOpOnchainData, L2_TO_L1_LOGS_TREE_ROOT_KEY};
-use zksync_utils::u256_to_h256;
 
 use self::{v1::V1, v2::V2, v3::V3};
 use crate::{

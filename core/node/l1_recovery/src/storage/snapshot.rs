@@ -2,9 +2,8 @@ use std::{ops::Deref, path::PathBuf};
 
 use anyhow::Result;
 use rocksdb::{Options, DB};
-use zksync_basic_types::{H256, U256, U64};
+use zksync_basic_types::{bytecode::BytecodeHash, H256, U256, U64};
 use zksync_types::snapshots::{SnapshotFactoryDependency, SnapshotStorageLog};
-use zksync_utils::bytecode;
 
 use crate::storage::{
     snapshot_columns, DatabaseError, PackingType, INDEX_TO_KEY_MAP, KEY_TO_INDEX_MAP, METADATA,
@@ -153,7 +152,7 @@ impl SnapshotDatabase {
         // Unwrapping column family handle here is safe because presence of
         // those CFs is ensured in construction of this DB.
         let factory_deps = self.cf_handle(snapshot_columns::FACTORY_DEPS).unwrap();
-        let bytecode_hash = bytecode::hash_bytecode(&fdep.bytecode.0);
+        let bytecode_hash = BytecodeHash::for_bytecode(&fdep.bytecode.0).value();
         self.put_cf(factory_deps, bytecode_hash, bincode::serialize(&fdep)?)
             .map_err(Into::into)
     }

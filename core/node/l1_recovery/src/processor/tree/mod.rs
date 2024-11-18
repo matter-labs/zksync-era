@@ -4,14 +4,15 @@ use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use tokio::sync::Mutex;
-use zksync_basic_types::{web3::keccak256, AccountTreeId, L2BlockNumber, H256, U256};
+use zksync_basic_types::{
+    h256_to_u256, u256_to_h256, web3::keccak256, AccountTreeId, L2BlockNumber, H256, U256,
+};
 use zksync_merkle_tree::TreeEntry;
 use zksync_types::{
     block::unpack_block_info, snapshots::SnapshotStorageLog, StorageKey, SYSTEM_CONTEXT_ADDRESS,
     SYSTEM_CONTEXT_CURRENT_L2_BLOCK_HASHES_POSITION, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, SYSTEM_CONTEXT_STORED_L2_BLOCK_HASHES,
 };
-use zksync_utils::{h256_to_u256, u256_to_h256};
 use zksync_vm_interface::L2Block;
 
 use self::tree_wrapper::TreeWrapper;
