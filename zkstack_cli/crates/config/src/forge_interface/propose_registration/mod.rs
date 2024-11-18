@@ -1,18 +1,19 @@
-use crate::traits::ZkStackConfig;
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 use types::BaseToken;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
 
+use crate::traits::ZkStackConfig;
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 
 struct ChainConfig {
-    l2_chain_id: u64,
+    chain_id: u64,
     blob_operator: Address,
     operator: Address,
     governor: Address,
-    token: BaseTokenInt,
-    l1batch_commitment_mode: L1BatchCommitmentMode,
+    base_token: BaseTokenInt,
+    pubdata_pricing_mode: u8,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -26,13 +27,13 @@ struct BaseTokenInt {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ProposeRegistrationInputConfig {
     chain_registrar: Address,
-    chain_config: ChainConfig,
+    chain: ChainConfig,
 }
 
 impl ProposeRegistrationInputConfig {
     pub fn new(
         chain_registrar: Address,
-        l2_chain_id: u64,
+        chain_id: u64,
         blob_operator: Address,
         operator: Address,
         governor: Address,
@@ -42,18 +43,18 @@ impl ProposeRegistrationInputConfig {
     ) -> Self {
         ProposeRegistrationInputConfig {
             chain_registrar,
-            chain_config: ChainConfig {
-                l2_chain_id,
+            chain: ChainConfig {
+                chain_id,
                 blob_operator,
                 operator,
                 governor,
-                token: BaseTokenInt {
+                base_token: BaseTokenInt {
                     token_multiplier_setter,
                     address: token.address,
                     nominator: token.nominator,
                     denominator: token.denominator,
                 },
-                l1batch_commitment_mode,
+                pubdata_pricing_mode: l1batch_commitment_mode as u8,
             },
         }
     }

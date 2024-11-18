@@ -1,18 +1,25 @@
 use anyhow::Context;
-use common::forge::{Forge, ForgeScriptArgs};
-use common::{ethereum, spinner::Spinner, wallets::Wallet};
-use config::forge_interface::propose_registration::ProposeRegistrationInputConfig;
-use config::forge_interface::script_params::PROPOSE_CHAIN_SCRIPT_PARAMS;
-use config::traits::SaveConfig;
-use config::{ChainConfig, EcosystemConfig};
-use ethers::abi::Address;
-use ethers::utils::hex::ToHex;
+use common::{
+    ethereum,
+    forge::{Forge, ForgeScriptArgs},
+    spinner::Spinner,
+    wallets::Wallet,
+};
+use config::{
+    forge_interface::{
+        propose_registration::ProposeRegistrationInputConfig,
+        script_params::PROPOSE_CHAIN_SCRIPT_PARAMS,
+    },
+    traits::SaveConfig,
+    ChainConfig, EcosystemConfig,
+};
+use ethers::{abi::Address, utils::hex::ToHex};
 use xshell::Shell;
 
-use crate::utils::forge::{check_the_balance, fill_forge_private_key};
 use crate::{
     commands::chain::args::propose_registration::ProposeRegistrationArgs,
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_REGISTERING_CHAIN_SPINNER},
+    utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
 pub async fn run(shell: &Shell, args: ProposeRegistrationArgs) -> anyhow::Result<()> {

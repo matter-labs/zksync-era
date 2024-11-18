@@ -69,7 +69,7 @@ pub const SETUP_LEGACY_BRIDGE: ForgeScriptParams = ForgeScriptParams {
 };
 
 pub const PROPOSE_CHAIN_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/-hyperchain.toml",
-    output: "script-out/output-register-hyperchain.toml",
-    script_path: "deploy-scripts/RegisterHyperchain.s.sol",
+    input: "script-config/config-propose-chain-registration.toml",
+    output: "script-out/output-propose-chain-registration.toml",
+    script_path: "deploy-scripts/ProposeChainRegistration.s.sol",
 };
