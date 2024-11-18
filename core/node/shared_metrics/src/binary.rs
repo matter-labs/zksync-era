@@ -1,14 +1,14 @@
 use async_trait::async_trait;
 use serde::Serialize;
 use vise::{EncodeLabelSet, Info, Metrics};
+use zksync_health_check::{CheckHealth, Health, HealthStatus};
 
-mod values {
+use self::values::BIN_METADATA;
+
+pub mod values {
     use super::BinMetadata;
     include!(concat!(env!("OUT_DIR"), "/metadata_values.rs"));
 }
-
-pub use values::BIN_METADATA;
-use zksync_health_check::{CheckHealth, Health, HealthStatus};
 
 /// Metadata of the compiled binary.
 #[derive(Debug, EncodeLabelSet, Serialize)]

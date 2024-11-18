@@ -3,7 +3,7 @@ use std::sync::Arc;
 use zksync_config::configs::api::HealthCheckConfig;
 use zksync_health_check::AppHealthCheck;
 use zksync_node_api_server::healthcheck::HealthCheckHandle;
-use zksync_shared_metrics::binary::BIN_METADATA;
+use zksync_shared_metrics::binary::values::BIN_METADATA;
 
 use crate::{
     implementations::resources::healthcheck::AppHealthCheckResource,
