@@ -51,6 +51,7 @@ jobs:
             --base-token-price-denominator 1 \
             --set-as-default true \
             --ignore-prerequisites 
+            --print-panics
 
           ci_run zkstack ecosystem init --dev --verbose
           ci_run zkstack prover init --dev --verbose
@@ -104,10 +105,10 @@ jobs:
           ci_run zkstack prover run --component=compressor --docker=false &>prover_logs/compressor.log &
       - name: Wait for batch to be executed on L1
         env:
-            DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
-            BATCH_NUMBER: 1
-            INTERVAL: 30
-            TIMEOUT: 600
+          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
+          BATCH_NUMBER: 1
+          INTERVAL: 30
+          TIMEOUT: 600
         run: |
           PASSED_ENV_VARS="BATCH_NUMBER,DATABASE_URL,URL,INTERVAL,TIMEOUT" \
           ci_run ./bin/prover_checkers/batch_l1_status_checker
