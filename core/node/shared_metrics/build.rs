@@ -41,19 +41,13 @@ fn print_binary_meta(out: &mut impl Write) -> io::Result<()> {
 }
 
 /// Outputs the current git branch as a string literal.
-pub fn git_branch() -> String {
-    run_cmd("git", &["rev-parse", "--abbrev-ref", "HEAD"])
+pub fn git_branch() -> Option<String> {
+    run_cmd_opt("git", &["rev-parse", "--abbrev-ref", "HEAD"])
 }
 
 /// Outputs the current git commit hash as a string literal.
-pub fn git_revision() -> String {
-    run_cmd("git", &["rev-parse", "--short", "HEAD"])
-}
-
-/// Tries to run the command, only returns `Some` if the command
-/// succeeded and the output was valid utf8.
-fn run_cmd(cmd: &str, args: &[&str]) -> String {
-    run_cmd_opt(cmd, args).unwrap_or("unknown".to_string())
+pub fn git_revision() -> Option<String> {
+    run_cmd_opt("git", &["rev-parse", "--short", "HEAD"])
 }
 
 fn run_cmd_opt(cmd: &str, args: &[&str]) -> Option<String> {

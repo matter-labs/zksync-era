@@ -19,8 +19,8 @@ pub struct BinMetadata {
     pub rustc_channel: &'static str,
     pub host: &'static str,
     pub llvm: Option<&'static str>,
-    pub git_branch: &'static str,
-    pub git_revision: &'static str,
+    pub git_branch: Option<&'static str>,
+    pub git_revision: Option<&'static str>,
 }
 
 #[derive(Debug, Metrics)]
