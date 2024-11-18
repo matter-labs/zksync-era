@@ -75,8 +75,8 @@ members = [
   "core/lib/snapshots_applier",
   "core/lib/crypto_primitives",
   "core/lib/external_price_api",
+  "core/lib/test_contracts",
   # Test infrastructure
-  "core/tests/test_account",
   "core/tests/loadnext",
   "core/tests/vm-benchmark",
 ]
@@ -200,6 +200,7 @@ trybuild = "1.0"
 # "Internal" dependencies
 vise = "0.2.0"
 vise-exporter = "0.2.0"
+foundry-compilers = { version = "0.11.6", git = "https://github.com/Moonsong-Labs/compilers.git", rev = "7c69695e5c75451f158dd2456bf8c94a7492ea0b" }
 
 # DA clients' dependencies
 # Avail
@@ -286,7 +287,7 @@ zksync_state = { version = "0.1.0", path = "core/lib/state" }
 zksync_storage = { version = "0.1.0", path = "core/lib/storage" }
 zksync_system_constants = { version = "0.1.0", path = "core/lib/constants" }
 zksync_tee_verifier = { version = "0.1.0", path = "core/lib/tee_verifier" }
-zksync_test_account = { version = "0.1.0", path = "core/tests/test_account" }
+zksync_test_contracts = { version = "0.1.0", path = "core/lib/test_contracts" }
 zksync_types = { version = "0.1.0", path = "core/lib/types" }
 zksync_utils = { version = "0.1.0", path = "core/lib/utils" }
 zksync_web3_decl = { version = "0.1.0", path = "core/lib/web3_decl" }

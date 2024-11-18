@@ -6565,9 +6565,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-stream"
-version = "0.1.15"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "267ac89e0bec6e691e5813911606935d77c476ff49024f98abcea3e7b15e37af"
+checksum = "4f4e6ce100d0eb49a2734f8c0812bcd324cf357d21810932c5df6b96ef2b86f1"
 dependencies = [
  "futures-core",
  "pin-project-lite",
@@ -7870,6 +7870,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "const-decoder 0.4.0",
  "ethabi",
  "hex",
  "num_enum 0.7.2",
@@ -7877,6 +7878,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
+ "sha2 0.10.8",
  "strum",
  "thiserror",
  "tiny-keccak 2.0.2",
@@ -7920,6 +7922,7 @@ dependencies = [
  "tracing",
  "vise",
  "zkevm_test_harness",
+ "zksync_circuit_prover_service",
  "zksync_config",
  "zksync_core_leftovers",
  "zksync_env_config",
@@ -7927,10 +7930,31 @@ dependencies = [
  "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
+ "zksync_prover_job_processor",
  "zksync_prover_keystore",
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
+]
+
+[[package]]
+name = "zksync_circuit_prover_service"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "shivini",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "vise",
+ "zkevm_test_harness",
+ "zksync_object_store",
+ "zksync_prover_dal",
+ "zksync_prover_fri_types",
+ "zksync_prover_job_processor",
+ "zksync_prover_keystore",
+ "zksync_types",
 ]
 
 [[package]]
@@ -8048,11 +8072,11 @@ name = "zksync_contracts"
 version = "0.1.0"
 dependencies = [
  "envy",
- "ethabi",
  "hex",
  "once_cell",
  "serde",
  "serde_json",
+ "zksync_basic_types",
  "zksync_utils",
 ]
 
@@ -8130,7 +8154,6 @@ dependencies = [
  "zksync_protobuf_build",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
  "zksync_vm_interface",
 ]
 
@@ -8286,7 +8309,6 @@ dependencies = [
  "zksync_mini_merkle_tree",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
  "zksync_vm2",
  "zksync_vm_interface",
 ]
@@ -8595,6 +8617,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_prover_job_processor"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "futures 0.3.30",
+ "strum",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "vise",
+]
+
+[[package]]
 name = "zksync_prover_keystore"
 version = "0.1.0"
 dependencies = [
@@ -8684,7 +8721,6 @@ dependencies = [
  "zksync_protobuf",
  "zksync_protobuf_build",
  "zksync_system_constants",
- "zksync_utils",
 ]
 
 [[package]]
@@ -8692,16 +8728,12 @@ name = "zksync_utils"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "const-decoder 0.4.0",
  "futures 0.3.30",
  "once_cell",
  "reqwest 0.12.5",
  "serde_json",
- "thiserror",
  "tokio",
  "tracing",
- "zk_evm 0.133.0",
- "zksync_basic_types",
  "zksync_vlog",
 ]
 

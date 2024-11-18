@@ -406,7 +406,6 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_sub
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from contracts" -l l1-contracts -d 'Build L1 contracts' -r -f -a "{true\t'',false\t''}"
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from contracts" -l l2-contracts -d 'Build L2 contracts' -r -f -a "{true\t'',false\t''}"
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from contracts" -l system-contracts -d 'Build system contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from contracts" -l test-contracts -d 'Build test contracts' -r -f -a "{true\t'',false\t''}"
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from contracts" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from contracts" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from contracts" -l ignore-prerequisites -d 'Ignores prerequisites checks'
@@ -475,7 +474,6 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l bellman-cuda -r -f -a "{true\t'',false\t''}"
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l setup-compressor-key -r -f -a "{true\t'',false\t''}"
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l path -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l compressor-type -r -f -a "{fflonk\t'',plonk\t''}"
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l region -r -f -a "{us\t'',europe\t'',asia\t''}"
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l mode -r -f -a "{download\t'',generate\t''}"
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l setup-keys -r -f -a "{true\t'',false\t''}"
@@ -501,9 +499,9 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l round -r -f -a "{all-rounds\t'',basic-circuits\t'',leaf-aggregation\t'',node-aggregation\t'',recursion-tip\t'',scheduler\t''}"
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l threads -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l max-allocation -d 'Memory allocation limit in bytes (for prover component)' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l witness-vector-generator-count -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l max-allocation -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l mode -r -f -a "{fflonk\t'',plonk\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -s l -l light-wvg-count -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -s h -l heavy-wvg-count -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -s m -l max-allocation -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l docker -r -f -a "{true\t'',false\t''}"
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l tag -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l chain -d 'Chain to use' -r
@@ -517,7 +515,6 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init-bellman-cuda" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init-bellman-cuda" -s h -l help -d 'Print help'
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from compressor-keys" -l path -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from compressor-keys" -l compressor-type -r -f -a "{fflonk\t'',plonk\t''}"
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from compressor-keys" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from compressor-keys" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from compressor-keys" -l ignore-prerequisites -d 'Ignores prerequisites checks'

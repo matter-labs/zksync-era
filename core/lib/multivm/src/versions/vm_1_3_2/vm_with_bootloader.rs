@@ -15,10 +15,10 @@ use zk_evm_1_3_3::{
 use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{
-    address_to_u256, fee_model::L1PeggedBatchFeeModelInput, h256_to_u256, l1::is_l1_tx_type,
-    Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
+    address_to_u256, bytecode::BytecodeHash, fee_model::L1PeggedBatchFeeModelInput, h256_to_u256,
+    l1::is_l1_tx_type, Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE,
+    MAX_NEW_FACTORY_DEPS, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{
     interface::{storage::WriteStorage, CompressedBytecodeInfo, L1BatchEnv},
@@ -518,7 +518,7 @@ pub fn push_raw_transaction_to_bootloader_memory<H: HistoryMode, S: WriteStorage
             .enumerate()
             .sorted_by_key(|(_idx, dep)| *dep)
             .dedup_by(|x, y| x.1 == y.1)
-            .filter(|(_idx, dep)| !vm.is_bytecode_known(&hash_bytecode(dep)))
+            .filter(|(_idx, dep)| !vm.is_bytecode_known(&BytecodeHash::for_bytecode(dep).value()))
             .sorted_by_key(|(idx, _dep)| *idx)
             .filter_map(|(_idx, dep)| bytecode::compress(dep.clone()).ok())
             .collect()
@@ -728,10 +728,8 @@ fn formal_calldata_abi() -> PrimitiveValue {
     }
 }
 
-// FIXME: &[u8]
 pub(crate) fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> (U256, Vec<U256>) {
-    let bytecode_hash = hash_bytecode(&bytecode);
-    let bytecode_hash = U256::from_big_endian(bytecode_hash.as_bytes());
+    let bytecode_hash = BytecodeHash::for_bytecode(&bytecode).value_u256();
     let bytecode_words = bytes_to_be_words(&bytecode);
     (bytecode_hash, bytecode_words)
 }
