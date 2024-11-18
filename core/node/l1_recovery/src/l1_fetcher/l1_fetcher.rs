@@ -11,7 +11,7 @@ use zksync_basic_types::{
     web3::{contract::Tokenizable, BlockId, BlockNumber, FilterBuilder, Log, Transaction},
     Address, L1BatchNumber, PriorityOpId, H256, U256, U64,
 };
-use zksync_contracts::BaseSystemContractsHashes;
+use zksync_contracts::{hyperchain_contract, BaseSystemContractsHashes};
 use zksync_dal::eth_watcher_dal::EventType;
 use zksync_eth_client::{CallFunctionArgs, EthInterface};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
@@ -82,19 +82,12 @@ impl L1Fetcher {
         Ok(L1Fetcher { eth_client, config })
     }
 
-    fn v1_contract() -> Result<Contract> {
-        let base_path = Workspace::locate().core();
-        let path = base_path.join("core/node/l1_recovery/abi/IZkSync.json");
-        Ok(Contract::load(File::open(path)?)?)
+    fn hyperchain_contract() -> Contract {
+        hyperchain_contract()
     }
 
-    fn v2_contract() -> Result<Contract> {
-        let base_path = Workspace::locate().core();
-        let path = base_path.join("core/node/l1_recovery/abi/IZkSyncV2.json");
-        Ok(Contract::load(File::open(path)?)?)
-    }
     fn commit_functions() -> Result<Vec<Function>> {
-        let contract = L1Fetcher::v2_contract()?;
+        let contract = Self::hyperchain_contract();
         Ok(vec![
             contract.functions_by_name("commitBatches").unwrap()[0].clone(),
             contract
@@ -111,7 +104,7 @@ impl L1Fetcher {
             RollupEventType::Execute => "BlockExecution",
             RollupEventType::NewPriorityTx => "NewPriorityRequest",
         };
-        Ok(L1Fetcher::v1_contract()?.events_by_name(event_name)?[0].clone())
+        Ok(Self::hyperchain_contract().events_by_name(event_name)?[0].clone())
     }
 
     fn extract_l1_batch_number_from_rollup_event_log(
@@ -201,10 +194,7 @@ impl L1Fetcher {
         let bootloader_bytecode_hash: H256 =
             CallFunctionArgs::new("getL2BootloaderBytecodeHash", ())
                 .with_block(BlockId::Number(BlockNumber::Number(block_to_check)))
-                .for_contract(
-                    self.config.diamond_proxy_addr,
-                    &Self::v1_contract().unwrap(),
-                )
+                .for_contract(self.config.diamond_proxy_addr, &Self::hyperchain_contract())
                 .call(&self.eth_client)
                 .await
                 .unwrap();
@@ -213,10 +203,7 @@ impl L1Fetcher {
                 .with_block(BlockId::Number(BlockNumber::Number(U64::from(
                     block_to_check,
                 ))))
-                .for_contract(
-                    self.config.diamond_proxy_addr,
-                    &Self::v1_contract().unwrap(),
-                )
+                .for_contract(self.config.diamond_proxy_addr, &Self::hyperchain_contract())
                 .call(&self.eth_client)
                 .await
                 .unwrap();
@@ -224,10 +211,7 @@ impl L1Fetcher {
             .with_block(BlockId::Number(BlockNumber::Number(U64::from(
                 block_to_check,
             ))))
-            .for_contract(
-                self.config.diamond_proxy_addr,
-                &Self::v1_contract().unwrap(),
-            )
+            .for_contract(self.config.diamond_proxy_addr, &Self::hyperchain_contract())
             .call(&self.eth_client)
             .await
             .unwrap();
@@ -356,10 +340,7 @@ impl L1Fetcher {
                 .with_block(BlockId::Number(BlockNumber::Number(U64::from(
                     block_just_after_execute_tx_eth_block,
                 ))))
-                .for_contract(
-                    self.config.diamond_proxy_addr,
-                    &Self::v1_contract().unwrap(),
-                )
+                .for_contract(self.config.diamond_proxy_addr, &Self::hyperchain_contract())
                 .call(&self.eth_client)
                 .await
                 .unwrap();
