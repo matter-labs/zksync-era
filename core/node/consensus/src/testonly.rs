@@ -30,18 +30,16 @@ use zksync_state_keeper::{
     executor::MainBatchExecutorFactory,
     io::{IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
-    testonly::{
-        fund, l1_transaction, l2_transaction, test_batch_executor::MockReadStorageFactory,
-        MockBatchExecutor,
-    },
+    testonly::{fee, fund, test_batch_executor::MockReadStorageFactory, MockBatchExecutor},
     AsyncRocksdbCache, OutputHandler, StateKeeperPersistence, TreeWritesPersistence,
     ZkSyncStateKeeper,
 };
-use zksync_test_account::Account;
+use zksync_test_contracts::Account;
 use zksync_types::{
     ethabi,
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
-    L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, Transaction,
+    Address, Execute, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
+    Transaction,
 };
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
@@ -315,12 +313,15 @@ impl StateKeeper {
     /// Pushes a new L2 block with `transactions` transactions to the `StateKeeper`.
     pub async fn push_random_block(&mut self, rng: &mut impl Rng, account: &mut Account) {
         let txs: Vec<_> = (0..rng.gen_range(3..8))
-            .map(|_| match rng.gen() {
-                true => l2_transaction(account, 1_000_000),
-                false => {
-                    let tx = l1_transaction(account, self.next_priority_op);
-                    self.next_priority_op += 1;
-                    tx
+            .map(|_| {
+                let execute = Execute::transfer(Address::random(), 0.into());
+                match rng.gen() {
+                    true => account.get_l2_tx_for_execute(execute, Some(fee(1_000_000))),
+                    false => {
+                        let tx = account.get_l1_tx(execute, self.next_priority_op.0);
+                        self.next_priority_op += 1;
+                        tx
+                    }
                 }
             })
             .collect();

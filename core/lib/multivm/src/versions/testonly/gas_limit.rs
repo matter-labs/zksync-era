@@ -1,4 +1,4 @@
-use zksync_test_account::Account;
+use zksync_test_contracts::Account;
 use zksync_types::{fee::Fee, Execute};
 
 use super::{tester::VmTesterBuilder, TestedVm};
