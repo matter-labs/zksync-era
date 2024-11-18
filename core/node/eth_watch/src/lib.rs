@@ -105,11 +105,13 @@ impl EthWatch {
                 _ = timer.tick() => { /* continue iterations */ }
                 _ = stop_receiver.changed() => break,
             }
-            METRICS.eth_poll.inc();
 
             let mut storage = pool.connection_tagged("eth_watch").await?;
             match self.loop_iteration(&mut storage).await {
-                Ok(()) => { /* everything went fine */ }
+                Ok(()) => {
+                    /* everything went fine */
+                    METRICS.eth_poll.inc();
+                }
                 Err(EventProcessorError::Internal(err)) => {
                     tracing::error!("Internal error processing new blocks: {err:?}");
                     return Err(err);
