@@ -60,9 +60,6 @@ _zkstack() {
             zkstack__chain,accept-chain-ownership)
                 cmd="zkstack__chain__accept__chain__ownership"
                 ;;
-            zkstack__chain,build-transactions)
-                cmd="zkstack__chain__build__transactions"
-                ;;
             zkstack__chain,create)
                 cmd="zkstack__chain__create"
                 ;;
@@ -99,9 +96,6 @@ _zkstack() {
             zkstack__chain,propose-chain)
                 cmd="zkstack__chain__propose__chain"
                 ;;
-            zkstack__chain,register-chain)
-                cmd="zkstack__chain__register__chain"
-                ;;
             zkstack__chain,update-token-multiplier-setter)
                 cmd="zkstack__chain__update__token__multiplier__setter"
                 ;;
@@ -125,9 +119,6 @@ _zkstack() {
                 ;;
             zkstack__chain__help,accept-chain-ownership)
                 cmd="zkstack__chain__help__accept__chain__ownership"
-                ;;
-            zkstack__chain__help,build-transactions)
-                cmd="zkstack__chain__help__build__transactions"
                 ;;
             zkstack__chain__help,create)
                 cmd="zkstack__chain__help__create"
@@ -164,9 +155,6 @@ _zkstack() {
                 ;;
             zkstack__chain__help,propose-chain)
                 cmd="zkstack__chain__help__propose__chain"
-                ;;
-            zkstack__chain__help,register-chain)
-                cmd="zkstack__chain__help__register__chain"
                 ;;
             zkstack__chain__help,update-token-multiplier-setter)
                 cmd="zkstack__chain__help__update__token__multiplier__setter"
@@ -642,6 +630,9 @@ _zkstack() {
             zkstack__ecosystem,init)
                 cmd="zkstack__ecosystem__init"
                 ;;
+            zkstack__ecosystem,register-chain)
+                cmd="zkstack__ecosystem__register__chain"
+                ;;
             zkstack__ecosystem,setup-observability)
                 cmd="zkstack__ecosystem__setup__observability"
                 ;;
@@ -659,6 +650,9 @@ _zkstack() {
                 ;;
             zkstack__ecosystem__help,init)
                 cmd="zkstack__ecosystem__help__init"
+                ;;
+            zkstack__ecosystem__help,register-chain)
+                cmd="zkstack__ecosystem__help__register__chain"
                 ;;
             zkstack__ecosystem__help,setup-observability)
                 cmd="zkstack__ecosystem__help__setup__observability"
@@ -771,9 +765,6 @@ _zkstack() {
             zkstack__help__chain,accept-chain-ownership)
                 cmd="zkstack__help__chain__accept__chain__ownership"
                 ;;
-            zkstack__help__chain,build-transactions)
-                cmd="zkstack__help__chain__build__transactions"
-                ;;
             zkstack__help__chain,create)
                 cmd="zkstack__help__chain__create"
                 ;;
@@ -806,9 +797,6 @@ _zkstack() {
                 ;;
             zkstack__help__chain,propose-chain)
                 cmd="zkstack__help__chain__propose__chain"
-                ;;
-            zkstack__help__chain,register-chain)
-                cmd="zkstack__help__chain__register__chain"
                 ;;
             zkstack__help__chain,update-token-multiplier-setter)
                 cmd="zkstack__help__chain__update__token__multiplier__setter"
@@ -978,6 +966,9 @@ _zkstack() {
             zkstack__help__ecosystem,init)
                 cmd="zkstack__help__ecosystem__init"
                 ;;
+            zkstack__help__ecosystem,register-chain)
+                cmd="zkstack__help__ecosystem__register__chain"
+                ;;
             zkstack__help__ecosystem,setup-observability)
                 cmd="zkstack__help__ecosystem__setup__observability"
                 ;;
@@ -1096,7 +1087,7 @@ _zkstack() {
 
     case "${cmd}" in
         zkstack)
-            opts="-v -h -V --verbose --chain --ignore-prerequisites --help --version autocomplete ecosystem chain dev prover server external-node containers contract-verifier portal explorer consensus update markdown help"
+            opts="-v -h -V --verbose --chain --ignore-prerequisites --print-panics --help --version autocomplete ecosystem chain dev prover server external-node containers contract-verifier portal explorer consensus update markdown help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1114,7 +1105,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__autocomplete)
-            opts="-o -v -h --generate --out --verbose --chain --ignore-prerequisites --help"
+            opts="-o -v -h --generate --out --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1144,7 +1135,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help create build-transactions init genesis register-chain deploy-l2-contracts accept-chain-ownership initialize-bridges deploy-consensus-registry deploy-multicall3 deploy-timestamp-asserter deploy-upgrader deploy-paymaster update-token-multiplier-setter propose-chain help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help create init genesis deploy-l2-contracts accept-chain-ownership initialize-bridges deploy-consensus-registry deploy-multicall3 deploy-timestamp-asserter deploy-upgrader deploy-paymaster update-token-multiplier-setter propose-chain help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1162,7 +1153,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__accept__chain__ownership)
-            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --help"
+            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1189,60 +1180,6 @@ _zkstack() {
                     return 0
                     ;;
                 -a)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --chain)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        zkstack__chain__build__transactions)
-            opts="-o -a -v -h --out --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --l1-rpc-url --verbose --chain --ignore-prerequisites --help"
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                --out)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                -o)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --verify)
-                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
-                    return 0
-                    ;;
-                --verifier)
-                    COMPREPLY=($(compgen -W "etherscan sourcify blockscout oklink" -- "${cur}"))
-                    return 0
-                    ;;
-                --verifier-url)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --verifier-api-key)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --additional-args)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                -a)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --l1-rpc-url)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -1258,7 +1195,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__create)
-            opts="-v -h --chain-name --chain-id --prover-mode --wallet-creation --wallet-path --l1-batch-commit-data-generator-mode --base-token-address --base-token-price-nominator --base-token-price-denominator --set-as-default --legacy-bridge --evm-emulator --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --chain-name --chain-id --prover-mode --wallet-creation --wallet-path --l1-batch-commit-data-generator-mode --base-token-address --base-token-price-nominator --base-token-price-denominator --set-as-default --legacy-bridge --evm-emulator --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1331,7 +1268,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__deploy__consensus__registry)
-            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --help"
+            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1373,7 +1310,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__deploy__l2__contracts)
-            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --help"
+            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1415,7 +1352,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__deploy__multicall3)
-            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --help"
+            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1457,7 +1394,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__deploy__paymaster)
-            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --help"
+            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1499,7 +1436,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__deploy__timestamp__asserter)
-            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --help"
+            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1541,7 +1478,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__deploy__upgrader)
-            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --help"
+            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1583,7 +1520,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__genesis)
-            opts="-d -d -v -h --server-db-url --server-db-name --dev --dont-drop --verbose --chain --ignore-prerequisites --help init-database server help"
+            opts="-d -d -v -h --server-db-url --server-db-name --dev --dont-drop --verbose --chain --ignore-prerequisites --print-panics --help init-database server help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1665,7 +1602,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__genesis__init__database)
-            opts="-d -d -v -h --server-db-url --server-db-name --dev --dont-drop --verbose --chain --ignore-prerequisites --help"
+            opts="-d -d -v -h --server-db-url --server-db-name --dev --dont-drop --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1691,7 +1628,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__genesis__server)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1709,7 +1646,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__help)
-            opts="create build-transactions init genesis register-chain deploy-l2-contracts accept-chain-ownership initialize-bridges deploy-consensus-registry deploy-multicall3 deploy-timestamp-asserter deploy-upgrader deploy-paymaster update-token-multiplier-setter propose-chain help"
+            opts="create init genesis deploy-l2-contracts accept-chain-ownership initialize-bridges deploy-consensus-registry deploy-multicall3 deploy-timestamp-asserter deploy-upgrader deploy-paymaster update-token-multiplier-setter propose-chain help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1723,20 +1660,6 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__help__accept__chain__ownership)
-            opts=""
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        zkstack__chain__help__build__transactions)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -1960,20 +1883,6 @@ _zkstack() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        zkstack__chain__help__register__chain)
-            opts=""
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
         zkstack__chain__help__update__token__multiplier__setter)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
@@ -1989,7 +1898,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__init)
-            opts="-a -d -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --server-db-url --server-db-name --dont-drop --deploy-paymaster --l1-rpc-url --no-port-reallocation --dev --verbose --chain --ignore-prerequisites --help configs help"
+            opts="-a -d -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --server-db-url --server-db-name --dont-drop --deploy-paymaster --l1-rpc-url --no-port-reallocation --dev --verbose --chain --ignore-prerequisites --print-panics --help configs help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2047,7 +1956,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__init__configs)
-            opts="-d -d -v -h --server-db-url --server-db-name --dev --dont-drop --l1-rpc-url --no-port-reallocation --verbose --chain --ignore-prerequisites --help"
+            opts="-d -d -v -h --server-db-url --server-db-name --dev --dont-drop --l1-rpc-url --no-port-reallocation --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2119,7 +2028,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__initialize__bridges)
-            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --help"
+            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2161,7 +2070,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__propose__chain)
-            opts="-v -h --l1-rpc-url --chain-registrar --dev --verbose --chain --ignore-prerequisites --help"
+            opts="-a -v -h --l1-rpc-url --chain-registrar --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --broadcast --dev --private-key --sender --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2175,24 +2084,6 @@ _zkstack() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
-                --chain)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        zkstack__chain__register__chain)
-            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --help"
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
                 --verify)
                     COMPREPLY=($(compgen -W "true false" -- "${cur}"))
                     return 0
@@ -2217,6 +2108,14 @@ _zkstack() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
+                --private-key)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --sender)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 --chain)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
@@ -2229,7 +2128,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__update__token__multiplier__setter)
-            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --help"
+            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2271,7 +2170,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__consensus)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help set-attester-committee get-attester-committee wait-for-registry help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help set-attester-committee get-attester-committee wait-for-registry help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2289,7 +2188,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__consensus__get__attester__committee)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2377,7 +2276,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__consensus__set__attester__committee)
-            opts="-v -h --from-genesis --from-file --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --from-genesis --from-file --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2399,7 +2298,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__consensus__wait__for__registry)
-            opts="-t -v -h --timeout --poll-interval --verbose --chain --ignore-prerequisites --help"
+            opts="-t -v -h --timeout --poll-interval --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2429,7 +2328,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__containers)
-            opts="-o -v -h --observability --verbose --chain --ignore-prerequisites --help"
+            opts="-o -v -h --observability --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2455,7 +2354,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__contract__verifier)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help build run wait init help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help build run wait init help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2473,7 +2372,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__contract__verifier__build)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2575,7 +2474,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__contract__verifier__init)
-            opts="-v -h --zksolc-version --zkvyper-version --solc-version --era-vm-solc-version --vyper-version --only --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --zksolc-version --zkvyper-version --solc-version --era-vm-solc-version --vyper-version --only --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2613,7 +2512,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__contract__verifier__run)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2631,7 +2530,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__contract__verifier__wait)
-            opts="-t -v -h --timeout --poll-interval --verbose --chain --ignore-prerequisites --help"
+            opts="-t -v -h --timeout --poll-interval --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2661,7 +2560,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2679,7 +2578,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__clean)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help all containers contracts-cache help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help all containers contracts-cache help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2697,7 +2596,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__clean__all)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2715,7 +2614,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__clean__containers)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2733,7 +2632,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__clean__contracts__cache)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2821,7 +2720,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__config__writer)
-            opts="-p -v -h --path --verbose --chain --ignore-prerequisites --help"
+            opts="-p -v -h --path --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2847,7 +2746,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__contracts)
-            opts="-v -h --l1-contracts --l2-contracts --system-contracts --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --l1-contracts --l2-contracts --system-contracts --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2877,7 +2776,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__database)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help check-sqlx-data drop migrate new-migration prepare reset setup help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help check-sqlx-data drop migrate new-migration prepare reset setup help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2895,7 +2794,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__database__check__sqlx__data)
-            opts="-p -c -v -h --prover --prover-url --core --core-url --verbose --chain --ignore-prerequisites --help"
+            opts="-p -c -v -h --prover --prover-url --core --core-url --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2937,7 +2836,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__database__drop)
-            opts="-p -c -v -h --prover --prover-url --core --core-url --verbose --chain --ignore-prerequisites --help"
+            opts="-p -c -v -h --prover --prover-url --core --core-url --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -3105,7 +3004,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__database__migrate)
-            opts="-p -c -v -h --prover --prover-url --core --core-url --verbose --chain --ignore-prerequisites --help"
+            opts="-p -c -v -h --prover --prover-url --core --core-url --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -3147,7 +3046,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__database__new__migration)
-            opts="-v -h --database --name --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --database --name --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -3173,7 +3072,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__database__prepare)
-            opts="-p -c -v -h --prover --prover-url --core --core-url --verbose --chain --ignore-prerequisites --help"
+            opts="-p -c -v -h --prover --prover-url --core --core-url --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -3215,7 +3114,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__database__reset)
-            opts="-p -c -v -h --prover --prover-url --core --core-url --verbose --chain --ignore-prerequisites --help"
+            opts="-p -c -v -h --prover --prover-url --core --core-url --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -3257,7 +3156,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__database__setup)
-            opts="-p -c -v -h --prover --prover-url --core --core-url --verbose --chain --ignore-prerequisites --help"
+            opts="-p -c -v -h --prover --prover-url --core --core-url --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -3299,7 +3198,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__fmt)
-            opts="-c -v -h --check --verbose --chain --ignore-prerequisites --help rustfmt contract prettier help"
+            opts="-c -v -h --check --verbose --chain --ignore-prerequisites --print-panics --help rustfmt contract prettier help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -3317,7 +3216,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__fmt__contract)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -3405,7 +3304,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__fmt__prettier)
-            opts="-t -v -h --targets --verbose --chain --ignore-prerequisites --help"
+            opts="-t -v -h --targets --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -3431,7 +3330,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__fmt__rustfmt)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -3449,7 +3348,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__generate__genesis)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4069,7 +3968,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__lint)
-            opts="-c -t -v -h --check --targets --verbose --chain --ignore-prerequisites --help"
+            opts="-c -t -v -h --check --targets --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4095,7 +3994,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__prover)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help info insert-batch insert-version help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help info insert-batch insert-version help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4183,7 +4082,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__prover__info)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4201,7 +4100,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__prover__insert__batch)
-            opts="-v -h --number --default --version --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --number --default --version --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4227,7 +4126,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__prover__insert__version)
-            opts="-v -h --default --version --snark-wrapper --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --default --version --snark-wrapper --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4253,7 +4152,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__send__transactions)
-            opts="-v -h --file --private-key --l1-rpc-url --confirmations --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --file --private-key --l1-rpc-url --confirmations --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4287,7 +4186,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__snapshot)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help create help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help create help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4305,7 +4204,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__snapshot__create)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4365,7 +4264,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__status)
-            opts="-u -v -h --url --verbose --chain --ignore-prerequisites --help ports help"
+            opts="-u -v -h --url --verbose --chain --ignore-prerequisites --print-panics --help ports help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4433,7 +4332,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__status__ports)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4451,7 +4350,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__test)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help integration fees revert recovery upgrade build rust l1-contracts prover wallet loadtest help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help integration fees revert recovery upgrade build rust l1-contracts prover wallet loadtest help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4469,7 +4368,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__test__build)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4487,7 +4386,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__test__fees)
-            opts="-n -v -h --no-deps --no-kill --verbose --chain --ignore-prerequisites --help"
+            opts="-n -v -h --no-deps --no-kill --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4687,7 +4586,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__test__integration)
-            opts="-e -n -t -v -h --external-node --no-deps --test-pattern --verbose --chain --ignore-prerequisites --help"
+            opts="-e -n -t -v -h --external-node --no-deps --test-pattern --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4713,7 +4612,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__test__l1__contracts)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4731,7 +4630,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__test__loadtest)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4749,7 +4648,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__test__prover)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4767,7 +4666,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__test__recovery)
-            opts="-s -n -v -h --snapshot --no-deps --no-kill --verbose --chain --ignore-prerequisites --help"
+            opts="-s -n -v -h --snapshot --no-deps --no-kill --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4785,7 +4684,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__test__revert)
-            opts="-e -n -v -h --enable-consensus --external-node --no-deps --no-kill --verbose --chain --ignore-prerequisites --help"
+            opts="-e -n -v -h --enable-consensus --external-node --no-deps --no-kill --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4803,7 +4702,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__test__rust)
-            opts="-v -h --options --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --options --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4825,7 +4724,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__test__upgrade)
-            opts="-n -v -h --no-deps --verbose --chain --ignore-prerequisites --help"
+            opts="-n -v -h --no-deps --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4843,7 +4742,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__test__wallet)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4861,7 +4760,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__ecosystem)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help create build-transactions init change-default-chain setup-observability help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help create build-transactions init register-chain change-default-chain setup-observability help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4879,7 +4778,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__ecosystem__build__transactions)
-            opts="-o -a -v -h --sender --l1-rpc-url --out --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --help"
+            opts="-o -a -v -h --sender --l1-rpc-url --out --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4937,7 +4836,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__ecosystem__change__default__chain)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help [NAME]"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help [NAME]"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4955,7 +4854,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__ecosystem__create)
-            opts="-v -h --ecosystem-name --l1-network --link-to-code --chain-name --chain-id --prover-mode --wallet-creation --wallet-path --l1-batch-commit-data-generator-mode --base-token-address --base-token-price-nominator --base-token-price-denominator --set-as-default --legacy-bridge --evm-emulator --start-containers --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --ecosystem-name --l1-network --link-to-code --chain-name --chain-id --prover-mode --wallet-creation --wallet-path --l1-batch-commit-data-generator-mode --base-token-address --base-token-price-nominator --base-token-price-denominator --set-as-default --legacy-bridge --evm-emulator --start-containers --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5047,7 +4946,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__ecosystem__help)
-            opts="create build-transactions init change-default-chain setup-observability help"
+            opts="create build-transactions init register-chain change-default-chain setup-observability help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5130,6 +5029,20 @@ _zkstack() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        zkstack__ecosystem__help__register__chain)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         zkstack__ecosystem__help__setup__observability)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
@@ -5145,7 +5058,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__ecosystem__init)
-            opts="-a -d -o -v -h --deploy-erc20 --deploy-ecosystem --ecosystem-contracts-path --l1-rpc-url --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --deploy-paymaster --server-db-url --server-db-name --dont-drop --ecosystem-only --dev --observability --no-port-reallocation --verbose --chain --ignore-prerequisites --help"
+            opts="-a -d -o -v -h --deploy-erc20 --deploy-ecosystem --ecosystem-contracts-path --l1-rpc-url --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --deploy-paymaster --server-db-url --server-db-name --dont-drop --ecosystem-only --dev --observability --no-port-reallocation --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5222,8 +5135,78 @@ _zkstack() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        zkstack__ecosystem__register__chain)
+            opts="-a -o -v -h --l1-rpc-url --chain-id --proposal-author --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --no-broadcast --out --dev --verbose --chain --ignore-prerequisites --print-panics --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --l1-rpc-url)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --chain-id)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --proposal-author)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --verify)
+                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
+                    return 0
+                    ;;
+                --verifier)
+                    COMPREPLY=($(compgen -W "etherscan sourcify blockscout oklink" -- "${cur}"))
+                    return 0
+                    ;;
+                --verifier-url)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --verifier-api-key)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --additional-args)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -a)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --no-broadcast)
+                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
+                    return 0
+                    ;;
+                --out)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --dev)
+                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
+                    return 0
+                    ;;
+                --chain)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         zkstack__ecosystem__setup__observability)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5241,7 +5224,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__explorer)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help init run-backend run help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help init run-backend run help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5329,7 +5312,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__explorer__init)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5347,7 +5330,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__explorer__run)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5365,7 +5348,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__explorer__run__backend)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5383,7 +5366,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__external__node)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help configs init build run wait help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help configs init build run wait help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5401,7 +5384,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__external__node__build)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5419,7 +5402,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__external__node__configs)
-            opts="-u -v -h --db-url --db-name --l1-rpc-url --use-default --verbose --chain --ignore-prerequisites --help"
+            opts="-u -v -h --db-url --db-name --l1-rpc-url --use-default --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5547,7 +5530,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__external__node__init)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5565,7 +5548,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__external__node__run)
-            opts="-a -v -h --reinit --components --enable-consensus --additional-args --verbose --chain --ignore-prerequisites --help"
+            opts="-a -v -h --reinit --components --enable-consensus --additional-args --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5599,7 +5582,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__external__node__wait)
-            opts="-t -v -h --timeout --poll-interval --verbose --chain --ignore-prerequisites --help"
+            opts="-t -v -h --timeout --poll-interval --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5657,7 +5640,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__chain)
-            opts="create build-transactions init genesis register-chain deploy-l2-contracts accept-chain-ownership initialize-bridges deploy-consensus-registry deploy-multicall3 deploy-timestamp-asserter deploy-upgrader deploy-paymaster update-token-multiplier-setter propose-chain"
+            opts="create init genesis deploy-l2-contracts accept-chain-ownership initialize-bridges deploy-consensus-registry deploy-multicall3 deploy-timestamp-asserter deploy-upgrader deploy-paymaster update-token-multiplier-setter propose-chain"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5671,20 +5654,6 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__chain__accept__chain__ownership)
-            opts=""
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        zkstack__help__chain__build__transactions)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -5881,20 +5850,6 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__chain__propose__chain)
-            opts=""
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        zkstack__help__chain__register__chain)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -6651,7 +6606,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__ecosystem)
-            opts="create build-transactions init change-default-chain setup-observability"
+            opts="create build-transactions init register-chain change-default-chain setup-observability"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -6707,6 +6662,20 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__ecosystem__init)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__help__ecosystem__register__chain)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -7071,7 +7040,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__markdown)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7089,7 +7058,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__portal)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7107,7 +7076,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__prover)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help init setup-keys run init-bellman-cuda compressor-keys help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help init setup-keys run init-bellman-cuda compressor-keys help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7125,7 +7094,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__prover__compressor__keys)
-            opts="-v -h --path --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --path --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7245,7 +7214,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__prover__init)
-            opts="-u -d -v -h --dev --proof-store-dir --bucket-base-url --credentials-file --bucket-name --location --project-id --shall-save-to-public-bucket --public-store-dir --public-bucket-base-url --public-credentials-file --public-bucket-name --public-location --public-project-id --clone --bellman-cuda-dir --bellman-cuda --setup-compressor-key --path --region --mode --setup-keys --setup-database --prover-db-url --prover-db-name --use-default --dont-drop --cloud-type --verbose --chain --ignore-prerequisites --help"
+            opts="-u -d -v -h --dev --proof-store-dir --bucket-base-url --credentials-file --bucket-name --location --project-id --shall-save-to-public-bucket --public-store-dir --public-bucket-base-url --public-credentials-file --public-bucket-name --public-location --public-project-id --clone --bellman-cuda-dir --bellman-cuda --setup-compressor-key --path --region --mode --setup-keys --setup-database --prover-db-url --prover-db-name --use-default --dont-drop --cloud-type --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7375,7 +7344,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__prover__init__bellman__cuda)
-            opts="-v -h --clone --bellman-cuda-dir --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --clone --bellman-cuda-dir --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7397,7 +7366,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__prover__run)
-            opts="-l -h -m -v -h --component --round --threads --max-allocation --light-wvg-count --heavy-wvg-count --max-allocation --docker --tag --verbose --chain --ignore-prerequisites --help"
+            opts="-l -h -m -v -h --component --round --threads --max-allocation --light-wvg-count --heavy-wvg-count --max-allocation --docker --tag --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7463,7 +7432,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__prover__setup__keys)
-            opts="-v -h --region --mode --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --region --mode --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7489,7 +7458,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__server)
-            opts="-a -v -h --components --genesis --additional-args --uring --verbose --chain --ignore-prerequisites --help build run wait help"
+            opts="-a -v -h --components --genesis --additional-args --uring --verbose --chain --ignore-prerequisites --print-panics --help build run wait help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7519,7 +7488,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__server__build)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7607,7 +7576,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__server__run)
-            opts="-a -v -h --components --genesis --additional-args --uring --verbose --chain --ignore-prerequisites --help"
+            opts="-a -v -h --components --genesis --additional-args --uring --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7637,7 +7606,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__server__wait)
-            opts="-t -v -h --timeout --poll-interval --verbose --chain --ignore-prerequisites --help"
+            opts="-t -v -h --timeout --poll-interval --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7667,7 +7636,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__update)
-            opts="-c -v -h --only-config --verbose --chain --ignore-prerequisites --help"
+            opts="-c -v -h --only-config --verbose --chain --ignore-prerequisites --print-panics --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0

@@ -19,6 +19,7 @@ _zkstack() {
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 '-V[Print version]' \
@@ -41,6 +42,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -51,6 +53,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__ecosystem_commands" \
@@ -88,6 +91,7 @@ in-file\:"Specify file with wallets"))' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -109,6 +113,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -140,6 +145,32 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(register-chain)
+_arguments "${_arguments_options[@]}" : \
+'--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
+'--chain-id=[]:CHAIN_ID:_default' \
+'--proposal-author=[]:PROPOSAL_AUTHOR:_default' \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--no-broadcast=[]' \
+'-o+[]:OUT:_files' \
+'--out=[]:OUT:_files' \
+'--dev=[]' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -150,6 +181,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 '::name:_default' \
@@ -161,6 +193,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -186,6 +219,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (init)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(register-chain)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -215,6 +252,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__chain_commands" \
@@ -248,26 +286,7 @@ in-file\:"Specify file with wallets"))' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'-h[Print help (see more with '\''--help'\'')]' \
-'--help[Print help (see more with '\''--help'\'')]' \
-&& ret=0
-;;
-(build-transactions)
-_arguments "${_arguments_options[@]}" : \
-'-o+[Output directory for the generated files]:OUT:_files' \
-'--out=[Output directory for the generated files]:OUT:_files' \
-'--verify=[Verify deployed contracts]' \
-'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
-'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
-'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
-'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
-'--chain=[Chain to use]:CHAIN:_default' \
-'--resume[]' \
-'-v[Verbose mode]' \
-'--verbose[Verbose mode]' \
-'--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -293,6 +312,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ":: :_zkstack__chain__init_commands" \
@@ -319,6 +339,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -363,6 +384,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__chain__genesis_commands" \
@@ -387,6 +409,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -397,6 +420,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -433,23 +457,6 @@ esac
     ;;
 esac
 ;;
-(register-chain)
-_arguments "${_arguments_options[@]}" : \
-'--verify=[Verify deployed contracts]' \
-'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
-'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
-'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
-'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'--chain=[Chain to use]:CHAIN:_default' \
-'--resume[]' \
-'-v[Verbose mode]' \
-'--verbose[Verbose mode]' \
-'--ignore-prerequisites[Ignores prerequisites checks]' \
-'-h[Print help (see more with '\''--help'\'')]' \
-'--help[Print help (see more with '\''--help'\'')]' \
-&& ret=0
-;;
 (deploy-l2-contracts)
 _arguments "${_arguments_options[@]}" : \
 '--verify=[Verify deployed contracts]' \
@@ -463,6 +470,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -480,6 +488,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -497,6 +506,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -514,6 +524,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -531,6 +542,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -548,6 +560,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -565,6 +578,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -582,6 +596,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -599,6 +614,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -607,13 +623,24 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
 '--chain-registrar=[]:CHAIN_REGISTRAR:_default' \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--private-key=[]:PRIVATE_KEY:_default' \
+'--sender=[]:SENDER:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'--broadcast[]' \
 '--dev[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'-h[Print help]' \
-'--help[Print help]' \
+'--print-panics[print panics]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
 ;;
 (help)
@@ -629,10 +656,6 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:zkstack-chain-help-command-$line[1]:"
         case $line[1] in
             (create)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(build-transactions)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -679,10 +702,6 @@ _arguments "${_arguments_options[@]}" : \
         esac
     ;;
 esac
-;;
-(register-chain)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
 ;;
 (deploy-l2-contracts)
 _arguments "${_arguments_options[@]}" : \
@@ -742,6 +761,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__dev_commands" \
@@ -760,6 +780,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__dev__database_commands" \
@@ -784,6 +805,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -800,6 +822,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -816,6 +839,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -828,6 +852,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -844,6 +869,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -860,6 +886,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -876,6 +903,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -938,6 +966,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__dev__test_commands" \
@@ -962,6 +991,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -975,6 +1005,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -991,6 +1022,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1006,6 +1038,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1018,6 +1051,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1028,6 +1062,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1039,6 +1074,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1049,6 +1085,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1059,6 +1096,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1069,6 +1107,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1079,6 +1118,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1157,6 +1197,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__dev__clean_commands" \
@@ -1175,6 +1216,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1185,6 +1227,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1195,6 +1238,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1241,6 +1285,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__dev__snapshot_commands" \
@@ -1259,6 +1304,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1301,6 +1347,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1313,6 +1360,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__dev__fmt_commands" \
@@ -1331,6 +1379,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1341,6 +1390,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1353,6 +1403,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1399,6 +1450,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__dev__prover_commands" \
@@ -1417,6 +1469,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1430,6 +1483,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1443,6 +1497,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1492,6 +1547,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1504,6 +1560,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1518,6 +1575,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1530,6 +1588,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__dev__status_commands" \
@@ -1548,6 +1607,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1586,6 +1646,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1868,6 +1929,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__prover_commands" \
@@ -1916,6 +1978,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1928,6 +1991,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1950,6 +2014,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1962,6 +2027,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1973,6 +2039,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2032,6 +2099,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__server_commands" \
@@ -2050,6 +2118,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2065,6 +2134,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2078,6 +2148,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2124,6 +2195,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__external-node_commands" \
@@ -2147,6 +2219,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2157,6 +2230,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2167,6 +2241,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2182,6 +2257,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2195,6 +2271,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2251,6 +2328,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2261,6 +2339,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__contract-verifier_commands" \
@@ -2279,6 +2358,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2289,6 +2369,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2302,6 +2383,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2318,6 +2400,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2368,6 +2451,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2378,6 +2462,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__explorer_commands" \
@@ -2396,6 +2481,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2406,6 +2492,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2416,6 +2503,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2462,6 +2550,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__consensus_commands" \
@@ -2482,6 +2571,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2492,6 +2582,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2505,6 +2596,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2553,6 +2645,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2563,6 +2656,7 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
+'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2607,6 +2701,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(register-chain)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (change-default-chain)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -2632,10 +2730,6 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:zkstack-help-chain-command-$line[1]:"
         case $line[1] in
             (create)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(build-transactions)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2682,10 +2776,6 @@ _arguments "${_arguments_options[@]}" : \
         esac
     ;;
 esac
-;;
-(register-chain)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
 ;;
 (deploy-l2-contracts)
 _arguments "${_arguments_options[@]}" : \
@@ -3242,10 +3332,8 @@ _zkstack__autocomplete_commands() {
 _zkstack__chain_commands() {
     local commands; commands=(
 'create:Create a new chain, setting the necessary configurations for later initialization' \
-'build-transactions:Create unsigned transactions for chain deployment' \
 'init:Initialize chain, deploying necessary contracts and performing on-chain operations' \
 'genesis:Run server genesis' \
-'register-chain:Register a new chain on L1 (executed by L1 governor). This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts, registers chain with BridgeHub and sets pending admin for DiamondProxy. Note\: After completion, L2 governor can accept ownership by running \`accept-chain-ownership\`' \
 'deploy-l2-contracts:Deploy all L2 contracts (executed by L1 governor)' \
 'accept-chain-ownership:Accept ownership of L2 chain (executed by L2 governor). This command should be run after \`register-chain\` to accept ownership of newly created DiamondProxy contract' \
 'initialize-bridges:Initialize bridges on L2' \
@@ -3255,7 +3343,7 @@ _zkstack__chain_commands() {
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
-'propose-chain:' \
+'propose-chain:ForgeScriptArgs is a set of arguments that can be passed to the forge script command' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack chain commands' commands "$@"
@@ -3264,11 +3352,6 @@ _zkstack__chain_commands() {
 _zkstack__chain__accept-chain-ownership_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain accept-chain-ownership commands' commands "$@"
-}
-(( $+functions[_zkstack__chain__build-transactions_commands] )) ||
-_zkstack__chain__build-transactions_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack chain build-transactions commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__create_commands] )) ||
 _zkstack__chain__create_commands() {
@@ -3352,10 +3435,8 @@ _zkstack__chain__genesis__server_commands() {
 _zkstack__chain__help_commands() {
     local commands; commands=(
 'create:Create a new chain, setting the necessary configurations for later initialization' \
-'build-transactions:Create unsigned transactions for chain deployment' \
 'init:Initialize chain, deploying necessary contracts and performing on-chain operations' \
 'genesis:Run server genesis' \
-'register-chain:Register a new chain on L1 (executed by L1 governor). This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts, registers chain with BridgeHub and sets pending admin for DiamondProxy. Note\: After completion, L2 governor can accept ownership by running \`accept-chain-ownership\`' \
 'deploy-l2-contracts:Deploy all L2 contracts (executed by L1 governor)' \
 'accept-chain-ownership:Accept ownership of L2 chain (executed by L2 governor). This command should be run after \`register-chain\` to accept ownership of newly created DiamondProxy contract' \
 'initialize-bridges:Initialize bridges on L2' \
@@ -3365,7 +3446,7 @@ _zkstack__chain__help_commands() {
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
-'propose-chain:' \
+'propose-chain:ForgeScriptArgs is a set of arguments that can be passed to the forge script command' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack chain help commands' commands "$@"
@@ -3374,11 +3455,6 @@ _zkstack__chain__help_commands() {
 _zkstack__chain__help__accept-chain-ownership_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help accept-chain-ownership commands' commands "$@"
-}
-(( $+functions[_zkstack__chain__help__build-transactions_commands] )) ||
-_zkstack__chain__help__build-transactions_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack chain help build-transactions commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__help__create_commands] )) ||
 _zkstack__chain__help__create_commands() {
@@ -3460,11 +3536,6 @@ _zkstack__chain__help__propose-chain_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help propose-chain commands' commands "$@"
 }
-(( $+functions[_zkstack__chain__help__register-chain_commands] )) ||
-_zkstack__chain__help__register-chain_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack chain help register-chain commands' commands "$@"
-}
 (( $+functions[_zkstack__chain__help__update-token-multiplier-setter_commands] )) ||
 _zkstack__chain__help__update-token-multiplier-setter_commands() {
     local commands; commands=()
@@ -3510,11 +3581,6 @@ _zkstack__chain__initialize-bridges_commands() {
 _zkstack__chain__propose-chain_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain propose-chain commands' commands "$@"
-}
-(( $+functions[_zkstack__chain__register-chain_commands] )) ||
-_zkstack__chain__register-chain_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack chain register-chain commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__update-token-multiplier-setter_commands] )) ||
 _zkstack__chain__update-token-multiplier-setter_commands() {
@@ -4444,6 +4510,7 @@ _zkstack__ecosystem_commands() {
 'create:Create a new ecosystem and chain, setting necessary configurations for later initialization' \
 'build-transactions:Create transactions to build ecosystem contracts' \
 'init:Initialize ecosystem and chain, deploying necessary contracts and performing on-chain operations' \
+'register-chain:Register a new chain on L1 (executed by L1 governor). This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts, registers chain with BridgeHub and sets pending admin for DiamondProxy. Note\: After completion, L2 governor can accept ownership by running \`accept-chain-ownership\`' \
 'change-default-chain:Change the default chain' \
 'setup-observability:Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo' \
 'help:Print this message or the help of the given subcommand(s)' \
@@ -4471,6 +4538,7 @@ _zkstack__ecosystem__help_commands() {
 'create:Create a new ecosystem and chain, setting necessary configurations for later initialization' \
 'build-transactions:Create transactions to build ecosystem contracts' \
 'init:Initialize ecosystem and chain, deploying necessary contracts and performing on-chain operations' \
+'register-chain:Register a new chain on L1 (executed by L1 governor). This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts, registers chain with BridgeHub and sets pending admin for DiamondProxy. Note\: After completion, L2 governor can accept ownership by running \`accept-chain-ownership\`' \
 'change-default-chain:Change the default chain' \
 'setup-observability:Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo' \
 'help:Print this message or the help of the given subcommand(s)' \
@@ -4502,6 +4570,11 @@ _zkstack__ecosystem__help__init_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack ecosystem help init commands' commands "$@"
 }
+(( $+functions[_zkstack__ecosystem__help__register-chain_commands] )) ||
+_zkstack__ecosystem__help__register-chain_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack ecosystem help register-chain commands' commands "$@"
+}
 (( $+functions[_zkstack__ecosystem__help__setup-observability_commands] )) ||
 _zkstack__ecosystem__help__setup-observability_commands() {
     local commands; commands=()
@@ -4511,6 +4584,11 @@ _zkstack__ecosystem__help__setup-observability_commands() {
 _zkstack__ecosystem__init_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack ecosystem init commands' commands "$@"
+}
+(( $+functions[_zkstack__ecosystem__register-chain_commands] )) ||
+_zkstack__ecosystem__register-chain_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack ecosystem register-chain commands' commands "$@"
 }
 (( $+functions[_zkstack__ecosystem__setup-observability_commands] )) ||
 _zkstack__ecosystem__setup-observability_commands() {
@@ -4681,10 +4759,8 @@ _zkstack__help__autocomplete_commands() {
 _zkstack__help__chain_commands() {
     local commands; commands=(
 'create:Create a new chain, setting the necessary configurations for later initialization' \
-'build-transactions:Create unsigned transactions for chain deployment' \
 'init:Initialize chain, deploying necessary contracts and performing on-chain operations' \
 'genesis:Run server genesis' \
-'register-chain:Register a new chain on L1 (executed by L1 governor). This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts, registers chain with BridgeHub and sets pending admin for DiamondProxy. Note\: After completion, L2 governor can accept ownership by running \`accept-chain-ownership\`' \
 'deploy-l2-contracts:Deploy all L2 contracts (executed by L1 governor)' \
 'accept-chain-ownership:Accept ownership of L2 chain (executed by L2 governor). This command should be run after \`register-chain\` to accept ownership of newly created DiamondProxy contract' \
 'initialize-bridges:Initialize bridges on L2' \
@@ -4694,7 +4770,7 @@ _zkstack__help__chain_commands() {
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
-'propose-chain:' \
+'propose-chain:ForgeScriptArgs is a set of arguments that can be passed to the forge script command' \
     )
     _describe -t commands 'zkstack help chain commands' commands "$@"
 }
@@ -4702,11 +4778,6 @@ _zkstack__help__chain_commands() {
 _zkstack__help__chain__accept-chain-ownership_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain accept-chain-ownership commands' commands "$@"
-}
-(( $+functions[_zkstack__help__chain__build-transactions_commands] )) ||
-_zkstack__help__chain__build-transactions_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack help chain build-transactions commands' commands "$@"
 }
 (( $+functions[_zkstack__help__chain__create_commands] )) ||
 _zkstack__help__chain__create_commands() {
@@ -4782,11 +4853,6 @@ _zkstack__help__chain__initialize-bridges_commands() {
 _zkstack__help__chain__propose-chain_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain propose-chain commands' commands "$@"
-}
-(( $+functions[_zkstack__help__chain__register-chain_commands] )) ||
-_zkstack__help__chain__register-chain_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack help chain register-chain commands' commands "$@"
 }
 (( $+functions[_zkstack__help__chain__update-token-multiplier-setter_commands] )) ||
 _zkstack__help__chain__update-token-multiplier-setter_commands() {
@@ -5117,6 +5183,7 @@ _zkstack__help__ecosystem_commands() {
 'create:Create a new ecosystem and chain, setting necessary configurations for later initialization' \
 'build-transactions:Create transactions to build ecosystem contracts' \
 'init:Initialize ecosystem and chain, deploying necessary contracts and performing on-chain operations' \
+'register-chain:Register a new chain on L1 (executed by L1 governor). This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts, registers chain with BridgeHub and sets pending admin for DiamondProxy. Note\: After completion, L2 governor can accept ownership by running \`accept-chain-ownership\`' \
 'change-default-chain:Change the default chain' \
 'setup-observability:Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo' \
     )
@@ -5141,6 +5208,11 @@ _zkstack__help__ecosystem__create_commands() {
 _zkstack__help__ecosystem__init_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help ecosystem init commands' commands "$@"
+}
+(( $+functions[_zkstack__help__ecosystem__register-chain_commands] )) ||
+_zkstack__help__ecosystem__register-chain_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help ecosystem register-chain commands' commands "$@"
 }
 (( $+functions[_zkstack__help__ecosystem__setup-observability_commands] )) ||
 _zkstack__help__ecosystem__setup-observability_commands() {
