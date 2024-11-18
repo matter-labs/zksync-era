@@ -205,6 +205,16 @@ jobs:
       - name: Start services
         run: |
           ci_localnet_up
+      
+      - name: Reinstall foundry
+        run: |
+          ci_run mkdir ./foundry-zksync
+          ci_run curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/nightly-953a1800eaa2cffe5cb272f96ff641cc7a3c1ba1/foundry_nightly_linux_amd64.tar.gz
+          ci_run tar zxf foundry_nightly_linux_amd64.tar.gz -C ./foundry-zksync
+          ci_run chmod +x ./foundry-zksync/forge ./foundry-zksync/cast
+          ci_run mv ./foundry-zksync/forge /usr/local/cargo/bin/forge
+          ci_run mv ./foundry-zksync/cast /usr/local/cargo/bin/cast
+
 
       - name: Install zkstack
         run: |
@@ -490,10 +500,12 @@ jobs:
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites --external-node" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
-#      - name: Fee projection tests
-#        run: |
-#          ci_run killall -INT zksync_server || true
-#          ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}
+      - name: Fee projection tests
+        run: |
+          ci_run killall -INT zksync_server || true
+          ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+          ci_run sleep 5
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}
 #
 #      - name: Run revert tests
 #        run: |

@@ -154,8 +154,8 @@ decentralized, more deterministic rules will be established for this price.
 
 The L1 gas price is fetched by querying L1 every 20 seconds. This is managed by the [`GasAdjuster`][gas_adjuster], which
 calculates the median price from recent blocks and enables more precise price control via the config (for example,
-adjusting the price with `internal_l1_pricing_multiplier` or setting a specific value using
-`internal_enforced_l1_gas_price`).
+adjusting the price with `internal_sl_pricing_multiplier` or setting a specific value using
+`internal_enforced_sl_gas_price`).
 
 ### Overhead gas
 
