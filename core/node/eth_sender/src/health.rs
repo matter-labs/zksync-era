@@ -50,7 +50,7 @@ impl EthTxDetails {
             tx_type: tx.tx_type,
             created_at_timestamp: tx.created_at_timestamp,
             predicted_gas_cost: tx.predicted_gas_cost,
-            status: status,
+            status,
         }
     }
 }

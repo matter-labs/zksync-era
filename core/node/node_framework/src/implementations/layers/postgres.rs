@@ -22,7 +22,7 @@ use crate::{
 const TASK_EXECUTION_INTERVAL: Duration = Duration::from_secs(60);
 
 /// Wiring layer for the Postgres metrics exporter and healthcheck.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct PostgresLayer;
 
 #[derive(Debug, FromContext)]

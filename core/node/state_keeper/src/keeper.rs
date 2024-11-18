@@ -7,7 +7,7 @@ use std::{
 use anyhow::Context as _;
 use tokio::sync::watch;
 use tracing::{info_span, Instrument};
-use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
+use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},

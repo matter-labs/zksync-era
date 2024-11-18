@@ -139,7 +139,7 @@ impl MainNodeBuilder {
     }
 
     fn add_postgres_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(PostgresLayer::default());
+        self.node.add_layer(PostgresLayer);
         Ok(self)
     }
 
