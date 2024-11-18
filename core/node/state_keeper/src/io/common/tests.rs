@@ -9,7 +9,7 @@ use futures::FutureExt;
 use zksync_config::GenesisConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core};
-use zksync_multivm::interface::TransactionExecutionMetrics;
+use zksync_multivm::interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch, create_l2_block, create_l2_transaction, execute_l2_transaction,
@@ -355,7 +355,11 @@ async fn store_pending_l2_blocks(
         let tx = create_l2_transaction(10, 100);
         storage
             .transactions_dal()
-            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         let mut new_l2_block = create_l2_block(l2_block_number);

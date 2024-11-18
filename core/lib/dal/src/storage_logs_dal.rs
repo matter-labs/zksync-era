@@ -225,60 +225,13 @@ impl StorageLogsDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn is_contract_deployed_at_address(&mut self, address: Address) -> bool {
-        let hashed_key = get_code_key(&address).hashed_key();
-        let row = sqlx::query!(
-            r#"
-            SELECT
-                COUNT(*) AS "count!"
-            FROM
-                (
-                    SELECT
-                        *
-                    FROM
-                        storage_logs
-                    WHERE
-                        hashed_key = $1
-                        AND miniblock_number <= COALESCE(
-                            (
-                                SELECT
-                                    MAX(number)
-                                FROM
-                                    miniblocks
-                            ),
-                            (
-                                SELECT
-                                    miniblock_number
-                                FROM
-                                    snapshot_recovery
-                            )
-                        )
-                    ORDER BY
-                        miniblock_number DESC,
-                        operation_number DESC
-                    LIMIT
-                        1
-                ) sl
-            WHERE
-                sl.value != $2
-            "#,
-            hashed_key.as_bytes(),
-            FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
-        )
-        .fetch_one(self.storage.conn())
-        .await
-        .unwrap();
-
-        row.count > 0
-    }
-
     /// Returns addresses and the corresponding deployment L2 block numbers among the specified contract
     /// `addresses`. `at_l2_block` allows filtering deployment by L2 blocks.
     pub async fn filter_deployed_contracts(
         &mut self,
         addresses: impl Iterator<Item = Address>,
         at_l2_block: Option<L2BlockNumber>,
-    ) -> DalResult<HashMap<Address, L2BlockNumber>> {
+    ) -> DalResult<HashMap<Address, (L2BlockNumber, H256)>> {
         let (bytecode_hashed_keys, address_by_hashed_key): (Vec<_>, HashMap<_, _>) = addresses
             .map(|address| {
                 let hashed_key = get_code_key(&address).hashed_key().0;
@@ -330,12 +283,13 @@ impl StorageLogsDal<'_, '_> {
         .await?;
 
         let deployment_data = rows.into_iter().filter_map(|row| {
-            if row.value == FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes() {
+            let bytecode_hash = H256::from_slice(&row.value);
+            if bytecode_hash == FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH {
                 return None;
             }
             let l2_block_number = L2BlockNumber(row.miniblock_number as u32);
             let address = address_by_hashed_key[row.hashed_key.as_slice()];
-            Some((address, l2_block_number))
+            Some((address, (l2_block_number, bytecode_hash)))
         });
         Ok(deployment_data.collect())
     }
@@ -727,7 +681,7 @@ impl StorageLogsDal<'_, '_> {
                         FROM
                             storage_logs
                         WHERE
-                            storage_logs.miniblock_number = $1
+                            storage_logs.miniblock_number <= $1
                             AND storage_logs.hashed_key >= u.start_key
                             AND storage_logs.hashed_key <= u.end_key
                         ORDER BY
@@ -784,7 +738,7 @@ impl StorageLogsDal<'_, '_> {
                 storage_logs
             INNER JOIN initial_writes ON storage_logs.hashed_key = initial_writes.hashed_key
             WHERE
-                storage_logs.miniblock_number = $1
+                storage_logs.miniblock_number <= $1
                 AND storage_logs.hashed_key >= $2::bytea
                 AND storage_logs.hashed_key <= $3::bytea
             ORDER BY
@@ -1168,8 +1122,9 @@ mod tests {
     async fn filtering_deployed_contracts() {
         let contract_address = Address::repeat_byte(1);
         let other_contract_address = Address::repeat_byte(23);
+        let bytecode_hash = H256::repeat_byte(0xff);
         let successful_deployment =
-            StorageLog::new_write_log(get_code_key(&contract_address), H256::repeat_byte(0xff));
+            StorageLog::new_write_log(get_code_key(&contract_address), bytecode_hash);
         let failed_deployment = StorageLog::new_write_log(
             get_code_key(&contract_address),
             FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH,
@@ -1233,7 +1188,7 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 deployed_map,
-                HashMap::from([(contract_address, L2BlockNumber(2))])
+                HashMap::from([(contract_address, (L2BlockNumber(2), bytecode_hash))])
             );
         }
 
@@ -1268,7 +1223,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             deployed_map,
-            HashMap::from([(contract_address, L2BlockNumber(2))])
+            HashMap::from([(contract_address, (L2BlockNumber(2), bytecode_hash))])
         );
 
         for new_l2_block in [None, Some(L2BlockNumber(3))] {
@@ -1283,8 +1238,8 @@ mod tests {
             assert_eq!(
                 deployed_map,
                 HashMap::from([
-                    (contract_address, L2BlockNumber(2)),
-                    (other_contract_address, L2BlockNumber(3)),
+                    (contract_address, (L2BlockNumber(2), bytecode_hash)),
+                    (other_contract_address, (L2BlockNumber(3), bytecode_hash)),
                 ])
             );
         }

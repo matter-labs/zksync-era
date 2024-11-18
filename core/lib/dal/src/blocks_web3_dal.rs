@@ -11,12 +11,11 @@ use zksync_types::{
     web3::{BlockHeader, Bytes},
     Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H160, H256, U256, U64,
 };
-use zksync_utils::bigdecimal_to_u256;
 use zksync_vm_interface::Call;
 
 use crate::{
     models::{
-        parse_protocol_version,
+        bigdecimal_to_u256, parse_protocol_version,
         storage_block::{
             ResolvedL1BatchForL2Block, StorageBlockDetails, StorageL1BatchDetails,
             LEGACY_BLOCK_GAS_LIMIT,
@@ -803,7 +802,7 @@ mod tests {
         block::{L2BlockHasher, L2BlockHeader},
         Address, L2BlockNumber, ProtocolVersion, ProtocolVersionId,
     };
-    use zksync_vm_interface::TransactionExecutionMetrics;
+    use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
 
     use super::*;
     use crate::{
@@ -1090,7 +1089,11 @@ mod tests {
         let mut tx_results = vec![];
         for (i, tx) in transactions.into_iter().enumerate() {
             conn.transactions_dal()
-                .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+                .insert_transaction_l2(
+                    &tx,
+                    TransactionExecutionMetrics::default(),
+                    ValidationTraces::default(),
+                )
                 .await
                 .unwrap();
             let mut tx_result = mock_execution_result(tx);

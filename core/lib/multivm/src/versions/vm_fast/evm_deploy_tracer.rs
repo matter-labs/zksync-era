@@ -3,10 +3,9 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use zksync_system_constants::{CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS};
-use zksync_types::U256;
-use zksync_utils::{bytecode::hash_evm_bytecode, h256_to_u256};
+use zksync_types::{bytecode::BytecodeHash, U256};
 use zksync_vm2::interface::{
-    CallframeInterface, CallingMode, GlobalStateInterface, Opcode, OpcodeType, Tracer,
+    CallframeInterface, CallingMode, GlobalStateInterface, Opcode, OpcodeType, ShouldStop, Tracer,
 };
 
 use super::utils::read_fat_pointer;
@@ -16,8 +15,8 @@ use super::utils::read_fat_pointer;
 pub(super) struct DynamicBytecodes(Rc<RefCell<HashMap<U256, Vec<u8>>>>);
 
 impl DynamicBytecodes {
-    pub(super) fn take(&self, hash: U256) -> Option<Vec<u8>> {
-        self.0.borrow_mut().remove(&hash)
+    pub(super) fn map<R>(&self, hash: U256, f: impl FnOnce(&[u8]) -> R) -> Option<R> {
+        self.0.borrow().get(&hash).map(|code| f(code))
     }
 
     fn insert(&self, hash: U256, bytecode: Vec<u8>) {
@@ -66,7 +65,8 @@ impl EvmDeployTracer {
             Ok(decoded) => {
                 // `unwrap`s should be safe since the function signature is checked above.
                 let published_bytecode = decoded.into_iter().next().unwrap().into_bytes().unwrap();
-                let bytecode_hash = h256_to_u256(hash_evm_bytecode(&published_bytecode));
+                let bytecode_hash =
+                    BytecodeHash::for_evm_bytecode(&published_bytecode).value_u256();
                 self.bytecodes.insert(bytecode_hash, published_bytecode);
             }
             Err(err) => tracing::error!("Unable to decode `publishEVMBytecode` call: {err}"),
@@ -76,9 +76,13 @@ impl EvmDeployTracer {
 
 impl Tracer for EvmDeployTracer {
     #[inline(always)]
-    fn after_instruction<OP: OpcodeType, S: GlobalStateInterface>(&mut self, state: &mut S) {
+    fn after_instruction<OP: OpcodeType, S: GlobalStateInterface>(
+        &mut self,
+        state: &mut S,
+    ) -> ShouldStop {
         if matches!(OP::VALUE, Opcode::FarCall(CallingMode::Normal)) {
             self.handle_far_call(state);
         }
+        ShouldStop::Continue
     }
 }

@@ -15,7 +15,7 @@ ENV RUSTC_WRAPPER=${RUSTC_WRAPPER}
 
 WORKDIR /usr/src/zksync
 COPY . .
-RUN cargo build --release
+RUN cargo build --release --bin zksync_external_node --bin block_reverter
 
 FROM ghcr.io/matter-labs/zksync-runtime-base:latest
 

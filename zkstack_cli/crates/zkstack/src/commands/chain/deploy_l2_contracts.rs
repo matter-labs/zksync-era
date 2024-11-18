@@ -12,7 +12,7 @@ use config::{
             input::DeployL2ContractsInput,
             output::{
                 ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
-                Multicall3Output,
+                Multicall3Output, TimestampAsserterOutput,
             },
         },
         script_params::DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS,
@@ -36,6 +36,7 @@ pub enum Deploy2ContractsOption {
     InitiailizeBridges,
     ConsensusRegistry,
     Multicall3,
+    TimestampAsserter,
 }
 
 pub async fn run(
@@ -85,6 +86,16 @@ pub async fn run(
         }
         Deploy2ContractsOption::Multicall3 => {
             deploy_multicall3(
+                shell,
+                &chain_config,
+                &ecosystem_config,
+                &mut contracts,
+                args,
+            )
+            .await?;
+        }
+        Deploy2ContractsOption::TimestampAsserter => {
+            deploy_timestamp_asserter(
                 shell,
                 &chain_config,
                 &ecosystem_config,
@@ -213,6 +224,27 @@ pub async fn deploy_multicall3(
     .await
 }
 
+pub async fn deploy_timestamp_asserter(
+    shell: &Shell,
+    chain_config: &ChainConfig,
+    ecosystem_config: &EcosystemConfig,
+    contracts_config: &mut ContractsConfig,
+    forge_args: ForgeScriptArgs,
+) -> anyhow::Result<()> {
+    build_and_deploy(
+        shell,
+        chain_config,
+        ecosystem_config,
+        forge_args,
+        Some("runDeployTimestampAsserter"),
+        |shell, out| {
+            contracts_config
+                .set_timestamp_asserter_addr(&TimestampAsserterOutput::read(shell, out)?)
+        },
+    )
+    .await
+}
+
 pub async fn deploy_l2_contracts(
     shell: &Shell,
     chain_config: &ChainConfig,
@@ -236,6 +268,8 @@ pub async fn deploy_l2_contracts(
             contracts_config.set_default_l2_upgrade(&DefaultL2UpgradeOutput::read(shell, out)?)?;
             contracts_config.set_consensus_registry(&ConsensusRegistryOutput::read(shell, out)?)?;
             contracts_config.set_multicall3(&Multicall3Output::read(shell, out)?)?;
+            contracts_config
+                .set_timestamp_asserter_addr(&TimestampAsserterOutput::read(shell, out)?)?;
             Ok(())
         },
     )

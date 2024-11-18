@@ -7,12 +7,14 @@ use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_multivm::interface::VmExecutionResultAndLogs;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
+    address_to_h256,
     api::{
         state_override::StateOverride, BlockDetails, BridgeAddresses, GetLogsFilter,
         L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion, StorageProof, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
+    h256_to_u256,
     l1::L1Tx,
     l2::L2Tx,
     l2_to_l1_log::{l2_to_l1_logs_tree_size, L2ToL1Log},
@@ -23,7 +25,6 @@ use zksync_types::{
     AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction,
     L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
-use zksync_utils::{address_to_h256, h256_to_u256};
 use zksync_web3_decl::{
     error::Web3Error,
     types::{Address, Token, H256},
@@ -149,6 +150,10 @@ impl ZksNamespace {
 
     pub async fn get_bridge_contracts_impl(&self) -> BridgeAddresses {
         self.state.bridge_addresses_handle.read().await
+    }
+
+    pub fn get_timestamp_asserter_impl(&self) -> Option<Address> {
+        self.state.api_config.timestamp_asserter_address
     }
 
     pub fn l1_chain_id_impl(&self) -> U64 {

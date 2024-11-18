@@ -4,7 +4,6 @@ use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use zksync_multivm::interface::storage::InMemoryStorage;
 use zksync_types::{ProtocolVersionId, H256};
-use zksync_utils::bytecode::hash_bytecode;
 
 use super::*;
 use crate::testonly::{
@@ -75,7 +74,7 @@ fn setting_up_nonce_and_balance_in_storage() {
 #[tokio::test]
 async fn inspecting_transfer(exec_mode: TxExecutionMode, fast_vm_mode: FastVmMode) {
     let tx = create_l2_transaction(1_000_000_000.into(), Nonce(0));
-    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+    let mut storage = InMemoryStorage::with_system_contracts();
     storage.set_value(
         storage_key_for_eth_balance(&tx.initiator_account()),
         u256_to_h256(u64::MAX.into()),
