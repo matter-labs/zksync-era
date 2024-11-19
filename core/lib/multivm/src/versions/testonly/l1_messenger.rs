@@ -2,14 +2,14 @@ use std::rc::Rc;
 
 use ethabi::Token;
 use zksync_contracts::l1_messenger_contract;
-use zksync_test_account::TxType;
+use zksync_test_contracts::{TestContract, TxType};
 use zksync_types::{
     address_to_h256, u256_to_h256, web3::keccak256, Address, Execute, ProtocolVersionId,
     L1_MESSENGER_ADDRESS, U256,
 };
 use zksync_vm_interface::SystemEnv;
 
-use super::{default_system_env, read_test_contract, ContractToDeploy, TestedVm, VmTesterBuilder};
+use super::{default_system_env, ContractToDeploy, TestedVm, VmTesterBuilder};
 use crate::{
     interface::{
         pubdata::{PubdataBuilder, PubdataInput},
@@ -98,9 +98,10 @@ pub(crate) fn test_rollup_da_output_hash_match<VM: TestedVm>() {
     let account = &mut vm.rich_accounts[0];
 
     // Firstly, deploy tx. It should publish the bytecode of the "test contract"
-    let counter = read_test_contract();
-
-    let tx = account.get_deploy_tx(&counter, None, TxType::L2).tx;
+    let counter_bytecode = TestContract::counter().bytecode;
+    let tx = account
+        .get_deploy_tx(&counter_bytecode, None, TxType::L2)
+        .tx;
     // We do not use compression here, to have the bytecode published in full.
     let (_, result) = vm
         .vm
