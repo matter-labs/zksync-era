@@ -50,7 +50,8 @@ jobs:
             --base-token-price-nominator 1 \
             --base-token-price-denominator 1 \
             --set-as-default true \
-            --ignore-prerequisites 
+            --ignore-prerequisites \
+            --evm-emulator false
 
           ci_run zkstack ecosystem init --dev --verbose
           ci_run zkstack prover init --dev --verbose
