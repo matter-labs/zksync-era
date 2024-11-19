@@ -23,23 +23,28 @@ pub struct TeeProofGenerationDal<'a, 'c> {
 
 #[derive(Debug, Clone, Copy, EnumString, Display)]
 pub enum TeeProofGenerationJobStatus {
+    /// The batch has been picked by a TEE prover and is currently being processed.
     #[strum(serialize = "picked_by_prover")]
     PickedByProver,
+    /// The proof has been successfully generated and submitted for the batch.
     #[strum(serialize = "generated")]
     Generated,
+    /// The proof generation for the batch has failed, which can happen if its inputs (GCS blob
+    /// files) are incomplete or the API is unavailable. Failed batches are retried for a specified
+    /// period, as defined in the configuration.
     #[strum(serialize = "failed")]
     Failed,
+    /// The batch will not be processed again because the proof generation has been failing for an
+    /// extended period, as specified in the configuration.
     #[strum(serialize = "permanently_ignored")]
     PermanentlyIgnored,
 }
 
 /// Represents a locked batch picked by a TEE prover. A batch is locked when taken by a TEE prover
 /// ([TeeProofGenerationJobStatus::PickedByProver]). It can transition to one of three states:
-/// 1. [TeeProofGenerationJobStatus::Generated] when the proof is successfully submitted.
-/// 2. [TeeProofGenerationJobStatus::Failed] when the proof generation fails, which can happen if
-///    its inputs (GCS blob files) are incomplete or the API is unavailable for an extended period.
-/// 3. [TeeProofGenerationJobStatus::PermanentlyIgnored] when the proof generation has been
-///    continuously failing for an extended period.
+/// 1. [TeeProofGenerationJobStatus::Generated].
+/// 2. [TeeProofGenerationJobStatus::Failed].
+/// 3. [TeeProofGenerationJobStatus::PermanentlyIgnored].
 #[derive(Clone, Debug)]
 pub struct LockedBatch {
     /// Locked batch number.
