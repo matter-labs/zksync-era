@@ -11,11 +11,9 @@
 
 use std::{collections::HashSet, rc::Rc};
 
-use ethabi::Contract;
 use once_cell::sync::Lazy;
 use zksync_contracts::{
-    load_contract, read_bootloader_code, read_bytecode, read_zbin_bytecode, BaseSystemContracts,
-    SystemContractCode,
+    read_bootloader_code, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
 };
 use zksync_types::{
     block::L2BlockHasher, bytecode::BytecodeHash, fee_model::BatchFeeInput, get_code_key,
@@ -64,67 +62,9 @@ fn get_empty_storage() -> InMemoryStorage {
     InMemoryStorage::with_system_contracts()
 }
 
-pub(crate) fn read_test_contract() -> Vec<u8> {
-    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json")
-}
-
-fn get_complex_upgrade_abi() -> Contract {
-    load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json"
-    )
-}
-
-fn read_complex_upgrade() -> Vec<u8> {
-    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json")
-}
-
-fn read_precompiles_contract() -> Vec<u8> {
-    read_bytecode(
-        "etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json",
-    )
-}
-
-fn load_precompiles_contract() -> Contract {
-    load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json",
-    )
-}
-
-fn read_proxy_counter_contract() -> (Vec<u8>, Contract) {
-    const PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/counter/proxy_counter.sol/ProxyCounter.json";
-    (read_bytecode(PATH), load_contract(PATH))
-}
-
-fn read_nonce_holder_tester() -> Vec<u8> {
-    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/custom-account/nonce-holder-test.sol/NonceHolderTest.json")
-}
-
-fn read_expensive_contract() -> (Vec<u8>, Contract) {
-    const PATH: &str =
-        "etc/contracts-test-data/artifacts-zk/contracts/expensive/expensive.sol/Expensive.json";
-    (read_bytecode(PATH), load_contract(PATH))
-}
-
-fn read_many_owners_custom_account_contract() -> (Vec<u8>, Contract) {
-    let path = "etc/contracts-test-data/artifacts-zk/contracts/custom-account/many-owners-custom-account.sol/ManyOwnersCustomAccount.json";
-    (read_bytecode(path), load_contract(path))
-}
-
-fn read_error_contract() -> Vec<u8> {
-    read_bytecode(
-        "etc/contracts-test-data/artifacts-zk/contracts/error/error.sol/SimpleRequire.json",
-    )
-}
-
 pub(crate) fn read_max_depth_contract() -> Vec<u8> {
     read_zbin_bytecode(
         "core/tests/ts-integration/contracts/zkasm/artifacts/deep_stak.zkasm/deep_stak.zkasm.zbin",
-    )
-}
-
-pub(crate) fn read_simple_transfer_contract() -> Vec<u8> {
-    read_bytecode(
-        "etc/contracts-test-data/artifacts-zk/contracts/simple-transfer/simple-transfer.sol/SimpleTransfer.json",
     )
 }
 

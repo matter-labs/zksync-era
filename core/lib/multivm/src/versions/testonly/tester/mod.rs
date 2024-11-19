@@ -1,7 +1,7 @@
 use std::{collections::HashSet, fmt, rc::Rc};
 
 use zksync_contracts::BaseSystemContracts;
-use zksync_test_account::{Account, TxType};
+use zksync_test_contracts::{Account, TestContract, TxType};
 use zksync_types::{
     utils::{deployed_address_create, storage_key_for_eth_balance},
     writes::StateDiffRecord,
@@ -13,7 +13,7 @@ use zksync_vm_interface::{
 };
 
 pub(crate) use self::transaction_test_info::{ExpectedError, TransactionTestInfo, TxModifier};
-use super::{get_empty_storage, read_test_contract};
+use super::get_empty_storage;
 use crate::{
     interface::{
         storage::{InMemoryStorage, StoragePtr, StorageView},
@@ -39,9 +39,9 @@ pub(crate) struct VmTester<VM> {
 
 impl<VM: TestedVm> VmTester<VM> {
     pub(crate) fn deploy_test_contract(&mut self) {
-        let contract = read_test_contract();
+        let contract = TestContract::counter().bytecode;
         let account = &mut self.rich_accounts[0];
-        let tx = account.get_deploy_tx(&contract, None, TxType::L2).tx;
+        let tx = account.get_deploy_tx(contract, None, TxType::L2).tx;
         let nonce = tx.nonce().unwrap().0.into();
         self.vm.push_transaction(tx);
         self.vm.execute(InspectExecutionMode::OneTx);
