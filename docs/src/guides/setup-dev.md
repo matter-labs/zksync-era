@@ -5,7 +5,7 @@
 This is a shorter version of setup guide to make it easier for initializations. If it's the first time you're
 initializing the workspace, it's recommended that you read the whole guide below, as it provides more context and tips.
 
-Just run the following command on Linux:
+Just run the following command on Debian-based Linux:
 
 ```bash
 curl -L https://raw.githubusercontent.com/matter-labs/zksync-era/main/docs/src/guides/setup-dev.sh | bash
