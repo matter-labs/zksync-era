@@ -18,7 +18,9 @@ use crate::{
     event_processors::{EventProcessor, EventProcessorError, EventsSource},
 };
 
-/// Responsible for `AppendedChainBatchRoot` events and saving `BatchAndChainMerklePath` for batches.
+/// Listens to `AppendedChainBatchRoot` events and saves `BatchAndChainMerklePath` for batches.
+/// These events are emitted on SL each time L1 batch is executed. Processor uses them to track which batches are already executed
+/// and group them by SL's batch number they are executed in as this data is required to build `BatchAndChainMerklePath`.
 #[derive(Debug)]
 pub struct BatchRootProcessor {
     next_batch_number_lower_bound: L1BatchNumber,
