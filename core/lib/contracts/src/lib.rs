@@ -10,13 +10,16 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use ethabi::{ethereum_types::H256, Contract, Event, Function};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use zksync_utils::{bytecode::hash_bytecode, env::Workspace};
+use zksync_basic_types::{
+    bytecode::BytecodeHash,
+    ethabi::{Contract, Event, Function},
+    H256,
+};
+use zksync_utils::env::Workspace;
 
 mod serde_bytecode;
-pub mod test_contracts;
 
 #[derive(Debug, Clone)]
 pub enum ContractLanguage {
@@ -52,6 +55,10 @@ const GETTERS_FACET_CONTRACT_FILE: (&str, &str) = (
     "state-transition/chain-interfaces",
     "IGetters.sol/IGetters.json",
 );
+const ADMIN_FACET_CONTRACT_FILE: (&str, &str) = (
+    "state-transition/chain-interfaces",
+    "IAdmin.sol/IAdmin.json",
+);
 
 const MULTICALL3_CONTRACT_FILE: (&str, &str) = ("dev-contracts", "Multicall3.sol/Multicall3.json");
 const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
@@ -60,10 +67,6 @@ const _IERC20_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
 const _FAIL_ON_RECEIVE_CONTRACT_FILE:  &str  =
     "contracts/l1-contracts/artifacts/contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
-const LOADNEXT_CONTRACT_FILE: &str =
-    "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json";
-const LOADNEXT_SIMPLE_CONTRACT_FILE: &str =
-    "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/Foo.json";
 
 fn home_path() -> PathBuf {
     Workspace::locate().core()
@@ -153,6 +156,10 @@ pub fn getters_facet_contract() -> Contract {
     load_contract_for_both_compilers(GETTERS_FACET_CONTRACT_FILE)
 }
 
+pub fn admin_facet_contract() -> Contract {
+    load_contract_for_both_compilers(ADMIN_FACET_CONTRACT_FILE)
+}
+
 pub fn state_transition_manager_contract() -> Contract {
     load_contract_for_both_compilers(STATE_TRANSITION_CONTRACT_FILE)
 }
@@ -175,33 +182,6 @@ pub fn multicall_contract() -> Contract {
 
 pub fn verifier_contract() -> Contract {
     load_contract_for_both_compilers(VERIFIER_CONTRACT_FILE)
-}
-
-#[derive(Debug, Clone)]
-pub struct TestContract {
-    /// Contract bytecode to be used for sending deploy transaction.
-    pub bytecode: Vec<u8>,
-    /// Contract ABI.
-    pub contract: Contract,
-
-    pub factory_deps: Vec<Vec<u8>>,
-}
-
-/// Reads test contract bytecode and its ABI.
-pub fn get_loadnext_contract() -> TestContract {
-    let bytecode = read_bytecode(LOADNEXT_CONTRACT_FILE);
-    let dep = read_bytecode(LOADNEXT_SIMPLE_CONTRACT_FILE);
-
-    TestContract {
-        bytecode,
-        contract: loadnext_contract(),
-        factory_deps: vec![dep],
-    }
-}
-
-// Returns loadnext contract and its factory dependencies
-fn loadnext_contract() -> Contract {
-    load_contract("etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json")
 }
 
 pub fn deployer_contract() -> Contract {
@@ -424,14 +404,14 @@ impl PartialEq for BaseSystemContracts {
 
 impl BaseSystemContracts {
     fn load_with_bootloader(bootloader_bytecode: Vec<u8>) -> Self {
-        let hash = hash_bytecode(&bootloader_bytecode);
+        let hash = BytecodeHash::for_bytecode(&bootloader_bytecode).value();
         let bootloader = SystemContractCode {
             code: bootloader_bytecode,
             hash,
         };
 
         let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
-        let hash = hash_bytecode(&bytecode);
+        let hash = BytecodeHash::for_bytecode(&bytecode).value();
         let default_aa = SystemContractCode {
             code: bytecode,
             hash,
@@ -453,7 +433,7 @@ impl BaseSystemContracts {
     /// Loads the latest EVM emulator for these base system contracts. Logically, it only makes sense to do for the latest protocol version.
     pub fn with_latest_evm_emulator(mut self) -> Self {
         let bytecode = read_sys_contract_bytecode("", "EvmEmulator", ContractLanguage::Yul);
-        let hash = hash_bytecode(&bytecode);
+        let hash = BytecodeHash::for_bytecode(&bytecode).value();
         self.evm_emulator = Some(SystemContractCode {
             code: bytecode,
             hash,

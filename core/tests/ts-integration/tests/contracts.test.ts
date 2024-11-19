@@ -426,35 +426,6 @@ describe('Smart contract behavior checks', () => {
         expect(receipt.status).toEqual(1);
     });
 
-    test('Should check transient storage', async () => {
-        const artifact = require(`${
-            testMaster.environment().pathToHome
-        }/etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json`);
-        const contractFactory = new zksync.ContractFactory(artifact.abi, artifact.bytecode, alice);
-        const storageContract = (await contractFactory.deploy()) as zksync.Contract;
-        await storageContract.waitForDeployment();
-        // Tests transient storage, see contract code for details.
-        await expect(storageContract.testTransientStore()).toBeAccepted([]);
-        // Checks that transient storage is cleaned up after each tx.
-        await expect(storageContract.assertTValue(0)).toBeAccepted([]);
-    });
-
-    test('Should check code oracle works', async () => {
-        // Deploy contract that calls CodeOracle.
-        const artifact = require(`${
-            testMaster.environment().pathToHome
-        }/etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json`);
-        const contractFactory = new zksync.ContractFactory(artifact.abi, artifact.bytecode, alice);
-        const contract = (await contractFactory.deploy()) as zksync.Contract;
-        await contract.waitForDeployment();
-
-        // Check that CodeOracle can decommit code of just deployed contract.
-        const versionedHash = zksync.utils.hashBytecode(artifact.bytecode);
-        const expectedBytecodeHash = ethers.keccak256(artifact.bytecode);
-
-        await expect(contract.callCodeOracle(versionedHash, expectedBytecodeHash)).toBeAccepted([]);
-    });
-
     afterAll(async () => {
         await testMaster.deinitialize();
     });

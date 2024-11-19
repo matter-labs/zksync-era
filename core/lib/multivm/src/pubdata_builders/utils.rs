@@ -1,6 +1,5 @@
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_types::web3::keccak256;
-use zksync_utils::bytecode::hash_bytecode;
+use zksync_types::{bytecode::BytecodeHash, web3::keccak256};
 
 use crate::interface::pubdata::L1MessengerL2ToL1Log;
 
@@ -49,8 +48,9 @@ pub(crate) fn build_chained_bytecode_hash(published_bytecodes: &[Vec<u8>]) -> Ve
     let mut chained_bytecode_hash = vec![0u8; 32];
 
     for bytecode in published_bytecodes {
-        let hash = hash_bytecode(bytecode).to_fixed_bytes();
-
+        let hash = BytecodeHash::for_bytecode(bytecode)
+            .value()
+            .to_fixed_bytes();
         chained_bytecode_hash =
             keccak256(&[chained_bytecode_hash, hash.to_vec()].concat()).to_vec();
     }
