@@ -128,7 +128,7 @@ impl EN {
                 let store = store.clone();
                 async {
                     let store = store;
-                    self.temporary_block_fetcher(ctx, &store).await?;
+                    self.fallback_block_fetcher(ctx, &store).await?;
                     tracing::info!(
                         "temporary block fetcher finished, switching to p2p fetching only"
                     );
