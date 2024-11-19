@@ -3075,7 +3075,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__contracts)
-            opts="-v -h --l1-contracts --l1-da-contracts --l2-contracts --system-contracts --test-contracts --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --l1-contracts --l1-da-contracts --l2-contracts --system-contracts --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -3094,10 +3094,6 @@ _zkstack() {
                     return 0
                     ;;
                 --system-contracts)
-                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
-                    return 0
-                    ;;
-                --test-contracts)
                     COMPREPLY=($(compgen -W "true false" -- "${cur}"))
                     return 0
                     ;;
@@ -7761,7 +7757,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__prover__run)
-            opts="-v -h --component --round --threads --max-allocation --witness-vector-generator-count --max-allocation --docker --tag --verbose --chain --ignore-prerequisites --help"
+            opts="-l -h -m -v -h --component --round --threads --max-allocation --light-wvg-count --heavy-wvg-count --max-allocation --docker --tag --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7783,11 +7779,27 @@ _zkstack() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
-                --witness-vector-generator-count)
+                --light-wvg-count)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -l)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --heavy-wvg-count)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -h)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 --max-allocation)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -m)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;

@@ -18,14 +18,13 @@ use zksync_types::{
     utils::storage_key_for_eth_balance, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
     Transaction,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{instruction_counter::InstructionCounter, transaction::PRIVATE_KEY};
 
 static SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(BaseSystemContracts::load_from_disk);
 
 static STORAGE: Lazy<InMemoryStorage> = Lazy::new(|| {
-    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+    let mut storage = InMemoryStorage::with_system_contracts();
     // Give `PRIVATE_KEY` some money
     let balance = U256::from(10u32).pow(U256::from(32)); //10^32 wei
     let key = storage_key_for_eth_balance(&PRIVATE_KEY.address());
@@ -235,8 +234,8 @@ impl BenchmarkingVm<Legacy> {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
-    use zksync_contracts::read_bytecode;
     use zksync_multivm::interface::ExecutionResult;
+    use zksync_test_contracts::TestContract;
 
     use super::*;
     use crate::{
@@ -246,11 +245,9 @@ mod tests {
 
     #[test]
     fn can_deploy_contract() {
-        let test_contract = read_bytecode(
-            "etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json",
-        );
+        let test_contract = &TestContract::counter().bytecode;
         let mut vm = BenchmarkingVm::new();
-        let res = vm.run_transaction(&get_deploy_tx(&test_contract));
+        let res = vm.run_transaction(&get_deploy_tx(test_contract));
 
         assert_matches!(res.result, ExecutionResult::Success { .. });
     }
