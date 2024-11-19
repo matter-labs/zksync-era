@@ -20,6 +20,7 @@ zkstack chain create \
         --base-token-price-nominator 1 \
         --base-token-price-denominator 1 \
         --set-as-default false \
+        --evm-emulator false \
         --ignore-prerequisites --skip-submodules-checkout --skip-contract-compilation-override
 
 zkstack chain init \
