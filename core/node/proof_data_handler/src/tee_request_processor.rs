@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use axum::{extract::Path, Json};
+use chrono::Utc;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
@@ -16,7 +17,7 @@ use zksync_prover_interface::{
 use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId};
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
-use crate::errors::RequestProcessorError;
+use crate::{errors::RequestProcessorError, metrics::METRICS};
 
 #[derive(Clone)]
 pub(crate) struct TeeRequestProcessor {
@@ -194,11 +195,6 @@ impl TeeRequestProcessor {
         let mut connection = self.pool.connection_tagged("tee_request_processor").await?;
         let mut dal = connection.tee_proof_generation_dal();
 
-        tracing::info!(
-            "Received proof {:?} for batch number: {:?}",
-            proof,
-            l1_batch_number
-        );
         dal.save_proof_artifacts_metadata(
             l1_batch_number,
             proof.0.tee_type,
@@ -207,6 +203,27 @@ impl TeeRequestProcessor {
             &proof.0.proof,
         )
         .await?;
+
+        let sealed_at = connection
+            .blocks_dal()
+            .get_batch_sealed_at(l1_batch_number)
+            .await?;
+
+        let duration = sealed_at.and_then(|sealed_at| (Utc::now() - sealed_at).to_std().ok());
+
+        let duration_secs_f64 = if let Some(duration) = duration {
+            METRICS.tee_proof_roundtrip_time[&proof.0.tee_type.into()].observe(duration);
+            duration.as_secs_f64()
+        } else {
+            f64::NAN
+        };
+
+        tracing::info!(
+            l1_batch_number = %l1_batch_number,
+            sealed_to_proven_in_secs = duration_secs_f64,
+            "Received proof {:?}",
+            proof
+        );
 
         Ok(Json(SubmitProofResponse::Success))
     }
