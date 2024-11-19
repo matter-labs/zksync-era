@@ -52,9 +52,7 @@ impl TeeConfig {
     }
 
     pub fn tee_batch_permanently_ignored_timeout(&self) -> Duration {
-        Duration::from_secs(
-            (3600 * u64::from(self.tee_batch_permanently_ignored_timeout_in_hours)).into(),
-        )
+        Duration::from_secs(3600 * u64::from(self.tee_batch_permanently_ignored_timeout_in_hours))
     }
 }
 
