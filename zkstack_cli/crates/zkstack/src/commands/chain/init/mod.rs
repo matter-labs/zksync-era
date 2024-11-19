@@ -148,7 +148,7 @@ pub async fn init(
         shell,
         chain_config,
         era_chain_id,
-        &ecosystem.clone().unwrap(),
+        wallets,
         &mut contracts_config,
         init_args.forge_args.clone(),
     )

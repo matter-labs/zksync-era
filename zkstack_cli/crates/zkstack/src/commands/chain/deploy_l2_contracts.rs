@@ -19,7 +19,7 @@ use config::{
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     zkstack_config::ZkStackConfig,
-    ChainConfig, ContractsConfig, EcosystemConfig,
+    ChainConfig, ContractsConfig, WalletsConfig,
 };
 use xshell::Shell;
 use zksync_basic_types::L2ChainId;
@@ -53,6 +53,7 @@ pub async fn run(
 
     let mut contracts = chain_config.get_contracts_config()?;
     let era_chain_id = ecosystem_config.era_chain_id;
+    let wallets = ecosystem_config.get_wallets()?;
 
     let spinner = Spinner::new(MSG_DEPLOYING_L2_CONTRACT_SPINNER);
 
@@ -62,7 +63,7 @@ pub async fn run(
                 shell,
                 &chain_config,
                 era_chain_id,
-                &ecosystem_config,
+                wallets,
                 &mut contracts,
                 args,
             )
@@ -73,7 +74,7 @@ pub async fn run(
                 shell,
                 &chain_config,
                 era_chain_id,
-                &ecosystem_config,
+                wallets,
                 &mut contracts,
                 args,
             )
@@ -84,7 +85,7 @@ pub async fn run(
                 shell,
                 &chain_config,
                 era_chain_id,
-                &ecosystem_config,
+                wallets,
                 &mut contracts,
                 args,
             )
@@ -95,7 +96,7 @@ pub async fn run(
                 shell,
                 &chain_config,
                 era_chain_id,
-                &ecosystem_config,
+                wallets,
                 &mut contracts,
                 args,
             )
@@ -106,7 +107,7 @@ pub async fn run(
                 shell,
                 &chain_config,
                 era_chain_id,
-                &ecosystem_config,
+                wallets,
                 &mut contracts,
                 args,
             )
@@ -117,7 +118,7 @@ pub async fn run(
                 shell,
                 &chain_config,
                 era_chain_id,
-                &ecosystem_config,
+                wallets,
                 &mut contracts,
                 args,
             )
@@ -137,7 +138,7 @@ async fn build_and_deploy(
     shell: &Shell,
     chain_config: &ChainConfig,
     era_chain_id: L2ChainId,
-    ecosystem_config: &EcosystemConfig,
+    wallets: WalletsConfig,
     forge_args: ForgeScriptArgs,
     signature: Option<&str>,
     mut update_config: impl FnMut(&Shell, &Path) -> anyhow::Result<()>,
@@ -147,7 +148,7 @@ async fn build_and_deploy(
         shell,
         chain_config,
         era_chain_id,
-        ecosystem_config,
+        wallets,
         forge_args,
         signature,
     )
@@ -163,7 +164,7 @@ pub async fn initialize_bridges(
     shell: &Shell,
     chain_config: &ChainConfig,
     era_chain_id: L2ChainId,
-    ecosystem_config: &EcosystemConfig,
+    wallets: WalletsConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
@@ -176,7 +177,7 @@ pub async fn initialize_bridges(
         shell,
         chain_config,
         era_chain_id,
-        ecosystem_config,
+        wallets,
         forge_args,
         signature,
         |shell, out| {
@@ -190,7 +191,7 @@ pub async fn deploy_upgrader(
     shell: &Shell,
     chain_config: &ChainConfig,
     era_chain_id: L2ChainId,
-    ecosystem_config: &EcosystemConfig,
+    wallets: WalletsConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
@@ -198,7 +199,7 @@ pub async fn deploy_upgrader(
         shell,
         chain_config,
         era_chain_id,
-        ecosystem_config,
+        wallets,
         forge_args,
         Some("runDefaultUpgrader"),
         |shell, out| {
@@ -212,7 +213,7 @@ pub async fn deploy_consensus_registry(
     shell: &Shell,
     chain_config: &ChainConfig,
     era_chain_id: L2ChainId,
-    ecosystem_config: &EcosystemConfig,
+    wallets: WalletsConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
@@ -220,7 +221,7 @@ pub async fn deploy_consensus_registry(
         shell,
         chain_config,
         era_chain_id,
-        ecosystem_config,
+        wallets,
         forge_args,
         Some("runDeployConsensusRegistry"),
         |shell, out| {
@@ -234,7 +235,7 @@ pub async fn deploy_multicall3(
     shell: &Shell,
     chain_config: &ChainConfig,
     era_chain_id: L2ChainId,
-    ecosystem_config: &EcosystemConfig,
+    wallets: WalletsConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
@@ -242,7 +243,7 @@ pub async fn deploy_multicall3(
         shell,
         chain_config,
         era_chain_id,
-        ecosystem_config,
+        wallets,
         forge_args,
         Some("runDeployMulticall3"),
         |shell, out| contracts_config.set_multicall3(&Multicall3Output::read(shell, out)?),
@@ -254,7 +255,7 @@ pub async fn deploy_timestamp_asserter(
     shell: &Shell,
     chain_config: &ChainConfig,
     era_chain_id: L2ChainId,
-    ecosystem_config: &EcosystemConfig,
+    wallets: WalletsConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
@@ -262,7 +263,7 @@ pub async fn deploy_timestamp_asserter(
         shell,
         chain_config,
         era_chain_id,
-        ecosystem_config,
+        wallets,
         forge_args,
         Some("runDeployTimestampAsserter"),
         |shell, out| {
@@ -277,7 +278,7 @@ pub async fn deploy_l2_contracts(
     shell: &Shell,
     chain_config: &ChainConfig,
     era_chain_id: L2ChainId,
-    ecosystem_config: &EcosystemConfig,
+    wallets: WalletsConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
@@ -290,7 +291,7 @@ pub async fn deploy_l2_contracts(
         shell,
         chain_config,
         era_chain_id,
-        ecosystem_config,
+        wallets,
         forge_args,
         signature,
         |shell, out| {
@@ -310,7 +311,7 @@ async fn call_forge(
     shell: &Shell,
     chain_config: &ChainConfig,
     era_chain_id: L2ChainId,
-    ecosystem_config: &EcosystemConfig,
+    wallets: WalletsConfig,
     forge_args: ForgeScriptArgs,
     signature: Option<&str>,
 ) -> anyhow::Result<()> {
@@ -342,7 +343,7 @@ async fn call_forge(
         forge = forge.with_signature(signature);
     }
 
-    forge = fill_forge_private_key(forge, Some(&ecosystem_config.get_wallets()?.governor))?;
+    forge = fill_forge_private_key(forge, Some(&wallets.governor))?;
 
     check_the_balance(&forge).await?;
     forge.run(shell)?;
