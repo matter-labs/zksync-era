@@ -67,17 +67,17 @@ url = "2.5.2"
 vise = "0.2.0"
 
 # Proving dependencies
-circuit_definitions = { package = "circuit_definitions", version = "=0.150.12" }
-circuit_sequencer_api = { package = "circuit_sequencer_api", version = "=0.150.12" }
-zkevm_test_harness = { package = "zkevm_test_harness", version = "=0.150.12" }
-proof-compression-gpu = { package = "proof-compression", version = "=0.152.4" }
-fflonk-gpu = { package = "fflonk-cuda", version = "=0.152.4" }
-franklin-crypto = { package = "franklin-crypto", version = "=0.30.6" }
+circuit_definitions = { package = "circuit_definitions", version = "=0.150.13" }
+circuit_sequencer_api = { package = "circuit_sequencer_api", version = "=0.150.13" }
+zkevm_test_harness = { package = "zkevm_test_harness", version = "=0.150.13" }
+proof-compression-gpu = { package = "proof-compression", version = "=0.152.5" }
+fflonk-gpu = { package = "fflonk-cuda", version = "=0.152.5" }
+franklin-crypto = { package = "franklin-crypto", version = "=0.30.7" }
 
 # GPU proving dependencies
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.152.4" }
-shivini = { package = "shivini", version = "=0.152.4" }
-boojum-cuda = { package = "boojum-cuda", version = "=0.152.4" }
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.152.5" }
+shivini = { package = "shivini", version = "=0.152.5" }
+boojum-cuda = { package = "boojum-cuda", version = "=0.152.5" }
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }
