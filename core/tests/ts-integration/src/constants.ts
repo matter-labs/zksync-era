@@ -21,7 +21,7 @@ export const BRIDGEHUB_L2_TRANSACTION_REQUEST_ABI =
     'tuple(address sender, address contractL2, uint256 mintValue, uint256 l2Value, bytes l2Calldata, uint256 l2GasLimit, uint256 l2GasPerPubdataByteLimit, bytes[] factoryDeps, address refundRecipient)';
 export const L2_LOG_STRING =
     'tuple(uint8 l2ShardId,bool isService,uint16 txNumberInBatch,address sender,bytes32 key,bytes32 value)';
-export const ARTIFACTS_PATH = '../../../contracts/l1-contracts/out';
+export const ARTIFACTS_PATH = '../../../contracts/l1-contracts/out/';
 
 // struct InteropTrigger {
 //     uint256 destinationChainId;

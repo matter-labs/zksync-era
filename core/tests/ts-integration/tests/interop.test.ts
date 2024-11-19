@@ -36,15 +36,15 @@ function readContract(path: string, fileName: string, contractName?: string) {
     return JSON.parse(fs.readFileSync(`${path}/${fileName}.sol/${contractName}.json`, { encoding: 'utf-8' }));
 }
 
-const ArtifactBridgeHub = readContract(`${ARTIFACTS_PATH}bridgehub`, 'Bridgehub');
-const ArtifactInteropCenter = readContract(`${ARTIFACTS_PATH}bridgehub`, 'InteropCenter');
-const ArtifactInteropHandler = readContract(`${ARTIFACTS_PATH}bridgehub`, 'InteropHandler');
-const ArtifactNativeTokenVault = readContract(`${ARTIFACTS_PATH}bridge/ntv`, 'L2NativeTokenVault');
+const ArtifactBridgeHub = readContract(`${ARTIFACTS_PATH}`, 'Bridgehub');
+const ArtifactInteropCenter = readContract(`${ARTIFACTS_PATH}`, 'InteropCenter');
+const ArtifactInteropHandler = readContract(`${ARTIFACTS_PATH}`, 'InteropHandler');
+const ArtifactNativeTokenVault = readContract(`${ARTIFACTS_PATH}`, 'L2NativeTokenVault');
 const ArtifactMintableERC20 = readContract(
     '../../../contracts/l1-contracts/artifacts-zk/contracts/dev-contracts',
     'TestnetERC20Token'
 );
-const l1AssetRouterInterface = readContract(`${ARTIFACTS_PATH}/bridge/asset-router`, 'L1AssetRouter').abi;
+const l1AssetRouterInterface = readContract(`${ARTIFACTS_PATH}`, 'L1AssetRouter').abi;
 const ArtifactSwap = readContract('./artifacts-zk/contracts/Swap', 'Swap');
 
 const richPk = '0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110';
@@ -193,7 +193,7 @@ describe('Interop checks', () => {
             })
         ).wait();
 
-        aliased_interop1_wallet_address = await interop2_interop_handler.aliasAccount(interop1_wallet.address);
+        aliased_interop1_wallet_address = await interop2_interop_handler.getAliasedAccount(interop1_wallet.address, 0);
         console.log('aliased address', aliased_interop1_wallet_address);
     });
 
@@ -338,6 +338,7 @@ describe('Interop checks', () => {
         console.log('Token B info:', tokenB_details);
     });
 
+    // we want to remove this, it means L2<>L2 bridging does not work properly.
     test('Withdraw and deposit tokens via L1', async () => {
         const bridgeContracts = await interop1_wallet.getL1BridgeContracts();
         const assetRouter = bridgeContracts.shared;
@@ -1001,6 +1002,10 @@ describe('Interop checks', () => {
         tokenAddress: string;
         address: string;
     }) {
+        if (tokenAddress == undefined || tokenAddress == ethers.ZeroAddress) {
+            return 0;
+        }
+        // console.log('tokenAddress', tokenAddress);
         const tokenContract = new zksync.Contract(tokenAddress, ArtifactMintableERC20.abi, provider);
         return await tokenContract.balanceOf(address);
     }

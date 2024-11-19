@@ -31,10 +31,10 @@ zkstack chain init \
         #     --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
         #     --prover-db-name=zksync_prover_localhost_gateway \
 
-zkstack server --ignore-prerequisites --chain era &> ./rollup.log & 
+# zkstack server --ignore-prerequisites --chain era &> ./rollup.log & 
 
 zkstack server --ignore-prerequisites --chain second &> ./second.log & 
 
 # sleep 20
 
-# zkstack test integration -t "Interop" --no-deps --ignore-prerequisites --chain era
+# zkstack dev test integration -t "Interop" --no-deps --ignore-prerequisites --chain era
