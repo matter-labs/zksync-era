@@ -195,7 +195,7 @@ impl DataAvailabilityDispatcher {
             }
 
             // Sleep so we prevent hammering the database
-            tokio::time::sleep(Duration::from_secs(
+            tokio::time::sleep(Duration::from_millis(
                 self.config
                     .polling_interval_ms
                     .unwrap_or(DEFAULT_POLLING_INTERVAL_MS) as u64,
@@ -298,7 +298,7 @@ impl DataAvailabilityDispatcher {
             }
 
             // Sleep so we prevent hammering the database
-            tokio::time::sleep(Duration::from_secs(
+            tokio::time::sleep(Duration::from_millis(
                 self.config
                     .polling_interval_ms
                     .unwrap_or(DEFAULT_POLLING_INTERVAL_MS) as u64,
