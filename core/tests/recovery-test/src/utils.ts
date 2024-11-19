@@ -64,11 +64,6 @@ export function runExternalNodeInBackground({
         command += chain ? ` --chain ${chain}` : '';
     } else {
         command = 'zk external-node --';
-
-        const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
-        if (enableConsensus) {
-            command += ' --enable-consensus';
-        }
     }
     return runInBackground({ command, components, stdio, cwd, env });
 }
