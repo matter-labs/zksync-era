@@ -104,10 +104,6 @@ impl ProverComponent {
             application_args.push("--features=gpu".to_string());
         }
 
-        if self == &Self::Compressor && args.compressor_args.mode == CompressorMode::Fflonk {
-            application_args.push("--fflonk=true".to_string());
-        }
-
         Ok(application_args)
     }
 
@@ -201,6 +197,11 @@ impl ProverComponent {
                         args.circuit_prover_args.heavy_wvg_count.unwrap()
                     ));
                 };
+            }
+            Self::Compressor => {
+                if args.compressor_args.mode == CompressorMode::Fflonk {
+                    additional_args.push("--fflonk=true".to_string());
+                }
             }
             _ => {}
         };

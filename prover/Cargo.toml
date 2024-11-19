@@ -67,17 +67,17 @@ url = "2.5.2"
 vise = "0.2.0"
 
 # Proving dependencies
-circuit_definitions = { package = "circuit_definitions", version = "=0.150.13" }
-circuit_sequencer_api = { package = "circuit_sequencer_api", version = "=0.150.13" }
-zkevm_test_harness = { package = "zkevm_test_harness", version = "=0.150.13" }
-proof-compression-gpu = { package = "proof-compression", version = "=0.152.5" }
-fflonk-gpu = { package = "fflonk-cuda", version = "=0.152.5" }
+circuit_definitions = { package = "circuit_definitions", git = "https://github.com/matter-labs/zksync-protocol.git", branch = "rr/compression-proof-configs" }
+circuit_sequencer_api = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/zksync-protocol.git", branch = "rr/compression-proof-configs" }
+zkevm_test_harness = { package = "zkevm_test_harness", git = "https://github.com/matter-labs/zksync-protocol.git", branch = "rr/compression-proof-configs" }
+proof-compression-gpu = { package = "proof-compression", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "rr/pow" }
+fflonk-gpu = { package = "fflonk-cuda", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "rr/pow" }
 franklin-crypto = { package = "franklin-crypto", version = "=0.30.7" }
 
 # GPU proving dependencies
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.152.5" }
-shivini = { package = "shivini", version = "=0.152.5" }
-boojum-cuda = { package = "boojum-cuda", version = "=0.152.5" }
+wrapper_prover = { package = "zksync-wrapper-prover", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "rr/pow" }
+shivini = { package = "shivini", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "rr/pow" }
+boojum-cuda = { package = "boojum-cuda", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "rr/pow" }
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }
