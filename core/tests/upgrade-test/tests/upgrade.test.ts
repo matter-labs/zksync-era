@@ -11,14 +11,12 @@ import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import {
     Contracts,
     initContracts,
-    runServerInBackground,
     setAggregatedBlockExecuteDeadline,
     setAggregatedBlockProveDeadline,
     setBlockCommitDeadlineMs,
     setEthSenderSenderAggregatedBlockCommitDeadline
 } from './utils';
 import path from 'path';
-import internal from 'stream';
 import { ZKSYNC_MAIN_ABI } from 'zksync-ethers/build/utils';
 
 const pathToHome = path.join(__dirname, '../../../..');
@@ -391,12 +389,10 @@ describe('Upgrade test', function () {
         let tryCount = 0;
         while (lastBatchExecuted < l1BatchNumber && tryCount < 40) {
             lastBatchExecuted = await slMainContract.getTotalBatchesExecuted();
-            console.log(lastBatchExecuted);
             tryCount += 1;
             await utils.sleep(2);
         }
         if (lastBatchExecuted < l1BatchNumber) {
-            console.log(l1BatchNumber);
             throw new Error('Server did not execute old blocks');
         }
 
@@ -627,8 +623,6 @@ async function prepareUpgradeCalldata(
     },
     gatewayInfo: GatewayInfo | null
 ) {
-    console.log('hey5');
-
     let settlementLayerDiamondProxy: ethers.Contract;
     if (gatewayInfo) {
         settlementLayerDiamondProxy = new ethers.Contract(
@@ -644,7 +638,6 @@ async function prepareUpgradeCalldata(
 
     const oldProtocolVersion = Number(await settlementLayerDiamondProxy.getProtocolVersion());
     const newProtocolVersion = addToProtocolVersion(oldProtocolVersion, 1, 1);
-    console.log('hey1122');
 
     params.l2ProtocolUpgradeTx.nonce ??= BigInt(unpackNumberSemVer(newProtocolVersion)[1]);
     const upgradeInitData = contracts.l1DefaultUpgradeAbi.encodeFunctionData('upgrade', [
@@ -661,7 +654,6 @@ async function prepareUpgradeCalldata(
         ]
     ]);
 
-    console.log('hey6');
     // Prepare the diamond cut data
     const upgradeParam = {
         facetCuts: [],
@@ -669,7 +661,6 @@ async function prepareUpgradeCalldata(
         initCalldata: upgradeInitData
     };
 
-    console.log('hey7');
     // Prepare calldata for upgrading STM
     const stmUpgradeCalldata = contracts.stateTransitonManager.encodeFunctionData('setNewVersionUpgrade', [
         upgradeParam,
@@ -678,24 +669,20 @@ async function prepareUpgradeCalldata(
         ethers.MaxUint256,
         newProtocolVersion
     ]);
-    console.log('hey8');
 
     // Execute this upgrade on a specific chain under this STM.
     const chainUpgradeCalldata = contracts.adminFacetAbi.encodeFunctionData('upgradeChainFromVersion', [
         oldProtocolVersion,
         upgradeParam
     ]);
-    console.log('hey9');
 
     // Set timestamp for upgrade on a specific chain under this STM.
     const setTimestampCalldata = contracts.chainAdminAbi.encodeFunctionData('setUpgradeTimestamp', [
         newProtocolVersion,
         params.upgradeTimestamp
     ]);
-    console.log('hey10');
 
     const bridgehubAddr = await l2Provider.getBridgehubContractAddress();
-    console.log('hey11');
 
     const stmUpgradeData = await prepareGovernanceCalldata(
         settlementLayerCTMAddress,
@@ -726,7 +713,6 @@ async function prepareGovernanceCalldata(
     gatewayInfo: GatewayInfo | null
 ): Promise<UpgradeCalldata> {
     let call;
-    console.log('t1');
     if (gatewayInfo) {
         // We will have to perform an L1->L2 transaction to the gateway
         call = await composeL1ToL2Call(
@@ -746,7 +732,6 @@ async function prepareGovernanceCalldata(
         };
     }
 
-    console.log('t2');
     const governanceOperation = {
         calls: [call],
         predecessor: ethers.ZeroHash,
@@ -769,8 +754,6 @@ async function prepareGovernanceCalldata(
         executeOperationValue: call.value
     };
 }
-
-async function prepareAdminCalldata() {}
 
 async function composeL1ToL2Call(
     chainId: string,

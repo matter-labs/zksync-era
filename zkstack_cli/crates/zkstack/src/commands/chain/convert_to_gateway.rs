@@ -120,7 +120,14 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
                 "grantWhitelist",
                 (
                     output.gateway_transaction_filterer_proxy,
-                    vec![ecosystem_config.get_contracts_config()?.l1.governance_addr],
+                    vec![
+                        ecosystem_config.get_contracts_config()?.l1.governance_addr,
+                        ecosystem_config
+                            .get_wallets()?
+                            .deployer
+                            .context("no deployer addr")?
+                            .address,
+                    ],
                 ),
             )
             .unwrap(),
@@ -169,7 +176,7 @@ async fn calculate_gateway_ctm(
     deploy_config.save(shell, deploy_config_path)?;
 
     let calldata = DEPLOY_GATEWAY_CTM_INTERFACE
-        .encode("deployCTM", ())
+        .encode("prepareAddresses", ())
         .unwrap();
 
     let mut forge = Forge::new(&config.path_to_l1_foundry())
@@ -216,7 +223,7 @@ async fn deploy_gateway_ctm(
     deploy_config.save(shell, deploy_config_path)?;
 
     let calldata = DEPLOY_GATEWAY_CTM_INTERFACE
-        .encode("prepareAddresses", ())
+        .encode("deployCTM", ())
         .unwrap();
 
     let mut forge = Forge::new(&config.path_to_l1_foundry())

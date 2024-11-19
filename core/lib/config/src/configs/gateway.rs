@@ -28,6 +28,8 @@ pub struct GatewayChainConfig {
     pub validator_timelock_addr: Address,
     pub multicall3_addr: Address,
     pub diamond_proxy_addr: Address,
+    // FIXME: there is no "governnace" for a chain, only an admin, we
+    // need to figure out what we mean here
     pub chain_admin_addr: Option<Address>,
     pub governance_addr: Address,
     pub settlement_layer: u64,
@@ -40,9 +42,6 @@ impl GatewayChainConfig {
         l2_chain_admin_addr: Address,
         settlement_layer: u64,
     ) -> Self {
-        // FIXME: there is no "governnace" for a chain, only an admin, we
-        // need to figure out what we mean here
-
         Self {
             state_transition_proxy_addr: gateway_config.state_transition_proxy_addr,
             validator_timelock_addr: gateway_config.validator_timelock_addr,

@@ -1,34 +1,6 @@
 import { ethers } from 'ethers';
 import * as fs from 'fs';
-import { background } from 'utils';
 import { getConfigPath } from 'utils/build/file-configs';
-
-export function runServerInBackground({
-    components,
-    stdio,
-    cwd,
-    useZkStack,
-    chain
-}: {
-    components?: string[];
-    stdio: any;
-    cwd?: Parameters<typeof background>[0]['cwd'];
-    useZkStack?: boolean;
-    chain?: string;
-}) {
-    let command = '';
-
-    if (useZkStack) {
-        command = 'zkstack server';
-        command += chain ? ` --chain ${chain}` : '';
-    } else {
-        command = 'cd $ZKSYNC_HOME && cargo run --bin zksync_server --release --';
-    }
-    if (components && components.length > 0) {
-        command += ` --components=${components.join(',')}`;
-    }
-    background({ command, stdio, cwd });
-}
 
 export function setEthSenderSenderAggregatedBlockCommitDeadline(pathToHome: string, fileConfig: any, value: number) {
     setPropertyInGeneralConfig(pathToHome, fileConfig, 'aggregated_block_commit_deadline', value);
