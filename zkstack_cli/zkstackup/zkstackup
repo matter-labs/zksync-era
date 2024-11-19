@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-LOCAL_DIR="$/Users/stas/.local/"
+LOCAL_DIR="$HOME/.local/"
 BIN_DIR="$LOCAL_DIR/bin"
 
 BINS=()
