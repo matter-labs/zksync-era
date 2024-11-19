@@ -11,9 +11,9 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zksync_basic_types.workspace = true
 zksync_utils.workspace = true
 
-ethabi.workspace = true
 serde_json.workspace = true
 serde.workspace = true
 once_cell.workspace = true

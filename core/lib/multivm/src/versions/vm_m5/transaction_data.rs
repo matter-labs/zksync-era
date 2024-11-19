@@ -1,13 +1,14 @@
 use zk_evm_1_3_1::zkevm_opcode_defs::system_params::{MAX_PUBDATA_PER_BLOCK, MAX_TX_ERGS_LIMIT};
 use zksync_types::{
-    address_to_h256, ceil_div_u256,
+    address_to_h256,
+    bytecode::BytecodeHash,
+    ceil_div_u256,
     ethabi::{encode, Address, Token},
     fee::encoding_len,
     h256_to_u256,
     l2::TransactionType,
     ExecuteTransactionCommon, Transaction, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 use super::vm_with_bootloader::MAX_GAS_PER_PUBDATA_BYTE;
 use crate::{
@@ -168,7 +169,7 @@ impl TransactionData {
         let factory_deps_hashes = self
             .factory_deps
             .iter()
-            .map(|dep| h256_to_u256(hash_bytecode(dep)))
+            .map(|dep| BytecodeHash::for_bytecode(dep).value_u256())
             .collect();
         self.abi_encode_with_custom_factory_deps(factory_deps_hashes)
     }

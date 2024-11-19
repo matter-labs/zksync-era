@@ -219,34 +219,27 @@ jobs:
           docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
           gcloud auth configure-docker us-docker.pkg.dev -q
 
-      - name: Build and push
+      - name: Build docker image
         uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
         with:
           context: .
-          push: ${{ inputs.action == 'push' }}
+          load: true
+          platforms: ${{ matrix.platforms }}
           file: docker/${{ matrix.components }}/Dockerfile
           build-args: |
             SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage
             SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
             SCCACHE_GCS_RW_MODE=READ_WRITE
             RUSTC_WRAPPER=sccache
-          tags: |
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:latest
-            matterlabs/${{ matrix.components }}:latest
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:latest2.0
-            matterlabs/${{ matrix.components }}:latest2.0
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA }}
-            matterlabs/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA }}
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA }}
-            matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA }}
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
-            matterlabs/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
-            matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
-            matterlabs/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
+          tags: |            
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
             matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
+
+      - name: Push docker image
+        if: ${{ inputs.action == 'push' }}
+        run: |
+          docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
+          docker push matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
 
   create_manifest:
     name: Create release manifest
@@ -269,13 +262,11 @@ jobs:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
 
       - name: login to Docker registries
-        shell: bash
         run: |
           docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
           gcloud auth configure-docker us-docker.pkg.dev -q
 
       - name: Create Docker manifest
-        shell: bash
         run: |
           docker_repositories=("matterlabs/${{ matrix.component.name }}" "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component.name }}")
           platforms=${{ matrix.component.platform }}

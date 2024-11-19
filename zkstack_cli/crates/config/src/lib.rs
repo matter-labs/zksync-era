@@ -14,7 +14,6 @@ pub use zksync_protobuf_config::{encode_yaml_repr, read_yaml_repr};
 
 mod apps;
 mod chain;
-mod consts;
 mod contracts;
 mod ecosystem;
 mod file_config;
@@ -28,6 +27,7 @@ mod wallets;
 
 pub mod consensus_config;
 pub mod consensus_secrets;
+pub mod consts;
 pub mod docker_compose;
 pub mod explorer;
 pub mod explorer_compose;
