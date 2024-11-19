@@ -660,7 +660,7 @@ fn chain_log_proofs() -> Vec<(L1BatchNumber, ChainAggProof)> {
                         .unwrap(),
                     ),
                 ],
-                chain_id_leaf_proof_mask: 3u32.into(),
+                chain_id_leaf_proof_mask: 3,
             },
         ),
         (
@@ -680,7 +680,7 @@ fn chain_log_proofs() -> Vec<(L1BatchNumber, ChainAggProof)> {
                         .unwrap(),
                     ),
                 ],
-                chain_id_leaf_proof_mask: 3u32.into(),
+                chain_id_leaf_proof_mask: 3,
             },
         ),
         (
@@ -700,7 +700,7 @@ fn chain_log_proofs() -> Vec<(L1BatchNumber, ChainAggProof)> {
                         .unwrap(),
                     ),
                 ],
-                chain_id_leaf_proof_mask: 3u32.into(),
+                chain_id_leaf_proof_mask: 3,
             },
         ),
         (
@@ -720,7 +720,7 @@ fn chain_log_proofs() -> Vec<(L1BatchNumber, ChainAggProof)> {
                         .unwrap(),
                     ),
                 ],
-                chain_id_leaf_proof_mask: 3u32.into(),
+                chain_id_leaf_proof_mask: 3,
             },
         ),
         (
@@ -740,7 +740,7 @@ fn chain_log_proofs() -> Vec<(L1BatchNumber, ChainAggProof)> {
                         .unwrap(),
                     ),
                 ],
-                chain_id_leaf_proof_mask: 3u32.into(),
+                chain_id_leaf_proof_mask: 3,
             },
         ),
     ]

@@ -98,7 +98,7 @@ pub(crate) async fn create_mock_checker(
     let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
     let client = client.into_client();
     let chain_id = client.fetch_chain_id().await.unwrap();
-    let l1_chain_data = SLChainData {
+    let l1_chain_data = SLChainAccess {
         client: Box::new(client),
         chain_id,
         diamond_proxy_addr: Some(L1_DIAMOND_PROXY_ADDR),

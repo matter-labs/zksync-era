@@ -200,7 +200,7 @@ pub struct L2ToL1LogProof {
 #[serde(rename_all = "camelCase")]
 pub struct ChainAggProof {
     pub chain_id_leaf_proof: Vec<H256>,
-    pub chain_id_leaf_proof_mask: U256,
+    pub chain_id_leaf_proof_mask: u64,
 }
 
 /// A struct with the two default bridge contracts.

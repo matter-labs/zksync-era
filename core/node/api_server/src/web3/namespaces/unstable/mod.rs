@@ -133,7 +133,7 @@ impl UnstableNamespace {
 
         Ok(Some(ChainAggProof {
             chain_id_leaf_proof,
-            chain_id_leaf_proof_mask: chain_id_leaf_proof_mask.into(),
+            chain_id_leaf_proof_mask: chain_id_leaf_proof_mask as u64,
         }))
     }
 }
