@@ -2,6 +2,7 @@ use anyhow::Context;
 use clap::{command, Parser, Subcommand};
 use common::{git, logger, spinner::Spinner};
 use config::{
+    get_default_era_chain_id,
     traits::{ReadConfig, SaveConfigWithBasePath},
     zkstack_config::ZkStackConfig,
     ChainConfig, EcosystemConfig, WalletsConfig,
@@ -66,7 +67,7 @@ async fn run_init(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
     logger::info(msg_initializing_chain(""));
     git::submodule_update(shell, chain_config.link_to_code.clone())?;
 
-    init(&args, shell, &ecosystem.unwrap(), &chain_config).await?;
+    init(&args, shell, ecosystem, &chain_config).await?;
 
     logger::success(MSG_CHAIN_INITIALIZED);
     Ok(())
@@ -75,7 +76,7 @@ async fn run_init(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
 pub async fn init(
     init_args: &InitArgsFinal,
     shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
+    ecosystem: Option<EcosystemConfig>,
     chain_config: &ChainConfig,
 ) -> anyhow::Result<()> {
     // Initialize configs
@@ -139,10 +140,15 @@ pub async fn init(
     }
 
     // Deploy L2 contracts: L2SharedBridge, L2DefaultUpgrader, ... (run by L1 Governor)
+    let era_chain_id = ecosystem
+        .as_ref()
+        .map(|ecosystem| ecosystem.era_chain_id)
+        .unwrap_or(get_default_era_chain_id());
     deploy_l2_contracts::deploy_l2_contracts(
         shell,
         chain_config,
-        ecosystem_config,
+        era_chain_id,
+        &ecosystem.clone().unwrap(),
         &mut contracts_config,
         init_args.forge_args.clone(),
     )
@@ -154,7 +160,7 @@ pub async fn init(
         setup_legacy_bridge(
             shell,
             chain_config,
-            ecosystem_config,
+            &ecosystem.unwrap(),
             &contracts_config,
             init_args.forge_args.clone(),
         )

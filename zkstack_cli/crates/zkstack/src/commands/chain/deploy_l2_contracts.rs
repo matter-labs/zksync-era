@@ -22,6 +22,7 @@ use config::{
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use xshell::Shell;
+use zksync_basic_types::L2ChainId;
 
 use crate::{
     messages::{
@@ -51,6 +52,7 @@ pub async fn run(
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
     let mut contracts = chain_config.get_contracts_config()?;
+    let era_chain_id = ecosystem_config.era_chain_id;
 
     let spinner = Spinner::new(MSG_DEPLOYING_L2_CONTRACT_SPINNER);
 
@@ -59,6 +61,7 @@ pub async fn run(
             deploy_l2_contracts(
                 shell,
                 &chain_config,
+                era_chain_id,
                 &ecosystem_config,
                 &mut contracts,
                 args,
@@ -69,6 +72,7 @@ pub async fn run(
             deploy_upgrader(
                 shell,
                 &chain_config,
+                era_chain_id,
                 &ecosystem_config,
                 &mut contracts,
                 args,
@@ -79,6 +83,7 @@ pub async fn run(
             deploy_consensus_registry(
                 shell,
                 &chain_config,
+                era_chain_id,
                 &ecosystem_config,
                 &mut contracts,
                 args,
@@ -89,6 +94,7 @@ pub async fn run(
             deploy_multicall3(
                 shell,
                 &chain_config,
+                era_chain_id,
                 &ecosystem_config,
                 &mut contracts,
                 args,
@@ -99,6 +105,7 @@ pub async fn run(
             deploy_timestamp_asserter(
                 shell,
                 &chain_config,
+                era_chain_id,
                 &ecosystem_config,
                 &mut contracts,
                 args,
@@ -109,6 +116,7 @@ pub async fn run(
             initialize_bridges(
                 shell,
                 &chain_config,
+                era_chain_id,
                 &ecosystem_config,
                 &mut contracts,
                 args,
@@ -128,13 +136,22 @@ pub async fn run(
 async fn build_and_deploy(
     shell: &Shell,
     chain_config: &ChainConfig,
+    era_chain_id: L2ChainId,
     ecosystem_config: &EcosystemConfig,
     forge_args: ForgeScriptArgs,
     signature: Option<&str>,
     mut update_config: impl FnMut(&Shell, &Path) -> anyhow::Result<()>,
 ) -> anyhow::Result<()> {
     build_l2_contracts(shell.clone(), chain_config.link_to_code.clone())?;
-    call_forge(shell, chain_config, ecosystem_config, forge_args, signature).await?;
+    call_forge(
+        shell,
+        chain_config,
+        era_chain_id,
+        ecosystem_config,
+        forge_args,
+        signature,
+    )
+    .await?;
     update_config(
         shell,
         &DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS.output(&chain_config.link_to_code),
@@ -145,6 +162,7 @@ async fn build_and_deploy(
 pub async fn initialize_bridges(
     shell: &Shell,
     chain_config: &ChainConfig,
+    era_chain_id: L2ChainId,
     ecosystem_config: &EcosystemConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
@@ -157,6 +175,7 @@ pub async fn initialize_bridges(
     build_and_deploy(
         shell,
         chain_config,
+        era_chain_id,
         ecosystem_config,
         forge_args,
         signature,
@@ -170,6 +189,7 @@ pub async fn initialize_bridges(
 pub async fn deploy_upgrader(
     shell: &Shell,
     chain_config: &ChainConfig,
+    era_chain_id: L2ChainId,
     ecosystem_config: &EcosystemConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
@@ -177,6 +197,7 @@ pub async fn deploy_upgrader(
     build_and_deploy(
         shell,
         chain_config,
+        era_chain_id,
         ecosystem_config,
         forge_args,
         Some("runDefaultUpgrader"),
@@ -190,6 +211,7 @@ pub async fn deploy_upgrader(
 pub async fn deploy_consensus_registry(
     shell: &Shell,
     chain_config: &ChainConfig,
+    era_chain_id: L2ChainId,
     ecosystem_config: &EcosystemConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
@@ -197,6 +219,7 @@ pub async fn deploy_consensus_registry(
     build_and_deploy(
         shell,
         chain_config,
+        era_chain_id,
         ecosystem_config,
         forge_args,
         Some("runDeployConsensusRegistry"),
@@ -210,6 +233,7 @@ pub async fn deploy_consensus_registry(
 pub async fn deploy_multicall3(
     shell: &Shell,
     chain_config: &ChainConfig,
+    era_chain_id: L2ChainId,
     ecosystem_config: &EcosystemConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
@@ -217,6 +241,7 @@ pub async fn deploy_multicall3(
     build_and_deploy(
         shell,
         chain_config,
+        era_chain_id,
         ecosystem_config,
         forge_args,
         Some("runDeployMulticall3"),
@@ -228,6 +253,7 @@ pub async fn deploy_multicall3(
 pub async fn deploy_timestamp_asserter(
     shell: &Shell,
     chain_config: &ChainConfig,
+    era_chain_id: L2ChainId,
     ecosystem_config: &EcosystemConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
@@ -235,6 +261,7 @@ pub async fn deploy_timestamp_asserter(
     build_and_deploy(
         shell,
         chain_config,
+        era_chain_id,
         ecosystem_config,
         forge_args,
         Some("runDeployTimestampAsserter"),
@@ -249,6 +276,7 @@ pub async fn deploy_timestamp_asserter(
 pub async fn deploy_l2_contracts(
     shell: &Shell,
     chain_config: &ChainConfig,
+    era_chain_id: L2ChainId,
     ecosystem_config: &EcosystemConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
@@ -261,6 +289,7 @@ pub async fn deploy_l2_contracts(
     build_and_deploy(
         shell,
         chain_config,
+        era_chain_id,
         ecosystem_config,
         forge_args,
         signature,
@@ -280,11 +309,12 @@ pub async fn deploy_l2_contracts(
 async fn call_forge(
     shell: &Shell,
     chain_config: &ChainConfig,
+    era_chain_id: L2ChainId,
     ecosystem_config: &EcosystemConfig,
     forge_args: ForgeScriptArgs,
     signature: Option<&str>,
 ) -> anyhow::Result<()> {
-    let input = DeployL2ContractsInput::new(chain_config, ecosystem_config.era_chain_id)?;
+    let input = DeployL2ContractsInput::new(chain_config, era_chain_id)?;
     let foundry_contracts_path = chain_config.path_to_foundry();
     let secrets = chain_config.get_secrets_config()?;
     input.save(

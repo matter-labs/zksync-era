@@ -380,7 +380,7 @@ async fn init_chains(
         chain::init::init(
             &final_chain_init_args,
             shell,
-            ecosystem_config,
+            Some(ecosystem_config.clone()),
             &chain_config,
         )
         .await?;
