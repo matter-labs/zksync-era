@@ -79,6 +79,7 @@ members = [
   # Test infrastructure
   "core/tests/loadnext",
   "core/tests/vm-benchmark",
+  "core/lib/bin_metadata",
 ]
 resolver = "2"
 
@@ -275,6 +276,7 @@ zksync_health_check = { version = "0.1.0", path = "core/lib/health_check" }
 zksync_l1_contract_interface = { version = "0.1.0", path = "core/lib/l1_contract_interface" }
 zksync_mempool = { version = "0.1.0", path = "core/lib/mempool" }
 zksync_merkle_tree = { version = "0.1.0", path = "core/lib/merkle_tree" }
+zksync_bin_metadata = { version = "0.1.0", path = "core/lib/bin_metadata" }
 zksync_mini_merkle_tree = { version = "0.1.0", path = "core/lib/mini_merkle_tree" }
 zksync_object_store = { version = "0.1.0", path = "core/lib/object_store" }
 zksync_protobuf_config = { version = "0.1.0", path = "core/lib/protobuf_config" }

@@ -3,12 +3,12 @@
 use std::{fmt, time::Duration};
 
 use vise::{
-    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics, Unit,
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Info, Metrics,
+    Unit,
 };
+use zksync_bin_metadata::{values::BIN_METADATA, BinMetadata};
 use zksync_dal::transactions_dal::L2TxSubmissionResult;
 use zksync_types::aggregated_operations::AggregatedActionType;
-
-pub mod binary;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
@@ -196,3 +196,20 @@ pub struct ExternalNodeMetrics {
 
 #[vise::register]
 pub static EN_METRICS: vise::Global<ExternalNodeMetrics> = vise::Global::new();
+
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "rust")]
+pub struct BinMetrics {
+    /// General information about the compiled binary.
+    info: Info<BinMetadata>,
+}
+
+impl BinMetrics {
+    pub fn initialize(&self) {
+        tracing::info!("Metadata for this binary: {BIN_METADATA:?}");
+        self.info.set(BIN_METADATA).ok();
+    }
+}
+
+#[vise::register]
+pub static BIN_METRICS: vise::Global<BinMetrics> = vise::Global::new();

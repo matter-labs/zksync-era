@@ -5,7 +5,7 @@ use zksync_node_framework::{
     implementations::resources::pools::{MasterPool, PoolResource},
     FromContext, IntoContext, StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
-use zksync_shared_metrics::binary::BIN_METRICS;
+use zksync_shared_metrics::BIN_METRICS;
 use zksync_types::{L1ChainId, L2ChainId, SLChainId};
 
 use super::EN_METRICS;

@@ -1,7 +1,5 @@
-use async_trait::async_trait;
 use serde::Serialize;
 use vise::{EncodeLabelSet, Info, Metrics};
-use zksync_health_check::{CheckHealth, Health, HealthStatus};
 
 use self::values::BIN_METADATA;
 
@@ -34,25 +32,5 @@ impl BinMetrics {
     pub fn initialize(&self) {
         tracing::info!("Metadata for this binary: {BIN_METADATA:?}");
         self.info.set(BIN_METADATA).ok();
-    }
-}
-
-#[vise::register]
-pub static BIN_METRICS: vise::Global<BinMetrics> = vise::Global::new();
-
-impl From<&BinMetadata> for Health {
-    fn from(details: &BinMetadata) -> Self {
-        Self::from(HealthStatus::Ready).with_details(details)
-    }
-}
-
-#[async_trait]
-impl CheckHealth for BinMetadata {
-    fn name(&self) -> &'static str {
-        "metadata"
-    }
-
-    async fn check_health(&self) -> Health {
-        self.into()
     }
 }
