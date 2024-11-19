@@ -1,23 +1,24 @@
 //! Definition of ZKsync network priority operations: operations initiated from the L1.
 
-use std::convert::TryFrom;
-
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{web3::Log, Address, L1BlockNumber, PriorityOpId, H256, U256};
 use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_mini_merkle_tree::HashEmptySubtree;
-use zksync_utils::bytecode::hash_bytecode;
 
 use super::Transaction;
 use crate::{
-    abi, address_to_u256, ethabi, h256_to_u256,
+    abi, address_to_u256,
+    bytecode::BytecodeHash,
+    ethabi,
     helpers::unix_timestamp_ms,
     l1::error::L1TxParseError,
     l2::TransactionType,
     priority_op_onchain_data::{PriorityOpOnchainData, PriorityOpOnchainMetadata},
     tx::Execute,
-    u256_to_address, ExecuteTransactionCommon, PRIORITY_OPERATION_L2_TX_TYPE,
-    PROTOCOL_UPGRADE_TX_TYPE,
+    u256_to_address,
+    web3::Log,
+    Address, ExecuteTransactionCommon, L1BlockNumber, PriorityOpId, H256,
+    PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 
 pub mod error;
@@ -301,7 +302,7 @@ impl From<L1Tx> for abi::NewPriorityRequest {
                 signature: vec![],
                 factory_deps: factory_deps
                     .iter()
-                    .map(|b| h256_to_u256(hash_bytecode(b)))
+                    .map(|b| BytecodeHash::for_bytecode(b).value_u256())
                     .collect(),
                 paymaster_input: vec![],
                 reserved_dynamic: vec![],
@@ -326,7 +327,7 @@ impl TryFrom<abi::NewPriorityRequest> for L1Tx {
         let factory_deps_hashes: Vec<_> = req
             .factory_deps
             .iter()
-            .map(|b| h256_to_u256(hash_bytecode(b)))
+            .map(|b| BytecodeHash::for_bytecode(b).value_u256())
             .collect();
         anyhow::ensure!(req.transaction.factory_deps == factory_deps_hashes);
         for item in &req.transaction.reserved[2..] {
