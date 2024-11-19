@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{extract::Path, Json};
-use chrono::Utc;
+use chrono::{Duration as ChronoDuration, Utc};
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{
     tee_proof_generation_dal::{LockedBatch, TeeProofGenerationJobStatus},
@@ -51,10 +51,17 @@ impl TeeRequestProcessor {
     ) -> Result<Option<Json<TeeProofGenerationDataResponse>>, RequestProcessorError> {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
-        let batch_ignored_timeout = self
-            .config
-            .tee_config
-            .tee_batch_permanently_ignored_timeout();
+        let batch_ignored_timeout = ChronoDuration::from_std(
+            self.config
+                .tee_config
+                .tee_batch_permanently_ignored_timeout(),
+        )
+        .map_err(|err| {
+            RequestProcessorError::GeneralError(format!(
+                "Failed to convert batch_ignored_timeout: {}",
+                err
+            ))
+        })?;
         let min_batch_number = self.config.tee_config.first_tee_processed_batch;
 
         loop {
