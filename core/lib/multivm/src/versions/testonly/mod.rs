@@ -11,18 +11,15 @@
 
 use std::{collections::HashSet, rc::Rc};
 
-use ethabi::Contract;
 use once_cell::sync::Lazy;
 use zksync_contracts::{
-    load_contract, read_bootloader_code, read_bytecode, read_zbin_bytecode, BaseSystemContracts,
-    SystemContractCode,
+    read_bootloader_code, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
 };
 use zksync_types::{
-    block::L2BlockHasher, fee_model::BatchFeeInput, get_code_key, get_is_account_key, h256_to_u256,
-    u256_to_h256, utils::storage_key_for_eth_balance, Address, L1BatchNumber, L2BlockNumber,
-    L2ChainId, ProtocolVersionId, U256,
+    block::L2BlockHasher, bytecode::BytecodeHash, fee_model::BatchFeeInput, get_code_key,
+    get_is_account_key, h256_to_u256, u256_to_h256, utils::storage_key_for_eth_balance, Address,
+    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 use zksync_vm_interface::{
     pubdata::PubdataBuilder, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
 };
@@ -63,59 +60,7 @@ static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
 
 fn get_empty_storage() -> InMemoryStorage {
-    InMemoryStorage::with_system_contracts(hash_bytecode)
-}
-
-pub(crate) fn read_test_contract() -> Vec<u8> {
-    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json")
-}
-
-fn get_complex_upgrade_abi() -> Contract {
-    load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json"
-    )
-}
-
-fn read_complex_upgrade() -> Vec<u8> {
-    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json")
-}
-
-fn read_precompiles_contract() -> Vec<u8> {
-    read_bytecode(
-        "etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json",
-    )
-}
-
-fn load_precompiles_contract() -> Contract {
-    load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json",
-    )
-}
-
-fn read_proxy_counter_contract() -> (Vec<u8>, Contract) {
-    const PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/counter/proxy_counter.sol/ProxyCounter.json";
-    (read_bytecode(PATH), load_contract(PATH))
-}
-
-fn read_nonce_holder_tester() -> Vec<u8> {
-    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/custom-account/nonce-holder-test.sol/NonceHolderTest.json")
-}
-
-fn read_expensive_contract() -> (Vec<u8>, Contract) {
-    const PATH: &str =
-        "etc/contracts-test-data/artifacts-zk/contracts/expensive/expensive.sol/Expensive.json";
-    (read_bytecode(PATH), load_contract(PATH))
-}
-
-fn read_many_owners_custom_account_contract() -> (Vec<u8>, Contract) {
-    let path = "etc/contracts-test-data/artifacts-zk/contracts/custom-account/many-owners-custom-account.sol/ManyOwnersCustomAccount.json";
-    (read_bytecode(path), load_contract(path))
-}
-
-fn read_error_contract() -> Vec<u8> {
-    read_bytecode(
-        "etc/contracts-test-data/artifacts-zk/contracts/error/error.sol/SimpleRequire.json",
-    )
+    InMemoryStorage::with_system_contracts()
 }
 
 pub(crate) fn read_max_depth_contract() -> Vec<u8> {
@@ -124,15 +69,9 @@ pub(crate) fn read_max_depth_contract() -> Vec<u8> {
     )
 }
 
-pub(crate) fn read_simple_transfer_contract() -> Vec<u8> {
-    read_bytecode(
-        "etc/contracts-test-data/artifacts-zk/contracts/simple-transfer/simple-transfer.sol/SimpleTransfer.json",
-    )
-}
-
 pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {
     let bootloader_code = read_bootloader_code(test);
-    let bootloader_hash = hash_bytecode(&bootloader_code);
+    let bootloader_hash = BytecodeHash::for_bytecode(&bootloader_code).value();
     SystemContractCode {
         code: bootloader_code,
         hash: bootloader_hash,
@@ -224,12 +163,13 @@ impl ContractToDeploy {
 
     pub fn insert(&self, storage: &mut InMemoryStorage) {
         let deployer_code_key = get_code_key(&self.address);
-        storage.set_value(deployer_code_key, hash_bytecode(&self.bytecode));
+        let bytecode_hash = BytecodeHash::for_bytecode(&self.bytecode).value();
+        storage.set_value(deployer_code_key, bytecode_hash);
         if self.is_account {
             let is_account_key = get_is_account_key(&self.address);
             storage.set_value(is_account_key, u256_to_h256(1_u32.into()));
         }
-        storage.store_factory_dep(hash_bytecode(&self.bytecode), self.bytecode.clone());
+        storage.store_factory_dep(bytecode_hash, self.bytecode.clone());
 
         if self.is_funded {
             make_address_rich(storage, self.address);

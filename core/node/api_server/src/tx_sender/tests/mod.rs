@@ -1,9 +1,9 @@
 //! Tests for the transaction sender.
 
 use test_casing::TestCases;
-use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, prepare_recovery_snapshot};
+use zksync_test_contracts::LoadnextContractExecutionParams;
 use zksync_types::{get_nonce_key, L1BatchNumber, L2BlockNumber, StorageLog};
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 

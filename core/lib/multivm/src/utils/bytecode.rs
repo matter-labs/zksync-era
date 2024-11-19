@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use zksync_types::{
+    bytecode::{validate_bytecode, BytecodeHash, InvalidBytecodeError},
     ethabi::{self, Token},
     Address, H256, U256,
 };
-use zksync_utils::bytecode::{hash_bytecode, validate_bytecode, InvalidBytecodeError};
 
 use crate::interface::CompressedBytecodeInfo;
 
@@ -44,6 +44,15 @@ pub(crate) fn be_bytes_to_safe_address(bytes: &[u8]) -> Option<Address> {
     } else {
         Some(Address::from_slice(address_bytes))
     }
+}
+
+pub(crate) fn bytecode_len_in_words(bytecode_hash: &H256) -> u16 {
+    let bytes = bytecode_hash.as_bytes();
+    u16::from_be_bytes([bytes[2], bytes[3]])
+}
+
+pub(crate) fn bytecode_len_in_bytes(bytecode_hash: &H256) -> u32 {
+    u32::from(bytecode_len_in_words(bytecode_hash)) * 32
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -128,7 +137,10 @@ pub(crate) fn compress(
 }
 
 pub(crate) fn encode_call(bytecode: &CompressedBytecodeInfo) -> Vec<u8> {
-    let mut bytecode_hash = hash_bytecode(&bytecode.original).as_bytes().to_vec();
+    let mut bytecode_hash = BytecodeHash::for_bytecode(&bytecode.original)
+        .value()
+        .as_bytes()
+        .to_vec();
     let empty_cell = [0_u8; 32];
     bytecode_hash.extend_from_slice(&empty_cell);
 
