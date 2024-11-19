@@ -29,7 +29,8 @@ use crate::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DEPLOYING_PAYMASTER, MSG_GENESIS_DATABASE_ERR,
         MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
-        MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
+        MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLETS_CONFIG_MUST_BE_PRESENT,
+        MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
 };
 
@@ -128,7 +129,7 @@ pub async fn init(
             contracts_config.l1.chain_admin_addr,
             chain_config
                 .get_wallets_config()
-                .unwrap()
+                .context(MSG_WALLETS_CONFIG_MUST_BE_PRESENT)?
                 .token_multiplier_setter
                 .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
                 .address,
