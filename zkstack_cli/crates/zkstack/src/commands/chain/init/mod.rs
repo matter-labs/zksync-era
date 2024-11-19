@@ -148,7 +148,7 @@ pub async fn init(
         shell,
         chain_config,
         era_chain_id,
-        wallets,
+        &wallets,
         &mut contracts_config,
         init_args.forge_args.clone(),
     )
@@ -160,7 +160,7 @@ pub async fn init(
         setup_legacy_bridge(
             shell,
             chain_config,
-            &ecosystem.unwrap(),
+            &wallets,
             &contracts_config,
             init_args.forge_args.clone(),
         )

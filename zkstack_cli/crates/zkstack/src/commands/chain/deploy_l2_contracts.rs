@@ -63,7 +63,7 @@ pub async fn run(
                 shell,
                 &chain_config,
                 era_chain_id,
-                wallets,
+                &wallets,
                 &mut contracts,
                 args,
             )
@@ -74,7 +74,7 @@ pub async fn run(
                 shell,
                 &chain_config,
                 era_chain_id,
-                wallets,
+                &wallets,
                 &mut contracts,
                 args,
             )
@@ -85,7 +85,7 @@ pub async fn run(
                 shell,
                 &chain_config,
                 era_chain_id,
-                wallets,
+                &wallets,
                 &mut contracts,
                 args,
             )
@@ -96,7 +96,7 @@ pub async fn run(
                 shell,
                 &chain_config,
                 era_chain_id,
-                wallets,
+                &wallets,
                 &mut contracts,
                 args,
             )
@@ -107,7 +107,7 @@ pub async fn run(
                 shell,
                 &chain_config,
                 era_chain_id,
-                wallets,
+                &wallets,
                 &mut contracts,
                 args,
             )
@@ -118,7 +118,7 @@ pub async fn run(
                 shell,
                 &chain_config,
                 era_chain_id,
-                wallets,
+                &wallets,
                 &mut contracts,
                 args,
             )
@@ -138,7 +138,7 @@ async fn build_and_deploy(
     shell: &Shell,
     chain_config: &ChainConfig,
     era_chain_id: L2ChainId,
-    wallets: WalletsConfig,
+    wallets: &WalletsConfig,
     forge_args: ForgeScriptArgs,
     signature: Option<&str>,
     mut update_config: impl FnMut(&Shell, &Path) -> anyhow::Result<()>,
@@ -164,7 +164,7 @@ pub async fn initialize_bridges(
     shell: &Shell,
     chain_config: &ChainConfig,
     era_chain_id: L2ChainId,
-    wallets: WalletsConfig,
+    wallets: &WalletsConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
@@ -191,7 +191,7 @@ pub async fn deploy_upgrader(
     shell: &Shell,
     chain_config: &ChainConfig,
     era_chain_id: L2ChainId,
-    wallets: WalletsConfig,
+    wallets: &WalletsConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
@@ -213,7 +213,7 @@ pub async fn deploy_consensus_registry(
     shell: &Shell,
     chain_config: &ChainConfig,
     era_chain_id: L2ChainId,
-    wallets: WalletsConfig,
+    wallets: &WalletsConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
@@ -235,7 +235,7 @@ pub async fn deploy_multicall3(
     shell: &Shell,
     chain_config: &ChainConfig,
     era_chain_id: L2ChainId,
-    wallets: WalletsConfig,
+    wallets: &WalletsConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
@@ -255,7 +255,7 @@ pub async fn deploy_timestamp_asserter(
     shell: &Shell,
     chain_config: &ChainConfig,
     era_chain_id: L2ChainId,
-    wallets: WalletsConfig,
+    wallets: &WalletsConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
@@ -278,7 +278,7 @@ pub async fn deploy_l2_contracts(
     shell: &Shell,
     chain_config: &ChainConfig,
     era_chain_id: L2ChainId,
-    wallets: WalletsConfig,
+    wallets: &WalletsConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
@@ -311,7 +311,7 @@ async fn call_forge(
     shell: &Shell,
     chain_config: &ChainConfig,
     era_chain_id: L2ChainId,
-    wallets: WalletsConfig,
+    wallets: &WalletsConfig,
     forge_args: ForgeScriptArgs,
     signature: Option<&str>,
 ) -> anyhow::Result<()> {
