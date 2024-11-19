@@ -7,9 +7,9 @@ use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use zksync_types::{
-    block::L2BlockHeader, bytecode::BytecodeHash, commitment::PubdataParams, fee_model::BatchFeeInput,
-    snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
-    ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
+    block::L2BlockHeader, bytecode::BytecodeHash, commitment::PubdataParams,
+    fee_model::BatchFeeInput, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber,
+    L2BlockNumber, L2ChainId, ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
 };
 
 const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 = u32::MAX;

@@ -15,9 +15,9 @@ use zksync_multivm::interface::{
 };
 use zksync_state::OwnedStorage;
 use zksync_types::{
-    commitment::PubdataParams, bytecode::BytecodeHash, fee::Fee, get_code_key, get_known_code_key, u256_to_h256,
-    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, L1BatchNumber,
-    L2BlockNumber, StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS,
+    bytecode::BytecodeHash, commitment::PubdataParams, fee::Fee, get_code_key, get_known_code_key,
+    u256_to_h256, utils::storage_key_for_standard_token_balance, AccountTreeId, Address,
+    L1BatchNumber, L2BlockNumber, StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS,
     SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
 };
 

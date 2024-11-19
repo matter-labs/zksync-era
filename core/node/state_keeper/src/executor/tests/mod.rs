@@ -9,7 +9,7 @@ use zksync_multivm::interface::{BatchTransactionExecutionResult, ExecutionResult
 use zksync_test_contracts::{Account, TestContract};
 use zksync_types::{
     get_nonce_key, utils::storage_key_for_eth_balance, vm::FastVmMode, web3, Execute, PriorityOpId,
-    L2_MESSAGE_ROOT_ADDRESS, U256,
+    L2_MESSAGE_ROOT_ADDRESS, U256, H256,
 };
 
 use self::tester::{AccountExt, StorageSnapshot, TestConfig, Tester};

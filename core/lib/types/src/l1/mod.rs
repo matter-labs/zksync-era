@@ -15,9 +15,8 @@ use crate::{
     l2::TransactionType,
     priority_op_onchain_data::{PriorityOpOnchainData, PriorityOpOnchainMetadata},
     tx::Execute,
-    u256_to_address,
-    ExecuteTransactionCommon,
-    PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE,
+    u256_to_address, ExecuteTransactionCommon, PRIORITY_OPERATION_L2_TX_TYPE,
+    PROTOCOL_UPGRADE_TX_TYPE,
 };
 
 pub mod error;

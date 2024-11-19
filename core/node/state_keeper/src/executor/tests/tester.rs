@@ -7,9 +7,7 @@ use assert_matches::assert_matches;
 use tempfile::TempDir;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_contracts::{
-    l2_rollup_da_validator_bytecode,
-};
+use zksync_contracts::l2_rollup_da_validator_bytecode;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
     interface::{
@@ -27,6 +25,7 @@ use zksync_test_contracts::{
 };
 use zksync_types::{
     block::L2BlockHasher,
+    bytecode::BytecodeHash,
     commitment::PubdataParams,
     ethabi::Token,
     get_code_key, get_known_code_key,
@@ -39,7 +38,6 @@ use zksync_types::{
     AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId,
     StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 use zksync_vm_executor::batch::{MainBatchExecutorFactory, TraceCalls};
 
 use super::{read_storage_factory::RocksdbStorageFactory, StorageType};
@@ -341,7 +339,7 @@ impl Tester {
         address: Address,
         code: Vec<u8>,
     ) {
-        let hash: H256 = hash_bytecode(&code);
+        let hash: H256 = BytecodeHash::for_bytecode(&code).value();
         let known_code_key = get_known_code_key(&hash);
         let code_key = get_code_key(&address);
 
