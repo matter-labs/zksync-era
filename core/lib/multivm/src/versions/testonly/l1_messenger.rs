@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use ethabi::Token;
 use zksync_contracts::{l1_messenger_contract, l2_rollup_da_validator_bytecode};
-use zksync_test_contracts::{TxType, TestContract};
+use zksync_test_contracts::{TestContract, TxType};
 use zksync_types::{
     address_to_h256, u256_to_h256, web3::keccak256, Address, Execute, ProtocolVersionId,
     L1_MESSENGER_ADDRESS, U256,
