@@ -1,30 +1,8 @@
 use serde::Deserialize;
 use zksync_basic_types::secrets::PrivateKey;
-
-pub const EIGEN_MEMSTORE_CLIENT_NAME: &str = "MemStore";
-pub const EIGEN_DISPERSER_CLIENT_NAME: &str = "Disperser";
-
-#[derive(Clone, Debug, PartialEq, Deserialize)]
-pub enum EigenConfig {
-    MemStore(MemStoreConfig),
-    Disperser(DisperserConfig),
-}
-
-/// Configuration for the EigenDA in-memory client.
-#[derive(Clone, Debug, PartialEq, Deserialize, Default)]
-pub struct MemStoreConfig {
-    pub max_blob_size_bytes: u64,
-    /// Blob expiration time in seconds
-    pub blob_expiration: u64,
-    /// Latency in milliseconds for get operations
-    pub get_latency: u64,
-    /// Latency in milliseconds for put operations
-    pub put_latency: u64,
-}
-
 /// Configuration for the EigenDA remote disperser client.
 #[derive(Clone, Debug, PartialEq, Deserialize, Default)]
-pub struct DisperserConfig {
+pub struct EigenConfig {
     /// URL of the Disperser RPC server
     pub disperser_rpc: String,
     /// Block height needed to reach in order to consider the blob finalized

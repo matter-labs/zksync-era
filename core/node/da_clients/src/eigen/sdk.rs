@@ -8,7 +8,7 @@ use tonic::{
     transport::{Channel, ClientTlsConfig, Endpoint},
     Streaming,
 };
-use zksync_config::configs::da_client::eigen::DisperserConfig;
+use zksync_config::EigenConfig;
 #[cfg(test)]
 use zksync_da_client::types::DAError;
 
@@ -31,7 +31,7 @@ use crate::eigen::{
 pub(crate) struct RawEigenClient {
     client: DisperserClient<Channel>,
     private_key: SecretKey,
-    pub config: DisperserConfig,
+    pub config: EigenConfig,
     verifier: Verifier,
 }
 
@@ -41,7 +41,7 @@ pub(crate) const AVG_BLOCK_TIME: u64 = 12;
 impl RawEigenClient {
     pub(crate) const BUFFER_SIZE: usize = 1000;
 
-    pub async fn new(private_key: SecretKey, config: DisperserConfig) -> anyhow::Result<Self> {
+    pub async fn new(private_key: SecretKey, config: EigenConfig) -> anyhow::Result<Self> {
         let endpoint =
             Endpoint::from_str(config.disperser_rpc.as_str())?.tls_config(ClientTlsConfig::new())?;
         let client = DisperserClient::connect(endpoint)

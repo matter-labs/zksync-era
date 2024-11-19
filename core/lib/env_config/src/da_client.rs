@@ -1,21 +1,17 @@
 use std::env;
 
-use zksync_config::{
-    configs::{
-        da_client::{
-            avail::{
-                AvailClientConfig, AvailSecrets, AVAIL_FULL_CLIENT_NAME,
-                AVAIL_GAS_RELAY_CLIENT_NAME,
-            },
-            celestia::CelestiaSecrets,
-            eigen::{EigenSecrets, EIGEN_DISPERSER_CLIENT_NAME, EIGEN_MEMSTORE_CLIENT_NAME},
-            DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, CELESTIA_CLIENT_CONFIG_NAME,
-            EIGEN_CLIENT_CONFIG_NAME, OBJECT_STORE_CLIENT_CONFIG_NAME,
+use zksync_config::configs::{
+    da_client::{
+        avail::{
+            AvailClientConfig, AvailSecrets, AVAIL_FULL_CLIENT_NAME, AVAIL_GAS_RELAY_CLIENT_NAME,
         },
-        secrets::DataAvailabilitySecrets,
-        AvailConfig,
+        celestia::CelestiaSecrets,
+        eigen::EigenSecrets,
+        DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, CELESTIA_CLIENT_CONFIG_NAME,
+        EIGEN_CLIENT_CONFIG_NAME, OBJECT_STORE_CLIENT_CONFIG_NAME,
     },
-    EigenConfig,
+    secrets::DataAvailabilitySecrets,
+    AvailConfig,
 };
 
 use crate::{envy_load, FromEnv};
@@ -38,17 +34,7 @@ impl FromEnv for DAClientConfig {
                 },
             }),
             CELESTIA_CLIENT_CONFIG_NAME => Self::Celestia(envy_load("da_celestia_config", "DA_")?),
-            EIGEN_CLIENT_CONFIG_NAME => match env::var("DA_EIGEN_CLIENT_TYPE")?.as_str() {
-                EIGEN_DISPERSER_CLIENT_NAME => Self::Eigen(EigenConfig::Disperser(envy_load(
-                    "da_eigen_config_disperser",
-                    "DA_",
-                )?)),
-                EIGEN_MEMSTORE_CLIENT_NAME => Self::Eigen(EigenConfig::MemStore(envy_load(
-                    "da_eigen_config_memstore",
-                    "DA_",
-                )?)),
-                _ => anyhow::bail!("Unknown Eigen DA client type"),
-            },
+            EIGEN_CLIENT_CONFIG_NAME => Self::Eigen(envy_load("da_eigen_config", "DA_")?),
             OBJECT_STORE_CLIENT_CONFIG_NAME => {
                 Self::ObjectStore(envy_load("da_object_store", "DA_")?)
             }
@@ -108,7 +94,6 @@ mod tests {
         configs::{
             da_client::{
                 avail::{AvailClientConfig, AvailDefaultConfig},
-                eigen::{DisperserConfig, MemStoreConfig},
                 DAClientConfig::{self, ObjectStore},
             },
             object_store::ObjectStoreMode::GCS,
@@ -259,32 +244,7 @@ mod tests {
     }
 
     #[test]
-    fn from_env_eigen_client_memstore() {
-        let mut lock = MUTEX.lock();
-        let config = r#"
-            DA_CLIENT="Eigen"
-            DA_EIGEN_CLIENT_TYPE="MemStore"
-            DA_MAX_BLOB_SIZE_BYTES=10
-            DA_BLOB_EXPIRATION=20
-            DA_GET_LATENCY=30
-            DA_PUT_LATENCY=40
-        "#;
-        lock.set_env(config);
-
-        let actual = DAClientConfig::from_env().unwrap();
-        assert_eq!(
-            actual,
-            DAClientConfig::Eigen(EigenConfig::MemStore(MemStoreConfig {
-                max_blob_size_bytes: 10,
-                blob_expiration: 20,
-                get_latency: 30,
-                put_latency: 40,
-            }))
-        );
-    }
-
-    #[test]
-    fn from_env_eigen_client_remote() {
+    fn from_env_eigen_client() {
         let mut lock = MUTEX.lock();
         let config = r#"
             DA_CLIENT="Eigen"
@@ -306,7 +266,7 @@ mod tests {
         let actual = DAClientConfig::from_env().unwrap();
         assert_eq!(
             actual,
-            DAClientConfig::Eigen(EigenConfig::Disperser(DisperserConfig {
+            DAClientConfig::Eigen(EigenConfig {
                 disperser_rpc: "http://localhost:8080".to_string(),
                 eth_confirmation_depth: 0,
                 eigenda_eth_rpc: "http://localhost:8545".to_string(),
@@ -318,7 +278,7 @@ mod tests {
                 authenticated: false,
                 verify_cert: false,
                 path_to_points: "resources".to_string(),
-            }))
+            })
         );
     }
 
