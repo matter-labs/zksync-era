@@ -214,7 +214,7 @@ describe('Upgrade test', function () {
         );
 
         const stmAddr = await mainContract.getChainTypeManager();
-        const stmContract = new ethers.Contract(stmAddr, contracts.stateTransitonManager, tester.syncWallet.providerL1);
+        const stmContract = new ethers.Contract(stmAddr, contracts.chainTypeManager, tester.syncWallet.providerL1);
         const governanceAddr = await stmContract.owner();
         governanceContract = new ethers.Contract(governanceAddr, contracts.governanceAbi, tester.syncWallet.providerL1);
         const chainAdminAddr = await mainContract.getAdmin();
@@ -662,7 +662,7 @@ async function prepareUpgradeCalldata(
     };
 
     // Prepare calldata for upgrading STM
-    const stmUpgradeCalldata = contracts.stateTransitonManager.encodeFunctionData('setNewVersionUpgrade', [
+    const stmUpgradeCalldata = contracts.chainTypeManager.encodeFunctionData('setNewVersionUpgrade', [
         upgradeParam,
         oldProtocolVersion,
         // The protocol version will not have any deadline in this upgrade
