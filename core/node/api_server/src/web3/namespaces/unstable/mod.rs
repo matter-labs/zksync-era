@@ -103,15 +103,15 @@ impl UnstableNamespace {
             return Ok(None);
         };
 
-        let mut leafs = Vec::new();
+        let mut leaves = Vec::new();
         for chain_id in chain_ids {
             let chain_root =
                 get_chain_root_from_id(&mut connection, chain_id, l2_block_number).await?;
-            leafs.push(chain_id_leaf_preimage(chain_root, chain_id));
+            leaves.push(chain_id_leaf_preimage(chain_root, chain_id));
         }
 
         let chain_merkle_tree =
-            MiniMerkleTree::<[u8; 96], KeccakHasher>::new(leafs.into_iter(), None);
+            MiniMerkleTree::<[u8; 96], KeccakHasher>::new(leaves.into_iter(), None);
 
         let mut chain_id_leaf_proof = chain_merkle_tree
             .merkle_root_and_path(chain_id_leaf_proof_mask)

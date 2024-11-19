@@ -217,8 +217,8 @@ impl BatchRootProcessor {
         chain_agg_proof: ChainAggProof,
         sl_chain_id: SLChainId,
     ) -> Vec<H256> {
-        let sl_encoded_data = U256::from(sl_l1_batch_number.0) * U256::from(2).pow(128.into())
-            + chain_agg_proof.chain_id_leaf_proof_mask;
+        let sl_encoded_data =
+            (U256::from(sl_l1_batch_number.0) << 128u32) + chain_agg_proof.chain_id_leaf_proof_mask;
 
         let mut metadata = [0u8; 32];
         metadata[0] = LOG_PROOF_SUPPORTED_METADATA_VERSION;

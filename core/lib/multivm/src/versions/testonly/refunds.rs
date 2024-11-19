@@ -56,11 +56,8 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
         .build::<VM>();
     assert_eq!(account.address(), vm.rich_accounts[0].address());
 
-    vm.vm.push_transaction_with_refund_and_compression(
-        tx.clone(),
-        result.refunds.gas_refunded,
-        true,
-    );
+    vm.vm
+        .push_transaction_with_refund(tx.clone(), result.refunds.gas_refunded);
 
     let result_with_predefined_refunds = vm
         .vm
@@ -115,7 +112,7 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
 
     let changed_operator_suggested_refund = result.refunds.gas_refunded + 1000;
     vm.vm
-        .push_transaction_with_refund_and_compression(tx, changed_operator_suggested_refund, true);
+        .push_transaction_with_refund(tx, changed_operator_suggested_refund);
     let result = vm
         .vm
         .finish_batch(default_pubdata_builder())
