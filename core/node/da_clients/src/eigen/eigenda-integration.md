@@ -76,7 +76,27 @@ cargo install --path zkstack_cli/crates/zkstack --force --locked
 zkstack containers --observability true
 ```
 
-3. Create `eigen_da` chain
+3. Temporary metrics setup (until `era-observabilty` changes are also merged)
+
+a. Setup the observability container at least once so the `era-observability` directory is cloned.
+
+```bash
+zkstack containers --observability true
+```
+
+b. Add `lambda` remote to the `era-observability` project:
+
+```bash
+cd era-observability && git remote add lambda https://github.com/lambdaclass/era-observability.git
+```
+
+c. Fetch and checkout the `eigenda` branch:
+
+```bash
+git fetch lambda && git checkout eigenda
+```
+
+4. Create `eigen_da` chain
 
 ```bash
 zkstack chain create \
@@ -91,7 +111,7 @@ zkstack chain create \
           --set-as-default false
 ```
 
-4. Initialize created ecosystem
+5. Initialize created ecosystem
 
 ```bash
 zkstack ecosystem init \
@@ -107,7 +127,42 @@ zkstack ecosystem init \
 
 You may enable observability here if you want to.
 
-5. Start the server
+6. Setup grafana dashboard for Data Availability
+
+a. Get the running port of the eigen_da chain in the `chains/eigen_da/configs/general.yaml` file:
+
+```yaml
+prometheus:
+  listener_port: 3414 # <- this is the port
+```
+
+(around line 108)
+
+Then modify the `era-observability/etc/prometheus/prometheus.yml` with the retrieved port:
+
+```yaml
+- job_name: 'zksync'
+  scrape_interval: 5s
+  honor_labels: true
+  static_configs:
+    - targets: ['host.docker.internal:3312'] # <- change this to the port
+```
+
+b. Enable the Data Availability Grafana dashboard
+
+```bash
+mv era-observability/additional_dashboards/EigenDA.json era-observability/dashboards/EigenDA.json
+```
+
+c. Restart the era-observability container
+
+```bash
+docker ps --filter "label=com.docker.compose.project=era-observability" -q | xargs docker restart
+```
+
+(this can also be done through the docker dashboard)
+
+7. Start the server
 
 ```bash
 zkstack server --chain eigen_da
@@ -125,7 +180,7 @@ And with the server running on one terminal, you can run the server integration 
 following command:
 
 ```bash
-zkstack dev test --chain eigen_da
+zkstack dev test integration --chain eigen_da
 ```
 
 ## Mainnet/Testnet setup

@@ -11,7 +11,7 @@ use zksync_da_client::{
 };
 
 use super::{blob_info::BlobInfo, memstore::MemStore, sdk::RawEigenClient, Disperser};
-use crate::utils::to_non_retriable_da_error;
+use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
 
 /// EigenClient is a client for the Eigen DA service.
 /// It can be configured to use one of two dispersal methods:
@@ -58,7 +58,7 @@ impl DataAvailabilityClient for EigenClient {
             Disperser::Remote(remote_disperser) => remote_disperser
                 .dispatch_blob(data)
                 .await
-                .map_err(to_non_retriable_da_error)?,
+                .map_err(to_retriable_da_error)?,
             Disperser::Memory(memstore) => memstore
                 .clone()
                 .put_blob(data)
