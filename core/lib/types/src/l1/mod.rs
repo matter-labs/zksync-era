@@ -16,9 +16,8 @@ use crate::{
     priority_op_onchain_data::{PriorityOpOnchainData, PriorityOpOnchainMetadata},
     tx::Execute,
     u256_to_address,
-    web3::Log,
-    Address, ExecuteTransactionCommon, L1BlockNumber, PriorityOpId, H256,
-    PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
+    ExecuteTransactionCommon,
+    PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE,
 };
 
 pub mod error;

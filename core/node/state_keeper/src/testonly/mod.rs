@@ -15,12 +15,11 @@ use zksync_multivm::interface::{
 };
 use zksync_state::OwnedStorage;
 use zksync_types::{
-    commitment::PubdataParams, fee::Fee, get_code_key, get_known_code_key, u256_to_h256,
+    commitment::PubdataParams, bytecode::BytecodeHash, fee::Fee, get_code_key, get_known_code_key, u256_to_h256,
     utils::storage_key_for_standard_token_balance, AccountTreeId, Address, L1BatchNumber,
     L2BlockNumber, StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS,
     SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 pub mod test_batch_executor;
 
@@ -120,7 +119,7 @@ pub async fn fund(pool: &ConnectionPool<Core>, addresses: &[Address]) {
 pub async fn setup_contract(pool: &ConnectionPool<Core>, address: Address, code: Vec<u8>) {
     let mut storage = pool.connection().await.unwrap();
 
-    let hash: H256 = hash_bytecode(&code);
+    let hash: H256 = BytecodeHash::for_bytecode(&code).value();
     let known_code_key = get_known_code_key(&hash);
     let code_key = get_code_key(&address);
 

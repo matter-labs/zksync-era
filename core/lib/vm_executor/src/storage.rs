@@ -7,11 +7,10 @@ use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use zksync_types::{
-    block::L2BlockHeader, commitment::PubdataParams, fee_model::BatchFeeInput,
+    block::L2BlockHeader, bytecode::BytecodeHash, commitment::PubdataParams, fee_model::BatchFeeInput,
     snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 = u32::MAX;
 
@@ -418,11 +417,11 @@ async fn get_base_system_contracts(
     let default_aa_preimage = upgrade_tx.execute.factory_deps[1].clone();
 
     anyhow::ensure!(
-        hash_bytecode(&bootloader_preimage) == bootloader_hash,
+        BytecodeHash::for_bytecode(&bootloader_preimage).value() == bootloader_hash,
         "Bootloader hash mismatch"
     );
     anyhow::ensure!(
-        hash_bytecode(&default_aa_preimage) == default_aa_hash,
+        BytecodeHash::for_bytecode(&default_aa_preimage).value() == default_aa_hash,
         "Default account hash mismatch"
     );
 
