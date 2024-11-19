@@ -96,7 +96,7 @@ impl DebugNamespace {
             CallType::NearCall => unreachable!("We have to filter our near calls before"),
         };
 
-        let (result, error) = if let Some(error) = call.error {
+        let (result, error) = if let Some(error) = call.revert_reason {
             (None, Some(error))
         } else {
             (
