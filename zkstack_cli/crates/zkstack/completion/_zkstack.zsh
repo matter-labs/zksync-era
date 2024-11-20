@@ -19,7 +19,6 @@ _zkstack() {
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 '-V[Print version]' \
@@ -42,7 +41,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -53,7 +51,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__ecosystem_commands" \
@@ -91,7 +88,6 @@ in-file\:"Specify file with wallets"))' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -113,7 +109,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -145,7 +140,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -170,7 +164,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -181,7 +174,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 '::name:_default' \
@@ -193,7 +185,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -252,7 +243,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__chain_commands" \
@@ -286,7 +276,6 @@ in-file\:"Specify file with wallets"))' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -312,7 +301,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ":: :_zkstack__chain__init_commands" \
@@ -339,7 +327,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -384,7 +371,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__chain__genesis_commands" \
@@ -409,7 +395,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -420,7 +405,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -470,7 +454,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -488,7 +471,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -506,7 +488,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -524,7 +505,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -542,7 +522,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -560,7 +539,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -578,7 +556,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -596,7 +573,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -614,7 +590,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -638,7 +613,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -761,7 +735,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__dev_commands" \
@@ -780,7 +753,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__dev__database_commands" \
@@ -805,7 +777,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -822,7 +793,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -839,7 +809,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -852,7 +821,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -869,7 +837,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -886,7 +853,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -903,7 +869,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -966,7 +931,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__dev__test_commands" \
@@ -991,7 +955,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1005,7 +968,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1022,7 +984,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1038,7 +999,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1051,7 +1011,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1062,7 +1021,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1074,7 +1032,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1085,7 +1042,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1096,7 +1052,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1107,7 +1062,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1118,7 +1072,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1197,7 +1150,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__dev__clean_commands" \
@@ -1216,7 +1168,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1227,7 +1178,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1238,7 +1188,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1285,7 +1234,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__dev__snapshot_commands" \
@@ -1304,7 +1252,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1347,7 +1294,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1360,7 +1306,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__dev__fmt_commands" \
@@ -1379,7 +1324,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1390,7 +1334,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1403,7 +1346,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1450,7 +1392,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__dev__prover_commands" \
@@ -1469,7 +1410,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1483,7 +1423,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1497,7 +1436,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1547,7 +1485,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1560,7 +1497,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1575,7 +1511,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1588,7 +1523,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__dev__status_commands" \
@@ -1607,7 +1541,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1646,7 +1579,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1929,7 +1861,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__prover_commands" \
@@ -1978,7 +1909,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -1991,7 +1921,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2014,7 +1943,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2027,7 +1955,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2039,7 +1966,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2099,7 +2025,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__server_commands" \
@@ -2118,7 +2043,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2134,7 +2058,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2148,7 +2071,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2195,7 +2117,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__external-node_commands" \
@@ -2219,7 +2140,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2230,7 +2150,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2241,7 +2160,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2257,7 +2175,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2271,7 +2188,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2328,7 +2244,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2339,7 +2254,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__contract-verifier_commands" \
@@ -2358,7 +2272,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2369,7 +2282,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2383,7 +2295,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2400,7 +2311,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2451,7 +2361,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2462,7 +2371,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__explorer_commands" \
@@ -2481,7 +2389,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2492,7 +2399,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2503,7 +2409,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2550,7 +2455,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_zkstack__consensus_commands" \
@@ -2571,7 +2475,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2582,7 +2485,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2596,7 +2498,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2645,7 +2546,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -2656,7 +2556,6 @@ _arguments "${_arguments_options[@]}" : \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
-'--print-panics[print panics]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
