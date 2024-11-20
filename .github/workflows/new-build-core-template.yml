@@ -197,6 +197,13 @@ jobs:
         shell: bash
         run: |
           echo PLATFORM=$(echo ${{ matrix.platforms }} | tr '/' '-') >> $GITHUB_ENV
+          echo IMAGE_TAG_SHA=${{ env.IMAGE_TAG_SUFFIX }} >> $GITHUB_ENV
+          # Support for custom tag suffix
+          if [ -n "${{ inputs.image_tag_suffix }}" ]; then
+            echo IMAGE_TAG_SHA_TS="${{ env.IMAGE_TAG_SUFFIX }}" >> $GITHUB_ENV
+          else
+            echo IMAGE_TAG_SHA_TS=$(git rev-parse --short HEAD)-$(date +%s) >> $GITHUB_ENV
+          fi
 
       - name: Download contracts
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
@@ -225,14 +232,14 @@ jobs:
             SCCACHE_GCS_RW_MODE=READ_WRITE
             RUSTC_WRAPPER=sccache
           tags: |            
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SUFFIX }}-${{ env.PLATFORM }}
-            matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SUFFIX }}-${{ env.PLATFORM }}
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
+            matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
 
       - name: Push docker image
         if: ${{ inputs.action == 'push' }}
         run: |
-          docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SUFFIX }}-${{ env.PLATFORM }}
-          docker push matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SUFFIX }}-${{ env.PLATFORM }}
+          docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
+          docker push matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
 
   create_manifest:
     name: Create release manifest
