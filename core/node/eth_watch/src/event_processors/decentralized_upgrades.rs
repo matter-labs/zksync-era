@@ -66,26 +66,34 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
             } else {
                 None
             };
-            upgrades.push((upgrade, scheduler_vk_hash));
+
+            // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
+            let fflonk_scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
+                Some(sl_client.fflonk_scheduler_vk_hash(address).await?)
+            } else {
+                None
+            };
+
+            upgrades.push((upgrade, scheduler_vk_hash, fflonk_scheduler_vk_hash));
         }
 
         let new_upgrades: Vec<_> = upgrades
             .into_iter()
-            .skip_while(|(v, _)| v.version <= self.last_seen_protocol_version)
+            .skip_while(|(v, _, _)| v.version <= self.last_seen_protocol_version)
             .collect();
 
-        let Some((last_upgrade, _)) = new_upgrades.last() else {
+        let Some((last_upgrade, _, _)) = new_upgrades.last() else {
             return Ok(events.len());
         };
         let versions: Vec<_> = new_upgrades
             .iter()
-            .map(|(u, _)| u.version.to_string())
+            .map(|(u, _, _)| u.version.to_string())
             .collect();
         tracing::debug!("Received upgrades with versions: {versions:?}");
 
         let last_version = last_upgrade.version;
         let stage_latency = METRICS.poll_eth_node[&PollStage::PersistUpgrades].start();
-        for (upgrade, scheduler_vk_hash) in new_upgrades {
+        for (upgrade, scheduler_vk_hash, fflonk_scheduler_vk_hash) in new_upgrades {
             let latest_semantic_version = storage
                 .protocol_versions_dal()
                 .latest_semantic_version()
@@ -106,7 +114,11 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                         )
                     })?;
 
-                let new_version = latest_version.apply_upgrade(upgrade, scheduler_vk_hash);
+                let new_version = latest_version.apply_upgrade(
+                    upgrade,
+                    scheduler_vk_hash,
+                    fflonk_scheduler_vk_hash,
+                );
                 if new_version.version.minor == latest_semantic_version.minor {
                     // Only verification parameters may change if only patch is bumped.
                     assert_eq!(

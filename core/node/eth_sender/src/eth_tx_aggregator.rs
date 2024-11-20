@@ -72,6 +72,8 @@ struct TxData {
     sidecar: Option<EthTxBlobSidecar>,
 }
 
+const FFLONK_VERIFIER_TYPE: U256 = U256::from(1);
+
 impl EthTxAggregator {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
@@ -360,7 +362,20 @@ impl EthTxAggregator {
         verifier_address: Address,
     ) -> Result<H256, EthSenderError> {
         let get_vk_hash = &self.functions.verification_key_hash;
+
         let vk_hash: H256 = CallFunctionArgs::new(&get_vk_hash.name, ())
+            .for_contract(verifier_address, &self.functions.verifier_contract)
+            .call((*self.eth_client).as_ref())
+            .await?;
+        Ok(vk_hash)
+    }
+
+    async fn get_fflonk_snark_wrapper_vk_hash(
+        &mut self,
+        verifier_address: Address,
+    ) -> Result<H256, EthSenderError> {
+        let get_vk_hash = &self.functions.verification_key_hash;
+        let vk_hash: H256 = CallFunctionArgs::new(&get_vk_hash.name, FFLONK_VERIFIER_TYPE)
             .for_contract(verifier_address, &self.functions.verifier_contract)
             .call((*self.eth_client).as_ref())
             .await?;
@@ -389,8 +404,17 @@ impl EthTxAggregator {
                 tracing::error!("Failed to get VK hash from the Verifier {err:?}");
                 err
             })?;
+        let fflonk_snark_wrapper_vk_hash = self
+            .get_fflonk_snark_wrapper_vk_hash(verifier_address)
+            .await
+            .map_err(|err| {
+                tracing::error!("Failed to get FFLONK VK hash from the Verifier {err:?}");
+                err
+            })?;
+
         let l1_verifier_config = L1VerifierConfig {
             snark_wrapper_vk_hash,
+            fflonk_snark_wrapper_vk_hash: Some(fflonk_snark_wrapper_vk_hash),
         };
         if let Some(agg_op) = self
             .aggregator

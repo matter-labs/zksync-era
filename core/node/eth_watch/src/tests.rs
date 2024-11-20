@@ -165,6 +165,13 @@ impl EthClient for MockEthClient {
         Ok(H256::zero())
     }
 
+    async fn fflonk_scheduler_vk_hash(
+        &self,
+        _verifier_address: Address,
+    ) -> Result<H256, ContractCallError> {
+        Ok(H256::zero())
+    }
+
     async fn finalized_block_number(&self) -> EnrichedClientResult<u64> {
         Ok(self.inner.read().await.last_finalized_block_number)
     }

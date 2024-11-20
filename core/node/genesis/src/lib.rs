@@ -196,6 +196,7 @@ pub async fn insert_genesis_batch(
     let mut transaction = storage.start_transaction().await?;
     let verifier_config = L1VerifierConfig {
         snark_wrapper_vk_hash: genesis_params.config.snark_wrapper_vk_hash,
+        fflonk_snark_wrapper_vk_hash: Some(genesis_params.config.fflonk_snark_wrapper_vk_hash),
     };
 
     create_genesis_l1_batch(

@@ -118,4 +118,5 @@ pub struct VkCommitments {
     pub scheduler: String,
     // Hash computed over Snark verification key fields.
     pub snark_wrapper: String,
+    pub fflonk_snark_wrapper: String,
 }
