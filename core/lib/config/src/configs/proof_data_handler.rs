@@ -40,7 +40,7 @@ impl TeeConfig {
     }
 
     pub fn default_tee_proof_generation_timeout_in_secs() -> u16 {
-        600
+        60
     }
 
     pub fn default_tee_batch_permanently_ignored_timeout_in_hours() -> u16 {
