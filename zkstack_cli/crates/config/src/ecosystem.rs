@@ -130,9 +130,8 @@ impl EcosystemConfig {
                     return Err(EcosystemConfigFromFileError::NotExists { path });
                 };
                 // Try to find ecosystem somewhere in parent directories
-                let _push_dir = shell.push_dir(parent);
-                let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
                 shell.change_dir(parent);
+                let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
                 // change the default chain for using it in later executions
                 ecosystem_config.default_chain = chain_config.name;
                 ecosystem_config
