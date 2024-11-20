@@ -123,7 +123,6 @@ impl EcosystemConfig {
                 // with chain and we will find the ecosystem config somewhere in parent directories
                 let chain_config = ChainConfigInternal::read(shell, CONFIG_NAME)
                     .map_err(|err| EcosystemConfigFromFileError::InvalidConfig { source: err })?;
-                logger::info(format!("You are in a directory with chain config, default chain for execution has changed to {}", &chain_config.name));
 
                 let current_dir = shell.current_dir();
                 let Some(parent) = current_dir.parent() else {
@@ -131,8 +130,15 @@ impl EcosystemConfig {
                 };
                 // Try to find ecosystem somewhere in parent directories
                 shell.change_dir(parent);
-                let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
+                let mut ecosystem_config = match EcosystemConfig::from_file(shell) {
+                    Ok(ecosystem) => ecosystem,
+                    Err(err) => {
+                        shell.change_dir(&current_dir);
+                        return Err(err);
+                    }
+                };
                 // change the default chain for using it in later executions
+                logger::info(format!("You are in a directory with chain config, default chain for execution has changed to {}", &chain_config.name));
                 ecosystem_config.default_chain = chain_config.name;
                 ecosystem_config
             }
