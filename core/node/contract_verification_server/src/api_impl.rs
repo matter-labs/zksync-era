@@ -9,12 +9,12 @@ use axum::{
 };
 use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
+    bytecode::BytecodeMarker,
     contract_verification_api::{
         CompilerVersions, VerificationIncomingRequest, VerificationInfo, VerificationRequestStatus,
     },
     Address,
 };
-use zksync_utils::bytecode::BytecodeMarker;
 
 use super::{api_decl::RestApi, metrics::METRICS};
 

@@ -8,6 +8,7 @@ use zksync_eth_client::{ContractCallError, EnrichedClientResult};
 use zksync_types::{
     abi::{self, ProposedUpgrade},
     api::{ChainAggProof, Log},
+    bytecode::BytecodeHash,
     ethabi::{self, Token},
     l1::L1Tx,
     protocol_upgrade::ProtocolUpgradeTx,
@@ -16,7 +17,6 @@ use zksync_types::{
     web3::{contract::Tokenizable, BlockNumber},
     Address, L1BatchNumber, L2ChainId, ProtocolUpgrade, SLChainId, Transaction, H256, U256, U64,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 use crate::client::{EthClient, L2EthClient, RETRY_LIMIT};
 
@@ -116,7 +116,7 @@ impl FakeEthClientData {
 
         for dep in tx.execute.factory_deps.iter() {
             self.bytecode_preimages
-                .insert(hash_bytecode(dep), dep.clone());
+                .insert(BytecodeHash::for_bytecode(dep).value(), dep.clone());
         }
     }
 }

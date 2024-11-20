@@ -17,6 +17,7 @@
     "@matterlabs/hardhat-zksync-solc": "^1.2.4",
     "@matterlabs/hardhat-zksync-vyper": "^1.1.0",
     "@nomiclabs/hardhat-vyper": "^3.0.6",
+    "@openzeppelin/contracts": "^4.8.0",
     "@types/jest": "^29.0.3",
     "@types/node": "^18.19.15",
     "@types/node-fetch": "^2.5.7",
