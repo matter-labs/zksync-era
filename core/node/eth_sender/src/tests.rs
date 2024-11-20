@@ -130,6 +130,7 @@ pub(crate) fn default_l1_batch_metadata() -> L1BatchMetadata {
         local_root: Some(H256::default()),
         aggregation_root: Some(H256::default()),
         da_inclusion_data: Some(vec![]),
+        da_blob_id: Some(vec![]),
     }
 }
 

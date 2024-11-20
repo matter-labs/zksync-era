@@ -103,6 +103,8 @@ pub struct L1BatchMetadata {
     pub aggregation_root: Option<H256>,
     /// Data Availability inclusion proof, that has to be verified on the settlement layer.
     pub da_inclusion_data: Option<Vec<u8>>,
+    /// Data Availability blob id, persisted in L1 so it can be used for chain reconstruction.
+    pub da_blob_id: Option<Vec<u8>>,
 }
 
 impl L1BatchMetadata {

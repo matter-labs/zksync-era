@@ -348,7 +348,8 @@ impl BlocksDal<'_, '_> {
                 aggregation_root,
                 local_root,
                 state_diff_hash,
-                data_availability.inclusion_data
+                data_availability.inclusion_data,
+                data_availability.blob_id AS "blob_id?"
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1219,7 +1220,8 @@ impl BlocksDal<'_, '_> {
                 aggregation_root,
                 local_root,
                 state_diff_hash,
-                data_availability.inclusion_data
+                data_availability.inclusion_data,
+                data_availability.blob_id AS "blob_id?"
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1414,7 +1416,8 @@ impl BlocksDal<'_, '_> {
                 aggregation_root,
                 local_root,
                 state_diff_hash,
-                data_availability.inclusion_data
+                data_availability.inclusion_data,
+                data_availability.blob_id AS "blob_id?"
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1503,7 +1506,8 @@ impl BlocksDal<'_, '_> {
                 aggregation_root,
                 local_root,
                 state_diff_hash,
-                data_availability.inclusion_data
+                data_availability.inclusion_data,
+                data_availability.blob_id AS "blob_id?"
             FROM
                 (
                     SELECT
@@ -1583,7 +1587,8 @@ impl BlocksDal<'_, '_> {
                         aggregation_root,
                         local_root,
                         state_diff_hash,
-                        data_availability.inclusion_data
+                        data_availability.inclusion_data,
+                        data_availability.blob_id AS "blob_id?"
                     FROM
                         l1_batches
                     LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1719,7 +1724,8 @@ impl BlocksDal<'_, '_> {
                     aggregation_root,
                     local_root,
                     state_diff_hash,
-                    data_availability.inclusion_data
+                    data_availability.inclusion_data,
+                    data_availability.blob_id AS "blob_id?"
                 FROM
                     l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1792,7 +1798,8 @@ impl BlocksDal<'_, '_> {
                 aggregation_root,
                 local_root,
                 state_diff_hash,
-                data_availability.inclusion_data
+                data_availability.inclusion_data,
+                data_availability.blob_id AS "blob_id?"
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1879,7 +1886,8 @@ impl BlocksDal<'_, '_> {
                 aggregation_root,
                 local_root,
                 state_diff_hash,
-                data_availability.inclusion_data
+                data_availability.inclusion_data,
+                data_availability.blob_id AS "blob_id?"
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number

@@ -168,6 +168,16 @@ docker ps --filter "label=com.docker.compose.project=era-observability" -q | xar
 zkstack server --chain eigen_da
 ```
 
+### Get Blobs from L1
+
+In order to retrieve the blobs sent to EigenDA whose commitments are stored on L1 in order to be able to rebuild the
+chain from them run:
+
+```bash
+cd get_all_blobs
+cargo run <validatorTimelockAddress> <rpc_url> <block_start>
+```
+
 ### Testing
 
 Modify the following flag in `core/lib/config/src/configs/da_dispatcher.rs` (then restart the server)

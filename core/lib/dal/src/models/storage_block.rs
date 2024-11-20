@@ -159,6 +159,7 @@ pub(crate) struct StorageL1Batch {
     pub local_root: Option<Vec<u8>>,
     pub state_diff_hash: Option<Vec<u8>>,
     pub inclusion_data: Option<Vec<u8>>,
+    pub blob_id: Option<String>,
 }
 
 impl StorageL1Batch {
@@ -271,6 +272,7 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
             local_root: batch.local_root.map(|v| H256::from_slice(&v)),
             aggregation_root: batch.aggregation_root.map(|v| H256::from_slice(&v)),
             da_inclusion_data: batch.inclusion_data,
+            da_blob_id: batch.blob_id.map(|s| s.into_bytes()),
         })
     }
 }
