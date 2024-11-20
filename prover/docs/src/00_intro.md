@@ -30,19 +30,19 @@ prover subsystem as well.
 
 We'll cover how the components work further in documentation.
 
-[pg]: ../crates/bin/prover_fri_gateway/
-[wg]: ../crates/bin/witness_generator/
-[wvg]: ../crates/bin/witness_vector_generator/
-[p]: ../crates/bin/prover_fri/
-[pc]: ../crates/bin/proof_fri_compressor/
-[pdh]: ../../core/node/proof_data_handler/
-[hk]: ../../core/node/house_keeper/
-[vkg]: ../crates/bin/prover_cli/
-[pcli]: ../crates/bin/vk_setup_data_generator_server_fri/
-[mc]: ../../core/node/metadata_calculator/
-[cg]: ../../core/node/commitment_generator/
-[bwip]: ../../core/node/vm_runner/src/impls/bwip.rs
-[prw]: ../../core/node/vm_runner/src/impls/protective_reads.rs
+[pg]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/prover_fri_gateway
+[wg]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/witness_generator
+[wvg]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/witness_vector_generator
+[p]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/prover_fri
+[pc]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/proof_fri_compressor
+[pdh]: https://github.com/matter-labs/zksync-era/tree/main/core/node/proof_data_handler
+[hk]: https://github.com/matter-labs/zksync-era/tree/main/core/node/house_keeper
+[vkg]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/vk_setup_data_generator_server_fri
+[pcli]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/prover_cli
+[mc]: https://github.com/matter-labs/zksync-era/tree/main/core/node/metadata_calculator
+[cg]: https://github.com/matter-labs/zksync-era/tree/main/core/node/commitment_generator
+[bwip]: https://github.com/matter-labs/zksync-era/blob/main/core/node/vm_runner/src/impls/bwip.rs
+[prw]: https://github.com/matter-labs/zksync-era/blob/main/core/node/vm_runner/src/impls/protective_reads.rs
 
 ## How it runs
 

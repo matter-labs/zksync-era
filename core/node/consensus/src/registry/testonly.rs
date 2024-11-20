@@ -1,7 +1,7 @@
 use rand::Rng;
 use zksync_consensus_crypto::ByteFmt;
 use zksync_consensus_roles::{attester, validator};
-use zksync_test_account::Account;
+use zksync_test_contracts::Account;
 use zksync_types::{ethabi, Execute, Transaction, U256};
 
 use super::*;
@@ -74,7 +74,7 @@ impl Registry {
         let tx = account.get_deploy_tx(
             &abi::ConsensusRegistry::bytecode(),
             None,
-            zksync_test_account::TxType::L2,
+            zksync_test_contracts::TxType::L2,
         );
         (Address::new(tx.address), tx.tx)
     }
