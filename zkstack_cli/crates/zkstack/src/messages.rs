@@ -182,6 +182,8 @@ pub(super) const MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR: &str =
     "Number should be greater than zero";
 pub(super) const MSG_CREATING_CHAIN: &str = "Creating chain";
 pub(super) const MSG_CHAIN_CREATED: &str = "Chain created successfully";
+pub(super) const MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER: &str =
+    "Creating chain configurations...";
 pub(super) const MSG_CHAIN_ID_VALIDATOR_ERR: &str = "Invalid chain id";
 pub(super) const MSG_BASE_TOKEN_ADDRESS_VALIDATOR_ERR: &str = "Invalid base token address";
 pub(super) const MSG_WALLET_CREATION_VALIDATOR_ERR: &str =
