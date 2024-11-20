@@ -152,7 +152,8 @@ agent_config:
 - `protocol_versions` is a map namespaces to protocol version it processes. Should correspond binary versions running
   there!
 - `cluster_priorities` is a map cluster name to priority, the lower will be used first.
-- `min_provers` is a map namespace to minimum number of provers to run even if the queue is empty.
+- `apply_min_to_namespace` specifies current primary namespace to run min number of provers in it.
+- `min_provers` is a minimum number of provers to run even if the queue is empty. Default: 0.
 - `max_provers` is a map of cluster name to map GPU type to maximum number of provers.
 - `prover_speed` is a map GPU to speed divider. Default: 500.
 - `long_pending_duration` is time after a pending pod considered long pending and will be relocated to different
@@ -160,6 +161,7 @@ agent_config:
 - `scaler_targets` subsection is a list of Simple targets:
   - `queue_report_field` is name of corresponding queue report section. See example for possible options.
   - `deployment` is name of a Deployment to scale.
+  - `min_replicas` is a minimum number of replicas to run even if the queue is empty. Default: 0.
   - `max_replicas` is a map of cluster name to maximum number of replicas.
   - `speed` is a divider for corresponding queue.
 
@@ -182,8 +184,8 @@ scaler_config:
     cluster1: 0
     cluster2: 100
     cluster3: 200
-  min_provers:
-    prover-new: 0
+  apply_min_to_namespace: prover-new
+  min_provers: 1
   max_provers:
     cluster1:
       L4: 1
@@ -201,6 +203,7 @@ scaler_config:
   scaler_targets:
     - queue_report_field: basic_witness_jobs
       deployment: witness-generator-basic-fri
+      min_replicas: 1
       max_replicas:
         cluster1: 10
         cluster2: 20

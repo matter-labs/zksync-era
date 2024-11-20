@@ -14,14 +14,12 @@ use zksync_multivm::interface::{
     VmExecutionResultAndLogs,
 };
 use zksync_state::OwnedStorage;
-use zksync_test_account::Account;
 use zksync_types::{
-    commitment::PubdataParams, fee::Fee, get_code_key, get_known_code_key, u256_to_h256,
-    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Execute, L1BatchNumber,
-    L2BlockNumber, PriorityOpId, StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS,
+    bytecode::BytecodeHash, commitment::PubdataParams, fee::Fee, get_code_key, get_known_code_key,
+    u256_to_h256, utils::storage_key_for_standard_token_balance, AccountTreeId, Address,
+    L1BatchNumber, L2BlockNumber, StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS,
     SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 pub mod test_batch_executor;
 
@@ -121,7 +119,7 @@ pub async fn fund(pool: &ConnectionPool<Core>, addresses: &[Address]) {
 pub async fn setup_contract(pool: &ConnectionPool<Core>, address: Address, code: Vec<u8>) {
     let mut storage = pool.connection().await.unwrap();
 
-    let hash: H256 = hash_bytecode(&code);
+    let hash: H256 = BytecodeHash::for_bytecode(&code).value();
     let known_code_key = get_known_code_key(&hash);
     let code_key = get_code_key(&address);
 
@@ -153,30 +151,4 @@ pub fn fee(gas_limit: u32) -> Fee {
         max_priority_fee_per_gas: U256::zero(),
         gas_per_pubdata_limit: U256::from(DEFAULT_GAS_PER_PUBDATA),
     }
-}
-
-/// Returns a valid L2 transaction.
-/// Automatically increments nonce of the account.
-pub fn l2_transaction(account: &mut Account, gas_limit: u32) -> Transaction {
-    account.get_l2_tx_for_execute(
-        Execute {
-            contract_address: Some(Address::random()),
-            calldata: vec![],
-            value: Default::default(),
-            factory_deps: vec![],
-        },
-        Some(fee(gas_limit)),
-    )
-}
-
-pub fn l1_transaction(account: &mut Account, serial_id: PriorityOpId) -> Transaction {
-    account.get_l1_tx(
-        Execute {
-            contract_address: Some(Address::random()),
-            value: Default::default(),
-            calldata: vec![],
-            factory_deps: vec![],
-        },
-        serial_id.0,
-    )
 }

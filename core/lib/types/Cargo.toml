@@ -13,7 +13,6 @@ categories.workspace = true
 [dependencies]
 # **IMPORTANT.** Please do not add dependency on `zksync_config` etc. This crate has a heavy dependency graph as is.
 zksync_system_constants.workspace = true
-zksync_utils.workspace = true
 zksync_basic_types.workspace = true
 zksync_contracts.workspace = true
 zksync_mini_merkle_tree.workspace = true

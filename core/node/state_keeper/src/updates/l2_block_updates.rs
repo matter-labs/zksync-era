@@ -9,10 +9,10 @@ use zksync_multivm::{
 };
 use zksync_types::{
     block::{BlockGasCount, L2BlockHasher},
+    bytecode::BytecodeHash,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, H256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 use crate::metrics::KEEPER_METRICS;
 
@@ -119,7 +119,12 @@ impl L2BlockUpdates {
         let factory_deps = &tx.execute.factory_deps;
         let mut tx_factory_deps: HashMap<_, _> = factory_deps
             .iter()
-            .map(|bytecode| (hash_bytecode(bytecode), bytecode.clone()))
+            .map(|bytecode| {
+                (
+                    BytecodeHash::for_bytecode(bytecode).value(),
+                    bytecode.clone(),
+                )
+            })
             .collect();
         // Ensure that *dynamic* factory deps (ones that may be created when executing EVM contracts)
         // are added into the lookup map as well.

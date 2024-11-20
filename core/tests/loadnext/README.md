@@ -1,4 +1,4 @@
-# Loadnext: loadtest for ZKsync
+# Loadnext: load test for ZKsync
 
 Loadnext is a utility for random stress-testing the ZKsync server. It is capable of simulating the behavior of many
 independent users of ZKsync network, who are sending quasi-random requests to the server.
@@ -27,8 +27,7 @@ It:
 
 ## Transactions Parameters
 
-The smart contract that is used for every L2 transaction can be found here:
-[`etc/contracts-test-data/contracts/loadnext/loadnext_contract.sol`](../../../etc/contracts-test-data/contracts/loadnext/loadnext_contract.sol).
+The smart contract that is used for every l2 transaction can be found in the [`zksync_test_contracts`] crate.
 
 The `execute` function of the contract has the following parameters:
 
@@ -89,7 +88,7 @@ Example invocation:
 - `MASTER_WALLET_PK` needs to be set to the private key of the master account.
 - `MAIN_TOKEN` needs to be set to the address of the token to be used for the loadtest.
 
-```sh
+```shell
 cargo build
 
 CONTRACT_EXECUTION_PARAMS_INITIAL_WRITES=2 \
@@ -114,3 +113,5 @@ MASTER_WALLET_PK="..." \
 MAIN_TOKEN="..." \
 cargo run --bin loadnext
 ```
+
+[`zksync_test_contracts`]: ../../lib/test_contracts

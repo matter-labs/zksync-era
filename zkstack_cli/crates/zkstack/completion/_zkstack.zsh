@@ -1609,7 +1609,6 @@ _arguments "${_arguments_options[@]}" : \
 '--l1-da-contracts=[Build L1 DA contracts]' \
 '--l2-contracts=[Build L2 contracts]' \
 '--system-contracts=[Build system contracts]' \
-'--test-contracts=[Build test contracts]' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
@@ -2060,7 +2059,11 @@ _arguments "${_arguments_options[@]}" : \
 '--round=[]:ROUND:(all-rounds basic-circuits leaf-aggregation node-aggregation recursion-tip scheduler)' \
 '--threads=[]:THREADS:_default' \
 '--max-allocation=[Memory allocation limit in bytes (for prover component)]:MAX_ALLOCATION:_default' \
-'--witness-vector-generator-count=[]:WITNESS_VECTOR_GENERATOR_COUNT:_default' \
+'-l+[]:LIGHT_WVG_COUNT:_default' \
+'--light-wvg-count=[]:LIGHT_WVG_COUNT:_default' \
+'-h+[]:HEAVY_WVG_COUNT:_default' \
+'--heavy-wvg-count=[]:HEAVY_WVG_COUNT:_default' \
+'-m+[]:MAX_ALLOCATION:_default' \
 '--max-allocation=[]:MAX_ALLOCATION:_default' \
 '--docker=[]:DOCKER:(true false)' \
 '--tag=[]:TAG:_default' \

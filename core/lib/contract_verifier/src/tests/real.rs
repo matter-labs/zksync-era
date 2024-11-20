@@ -5,7 +5,7 @@
 use std::{env, sync::Arc, time::Duration};
 
 use assert_matches::assert_matches;
-use zksync_utils::bytecode::validate_bytecode;
+use zksync_types::bytecode::validate_bytecode;
 
 use super::*;
 

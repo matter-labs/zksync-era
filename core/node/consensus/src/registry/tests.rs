@@ -1,7 +1,7 @@
 use rand::Rng as _;
 use zksync_concurrency::{ctx, scope, time};
 use zksync_consensus_roles::{attester, validator::testonly::Setup};
-use zksync_test_account::Account;
+use zksync_test_contracts::Account;
 use zksync_types::ProtocolVersionId;
 
 use super::*;
