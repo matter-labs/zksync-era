@@ -197,8 +197,6 @@ jobs:
         shell: bash
         run: |
           echo PLATFORM=$(echo ${{ matrix.platforms }} | tr '/' '-') >> $GITHUB_ENV
-          echo IMAGE_TAG_SHA=${{ env.IMAGE_TAG_SUFFIX }} >> $GITHUB_ENV
-          # Support for custom tag suffix
           if [ -n "${{ inputs.image_tag_suffix }}" ]; then
             echo IMAGE_TAG_SHA_TS="${{ env.IMAGE_TAG_SUFFIX }}" >> $GITHUB_ENV
           else
