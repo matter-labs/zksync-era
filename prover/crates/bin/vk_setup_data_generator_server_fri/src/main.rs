@@ -113,12 +113,28 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
         .map_err(|err| anyhow::anyhow!("Failed to get scheduler vk: {err}"))?;
     tracing::info!("Generating verification keys for snark wrapper.");
 
-    let (_, vk) =
-        get_wrapper_setup_and_vk_from_scheduler_vk(&mut in_memory_source, scheduler_vk, config);
+    let (_, fflonk_vk) = get_wrapper_setup_and_vk_from_scheduler_vk(
+        &mut in_memory_source,
+        scheduler_vk.clone(),
+        config,
+    );
+    keystore
+        .save_fflonk_snark_verification_key(fflonk_vk)
+        .context("save_fflonk_snark_vk")?;
+
+    if let Some(p) = pb.lock().unwrap().as_ref() {
+        p.inc(1)
+    }
+
+    let (_, plonk_vk) =
+        zkevm_test_harness::proof_wrapper_utils::get_wrapper_setup_and_vk_from_scheduler_vk(
+            scheduler_vk,
+            config,
+        );
 
     keystore
-        .save_snark_verification_key(vk)
-        .context("save_snark_vk")?;
+        .save_snark_verification_key(plonk_vk)
+        .context("save_plonk_snark_vk")?;
 
     if let Some(p) = pb.lock().unwrap().as_ref() {
         p.inc(1)

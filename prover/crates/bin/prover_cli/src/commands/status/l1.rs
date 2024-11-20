@@ -1,5 +1,4 @@
 use anyhow::Context;
-use zkevm_test_harness::sha2::digest::consts::U2;
 use zksync_basic_types::{protocol_version::L1VerifierConfig, L1BatchNumber, H256, U256};
 use zksync_config::{
     configs::{DatabaseSecrets, L1Secrets},
@@ -15,7 +14,7 @@ use zksync_prover_dal::{Prover, ProverDal};
 
 use crate::helper;
 
-const FFLONK_VERIFIER_TYPE: U256 = U256::from(1);
+const FFLONK_VERIFIER_TYPE: i32 = 1;
 
 pub(crate) async fn run() -> anyhow::Result<()> {
     println!(" ====== L1 Status ====== ");
@@ -81,7 +80,7 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         .await?;
 
     let fflonk_verification_key_hash: H256 =
-        CallFunctionArgs::new("verificationKeyHash", FFLONK_VERIFIER_TYPE)
+        CallFunctionArgs::new("verificationKeyHash", U256::from(FFLONK_VERIFIER_TYPE))
             .for_contract(contracts_config.verifier_addr, &helper::verifier_contract())
             .call(&query_client)
             .await?;

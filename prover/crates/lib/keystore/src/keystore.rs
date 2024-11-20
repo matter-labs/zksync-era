@@ -36,6 +36,7 @@ pub enum ProverServiceDataType {
     SetupData,
     FinalizationHints,
     SnarkVerificationKey,
+    FflonkSnarkVerificationKey,
 }
 
 /// Key store manages all the prover keys.
@@ -126,6 +127,9 @@ impl Keystore {
             ProverServiceDataType::SnarkVerificationKey => self
                 .basedir
                 .join(format!("snark_verification_{}_key.json", name)),
+            ProverServiceDataType::FflonkSnarkVerificationKey => self
+                .basedir
+                .join(format!("fflonk_snark_verification_{}_key.json", name)),
         }
     }
 
@@ -307,10 +311,32 @@ impl Keystore {
         })
     }
 
+    pub fn load_fflonk_snark_verification_key(&self) -> anyhow::Result<String> {
+        let filepath = self.get_file_path(
+            ProverServiceDataKey::snark(),
+            ProverServiceDataType::FflonkSnarkVerificationKey,
+        );
+        std::fs::read_to_string(&filepath).with_context(|| {
+            format!("Failed reading FFLONK Snark verification key from path: {filepath:?}")
+        })
+    }
+
     pub fn save_snark_verification_key(&self, vk: ZkSyncSnarkWrapperVK) -> anyhow::Result<()> {
         let filepath = self.get_file_path(
             ProverServiceDataKey::snark(),
             ProverServiceDataType::SnarkVerificationKey,
+        );
+        tracing::info!("saving snark verification key to: {:?}", filepath);
+        Self::save_json_pretty(filepath, &vk.into_inner())
+    }
+
+    pub fn save_fflonk_snark_verification_key(
+        &self,
+        vk: ZkSyncSnarkWrapperVK,
+    ) -> anyhow::Result<()> {
+        let filepath = self.get_file_path(
+            ProverServiceDataKey::snark(),
+            ProverServiceDataType::FflonkSnarkVerificationKey,
         );
         tracing::info!("saving snark verification key to: {:?}", filepath);
         Self::save_json_pretty(filepath, &vk.into_inner())

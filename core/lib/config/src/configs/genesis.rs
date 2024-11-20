@@ -29,7 +29,7 @@ pub struct GenesisConfig {
         rename(serialize = "recursion_scheduler_level_vk_hash")
     )]
     pub snark_wrapper_vk_hash: H256,
-    pub fflonk_snark_wrapper_vk_hash: H256,
+    pub fflonk_snark_wrapper_vk_hash: Option<H256>,
     pub fee_account: Address,
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
@@ -47,7 +47,7 @@ impl GenesisConfig {
             genesis_root_hash: Some(H256::repeat_byte(0x01)),
             rollup_last_leaf_index: Some(26),
             snark_wrapper_vk_hash: H256::repeat_byte(0x02),
-            fflonk_snark_wrapper_vk_hash: H256::repeat_byte(0x03),
+            fflonk_snark_wrapper_vk_hash: Default::default(),
             fee_account: Default::default(),
             genesis_commitment: Some(H256::repeat_byte(0x17)),
             bootloader_hash: Default::default(),

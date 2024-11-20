@@ -741,7 +741,7 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             sl_chain_id: None,
             l2_chain_id: L2ChainId::default(),
             snark_wrapper_vk_hash: rng.gen(),
-            fflonk_snark_wrapper_vk_hash: rng.gen(),
+            fflonk_snark_wrapper_vk_hash: Some(rng.gen()),
             dummy_verifier: rng.gen(),
             l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
                 0 => L1BatchCommitmentMode::Rollup,

@@ -89,11 +89,12 @@ impl ProtoRepr for proto::Genesis {
                 .and_then(|x| L2ChainId::try_from(*x).map_err(|a| anyhow::anyhow!(a)))
                 .context("l2_chain_id")?,
             snark_wrapper_vk_hash,
-            fflonk_snark_wrapper_vk_hash: parse_h256(
-                required(&prover.fflonk_snark_wrapper_vk_hash)
-                    .context("fflonk_snark_wrapper_vk_hash")?,
-            )
-            .context("fflonk_snark_wrapper_vk_hash")?,
+            fflonk_snark_wrapper_vk_hash: prover
+                .fflonk_snark_wrapper_vk_hash
+                .as_ref()
+                .map(|x| parse_h256(x).context("fflonk_snark_wrapper_vk_hash"))
+                .transpose()
+                .context("fflonk_snark_wrapper_vk_hash")?,
             fee_account: required(&self.fee_account)
                 .and_then(|x| parse_h160(x))
                 .context("fee_account")?,

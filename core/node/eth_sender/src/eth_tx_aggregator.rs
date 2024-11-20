@@ -72,7 +72,7 @@ struct TxData {
     sidecar: Option<EthTxBlobSidecar>,
 }
 
-const FFLONK_VERIFIER_TYPE: U256 = U256::from(1);
+const FFLONK_VERIFIER_TYPE: i32 = 1;
 
 impl EthTxAggregator {
     #[allow(clippy::too_many_arguments)]
@@ -375,10 +375,11 @@ impl EthTxAggregator {
         verifier_address: Address,
     ) -> Result<H256, EthSenderError> {
         let get_vk_hash = &self.functions.verification_key_hash;
-        let vk_hash: H256 = CallFunctionArgs::new(&get_vk_hash.name, FFLONK_VERIFIER_TYPE)
-            .for_contract(verifier_address, &self.functions.verifier_contract)
-            .call((*self.eth_client).as_ref())
-            .await?;
+        let vk_hash: H256 =
+            CallFunctionArgs::new(&get_vk_hash.name, U256::from(FFLONK_VERIFIER_TYPE))
+                .for_contract(verifier_address, &self.functions.verifier_contract)
+                .call((*self.eth_client).as_ref())
+                .await?;
         Ok(vk_hash)
     }
 

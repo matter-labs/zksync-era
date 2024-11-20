@@ -21,7 +21,7 @@ struct ContractsForGenesis {
     pub fri_recursion_node_level_vk_hash: H256,
     pub fri_recursion_leaf_level_vk_hash: H256,
     pub snark_wrapper_vk_hash: H256,
-    pub fflonk_snark_wrapper_vk_hash: H256,
+    pub fflonk_snark_wrapper_vk_hash: Option<H256>,
     // These contracts will be used after shared bridge integration.
     pub bridgehub_proxy_addr: Option<Address>,
     pub bridgehub_impl_addr: Option<Address>,

@@ -48,9 +48,9 @@ pub fn get_leaf_vk_params(
 
 /// Calculates the hash of a snark verification key.
 // This function corresponds 1:1 with the following solidity code: https://github.com/matter-labs/era-contracts/blob/3e2bee96e412bac7c0a58c4b919837b59e9af36e/ethereum/contracts/zksync/Verifier.sol#L260
-pub fn calculate_snark_vk_hash(keystore: &Keystore) -> anyhow::Result<H256> {
+pub fn calculate_snark_vk_hash(verification_key: String) -> anyhow::Result<H256> {
     let verification_key: SnarkVK<Bn256, ZkSyncSnarkWrapperCircuit> =
-        serde_json::from_str(&keystore.load_snark_verification_key()?)?;
+        serde_json::from_str(&verification_key)?;
 
     let mut res = vec![];
 

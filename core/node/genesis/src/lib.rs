@@ -182,6 +182,7 @@ pub fn mock_genesis_config() -> GenesisConfig {
         sl_chain_id: None,
         l2_chain_id: L2ChainId::default(),
         snark_wrapper_vk_hash: first_l1_verifier_config.snark_wrapper_vk_hash,
+        fflonk_snark_wrapper_vk_hash: first_l1_verifier_config.fflonk_snark_wrapper_vk_hash,
         fee_account: Default::default(),
         dummy_verifier: false,
         l1_batch_commit_data_generator_mode: Default::default(),
@@ -196,7 +197,7 @@ pub async fn insert_genesis_batch(
     let mut transaction = storage.start_transaction().await?;
     let verifier_config = L1VerifierConfig {
         snark_wrapper_vk_hash: genesis_params.config.snark_wrapper_vk_hash,
-        fflonk_snark_wrapper_vk_hash: Some(genesis_params.config.fflonk_snark_wrapper_vk_hash),
+        fflonk_snark_wrapper_vk_hash: genesis_params.config.fflonk_snark_wrapper_vk_hash,
     };
 
     create_genesis_l1_batch(

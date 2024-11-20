@@ -15,7 +15,7 @@ use zksync_types::{
     Address, SLChainId, H256, U256,
 };
 
-const FFLONK_VERIFIER_TYPE: U256 = U256::from(1);
+const FFLONK_VERIFIER_TYPE: i32 = 1;
 
 /// L1 client functionality used by [`EthWatch`](crate::EthWatch) and constituent event processors.
 #[async_trait::async_trait]
@@ -287,7 +287,7 @@ impl EthClient for EthHttpQueryClient {
         verifier_address: Address,
     ) -> Result<H256, ContractCallError> {
         // New verifier returns the hash of the verification key.
-        CallFunctionArgs::new("verificationKeyHash", FFLONK_VERIFIER_TYPE)
+        CallFunctionArgs::new("verificationKeyHash", U256::from(FFLONK_VERIFIER_TYPE))
             .for_contract(verifier_address, &self.verifier_contract_abi)
             .call(&self.client)
             .await
