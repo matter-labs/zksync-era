@@ -219,15 +219,6 @@ describe('Upgrade test', function () {
         }
         await mainNodeSpawner.killAndSpawnMainNode();
 
-        const l1MainContract = new ethers.Contract(
-            await tester.web3Provider.getMainContractAddress(),
-            ZK_CHAIN_INTERFACE,
-            tester.ethProvider
-        );
-
-        const stmAddr = await l1MainContract.getChainTypeManager();
-        const stmContract = new ethers.Contract(stmAddr, contracts.chainTypeManager, tester.syncWallet.providerL1);
-
         let blocksCommitted = await slMainContract.getTotalBatchesCommitted();
 
         const initialL1BatchNumber = await tester.web3Provider.getL1BatchNumber();
