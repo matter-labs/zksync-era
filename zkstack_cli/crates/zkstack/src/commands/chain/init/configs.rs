@@ -45,16 +45,15 @@ pub async fn init_configs(
     chain_config: &ChainConfig,
 ) -> anyhow::Result<ContractsConfig> {
     // Port scanner should run before copying configs to avoid marking initial ports as assigned
-    let mut ecosystem_ports = EcosystemPortsScanner::scan(shell)?;
-    copy_configs(shell, &chain_config.link_to_code, &chain_config.configs)?;
-
     if !init_args.no_port_reallocation {
+        let mut ecosystem_ports = EcosystemPortsScanner::scan(shell)?;
         ecosystem_ports.allocate_ports_in_yaml(
             shell,
             &chain_config.path_to_general_config(),
             chain_config.id,
         )?;
     }
+    copy_configs(shell, &chain_config.link_to_code, &chain_config.configs)?;
 
     let mut general_config = chain_config.get_general_config()?;
 

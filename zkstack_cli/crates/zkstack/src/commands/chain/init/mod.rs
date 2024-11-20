@@ -81,7 +81,10 @@ pub async fn init(
     chain_config: &ChainConfig,
 ) -> anyhow::Result<()> {
     // Initialize configs
-    let init_configs_args = InitConfigsArgsFinal::from_chain_init_args(init_args);
+    let mut init_configs_args = InitConfigsArgsFinal::from_chain_init_args(init_args);
+    if ecosystem.is_none() {
+        init_configs_args.no_port_reallocation = true;
+    }
     let mut contracts_config = init_configs(&init_configs_args, shell, chain_config).await?;
     let wallets = WalletsConfig::read(shell, init_args.wallets_path.clone())?;
 
