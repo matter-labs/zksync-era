@@ -37,13 +37,13 @@ Install the basic packages:
 On debian-based linux:
 
 ```bash
-sudo apt install git build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates curl software-properties-common
+sudo apt install git build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates software-properties-common
 ```
 
 On mac:
 
 ```bash
-brew install git build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates curl software-properties-common
+brew install git build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates software-properties-common
 ```
 
 Note that in order to install `clang` on MacOS you need to have an up-to-date `Xcode`. You can install it directly from

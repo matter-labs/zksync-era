@@ -6,7 +6,7 @@ main() {
    # All necessary stuff
    say "Installing apt dependencies..."
    sudo apt update
-   sudo apt install --yes git build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates curl software-properties-common
+   sudo apt install --yes git build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates software-properties-common
 
    # Rust
    say "Installing Rust..."
