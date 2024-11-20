@@ -529,8 +529,6 @@ impl BlockReverter {
             .context("failed sending revert transaction")?;
         tracing::info!("Sent revert transaction to L1 with hash {hash:?}");
 
-        println!("HASH: {}", hex::encode(hash));
-
         loop {
             let maybe_receipt = sl_client
                 .as_ref()

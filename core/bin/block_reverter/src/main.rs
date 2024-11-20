@@ -32,22 +32,23 @@ use zksync_types::{Address, L1BatchNumber, SLChainId};
 struct Cli {
     #[command(subcommand)]
     command: Command,
-    /// Path to yaml config. If set, it will be used instead of env vars
+    /// Path to yaml config.
     #[arg(long, global = true)]
-    config_path: Option<PathBuf>,
-    /// Path to yaml contracts config. If set, it will be used instead of env vars
+    config_path: PathBuf,
+    /// Path to yaml contracts config.
     #[arg(long, global = true)]
-    contracts_config_path: Option<PathBuf>,
-    /// Path to yaml secrets config. If set, it will be used instead of env vars
+    contracts_config_path: PathBuf,
+    /// Path to yaml secrets config.
     #[arg(long, global = true)]
-    secrets_path: Option<PathBuf>,
-    /// Path to yaml wallets config. If set, it will be used instead of env vars
+    secrets_path: PathBuf,
+    /// Path to yaml wallets config.
     #[arg(long, global = true)]
-    wallets_path: Option<PathBuf>,
-    /// Path to yaml genesis config. If set, it will be used instead of env vars
+    wallets_path: PathBuf,
+    /// Path to yaml genesis config.
     #[arg(long, global = true)]
-    genesis_path: Option<PathBuf>,
-    /// Path to yaml config of the chain on top of gateway. If set, it will be used instead of env vars
+    genesis_path: PathBuf,
+    /// Path to yaml config of the chain on top of gateway.
+    /// It may be `None` in case a chain is not settling on top of Gateway.
     #[arg(long, global = true)]
     gateway_chain_path: Option<PathBuf>,
 }
@@ -130,98 +131,64 @@ async fn main() -> anyhow::Result<()> {
         .with_opentelemetry(opentelemetry)
         .build();
 
-    let general_config: Option<GeneralConfig> = if let Some(path) = opts.config_path {
-        Some(
-            read_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&path)
-                .context("failed decoding general YAML config")?,
-        )
-    } else {
-        None
-    };
-    let wallets_config: Option<Wallets> = if let Some(path) = opts.wallets_path {
-        Some(
-            read_yaml_repr::<zksync_protobuf_config::proto::wallets::Wallets>(&path)
-                .context("failed decoding wallets YAML config")?,
-        )
-    } else {
-        None
-    };
-    // TODO: decide whether we need to support env-based system for gatewya
-    let genesis_config: GenesisConfig = read_yaml_repr::<
-        zksync_protobuf_config::proto::genesis::Genesis,
-    >(&opts.genesis_path.expect("Genesis path"))
-    .context("failed decoding genesis YAML config")?;
+    let general_config =
+        read_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&opts.config_path)
+            .context("failed decoding general YAML config")?;
 
-    let eth_sender = match &general_config {
-        Some(general_config) => general_config
-            .eth
-            .clone()
-            .context("Failed to find eth config")?,
-        None => EthConfig::from_env().context("EthConfig::from_env()")?,
-    };
-    let db_config = match &general_config {
-        Some(general_config) => general_config
-            .db_config
-            .clone()
-            .context("Failed to find eth config")?,
-        None => DBConfig::from_env().context("DBConfig::from_env()")?,
-    };
-    let protective_reads_writer_config = match &general_config {
-        Some(general_config) => general_config
-            .protective_reads_writer_config
-            .clone()
-            .context("Failed to find eth config")?,
-        None => ProtectiveReadsWriterConfig::from_env()
-            .context("ProtectiveReadsWriterConfig::from_env()")?,
-    };
-    let basic_witness_input_producer_config = match &general_config {
-        Some(general_config) => general_config
-            .basic_witness_input_producer_config
-            .clone()
-            .context("Failed to find eth config")?,
-        None => BasicWitnessInputProducerConfig::from_env()
-            .context("BasicWitnessInputProducerConfig::from_env()")?,
-    };
-    let contracts = match opts.contracts_config_path {
-        Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::contracts::Contracts>(&path)
-            .context("failed decoding contracts YAML config")?,
-        None => ContractsConfig::from_env().context("ContractsConfig::from_env()")?,
-    };
-    let secrets_config = if let Some(path) = opts.secrets_path {
-        Some(
-            read_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&path)
-                .context("failed decoding secrets YAML config")?,
-        )
-    } else {
-        None
-    };
+    let wallets_config =
+        read_yaml_repr::<zksync_protobuf_config::proto::wallets::Wallets>(&opts.wallets_path)
+            .context("failed decoding wallets YAML config")?;
+
+    let genesis_config: GenesisConfig =
+        read_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&opts.genesis_path)
+            .context("failed decoding genesis YAML config")?;
+
+    let eth_sender = general_config
+        .eth
+        .clone()
+        .context("Failed to find eth config")?;
+
+    let db_config = general_config
+        .db_config
+        .clone()
+        .context("Failed to find eth config")?;
+    let protective_reads_writer_config = general_config
+        .protective_reads_writer_config
+        .clone()
+        .context("Failed to find eth config")?;
+    let basic_witness_input_producer_config = general_config
+        .basic_witness_input_producer_config
+        .clone()
+        .context("Failed to find eth config")?;
+    let contracts = read_yaml_repr::<zksync_protobuf_config::proto::contracts::Contracts>(
+        &opts.contracts_config_path,
+    )
+    .context("failed decoding contracts YAML config")?;
+
+    let secrets_config =
+        read_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&opts.secrets_path)
+            .context("failed decoding secrets YAML config")?;
 
     let default_priority_fee_per_gas = eth_sender
         .gas_adjuster
         .context("gas_adjuster")?
         .default_priority_fee_per_gas;
 
-    let database_secrets = match &secrets_config {
-        Some(secrets_config) => secrets_config
-            .database
-            .clone()
-            .context("Failed to find database config")?,
-        None => DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?,
-    };
-    let l1_secrets = match &secrets_config {
-        Some(secrets_config) => secrets_config
-            .l1
-            .clone()
-            .context("Failed to find l1 config")?,
-        None => L1Secrets::from_env().context("L1Secrets::from_env()")?,
-    };
-    let postgres_config = match &general_config {
-        Some(general_config) => general_config
-            .postgres_config
-            .clone()
-            .context("Failed to find postgres config")?,
-        None => PostgresConfig::from_env().context("PostgresConfig::from_env()")?,
-    };
+    let database_secrets = secrets_config
+        .database
+        .clone()
+        .context("Failed to find database config")?;
+
+    let l1_secrets = secrets_config
+        .l1
+        .clone()
+        .context("Failed to find l1 config")?;
+
+    let postgres_config = general_config
+        .postgres_config
+        .clone()
+        .context("Failed to find postgres config")?;
+
     let zksync_network_id = genesis_config.l2_chain_id;
 
     let is_gateway = match genesis_config.sl_chain_id {
@@ -232,7 +199,9 @@ async fn main() -> anyhow::Result<()> {
     let (sl_rpc_url, sl_diamond_proxy, sl_validator_timelock) = if is_gateway {
         let gateway_chain_config: GatewayChainConfig =
             read_yaml_repr::<zksync_protobuf_config::proto::gateway::GatewayChainConfig>(
-                &opts.gateway_chain_path.expect("Genesis path"),
+                &opts
+                    .gateway_chain_path
+                    .context("Genesis config path not provided")?,
             )
             .context("failed decoding genesis YAML config")?;
 

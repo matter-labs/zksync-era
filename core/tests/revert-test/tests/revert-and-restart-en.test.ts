@@ -126,32 +126,26 @@ describe('Block reverting test', function () {
         let extEnv;
         [mainEnv, extEnv] = loadEnvs();
 
-        if (fileConfig.loadFromFile) {
-            const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
-            const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
-            const contractsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'contracts.yaml' });
-            const externalNodeGeneralConfig = loadConfig({
-                pathToHome,
-                configsFolderSuffix: 'external_node',
-                chain: fileConfig.chain,
-                config: 'general.yaml'
-            });
-            const walletsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
-
-            ethClientWeb3Url = secretsConfig.l1.l1_rpc_url;
-            apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
-            baseTokenAddress = contractsConfig.l1.base_token_addr;
-            enEthClientUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
-            operatorAddress = walletsConfig.operator.address;
-        } else {
+        if (!fileConfig.loadFromFile) {
             throw new Error('Non file based not supportred');
-            // ethClientWeb3Url = mainEnv.ETH_CLIENT_WEB3_URL!;
-            // apiWeb3JsonRpcHttpUrl = mainEnv.API_WEB3_JSON_RPC_HTTP_URL!;
-            // baseTokenAddress = mainEnv.CONTRACTS_BASE_TOKEN_ADDR!;
-            // enEthClientUrl = `http://127.0.0.1:${extEnv.EN_HTTP_PORT!}`;
-            // // TODO use env variable for this?
-            // operatorAddress = '0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7';
         }
+
+        const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
+        const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
+        const contractsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'contracts.yaml' });
+        const externalNodeGeneralConfig = loadConfig({
+            pathToHome,
+            configsFolderSuffix: 'external_node',
+            chain: fileConfig.chain,
+            config: 'general.yaml'
+        });
+        const walletsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
+
+        ethClientWeb3Url = secretsConfig.l1.l1_rpc_url;
+        apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
+        baseTokenAddress = contractsConfig.l1.base_token_addr;
+        enEthClientUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
+        operatorAddress = walletsConfig.operator.address;
 
         const pathToMainLogs = await logsPath('server.log');
         const mainLogs = await fs.open(pathToMainLogs, 'a');

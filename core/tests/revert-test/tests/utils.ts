@@ -173,7 +173,6 @@ export async function executeRevert(
     mainContract: IZkSyncHyperchain,
     env?: ProcessEnvOptions['env']
 ) {
-    console.log('before: ', await mainContract.getTotalBatchesCommitted());
     const suggestedValuesOutput = await runBlockReverter(pathToHome, chain, env, [
         'print-suggested-values',
         '--json',
@@ -211,7 +210,6 @@ export async function executeRevert(
     ]);
 
     const blocksCommitted = await mainContract.getTotalBatchesCommitted();
-    console.log('after ', blocksCommitted);
     assert(blocksCommitted === values.lastExecutedL1BatchNumber, 'Revert on contract was unsuccessful');
 }
 
