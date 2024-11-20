@@ -27,29 +27,40 @@ use zksync_types::{
 #[cfg(test)]
 mod tests;
 
+/// The amount of gas to be used for transactions on top of Gateway.
+/// It is larger than the L1 one, since the gas required is typically
+/// higher on gateway, due to pubdata price fluctuations.
+const GATEWAY_DEFAULT_GAS: usize = 50_000_000;
+/// The amount of gas to be used for transactions on top of L1 chains.
+const L1_DEFAULT_GAS: usize = 5_000_000;
+
 #[derive(Debug)]
 pub struct BlockReverterEthConfig {
-    diamond_proxy_addr: H160,
-    validator_timelock_addr: H160,
+    sl_diamond_proxy_addr: H160,
+    sl_validator_timelock_addr: H160,
     default_priority_fee_per_gas: u64,
     hyperchain_id: L2ChainId,
+    is_gateway: bool,
 }
 
 impl BlockReverterEthConfig {
     pub fn new(
         eth_config: &EthConfig,
-        contract: &ContractsConfig,
+        sl_diamond_proxy_addr: Address,
+        sl_validator_timelock_addr: Address,
         hyperchain_id: L2ChainId,
+        is_gateway: bool,
     ) -> anyhow::Result<Self> {
         Ok(Self {
-            diamond_proxy_addr: contract.diamond_proxy_addr,
-            validator_timelock_addr: contract.validator_timelock_addr,
+            sl_diamond_proxy_addr,
+            sl_validator_timelock_addr,
             default_priority_fee_per_gas: eth_config
                 .gas_adjuster
                 .as_ref()
                 .context("gas adjuster")?
                 .default_priority_fee_per_gas,
             hyperchain_id,
+            is_gateway,
         })
     }
 }
@@ -473,7 +484,7 @@ impl BlockReverter {
     /// Sends a revert transaction to L1.
     pub async fn send_ethereum_revert_transaction(
         &self,
-        eth_client: &dyn BoundEthInterface,
+        sl_client: &dyn BoundEthInterface,
         eth_config: &BlockReverterEthConfig,
         last_l1_batch_to_keep: L1BatchNumber,
         nonce: u64,
@@ -495,25 +506,33 @@ impl BlockReverter {
             ])
             .context("failed encoding `revertBatchesSharedBridge` input")?;
 
+        let gas = if eth_config.is_gateway {
+            GATEWAY_DEFAULT_GAS
+        } else {
+            L1_DEFAULT_GAS
+        };
+
         let options = Options {
             nonce: Some(nonce.into()),
-            gas: Some(5_000_000.into()),
+            gas: Some(gas.into()),
             ..Default::default()
         };
 
-        let signed_tx = eth_client
-            .sign_prepared_tx_for_addr(data, eth_config.validator_timelock_addr, options)
+        let signed_tx = sl_client
+            .sign_prepared_tx_for_addr(data, eth_config.sl_validator_timelock_addr, options)
             .await
             .context("cannot sign revert transaction")?;
-        let hash = eth_client
+        let hash = sl_client
             .as_ref()
             .send_raw_tx(signed_tx.raw_tx)
             .await
             .context("failed sending revert transaction")?;
         tracing::info!("Sent revert transaction to L1 with hash {hash:?}");
 
+        println!("HASH: {}", hex::encode(hash));
+
         loop {
-            let maybe_receipt = eth_client
+            let maybe_receipt = sl_client
                 .as_ref()
                 .tx_receipt(hash)
                 .await
@@ -563,7 +582,7 @@ impl BlockReverter {
     ) -> anyhow::Result<SuggestedRevertValues> {
         tracing::info!("Computing suggested revert values for config {eth_config:?}");
 
-        let contract_address = eth_config.diamond_proxy_addr;
+        let contract_address = eth_config.sl_diamond_proxy_addr;
 
         let last_committed_l1_batch_number = Self::get_l1_batch_number_from_contract(
             eth_client,

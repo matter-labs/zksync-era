@@ -235,7 +235,8 @@ async fn await_for_tx_to_complete(
     hash: H256,
 ) -> anyhow::Result<()> {
     println!("Waiting for transaction to complete...");
-    while Middleware::get_transaction_receipt(gateway_provider, hash)
+    while gateway_provider
+        .get_transaction_receipt(hash)
         .await?
         .is_none()
     {
@@ -243,7 +244,8 @@ async fn await_for_tx_to_complete(
     }
 
     // We do not handle network errors
-    let receipt = Middleware::get_transaction_receipt(gateway_provider, hash)
+    let receipt = gateway_provider
+        .get_transaction_receipt(hash)
         .await?
         .unwrap();
 

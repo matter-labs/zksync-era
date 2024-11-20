@@ -69,7 +69,6 @@ describe('Upgrade test', function () {
     let upgradeAddress: string | undefined;
     let contractsPriorityTxMaxGasLimit: string;
 
-    let isGateway: boolean;
     let gatewayInfo: GatewayInfo | null = null;
 
     let mainNodeSpawner: utils.NodeSpawner;
@@ -108,26 +107,7 @@ describe('Upgrade test', function () {
             bytecodeSupplier = contractsConfig.ecosystem_contracts.l1_bytecodes_supplier_addr;
             contractsPriorityTxMaxGasLimit = '72000000';
 
-            const slChainId = genesisConfig.sl_chain_id;
-            const l1ChainId = genesisConfig.l1_chain_id;
-
-            if (slChainId && l1ChainId != slChainId) {
-                isGateway = true;
-
-                const gatewayChainConfig = loadConfig({
-                    pathToHome,
-                    chain: fileConfig.chain,
-                    config: 'gateway_chain.yaml'
-                });
-
-                gatewayInfo = {
-                    gatewayChainId: slChainId,
-                    gatewayProvider: new zksync.Provider(secretsConfig.l1.gateway_url),
-                    gatewayCTM: gatewayChainConfig.state_transition_proxy_addr,
-                    l2ChainAdmin: gatewayChainConfig.chain_admin_addr,
-                    l2DiamondProxyAddress: gatewayChainConfig.diamond_proxy_addr
-                };
-            }
+            gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain);
 
             mainNodeSpawner = new utils.NodeSpawner(pathToHome, logs, fileConfig, {
                 enableConsensus: false,
@@ -344,7 +324,7 @@ describe('Upgrade test', function () {
                 bootloaderHash,
                 upgradeTimestamp: 0
             },
-            isGateway ? gatewayInfo : null
+            gatewayInfo
         );
         executeOperation = chainUpgradeCalldata;
 
@@ -484,13 +464,13 @@ describe('Upgrade test', function () {
     }
 
     async function deployDefaultUpgradeImpl(runner: ethers.Wallet): Promise<string> {
-        const bytecodePath = isGateway
+        const bytecodePath = gatewayInfo
             ? pathToHome + '/contracts/l1-contracts/zkout/DefaultUpgrade.sol/DefaultUpgrade.json'
             : pathToHome + '/contracts/l1-contracts/out/DefaultUpgrade.sol/DefaultUpgrade.json';
 
         const bytecode = '0x' + JSON.parse(readFileSync(bytecodePath).toString()).bytecode.object;
 
-        if (isGateway) {
+        if (gatewayInfo) {
             const factory = new zksync.ContractFactory([], bytecode, runner);
             return (await factory.deploy()).getAddress();
         } else {
@@ -827,4 +807,38 @@ export function packSemver(major: number, minor: number, patch: number) {
 export function addToProtocolVersion(packedProtocolVersion: number, minor: number, patch: number) {
     const [major, minorVersion, patchVersion] = unpackNumberSemVer(packedProtocolVersion);
     return packSemver(major, minorVersion + minor, patchVersion + patch);
+}
+
+export function getGatewayInfo(pathToHome: string, chain: string): GatewayInfo | null {
+    const genesisConfig = loadConfig({
+        pathToHome,
+        chain: chain,
+        config: 'genesis.yaml'
+    });
+
+    const slChainId = genesisConfig.sl_chain_id;
+    const l1ChainId = genesisConfig.l1_chain_id;
+
+    if (slChainId && l1ChainId != slChainId) {
+        const gatewayChainConfig = loadConfig({
+            pathToHome,
+            chain: chain,
+            config: 'gateway_chain.yaml'
+        });
+        const secretsConfig = loadConfig({
+            pathToHome,
+            chain: chain,
+            config: 'secrets.yaml'
+        });
+
+        return {
+            gatewayChainId: slChainId,
+            gatewayProvider: new zksync.Provider(secretsConfig.l1.gateway_url),
+            gatewayCTM: gatewayChainConfig.state_transition_proxy_addr,
+            l2ChainAdmin: gatewayChainConfig.chain_admin_addr,
+            l2DiamondProxyAddress: gatewayChainConfig.diamond_proxy_addr
+        };
+    }
+
+    return null;
 }

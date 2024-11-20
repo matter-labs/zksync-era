@@ -16,7 +16,8 @@ use zksync_block_reverter::{
 use zksync_config::{
     configs::{
         chain::NetworkConfig, wallets::Wallets, BasicWitnessInputProducerConfig, DatabaseSecrets,
-        GeneralConfig, L1Secrets, ObservabilityConfig, ProtectiveReadsWriterConfig,
+        GatewayChainConfig, GeneralConfig, L1Secrets, ObservabilityConfig,
+        ProtectiveReadsWriterConfig,
     },
     ContractsConfig, DBConfig, EthConfig, GenesisConfig, PostgresConfig,
 };
@@ -24,7 +25,7 @@ use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_types::{Address, L1BatchNumber};
+use zksync_types::{Address, L1BatchNumber, SLChainId};
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None)]
@@ -46,6 +47,9 @@ struct Cli {
     /// Path to yaml genesis config. If set, it will be used instead of env vars
     #[arg(long, global = true)]
     genesis_path: Option<PathBuf>,
+    /// Path to yaml config of the chain on top of gateway. If set, it will be used instead of env vars
+    #[arg(long, global = true)]
+    gateway_chain_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -142,14 +146,11 @@ async fn main() -> anyhow::Result<()> {
     } else {
         None
     };
-    let genesis_config: Option<GenesisConfig> = if let Some(path) = opts.genesis_path {
-        Some(
-            read_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&path)
-                .context("failed decoding genesis YAML config")?,
-        )
-    } else {
-        None
-    };
+    // TODO: decide whether we need to support env-based system for gatewya
+    let genesis_config: GenesisConfig = read_yaml_repr::<
+        zksync_protobuf_config::proto::genesis::Genesis,
+    >(&opts.genesis_path.expect("Genesis path"))
+    .context("failed decoding genesis YAML config")?;
 
     let eth_sender = match &general_config {
         Some(general_config) => general_config
@@ -221,16 +222,42 @@ async fn main() -> anyhow::Result<()> {
             .context("Failed to find postgres config")?,
         None => PostgresConfig::from_env().context("PostgresConfig::from_env()")?,
     };
-    let zksync_network_id = match &genesis_config {
-        Some(genesis_config) => genesis_config.l2_chain_id,
-        None => {
-            NetworkConfig::from_env()
-                .context("NetworkConfig::from_env()")?
-                .zksync_network_id
-        }
+    let zksync_network_id = genesis_config.l2_chain_id;
+
+    let is_gateway = match genesis_config.sl_chain_id {
+        Some(x) => x.0 != genesis_config.l1_chain_id.0,
+        _ => false,
     };
 
-    let config = BlockReverterEthConfig::new(&eth_sender, &contracts, zksync_network_id)?;
+    let (sl_rpc_url, sl_diamond_proxy, sl_validator_timelock) = if is_gateway {
+        let gateway_chain_config: GatewayChainConfig =
+            read_yaml_repr::<zksync_protobuf_config::proto::gateway::GatewayChainConfig>(
+                &opts.gateway_chain_path.expect("Genesis path"),
+            )
+            .context("failed decoding genesis YAML config")?;
+
+        let gateway_url = l1_secrets.gateway_url.context("Gateway URL not found")?;
+
+        (
+            gateway_url,
+            gateway_chain_config.diamond_proxy_addr,
+            gateway_chain_config.validator_timelock_addr,
+        )
+    } else {
+        (
+            l1_secrets.l1_rpc_url,
+            contracts.diamond_proxy_addr,
+            contracts.validator_timelock_addr,
+        )
+    };
+
+    let config = BlockReverterEthConfig::new(
+        &eth_sender,
+        sl_diamond_proxy,
+        sl_validator_timelock,
+        zksync_network_id,
+        is_gateway,
+    )?;
 
     let connection_pool = ConnectionPool::<Core>::builder(
         database_secrets.master_url()?,
@@ -246,12 +273,12 @@ async fn main() -> anyhow::Result<()> {
             json,
             operator_address,
         } => {
-            let eth_client = Client::<L1>::http(l1_secrets.l1_rpc_url.clone())
+            let sl_client = Client::<L1>::http(sl_rpc_url)
                 .context("Ethereum client")?
                 .build();
 
             let suggested_values = block_reverter
-                .suggested_values(&eth_client, &config, operator_address)
+                .suggested_values(&sl_client, &config, operator_address)
                 .await?;
             if json {
                 println!("{}", serde_json::to_string(&suggested_values)?);
@@ -264,9 +291,7 @@ async fn main() -> anyhow::Result<()> {
             priority_fee_per_gas,
             nonce,
         } => {
-            let eth_client = Client::http(l1_secrets.l1_rpc_url.clone())
-                .context("Ethereum client")?
-                .build();
+            let sl_client = Client::http(sl_rpc_url).context("Ethereum client")?.build();
             let reverter_private_key = if let Some(wallets_config) = wallets_config {
                 wallets_config
                     .eth_sender
@@ -285,21 +310,21 @@ async fn main() -> anyhow::Result<()> {
             };
 
             let priority_fee_per_gas = priority_fee_per_gas.unwrap_or(default_priority_fee_per_gas);
-            let l1_chain_id = eth_client
+            let l1_chain_id = sl_client
                 .fetch_chain_id()
                 .await
                 .context("cannot fetch Ethereum chain ID")?;
-            let eth_client = PKSigningClient::new_raw(
+            let sl_client = PKSigningClient::new_raw(
                 reverter_private_key,
-                contracts.diamond_proxy_addr,
+                sl_diamond_proxy,
                 priority_fee_per_gas,
                 l1_chain_id,
-                Box::new(eth_client),
+                Box::new(sl_client),
             );
 
             block_reverter
                 .send_ethereum_revert_transaction(
-                    &eth_client,
+                    &sl_client,
                     &config,
                     L1BatchNumber(l1_batch_number),
                     nonce,
