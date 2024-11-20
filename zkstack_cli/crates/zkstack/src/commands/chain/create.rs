@@ -100,7 +100,6 @@ pub(crate) fn create_chain_inner(args: ChainCreateArgsFinal, shell: &Shell) -> a
     } else {
         (L2ChainId::from(args.chain_id), None)
     };
-
     let link_to_code = resolve_link_to_code(shell, chain_path.clone(), args.link_to_code.clone())?;
     let default_genesis_config = GenesisConfig::read_with_base_path(
         shell,

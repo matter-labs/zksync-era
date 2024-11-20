@@ -1,7 +1,7 @@
 use std::fmt;
 
-use ethabi::ethereum_types::U256;
 use serde::{de, de::SeqAccess, ser, ser::SerializeSeq, Deserializer, Serializer};
+use zksync_basic_types::U256;
 
 pub(super) fn serialize<S: Serializer>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
     if bytes.len() % 32 != 0 {
@@ -43,8 +43,8 @@ pub(super) fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<
 
 #[cfg(test)]
 mod tests {
-    use ethabi::ethereum_types::{H256, U256};
     use serde::{Deserialize, Serialize};
+    use zksync_basic_types::{H256, U256};
 
     use crate::SystemContractCode;
 
