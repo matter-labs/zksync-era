@@ -116,15 +116,19 @@ impl GenesisParams {
     }
 
     pub fn factory_deps(&self) -> HashMap<H256, Vec<u8>> {
-        let s = self
-            .system_contracts
-            .iter()
-            .map(|c| (hash_bytecode(&c.bytecode), c.bytecode.clone())); // TODO: Optimize. The call to `get_storage_logs` in the `storage_logs` implementation calls `hash_bytecode` on all of the system contracts already; there should be some way to avoid duplicating all of that work.
         if let Some(ref e) = self.genesis_export_reader {
-            s.chain(e.factory_deps().map(|f| (f.bytecode_hash, f.bytecode)))
+            e.factory_deps()
+                .map(|f| (f.bytecode_hash, f.bytecode))
                 .collect()
         } else {
-            s.collect()
+            // TODO: Optimize. The call to `get_storage_logs` in the
+            // `storage_logs` implementation calls `hash_bytecode` on all of
+            // the system contracts already; there should be some way to avoid
+            // duplicating all of that work.
+            self.system_contracts
+                .iter()
+                .map(|c| (hash_bytecode(&c.bytecode), c.bytecode.clone()))
+                .collect()
         }
     }
 
@@ -458,27 +462,16 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         pubdata_params: Default::default(),
     };
 
-    tracing::info!(
-        "[create_genesis_l1_batch_from_storage_logs_and_factory_deps] Starting transaction..."
-    );
-
     let mut transaction = storage.start_transaction().await?;
 
-    tracing::info!("[create_genesis_l1_batch_from_storage_logs_and_factory_deps] save_protocol_version_with_tx...");
     transaction
         .protocol_versions_dal()
         .save_protocol_version_with_tx(&version)
         .await?;
-    tracing::info!(
-        "[create_genesis_l1_batch_from_storage_logs_and_factory_deps] insert_l1_batch..."
-    );
     transaction
         .blocks_dal()
         .insert_l1_batch(genesis_l1_batch_header.to_unsealed_header(batch_fee_input))
         .await?;
-    tracing::info!(
-        "[create_genesis_l1_batch_from_storage_logs_and_factory_deps] mark_l1_batch_as_sealed..."
-    );
     transaction
         .blocks_dal()
         .mark_l1_batch_as_sealed(
@@ -490,29 +483,19 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
             Default::default(),
         )
         .await?;
-    tracing::info!(
-        "[create_genesis_l1_batch_from_storage_logs_and_factory_deps] insert_l2_block..."
-    );
     transaction
         .blocks_dal()
         .insert_l2_block(&genesis_l2_block_header)
         .await?;
-    tracing::info!("[create_genesis_l1_batch_from_storage_logs_and_factory_deps] mark_l2_blocks_as_executed_in_l1_batch...");
     transaction
         .blocks_dal()
         .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
         .await?;
 
-    tracing::info!("[create_genesis_l1_batch_from_storage_logs_and_factory_deps] insert_base_system_contracts_to_factory_deps...");
     insert_base_system_contracts_to_factory_deps(&mut transaction, base_system_contracts).await?;
-    tracing::info!(
-        "[create_genesis_l1_batch_from_storage_logs_and_factory_deps] insert_system_contracts..."
-    );
     insert_system_contracts(&mut transaction, factory_deps, storage_logs).await?;
-    tracing::info!("[create_genesis_l1_batch_from_storage_logs_and_factory_deps] add_eth_token...");
     add_eth_token(&mut transaction).await?;
 
-    tracing::info!("[create_genesis_l1_batch_from_storage_logs_and_factory_deps] commit...");
     transaction.commit().await?;
     Ok(())
 }
