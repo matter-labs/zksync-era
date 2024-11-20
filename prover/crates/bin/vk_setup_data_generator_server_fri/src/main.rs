@@ -60,7 +60,7 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
     let progress_bar = if quiet {
         None
     } else {
-        let count = basic_vk_count() + recursive_layer_vk_count() + 1;
+        let count = basic_vk_count() + recursive_layer_vk_count() + 2;
         let progress_bar = ProgressBar::new(count as u64);
         progress_bar.set_style(ProgressStyle::default_bar()
         .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos:>7}/{len:7} ({eta})")
@@ -111,25 +111,13 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
     let scheduler_vk = in_memory_source
         .get_recursion_layer_vk(ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8)
         .map_err(|err| anyhow::anyhow!("Failed to get scheduler vk: {err}"))?;
-    tracing::info!("Generating verification keys for snark wrapper.");
 
-    let (_, fflonk_vk) = get_wrapper_setup_and_vk_from_scheduler_vk(
-        &mut in_memory_source,
-        scheduler_vk.clone(),
-        config,
-    );
-    keystore
-        .save_fflonk_snark_verification_key(fflonk_vk)
-        .context("save_fflonk_snark_vk")?;
-
-    if let Some(p) = pb.lock().unwrap().as_ref() {
-        p.inc(1)
-    }
+    tracing::info!("Generating PLONK verification keys for snark wrapper.");
 
     let (_, plonk_vk) =
         zkevm_test_harness::proof_wrapper_utils::get_wrapper_setup_and_vk_from_scheduler_vk(
-            scheduler_vk,
-            config,
+            scheduler_vk.clone(),
+            WrapperConfig::new(1),
         );
 
     keystore
@@ -139,6 +127,22 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
     if let Some(p) = pb.lock().unwrap().as_ref() {
         p.inc(1)
     }
+
+    tracing::info!("PLONK vk is generated");
+
+    tracing::info!("Generating FFLONK verification keys for snark wrapper.");
+
+    let (_, fflonk_vk) =
+        get_wrapper_setup_and_vk_from_scheduler_vk(&mut in_memory_source, scheduler_vk, config);
+    keystore
+        .save_fflonk_snark_verification_key(fflonk_vk)
+        .context("save_fflonk_snark_vk")?;
+
+    if let Some(p) = pb.lock().unwrap().as_ref() {
+        p.inc(1)
+    }
+
+    tracing::info!("FFLONK vk is generated");
 
     // Let's also update the commitments file.
     let commitments = keystore.generate_commitments()?;
