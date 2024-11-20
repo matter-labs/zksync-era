@@ -511,14 +511,14 @@ jobs:
           ci_run sleep 5
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}
 
-     - name: Run revert tests
-       run: |
-         ci_run killall -INT zksync_server || true
-         ci_run killall -INT zksync_external_node || true
-         ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
-         ci_run sleep 5
+      - name: Run revert tests
+        run: |
+          ci_run killall -INT zksync_server || true
+          ci_run killall -INT zksync_external_node || true
+          ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+          ci_run sleep 5
 
-         ci_run ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --external-node --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --external-node --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
       # Upgrade tests should run last, because as soon as they
       # finish the bootloader will be different
