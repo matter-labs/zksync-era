@@ -1,7 +1,6 @@
 use anyhow::Context;
 use common::{
     cmd::Cmd,
-    config::global_config,
     logger,
     server::{Server, ServerMode},
 };
@@ -9,16 +8,18 @@ use config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
     GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
+use wait::wait_for_server;
 use xshell::{cmd, Shell};
 
 use crate::{
-    commands::args::{RunServerArgs, ServerArgs, ServerCommand, WaitArgs},
+    commands::args::{RunServerArgs, ServerArgs, ServerCommand},
     messages::{
-        msg_waiting_for_server_success, MSG_BUILDING_SERVER, MSG_CHAIN_NOT_INITIALIZED,
-        MSG_FAILED_TO_BUILD_SERVER_ERR, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER,
-        MSG_WAITING_FOR_SERVER,
+        MSG_BUILDING_SERVER, MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_BUILD_SERVER_ERR,
+        MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER,
     },
 };
+
+mod wait;
 
 pub async fn run(shell: &Shell, args: ServerArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
@@ -72,21 +73,4 @@ fn run_server(
             vec![],
         )
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)
-}
-
-async fn wait_for_server(args: WaitArgs, chain_config: &ChainConfig) -> anyhow::Result<()> {
-    let verbose = global_config().verbose;
-
-    let health_check_port = chain_config
-        .get_general_config()?
-        .api_config
-        .as_ref()
-        .context("no API config")?
-        .healthcheck
-        .port;
-
-    logger::info(MSG_WAITING_FOR_SERVER);
-    args.poll_health_check(health_check_port, verbose).await?;
-    logger::info(msg_waiting_for_server_success(health_check_port));
-    Ok(())
 }
