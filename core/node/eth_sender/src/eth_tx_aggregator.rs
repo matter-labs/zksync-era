@@ -351,6 +351,21 @@ impl EthTxAggregator {
         &mut self,
         storage: &mut Connection<'_, Core>,
     ) -> Result<(), EthSenderError> {
+        if storage
+            .eth_sender_dal()
+            .get_number_of_failed_transactions()
+            .await
+            .unwrap()
+            != 0
+        {
+            tracing::error!(
+                "Skipping creating new transactions for eth-sender as there are failed transactions \
+                in database, they can be removed using block-reverter tool \
+                with option clear-failed-transactions",
+                );
+            return Ok(());
+        }
+
         let MulticallData {
             base_system_contracts_hashes,
             verifier_address,
@@ -381,24 +396,6 @@ impl EthTxAggregator {
             )
             .await
         {
-            if storage
-                .eth_sender_dal()
-                .get_number_of_failed_transactions()
-                .await
-                .unwrap()
-                != 0
-            {
-                tracing::info!(
-                    "Skipping sending operation of type {} for batches {}-{} \
-                as there are failed transactions in database, they can be removed using \
-                 block-reverter tool with option clear-failed-transactions",
-                    agg_op.get_action_type(),
-                    agg_op.l1_batch_range().start(),
-                    agg_op.l1_batch_range().end()
-                );
-                return Ok(());
-            }
-
             if self.config.tx_aggregation_paused {
                 tracing::info!(
                     "Skipping sending operation of type {} for batches {}-{} \
@@ -595,7 +592,7 @@ impl EthTxAggregator {
     ) -> Result<EthTx, EthSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
         let op_type = aggregated_op.get_action_type();
-        // We may be using a custom sender for commit tester.assert_inflight_txs_count_equals(0).await;transactions, so use this
+        // We may be using a custom sender for transactions, so use this
         // var whatever it actually is: a `None` for single-addr operator or `Some`
         // for multi-addr operator in 4844 mode.
         let sender_addr = match (op_type, is_gateway) {

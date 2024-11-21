@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::anyhow;
 use zksync_config::{
     configs::eth_sender::{ProofSendingMode, SenderConfig},
     ContractsConfig, EthConfig, GasAdjusterConfig,
@@ -593,10 +594,17 @@ impl EthSenderTester {
     }
 
     pub async fn clear_failed_txs_failed_attempts(&mut self) -> anyhow::Result<()> {
+        // we don't allow in-flight txs as they might be confirmed on Ethereum, but not in db
+        if self.count_all_inflight_txs().await.unwrap() != 0 {
+            return Err(anyhow!(
+                "There are still some in-flight txs, cannot proceed. \
+            Please wait for eth-sender to process all in-flight txs and try again!"
+            ));
+        }
         self.storage()
             .await
             .eth_sender_dal()
-            .clear_failed_transactions()
+            .remove_failed_and_unsent_txs_after_failed_transaction()
             .await
     }
 

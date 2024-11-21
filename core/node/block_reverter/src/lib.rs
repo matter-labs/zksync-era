@@ -1,6 +1,6 @@
 use std::{path::Path, sync::Arc, time::Duration};
 
-use anyhow::Context as _;
+use anyhow::{anyhow, Context as _};
 use serde::Serialize;
 use tokio::{fs, sync::Semaphore};
 use zksync_config::{ContractsConfig, EthConfig};
@@ -606,11 +606,18 @@ impl BlockReverter {
     /// Clears failed L1 transactions.
     pub async fn clear_failed_l1_transactions(&self) -> anyhow::Result<()> {
         tracing::info!("Clearing failed L1 transactions");
+        // we don't allow in-flight txs as they might be confirmed on Ethereum, but not in db
+        if self.count_all_inflight_txs().await.unwrap() != 0 {
+            return Err(anyhow!(
+                "There are still some in-flight txs, cannot proceed. \
+            Please wait for eth-sender to process all in-flight txs and try again!"
+            ));
+        }
         self.connection_pool
             .connection()
             .await?
             .eth_sender_dal()
-            .clear_failed_transactions()
+            .remove_failed_and_unsent_txs_after_failed_transaction()
             .await?;
         Ok(())
     }

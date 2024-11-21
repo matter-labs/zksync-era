@@ -416,6 +416,10 @@ impl EthTxManager {
         finalized_block: L1BlockNumber,
     ) {
         let receipt_block_number = tx_status.receipt.block_number.unwrap().as_u32();
+        // We want to get info about failed transactions in metrics as soon as possible
+        if !tx_status.success {
+            METRICS.failed_transactions.inc();
+        }
         if receipt_block_number <= finalized_block.0 {
             if tx_status.success {
                 self.confirm_tx(storage, tx, tx_status).await;

@@ -636,14 +636,10 @@ impl EthSenderDal<'_, '_> {
         .context("count field is missing")
     }
 
-    pub async fn clear_failed_transactions(&mut self) -> anyhow::Result<()> {
-        // we don't allow in-flight txs as they might be confirmed on Ethereum, but not in db
-        if self.count_all_inflight_txs().await.unwrap() != 0 {
-            return Err(anyhow!(
-                "There are still some in-flight txs, cannot proceed. \
-            Please wait for eth-sender to process all in-flight txs and try again!"
-            ));
-        }
+    #[doc(hidden)] // this method should be used only by block-reverter or tests
+    pub async fn remove_failed_and_unsent_txs_after_failed_transaction(
+        &mut self,
+    ) -> anyhow::Result<()> {
         sqlx::query!(
             r#"
             DELETE FROM eth_txs

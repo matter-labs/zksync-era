@@ -110,6 +110,7 @@ pub(super) struct EthSenderMetrics {
     /// Number of L1 batches aggregated for publishing with a specific reason.
     pub block_aggregation_reason: Family<AggregationReasonLabels, Counter>,
     pub l1_transient_errors: Counter,
+    pub failed_transactions: Counter,
 }
 
 impl EthSenderMetrics {
