@@ -332,7 +332,7 @@ jobs:
           governor_pk=$(awk '/governor:/ {flag=1} flag && /private_key:/ {print $2; exit}' ./configs/wallets.yaml)
 
           ci_run zkstack dev send-transactions \
-          --file ./transactions/chain/offline_chain/register-hyperchain-txns.json \
+          --file ./transactions/chain/offline_chain/register-zk-chain-txns.json \
           --l1-rpc-url http://127.0.0.1:8545 \
           --private-key $governor_pk
 
