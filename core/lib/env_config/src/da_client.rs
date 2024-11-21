@@ -50,7 +50,7 @@ impl FromEnv for DataAvailabilitySecrets {
         let client_tag = std::env::var("DA_CLIENT")?;
         let secrets = match client_tag.as_str() {
             AVAIL_CLIENT_CONFIG_NAME => {
-                let from_gcs = if let Some(secrets_from_gcs_tag) = env::var("DA_SECRETS_FROM_GCS").ok() {
+                let from_gcs = if let Ok(secrets_from_gcs_tag) = env::var("DA_SECRETS_FROM_GCS") {
                     secrets_from_gcs_tag == "true"
                 } else {
                     false
@@ -58,15 +58,13 @@ impl FromEnv for DataAvailabilitySecrets {
 
                 let _seed = match from_gcs {
                     true => {
-                       let gcs_bucket_name = std::env::var("DA_SECRETS_GCS_BUCKET_NAME")
-                       .ok()
-                       .expect("Failed to get DA client secrets from GCS bucket");
-                       let decrypt_key_name = std::env::var("DA_SECRETS_KMS_DECRYPT_KEY_NAME")
-                       .ok()
-                       .expect("Failed to get DA client secrets KMS decrypt key");
-        
-                       Some(retrieve_seed_from_gcloud(decrypt_key_name, gcs_bucket_name))
-                    },
+                        let gcs_bucket_name = std::env::var("DA_SECRETS_GCS_BUCKET_NAME")
+                            .expect("Failed to get DA client secrets from GCS bucket");
+                        let decrypt_key_name = std::env::var("DA_SECRETS_KMS_DECRYPT_KEY_NAME")
+                            .expect("Failed to get DA client secrets KMS decrypt key");
+
+                        Some(retrieve_seed_from_gcloud(decrypt_key_name, gcs_bucket_name))
+                    }
                     false => None,
                 };
 

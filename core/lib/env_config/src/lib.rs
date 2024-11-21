@@ -33,8 +33,8 @@ mod vm_runner;
 mod wallets;
 
 mod da_client;
-mod timestamp_asserter;
 mod gcloud_encrypted_seed;
+mod timestamp_asserter;
 
 pub trait FromEnv: Sized {
     fn from_env() -> anyhow::Result<Self>;

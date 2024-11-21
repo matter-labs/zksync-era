@@ -6,10 +6,8 @@ use google_cloud_storage::{
     client::{Client as storage_client, ClientConfig as storage_config},
     http::objects::{download::Range, get::GetObjectRequest},
 };
-use hex;
-use tokio;
 
-pub fn retrieve_seed_from_gcloud(decrypt_key: String, bucket_name: String)-> String {
+pub fn retrieve_seed_from_gcloud(decrypt_key: String, bucket_name: String) -> String {
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     let rt = tokio::runtime::Runtime::new().unwrap();
 
@@ -44,7 +42,8 @@ async fn download_seed_from_gcs(bucket_name: String) -> Vec<u8> {
     let client = storage_client::new(config);
 
     // Download the file
-    let encrypted_seed = client
+
+    client
         .download_object(
             &GetObjectRequest {
                 bucket: bucket_name,
@@ -54,6 +53,5 @@ async fn download_seed_from_gcs(bucket_name: String) -> Vec<u8> {
             &Range::default(),
         )
         .await
-        .expect("Failed to download seed");
-    encrypted_seed
+        .expect("Failed to download seed")
 }
