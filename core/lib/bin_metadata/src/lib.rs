@@ -1,12 +1,10 @@
 use serde::Serialize;
 use vise::{EncodeLabelSet, Info, Metrics};
 
-use self::values::GIT_METADATA;
-use self::values::RUST_METADATA;
+use self::values::{GIT_METADATA, RUST_METADATA};
 
 pub mod values {
-    use super::GitMetadata;
-    use super::RustMetadata;
+    use super::{GitMetadata, RustMetadata};
 
     include!(concat!(env!("OUT_DIR"), "/metadata_values.rs"));
 }
