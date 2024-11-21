@@ -9,6 +9,7 @@ use std::{
 use anyhow::Context as _;
 use chrono::Utc;
 use ethabi::{Contract, Token};
+use resolver::{GitHubCompilerResolver, ResolverMultiplexer};
 use tokio::time;
 use zksync_dal::{contract_verification_dal::DeployedContractData, ConnectionPool, Core, CoreDal};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
@@ -121,12 +122,20 @@ impl ContractVerifier {
         compilation_timeout: Duration,
         connection_pool: ConnectionPool<Core>,
     ) -> anyhow::Result<Self> {
-        Self::with_resolver(
-            compilation_timeout,
-            connection_pool,
-            Arc::<EnvCompilerResolver>::default(),
-        )
-        .await
+        let env_resolver = Arc::<EnvCompilerResolver>::default();
+        let gh_resolver = Arc::new(GitHubCompilerResolver::new().await?);
+        let mut resolver = ResolverMultiplexer::new(env_resolver);
+
+        // Killer switch: if anything goes wrong with GH resolver, we can disable it without having to rollback.
+        // TODO: Remove once GH resolver is proven to be stable.
+        let disable_gh_resolver = std::env::var("DISABLE_GITHUB_RESOLVER").is_ok();
+        if !disable_gh_resolver {
+            resolver = resolver.with_resolver(gh_resolver);
+        } else {
+            tracing::warn!("GitHub resolver was disabled via DISABLE_GITHUB_RESOLVER env variable")
+        }
+
+        Self::with_resolver(compilation_timeout, connection_pool, Arc::new(resolver)).await
     }
 
     async fn with_resolver(
@@ -134,21 +143,42 @@ impl ContractVerifier {
         connection_pool: ConnectionPool<Core>,
         compiler_resolver: Arc<dyn CompilerResolver>,
     ) -> anyhow::Result<Self> {
-        let this = Self {
+        Self::sync_compiler_versions(compiler_resolver.as_ref(), &connection_pool).await?;
+        Ok(Self {
             compilation_timeout,
             contract_deployer: zksync_contracts::deployer_contract(),
             connection_pool,
             compiler_resolver,
-        };
-        this.sync_compiler_versions().await?;
-        Ok(this)
+        })
+    }
+
+    /// Returns a future that would periodically update the supported compiler versions
+    /// in the database.
+    pub fn sync_compiler_versions_task(
+        &self,
+    ) -> impl std::future::Future<Output = anyhow::Result<()>> {
+        const UPDATE_INTERVAL: Duration = Duration::from_secs(60 * 60); // 1 hour.
+
+        let resolver = self.compiler_resolver.clone();
+        let pool = self.connection_pool.clone();
+        async move {
+            loop {
+                tracing::info!("Updating compiler versions");
+                if let Err(err) = Self::sync_compiler_versions(resolver.as_ref(), &pool).await {
+                    tracing::error!("Failed to sync compiler versions: {:?}", err);
+                }
+                tokio::time::sleep(UPDATE_INTERVAL).await;
+            }
+        }
     }
 
     /// Synchronizes compiler versions.
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn sync_compiler_versions(&self) -> anyhow::Result<()> {
-        let supported_versions = self
-            .compiler_resolver
+    async fn sync_compiler_versions(
+        resolver: &dyn CompilerResolver,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let supported_versions = resolver
             .supported_versions()
             .await
             .context("cannot get supported compilers")?;
@@ -163,26 +193,23 @@ impl ContractVerifier {
             "persisting supported compiler versions"
         );
 
-        let mut storage = self
-            .connection_pool
-            .connection_tagged("contract_verifier")
-            .await?;
+        let mut storage = pool.connection_tagged("contract_verifier").await?;
         let mut transaction = storage.start_transaction().await?;
         transaction
             .contract_verification_dal()
-            .set_zksolc_versions(&supported_versions.zksolc)
+            .set_zksolc_versions(&supported_versions.zksolc.into_iter().collect::<Vec<_>>())
             .await?;
         transaction
             .contract_verification_dal()
-            .set_solc_versions(&supported_versions.solc)
+            .set_solc_versions(&supported_versions.solc.into_iter().collect::<Vec<_>>())
             .await?;
         transaction
             .contract_verification_dal()
-            .set_zkvyper_versions(&supported_versions.zkvyper)
+            .set_zkvyper_versions(&supported_versions.zkvyper.into_iter().collect::<Vec<_>>())
             .await?;
         transaction
             .contract_verification_dal()
-            .set_vyper_versions(&supported_versions.vyper)
+            .set_vyper_versions(&supported_versions.vyper.into_iter().collect::<Vec<_>>())
             .await?;
         transaction.commit().await?;
         Ok(())
