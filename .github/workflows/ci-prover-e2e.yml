@@ -70,20 +70,11 @@ jobs:
           ci_run zkstack prover init-bellman-cuda --clone --verbose
           ci_run zkstack prover setup-keys --mode=download --region=us --verbose
       - name: Run server
-        if: matrix.compressor-mode == 'plonk'
         run: |
           ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs/server.log &
       - name: Run Gateway
-        if: matrix.compressor-mode == 'plonk'
         run: |
           ci_run zkstack prover run --component=gateway --docker=false &>prover_logs/gateway.log &
-      - name: Manually prepare database
-        if: matrix.compressor-mode == 'fflonk'
-        run: |
-          # Batch number is hardcoded for now
-          ci_run wget --content-disposition https://prover-api.era-stage-proofs.zksync.dev/proof_generation_data/8624
-          ci_run zkstack prover dev insert-version --default
-          ci_run zkstack prover dev insert-batch --default --number 8624
       - name: Run Prover Job Monitor
         run: |
           ci_run zkstack prover run --component=prover-job-monitor --docker=false &>prover_logs/prover-job-monitor.log &
@@ -115,29 +106,15 @@ jobs:
       - name: Kill prover & start compressor
         run: |
           sudo ./bin/prover_checkers/kill_prover
-
           ci_run zkstack prover run --component=compressor --docker=false --compressor-mode=${{matrix.compressor-mode}} &>prover_logs/compressor.log &
 
       - name: Wait for batch to be executed on L1
-        if: matrix.compressor-mode == 'plonk'
         env:
             DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
             BATCH_NUMBER: 1
             INTERVAL: 30
             TIMEOUT: 600
             DB_CHECKS_ONLY: false
-        run: |
-          PASSED_ENV_VARS="BATCH_NUMBER,DATABASE_URL,URL,INTERVAL,TIMEOUT,DB_CHECKS_ONLY" \
-          ci_run ./bin/prover_checkers/batch_l1_status_checker
-
-      - name: Wait for batch to be generated in database
-        if: matrix.compressor-mode == 'fflonk'
-        env:
-          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
-          BATCH_NUMBER: 1
-          INTERVAL: 30
-          TIMEOUT: 600
-          DB_CHECKS_ONLY: true
         run: |
           PASSED_ENV_VARS="BATCH_NUMBER,DATABASE_URL,URL,INTERVAL,TIMEOUT,DB_CHECKS_ONLY" \
           ci_run ./bin/prover_checkers/batch_l1_status_checker
