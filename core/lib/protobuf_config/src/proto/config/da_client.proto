@@ -50,6 +50,14 @@ message EigenConfig {
   optional string path_to_points = 13;
 }
 
+message EigenConfig {
+  reserved 1,2;
+  oneof config {
+    MemStoreConfig mem_store = 3;
+    DisperserConfig disperser = 4;
+  }
+}
+
 message DataAvailabilityClient {
   // oneof in protobuf allows for None
   oneof config {
