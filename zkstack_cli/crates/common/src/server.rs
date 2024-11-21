@@ -90,6 +90,7 @@ impl Server {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_binary_component<P>(
     shell: &Shell,
     uring: Option<&str>,
