@@ -1,6 +1,6 @@
 use std::{convert::TryFrom, str::FromStr};
 
-use anyhow::{anyhow, Context as _};
+use anyhow::Context as _;
 use sqlx::types::chrono::{DateTime, Utc};
 use zksync_db_connection::{connection::Connection, interpolate_query, match_query_as};
 use zksync_types::{
