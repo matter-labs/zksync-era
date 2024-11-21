@@ -7,7 +7,7 @@ import { Reporter } from './reporter';
 import * as yaml from 'yaml';
 import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/utils';
 import { FileConfig, loadConfig, loadEcosystem, shouldLoadConfigFromFile } from 'utils/build/file-configs';
-import { NodeSpawner } from './utils';
+import { NodeSpawner } from 'utils';
 import { logsTestPath } from 'utils/build/logs';
 import * as nodefs from 'node:fs/promises';
 import { exec } from 'utils';

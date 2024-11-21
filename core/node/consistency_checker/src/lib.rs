@@ -14,12 +14,9 @@ use zksync_eth_client::{
 };
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
-    i_executor::{
-        commit::kzg::ZK_SYNC_BYTES_PER_BLOB,
-        structures::{
-            CommitBatchInfo, StoredBatchInfo, PUBDATA_SOURCE_BLOBS, PUBDATA_SOURCE_CALLDATA,
-            PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY, SUPPORTED_ENCODING_VERSION,
-        },
+    i_executor::structures::{
+        CommitBatchInfo, StoredBatchInfo, PUBDATA_SOURCE_BLOBS, PUBDATA_SOURCE_CALLDATA,
+        PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY, SUPPORTED_ENCODING_VERSION,
     },
     Tokenizable,
 };
@@ -239,23 +236,6 @@ impl LocalL1BatchCommitData {
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
         let da = detect_da(protocol_version, reference, self.commitment_mode)
             .context("cannot detect DA source from reference commitment token")?;
-
-        // For rollups with `PubdataSendingMode::Calldata`, it's required that the pubdata fits into a single blob.
-        if matches!(self.commitment_mode, L1BatchCommitmentMode::Rollup)
-            && matches!(da, PubdataSendingMode::Calldata)
-        {
-            let pubdata_len = self
-                .l1_batch
-                .header
-                .pubdata_input
-                .as_ref()
-                .map_or_else(|| self.l1_batch.construct_pubdata().len(), Vec::len);
-            anyhow::ensure!(
-                pubdata_len <= ZK_SYNC_BYTES_PER_BLOB,
-                "pubdata size is too large when using calldata DA source: expected <={ZK_SYNC_BYTES_PER_BLOB} bytes, \
-                 got {pubdata_len} bytes"
-            );
-        }
 
         let local_token =
             CommitBatchInfo::new(self.commitment_mode, &self.l1_batch, da).into_token();

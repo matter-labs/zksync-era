@@ -33,6 +33,7 @@ lazy_static! {
             "function governanceWhitelistGatewayCTM(address gatewaySTMAddress, bytes32 governanoceOperationSalt) public",
             "function governanceSetCTMAssetHandler(bytes32 governanoceOperationSalt)",
             "function registerAssetIdInBridgehub(address gatewaySTMAddress, bytes32 governanoceOperationSalt)",
+            "function grantWhitelist(address filtererProxy, address[] memory addr) public"
         ])
         .unwrap(),
     );
@@ -111,6 +112,32 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     // We could've deployed the CTM at the beginning however, to be closer to how the actual upgrade
     // looks like we'll do it as the last step
 
+    call_script(
+        shell,
+        args.clone(),
+        &GATEWAY_PREPARATION_INTERFACE
+            .encode(
+                "grantWhitelist",
+                (
+                    output.gateway_transaction_filterer_proxy,
+                    vec![
+                        ecosystem_config.get_contracts_config()?.l1.governance_addr,
+                        ecosystem_config
+                            .get_wallets()?
+                            .deployer
+                            .context("no deployer addr")?
+                            .address,
+                    ],
+                ),
+            )
+            .unwrap(),
+        &ecosystem_config,
+        &chain_config,
+        &chain_config.get_wallets_config()?.governor,
+        l1_url.clone(),
+    )
+    .await?;
+
     deploy_gateway_ctm(
         shell,
         args,
@@ -136,7 +163,7 @@ async fn calculate_gateway_ctm(
     initial_deployemnt_config: &InitialDeploymentConfig,
     l1_rpc_url: String,
 ) -> anyhow::Result<GatewayConfig> {
-    let contracts_config = chain_config.get_contracts_config()?;
+    let contracts_config = config.get_contracts_config()?;
     let deploy_config_path = DEPLOY_GATEWAY_CTM.input(&config.link_to_code);
 
     let deploy_config = DeployGatewayCTMInput::new(
@@ -149,7 +176,7 @@ async fn calculate_gateway_ctm(
     deploy_config.save(shell, deploy_config_path)?;
 
     let calldata = DEPLOY_GATEWAY_CTM_INTERFACE
-        .encode("deployCTM", ())
+        .encode("prepareAddresses", ())
         .unwrap();
 
     let mut forge = Forge::new(&config.path_to_l1_foundry())
@@ -183,7 +210,7 @@ async fn deploy_gateway_ctm(
     initial_deployemnt_config: &InitialDeploymentConfig,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
-    let contracts_config = chain_config.get_contracts_config()?;
+    let contracts_config = config.get_contracts_config()?;
     let deploy_config_path = DEPLOY_GATEWAY_CTM.input(&config.link_to_code);
 
     let deploy_config = DeployGatewayCTMInput::new(
@@ -196,7 +223,7 @@ async fn deploy_gateway_ctm(
     deploy_config.save(shell, deploy_config_path)?;
 
     let calldata = DEPLOY_GATEWAY_CTM_INTERFACE
-        .encode("prepareAddresses", ())
+        .encode("deployCTM", ())
         .unwrap();
 
     let mut forge = Forge::new(&config.path_to_l1_foundry())

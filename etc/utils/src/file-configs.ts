@@ -15,7 +15,8 @@ export const configNames = [
     'genesis.yaml',
     'secrets.yaml',
     'wallets.yaml',
-    'external_node.yaml'
+    'external_node.yaml',
+    'gateway_chain.yaml'
 ] as const;
 
 export type ConfigName = (typeof configNames)[number];
