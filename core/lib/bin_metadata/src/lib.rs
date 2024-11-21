@@ -9,6 +9,11 @@ pub mod values {
     include!(concat!(env!("OUT_DIR"), "/metadata_values.rs"));
 }
 
+pub const BIN_METADATA: BinMetadata = BinMetadata {
+    rust: RUST_METADATA,
+    git: GIT_METADATA,
+};
+
 /// Metadata of the compiled binary.
 #[derive(Debug, Serialize)]
 pub struct BinMetadata {
