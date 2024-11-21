@@ -114,9 +114,8 @@ jobs:
             BATCH_NUMBER: 1
             INTERVAL: 30
             TIMEOUT: 600
-            DB_CHECKS_ONLY: false
         run: |
-          PASSED_ENV_VARS="BATCH_NUMBER,DATABASE_URL,URL,INTERVAL,TIMEOUT,DB_CHECKS_ONLY" \
+          PASSED_ENV_VARS="BATCH_NUMBER,DATABASE_URL,URL,INTERVAL,TIMEOUT" \
           ci_run ./bin/prover_checkers/batch_l1_status_checker
 
       - name: Upload logs
