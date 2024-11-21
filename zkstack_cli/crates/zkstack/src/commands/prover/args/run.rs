@@ -89,7 +89,6 @@ impl ProverComponent {
 
     pub fn get_application_args(
         &self,
-        args: ProverRunArgs,
         in_docker: bool,
     ) -> anyhow::Result<Vec<String>> {
         let mut application_args = vec![];
