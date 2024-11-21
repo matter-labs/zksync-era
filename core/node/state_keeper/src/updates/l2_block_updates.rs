@@ -27,6 +27,7 @@ pub struct L2BlockUpdates {
     pub block_execution_metrics: VmExecutionMetrics,
     pub txs_encoding_size: usize,
     pub payload_encoding_size: usize,
+    pub l1_tx_count: usize,
     pub timestamp: u64,
     pub number: L2BlockNumber,
     pub prev_block_hash: H256,
@@ -52,6 +53,7 @@ impl L2BlockUpdates {
             block_execution_metrics: VmExecutionMetrics::default(),
             txs_encoding_size: 0,
             payload_encoding_size: 0,
+            l1_tx_count: 0,
             timestamp,
             number,
             prev_block_hash,
@@ -148,6 +150,9 @@ impl L2BlockUpdates {
             .extend(tx_execution_result.logs.system_l2_to_l1_logs);
         self.storage_logs
             .extend(tx_execution_result.logs.storage_logs);
+        if tx.is_l1() {
+            self.l1_tx_count += 1;
+        }
 
         self.executed_transactions.push(TransactionExecutionResult {
             hash: tx.hash(),
@@ -219,5 +224,6 @@ mod tests {
         assert_eq!(accumulator.block_execution_metrics.l2_to_l1_logs, 0);
         assert_eq!(accumulator.txs_encoding_size, bootloader_encoding_size);
         assert_eq!(accumulator.payload_encoding_size, payload_encoding_size);
+        assert_eq!(accumulator.l1_tx_count, 0);
     }
 }

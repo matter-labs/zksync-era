@@ -39,3 +39,9 @@ impl FromStr for AggregatedActionType {
         }
     }
 }
+
+/// Additional cost of processing `Execute` operation per batch.
+pub const L1_BATCH_EXECUTE_BASE_COST: u32 = 30_000;
+
+/// Additional cost of processing `Execute` operation per L1->L2 tx.
+pub const L1_OPERATION_EXECUTE_COST: u32 = 12_500;

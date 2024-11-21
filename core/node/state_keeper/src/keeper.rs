@@ -820,11 +820,13 @@ impl ZkSyncStateKeeper {
                     writes_metrics: block_writes_metrics,
                     gas_remaining: *gas_remaining,
                 };
+                let is_tx_l1 = tx.is_l1() as usize;
 
                 self.sealer.should_seal_l1_batch(
                     updates_manager.l1_batch.number.0,
                     updates_manager.batch_timestamp() as u128 * 1_000,
                     updates_manager.pending_executed_transactions_len() + 1,
+                    updates_manager.pending_l1_transactions_len() + is_tx_l1,
                     &block_data,
                     &tx_data,
                     updates_manager.protocol_version(),

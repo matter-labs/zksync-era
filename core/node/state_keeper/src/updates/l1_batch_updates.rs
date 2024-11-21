@@ -12,6 +12,7 @@ pub struct L1BatchUpdates {
     pub priority_ops_onchain_data: Vec<PriorityOpOnchainData>,
     pub block_execution_metrics: VmExecutionMetrics,
     pub txs_encoding_size: usize,
+    pub l1_tx_count: usize,
     pub finished: Option<FinishedL1Batch>,
 }
 
@@ -23,6 +24,7 @@ impl L1BatchUpdates {
             priority_ops_onchain_data: Default::default(),
             block_execution_metrics: Default::default(),
             txs_encoding_size: 0,
+            l1_tx_count: 0,
             finished: None,
         }
     }
@@ -39,6 +41,7 @@ impl L1BatchUpdates {
 
         self.block_execution_metrics += l2_block_updates.block_execution_metrics;
         self.txs_encoding_size += l2_block_updates.txs_encoding_size;
+        self.l1_tx_count += l2_block_updates.l1_tx_count;
     }
 }
 
@@ -80,5 +83,6 @@ mod tests {
             0
         );
         assert_eq!(l1_batch_accumulator.txs_encoding_size, expected_tx_size);
+        assert_eq!(l1_batch_accumulator.l1_tx_count, 0);
     }
 }

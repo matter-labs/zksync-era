@@ -4,7 +4,11 @@ use async_trait::async_trait;
 use chrono::Utc;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, L1BatchNumber,
+    aggregated_operations::{
+        AggregatedActionType, L1_BATCH_EXECUTE_BASE_COST, L1_OPERATION_EXECUTE_COST,
+    },
+    commitment::L1BatchWithMetadata,
+    L1BatchNumber,
 };
 
 use super::metrics::METRICS;
@@ -125,11 +129,7 @@ pub struct ExecuteGasCriterion {
 
 impl ExecuteGasCriterion {
     /// Base cost of processing aggregated `Execute` operation.
-    pub const AGGR_L1_BATCH_EXECUTE_BASE_COST: u32 = 241_000;
-    /// Additional cost of processing `Execute` per batch.
-    pub const L1_BATCH_EXECUTE_BASE_COST: u32 = 30_000;
-    /// Additional cost of processing `Execute` per L1->L2 tx.
-    pub const L1_OPERATION_EXECUTE_COST: u32 = 12_500;
+    const AGGR_L1_BATCH_EXECUTE_BASE_COST: u32 = 241_000;
 
     pub fn new(gas_limit: u32) -> ExecuteGasCriterion {
         ExecuteGasCriterion { gas_limit }
@@ -159,8 +159,7 @@ impl ExecuteGasCriterion {
             .unwrap()
             .unwrap_or_else(|| panic!("Missing L1 batch header in DB for #{batch_number}"));
 
-        Self::L1_BATCH_EXECUTE_BASE_COST
-            + u32::from(header.l1_tx_count) * Self::L1_OPERATION_EXECUTE_COST
+        L1_BATCH_EXECUTE_BASE_COST + u32::from(header.l1_tx_count) * L1_OPERATION_EXECUTE_COST
     }
 }
 

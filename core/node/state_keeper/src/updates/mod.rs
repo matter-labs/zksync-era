@@ -184,6 +184,10 @@ impl UpdatesManager {
         self.l1_batch.executed_transactions.len() + self.l2_block.executed_transactions.len()
     }
 
+    pub(crate) fn pending_l1_transactions_len(&self) -> usize {
+        self.l1_batch.l1_tx_count + self.l2_block.l1_tx_count
+    }
+
     pub(crate) fn pending_execution_metrics(&self) -> VmExecutionMetrics {
         self.l1_batch.block_execution_metrics + self.l2_block.block_execution_metrics
     }

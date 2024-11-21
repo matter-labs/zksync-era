@@ -177,11 +177,13 @@ impl SealData {
 }
 
 pub(super) trait SealCriterion: fmt::Debug + Send + Sync + 'static {
+    #[allow(clippy::too_many_arguments)]
     fn should_seal(
         &self,
         config: &StateKeeperConfig,
         block_open_timestamp_ms: u128,
         tx_count: usize,
+        l1_tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,

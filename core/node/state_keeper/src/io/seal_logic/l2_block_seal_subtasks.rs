@@ -541,6 +541,7 @@ mod tests {
                 block_execution_metrics: Default::default(),
                 txs_encoding_size: Default::default(),
                 payload_encoding_size: Default::default(),
+                l1_tx_count: 0,
                 timestamp: 1,
                 number: L2BlockNumber(1),
                 prev_block_hash: Default::default(),
