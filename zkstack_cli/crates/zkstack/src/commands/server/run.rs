@@ -10,7 +10,7 @@ use config::{
 use xshell::Shell;
 
 use crate::{
-    commands::args::RunServerArgs,
+    commands::args::run::RunServerArgs,
     messages::{MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER},
 };
 
