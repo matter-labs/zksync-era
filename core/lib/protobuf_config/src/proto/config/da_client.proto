@@ -37,6 +37,7 @@ message CelestiaConfig {
 }
 
 message EigenConfig {
+  reserved 1,2;
   optional string disperser_rpc = 3;
   optional int32 eth_confirmation_depth = 4;
   optional string eigenda_eth_rpc = 5;
@@ -48,14 +49,6 @@ message EigenConfig {
   optional bool authenticated = 11;
   optional bool verify_cert = 12;
   optional string path_to_points = 13;
-}
-
-message EigenConfig {
-  reserved 1,2;
-  oneof config {
-    MemStoreConfig mem_store = 3;
-    DisperserConfig disperser = 4;
-  }
 }
 
 message DataAvailabilityClient {
