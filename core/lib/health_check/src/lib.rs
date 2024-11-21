@@ -11,7 +11,10 @@ pub use async_trait::async_trait;
 use futures::future;
 use serde::Serialize;
 use tokio::sync::watch;
-use zksync_bin_metadata::values::BIN_METADATA;
+use zksync_bin_metadata::{
+    values::{GIT_METADATA, RUST_METADATA},
+    BinMetadata,
+};
 
 use self::metrics::{CheckResult, METRICS};
 use crate::metrics::AppHealthCheckConfig;
@@ -238,7 +241,13 @@ impl AppHealthCheck {
             .map(|health| health.status)
             .max_by_key(|status| status.priority_for_aggregation())
             .unwrap_or(HealthStatus::Ready);
-        let inner = Health::with_details(aggregated_status.into(), BIN_METADATA);
+        let inner = Health::with_details(
+            aggregated_status.into(),
+            BinMetadata {
+                rust: RUST_METADATA,
+                git: GIT_METADATA,
+            },
+        );
 
         let health = AppHealth { inner, components };
         if !health.inner.status.is_healthy() {

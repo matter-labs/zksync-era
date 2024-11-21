@@ -5,7 +5,7 @@ use zksync_node_framework::{
     implementations::resources::pools::{MasterPool, PoolResource},
     FromContext, IntoContext, StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
-use zksync_shared_metrics::BIN_METRICS;
+use zksync_shared_metrics::{GIT_METRICS, RUST_METRICS};
 use zksync_types::{L1ChainId, L2ChainId, SLChainId};
 
 use super::EN_METRICS;
@@ -39,7 +39,8 @@ impl WiringLayer for ExternalNodeMetricsLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        BIN_METRICS.initialize();
+        RUST_METRICS.initialize();
+        GIT_METRICS.initialize();
         EN_METRICS.observe_config(
             self.l1_chain_id,
             self.sl_chain_id,

@@ -14,15 +14,18 @@ fn print_binary_meta(out: &mut impl Write) -> io::Result<()> {
 
     writeln!(
         out,
-        "pub const BIN_METADATA: BinMetadata = BinMetadata {{ \
-            rustc_version: {semver:?}, \
-            rustc_commit_hash: {commit_hash:?}, \
-            rustc_commit_date: {commit_date:?}, \
-            rustc_channel: {channel:?}, \
+        "pub const RUST_METADATA: RustMetadata = RustMetadata {{ \
+            version: {semver:?}, \
+            commit_hash: {commit_hash:?}, \
+            commit_date: {commit_date:?}, \
+            channel: {channel:?}, \
             host: {host:?}, \
             llvm: {llvm:?}, \
-            git_branch: {git_branch:?}, \
-            git_revision: {git_revision:?} \
+        }};
+
+        pub const GIT_METADATA: GitMetadata = GitMetadata {{ \
+            branch: {git_branch:?}, \
+            revision: {git_revision:?} \
         }};",
         semver = rustc_meta.semver.to_string(),
         commit_hash = rustc_meta.commit_hash,
