@@ -14,18 +14,14 @@ use zksync_block_reverter::{
     BlockReverter, BlockReverterEthConfig, NodeRole,
 };
 use zksync_config::{
-    configs::{
-        chain::NetworkConfig, wallets::Wallets, BasicWitnessInputProducerConfig, DatabaseSecrets,
-        GatewayChainConfig, GeneralConfig, L1Secrets, ObservabilityConfig,
-        ProtectiveReadsWriterConfig,
-    },
-    ContractsConfig, DBConfig, EthConfig, GenesisConfig, PostgresConfig,
+    configs::{GatewayChainConfig, ObservabilityConfig},
+    GenesisConfig,
 };
 use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_types::{Address, L1BatchNumber, SLChainId};
+use zksync_types::{Address, L1BatchNumber};
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None)]
