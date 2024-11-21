@@ -132,7 +132,6 @@ impl SequencerSealer {
     fn default_sealers(config: &StateKeeperConfig) -> Vec<Box<dyn SealCriterion>> {
         vec![
             Box::new(criteria::SlotsCriterion),
-            Box::new(criteria::GasCriterion),
             Box::new(criteria::PubDataBytesCriterion {
                 max_pubdata_per_batch: config.max_pubdata_per_batch,
             }),

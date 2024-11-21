@@ -538,7 +538,6 @@ mod tests {
                 user_l2_to_l1_logs,
                 system_l2_to_l1_logs: Default::default(),
                 new_factory_deps,
-                l1_gas_count: Default::default(),
                 block_execution_metrics: Default::default(),
                 txs_encoding_size: Default::default(),
                 payload_encoding_size: Default::default(),

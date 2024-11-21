@@ -17,8 +17,8 @@ use zksync_db_connection::{
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{
-        BlockGasCount, L1BatchHeader, L1BatchStatistics, L1BatchTreeData, L2BlockHeader,
-        StorageOracleInfo, UnsealedL1BatchHeader,
+        L1BatchHeader, L1BatchStatistics, L1BatchTreeData, L2BlockHeader, StorageOracleInfo,
+        UnsealedL1BatchHeader,
     },
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
     fee_model::BatchFeeInput,
@@ -688,7 +688,6 @@ impl BlocksDal<'_, '_> {
         &mut self,
         header: &L1BatchHeader,
         initial_bootloader_contents: &[(usize, U256)],
-        predicted_block_gas: BlockGasCount,
         storage_refunds: &[u32],
         pubdata_costs: &[i32],
         predicted_circuits_by_type: CircuitStatistic, // predicted number of circuits for each circuit type
@@ -728,20 +727,17 @@ impl BlocksDal<'_, '_> {
                 l2_to_l1_messages = $4,
                 bloom = $5,
                 priority_ops_onchain_data = $6,
-                predicted_commit_gas_cost = $7,
-                predicted_prove_gas_cost = $8,
-                predicted_execute_gas_cost = $9,
-                initial_bootloader_heap_content = $10,
-                used_contract_hashes = $11,
-                bootloader_code_hash = $12,
-                default_aa_code_hash = $13,
-                evm_emulator_code_hash = $14,
-                protocol_version = $15,
-                system_logs = $16,
-                storage_refunds = $17,
-                pubdata_costs = $18,
-                pubdata_input = $19,
-                predicted_circuits_by_type = $20,
+                initial_bootloader_heap_content = $7,
+                used_contract_hashes = $8,
+                bootloader_code_hash = $9,
+                default_aa_code_hash = $10,
+                evm_emulator_code_hash = $11,
+                protocol_version = $12,
+                system_logs = $13,
+                storage_refunds = $14,
+                pubdata_costs = $15,
+                pubdata_input = $16,
+                predicted_circuits_by_type = $17,
                 updated_at = NOW(),
                 sealed_at = NOW(),
                 is_sealed = TRUE
@@ -754,9 +750,6 @@ impl BlocksDal<'_, '_> {
             &header.l2_to_l1_messages,
             header.bloom.as_bytes(),
             &priority_onchain_data,
-            i64::from(predicted_block_gas.commit),
-            i64::from(predicted_block_gas.prove),
-            i64::from(predicted_block_gas.execute),
             initial_bootloader_contents,
             used_contract_hashes,
             header.base_system_contracts_hashes.bootloader.as_bytes(),
@@ -2788,15 +2781,8 @@ impl BlocksDal<'_, '_> {
             header.to_unsealed_header(BatchFeeInput::pubdata_independent(100, 100, 100)),
         )
         .await?;
-        self.mark_l1_batch_as_sealed(
-            header,
-            &[],
-            Default::default(),
-            &[],
-            &[],
-            Default::default(),
-        )
-        .await
+        self.mark_l1_batch_as_sealed(header, &[], &[], &[], Default::default())
+            .await
     }
 
     /// Deletes all L2 blocks and L1 batches, including the genesis ones. Should only be used in tests.
@@ -3093,11 +3079,6 @@ mod tests {
             BaseSystemContractsHashes::default(),
             ProtocolVersionId::default(),
         );
-        let mut predicted_gas = BlockGasCount {
-            commit: 2,
-            prove: 3,
-            execute: 10,
-        };
         conn.blocks_dal()
             .insert_l1_batch(
                 header.to_unsealed_header(BatchFeeInput::pubdata_independent(100, 100, 100)),
@@ -3105,13 +3086,12 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .mark_l1_batch_as_sealed(&header, &[], predicted_gas, &[], &[], Default::default())
+            .mark_l1_batch_as_sealed(&header, &[], &[], &[], Default::default())
             .await
             .unwrap();
 
         header.number = L1BatchNumber(2);
         header.timestamp += 100;
-        predicted_gas += predicted_gas;
         conn.blocks_dal()
             .insert_l1_batch(
                 header.to_unsealed_header(BatchFeeInput::pubdata_independent(100, 100, 100)),
@@ -3119,7 +3099,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .mark_l1_batch_as_sealed(&header, &[], predicted_gas, &[], &[], Default::default())
+            .mark_l1_batch_as_sealed(&header, &[], &[], &[], Default::default())
             .await
             .unwrap();
 
