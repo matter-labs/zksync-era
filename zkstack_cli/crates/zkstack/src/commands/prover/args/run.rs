@@ -87,10 +87,7 @@ impl ProverComponent {
         }
     }
 
-    pub fn get_application_args(
-        &self,
-        in_docker: bool,
-    ) -> anyhow::Result<Vec<String>> {
+    pub fn get_application_args(&self, in_docker: bool) -> anyhow::Result<Vec<String>> {
         let mut application_args = vec![];
 
         if (self == &Self::Prover || self == &Self::Compressor || self == &Self::CircuitProver)
