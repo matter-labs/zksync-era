@@ -234,8 +234,8 @@ impl BenchmarkingVm<Legacy> {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
-    use zksync_contracts::read_bytecode;
     use zksync_multivm::interface::ExecutionResult;
+    use zksync_test_contracts::TestContract;
 
     use super::*;
     use crate::{
@@ -245,11 +245,9 @@ mod tests {
 
     #[test]
     fn can_deploy_contract() {
-        let test_contract = read_bytecode(
-            "etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json",
-        );
+        let test_contract = &TestContract::counter().bytecode;
         let mut vm = BenchmarkingVm::new();
-        let res = vm.run_transaction(&get_deploy_tx(&test_contract));
+        let res = vm.run_transaction(&get_deploy_tx(test_contract));
 
         assert_matches!(res.result, ExecutionResult::Success { .. });
     }
