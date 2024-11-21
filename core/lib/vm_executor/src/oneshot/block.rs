@@ -45,6 +45,7 @@ impl BlockInfo {
         connection: &mut Connection<'_, Core>,
         number: L2BlockNumber,
     ) -> anyhow::Result<Self> {
+        tracing::info!("Resolving block info for L2 block #{}", number.0);
         let l1_batch = connection
             .storage_web3_dal()
             .resolve_l1_batch_number_of_l2_block(number)

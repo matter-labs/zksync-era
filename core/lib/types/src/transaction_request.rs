@@ -815,9 +815,9 @@ impl L2Tx {
         let meta = value.eip712_meta.take().unwrap_or_default();
         validate_factory_deps(&meta.factory_deps)?;
 
-        if value.to.is_none() && !allow_no_target {
-            return Err(SerializationTransactionError::ToAddressIsNull);
-        }
+        // if value.to.is_none() && !allow_no_target {
+        //     return Err(SerializationTransactionError::ToAddressIsNull);
+        // }
 
         let mut tx = L2Tx::new(
             value.to,

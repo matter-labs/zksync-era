@@ -4,21 +4,20 @@ use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use ruint::aliases::U256;
 use tokio::runtime::Handle;
+use tokio::task::spawn_blocking;
+use zk_ee::system::system_trait::errors::InternalError;
+use zk_os_forward_system::run::{BatchContext, StorageCommitment, TxOutput, ExecutionOutput, ExecutionResult};
 use zksync_dal::{Connection, Core};
-use zksync_multivm::interface::{
-    executor::{OneshotExecutor, TransactionValidator},
-    storage::{ReadStorage, StorageWithOverrides},
-    tracer::{TimestampAsserterParams, ValidationError, ValidationParams, ValidationTraces},
-    Call, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
-    TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs,
-};
-use zksync_state::{PostgresStorage, PostgresStorageCaches};
+use zksync_multivm::interface::{executor::{OneshotExecutor, TransactionValidator}, storage::{ReadStorage, StorageWithOverrides}, tracer::{TimestampAsserterParams, ValidationError, ValidationParams, ValidationTraces}, Call, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult, TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs};
+use zksync_state::{PostgresStorage, PostgresStorageCaches, PostgresStorageForZkOs};
 use zksync_types::{
     api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, Transaction,
 };
+use zksync_utils::time::seconds_since_epoch;
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
-
+use zksync_zkos_vm_runner::zkos_conversions::tx_abi_encode;
 use super::{
     vm_metrics::{self, SandboxStage},
     BlockArgs, VmPermit, SANDBOX_METRICS,
@@ -136,6 +135,90 @@ impl SandboxExecutor {
             options,
             storage_caches: None,
             timestamp_asserter_params: None,
+        }
+    }
+
+    pub async fn execute_in_sandbox_zkos(
+        &self,
+        vm_permit: VmPermit,
+        connection: Connection<'static, Core>,
+        action: SandboxAction,
+        block_args: &BlockArgs,
+        state_override: Option<StateOverride>
+    ) -> anyhow::Result<Vec<u8>> {
+        let total_factory_deps = action.factory_deps_count() as u16;
+        let (env, storage) = self
+            .prepare_env_and_storage(connection, block_args, &action)
+            .await?;
+
+        // let (env, storage) = self
+        //     .prepare_env_and_storage(connection, block_args, &action)
+        //     .await?;
+
+        // let state_override = state_override.unwrap_or_default();
+        // let storage = apply_state_override(storage, &state_override);
+        let (execution_args, tracing_params) = action.into_parts();
+
+        // invoke new VM
+
+        let context = BatchContext {
+            eip1559_basefee: U256::from(1),
+            ergs_price: U256::from(1),
+            // todo: consider changing type
+            // todo: check if need to increment here
+            block_number: (env.l1_batch.number.0 + 1) as u64,
+            timestamp: seconds_since_epoch(),
+        };
+
+        let storage_commitment = StorageCommitment {
+            root: Default::default(),
+            next_free_slot: 0,
+        };
+
+        let abi = tx_abi_encode(execution_args.transaction);
+        tracing::info!("starting tx execution");
+
+        let result =
+            spawn_blocking(move ||{
+        let zkos_storage = PostgresStorageForZkOs::new(storage);
+            zk_os_forward_system::run::simulate_tx(
+                abi,
+                storage_commitment,
+                context,
+                zkos_storage.clone(),
+                zkos_storage
+            )
+                }
+            ).await
+                .expect("Task panicked");
+
+        tracing::info!("execute_in_sandbox Result: {:?}", result);
+        // let result = self
+        //     .inspect_transaction_with_bytecode_compression(
+        //         storage,
+        //         env,
+        //         execution_args,
+        //         tracing_params,
+        //     )
+        //     .await?;
+        drop(vm_permit);
+
+        //todo: this should be compatible with era/ethereum
+        match result {
+            Ok(Ok(tx_output)) => {
+
+                match tx_output.execution_result {
+                    ExecutionResult::Success(ExecutionOutput::Call(data)) => Ok(data),
+                    ExecutionResult::Success(ExecutionOutput::Create(data, _)) => Ok(data),
+                    ExecutionResult::Revert(res) => anyhow::bail!("revert: {:?}", res)
+                }
+            }
+            Ok(Err(invalid_transaction)) => {
+                anyhow::bail!("invalid transaction")
+            }
+            Err(err) => {
+                anyhow::bail!("Execution failed: {:?}", err)
+            }
         }
     }
 

@@ -1,0 +1,32 @@
+[package]
+name = "zksync_zkos_state_keeper"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_dal.workspace = true
+zksync_state.workspace = true
+zksync_storage.workspace = true
+zksync_state_keeper.workspace = true
+zksync_utils.workspace = true
+zksync_mempool.workspace = true
+zksync_types.workspace = true
+zksync_zkos_vm_runner.workspace = true
+
+zk_os_forward_system.workspace = true
+zk_ee.workspace = true
+zk_os_basic_system.workspace = true
+zk_os_system_hooks.workspace = true
+
+anyhow.workspace = true
+ruint.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+#hex = "0.4.3"
+#sha3 = { version = "0.10", default-features = false }

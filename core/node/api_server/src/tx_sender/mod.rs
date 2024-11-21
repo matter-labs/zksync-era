@@ -15,6 +15,8 @@ use zksync_multivm::{
     },
     utils::{derive_base_fee_and_gas_per_pubdata, get_max_batch_gas_limit},
 };
+use zksync_multivm::interface::{ExecutionResult, VmExecutionLogs, VmExecutionStatistics};
+use zksync_multivm::interface::tracer::ValidationTraces;
 use zksync_node_fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider};
 use zksync_state::PostgresStorageCaches;
 use zksync_state_keeper::{
@@ -42,6 +44,8 @@ use crate::execution_sandbox::{
     BlockArgs, SandboxAction, SandboxExecutor, SubmitTxStage, VmConcurrencyBarrier,
     VmConcurrencyLimiter, SANDBOX_METRICS,
 };
+use std::default::Default;
+
 
 mod gas_estimation;
 pub mod master_pool_sink;
@@ -322,100 +326,113 @@ impl TxSender {
         tx: L2Tx,
         block_args: BlockArgs,
     ) -> Result<(L2TxSubmissionResult, VmExecutionResultAndLogs), SubmitTxError> {
-        let tx_hash = tx.hash();
-        let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::Validate);
-        self.validate_tx(&tx, block_args.protocol_version()).await?;
-        stage_latency.observe();
 
-        let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DryRun);
-        // **Important.** For the main node, this method acquires a DB connection inside `get_batch_fee_input()`.
-        // Thus, it must not be called it if you're holding a DB connection already.
-        let fee_input = self
-            .0
-            .batch_fee_input_provider
-            .get_batch_fee_input()
-            .await
-            .context("cannot get batch fee input")?;
+        tracing::info!("submit_tx {:?}", tx.hash());
 
-        let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
-        let action = SandboxAction::Execution {
-            fee_input,
-            tx: tx.clone(),
-        };
-        let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
-        let connection = self.acquire_replica_connection().await?;
-        let execution_output = self
-            .0
-            .executor
-            .execute_in_sandbox(vm_permit.clone(), connection, action, &block_args, None)
-            .await?;
-        tracing::info!(
-            "Submit tx {tx_hash:?} with execution metrics {:?}",
-            execution_output.metrics
-        );
-        stage_latency.observe();
+        // let tx_hash = tx.hash();
+        // let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::Validate);
+        // self.validate_tx(&tx, block_args.protocol_version()).await?;
+        // stage_latency.observe();
+        //
+        // let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DryRun);
+        // // **Important.** For the main node, this method acquires a DB connection inside `get_batch_fee_input()`.
+        // // Thus, it must not be called it if you're holding a DB connection already.
+        // let fee_input = self
+        //     .0
+        //     .batch_fee_input_provider
+        //     .get_batch_fee_input()
+        //     .await
+        //     .context("cannot get batch fee input")?;
+        //
+        // let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
+        // let action = SandboxAction::Execution {
+        //     fee_input,
+        //     tx: tx.clone(),
+        // };
+        // let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
+        // let connection = self.acquire_replica_connection().await?;
+        // let execution_output = self
+        //     .0
+        //     .executor
+        //     .execute_in_sandbox(vm_permit.clone(), connection, action, &block_args, None)
+        //     .await?;
+        // tracing::info!(
+        //     "Submit tx {tx_hash:?} with execution metrics {:?}",
+        //     execution_output.metrics
+        // );
+        // stage_latency.observe();
+        //
+        // let stage_latency =
+        //     SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::VerifyExecute);
+        // let connection = self.acquire_replica_connection().await?;
+        // let validation_result = self
+        //     .0
+        //     .executor
+        //     .validate_tx_in_sandbox(
+        //         vm_permit,
+        //         connection,
+        //         tx.clone(),
+        //         block_args,
+        //         fee_input,
+        //         &self.read_whitelisted_tokens_for_aa_cache().await,
+        //     )
+        //     .await;
+        // stage_latency.observe();
+        //
+        // if let Err(err) = validation_result {
+        //     return Err(err.into());
+        // }
+        // if !execution_output.are_published_bytecodes_ok {
+        //     return Err(SubmitTxError::FailedToPublishCompressedBytecodes);
+        //}
+       //
+        // let mut stage_latency =
+        //     SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DbInsert);
+        //self.ensure_tx_executable(&tx.clone().into(), &execution_output.metrics, true)?;
 
-        let stage_latency =
-            SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::VerifyExecute);
-        let connection = self.acquire_replica_connection().await?;
-        let validation_result = self
-            .0
-            .executor
-            .validate_tx_in_sandbox(
-                vm_permit,
-                connection,
-                tx.clone(),
-                block_args,
-                fee_input,
-                &self.read_whitelisted_tokens_for_aa_cache().await,
-            )
-            .await;
-        stage_latency.observe();
-
-        if let Err(err) = validation_result {
-            return Err(err.into());
-        }
-        if !execution_output.are_published_bytecodes_ok {
-            return Err(SubmitTxError::FailedToPublishCompressedBytecodes);
-        }
-        let mut stage_latency =
-            SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DbInsert);
-        self.ensure_tx_executable(&tx.clone().into(), &execution_output.metrics, true)?;
-
-        let validation_traces = validation_result?;
         let submission_res_handle = self
             .0
             .tx_sink
-            .submit_tx(&tx, execution_output.metrics, validation_traces)
+            .submit_tx(&tx,
+                       TransactionExecutionMetrics::default(),
+                       ValidationTraces::default()
+            )
             .await?;
 
+        let fake_vm_execution_result = VmExecutionResultAndLogs {
+            result: ExecutionResult::Success {output: vec![]},
+            logs: VmExecutionLogs::default(),
+            statistics: VmExecutionStatistics::default(),
+            refunds: Default::default(),
+            dynamic_factory_deps: Default::default(),
+        };
         match submission_res_handle {
-            L2TxSubmissionResult::AlreadyExecuted => {
-                let initiator_account = tx.initiator_account();
-                let Nonce(expected_nonce) = self
-                    .get_expected_nonce(initiator_account)
-                    .await
-                    .with_context(|| {
-                        format!("failed getting expected nonce for {initiator_account:?}")
-                    })?;
-                Err(SubmitTxError::NonceIsTooLow(
-                    expected_nonce,
-                    expected_nonce + self.0.sender_config.max_nonce_ahead,
-                    tx.nonce().0,
-                ))
-            }
-            L2TxSubmissionResult::Duplicate => {
-                Err(SubmitTxError::IncorrectTx(TxDuplication(tx.hash())))
-            }
-            L2TxSubmissionResult::InsertionInProgress => Err(SubmitTxError::InsertionInProgress),
-            L2TxSubmissionResult::Proxied => {
-                stage_latency.set_stage(SubmitTxStage::TxProxy);
-                stage_latency.observe();
-                Ok((submission_res_handle, execution_output.vm))
-            }
+            // L2TxSubmissionResult::AlreadyExecuted => {
+            //     let initiator_account = tx.initiator_account();
+            //     let Nonce(expected_nonce) = self
+            //         .get_expected_nonce(initiator_account)
+            //         .await
+            //         .with_context(|| {
+            //             format!("failed getting expected nonce for {initiator_account:?}")
+            //         })?;
+            //     Err(SubmitTxError::NonceIsTooLow(
+            //         expected_nonce,
+            //         expected_nonce + self.0.sender_config.max_nonce_ahead,
+            //         tx.nonce().0,
+            //     ))
+            // }
+            // L2TxSubmissionResult::Duplicate => {
+            //     Err(SubmitTxError::IncorrectTx(TxDuplication(tx.hash())))
+            // }
+            // L2TxSubmissionResult::InsertionInProgress => Err(SubmitTxError::InsertionInProgress),
+            // L2TxSubmissionResult::Proxied => {
+            //     // stage_latency.set_stage(SubmitTxStage::TxProxy);
+            //     // stage_latency.observe();
+            //     Ok((submission_res_handle, execution_output.vm))
+            // }
             _ => {
-                stage_latency.observe();
-                Ok((submission_res_handle, execution_output.vm))
+                // stage_latency.observe();
+                Ok((submission_res_handle, fake_vm_execution_result))
             }
         }
     }
@@ -608,7 +625,7 @@ impl TxSender {
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
 
-        let mut connection;
+        let mut connection: Connection<'static, Core>;
         let fee_input = if block_args.resolves_to_latest_sealed_l2_block() {
             let fee_input = self
                 .0
@@ -629,12 +646,11 @@ impl TxSender {
             enforced_base_fee: call_overrides.enforced_base_fee,
             tracing_params: OneshotTracingParams::default(),
         };
-        let result = self
+        self
             .0
             .executor
-            .execute_in_sandbox(vm_permit, connection, action, &block_args, state_override)
-            .await?;
-        result.vm.into_api_call_result()
+            .execute_in_sandbox_zkos(vm_permit, connection, action, &block_args, state_override)
+            .await.map_err(Into::into)
     }
 
     pub async fn gas_price(&self) -> anyhow::Result<u64> {

@@ -41,6 +41,7 @@ pub(super) async fn add_eth_token(transaction: &mut Connection<'_, Core>) -> any
     Ok(())
 }
 
+//todo: only used for genesis?
 pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<StorageLog> {
     let system_context_init_logs =
         // During the genesis all chains have the same id.

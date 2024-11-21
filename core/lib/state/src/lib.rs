@@ -8,13 +8,14 @@
     clippy::module_name_repetitions,
     clippy::doc_markdown // frequent false positive: RocksDB
 )]
+extern crate core;
 
 pub use zksync_vm_interface::storage as interface;
 
 pub use self::{
     cache::sequential_cache::SequentialCache,
     catchup::{AsyncCatchupTask, RocksdbCell},
-    postgres::{PostgresStorage, PostgresStorageCaches, PostgresStorageCachesTask},
+    postgres::{PostgresStorage, PostgresStorageCaches, PostgresStorageCachesTask, PostgresStorageForZkOs},
     rocksdb::{
         RocksdbStorage, RocksdbStorageBuilder, RocksdbStorageOptions, StateKeeperColumnFamily,
     },

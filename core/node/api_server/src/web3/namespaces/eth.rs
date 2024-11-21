@@ -1,19 +1,16 @@
+use std::str::FromStr;
 use anyhow::Context as _;
+use ruint::aliases::B160;
+use zk_ee::common_structs::derive_flat_storage_key;
+use zk_os_basic_system::basic_io_implementer::address_into_special_storage_key;
+use zk_os_system_hooks::addresses_constants::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS;
 use zksync_dal::{CoreDal, DalError};
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
-use zksync_types::{
-    api::{
-        state_override::StateOverride, BlockId, BlockNumber, FeeHistory, GetLogsFilter,
-        Transaction, TransactionId, TransactionReceipt, TransactionVariant,
-    },
-    bytecode::{trim_padded_evm_bytecode, BytecodeMarker},
-    l2::{L2Tx, TransactionType},
-    transaction_request::CallRequest,
-    u256_to_h256,
-    utils::decompose_full_nonce,
-    web3::{self, Bytes, SyncInfo, SyncState},
-    AccountTreeId, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256,
-};
+use zksync_types::{api::{
+    state_override::StateOverride, BlockId, BlockNumber, FeeHistory, GetLogsFilter,
+    Transaction, TransactionId, TransactionReceipt, TransactionVariant,
+}, l2::{L2Tx, TransactionType}, transaction_request::CallRequest, utils::decompose_full_nonce, web3::{self, Bytes, SyncInfo, SyncState}, AccountTreeId, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256, H160};
+use zksync_utils::{bytecode::{prepare_evm_bytecode, BytecodeMarker}, h256_to_u256, u256_to_h256};
 use zksync_web3_decl::{
     error::Web3Error,
     types::{Address, Block, Filter, FilterChanges, Log, U64},
@@ -91,6 +88,7 @@ impl EthNamespace {
             .tx_sender
             .eth_call(block_args, call_overrides, tx, state_override)
             .await?;
+
         Ok(call_result.into())
     }
 
@@ -100,6 +98,8 @@ impl EthNamespace {
         _block: Option<BlockNumber>,
         state_override: Option<StateOverride>,
     ) -> Result<U256, Web3Error> {
+        tracing::info!("eth_estimategas gas for {:?}", request);
+        return Ok(U256::from(u32::MAX));
         let mut request_with_gas_per_pubdata_overridden = request;
         self.state
             .set_nonce_for_call_request(&mut request_with_gas_per_pubdata_overridden)
@@ -172,18 +172,26 @@ impl EthNamespace {
         let mut connection = self.state.acquire_connection().await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
 
-        let balance = connection
+        let address = B160::from_be_bytes(address.to_fixed_bytes());
+        let key = address_into_special_storage_key(&address);
+        //todo: maybe reimport?
+        let flat_key = derive_flat_storage_key(&NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, &key);
+
+        let storage_hashed_key = H256::from_slice(&flat_key.as_u8_array());
+
+        let balances = connection
             .storage_web3_dal()
-            .standard_token_historical_balance(
-                AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
-                AccountTreeId::new(address),
-                block_number,
+            .get_values(
+                &[storage_hashed_key],
             )
             .await
             .map_err(DalError::generalize)?;
+
+        let balance = balances.get(&storage_hashed_key).cloned().unwrap_or_default();
+
         self.set_block_diff(block_number);
 
-        Ok(balance)
+        Ok(h256_to_u256(balance))
     }
 
     fn set_block_diff(&self, block_number: L2BlockNumber) {
@@ -449,44 +457,56 @@ impl EthNamespace {
         address: Address,
         block_id: Option<BlockId>,
     ) -> Result<U256, Web3Error> {
-        let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
-        self.current_method().set_block_id(block_id);
-
+        // let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        // self.current_method().set_block_id(block_id);
+        //
+        // let mut connection = self.state.acquire_connection().await?;
+        //
+        // let block_number = self.state.resolve_block(&mut connection, block_id).await?;
+        // self.set_block_diff(block_number);
+        // let full_nonce = connection
+        //     .storage_web3_dal()
+        //     .get_address_historical_nonce(address, block_number)
+        //     .await
+        //     .map_err(DalError::generalize)?;
+        //
+        // tracing::info!("full_nonce for {:?}: {:?}", address, full_nonce);
+        //
+        // // TODO (SMA-1612): currently account nonce is returning always, but later we will
+        // //  return account nonce for account abstraction and deployment nonce for non account abstraction.
+        // //  Strip off deployer nonce part.
+        // let (mut account_nonce, _) = decompose_full_nonce(full_nonce);
+        //
+        // if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+        //     let account_nonce_u64 = u64::try_from(account_nonce)
+        //         .map_err(|err| anyhow::anyhow!("nonce conversion failed: {err}"))?;
+        //     account_nonce = if let Some(account_nonce) = self
+        //         .state
+        //         .tx_sink()
+        //         .lookup_pending_nonce(address, account_nonce_u64 as u32)
+        //         .await?
+        //     {
+        //         account_nonce.0.into()
+        //     } else {
+        //         // No nonce hint in the sink: get pending nonces from the mempool
+        //         tracing::info!("using proper method");
+        //         connection
+        //             .transactions_web3_dal()
+        //             .next_nonce_by_initiator_account(address, account_nonce_u64)
+        //             .await
+        //             .map_err(DalError::generalize)?
+        //     };
+        // }
+        //
+        //
         let mut connection = self.state.acquire_connection().await?;
-
-        let block_number = self.state.resolve_block(&mut connection, block_id).await?;
-        self.set_block_diff(block_number);
-        let full_nonce = connection
-            .storage_web3_dal()
-            .get_address_historical_nonce(address, block_number)
+        let nonce: Option<U256> = connection
+            .transactions_web3_dal()
+            .zkos_max_nonce_by_initiator_account(address)
             .await
             .map_err(DalError::generalize)?;
-
-        // TODO (SMA-1612): currently account nonce is returning always, but later we will
-        //  return account nonce for account abstraction and deployment nonce for non account abstraction.
-        //  Strip off deployer nonce part.
-        let (mut account_nonce, _) = decompose_full_nonce(full_nonce);
-
-        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
-            let account_nonce_u64 = u64::try_from(account_nonce)
-                .map_err(|err| anyhow::anyhow!("nonce conversion failed: {err}"))?;
-            account_nonce = if let Some(account_nonce) = self
-                .state
-                .tx_sink()
-                .lookup_pending_nonce(address, account_nonce_u64 as u32)
-                .await?
-            {
-                account_nonce.0.into()
-            } else {
-                // No nonce hint in the sink: get pending nonces from the mempool
-                connection
-                    .transactions_web3_dal()
-                    .next_nonce_by_initiator_account(address, account_nonce_u64)
-                    .await
-                    .map_err(DalError::generalize)?
-            };
-        }
-        Ok(account_nonce)
+        tracing::info!("account_nonce for {:?}: {:?}", address, nonce);
+        Ok((nonce.map(|n| n + 1).unwrap_or(U256::zero())).into())
     }
 
     pub async fn get_transaction_impl(

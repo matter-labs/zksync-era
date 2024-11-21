@@ -324,6 +324,8 @@ impl BlockArgs {
             .ensure_not_pruned_block(block_id, connection)
             .await?;
 
+        tracing::info!("Execution sandbox: Loading block info for {:?}", block_id);
+
         if block_id == api::BlockId::Number(api::BlockNumber::Pending) {
             return Ok(Self::pending(connection).await?);
         }
@@ -336,6 +338,7 @@ impl BlockArgs {
         let Some(block_number) = resolved_block_number else {
             return Err(BlockArgsError::Missing);
         };
+        tracing::info!("Execution sandbox: Resolved block number: {:?}", block_number);
 
         let inner = BlockInfo::for_existing_block(connection, block_number).await?;
         Ok(Self {

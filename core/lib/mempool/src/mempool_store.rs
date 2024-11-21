@@ -118,6 +118,7 @@ impl MempoolStore {
         constraint: TransactionTimeRangeConstraint,
         initial_nonces: &HashMap<Address, Nonce>,
     ) {
+        // tracing::info!("insert_l2_transaction: {:?}", &transaction);
         let account = transaction.initiator_account();
 
         let metadata = match self.l2_transactions_per_account.entry(account) {
@@ -129,6 +130,8 @@ impl MempoolStore {
                     .insert(transaction, constraint)
             }
         };
+        tracing::info!("metadata: {:?}", &metadata);
+
         if let Some(score) = metadata.previous_score {
             self.l2_priority_queue.remove(&score);
         }
@@ -154,15 +157,16 @@ impl MempoolStore {
     pub fn next_transaction(
         &mut self,
         filter: &L2TxFilter,
-    ) -> Option<(Transaction, TransactionTimeRangeConstraint)> {
-        if let Some(transaction) = self.l1_transactions.remove(&self.next_priority_id) {
-            self.next_priority_id += 1;
-            // L1 transactions can't use block.timestamp in AA and hence do not need to have a constraint
-            return Some((
-                transaction.into(),
-                TransactionTimeRangeConstraint::default(),
-            ));
-        }
+    ) -> Option<(Transaction, TransactionTimeRangeConstraint)> {        // todo: ignore prio txs for now
+        // if let Some(transaction) = self.l1_transactions.remove(&self.next_priority_id) {
+        //     self.next_priority_id += 1;
+        //     return Some(transaction.into());
+        // }
+        // tracing::info!("next_transaction, prio queue: {:?}, by acc: {:?}, filter: {:?}",
+        //     self.l2_priority_queue.len(),
+        //     self.l2_transactions_per_account.len(),
+        //     filter
+        // );
 
         let mut removed = 0;
         // We want to fetch the next transaction that would match the fee requirements.
@@ -201,6 +205,7 @@ impl MempoolStore {
             .size
             .checked_sub((removed + 1) as u64)
             .expect("mempool size can't be negative");
+        tracing::info!("tx found: {:?}", transaction.hash());
         Some((transaction.into(), constraint))
     }
 

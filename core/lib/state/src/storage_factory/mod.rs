@@ -3,6 +3,7 @@ use std::{collections::HashSet, fmt};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::{runtime::Handle, sync::watch};
+use zk_ee::utils::Bytes32;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_storage::RocksDB;
 use zksync_types::{u256_to_h256, L1BatchNumber, StorageKey, StorageValue, H256};
@@ -14,6 +15,8 @@ pub use self::{
     snapshot::SnapshotStorage,
 };
 use crate::{PostgresStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily};
+use zk_os_forward_system::run::ReadStorage as ZkOsReadStorage;
+
 
 mod metrics;
 mod rocksdb_with_memory;

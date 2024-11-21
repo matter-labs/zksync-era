@@ -129,6 +129,7 @@ where
         args: TxExecutionArgs,
         tracing_params: OneshotTracingParams,
     ) -> anyhow::Result<OneshotTransactionExecutionResult> {
+        tracing::info!("inspect_transaction_with_bytecode_compression");
         let missed_storage_invocation_limit = match env.system.execution_mode {
             // storage accesses are not limited for tx validation
             TxExecutionMode::VerifyExecute => usize::MAX,

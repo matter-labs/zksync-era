@@ -147,17 +147,53 @@ impl StorageWeb3Dal<'_, '_> {
             hashed_key.as_bytes(),
             i64::from(block_number.0)
         )
-        .instrument("get_historical_value_unchecked")
-        .report_latency()
-        .with_arg("key", &hashed_key)
-        .with_arg("block_number", &block_number)
-        .fetch_optional(self.storage)
-        .await
-        .map(|option_row| {
-            option_row
-                .map(|row| H256::from_slice(&row.value))
-                .unwrap_or_else(H256::zero)
-        })
+            .instrument("get_historical_value_unchecked")
+            .report_latency()
+            .with_arg("key", &hashed_key)
+            .with_arg("block_number", &block_number)
+            .fetch_optional(self.storage)
+            .await
+            .map(|option_row| {
+                option_row
+                    .map(|row| H256::from_slice(&row.value))
+                    .unwrap_or_else(H256::zero)
+            })
+    }
+    /// This method does not check if a block with this number exists in the database.
+    /// It will return the current value if the block is in the future.
+    pub async fn get_historical_option_value_unchecked(
+        &mut self,
+        hashed_key: H256,
+        block_number: L2BlockNumber,
+    ) -> DalResult<Option<H256>> {
+        sqlx::query!(
+            r#"
+            SELECT
+                value
+            FROM
+                storage_logs
+            WHERE
+                storage_logs.hashed_key = $1
+                AND storage_logs.miniblock_number <= $2
+            ORDER BY
+                storage_logs.miniblock_number DESC,
+                storage_logs.operation_number DESC
+            LIMIT
+                1
+            "#,
+            hashed_key.as_bytes(),
+            i64::from(block_number.0)
+        )
+            .instrument("get_historical_value_unchecked")
+            .report_latency()
+            .with_arg("key", &hashed_key)
+            .with_arg("block_number", &block_number)
+            .fetch_optional(self.storage)
+            .await
+            .map(|option_row| {
+                option_row
+                    .map(|row| H256::from_slice(&row.value))
+            })
     }
 
     /// Provides information about the L1 batch that the specified L2 block is a part of.

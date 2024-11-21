@@ -3,7 +3,8 @@ use std::{
     sync::{Arc, RwLock},
     time::Duration,
 };
-
+use std::cell::RefCell;
+use std::rc::Rc;
 use anyhow::Context as _;
 use backon::{BlockingRetryable, ConstantBuilder};
 use tokio::{
@@ -13,12 +14,17 @@ use tokio::{
         watch,
     },
 };
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zk_ee::system::system_io_oracle::PreimageType;
+use zk_ee::utils::Bytes32;
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalResult};
 use zksync_types::{L1BatchNumber, L2BlockNumber, StorageKey, StorageValue, H256};
 use zksync_vm_interface::storage::ReadStorage;
 
 use self::metrics::{Method, ValuesUpdateStage, CACHE_METRICS, STORAGE_METRICS};
 use crate::cache::{lru_cache::LruCache, CacheValue};
+use zk_os_forward_system::run::ReadStorage as ZkOsReadStorage;
+use zk_os_forward_system::run::PreimageSource as ZkOsPreimageSource;
+use zksync_zkos_vm_runner::zkos_conversions::bytes32_to_h256;
 
 mod metrics;
 #[cfg(test)]
@@ -502,6 +508,55 @@ impl<'a> PostgresStorage<'a> {
 
     fn values_cache(&self) -> Option<&ValuesCache> {
         Some(&self.caches.as_ref()?.values.as_ref()?.cache)
+    }
+}
+/// [`ReadStorage`] implementation backed by the Postgres database.
+#[derive(Debug, Clone)]
+pub struct PostgresStorageForZkOs {
+    inner: Rc<RefCell<PostgresStorage<'static>>>,
+}
+
+impl PostgresStorageForZkOs {
+    pub fn new(
+        storage: PostgresStorage<'static>,
+    ) -> Self {
+        Self {
+            inner: Rc::new(RefCell::new(storage)),
+        }
+    }
+}
+impl ZkOsReadStorage for PostgresStorageForZkOs {
+    fn read(&mut self, key: Bytes32) -> Option<Bytes32> {
+        let hashed_key = H256::from_slice(&key.as_u8_array());
+
+        let mut borrow = self.inner.borrow_mut();
+        let mut dal = borrow.connection.storage_web3_dal();
+        let value: Option<H256> =
+            self.inner.borrow().rt_handle
+                .block_on(dal.get_historical_option_value_unchecked(hashed_key, self.inner.borrow_mut().l2_block_number))
+                .expect("Failed executing `get_historical_option_value_unchecked`");
+
+        value.map(|v| {
+            let mut new = Bytes32::zero();
+            new.as_u8_array_mut().copy_from_slice(v.as_bytes());
+            new
+        })
+    }
+}
+
+impl ZkOsPreimageSource for PostgresStorageForZkOs {
+    fn get_preimage(&mut self, preimage_type: PreimageType, hash: Bytes32) -> Option<Vec<u8>> {
+        let hash = bytes32_to_h256(hash);
+
+
+        let mut borrow = self.inner.borrow_mut();
+        let mut dal = borrow.connection.factory_deps_dal();
+        let value: Option<Vec<u8>> =
+            self.inner.borrow().rt_handle
+                .block_on(dal.get_sealed_factory_dep(hash))
+                .expect("Failed executing `get_sealed_factory_dep`");
+
+        value
     }
 }
 
