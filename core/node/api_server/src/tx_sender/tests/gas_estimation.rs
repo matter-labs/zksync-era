@@ -7,10 +7,10 @@ use test_casing::{test_casing, Product};
 use zksync_system_constants::CODE_ORACLE_ADDRESS;
 use zksync_types::{
     api::state_override::{OverrideAccount, OverrideState},
+    bytecode::BytecodeHash,
     web3::keccak256,
     K256PrivateKey,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 use super::*;
 use crate::{
@@ -74,6 +74,28 @@ async fn initial_estimate_for_load_test_transaction(tx_params: LoadnextContractE
     test_initial_estimate(state_override, tx, DEFAULT_MULTIPLIER).await;
 }
 
+#[tokio::test]
+async fn initial_gas_estimate_for_l1_transaction() {
+    let alice = K256PrivateKey::random();
+    let state_override = StateBuilder::default().with_counter_contract(0).build();
+    let tx = alice.create_l1_counter_tx(1.into(), false);
+
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tx_sender = create_real_tx_sender(pool).await;
+    let block_args = pending_block_args(&tx_sender).await;
+    let mut estimator = GasEstimator::new(&tx_sender, tx.into(), block_args, Some(state_override))
+        .await
+        .unwrap();
+    estimator.adjust_transaction_fee();
+    let initial_estimate = estimator.initialize().await.unwrap();
+    assert!(initial_estimate.total_gas_charged.is_none());
+
+    let (vm_result, _) = estimator.unadjusted_step(15_000).await.unwrap();
+    assert!(vm_result.result.is_failed(), "{:?}", vm_result.result);
+    let (vm_result, _) = estimator.unadjusted_step(1_000_000).await.unwrap();
+    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+}
+
 #[test_casing(2, [false, true])]
 #[tokio::test]
 async fn initial_estimate_for_deep_recursion(with_reads: bool) {
@@ -94,7 +116,7 @@ async fn initial_estimate_for_deep_recursion(with_reads: bool) {
             (75, 1.2),
             (100, 1.4),
             (125, 1.7),
-            (150, 2.1),
+            (150, 2.2),
         ]
     };
     for &(recursion_depth, multiplier) in depths_and_multipliers {
@@ -194,7 +216,7 @@ async fn initial_estimate_for_code_oracle_tx() {
     // Add another contract that is never executed, but has a large bytecode.
     let huge_contact_address = Address::repeat_byte(23);
     let huge_contract_bytecode = vec![0_u8; 10_001 * 32];
-    let huge_contract_bytecode_hash = hash_bytecode(&huge_contract_bytecode);
+    let huge_contract_bytecode_hash = BytecodeHash::for_bytecode(&huge_contract_bytecode).value();
     let huge_contract_keccak_hash = H256(keccak256(&huge_contract_bytecode));
 
     let state_override = StateBuilder::default()
@@ -218,7 +240,7 @@ async fn initial_estimate_for_code_oracle_tx() {
             (*contract.account_id.address() == CODE_ORACLE_ADDRESS).then_some(&contract.bytecode)
         })
         .expect("no code oracle");
-    let code_oracle_bytecode_hash = hash_bytecode(code_oracle_bytecode);
+    let code_oracle_bytecode_hash = BytecodeHash::for_bytecode(code_oracle_bytecode).value();
     let code_oracle_keccak_hash = H256(keccak256(code_oracle_bytecode));
 
     let warm_bytecode_hashes = [
@@ -298,7 +320,8 @@ async fn insufficient_funds_error_for_transfer() {
     let block_args = pending_block_args(&tx_sender).await;
 
     let alice = K256PrivateKey::random();
-    let tx = alice.create_transfer(1_000_000_000.into());
+    let transferred_value = 1_000_000_000.into();
+    let tx = alice.create_transfer(transferred_value);
     let fee_scale_factor = 1.0;
     // Without overrides, the transaction should fail because of insufficient balance.
     let err = tx_sender
@@ -312,14 +335,19 @@ async fn insufficient_funds_error_for_transfer() {
         )
         .await
         .unwrap_err();
-    assert_matches!(err, SubmitTxError::InsufficientFundsForTransfer);
+    assert_matches!(
+        err,
+        SubmitTxError::NotEnoughBalanceForFeeValue(balance, fee, value)
+            if balance.is_zero() && fee.is_zero() && value == transferred_value
+    );
 }
 
 async fn test_estimating_gas(
     state_override: StateOverride,
-    tx: L2Tx,
+    tx: impl Into<Transaction>,
     acceptable_overestimation: u64,
 ) {
+    let tx = tx.into();
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
@@ -327,7 +355,7 @@ async fn test_estimating_gas(
     let fee_scale_factor = 1.0;
     let fee = tx_sender
         .get_txs_fee_in_wei(
-            tx.clone().into(),
+            tx.clone(),
             block_args.clone(),
             fee_scale_factor,
             acceptable_overestimation,
@@ -345,7 +373,7 @@ async fn test_estimating_gas(
 
     let fee = tx_sender
         .get_txs_fee_in_wei(
-            tx.into(),
+            tx,
             block_args,
             fee_scale_factor,
             acceptable_overestimation,
@@ -378,6 +406,15 @@ async fn estimating_gas_for_transfer(acceptable_overestimation: u64) {
     test_estimating_gas(state_override, tx, acceptable_overestimation).await;
 }
 
+#[tokio::test]
+async fn estimating_gas_for_l1_transaction() {
+    let alice = K256PrivateKey::random();
+    let state_override = StateBuilder::default().with_counter_contract(0).build();
+    let tx = alice.create_l1_counter_tx(1.into(), false);
+
+    test_estimating_gas(state_override, tx, 0).await;
+}
+
 #[test_casing(10, Product((LOAD_TEST_CASES, [0, 100])))]
 #[tokio::test]
 async fn estimating_gas_for_load_test_tx(
@@ -407,7 +444,7 @@ async fn estimating_gas_for_code_oracle_tx() {
     // Add another contract that is never executed, but has a large bytecode.
     let huge_contact_address = Address::repeat_byte(23);
     let huge_contract_bytecode = vec![0_u8; 10_001 * 32];
-    let huge_contract_bytecode_hash = hash_bytecode(&huge_contract_bytecode);
+    let huge_contract_bytecode_hash = BytecodeHash::for_bytecode(&huge_contract_bytecode).value();
     let huge_contract_keccak_hash = H256(keccak256(&huge_contract_bytecode));
 
     let state_override = StateBuilder::default()

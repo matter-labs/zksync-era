@@ -13,7 +13,8 @@ use zksync_types::{
 use crate::{
     client::{ForWeb3Network, L2},
     types::{
-        Block, Bytes, Filter, FilterChanges, Index, Log, SyncState, TransactionReceipt, U256, U64,
+        Block, Bytes, Filter, FilterChanges, Index, Log, SyncState, TransactionReceipt, U64Number,
+        U256, U64,
     },
 };
 
@@ -180,10 +181,13 @@ pub trait EthNamespace {
     #[method(name = "feeHistory")]
     async fn fee_history(
         &self,
-        block_count: U64,
+        block_count: U64Number,
         newest_block: BlockNumber,
         reward_percentiles: Vec<f32>,
     ) -> RpcResult<FeeHistory>;
+
+    #[method(name = "maxPriorityFeePerGas")]
+    async fn max_priority_fee_per_gas(&self) -> RpcResult<U256>;
 }
 
 #[cfg(feature = "server")]

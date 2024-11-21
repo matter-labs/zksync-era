@@ -1,19 +1,19 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, rc::Rc};
 
-use zksync_types::{vm::VmVersion, Transaction};
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
+use zksync_types::{bytecode::BytecodeHash, h256_to_u256, vm::VmVersion, Transaction};
+use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{
     glue::{history_mode::HistoryMode, GlueInto},
     interface::{
         storage::StoragePtr, BytecodeCompressionError, BytecodeCompressionResult, FinishedL1Batch,
-        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
+        L1BatchEnv, L2BlockEnv, PushTransactionResult, SystemEnv, TxExecutionMode,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
         VmMemoryMetrics,
     },
     tracers::old::TracerDispatcher,
     utils::bytecode,
-    vm_m6::{storage::Storage, vm_instance::MultiVMSubversion, VmInstance},
+    vm_m6::{storage::Storage, vm_instance::MultiVmSubversion, VmInstance},
 };
 
 #[derive(Debug)]
@@ -27,7 +27,7 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: StoragePtr<S>,
-        vm_sub_version: MultiVMSubversion,
+        vm_sub_version: MultiVmSubversion,
     ) -> Self {
         let oracle_tools = crate::vm_m6::OracleTools::new(storage.clone(), H::VmM6Mode::default());
         let block_properties = zk_evm_1_3_1::block_properties::BlockProperties {
@@ -72,19 +72,23 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
 impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher;
 
-    fn push_transaction(&mut self, tx: Transaction) {
-        crate::vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
-            &mut self.vm,
-            &tx,
-            self.system_env.execution_mode.glue_into(),
-            None,
-        )
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult {
+        let compressed_bytecodes =
+            crate::vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                &mut self.vm,
+                &tx,
+                self.system_env.execution_mode.glue_into(),
+                None,
+            );
+        PushTransactionResult {
+            compressed_bytecodes: compressed_bytecodes.into(),
+        }
     }
 
     fn inspect(
         &mut self,
         tracer: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
         if let Some(storage_invocations) = tracer.storage_invocations {
             self.vm
@@ -93,7 +97,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
         }
 
         match execution_mode {
-            VmExecutionMode::OneTx => match self.system_env.execution_mode {
+            InspectExecutionMode::OneTx => match self.system_env.execution_mode {
                 TxExecutionMode::VerifyExecute => {
                     let enable_call_tracer = tracer.call_tracer.is_some();
                     let result = self.vm.execute_next_tx(
@@ -112,8 +116,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
                     )
                     .glue_into(),
             },
-            VmExecutionMode::Batch => self.finish_batch().block_tip_execution_result,
-            VmExecutionMode::Bootloader => self.vm.execute_block_tip().glue_into(),
+            InspectExecutionMode::Bootloader => self.vm.execute_block_tip().glue_into(),
         }
     }
 
@@ -139,7 +142,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
             let mut deps_hashes = HashSet::with_capacity(deps.len());
             let mut bytecode_hashes = vec![];
             let filtered_deps = deps.iter().filter_map(|bytecode| {
-                let bytecode_hash = hash_bytecode(bytecode);
+                let bytecode_hash = BytecodeHash::for_bytecode(bytecode).value();
                 let is_known = !deps_hashes.insert(bytecode_hash)
                     || self.vm.is_bytecode_exists(&bytecode_hash);
 
@@ -203,7 +206,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
         }
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
+    fn finish_batch(&mut self, _pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
         self.vm
             .execute_till_block_end(
                 crate::vm_m6::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,
@@ -216,8 +219,8 @@ impl<S: Storage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let vm_version: VmVersion = system_env.version.into();
         let vm_sub_version = match vm_version {
-            VmVersion::M6Initial => MultiVMSubversion::V1,
-            VmVersion::M6BugWithCompressionFixed => MultiVMSubversion::V2,
+            VmVersion::M6Initial => MultiVmSubversion::V1,
+            VmVersion::M6BugWithCompressionFixed => MultiVmSubversion::V2,
             _ => panic!("Unsupported protocol version for vm_m6: {:?}", vm_version),
         };
         Self::new_with_subversion(batch_env, system_env, storage, vm_sub_version)

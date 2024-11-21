@@ -2,7 +2,8 @@ files: [
   "KeysWithPlonkVerifier.sol",
   "TokenInit.sol",
   ".tslintrc.js",
-  ".prettierrc.js"
+  ".prettierrc.js",
+  "era-observability/README.md"
 ]
 dirs: [
   "target",
@@ -23,5 +24,7 @@ dirs: [
   "artifacts-zk",
   "cache-zk",
   "contracts/",
-  "era-observability"
+  "era-observability",
+  "docs/js",
+  "prover/docs/js"
 ]

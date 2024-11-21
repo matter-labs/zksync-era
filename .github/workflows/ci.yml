@@ -20,7 +20,6 @@ jobs:
     outputs:
       core: ${{ steps.changed-files.outputs.core_any_changed }}
       prover: ${{ steps.changed-files.outputs.prover_any_changed }}
-      zk_toolbox: ${{ steps.changed-files.outputs.zk_toolbox_any_changed }}
       docs: ${{ steps.changed-files.outputs.docs_any_changed }}
       all: ${{ steps.changed-files.outputs.all_any_changed }}
     steps:
@@ -42,6 +41,9 @@ jobs:
               - '!prover/extract-setup-data-keys.sh'
               - 'docker/prover*/**'
               - '.github/workflows/build-prover-template.yml'
+              - '.github/workflows/new-build-prover-template.yml'
+              - '.github/workflows/build-witness-generator-template.yml'
+              - '.github/workflows/new-build-witness-generator-template.yml'
               - '.github/workflows/ci-prover-reusable.yml'
               - 'docker-compose-runner-nightly.yml'
               - '!**/*.md'
@@ -53,12 +55,14 @@ jobs:
               - 'docker/external-node/**'
               - 'docker/server/**'
               - '.github/workflows/build-core-template.yml'
+              - '.github/workflows/new-build-core-template.yml'
               - '.github/workflows/build-contract-verifier-template.yml'
+              - '.github/workflows/new-build-contract-verifier-template.yml'
               - '.github/workflows/ci-core-reusable.yml'
               - '.github/workflows/ci-core-lint-reusable.yml'
               - 'Cargo.toml'
               - 'Cargo.lock'
-              - 'zk_toolbox/**'
+              - 'zkstack_cli/**'
               - '!**/*.md'
               - '!**/*.MD'
               - 'docker-compose.yml'
@@ -93,6 +97,12 @@ jobs:
     if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     name: CI for Prover Components
     uses: ./.github/workflows/ci-prover-reusable.yml
+
+  e2e-for-prover:
+    name: E2E Test for Prover Components
+    needs: changed_files
+    if: ${{(needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    uses: ./.github/workflows/ci-prover-e2e.yml
 
   ci-for-docs:
     needs: changed_files
@@ -167,6 +177,7 @@ jobs:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-avx512
       action: "build"
       WITNESS_GENERATOR_RUST_FLAGS: "-Ctarget_feature=+avx512bw,+avx512cd,+avx512dq,+avx512f,+avx512vl"
+      ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -175,7 +186,7 @@ jobs:
     name: Github Status Check
     runs-on: ubuntu-latest
     if: always() && !cancelled()
-    needs: [ ci-for-core-lint, ci-for-common, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-contract-verifier, build-prover-images ]
+    needs: [ ci-for-core-lint, ci-for-common, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-contract-verifier, build-prover-images, e2e-for-prover ]
     steps:
       - name: Status
         run: |

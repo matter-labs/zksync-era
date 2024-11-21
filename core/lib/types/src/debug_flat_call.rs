@@ -5,13 +5,23 @@ use crate::{api::DebugCallType, Address, H256};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ResultDebugCallFlat {
+    pub tx_hash: H256,
+    pub result: Vec<DebugCallFlat>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DebugCallFlat {
     pub action: Action,
     pub result: Option<CallResult>,
     pub subtraces: usize,
+    pub error: Option<String>,
     pub trace_address: Vec<usize>,
     pub transaction_position: usize,
     pub transaction_hash: H256,
+    pub block_number: u32,
+    pub block_hash: H256,
     pub r#type: DebugCallType,
 }
 
@@ -31,4 +41,12 @@ pub struct Action {
 pub struct CallResult {
     pub output: Bytes,
     pub gas_used: U256,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct CallTraceMeta {
+    pub index_in_block: usize,
+    pub tx_hash: H256,
+    pub block_number: u32,
+    pub block_hash: H256,
 }

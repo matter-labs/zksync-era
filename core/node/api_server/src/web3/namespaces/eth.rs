@@ -6,13 +6,14 @@ use zksync_types::{
         state_override::StateOverride, BlockId, BlockNumber, FeeHistory, GetLogsFilter,
         Transaction, TransactionId, TransactionReceipt, TransactionVariant,
     },
+    bytecode::{trim_padded_evm_bytecode, BytecodeMarker},
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
+    u256_to_h256,
     utils::decompose_full_nonce,
     web3::{self, Bytes, SyncInfo, SyncState},
     AccountTreeId, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
-use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
     error::Web3Error,
     types::{Address, Block, Filter, FilterChanges, Log, U64},
@@ -81,7 +82,7 @@ impl EthNamespace {
         let tx = L2Tx::from_request(
             request.into(),
             self.state.api_config.max_tx_size,
-            false, // Even with EVM emulation enabled, calls must specify `to` field
+            block_args.use_evm_emulator(),
         )?;
 
         // It is assumed that the previous checks has already enforced that the `max_fee_per_gas` is at most u64.
@@ -397,7 +398,24 @@ impl EthNamespace {
             .get_contract_code_unchecked(address, block_number)
             .await
             .map_err(DalError::generalize)?;
-        Ok(contract_code.unwrap_or_default().into())
+        let Some(contract_code) = contract_code else {
+            return Ok(Bytes::default());
+        };
+        // Check if the bytecode is an EVM bytecode, and if so, pre-process it correspondingly.
+        let marker = BytecodeMarker::new(contract_code.bytecode_hash);
+        let prepared_bytecode = if marker == Some(BytecodeMarker::Evm) {
+            trim_padded_evm_bytecode(&contract_code.bytecode)
+                .with_context(|| {
+                    format!(
+                        "malformed EVM bytecode at address {address:?}, hash = {:?}",
+                        contract_code.bytecode_hash
+                    )
+                })?
+                .to_vec()
+        } else {
+            contract_code.bytecode
+        };
+        Ok(prepared_bytecode.into())
     }
 
     pub fn chain_id_impl(&self) -> U64 {
@@ -668,7 +686,7 @@ impl EthNamespace {
 
     pub async fn fee_history_impl(
         &self,
-        block_count: U64,
+        block_count: u64,
         newest_block: BlockNumber,
         reward_percentiles: Vec<f32>,
     ) -> Result<FeeHistory, Web3Error> {
@@ -676,10 +694,7 @@ impl EthNamespace {
             .set_block_id(BlockId::Number(newest_block));
 
         // Limit `block_count`.
-        let block_count = block_count
-            .as_u64()
-            .min(self.state.api_config.fee_history_limit)
-            .max(1);
+        let block_count = block_count.clamp(1, self.state.api_config.fee_history_limit);
 
         let mut connection = self.state.acquire_connection().await?;
         let newest_l2_block = self
@@ -850,6 +865,11 @@ impl EthNamespace {
                 FilterChanges::Logs(logs)
             }
         })
+    }
+
+    pub fn max_priority_fee_per_gas_impl(&self) -> U256 {
+        // ZKsync does not require priority fee.
+        0u64.into()
     }
 }
 

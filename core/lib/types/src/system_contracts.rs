@@ -151,7 +151,7 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 26] = [
         "",
         "EvmGasManager",
         EVM_GAS_MANAGER_ADDRESS,
-        ContractLanguage::Sol,
+        ContractLanguage::Yul,
     ),
     // For now, only zero address and the bootloader address have empty bytecode at the init
     // In the future, we might want to set all of the system contracts this way.

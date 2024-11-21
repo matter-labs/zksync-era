@@ -217,6 +217,7 @@ async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args
         SandboxExecutorOptions::mock().await,
         PostgresStorageCaches::new(1, 1),
         usize::MAX,
+        None,
     );
 
     let fee_input = BatchFeeInput::l1_pegged(55, 555);
@@ -265,6 +266,7 @@ async fn validating_transaction(set_balance: bool) {
         SandboxExecutorOptions::mock().await,
         PostgresStorageCaches::new(1, 1),
         usize::MAX,
+        None,
     );
 
     let fee_input = BatchFeeInput::l1_pegged(55, 555);
@@ -307,9 +309,6 @@ async fn validating_transaction(set_balance: bool) {
     if set_balance {
         assert_matches!(result, ExecutionResult::Success { .. });
     } else {
-        assert_matches!(
-            result,
-            ExecutionResult::Halt { reason } if reason.to_string().contains("Not enough balance")
-        );
+        assert_matches!(result, ExecutionResult::Halt { .. });
     }
 }

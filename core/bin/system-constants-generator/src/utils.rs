@@ -3,13 +3,13 @@ use std::{cell::RefCell, rc::Rc};
 use once_cell::sync::Lazy;
 use zksync_contracts::{
     load_sys_contract, read_bootloader_code, read_bytecode_from_path, read_sys_contract_bytecode,
-    BaseSystemContracts, ContractLanguage, SystemContractCode,
+    read_yul_bytecode, BaseSystemContracts, ContractLanguage, SystemContractCode,
 };
 use zksync_multivm::{
     interface::{
         storage::{InMemoryStorage, StorageView, WriteStorage},
         tracer::VmExecutionStopReason,
-        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
+        InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmFactory,
         VmInterface, VmInterfaceExt,
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
@@ -21,13 +21,13 @@ use zksync_multivm::{
     zk_evm_latest::aux_structures::Timestamp,
 };
 use zksync_types::{
-    block::L2BlockHasher, ethabi::Token, fee::Fee, fee_model::BatchFeeInput, l1::L1Tx, l2::L2Tx,
-    utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, K256PrivateKey,
-    L1BatchNumber, L1TxCommonData, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId, StorageKey,
-    Transaction, BOOTLOADER_ADDRESS, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_GAS_PRICE_POSITION,
-    SYSTEM_CONTEXT_TX_ORIGIN_POSITION, U256, ZKPORTER_IS_AVAILABLE,
+    block::L2BlockHasher, bytecode::BytecodeHash, ethabi::Token, fee::Fee,
+    fee_model::BatchFeeInput, l1::L1Tx, l2::L2Tx, u256_to_h256, utils::storage_key_for_eth_balance,
+    AccountTreeId, Address, Execute, K256PrivateKey, L1BatchNumber, L1TxCommonData, L2BlockNumber,
+    L2ChainId, Nonce, ProtocolVersionId, StorageKey, Transaction, BOOTLOADER_ADDRESS,
+    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_GAS_PRICE_POSITION, SYSTEM_CONTEXT_TX_ORIGIN_POSITION,
+    U256, ZKPORTER_IS_AVAILABLE,
 };
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, u256_to_h256};
 
 use crate::intrinsic_costs::VmSpentResourcesResult;
 
@@ -62,19 +62,19 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for SpecialBootloaderTracer
 
 pub static GAS_TEST_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(|| {
     let bytecode = read_bootloader_code("gas_test");
-    let hash = hash_bytecode(&bytecode);
+    let hash = BytecodeHash::for_bytecode(&bytecode).value();
 
     let bootloader = SystemContractCode {
-        code: bytes_to_be_words(bytecode),
+        code: bytecode,
         hash,
     };
 
     let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
-    let hash = hash_bytecode(&bytecode);
+    let hash = BytecodeHash::for_bytecode(&bytecode).value();
 
     BaseSystemContracts {
         default_aa: SystemContractCode {
-            code: bytes_to_be_words(bytecode),
+            code: bytecode,
             hash,
         },
         bootloader,
@@ -171,9 +171,16 @@ pub(super) fn get_l1_txs(number_of_txs: usize) -> (Vec<Transaction>, Vec<Transac
 }
 
 fn read_bootloader_test_code(test: &str) -> Vec<u8> {
-    read_bytecode_from_path(format!(
+    if let Some(contract) = read_bytecode_from_path(format!(
         "contracts/system-contracts/zkout/{test}.yul/contracts-preprocessed/bootloader/{test}.yul.json",
-    ))
+    )){
+        contract
+    } else  {
+        read_yul_bytecode(
+            "contracts/system-contracts/bootloader/tests/artifacts",
+            test
+        )
+    }
 }
 
 fn default_l1_batch() -> L1BatchEnv {
@@ -200,23 +207,23 @@ fn default_l1_batch() -> L1BatchEnv {
 /// returns the amount of gas needed to perform and internal transfer, assuming no gas price
 /// per pubdata, i.e. under assumption that the refund will not touch any new slots.
 pub(super) fn execute_internal_transfer_test() -> u32 {
-    let raw_storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+    let raw_storage = InMemoryStorage::with_system_contracts();
     let mut storage_view = StorageView::new(raw_storage);
     let bootloader_balance_key = storage_key_for_eth_balance(&BOOTLOADER_ADDRESS);
     storage_view.set_value(bootloader_balance_key, u256_to_h256(U256([0, 0, 1, 0])));
     let bytecode = read_bootloader_test_code("transfer_test");
-    let hash = hash_bytecode(&bytecode);
+    let hash = BytecodeHash::for_bytecode(&bytecode).value();
     let bootloader = SystemContractCode {
-        code: bytes_to_be_words(bytecode),
+        code: bytecode,
         hash,
     };
 
     let l1_batch = default_l1_batch();
 
     let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
-    let hash = hash_bytecode(&bytecode);
+    let hash = BytecodeHash::for_bytecode(&bytecode).value();
     let default_aa = SystemContractCode {
-        code: bytes_to_be_words(bytecode),
+        code: bytecode,
         hash,
     };
 
@@ -256,7 +263,11 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
         }
         input
     };
-    let input: Vec<_> = bytes_to_be_words(input).into_iter().enumerate().collect();
+    let input: Vec<_> = input
+        .chunks(32)
+        .map(U256::from_big_endian)
+        .enumerate()
+        .collect();
 
     let tracer_result = Rc::new(RefCell::new(0));
     let tracer = SpecialBootloaderTracer {
@@ -264,8 +275,9 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
         output: tracer_result.clone(),
     }
     .into_tracer_pointer();
+
     let mut vm: Vm<_, HistoryEnabled> = Vm::new(l1_batch, system_env, storage_view.to_rc_ptr());
-    let result = vm.inspect(&mut tracer.into(), VmExecutionMode::Bootloader);
+    let result = vm.inspect(&mut tracer.into(), InspectExecutionMode::Bootloader);
 
     assert!(!result.result.is_failed(), "The internal call has reverted");
     tracer_result.take()
@@ -280,7 +292,7 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
         .iter()
         .fold(U256::zero(), |sum, elem| sum + elem.gas_limit());
 
-    let raw_storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+    let raw_storage = InMemoryStorage::with_system_contracts();
     let mut storage_view = StorageView::new(raw_storage);
 
     for tx in txs.iter() {
@@ -324,7 +336,7 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
     let mut total_gas_refunded = 0;
     for tx in txs {
         vm.push_transaction(tx);
-        let tx_execution_result = vm.execute(VmExecutionMode::OneTx);
+        let tx_execution_result = vm.execute(InspectExecutionMode::OneTx);
 
         total_gas_refunded += tx_execution_result.refunds.gas_refunded;
         if !accept_failure {
@@ -336,7 +348,7 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
         }
     }
 
-    let result = vm.execute(VmExecutionMode::Bootloader);
+    let result = vm.execute(InspectExecutionMode::Bootloader);
     let metrics = result.get_execution_metrics(None);
 
     VmSpentResourcesResult {

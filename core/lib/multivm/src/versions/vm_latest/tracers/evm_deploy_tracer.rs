@@ -7,17 +7,19 @@ use zk_evm_1_5_0::{
         FarCallOpcode, FatPointer, Opcode, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER,
     },
 };
-use zksync_types::{CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS};
-use zksync_utils::{bytes_to_be_words, h256_to_u256};
-use zksync_vm_interface::storage::StoragePtr;
+use zksync_types::{
+    bytecode::BytecodeHash, CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS,
+};
 
 use super::{traits::VmTracer, utils::read_pointer};
 use crate::{
-    interface::{storage::WriteStorage, tracer::TracerExecutionStatus},
-    tracers::dynamic::vm_1_5_0::DynTracer,
-    vm_latest::{
-        utils::hash_evm_bytecode, BootloaderState, HistoryMode, SimpleMemory, ZkSyncVmState,
+    interface::{
+        storage::{StoragePtr, WriteStorage},
+        tracer::TracerExecutionStatus,
     },
+    tracers::dynamic::vm_1_5_0::DynTracer,
+    utils::bytecode::bytes_to_be_words,
+    vm_latest::{BootloaderState, HistoryMode, SimpleMemory, ZkSyncVmState},
 };
 
 /// Tracer responsible for collecting information about EVM deploys and providing those
@@ -91,14 +93,13 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for EvmDeployTracer<S> {
         state: &mut ZkSyncVmState<S, H>,
         _bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
+        let timestamp = Timestamp(state.local_state.timestamp);
         for published_bytecode in mem::take(&mut self.pending_bytecodes) {
-            let hash = hash_evm_bytecode(&published_bytecode);
-            let as_words = bytes_to_be_words(published_bytecode);
-
-            state.decommittment_processor.populate(
-                vec![(h256_to_u256(hash), as_words)],
-                Timestamp(state.local_state.timestamp),
-            );
+            let hash = BytecodeHash::for_evm_bytecode(&published_bytecode).value_u256();
+            let as_words = bytes_to_be_words(&published_bytecode);
+            state
+                .decommittment_processor
+                .insert_dynamic_bytecode(hash, as_words, timestamp);
         }
         TracerExecutionStatus::Continue
     }

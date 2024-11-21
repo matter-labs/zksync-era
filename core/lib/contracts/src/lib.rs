@@ -10,15 +10,16 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use ethabi::{
-    ethereum_types::{H256, U256},
-    Contract, Event, Function,
-};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, env::Workspace};
+use zksync_basic_types::{
+    bytecode::BytecodeHash,
+    ethabi::{Contract, Event, Function},
+    H256,
+};
+use zksync_utils::env::Workspace;
 
-pub mod test_contracts;
+mod serde_bytecode;
 
 #[derive(Debug, Clone)]
 pub enum ContractLanguage {
@@ -60,29 +61,26 @@ const _IERC20_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
 const _FAIL_ON_RECEIVE_CONTRACT_FILE:  &str  =
     "contracts/l1-contracts/artifacts/contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
-const LOADNEXT_CONTRACT_FILE: &str =
-    "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json";
-const LOADNEXT_SIMPLE_CONTRACT_FILE: &str =
-    "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/Foo.json";
 
 fn home_path() -> PathBuf {
     Workspace::locate().core()
 }
 
-fn read_file_to_json_value(path: impl AsRef<Path> + std::fmt::Debug) -> serde_json::Value {
+fn read_file_to_json_value(path: impl AsRef<Path> + std::fmt::Debug) -> Option<serde_json::Value> {
     let zksync_home = home_path();
     let path = Path::new(&zksync_home).join(path);
-    let file =
-        File::open(&path).unwrap_or_else(|e| panic!("Failed to open file {:?}: {}", path, e));
-    serde_json::from_reader(BufReader::new(file))
-        .unwrap_or_else(|e| panic!("Failed to parse file {:?}: {}", path, e))
+    let file = File::open(&path).ok()?;
+    Some(
+        serde_json::from_reader(BufReader::new(file))
+            .unwrap_or_else(|e| panic!("Failed to parse file {:?}: {}", path, e)),
+    )
 }
 
 fn load_contract_if_present<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Option<Contract> {
     let zksync_home = home_path();
     let path = Path::new(&zksync_home).join(path);
     path.exists().then(|| {
-        serde_json::from_value(read_file_to_json_value(&path)["abi"].take())
+        serde_json::from_value(read_file_to_json_value(&path).unwrap()["abi"].take())
             .unwrap_or_else(|e| panic!("Failed to parse contract abi from file {:?}: {}", path, e))
     })
 }
@@ -114,17 +112,26 @@ pub fn load_contract<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Contract {
 }
 
 pub fn load_sys_contract(contract_name: &str) -> Contract {
-    load_contract(format!(
+    if let Some(contract) = load_contract_if_present(format!(
         "contracts/system-contracts/artifacts-zk/contracts-preprocessed/{0}.sol/{0}.json",
         contract_name
-    ))
+    )) {
+        contract
+    } else {
+        load_contract(format!(
+            "contracts/system-contracts/zkout/{0}.sol/{0}.json",
+            contract_name
+        ))
+    }
 }
 
-pub fn read_contract_abi(path: impl AsRef<Path> + std::fmt::Debug) -> String {
-    read_file_to_json_value(path)["abi"]
-        .as_str()
-        .expect("Failed to parse abi")
-        .to_string()
+pub fn read_contract_abi(path: impl AsRef<Path> + std::fmt::Debug) -> Option<String> {
+    Some(
+        read_file_to_json_value(path)?["abi"]
+            .as_str()
+            .expect("Failed to parse abi")
+            .to_string(),
+    )
 }
 
 pub fn bridgehub_contract() -> Contract {
@@ -163,33 +170,6 @@ pub fn verifier_contract() -> Contract {
     load_contract_for_both_compilers(VERIFIER_CONTRACT_FILE)
 }
 
-#[derive(Debug, Clone)]
-pub struct TestContract {
-    /// Contract bytecode to be used for sending deploy transaction.
-    pub bytecode: Vec<u8>,
-    /// Contract ABI.
-    pub contract: Contract,
-
-    pub factory_deps: Vec<Vec<u8>>,
-}
-
-/// Reads test contract bytecode and its ABI.
-pub fn get_loadnext_contract() -> TestContract {
-    let bytecode = read_bytecode(LOADNEXT_CONTRACT_FILE);
-    let dep = read_bytecode(LOADNEXT_SIMPLE_CONTRACT_FILE);
-
-    TestContract {
-        bytecode,
-        contract: loadnext_contract(),
-        factory_deps: vec![dep],
-    }
-}
-
-// Returns loadnext contract and its factory dependencies
-fn loadnext_contract() -> Contract {
-    load_contract("etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json")
-}
-
 pub fn deployer_contract() -> Contract {
     load_sys_contract("ContractDeployer")
 }
@@ -200,7 +180,7 @@ pub fn l1_messenger_contract() -> Contract {
 
 /// Reads bytecode from the path RELATIVE to the Cargo workspace location.
 pub fn read_bytecode(relative_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u8> {
-    read_bytecode_from_path(relative_path)
+    read_bytecode_from_path(relative_path).expect("Exists")
 }
 
 pub fn eth_contract() -> Contract {
@@ -212,17 +192,25 @@ pub fn known_codes_contract() -> Contract {
 }
 
 /// Reads bytecode from a given path.
-pub fn read_bytecode_from_path(artifact_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u8> {
-    let artifact = read_file_to_json_value(&artifact_path);
+pub fn read_bytecode_from_path(
+    artifact_path: impl AsRef<Path> + std::fmt::Debug,
+) -> Option<Vec<u8>> {
+    let artifact = read_file_to_json_value(&artifact_path)?;
 
-    let bytecode = artifact["bytecode"]
-        .as_str()
-        .unwrap_or_else(|| panic!("Bytecode not found in {:?}", artifact_path))
-        .strip_prefix("0x")
-        .unwrap_or_else(|| panic!("Bytecode in {:?} is not hex", artifact_path));
+    let bytecode = if let Some(bytecode) = artifact["bytecode"].as_str() {
+        bytecode
+            .strip_prefix("0x")
+            .unwrap_or_else(|| panic!("Bytecode in {:?} is not hex", artifact_path))
+    } else {
+        artifact["bytecode"]["object"]
+            .as_str()
+            .unwrap_or_else(|| panic!("Bytecode not found in {:?}", artifact_path))
+    };
 
-    hex::decode(bytecode)
-        .unwrap_or_else(|err| panic!("Can't decode bytecode in {:?}: {}", artifact_path, err))
+    Some(
+        hex::decode(bytecode)
+            .unwrap_or_else(|err| panic!("Can't decode bytecode in {:?}: {}", artifact_path, err)),
+    )
 }
 
 pub fn read_sys_contract_bytecode(directory: &str, name: &str, lang: ContractLanguage) -> Vec<u8> {
@@ -230,7 +218,7 @@ pub fn read_sys_contract_bytecode(directory: &str, name: &str, lang: ContractLan
 }
 
 static DEFAULT_SYSTEM_CONTRACTS_REPO: Lazy<SystemContractsRepo> =
-    Lazy::new(SystemContractsRepo::from_env);
+    Lazy::new(SystemContractsRepo::default);
 
 /// Structure representing a system contract repository - that allows
 /// fetching contracts that are located there.
@@ -240,14 +228,16 @@ pub struct SystemContractsRepo {
     pub root: PathBuf,
 }
 
-impl SystemContractsRepo {
+impl Default for SystemContractsRepo {
     /// Returns the default system contracts repository with directory based on the Cargo workspace location.
-    pub fn from_env() -> Self {
+    fn default() -> Self {
         SystemContractsRepo {
             root: home_path().join("contracts/system-contracts"),
         }
     }
+}
 
+impl SystemContractsRepo {
     pub fn read_sys_contract_bytecode(
         &self,
         directory: &str,
@@ -255,23 +245,49 @@ impl SystemContractsRepo {
         lang: ContractLanguage,
     ) -> Vec<u8> {
         match lang {
-            ContractLanguage::Sol => read_bytecode_from_path(self.root.join(format!(
-                "artifacts-zk/contracts-preprocessed/{0}{1}.sol/{1}.json",
-                directory, name
-            ))),
-            ContractLanguage::Yul => read_zbin_bytecode_from_path(self.root.join(format!(
-                "contracts-preprocessed/{0}artifacts/{1}.yul.zbin",
-                directory, name
-            ))),
+            ContractLanguage::Sol => {
+                if let Some(contracts) = read_bytecode_from_path(
+                    self.root
+                        .join(format!("zkout/{0}{1}.sol/{1}.json", directory, name)),
+                ) {
+                    contracts
+                } else {
+                    read_bytecode_from_path(self.root.join(format!(
+                        "artifacts-zk/contracts-preprocessed/{0}{1}.sol/{1}.json",
+                        directory, name
+                    )))
+                    .expect("One of the outputs should exists")
+                }
+            }
+            ContractLanguage::Yul => {
+                if let Some(contract) = read_bytecode_from_path(self.root.join(format!(
+                    "zkout/{name}.yul/contracts-preprocessed/{directory}/{name}.yul.json",
+                ))) {
+                    contract
+                } else {
+                    read_yul_bytecode_by_path(
+                        self.root
+                            .join(format!("contracts-preprocessed/{directory}artifacts")),
+                        name,
+                    )
+                }
+            }
         }
     }
 }
 
 pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
-    read_zbin_bytecode(format!(
-        "contracts/system-contracts/bootloader/build/artifacts/{}.yul.zbin",
-        bootloader_type
-    ))
+    if let Some(contract) =
+        read_bytecode_from_path(home_path().join("contracts/system-contracts").join(format!(
+            "zkout/{bootloader_type}.yul/contracts-preprocessed/bootloader/{bootloader_type}.yul.json",
+        )))
+    {
+        return contract;
+    };
+    read_yul_bytecode(
+        "contracts/system-contracts/bootloader/build/artifacts",
+        bootloader_type,
+    )
 }
 
 fn read_proved_batch_bootloader_bytecode() -> Vec<u8> {
@@ -288,16 +304,53 @@ pub fn read_zbin_bytecode(relative_zbin_path: impl AsRef<Path>) -> Vec<u8> {
     read_zbin_bytecode_from_path(bytecode_path)
 }
 
+pub fn read_yul_bytecode(relative_artifacts_path: &str, name: &str) -> Vec<u8> {
+    let artifacts_path = Path::new(&home_path()).join(relative_artifacts_path);
+    read_yul_bytecode_by_path(artifacts_path, name)
+}
+
+pub fn read_yul_bytecode_by_path(artifacts_path: PathBuf, name: &str) -> Vec<u8> {
+    let bytecode_path = artifacts_path.join(format!("{name}.yul/{name}.yul.zbin"));
+
+    // Legacy versions of zksolc use the following path for output data if a yul file is being compiled: <name>.yul.zbin
+    // New zksolc versions use <name>.yul/<name>.yul.zbin, for consistency with solidity files compilation.
+    // In addition, the output of the legacy zksolc in this case is a binary file, while in new versions it is hex encoded.
+    if fs::exists(&bytecode_path)
+        .unwrap_or_else(|err| panic!("Invalid path: {bytecode_path:?}, {err}"))
+    {
+        read_zbin_bytecode_from_hex_file(bytecode_path)
+    } else {
+        let bytecode_path_legacy = artifacts_path.join(format!("{name}.yul.zbin"));
+
+        if fs::exists(&bytecode_path_legacy)
+            .unwrap_or_else(|err| panic!("Invalid path: {bytecode_path_legacy:?}, {err}"))
+        {
+            read_zbin_bytecode_from_path(bytecode_path_legacy)
+        } else {
+            panic!("Can't find bytecode for '{name}' yul contract at {artifacts_path:?}")
+        }
+    }
+}
+
 /// Reads zbin bytecode from a given path.
 fn read_zbin_bytecode_from_path(bytecode_path: PathBuf) -> Vec<u8> {
     fs::read(&bytecode_path)
-        .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {:?}: {}", bytecode_path, err))
+        .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {bytecode_path:?}: {err}"))
+}
+
+/// Reads zbin bytecode from a given path as utf8 text file.
+fn read_zbin_bytecode_from_hex_file(bytecode_path: PathBuf) -> Vec<u8> {
+    let bytes = fs::read(&bytecode_path)
+        .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {bytecode_path:?}: {err}"));
+
+    hex::decode(bytes).unwrap_or_else(|err| panic!("Invalid input file: {bytecode_path:?}, {err}"))
 }
 
 /// Hash of code and code which consists of 32 bytes words
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemContractCode {
-    pub code: Vec<U256>,
+    #[serde(with = "serde_bytecode")]
+    pub code: Vec<u8>,
     pub hash: H256,
 }
 
@@ -327,18 +380,16 @@ impl PartialEq for BaseSystemContracts {
 
 impl BaseSystemContracts {
     fn load_with_bootloader(bootloader_bytecode: Vec<u8>) -> Self {
-        let hash = hash_bytecode(&bootloader_bytecode);
-
+        let hash = BytecodeHash::for_bytecode(&bootloader_bytecode).value();
         let bootloader = SystemContractCode {
-            code: bytes_to_be_words(bootloader_bytecode),
+            code: bootloader_bytecode,
             hash,
         };
 
         let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
-        let hash = hash_bytecode(&bytecode);
-
+        let hash = BytecodeHash::for_bytecode(&bytecode).value();
         let default_aa = SystemContractCode {
-            code: bytes_to_be_words(bytecode),
+            code: bytecode,
             hash,
         };
 
@@ -357,10 +408,10 @@ impl BaseSystemContracts {
 
     /// Loads the latest EVM emulator for these base system contracts. Logically, it only makes sense to do for the latest protocol version.
     pub fn with_latest_evm_emulator(mut self) -> Self {
-        let bytecode = read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Yul);
-        let hash = hash_bytecode(&bytecode);
+        let bytecode = read_sys_contract_bytecode("", "EvmEmulator", ContractLanguage::Yul);
+        let hash = BytecodeHash::for_bytecode(&bytecode).value();
         self.evm_emulator = Some(SystemContractCode {
-            code: bytes_to_be_words(bytecode),
+            code: bytecode,
             hash,
         });
         self
@@ -427,6 +478,20 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
+    pub fn playground_post_protocol_defense() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_protocol_defense/playground_batch.yul/playground_batch.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn playground_gateway() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_gateway/playground_batch.yul/playground_batch.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
     pub fn estimate_gas_pre_virtual_blocks() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_1_3_2/fee_estimate.yul/fee_estimate.yul.zbin",
@@ -486,6 +551,20 @@ impl BaseSystemContracts {
     pub fn estimate_gas_post_1_5_0_increased_memory() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_1_5_0_increased_memory/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn estimate_gas_post_protocol_defense() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_protocol_defense/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn estimate_gas_gateway() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_gateway/fee_estimate.yul/fee_estimate.yul.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
