@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, created_at, updated_at) VALUES ('\\x00', 0, $1, '', 0, now(), now()) RETURNING id",
+  "query": "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, created_at, updated_at) VALUES ('\\x00', 0, $1, '', NULL, now(), now()) RETURNING id",
   "describe": {
     "columns": [
       {
@@ -18,5 +18,5 @@
       false
     ]
   },
-  "hash": "5503575d9377785894de6cf6139a8d4768c6a803a1a90889e5a1b8254c315231"
+  "hash": "72b2a2d757694bb7d504c8474ab5eeeb5d4a8c92545b6410a881a0b52f1bfa91"
 }

@@ -28,7 +28,7 @@ use zksync_types::{
 use super::aggregated_operations::AggregatedOperation;
 use crate::{
     metrics::{PubdataKind, METRICS},
-    utils::agg_l1_batch_base_cost,
+    publish_criterion::ExecuteGasCriterion,
     zksync_functions::ZkSyncFunctions,
     Aggregator, EthSenderError,
 };
@@ -610,12 +610,16 @@ impl EthTxAggregator {
             self.encode_aggregated_op(aggregated_op, contracts_are_pre_shared_bridge);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
 
-        let predicted_gas_for_batches = transaction
-            .blocks_dal()
-            .get_l1_batches_predicted_gas(l1_batch_number_range.clone(), op_type)
-            .await
-            .unwrap();
-        let eth_tx_predicted_gas = agg_l1_batch_base_cost(op_type) + predicted_gas_for_batches;
+        let eth_tx_predicted_gas = match (op_type, is_gateway) {
+            (AggregatedActionType::Execute, false) => Some(
+                ExecuteGasCriterion::total_execute_gas_amount(
+                    &mut transaction,
+                    l1_batch_number_range.clone(),
+                )
+                .await,
+            ),
+            _ => None,
+        };
 
         let eth_tx = transaction
             .eth_sender_dal()

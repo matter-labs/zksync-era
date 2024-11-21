@@ -5,7 +5,6 @@ mod eth_tx_aggregator;
 mod eth_tx_manager;
 mod metrics;
 mod publish_criterion;
-mod utils;
 mod zksync_functions;
 
 mod abstract_l1_interface;
