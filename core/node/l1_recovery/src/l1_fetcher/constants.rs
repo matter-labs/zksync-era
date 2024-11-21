@@ -1,8 +1,15 @@
-use std::path::PathBuf;
+use std::{num::NonZero, path::PathBuf, str::FromStr, sync::Arc};
 
+use zksync_basic_types::url::SensitiveUrl;
 use zksync_utils::env::Workspace;
+use zksync_web3_decl::client::{Client, DynClient, L1};
 
-use crate::l1_fetcher::l1_fetcher::{ProtocolVersioning, ProtocolVersioning::AllVersions};
+use crate::{
+    l1_fetcher::l1_fetcher::{
+        L1Fetcher, L1FetcherConfig, ProtocolVersioning, ProtocolVersioning::AllVersions,
+    },
+    BlobClient, BlobHttpClient,
+};
 
 pub mod storage {
     /// The name of the index-to-key database folder.
@@ -22,21 +29,25 @@ pub mod zksync {
     pub const CALLDATA_SOURCE_TAIL_SIZE: usize = 32;
 }
 
+pub fn initial_states_directory() -> PathBuf {
+    let base_path = Workspace::locate().core();
+    base_path.join("core/node/l1_recovery/initial_states")
+}
 #[allow(unused)] // only used in tests
 pub fn sepolia_initial_state_path() -> PathBuf {
     let base_path = Workspace::locate().core();
-    base_path.join("core/node/l1_recovery/InitialStateSepolia.json")
+    base_path.join("core/node/l1_recovery/initial_states/InitialStateSepolia.json")
 }
 #[allow(unused)] // only used in tests
 pub fn mainnet_initial_state_path() -> PathBuf {
     let base_path = Workspace::locate().core();
-    base_path.join("core/node/l1_recovery/InitialStateMainnet.json")
+    base_path.join("core/node/l1_recovery/initial_states/InitialStateMainnet.json")
 }
 
 #[allow(unused)]
 pub fn local_initial_state_path() -> PathBuf {
     let base_path = Workspace::locate().core();
-    base_path.join("core/node/l1_recovery/InitialStateV25.json")
+    base_path.join("core/node/l1_recovery/initial_states/InitialStateV25.json")
 }
 
 #[allow(unused)]
@@ -61,6 +72,26 @@ pub fn sepolia_diamond_proxy_addr() -> &'static str {
 }
 
 #[allow(unused)] // only used in tests
-pub fn local_diamond_proxy_addr() -> &'static str {
-    "0x426441939896362df986285b116051a9ed350baa"
+pub fn sepolia_l1_client() -> Box<DynClient<L1>> {
+    let url = SensitiveUrl::from_str(&"https://ethereum-sepolia-rpc.publicnode.com").unwrap();
+    let eth_client = Client::http(url)
+        .unwrap()
+        .with_allowed_requests_per_second(NonZero::new(10).unwrap())
+        .build();
+    Box::new(eth_client)
+}
+
+#[allow(unused)] // only used in tests
+pub fn sepolia_l1_fetcher() -> L1Fetcher {
+    let config = L1FetcherConfig {
+        block_step: 10000,
+        diamond_proxy_addr: sepolia_diamond_proxy_addr().parse().unwrap(),
+        versioning: sepolia_versioning(),
+    };
+    L1Fetcher::new(config, sepolia_l1_client()).unwrap()
+}
+
+#[allow(unused)] // only used in tests
+pub fn sepolia_blob_client() -> Arc<dyn BlobClient> {
+    Arc::new(BlobHttpClient::new("https://api.sepolia.blobscan.com/blobs/").unwrap())
 }

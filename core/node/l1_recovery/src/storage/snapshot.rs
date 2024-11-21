@@ -104,15 +104,11 @@ impl SnapshotDatabase {
     }
 
     pub fn insert_storage_log(&mut self, storage_log_entry: &mut SnapshotStorageLog) -> Result<()> {
-        // Unwrapping column family handle here is safe because presence of
-        // those CFs is ensured in construction of this DB.
         let index_to_key_map = self.cf_handle(INDEX_TO_KEY_MAP).unwrap();
         let storage_logs = self.cf_handle(snapshot_columns::STORAGE_LOGS).unwrap();
 
-        // XXX: These should really be inside a transaction...
         let idx = self.get_last_repeated_key_index()? + 1;
 
-        // Update the enumeration index.
         storage_log_entry.enumeration_index = idx;
 
         self.put_cf(index_to_key_map, idx.to_be_bytes(), storage_log_entry.key)?;
@@ -155,33 +151,6 @@ impl SnapshotDatabase {
         let bytecode_hash = BytecodeHash::for_bytecode(&fdep.bytecode.0).value();
         self.put_cf(factory_deps, bytecode_hash, bincode::serialize(&fdep)?)
             .map_err(Into::into)
-    }
-
-    pub fn get_latest_l1_block_number(&self) -> Result<Option<U64>> {
-        self.get_metadata_value(snapshot_columns::LATEST_L1_BLOCK)
-            .map(|o| o.map(U64::from))
-    }
-
-    pub fn set_latest_l1_block_number(&self, number: u64) -> Result<()> {
-        self.set_metadata_value(snapshot_columns::LATEST_L1_BLOCK, number)
-    }
-
-    pub fn get_latest_l1_batch_number(&self) -> Result<Option<U64>> {
-        self.get_metadata_value(snapshot_columns::LATEST_L1_BATCH)
-            .map(|o| o.map(U64::from))
-    }
-
-    pub fn set_latest_l1_batch_number(&self, number: u64) -> Result<()> {
-        self.set_metadata_value(snapshot_columns::LATEST_L1_BATCH, number)
-    }
-
-    pub fn get_latest_l2_block_number(&self) -> Result<Option<U64>> {
-        self.get_metadata_value(snapshot_columns::LATEST_L2_BLOCK)
-            .map(|o| o.map(U64::from))
-    }
-
-    pub fn set_latest_l2_block_number(&self, number: u64) -> Result<()> {
-        self.set_metadata_value(snapshot_columns::LATEST_L2_BLOCK, number)
     }
 
     pub fn get_last_repeated_key_index(&self) -> Result<u64> {

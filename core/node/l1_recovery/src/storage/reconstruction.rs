@@ -35,23 +35,6 @@ impl ReconstructionDatabase {
         Ok(Self(db))
     }
 
-    pub fn get_latest_l1_block_number(&self) -> Result<U64> {
-        self.get_metadata_value(reconstruction_columns::LATEST_L1_BLOCK)
-            .map(U64::from)
-    }
-
-    pub fn set_latest_l1_block_number(&self, number: u64) -> Result<()> {
-        self.set_metadata_value(reconstruction_columns::LATEST_L1_BLOCK, number)
-    }
-
-    pub fn get_latest_l1_batch_number(&self) -> Result<u64> {
-        self.get_metadata_value(reconstruction_columns::LATEST_L1_BATCH)
-    }
-
-    pub fn set_latest_l1_batch_number(&self, number: u64) -> Result<()> {
-        self.set_metadata_value(reconstruction_columns::LATEST_L1_BATCH, number)
-    }
-
     pub fn get_last_repeated_key_index(&self) -> Result<u64> {
         self.get_metadata_value(reconstruction_columns::LAST_REPEATED_KEY_INDEX)
     }

@@ -35,6 +35,7 @@ pub struct ExternalNodeSnapshotRecovery {
 #[async_trait::async_trait]
 impl InitializeStorage for ExternalNodeSnapshotRecovery {
     async fn initialize_storage(&self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        tracing::info!("Initializing external node storage");
         if self.is_initialized().await? {
             return Ok(());
         }
@@ -47,50 +48,62 @@ impl InitializeStorage for ExternalNodeSnapshotRecovery {
             .await?;
 
         let mut last_l1_block: Option<CommitBlock> = None;
-        let main_node_client: Box<dyn SnapshotsApplierMainNodeClient> =
-            if self.recovery_config.recover_from_l1 {
-                let main_node_connection_pool = ConnectionPool::<Core>::builder(
+        let main_node_client: Box<dyn SnapshotsApplierMainNodeClient> = if self
+            .recovery_config
+            .recover_from_l1
+        {
+            let main_node_connection_pool = ConnectionPool::<Core>::builder(
                 "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
                     .parse()
                     .unwrap(),
                 10,
             )
-                .build()
-                .await?;
-                let (last_block, last_miniblock) = create_l1_snapshot(
-                    self.l1_client.clone(),
-                    self.blob_client.as_ref().unwrap(),
-                    &object_store,
-                    self.diamond_proxy_addr,
-                )
-                .await;
-                last_l1_block = Some(last_block.clone());
-                if self.main_node_client.is_some() {
-                    Box::new(L1RecoveryOnlineMainNodeClient {
-                        newest_l1_batch_number: L1BatchNumber(last_block.l1_batch_number as u32),
-                        root_hash: H256::from_slice(last_block.new_state_root.as_slice()),
-                        main_node_client: self.main_node_client.as_ref().unwrap().clone(),
-                    })
-                } else {
-                    Box::new(L1RecoveryDetachedMainNodeClient {
-                        newest_l1_batch_number: L1BatchNumber(last_block.l1_batch_number as u32),
-                        newest_l1_batch_root_hash: H256::from_slice(
-                            last_block.new_state_root.as_slice(),
-                        ),
-                        newest_l1_batch_timestamp: last_block.timestamp,
-                        newest_l2_block: last_miniblock,
-                        root_hash: H256::from_slice(last_block.new_state_root.as_slice()),
-                    })
-                }
+            .build()
+            .await?;
+            let mut storage = self.pool.connection().await.unwrap();
+            let mut recovery_status = storage
+                .snapshot_recovery_dal()
+                .get_applied_snapshot_status()
+                .await
+                .unwrap();
+            assert!(recovery_status.is_none(), "this node has incomplete recovery status, please clear database before attempting to recover from L1");
+            let (last_block, last_miniblock, chunks_count) = create_l1_snapshot(
+                self.l1_client.clone(),
+                self.blob_client.as_ref().unwrap(),
+                &object_store,
+                self.diamond_proxy_addr,
+                &stop_receiver,
+            )
+            .await;
+            last_l1_block = Some(last_block.clone());
+            if self.main_node_client.is_some() {
+                Box::new(L1RecoveryOnlineMainNodeClient {
+                    newest_l1_batch_number: L1BatchNumber(last_block.l1_batch_number as u32),
+                    root_hash: H256::from_slice(last_block.new_state_root.as_slice()),
+                    main_node_client: self.main_node_client.as_ref().unwrap().clone(),
+                    chunks_count,
+                })
             } else {
-                Box::new(
-                    self.main_node_client
-                        .as_ref()
-                        .unwrap()
-                        .clone()
-                        .for_component("snapshot_recovery"),
-                )
-            };
+                Box::new(L1RecoveryDetachedMainNodeClient {
+                    newest_l1_batch_number: L1BatchNumber(last_block.l1_batch_number as u32),
+                    newest_l1_batch_root_hash: H256::from_slice(
+                        last_block.new_state_root.as_slice(),
+                    ),
+                    newest_l1_batch_timestamp: last_block.timestamp,
+                    newest_l2_block: last_miniblock,
+                    root_hash: H256::from_slice(last_block.new_state_root.as_slice()),
+                    chunks_count,
+                })
+            }
+        } else {
+            Box::new(
+                self.main_node_client
+                    .as_ref()
+                    .unwrap()
+                    .clone()
+                    .for_component("snapshot_recovery"),
+            )
+        };
 
         tracing::warn!("Proceeding with snapshot recovery. This is an experimental feature; use at your own risk");
 

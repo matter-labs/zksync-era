@@ -31,6 +31,7 @@ zkevm_circuits.workspace = true
 blake2.workspace = true
 tempfile.workspace = true
 chrono.workspace = true
+async-recursion.workspace = true
 
 zksync_merkle_tree.workspace = true
 zksync_storage.workspace = true

@@ -1,27 +1,38 @@
 use std::sync::Arc;
 
-use zksync_l1_recovery::LocalStorageBlobSource;
+use zksync_l1_recovery::{BlobClient, BlobHttpClient, LocalStorageBlobSource};
 
 use crate::{
     implementations::resources::{
         blob_client::BlobClientResource, object_store::ObjectStoreResource,
     },
+    service,
     wiring_layer::{WiringError, WiringLayer},
+    FromContext,
 };
 
-/// Wiring layer for object store.
-#[derive(Debug)]
-pub struct BlobClientLayer {}
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum BlobClientMode {
+    Local,
+    Blobscan,
+}
 
-impl BlobClientLayer {
-    pub fn new() -> Self {
-        Self {}
-    }
+/// Wiring layer for blob source.
+#[derive(Debug, Clone)]
+pub struct BlobClientLayer {
+    pub mode: BlobClientMode,
+    pub blobscan_url: Option<String>,
+}
+
+#[derive(Debug, Clone, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub object_store: Option<ObjectStoreResource>,
 }
 
 #[async_trait::async_trait]
 impl WiringLayer for BlobClientLayer {
-    type Input = ObjectStoreResource;
+    type Input = Input;
     type Output = BlobClientResource;
 
     fn layer_name(&self) -> &'static str {
@@ -29,7 +40,14 @@ impl WiringLayer for BlobClientLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let blob_client = Arc::new(LocalStorageBlobSource::new(input.0));
+        let blob_client: Arc<dyn BlobClient> = match self.mode {
+            BlobClientMode::Local => {
+                Arc::new(LocalStorageBlobSource::new(input.object_store.unwrap().0))
+            }
+            BlobClientMode::Blobscan => {
+                Arc::new(BlobHttpClient::new(&self.blobscan_url.unwrap()).unwrap())
+            }
+        };
         let resource = BlobClientResource(blob_client);
         Ok(resource)
     }

@@ -82,7 +82,7 @@ pub enum CommitBlockInfo {
 }
 
 /// Block with all required fields extracted from a [`CommitBlockInfo`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommitBlock {
     /// ZKSync batch number.
     pub l1_batch_number: u64,

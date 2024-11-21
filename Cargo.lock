@@ -11888,6 +11888,7 @@ name = "zksync_l1_recovery"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-recursion",
  "async-trait",
  "bincode",
  "blake2 0.10.6",

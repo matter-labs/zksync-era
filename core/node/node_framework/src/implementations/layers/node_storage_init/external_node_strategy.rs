@@ -11,6 +11,7 @@ use zksync_types::{Address, L2ChainId};
 use super::NodeInitializationStrategyResource;
 use crate::{
     implementations::resources::{
+        blob_client::BlobClientResource,
         eth_interface::EthInterfaceResource,
         healthcheck::AppHealthCheckResource,
         main_node_client::MainNodeClientResource,
@@ -39,6 +40,7 @@ pub struct Input {
     pub block_reverter: Option<BlockReverterResource>,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
+    pub blob_client: Option<BlobClientResource>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -92,7 +94,7 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
                     recovery_config,
                     app_health,
                     diamond_proxy_addr: self.diamond_proxy_addr,
-                    blob_client: None,
+                    blob_client: input.blob_client.clone().map(|x| x.0),
                 });
                 Some(recovery)
             }

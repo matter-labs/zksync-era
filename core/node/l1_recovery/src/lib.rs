@@ -10,7 +10,9 @@ mod utils;
 
 pub use crate::{
     l1_fetcher::{
-        blob_http_client::{BlobClient, BlobKey, BlobWrapper, LocalStorageBlobSource},
+        blob_http_client::{
+            BlobClient, BlobHttpClient, BlobKey, BlobWrapper, LocalStorageBlobSource,
+        },
         main_node_client::{L1RecoveryDetachedMainNodeClient, L1RecoveryOnlineMainNodeClient},
         types::CommitBlock,
     },

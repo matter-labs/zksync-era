@@ -67,7 +67,8 @@ pub fn process_raw_entries(block_batched_accesses: Vec<(H160, U256, U256, u32)>)
 pub fn reconstruct_genesis_state(path: PathBuf) -> Vec<TreeEntry> {
     let mut block_batched_accesses = vec![];
 
-    let input = fs::read_to_string(path).unwrap();
+    let input = fs::read_to_string(path.clone())
+        .expect(&format!("Unable to read initial state from {path:?}"));
     let data: Value = serde_json::from_str(&input).unwrap();
     let storage_logs = data.get("storage_logs").unwrap();
 

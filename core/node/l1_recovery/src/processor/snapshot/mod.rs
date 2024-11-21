@@ -1,10 +1,21 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
-use zksync_basic_types::{web3::Bytes, AccountTreeId, L1BatchNumber, L2BlockNumber, H256, U256};
+use tokio::sync::watch;
+use zksync_basic_types::{
+    h256_to_u256, u256_to_h256,
+    web3::{keccak256, Bytes},
+    AccountTreeId, L1BatchNumber, L2BlockNumber, H256, U256,
+};
+use zksync_object_store::ObjectStore;
 use zksync_types::{
     block::unpack_block_info,
-    snapshots::{SnapshotFactoryDependency, SnapshotStorageLog},
-    StorageKey, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    snapshots::{
+        SnapshotFactoryDependency, SnapshotStorageLog, SnapshotStorageLogsChunk,
+        SnapshotStorageLogsStorageKey,
+    },
+    StorageKey, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_HASHES_POSITION,
+    SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
+    SYSTEM_CONTEXT_STORED_L2_BLOCK_HASHES,
 };
 use zksync_vm_interface::L2Block;
 
@@ -17,6 +28,7 @@ use crate::{
 pub struct StateCompressor {
     database: SnapshotDatabase,
     tree_processor: TreeProcessor,
+    tree_disabled: bool,
 }
 
 impl StateCompressor {
@@ -30,7 +42,12 @@ impl StateCompressor {
         Self {
             database,
             tree_processor,
+            tree_disabled: false,
         }
+    }
+
+    pub fn disabled_tree(&mut self) {
+        self.tree_disabled = true;
     }
 
     pub async fn export_factory_deps(&self) -> Vec<SnapshotFactoryDependency> {
@@ -72,12 +89,95 @@ impl StateCompressor {
         result
     }
 
+    pub async fn dump_storage_logs_chunked(
+        &self,
+        last_l1_batch_number: L1BatchNumber,
+        object_store: &Arc<dyn ObjectStore>,
+    ) -> u64 {
+        let index_to_key_map = self.database.cf_handle(INDEX_TO_KEY_MAP).unwrap();
+        let mut iterator = self
+            .database
+            .iterator_cf(index_to_key_map, rocksdb::IteratorMode::Start);
+
+        let mut result = vec![];
+        let chunk_size = 1_000_000;
+        let mut chunk_id = 0;
+        loop {
+            let mut last_key = false;
+            if let Some(Ok((_, key))) = iterator.next() {
+                let key = U256::from_big_endian(&key);
+                if let Ok(Some(entry)) = self.database.get_storage_log(&key) {
+                    result.push(entry);
+                };
+            } else {
+                last_key = true;
+            }
+            if result.len() == chunk_size || (last_key && !result.is_empty()) {
+                let key = SnapshotStorageLogsStorageKey {
+                    l1_batch_number: last_l1_batch_number,
+                    chunk_id: chunk_id,
+                };
+                let storage_logs = SnapshotStorageLogsChunk {
+                    storage_logs: result.clone(),
+                };
+                result = vec![];
+                object_store.put(key, &storage_logs).await.unwrap();
+                tracing::info!(
+                    "Dumped {} storage logs for chunk {chunk_id}",
+                    storage_logs.storage_logs.len()
+                );
+                chunk_id += 1;
+            }
+            if last_key {
+                break;
+            }
+        }
+
+        chunk_id
+    }
+
     pub fn get_root_hash(&self) -> H256 {
+        assert!(!self.tree_disabled);
         self.tree_processor.get_root_hash()
     }
 
+    fn read_storage_value(&self, hashed_key: H256) -> H256 {
+        let key = U256::from_big_endian(&hashed_key.0);
+        let value = self.database.get_storage_log(&key).unwrap();
+        value.map(|v| v.value).unwrap_or_default()
+    }
     pub fn read_latest_miniblock_metadata(&self) -> L2Block {
-        self.tree_processor.read_latest_miniblock_metadata()
+        let l2_block_info_key = StorageKey::new(
+            AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+            SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+        );
+        let packed_info = self.read_storage_value(l2_block_info_key.hashed_key());
+        let (number, timestamp) = unpack_block_info(h256_to_u256(packed_info));
+
+        let position = h256_to_u256(SYSTEM_CONTEXT_CURRENT_L2_BLOCK_HASHES_POSITION)
+            + U256::from((number - 1) as u32 % SYSTEM_CONTEXT_STORED_L2_BLOCK_HASHES);
+        let l2_hash_key = StorageKey::new(
+            AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+            u256_to_h256(position),
+        );
+        let prev_block_hash = self.read_storage_value(l2_hash_key.hashed_key());
+
+        let position = StorageKey::new(
+            AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+            SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
+        );
+        let txs_rolling_hash = self.read_storage_value(position.hashed_key());
+        let mut digest: [u8; 128] = [0u8; 128];
+        U256::from(number).to_big_endian(&mut digest[0..32]);
+        U256::from(timestamp).to_big_endian(&mut digest[32..64]);
+        digest[64..96].copy_from_slice(prev_block_hash.as_bytes());
+        digest[96..128].copy_from_slice(txs_rolling_hash.as_bytes());
+
+        L2Block {
+            number: number as u32,
+            timestamp,
+            hash: H256(keccak256(&digest)),
+        }
     }
 
     pub async fn process_genesis_state(&mut self, path_buf: Option<PathBuf>) {
@@ -101,17 +201,27 @@ impl StateCompressor {
         }
     }
 
-    pub async fn process_blocks(&mut self, blocks: Vec<CommitBlock>) {
+    pub async fn process_blocks(
+        &mut self,
+        blocks: Vec<CommitBlock>,
+        stop_receiver: &watch::Receiver<bool>,
+    ) {
         for block in blocks {
-            self.process_one_block(block).await;
+            self.process_one_block(block, stop_receiver).await;
         }
     }
 
-    pub async fn process_one_block(&mut self, block: CommitBlock) {
-        let entries = self.tree_processor.process_one_block(block.clone()).await;
-        // batch was already processed
-        if entries.len() == 0 {
-            return;
+    pub async fn process_one_block(
+        &mut self,
+        block: CommitBlock,
+        stop_receiver: &watch::Receiver<bool>,
+    ) {
+        if *stop_receiver.borrow() {
+            panic!("Stop requested");
+        }
+
+        if !self.tree_disabled {
+            self.tree_processor.process_one_block(block.clone()).await;
         }
 
         // Initial calldata.
@@ -144,21 +254,9 @@ impl StateCompressor {
                 .process_value(U256::from_big_endian(&key[0..32]), *value)
                 .expect("failed to get key from database");
 
-            if self
-                .database
+            self.database
                 .update_storage_log_value(index as u64, value)
-                .is_err()
-            {
-                let max_idx = self
-                    .database
-                    .get_last_repeated_key_index()
-                    .expect("failed to get latest repeated key index");
-                tracing::error!(
-                    "failed to find key with index {}, last repeated key index: {}",
-                    index,
-                    max_idx
-                );
-            };
+                .unwrap();
         }
 
         // Factory dependencies.
@@ -169,6 +267,10 @@ impl StateCompressor {
                     bytecode: Bytes(dep),
                 })
                 .expect("failed to save factory dep");
+        }
+
+        if block.l1_batch_number % 100 == 0 {
+            tracing::info!("Processed block {} for snapshot", block.l1_batch_number,);
         }
     }
 }

@@ -1,7 +1,8 @@
-use std::{default::Default, sync::Arc};
+use std::{default::Default, fs, path::PathBuf, sync::Arc};
 
 use chrono::DateTime;
 use tempfile::TempDir;
+use tokio::sync::watch;
 use zksync_basic_types::{
     protocol_version::ProtocolVersionId, web3::keccak256, AccountTreeId, Address, L1BatchNumber,
     L2BlockNumber, H256, U256,
@@ -34,6 +35,10 @@ use zksync_web3_decl::client::{DynClient, L1};
 use crate::{
     l1_fetcher::{
         blob_http_client::BlobClient,
+        constants::{
+            initial_states_directory, mainnet_initial_state_path, sepolia_initial_state_path,
+            sepolia_l1_fetcher, sepolia_versioning,
+        },
         l1_fetcher::{L1Fetcher, L1FetcherConfig, ProtocolVersioning::OnlyV3},
         types::CommitBlock,
     },
@@ -378,53 +383,83 @@ pub async fn recover_latest_protocol_version(
         .unwrap();
 }
 
+pub async fn find_matching_genesis_state_file(l1_fetcher: &L1Fetcher) -> PathBuf {
+    let genesis_hash = l1_fetcher.get_genesis_root_hash().await;
+    for entry in fs::read_dir(initial_states_directory()).unwrap() {
+        let entry = entry.unwrap();
+        let temp_dir = TempDir::new().unwrap().into_path().join("db");
+        let mut processor = StateCompressor::new(temp_dir).await;
+        processor.process_genesis_state(Some(entry.path())).await;
+        if processor.get_root_hash() == genesis_hash {
+            return entry.path();
+        }
+    }
+    panic!("No matching genesis state file found!")
+}
 pub async fn create_l1_snapshot(
     l1_client: Box<DynClient<L1>>,
     blob_client: &Arc<dyn BlobClient>,
     object_store: &Arc<dyn ObjectStore>,
     diamond_proxy_addr: Address,
-) -> (CommitBlock, L2Block) {
+    stop_receiver: &watch::Receiver<bool>,
+) -> (CommitBlock, L2Block, u64) {
     let temp_dir = TempDir::new().unwrap().into_path().join("db");
 
     let l1_fetcher = L1Fetcher::new(
         L1FetcherConfig {
-            block_step: 100000,
+            block_step: 50_000,
             diamond_proxy_addr,
-            versioning: OnlyV3,
+            versioning: sepolia_versioning(),
         },
         l1_client,
     )
     .unwrap();
-    let blocks = l1_fetcher.get_all_blocks_to_process(&blob_client).await;
+    let initial_state_path = find_matching_genesis_state_file(&l1_fetcher).await;
+    tracing::info!("Using genesis state file {:?}", initial_state_path);
+    let blocks = l1_fetcher
+        .get_all_blocks_to_process(&blob_client, Some(object_store), &stop_receiver)
+        .await;
     let last_block = blocks.last().unwrap().clone();
     let last_l1_batch_number = L1BatchNumber(last_block.l1_batch_number as u32);
     let mut processor = StateCompressor::new(temp_dir).await;
-    processor.process_genesis_state(None).await;
-    processor.process_blocks(blocks).await;
+    processor.disabled_tree();
+    processor
+        .process_genesis_state(Some(initial_state_path))
+        .await;
+    processor.process_blocks(blocks, &stop_receiver).await;
 
-    tracing::info!(
-        "Processing L1 data finished, recovered tree root hash {:?}",
-        processor.get_root_hash()
-    );
+    tracing::info!("Processing L1 data finished");
 
-    let key = SnapshotStorageLogsStorageKey {
-        l1_batch_number: last_l1_batch_number,
-        chunk_id: 0,
-    };
-    let storage_logs = SnapshotStorageLogsChunk {
-        storage_logs: processor.export_storage_logs().await,
-    };
-    tracing::info!("Dumping {} storage logs", storage_logs.storage_logs.len());
-    object_store.put(key, &storage_logs).await.unwrap();
+    let chunks_count = processor
+        .dump_storage_logs_chunked(last_l1_batch_number, &object_store)
+        .await;
 
     let factory_deps = SnapshotFactoryDependencies {
         factory_deps: processor.export_factory_deps().await,
     };
-    tracing::info!("Dumping {} factory deps", factory_deps.factory_deps.len());
     object_store
         .put(last_l1_batch_number, &factory_deps)
         .await
         .unwrap();
+    tracing::info!("Dumped {} factory deps", factory_deps.factory_deps.len());
 
-    (last_block, processor.read_latest_miniblock_metadata())
+    (
+        last_block,
+        processor.read_latest_miniblock_metadata(),
+        chunks_count,
+    )
+}
+#[cfg(test)]
+mod tests {
+    use crate::{
+        l1_fetcher::constants::{sepolia_initial_state_path, sepolia_l1_fetcher},
+        processor::db_recovery::find_matching_genesis_state_file,
+    };
+
+    #[test_log::test(tokio::test)]
+    async fn finding_matching_genesis_state_file_works_for_sepolia() {
+        let l1_fetcher = sepolia_l1_fetcher();
+        let path = find_matching_genesis_state_file(&l1_fetcher).await;
+        assert_eq!(path, sepolia_initial_state_path());
+    }
 }
