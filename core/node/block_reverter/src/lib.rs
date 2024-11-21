@@ -3,7 +3,7 @@ use std::{path::Path, sync::Arc, time::Duration};
 use anyhow::Context as _;
 use serde::Serialize;
 use tokio::{fs, sync::Semaphore};
-use zksync_config::{ContractsConfig, EthConfig};
+use zksync_config::EthConfig;
 use zksync_contracts::hyperchain_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 // Public re-export to simplify the API use.

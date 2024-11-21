@@ -112,12 +112,6 @@ describe('Upgrade test', function () {
             chain: fileConfig.chain,
             config: 'secrets.yaml'
         });
-        const genesisConfig = loadConfig({
-            pathToHome,
-            chain: fileConfig.chain,
-            config: 'genesis.yaml'
-        });
-
         ethProviderAddress = secretsConfig.l1.l1_rpc_url;
         web3JsonRpc = generalConfig.api.web3_json_rpc.http_url;
         contractsL2DefaultUpgradeAddr = contractsConfig.l2.default_l2_upgrader;
