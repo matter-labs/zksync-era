@@ -261,22 +261,12 @@ async fn main() -> anyhow::Result<()> {
             nonce,
         } => {
             let sl_client = Client::http(sl_rpc_url).context("Ethereum client")?.build();
-            let reverter_private_key = if let Some(wallets_config) = wallets_config {
-                wallets_config
-                    .eth_sender
-                    .unwrap()
-                    .operator
-                    .private_key()
-                    .to_owned()
-            } else {
-                #[allow(deprecated)]
-                eth_sender
-                    .sender
-                    .context("eth_sender_config")?
-                    .private_key()
-                    .context("eth_sender_config.private_key")?
-                    .context("eth_sender_config.private_key is not set")?
-            };
+            let reverter_private_key = wallets_config
+                .eth_sender
+                .unwrap()
+                .operator
+                .private_key()
+                .to_owned();
 
             let priority_fee_per_gas = priority_fee_per_gas.unwrap_or(default_priority_fee_per_gas);
             let l1_chain_id = sl_client
