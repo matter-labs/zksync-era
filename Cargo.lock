@@ -7746,8 +7746,9 @@ checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
 
 [[package]]
 name = "rust-kzg-bn254"
-version = "0.2.0"
-source = "git+https://github.com/lambdaclass/rust-kzg-bn254?branch=bump-ark#18590ed7f2cf85c9b9cd4fb92b2d7d44a30588f3"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "acdae4058a9f604acf7023d99d931d6f30261fff93787bcfd1f1ccfc725b701c"
 dependencies = [
  "ark-bn254",
  "ark-ec",
