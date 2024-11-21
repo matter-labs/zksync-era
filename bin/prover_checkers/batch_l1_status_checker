@@ -50,5 +50,5 @@ while true; do
     fi
 
     # Wait for the next interval
-  sleep $INTERVAL
+    sleep $INTERVAL
 done
