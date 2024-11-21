@@ -607,15 +607,20 @@ impl BlockReverter {
     pub async fn clear_failed_l1_transactions(&self) -> anyhow::Result<()> {
         tracing::info!("Clearing failed L1 transactions");
         // we don't allow in-flight txs as they might be confirmed on Ethereum, but not in db
-        if self.count_all_inflight_txs().await.unwrap() != 0 {
+        let mut storage = self.connection_pool.connection().await?;
+        if storage
+            .eth_sender_dal()
+            .count_all_inflight_txs()
+            .await
+            .unwrap()
+            != 0
+        {
             return Err(anyhow!(
                 "There are still some in-flight txs, cannot proceed. \
             Please wait for eth-sender to process all in-flight txs and try again!"
             ));
         }
-        self.connection_pool
-            .connection()
-            .await?
+        storage
             .eth_sender_dal()
             .remove_failed_and_unsent_txs_after_failed_transaction()
             .await?;

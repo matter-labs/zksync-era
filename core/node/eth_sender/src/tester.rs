@@ -595,7 +595,15 @@ impl EthSenderTester {
 
     pub async fn clear_failed_txs_failed_attempts(&mut self) -> anyhow::Result<()> {
         // we don't allow in-flight txs as they might be confirmed on Ethereum, but not in db
-        if self.count_all_inflight_txs().await.unwrap() != 0 {
+        if self
+            .storage()
+            .await
+            .eth_sender_dal()
+            .count_all_inflight_txs()
+            .await
+            .unwrap()
+            != 0
+        {
             return Err(anyhow!(
                 "There are still some in-flight txs, cannot proceed. \
             Please wait for eth-sender to process all in-flight txs and try again!"
