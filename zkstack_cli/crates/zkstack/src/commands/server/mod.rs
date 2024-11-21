@@ -1,6 +1,6 @@
 use anyhow::Context;
+use build::build_server;
 use common::{
-    cmd::Cmd,
     logger,
     server::{Server, ServerMode},
 };
@@ -9,16 +9,14 @@ use config::{
     GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
 use wait::wait_for_server;
-use xshell::{cmd, Shell};
+use xshell::Shell;
 
 use crate::{
     commands::args::{RunServerArgs, ServerArgs, ServerCommand},
-    messages::{
-        MSG_BUILDING_SERVER, MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_BUILD_SERVER_ERR,
-        MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER,
-    },
+    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER},
 };
 
+mod build;
 mod wait;
 
 pub async fn run(shell: &Shell, args: ServerArgs) -> anyhow::Result<()> {
@@ -32,16 +30,6 @@ pub async fn run(shell: &Shell, args: ServerArgs) -> anyhow::Result<()> {
         ServerCommand::Build => build_server(&chain_config, shell),
         ServerCommand::Wait(args) => wait_for_server(args, &chain_config).await,
     }
-}
-
-fn build_server(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(&chain_config.link_to_code);
-
-    logger::info(MSG_BUILDING_SERVER);
-
-    let mut cmd = Cmd::new(cmd!(shell, "cargo build --release --bin zksync_server"));
-    cmd = cmd.with_force_run();
-    cmd.run().context(MSG_FAILED_TO_BUILD_SERVER_ERR)
 }
 
 fn run_server(
