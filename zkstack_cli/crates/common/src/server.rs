@@ -1,5 +1,6 @@
 use std::{ffi::OsStr, path::PathBuf};
 
+use anyhow::Context;
 use xshell::{cmd, Shell};
 
 use crate::cmd::Cmd;
@@ -56,28 +57,17 @@ impl Server {
 
         let uring = self.uring.then_some("--features=rocksdb/io-uring");
 
-        let mut cmd = Cmd::new(
-            cmd!(
-                shell,
-                "cargo run --release --bin zksync_server {uring...} --
-                --genesis-path {genesis_path}
-                --wallets-path {wallets_path}
-                --config-path {general_path}
-                --secrets-path {secrets_path}
-                --contracts-config-path {contracts_path}
-                "
-            )
-            .args(additional_args)
-            .env_remove("RUSTUP_TOOLCHAIN"),
-        );
-
-        // If we are running server in normal mode
-        // we need to get the output to the console
-        if let ServerMode::Normal = server_mode {
-            cmd = cmd.with_force_run();
-        }
-
-        cmd.run()?;
+        run_binary_component(
+            shell,
+            uring,
+            genesis_path,
+            wallets_path,
+            general_path,
+            secrets_path,
+            contracts_path,
+            additional_args,
+            server_mode,
+        )?;
 
         Ok(())
     }
@@ -98,4 +88,42 @@ impl Server {
             Some(components.join(","))
         })
     }
+}
+
+fn run_binary_component<P>(
+    shell: &Shell,
+    uring: Option<&str>,
+    genesis_path: P,
+    wallets_path: P,
+    general_path: P,
+    secrets_path: P,
+    contracts_path: P,
+    additional_args: Vec<String>,
+    server_mode: ServerMode,
+) -> anyhow::Result<()>
+where
+    P: AsRef<OsStr>,
+{
+    let mut cmd = Cmd::new(
+        cmd!(
+            shell,
+            "cargo run --release --bin zksync_server {uring...} --
+            --genesis-path {genesis_path}
+            --wallets-path {wallets_path}
+            --config-path {general_path}
+            --secrets-path {secrets_path}
+            --contracts-config-path {contracts_path}
+            "
+        )
+        .args(additional_args)
+        .env_remove("RUSTUP_TOOLCHAIN"),
+    );
+
+    // If we are running server in normal mode
+    // we need to get the output to the console
+    if let ServerMode::Normal = server_mode {
+        cmd = cmd.with_force_run();
+    }
+
+    cmd.run().context("Failed to run server")
 }
