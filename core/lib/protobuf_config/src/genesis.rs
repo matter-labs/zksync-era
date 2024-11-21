@@ -125,10 +125,9 @@ impl ProtoRepr for proto::Genesis {
                 recursion_scheduler_level_vk_hash: None, // Deprecated field.
                 dummy_verifier: Some(this.dummy_verifier),
                 snark_wrapper_vk_hash: Some(format!("{:?}", this.snark_wrapper_vk_hash)),
-                fflonk_snark_wrapper_vk_hash: Some(format!(
-                    "{:?}",
-                    this.fflonk_snark_wrapper_vk_hash
-                )),
+                fflonk_snark_wrapper_vk_hash: this
+                    .fflonk_snark_wrapper_vk_hash
+                    .map(|x| format!("{:?}", x)),
             }),
             l1_batch_commit_data_generator_mode: Some(
                 proto::L1BatchCommitDataGeneratorMode::new(
