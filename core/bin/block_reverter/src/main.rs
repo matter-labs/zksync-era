@@ -24,25 +24,30 @@ use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{Address, L1BatchNumber};
 
 #[derive(Debug, Parser)]
-#[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None)]
+#[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None, subcommand_negates_reqs = true)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
-    /// Path to yaml config.
-    #[arg(long, global = true)]
-    config_path: PathBuf,
-    /// Path to yaml contracts config.
-    #[arg(long, global = true)]
-    contracts_config_path: PathBuf,
-    /// Path to yaml secrets config.
-    #[arg(long, global = true)]
-    secrets_path: PathBuf,
-    /// Path to yaml wallets config.
-    #[arg(long, global = true)]
-    wallets_path: PathBuf,
-    /// Path to yaml genesis config.
-    #[arg(long, global = true)]
-    genesis_path: PathBuf,
+    /// Path to yaml config. Note, that while required,
+    /// it is still an `Option` due to internal specifics of the `clap` crate.
+    #[arg(long, global = true, required = true)]
+    config_path: Option<PathBuf>,
+    /// Path to yaml contracts config. Note, that while required,
+    /// it is still an `Option` due to internal specifics of the `clap` crate.
+    #[arg(long, global = true, required = true)]
+    contracts_config_path: Option<PathBuf>,
+    /// Path to yaml secrets config. Note, that while required,
+    /// it is still an `Option` due to internal specifics of the `clap` crate.
+    #[arg(long, global = true, required = true)]
+    secrets_path: Option<PathBuf>,
+    /// Path to yaml wallets config. Note, that while required,
+    /// it is still an `Option` due to internal specifics of the `clap` crate.
+    #[arg(long, global = true, required = true)]
+    wallets_path: Option<PathBuf>,
+    /// Path to yaml genesis config. Note, that while required,
+    /// it is still an `Option` due to internal specifics of the `clap` crate.
+    #[arg(long, global = true, required = true)]
+    genesis_path: Option<PathBuf>,
     /// Path to yaml config of the chain on top of gateway.
     /// It may be `None` in case a chain is not settling on top of Gateway.
     #[arg(long, global = true)]
@@ -127,17 +132,20 @@ async fn main() -> anyhow::Result<()> {
         .with_opentelemetry(opentelemetry)
         .build();
 
-    let general_config =
-        read_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&opts.config_path)
-            .context("failed decoding general YAML config")?;
+    let general_config = read_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(
+        &opts.config_path.context("Config path missing")?,
+    )
+    .context("failed decoding general YAML config")?;
 
-    let wallets_config =
-        read_yaml_repr::<zksync_protobuf_config::proto::wallets::Wallets>(&opts.wallets_path)
-            .context("failed decoding wallets YAML config")?;
+    let wallets_config = read_yaml_repr::<zksync_protobuf_config::proto::wallets::Wallets>(
+        &opts.wallets_path.context("Wallets path missing")?,
+    )
+    .context("failed decoding wallets YAML config")?;
 
-    let genesis_config: GenesisConfig =
-        read_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&opts.genesis_path)
-            .context("failed decoding genesis YAML config")?;
+    let genesis_config: GenesisConfig = read_yaml_repr::<
+        zksync_protobuf_config::proto::genesis::Genesis,
+    >(&opts.genesis_path.context("Genesis path missing")?)
+    .context("failed decoding genesis YAML config")?;
 
     let eth_sender = general_config
         .eth
@@ -157,13 +165,16 @@ async fn main() -> anyhow::Result<()> {
         .clone()
         .context("Failed to find eth config")?;
     let contracts = read_yaml_repr::<zksync_protobuf_config::proto::contracts::Contracts>(
-        &opts.contracts_config_path,
+        &opts
+            .contracts_config_path
+            .context("Missing contracts config")?,
     )
     .context("failed decoding contracts YAML config")?;
 
-    let secrets_config =
-        read_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&opts.secrets_path)
-            .context("failed decoding secrets YAML config")?;
+    let secrets_config = read_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(
+        &opts.secrets_path.context("Missing secrets config")?,
+    )
+    .context("failed decoding secrets YAML config")?;
 
     let default_priority_fee_per_gas = eth_sender
         .gas_adjuster
