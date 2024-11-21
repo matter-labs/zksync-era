@@ -108,7 +108,7 @@ impl WiringLayer for EthTxAggregatorLayer {
         let aggregator = Aggregator::new(
             config.clone(),
             object_store,
-            eth_client_blobs_addr.is_some(),
+            eth_client_blobs_addr.is_some() && !self.settlement_mode.is_gateway(),
             self.l1_batch_commit_data_generator_mode,
         );
 
