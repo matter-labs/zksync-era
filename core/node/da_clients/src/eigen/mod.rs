@@ -1,6 +1,5 @@
 mod blob_info;
 mod client;
-mod generated;
 mod sdk;
 mod verifier;
 

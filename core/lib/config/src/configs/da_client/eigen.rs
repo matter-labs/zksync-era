@@ -26,6 +26,8 @@ pub struct EigenConfig {
     pub verify_cert: bool,
     /// Path to the file containing the points used for KZG
     pub path_to_points: String,
+    /// Chain ID of the Ethereum network
+    pub chain_id: u64,
 }
 
 #[derive(Clone, Debug, PartialEq)]

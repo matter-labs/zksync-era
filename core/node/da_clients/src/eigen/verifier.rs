@@ -1,23 +1,19 @@
 use std::{collections::HashMap, str::FromStr};
 
-use alloy::{
-    network::Ethereum,
-    providers::{Provider, RootProvider},
-};
 use ark_bn254::{Fq, G1Affine};
 use ethabi::{encode, Token};
 use rust_kzg_bn254::{blob::Blob, kzg::Kzg, polynomial::PolynomialFormat};
 use tiny_keccak::{Hasher, Keccak};
-
-use super::{
-    blob_info::{BatchHeader, BlobHeader, BlobInfo, G1Commitment},
-    generated::eigendaservicemanager::EigenDAServiceManager,
+use zksync_basic_types::web3::CallRequest;
+use zksync_eth_client::clients::PKSigningClient;
+use zksync_types::{
+    url::SensitiveUrl,
+    web3::{BlockId, BlockNumber},
+    K256PrivateKey, SLChainId, H160, U256,
 };
+use zksync_web3_decl::client::{Client, DynClient, L1};
 
-type EigenDAServiceManagerContract = EigenDAServiceManager::EigenDAServiceManagerInstance<
-    alloy::transports::http::Http<alloy::transports::http::Client>,
-    RootProvider<alloy::transports::http::Http<alloy::transports::http::Client>>,
->;
+use super::blob_info::{BatchHeader, BlobHeader, BlobInfo, G1Commitment};
 
 #[derive(Debug)]
 pub enum VerificationError {
@@ -44,6 +40,8 @@ pub struct VerifierConfig {
     pub max_blob_size: u32,
     pub path_to_points: String,
     pub eth_confirmation_depth: u32,
+    pub private_key: String,
+    pub chain_id: u64,
 }
 
 /// Verifier used to verify the integrity of the blob info
@@ -52,11 +50,15 @@ pub struct VerifierConfig {
 #[derive(Debug, Clone)]
 pub struct Verifier {
     kzg: Kzg,
-    eigenda_svc_manager: EigenDAServiceManagerContract,
     cfg: VerifierConfig,
+    signing_client: PKSigningClient,
 }
 
 impl Verifier {
+    const DEFAULT_PRIORITY_FEE_PER_GAS: u64 = 100;
+    const BATCH_ID_TO_METADATA_HASH_FUNCTION_SELECTOR: [u8; 4] = [236, 203, 191, 201];
+    const QUORUM_ADVERSARY_THRESHOLD_PERCENTAGES_FUNCTION_SELECTOR: [u8; 4] = [134, 135, 254, 174];
+    const QUORUM_NUMBERS_REQUIRED_FUNCTION_SELECTOR: [u8; 4] = [225, 82, 52, 255];
     pub fn new(cfg: VerifierConfig) -> Result<Self, VerificationError> {
         let srs_points_to_load = cfg.max_blob_size / 32;
         let kzg = Kzg::setup(
@@ -71,21 +73,29 @@ impl Verifier {
             tracing::error!("Failed to setup KZG: {:?}", e);
             VerificationError::KzgError
         })?;
-        let url = alloy::transports::http::reqwest::Url::from_str(&cfg.rpc_url)
-            .map_err(|_| VerificationError::WrongUrl)?;
-        let provider: RootProvider<
-            alloy::transports::http::Http<alloy::transports::http::Client>,
-            Ethereum,
-        > = RootProvider::new_http(url);
 
-        let svc_manager_addr = alloy::primitives::Address::from_str(&cfg.svc_manager_addr)
-            .map_err(|_| VerificationError::ServiceManagerError)?;
+        let url = SensitiveUrl::from_str(&cfg.rpc_url).map_err(|_| VerificationError::WrongUrl)?;
+        let client: Client<L1> = Client::http(url)
+            .map_err(|_| VerificationError::WrongUrl)?
+            .build();
+        let client = Box::new(client) as Box<DynClient<L1>>;
+        let signing_client = PKSigningClient::new_raw(
+            K256PrivateKey::from_bytes(
+                zksync_types::H256::from_str(&cfg.private_key)
+                    .map_err(|_| VerificationError::ServiceManagerError)?,
+            )
+            .map_err(|_| VerificationError::ServiceManagerError)?,
+            H160::from_str(&cfg.svc_manager_addr)
+                .map_err(|_| VerificationError::ServiceManagerError)?,
+            Self::DEFAULT_PRIORITY_FEE_PER_GAS,
+            SLChainId(cfg.chain_id),
+            client,
+        );
 
-        let eigenda_svc_manager = EigenDAServiceManager::new(svc_manager_addr, provider);
         Ok(Self {
             kzg,
-            eigenda_svc_manager,
             cfg,
+            signing_client,
         })
     }
 
@@ -250,11 +260,12 @@ impl Verifier {
     /// Retrieves the block to make the request to the service manager
     async fn get_context_block(&self) -> Result<u64, VerificationError> {
         let latest = self
-            .eigenda_svc_manager
-            .provider()
-            .get_block_number()
+            .signing_client
+            .as_ref()
+            .block_number()
             .await
-            .map_err(|_| VerificationError::ServiceManagerError)?;
+            .map_err(|_| VerificationError::ServiceManagerError)?
+            .as_u64();
 
         if self.cfg.eth_confirmation_depth == 0 {
             return Ok(latest);
@@ -265,15 +276,32 @@ impl Verifier {
     /// Verifies the certificate batch hash
     async fn verify_batch(&self, cert: BlobInfo) -> Result<(), VerificationError> {
         let context_block = self.get_context_block().await?;
-        let expected_hash = self
-            .eigenda_svc_manager
-            .batchIdToBatchMetadataHash(cert.blob_verification_proof.batch_id)
-            .block(context_block.into())
-            .call()
+
+        let mut data = Self::BATCH_ID_TO_METADATA_HASH_FUNCTION_SELECTOR.to_vec();
+        let mut batch_id_vec = [0u8; 32];
+        U256::from(cert.blob_verification_proof.batch_id).to_big_endian(&mut batch_id_vec);
+        data.append(batch_id_vec.to_vec().as_mut());
+
+        let call_request = CallRequest {
+            to: Some(
+                H160::from_str(&self.cfg.svc_manager_addr)
+                    .map_err(|_| VerificationError::ServiceManagerError)?,
+            ),
+            data: Some(zksync_basic_types::web3::Bytes(data)),
+            ..Default::default()
+        };
+
+        let res = self
+            .signing_client
+            .as_ref()
+            .call_contract_function(
+                call_request,
+                Some(BlockId::Number(BlockNumber::Number(context_block.into()))),
+            )
             .await
-            .map_err(|_| VerificationError::ServiceManagerError)?
-            ._0
-            .to_vec();
+            .map_err(|_| VerificationError::ServiceManagerError)?;
+
+        let expected_hash = res.0.to_vec();
 
         if expected_hash == vec![0u8; 32] {
             return Err(VerificationError::EmptyHash);
@@ -295,17 +323,75 @@ impl Verifier {
         Ok(())
     }
 
+    fn decode_bytes(&self, encoded: Vec<u8>) -> Result<Vec<u8>, String> {
+        // Ensure the input has at least 64 bytes (offset + length)
+        if encoded.len() < 64 {
+            return Err("Encoded data is too short".to_string());
+        }
+
+        // Read the offset (first 32 bytes)
+        let offset = {
+            let mut offset_bytes = [0u8; 32];
+            offset_bytes.copy_from_slice(&encoded[0..32]);
+            usize::from_be_bytes(
+                offset_bytes[24..32]
+                    .try_into()
+                    .map_err(|_| "Offset is too large")?,
+            )
+        };
+
+        // Check if offset is valid
+        if offset + 32 > encoded.len() {
+            return Err("Offset points outside the encoded data".to_string());
+        }
+
+        // Read the length (32 bytes at the offset position)
+        let length = {
+            let mut length_bytes = [0u8; 32];
+            length_bytes.copy_from_slice(&encoded[offset..offset + 32]);
+            usize::from_be_bytes(
+                length_bytes[24..32]
+                    .try_into()
+                    .map_err(|_| "Offset is too large")?,
+            )
+        };
+
+        // Check if the length is valid
+        if offset + 32 + length > encoded.len() {
+            return Err("Length extends beyond the encoded data".to_string());
+        }
+
+        // Extract the bytes data
+        let data = encoded[offset + 32..offset + 32 + length].to_vec();
+        Ok(data)
+    }
+
     async fn get_quorum_adversary_threshold(
         &self,
         quorum_number: u32,
     ) -> Result<u8, VerificationError> {
-        let percentages = self
-            .eigenda_svc_manager
-            .quorumAdversaryThresholdPercentages()
-            .call()
+        let data = Self::QUORUM_ADVERSARY_THRESHOLD_PERCENTAGES_FUNCTION_SELECTOR.to_vec();
+
+        let call_request = CallRequest {
+            to: Some(
+                H160::from_str(&self.cfg.svc_manager_addr)
+                    .map_err(|_| VerificationError::ServiceManagerError)?,
+            ),
+            data: Some(zksync_basic_types::web3::Bytes(data)),
+            ..Default::default()
+        };
+
+        let res = self
+            .signing_client
+            .as_ref()
+            .call_contract_function(call_request, None)
             .await
-            .map_err(|_| VerificationError::ServiceManagerError)?
-            ._0;
+            .map_err(|_| VerificationError::ServiceManagerError)?;
+
+        let percentages = self
+            .decode_bytes(res.0.to_vec())
+            .map_err(|_| VerificationError::ServiceManagerError)?;
+
         if percentages.len() > quorum_number as usize {
             return Ok(percentages[quorum_number as usize]);
         }
@@ -349,14 +435,26 @@ impl Verifier {
             confirmed_quorums.insert(blob_header.blob_quorum_params[i].quorum_number, true);
         }
 
-        let required_quorums = self
-            .eigenda_svc_manager
-            .quorumNumbersRequired()
-            .call()
+        let data = Self::QUORUM_NUMBERS_REQUIRED_FUNCTION_SELECTOR.to_vec();
+        let call_request = CallRequest {
+            to: Some(
+                H160::from_str(&self.cfg.svc_manager_addr)
+                    .map_err(|_| VerificationError::ServiceManagerError)?,
+            ),
+            data: Some(zksync_basic_types::web3::Bytes(data)),
+            ..Default::default()
+        };
+
+        let res = self
+            .signing_client
+            .as_ref()
+            .call_contract_function(call_request, None)
             .await
-            .map_err(|_| VerificationError::ServiceManagerError)?
-            ._0
-            .to_vec();
+            .map_err(|_| VerificationError::ServiceManagerError)?;
+
+        let required_quorums = self
+            .decode_bytes(res.0.to_vec())
+            .map_err(|_| VerificationError::ServiceManagerError)?;
 
         for quorum in required_quorums {
             if !confirmed_quorums.contains_key(&(quorum as u32)) {
@@ -394,6 +492,9 @@ mod test {
             max_blob_size: 2 * 1024 * 1024,
             path_to_points: "../../../resources".to_string(),
             eth_confirmation_depth: 0,
+            private_key: "0xd08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6"
+                .to_string(),
+            chain_id: 17000,
         })
         .unwrap();
         let commitment = G1Commitment {
@@ -420,6 +521,9 @@ mod test {
             max_blob_size: 2 * 1024 * 1024,
             path_to_points: "../../../resources".to_string(),
             eth_confirmation_depth: 0,
+            private_key: "0xd08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6"
+                .to_string(),
+            chain_id: 17000,
         })
         .unwrap();
         let cert = BlobInfo {
@@ -507,6 +611,9 @@ mod test {
             max_blob_size: 2 * 1024 * 1024,
             path_to_points: "../../../resources".to_string(),
             eth_confirmation_depth: 0,
+            private_key: "0xd08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6"
+                .to_string(),
+            chain_id: 17000,
         })
         .unwrap();
         let blob_header = BlobHeader {
@@ -550,6 +657,9 @@ mod test {
             max_blob_size: 2 * 1024 * 1024,
             path_to_points: "../../../resources".to_string(),
             eth_confirmation_depth: 0,
+            private_key: "0xd08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6"
+                .to_string(),
+            chain_id: 17000,
         })
         .unwrap();
 
@@ -576,6 +686,9 @@ mod test {
             max_blob_size: 2 * 1024 * 1024,
             path_to_points: "../../../resources".to_string(),
             eth_confirmation_depth: 0,
+            private_key: "0xd08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6"
+                .to_string(),
+            chain_id: 17000,
         })
         .unwrap();
         let cert = BlobInfo {
@@ -663,6 +776,9 @@ mod test {
             max_blob_size: 2 * 1024 * 1024,
             path_to_points: "../../../resources".to_string(),
             eth_confirmation_depth: 0,
+            private_key: "0xd08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6"
+                .to_string(),
+            chain_id: 17000,
         })
         .unwrap();
         let cert = BlobInfo {

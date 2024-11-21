@@ -76,6 +76,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 path_to_points: required(&conf.path_to_points)
                     .context("path_to_points")?
                     .clone(),
+                chain_id: *required(&conf.chain_id).context("chain_id")?,
             }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
@@ -125,6 +126,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 authenticated: Some(config.authenticated),
                 verify_cert: Some(config.verify_cert),
                 path_to_points: Some(config.path_to_points.clone()),
+                chain_id: Some(config.chain_id),
             }),
             ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
                 object_store_proto::ObjectStore::build(config),

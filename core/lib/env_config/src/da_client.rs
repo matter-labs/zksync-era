@@ -260,6 +260,7 @@ mod tests {
             DA_AUTHENTICATED=false
             DA_VERIFY_CERT=false
             DA_PATH_TO_POINTS="resources"
+            DA_CHAIN_ID=1
         "#;
         lock.set_env(config);
 
@@ -278,6 +279,7 @@ mod tests {
                 authenticated: false,
                 verify_cert: false,
                 path_to_points: "resources".to_string(),
+                chain_id: 1
             })
         );
     }

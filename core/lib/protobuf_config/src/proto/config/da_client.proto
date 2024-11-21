@@ -49,6 +49,7 @@ message EigenConfig {
   optional bool authenticated = 11;
   optional bool verify_cert = 12;
   optional string path_to_points = 13;
+  optional uint64 chain_id = 14;
 }
 
 message DataAvailabilityClient {

@@ -31,6 +31,7 @@ da_client:
     authenticated: false
     verify_cert: true
     path_to_points: ./resources
+    chain_id: <your_chain_id>
 ```
 
 Also set the private key in `etc/env/file_based/secrets.yaml`:
