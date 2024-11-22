@@ -1,4 +1,7 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
 
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
@@ -9,7 +12,6 @@ use zksync_eth_client::{
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{eth_sender::EthTx, Address, L1BlockNumber, H256, U256};
-use zksync_utils::time::seconds_since_epoch;
 
 use super::{metrics::METRICS, EthSenderError};
 use crate::{
@@ -501,9 +503,13 @@ impl EthTxManager {
         );
         let tx_type_label = tx.tx_type.into();
         METRICS.l1_gas_used[&tx_type_label].observe(gas_used.low_u128() as f64);
-        METRICS.l1_tx_mined_latency[&tx_type_label].observe(Duration::from_secs(
-            seconds_since_epoch() - tx.created_at_timestamp,
-        ));
+
+        let duration_since_epoch = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("incorrect system time");
+        let tx_latency =
+            duration_since_epoch.saturating_sub(Duration::from_secs(tx.created_at_timestamp));
+        METRICS.l1_tx_mined_latency[&tx_type_label].observe(tx_latency);
 
         let sent_at_block = storage
             .eth_sender_dal()

@@ -14,15 +14,12 @@ use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_system_constants::KNOWN_CODES_STORAGE_ADDRESS;
 use zksync_types::{
     block::{BlockGasCount, L2BlockHasher},
+    bytecode::BytecodeHash,
     commitment::{L1BatchCommitmentMode, PubdataParams},
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     l2::L2Tx,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
     ProtocolVersionId, StorageKey, TransactionTimeRangeConstraint, H256, U256,
-};
-use zksync_utils::{
-    bytecode::{hash_bytecode, hash_evm_bytecode},
-    time::seconds_since_epoch,
 };
 
 use self::tester::Tester;
@@ -30,7 +27,7 @@ use crate::{
     io::{seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, StateKeeperIO},
     mempool_actor::l2_tx_filter,
     testonly::BASE_SYSTEM_CONTRACTS,
-    tests::{create_execution_result, create_transaction, Query},
+    tests::{create_execution_result, create_transaction, seconds_since_epoch, Query},
     updates::{L2BlockSealCommand, L2BlockUpdates, UpdatesManager},
     StateKeeperOutputHandler, StateKeeperPersistence,
 };
@@ -441,13 +438,19 @@ async fn processing_dynamic_factory_deps_when_sealing_l2_block() {
     let static_factory_deps: Vec<_> = (0_u8..10)
         .map(|byte| {
             let era_bytecode = vec![byte; 32];
-            (hash_bytecode(&era_bytecode), era_bytecode)
+            (
+                BytecodeHash::for_bytecode(&era_bytecode).value(),
+                era_bytecode,
+            )
         })
         .collect();
     let dynamic_factory_deps: Vec<_> = (0_u8..10)
         .map(|byte| {
             let evm_bytecode = vec![byte; 96];
-            (hash_evm_bytecode(&evm_bytecode), evm_bytecode)
+            (
+                BytecodeHash::for_evm_bytecode(&evm_bytecode).value(),
+                evm_bytecode,
+            )
         })
         .collect();
     let mut all_factory_deps = static_factory_deps.clone();
