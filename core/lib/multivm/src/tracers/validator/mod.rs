@@ -10,9 +10,9 @@ use zksync_system_constants::{
     L2_BASE_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_types::{
-    vm::VmVersion, web3::keccak256, AccountTreeId, Address, StorageKey, H256, U256,
+    address_to_u256, u256_to_h256, vm::VmVersion, web3::keccak256, AccountTreeId, Address,
+    StorageKey, H256, U256,
 };
-use zksync_utils::{address_to_u256, be_bytes_to_safe_address, u256_to_h256};
 use zksync_vm_interface::{
     tracer::{TimestampAsserterParams, ValidationTraces},
     L1BatchEnv,
@@ -25,6 +25,7 @@ use crate::{
         storage::{StoragePtr, WriteStorage},
         tracer::{ValidationParams, ViolatedValidationRule},
     },
+    utils::bytecode::be_bytes_to_safe_address,
 };
 
 mod types;

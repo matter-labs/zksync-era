@@ -9,20 +9,21 @@ use std::{
 use anyhow::Context as _;
 use chrono::Utc;
 use ethabi::{Contract, Token};
+use resolver::{GitHubCompilerResolver, ResolverMultiplexer};
 use tokio::time;
 use zksync_dal::{contract_verification_dal::DeployedContractData, ConnectionPool, Core, CoreDal};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
+    bytecode::{trim_padded_evm_bytecode, BytecodeMarker},
     contract_verification_api::{
         self as api, CompilationArtifacts, VerificationIncomingRequest, VerificationInfo,
         VerificationRequest,
     },
     Address, CONTRACT_DEPLOYER_ADDRESS,
 };
-use zksync_utils::bytecode::{prepare_evm_bytecode, BytecodeMarker};
 
 use crate::{
-    compilers::{Solc, ZkSolc, ZkVyper},
+    compilers::{Solc, VyperInput, ZkSolc},
     error::ContractVerifierError,
     metrics::API_CONTRACT_VERIFIER_METRICS,
     resolver::{CompilerResolver, EnvCompilerResolver},
@@ -47,7 +48,6 @@ struct ZkCompilerVersions {
 #[derive(Debug)]
 enum VersionedCompiler {
     Solc(String),
-    #[allow(dead_code)] // TODO (EVM-864): add vyper support
     Vyper(String),
     ZkSolc(ZkCompilerVersions),
     ZkVyper(ZkCompilerVersions),
@@ -122,12 +122,20 @@ impl ContractVerifier {
         compilation_timeout: Duration,
         connection_pool: ConnectionPool<Core>,
     ) -> anyhow::Result<Self> {
-        Self::with_resolver(
-            compilation_timeout,
-            connection_pool,
-            Arc::<EnvCompilerResolver>::default(),
-        )
-        .await
+        let env_resolver = Arc::<EnvCompilerResolver>::default();
+        let gh_resolver = Arc::new(GitHubCompilerResolver::new().await?);
+        let mut resolver = ResolverMultiplexer::new(env_resolver);
+
+        // Killer switch: if anything goes wrong with GH resolver, we can disable it without having to rollback.
+        // TODO: Remove once GH resolver is proven to be stable.
+        let disable_gh_resolver = std::env::var("DISABLE_GITHUB_RESOLVER").is_ok();
+        if !disable_gh_resolver {
+            resolver = resolver.with_resolver(gh_resolver);
+        } else {
+            tracing::warn!("GitHub resolver was disabled via DISABLE_GITHUB_RESOLVER env variable")
+        }
+
+        Self::with_resolver(compilation_timeout, connection_pool, Arc::new(resolver)).await
     }
 
     async fn with_resolver(
@@ -135,21 +143,42 @@ impl ContractVerifier {
         connection_pool: ConnectionPool<Core>,
         compiler_resolver: Arc<dyn CompilerResolver>,
     ) -> anyhow::Result<Self> {
-        let this = Self {
+        Self::sync_compiler_versions(compiler_resolver.as_ref(), &connection_pool).await?;
+        Ok(Self {
             compilation_timeout,
             contract_deployer: zksync_contracts::deployer_contract(),
             connection_pool,
             compiler_resolver,
-        };
-        this.sync_compiler_versions().await?;
-        Ok(this)
+        })
+    }
+
+    /// Returns a future that would periodically update the supported compiler versions
+    /// in the database.
+    pub fn sync_compiler_versions_task(
+        &self,
+    ) -> impl std::future::Future<Output = anyhow::Result<()>> {
+        const UPDATE_INTERVAL: Duration = Duration::from_secs(60 * 60); // 1 hour.
+
+        let resolver = self.compiler_resolver.clone();
+        let pool = self.connection_pool.clone();
+        async move {
+            loop {
+                tracing::info!("Updating compiler versions");
+                if let Err(err) = Self::sync_compiler_versions(resolver.as_ref(), &pool).await {
+                    tracing::error!("Failed to sync compiler versions: {:?}", err);
+                }
+                tokio::time::sleep(UPDATE_INTERVAL).await;
+            }
+        }
     }
 
     /// Synchronizes compiler versions.
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn sync_compiler_versions(&self) -> anyhow::Result<()> {
-        let supported_versions = self
-            .compiler_resolver
+    async fn sync_compiler_versions(
+        resolver: &dyn CompilerResolver,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let supported_versions = resolver
             .supported_versions()
             .await
             .context("cannot get supported compilers")?;
@@ -164,26 +193,23 @@ impl ContractVerifier {
             "persisting supported compiler versions"
         );
 
-        let mut storage = self
-            .connection_pool
-            .connection_tagged("contract_verifier")
-            .await?;
+        let mut storage = pool.connection_tagged("contract_verifier").await?;
         let mut transaction = storage.start_transaction().await?;
         transaction
             .contract_verification_dal()
-            .set_zksolc_versions(&supported_versions.zksolc)
+            .set_zksolc_versions(&supported_versions.zksolc.into_iter().collect::<Vec<_>>())
             .await?;
         transaction
             .contract_verification_dal()
-            .set_solc_versions(&supported_versions.solc)
+            .set_solc_versions(&supported_versions.solc.into_iter().collect::<Vec<_>>())
             .await?;
         transaction
             .contract_verification_dal()
-            .set_zkvyper_versions(&supported_versions.zkvyper)
+            .set_zkvyper_versions(&supported_versions.zkvyper.into_iter().collect::<Vec<_>>())
             .await?;
         transaction
             .contract_verification_dal()
-            .set_vyper_versions(&supported_versions.vyper)
+            .set_vyper_versions(&supported_versions.vyper.into_iter().collect::<Vec<_>>())
             .await?;
         transaction.commit().await?;
         Ok(())
@@ -231,7 +257,7 @@ impl ContractVerifier {
 
         let deployed_bytecode = match bytecode_marker {
             BytecodeMarker::EraVm => deployed_contract.bytecode.as_slice(),
-            BytecodeMarker::Evm => prepare_evm_bytecode(&deployed_contract.bytecode)
+            BytecodeMarker::Evm => trim_padded_evm_bytecode(&deployed_contract.bytecode)
                 .context("invalid stored EVM bytecode")?,
         };
 
@@ -292,7 +318,7 @@ impl ContractVerifier {
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let zkvyper = self.compiler_resolver.resolve_zkvyper(version).await?;
         tracing::debug!(?zkvyper, ?version, "resolved compiler");
-        let input = ZkVyper::build_input(req)?;
+        let input = VyperInput::new(req)?;
         time::timeout(self.compilation_timeout, zkvyper.compile(input))
             .await
             .map_err(|_| ContractVerifierError::CompilationTimeout)?
@@ -308,6 +334,20 @@ impl ContractVerifier {
         let input = Solc::build_input(req)?;
 
         time::timeout(self.compilation_timeout, solc.compile(input))
+            .await
+            .map_err(|_| ContractVerifierError::CompilationTimeout)?
+    }
+
+    async fn compile_vyper(
+        &self,
+        version: &str,
+        req: VerificationIncomingRequest,
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        let vyper = self.compiler_resolver.resolve_vyper(version).await?;
+        tracing::debug!(?vyper, ?req.compiler_versions, "resolved compiler");
+        let input = VyperInput::new(req)?;
+
+        time::timeout(self.compilation_timeout, vyper.compile(input))
             .await
             .map_err(|_| ContractVerifierError::CompilationTimeout)?
     }
@@ -340,11 +380,7 @@ impl ContractVerifier {
 
         match &compiler {
             VersionedCompiler::Solc(version) => self.compile_solc(version, req).await,
-            VersionedCompiler::Vyper(_) => {
-                // TODO (EVM-864): add vyper support
-                let err = anyhow::anyhow!("vyper toolchain is not yet supported for EVM contracts");
-                return Err(err.into());
-            }
+            VersionedCompiler::Vyper(version) => self.compile_vyper(version, req).await,
             VersionedCompiler::ZkSolc(version) => self.compile_zksolc(version, req).await,
             VersionedCompiler::ZkVyper(version) => self.compile_zkvyper(version, req).await,
         }

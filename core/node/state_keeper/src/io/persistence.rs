@@ -7,8 +7,7 @@ use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_shared_metrics::{BlockStage, APP_METRICS};
-use zksync_types::{writes::TreeWrite, Address, ProtocolVersionId};
-use zksync_utils::u256_to_h256;
+use zksync_types::{u256_to_h256, writes::TreeWrite, Address, ProtocolVersionId};
 
 use crate::{
     io::{
@@ -387,10 +386,9 @@ mod tests {
     use zksync_multivm::interface::{FinishedL1Batch, VmExecutionMetrics};
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{
-        api::TransactionStatus, block::BlockGasCount, writes::StateDiffRecord, L1BatchNumber,
-        L2BlockNumber, StorageLogKind, H256, U256,
+        api::TransactionStatus, block::BlockGasCount, h256_to_u256, writes::StateDiffRecord,
+        L1BatchNumber, L2BlockNumber, StorageLogKind, H256, U256,
     };
-    use zksync_utils::h256_to_u256;
 
     use super::*;
     use crate::{

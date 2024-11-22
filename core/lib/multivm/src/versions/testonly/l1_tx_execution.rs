@@ -2,17 +2,14 @@ use assert_matches::assert_matches;
 use ethabi::Token;
 use zksync_contracts::l1_messenger_contract;
 use zksync_system_constants::{BOOTLOADER_ADDRESS, L1_MESSENGER_ADDRESS};
-use zksync_test_account::TxType;
+use zksync_test_contracts::{TestContract, TxType};
 use zksync_types::{
-    get_code_key, get_known_code_key,
+    get_code_key, get_known_code_key, h256_to_u256,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    Address, Execute, ExecuteTransactionCommon, U256,
+    u256_to_h256, Address, Execute, ExecuteTransactionCommon, U256,
 };
-use zksync_utils::{h256_to_u256, u256_to_h256};
 
-use super::{
-    read_test_contract, tester::VmTesterBuilder, ContractToDeploy, TestedVm, BASE_SYSTEM_CONTRACTS,
-};
+use super::{tester::VmTesterBuilder, ContractToDeploy, TestedVm, BASE_SYSTEM_CONTRACTS};
 use crate::{
     interface::{
         ExecutionResult, InspectExecutionMode, TxExecutionMode, VmInterfaceExt, VmRevertReason,
@@ -46,9 +43,12 @@ pub(crate) fn test_l1_tx_execution<VM: TestedVm>() {
         .with_rich_accounts(1)
         .build::<VM>();
 
-    let contract_code = read_test_contract();
     let account = &mut vm.rich_accounts[0];
-    let deploy_tx = account.get_deploy_tx(&contract_code, None, TxType::L1 { serial_id: 1 });
+    let deploy_tx = account.get_deploy_tx(
+        TestContract::counter().bytecode,
+        None,
+        TxType::L1 { serial_id: 1 },
+    );
     let tx_hash = deploy_tx.tx.hash();
 
     let required_l2_to_l1_logs: Vec<_> = vec![L2ToL1Log {
@@ -187,7 +187,7 @@ pub(crate) fn test_l1_tx_execution_high_gas_limit<VM: TestedVm>() {
 }
 
 pub(crate) fn test_l1_tx_execution_gas_estimation_with_low_gas<VM: TestedVm>() {
-    let counter_contract = read_test_contract();
+    let counter_contract = TestContract::counter().bytecode.to_vec();
     let counter_address = Address::repeat_byte(0x11);
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()

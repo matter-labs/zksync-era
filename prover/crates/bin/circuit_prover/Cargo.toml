@@ -1,5 +1,6 @@
 [package]
 name = "zksync_circuit_prover"
+description = "ZKsync circuit prover binary implementation"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -8,6 +9,7 @@ repository.workspace = true
 license.workspace = true
 keywords.workspace = true
 categories.workspace = true
+publish = false
 
 [dependencies]
 tokio = { workspace = true, features = ["macros", "time"] }
@@ -29,6 +31,9 @@ zksync_prover_keystore = { workspace = true, features = ["gpu"] }
 zksync_env_config.workspace = true
 zksync_core_leftovers.workspace = true
 zksync_utils.workspace = true
+zksync_circuit_prover_service.workspace = true
+zksync_prover_job_processor.workspace = true
+zksync_vlog.workspace = true
 
 vise.workspace = true
 shivini = { workspace = true, features = [
