@@ -7994,6 +7994,7 @@ dependencies = [
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
+ "zksync_vlog",
 ]
 
 [[package]]
