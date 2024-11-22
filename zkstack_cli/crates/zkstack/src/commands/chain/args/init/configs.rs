@@ -81,7 +81,7 @@ pub fn get_ecosystem_contracts_path(
     ecosystem: Option<EcosystemConfig>,
     chain: &ChainConfig,
 ) -> anyhow::Result<PathBuf> {
-    let ecosystem_preexisting_configs_path = ecosystem.map_or_else(
+    let ecosystem_preexisting_contracts_path = ecosystem.map_or_else(
         || chain.get_preexisting_ecosystem_contracts_path(),
         |e| e.get_preexisting_ecosystem_contracts_path(),
     );
@@ -94,13 +94,13 @@ pub fn get_ecosystem_contracts_path(
             Some(PathBuf::from(path))
         });
 
-    if ecosystem_contracts_path.is_none() && !ecosystem_preexisting_configs_path.exists() {
+    if ecosystem_contracts_path.is_none() && !ecosystem_preexisting_contracts_path.exists() {
         anyhow::bail!(msg_ecosystem_no_found_preexisting_contract(
             &chain.l1_network.to_string()
         ))
     }
 
-    Ok(ecosystem_contracts_path.unwrap_or(ecosystem_preexisting_configs_path))
+    Ok(ecosystem_contracts_path.unwrap_or(ecosystem_preexisting_contracts_path))
 }
 
 impl InitConfigsArgsFinal {
