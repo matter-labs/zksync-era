@@ -122,17 +122,42 @@ impl L1BatchPublishCriterion for TimestampDeadlineCriterion {
     }
 }
 
-#[derive(Debug)]
-pub struct ExecuteGasCriterion {
-    pub gas_limit: u32,
+#[derive(Debug, Clone, Copy)]
+pub enum GasCriterionKind {
+    CommitValidium,
+    Execute,
 }
 
-impl ExecuteGasCriterion {
-    /// Base cost of processing aggregated `Execute` operation.
+impl From<GasCriterionKind> for AggregatedActionType {
+    fn from(value: GasCriterionKind) -> Self {
+        match value {
+            GasCriterionKind::CommitValidium => AggregatedActionType::Commit,
+            GasCriterionKind::Execute => AggregatedActionType::Execute,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct L1GasCriterion {
+    pub gas_limit: u32,
+    pub kind: GasCriterionKind,
+}
+
+impl L1GasCriterion {
+    /// Base gas cost of processing aggregated `Execute` operation.
+    /// It's applicable iff SL is Ethereum.
     const AGGR_L1_BATCH_EXECUTE_BASE_COST: u32 = 241_000;
 
-    pub fn new(gas_limit: u32) -> ExecuteGasCriterion {
-        ExecuteGasCriterion { gas_limit }
+    /// Base gas cost of processing aggregated `Commit` operation.
+    /// It's applicable iff SL is Ethereum.
+    const AGGR_L1_BATCH_COMMIT_BASE_COST: u32 = 242_000;
+
+    /// Additional gas cost of processing `Commit` operation per batch.
+    /// It's applicable iff SL is Ethereum.
+    pub const L1_BATCH_COMMIT_BASE_COST: u32 = 31_000;
+
+    pub fn new(gas_limit: u32, kind: GasCriterionKind) -> L1GasCriterion {
+        L1GasCriterion { gas_limit, kind }
     }
 
     pub async fn total_execute_gas_amount(
@@ -146,6 +171,14 @@ impl ExecuteGasCriterion {
         }
 
         total
+    }
+
+    pub fn total_validium_commit_gas_amount(
+        batch_numbers: ops::RangeInclusive<L1BatchNumber>,
+    ) -> u32 {
+        Self::AGGR_L1_BATCH_COMMIT_BASE_COST
+            + (batch_numbers.end().0 - batch_numbers.start().0 + 1)
+                * Self::L1_BATCH_COMMIT_BASE_COST
     }
 
     async fn get_execute_gas_amount(
@@ -164,7 +197,7 @@ impl ExecuteGasCriterion {
 }
 
 #[async_trait]
-impl L1BatchPublishCriterion for ExecuteGasCriterion {
+impl L1BatchPublishCriterion for L1GasCriterion {
     fn name(&self) -> &'static str {
         "gas_limit"
     }
@@ -175,17 +208,25 @@ impl L1BatchPublishCriterion for ExecuteGasCriterion {
         consecutive_l1_batches: &[L1BatchWithMetadata],
         _last_sealed_l1_batch: L1BatchNumber,
     ) -> Option<L1BatchNumber> {
+        let aggr_cost = match self.kind {
+            GasCriterionKind::Execute => Self::AGGR_L1_BATCH_EXECUTE_BASE_COST,
+            GasCriterionKind::CommitValidium => Self::AGGR_L1_BATCH_COMMIT_BASE_COST,
+        };
         assert!(
-            self.gas_limit > Self::AGGR_L1_BATCH_EXECUTE_BASE_COST,
+            self.gas_limit > aggr_cost,
             "Config max gas cost for operations is too low"
         );
         // We're not sure our predictions are accurate, so it's safer to lower the gas limit by 10%
-        let mut gas_left =
-            (self.gas_limit as f64 * 0.9).round() as u32 - Self::AGGR_L1_BATCH_EXECUTE_BASE_COST;
+        let mut gas_left = (self.gas_limit as f64 * 0.9).round() as u32 - aggr_cost;
 
         let mut last_l1_batch = None;
         for (index, l1_batch) in consecutive_l1_batches.iter().enumerate() {
-            let batch_gas = Self::get_execute_gas_amount(storage, l1_batch.header.number).await;
+            let batch_gas = match self.kind {
+                GasCriterionKind::Execute => {
+                    Self::get_execute_gas_amount(storage, l1_batch.header.number).await
+                }
+                GasCriterionKind::CommitValidium => Self::L1_BATCH_COMMIT_BASE_COST,
+            };
             if batch_gas >= gas_left {
                 if index == 0 {
                     panic!(
@@ -201,14 +242,15 @@ impl L1BatchPublishCriterion for ExecuteGasCriterion {
         }
 
         if let Some(last_l1_batch) = last_l1_batch {
+            let op: AggregatedActionType = self.kind.into();
             let first_l1_batch_number = consecutive_l1_batches.first().unwrap().header.number.0;
             tracing::debug!(
                 "`gas_limit` publish criterion (gas={}) triggered for op {} with L1 batch range {:?}",
                 self.gas_limit - gas_left,
-                AggregatedActionType::Execute,
+                op,
                 first_l1_batch_number..=last_l1_batch.0
             );
-            METRICS.block_aggregation_reason[&(AggregatedActionType::Execute, "gas").into()].inc();
+            METRICS.block_aggregation_reason[&(op, "gas").into()].inc();
         }
         last_l1_batch
     }

@@ -19,7 +19,8 @@ use zksync_types::{
 use super::{
     aggregated_operations::AggregatedOperation,
     publish_criterion::{
-        ExecuteGasCriterion, L1BatchPublishCriterion, NumberCriterion, TimestampDeadlineCriterion,
+        GasCriterionKind, L1BatchPublishCriterion, L1GasCriterion, NumberCriterion,
+        TimestampDeadlineCriterion,
     },
 };
 
@@ -79,23 +80,49 @@ impl Aggregator {
                     deadline_seconds: config.aggregated_block_execute_deadline,
                     max_allowed_lag: Some(config.timestamp_criteria_max_allowed_lag),
                 }),
-                Box::from(ExecuteGasCriterion::new(config.max_aggregated_tx_gas)),
+                Box::from(L1GasCriterion::new(
+                    config.max_aggregated_tx_gas,
+                    GasCriterionKind::Execute,
+                )),
             ]
         };
 
-        if config.max_aggregated_blocks_to_commit > 1 {
-            tracing::warn!(
-                "config.max_aggregated_blocks_to_commit is set to {} but \
-                aggregator does not support aggregating commit operations anymore",
-                config.max_aggregated_blocks_to_commit
-            );
-        }
-
-        Self {
-            commit_criteria: vec![Box::from(NumberCriterion {
+        // It only makes sense to aggregate commit operation when validium chain settles to L1.
+        let commit_criteria: Vec<Box<dyn L1BatchPublishCriterion>> = if settlement_mode
+            == SettlementMode::SettlesToL1
+            && commitment_mode == L1BatchCommitmentMode::Validium
+        {
+            vec![
+                Box::from(NumberCriterion {
+                    op: AggregatedActionType::Commit,
+                    limit: config.max_aggregated_blocks_to_commit,
+                }),
+                Box::from(TimestampDeadlineCriterion {
+                    op: AggregatedActionType::Commit,
+                    deadline_seconds: config.aggregated_block_commit_deadline,
+                    max_allowed_lag: Some(config.timestamp_criteria_max_allowed_lag),
+                }),
+                Box::from(L1GasCriterion::new(
+                    config.max_aggregated_tx_gas,
+                    GasCriterionKind::CommitValidium,
+                )),
+            ]
+        } else {
+            if config.max_aggregated_blocks_to_commit > 1 {
+                tracing::warn!(
+                    "config.max_aggregated_blocks_to_commit is set to {} but \
+                    aggregator does not support aggregating commit operations anymore",
+                    config.max_aggregated_blocks_to_commit
+                );
+            }
+            vec![Box::from(NumberCriterion {
                 op: AggregatedActionType::Commit,
                 limit: 1,
-            })],
+            })]
+        };
+
+        Self {
+            commit_criteria,
             proof_criteria: vec![Box::from(NumberCriterion {
                 op: AggregatedActionType::PublishProofOnchain,
                 limit: 1,

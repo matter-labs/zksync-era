@@ -14,7 +14,7 @@ use zksync_l1_contract_interface::{
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    commitment::{L1BatchWithMetadata, SerializeCommitment},
+    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, SerializeCommitment},
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
     ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
@@ -28,7 +28,7 @@ use zksync_types::{
 use super::aggregated_operations::AggregatedOperation;
 use crate::{
     metrics::{PubdataKind, METRICS},
-    publish_criterion::ExecuteGasCriterion,
+    publish_criterion::L1GasCriterion,
     zksync_functions::ZkSyncFunctions,
     Aggregator, EthSenderError,
 };
@@ -610,13 +610,16 @@ impl EthTxAggregator {
             self.encode_aggregated_op(aggregated_op, contracts_are_pre_shared_bridge);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
 
-        let eth_tx_predicted_gas = match (op_type, is_gateway) {
-            (AggregatedActionType::Execute, false) => Some(
-                ExecuteGasCriterion::total_execute_gas_amount(
+        let eth_tx_predicted_gas = match (op_type, is_gateway, self.aggregator.mode()) {
+            (AggregatedActionType::Execute, false, _) => Some(
+                L1GasCriterion::total_execute_gas_amount(
                     &mut transaction,
                     l1_batch_number_range.clone(),
                 )
                 .await,
+            ),
+            (AggregatedActionType::Commit, false, L1BatchCommitmentMode::Validium) => Some(
+                L1GasCriterion::total_validium_commit_gas_amount(l1_batch_number_range.clone()),
             ),
             _ => None,
         };
