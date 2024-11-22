@@ -147,12 +147,14 @@ export class NodeSpawner {
         const { fileConfig, pathToHome, options, logs } = this;
 
         const testMode = overrides?.newPubdataPrice != null || overrides?.newL1GasPrice != null;
+        let healthcheckPort;
 
         console.log('Overrides: ', overrides);
 
         if (fileConfig.loadFromFile) {
             this.restoreConfig();
             const config = this.readFileConfig();
+            healthcheckPort = config['api']['healthcheck']['port'];
             config['state_keeper']['transaction_slots'] = testMode ? 1 : 8192;
 
             if (overrides != null) {
@@ -199,6 +201,7 @@ export class NodeSpawner {
 
             this.writeFileConfig(config);
         } else {
+            healthcheckPort = process.env.API_HEALTHCHECK_PORT;
             env['DATABASE_MERKLE_TREE_MODE'] = 'full';
 
             if (overrides != null) {
@@ -267,8 +270,9 @@ export class NodeSpawner {
             chain: fileConfig.chain
         });
 
+        healthcheckPort ??= '3071';
         // Wait until the main node starts responding.
-        await waitForNodeToStart(proc, options.apiWeb3JsonRpcHttpUrl);
+        await waitForNodeToStart(proc, options.apiWeb3JsonRpcHttpUrl, healthcheckPort);
         return new Node(proc, options.apiWeb3JsonRpcHttpUrl, NodeType.MAIN);
     }
 
@@ -293,21 +297,25 @@ export class NodeSpawner {
     }
 }
 
-async function waitForNodeToStart(proc: ChildProcessWithoutNullStreams, l2Url: string) {
+async function waitForNodeToStart(proc: ChildProcessWithoutNullStreams, l2Url: string, healthcheckPort: string) {
     while (true) {
         try {
-            const l2Provider = new zksync.Provider(l2Url);
-            const blockNumber = await l2Provider.getBlockNumber();
-            if (blockNumber != 0) {
-                console.log(`Initialized node API on ${l2Url}; latest block: ${blockNumber}`);
-                break;
+            const nodeHealth = (await fetch(`http://127.0.0.1:${healthcheckPort}/health`)).status;
+            if (nodeHealth == 200) {
+                const l2Provider = new zksync.Provider(l2Url);
+                const blockNumber = await l2Provider.getBlockNumber();
+                if (blockNumber != 0) {
+                    console.log(`Initialized node API on ${l2Url}; latest block: ${blockNumber}`);
+                    break;
+                }
             }
         } catch (err) {
-            if (proc.exitCode != null) {
-                assert.fail(`server failed to start, exitCode = ${proc.exitCode}`);
-            }
-            console.log(`Node waiting for API on ${l2Url}`);
-            await utils.sleep(1);
+            // Ignore
         }
+        if (proc.exitCode != null) {
+            assert.fail(`server failed to start, exitCode = ${proc.exitCode}`);
+        }
+        console.log(`Node waiting for API on ${l2Url}`);
+        await utils.sleep(1);
     }
 }
