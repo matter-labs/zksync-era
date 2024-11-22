@@ -350,7 +350,6 @@ async fn init_chains(
     }
     let ecosystem_contracts_path =
         Some(ecosystem_config.get_contracts_path().display().to_string());
-    let wallets_path = Some(ecosystem_config.get_wallets_path().display().to_string());
     logger::debug(format!(
         "Ecosystem contracts path: {:?}",
         ecosystem_contracts_path
@@ -372,7 +371,6 @@ async fn init_chains(
             no_port_reallocation: final_init_args.no_port_reallocation,
             dev: final_init_args.dev,
             ecosystem_contracts_path: ecosystem_contracts_path.clone(),
-            wallets_path: wallets_path.clone(),
         };
         let final_chain_init_args = chain_init_args
             .fill_values_with_prompt(Some(ecosystem_config.clone()), &chain_config)?;
