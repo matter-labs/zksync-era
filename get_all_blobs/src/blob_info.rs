@@ -32,7 +32,7 @@ pub struct G1Commitment {
 }
 
 impl G1Commitment {
-    pub fn into_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = vec![];
         bytes.extend(&self.x.len().to_be_bytes());
         bytes.extend(&self.x);
@@ -78,7 +78,7 @@ pub struct BlobQuorumParam {
 }
 
 impl BlobQuorumParam {
-    pub fn into_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = vec![];
         bytes.extend(&self.quorum_number.to_be_bytes());
         bytes.extend(&self.adversary_threshold_percentage.to_be_bytes());
@@ -129,14 +129,14 @@ pub struct BlobHeader {
 }
 
 impl BlobHeader {
-    pub fn into_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = vec![];
-        bytes.extend(self.commitment.into_bytes());
+        bytes.extend(self.commitment.to_bytes());
         bytes.extend(&self.data_length.to_be_bytes());
         bytes.extend(&self.blob_quorum_params.len().to_be_bytes());
 
         for quorum in &self.blob_quorum_params {
-            bytes.extend(quorum.into_bytes());
+            bytes.extend(quorum.to_bytes());
         }
 
         bytes
@@ -177,7 +177,6 @@ impl TryFrom<DisperserBlobHeader> for BlobHeader {
             .iter()
             .map(|param| BlobQuorumParam::from(param.clone()))
             .collect();
-        let blob_quorum_params = blob_quorum_params;
         Ok(Self {
             commitment: G1Commitment::from(value.commitment.unwrap()),
             data_length: value.data_length,
@@ -195,7 +194,7 @@ pub struct BatchHeader {
 }
 
 impl BatchHeader {
-    pub fn into_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = vec![];
         bytes.extend(&self.batch_root.len().to_be_bytes());
         bytes.extend(&self.batch_root);
@@ -251,9 +250,9 @@ pub struct BatchMetadata {
 }
 
 impl BatchMetadata {
-    pub fn into_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = vec![];
-        bytes.extend(self.batch_header.into_bytes());
+        bytes.extend(self.batch_header.to_bytes());
         bytes.extend(&self.signatory_record_hash);
         bytes.extend(&self.confirmation_block_number.to_be_bytes());
 
@@ -312,11 +311,11 @@ pub struct BlobVerificationProof {
 }
 
 impl BlobVerificationProof {
-    pub fn into_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = vec![];
         bytes.extend(&self.batch_id.to_be_bytes());
         bytes.extend(&self.blob_index.to_be_bytes());
-        bytes.extend(self.batch_medatada.into_bytes());
+        bytes.extend(self.batch_medatada.to_bytes());
         bytes.extend(&self.inclusion_proof.len().to_be_bytes());
         bytes.extend(&self.inclusion_proof);
         bytes.extend(&self.quorum_indexes.len().to_be_bytes());
@@ -372,12 +371,12 @@ pub struct BlobInfo {
 }
 
 impl BlobInfo {
-    pub fn into_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = vec![];
-        let blob_header_bytes = self.blob_header.into_bytes();
+        let blob_header_bytes = self.blob_header.to_bytes();
         bytes.extend(blob_header_bytes.len().to_be_bytes());
         bytes.extend(blob_header_bytes);
-        let blob_verification_proof_bytes = self.blob_verification_proof.into_bytes();
+        let blob_verification_proof_bytes = self.blob_verification_proof.to_bytes();
         bytes.extend(blob_verification_proof_bytes);
         bytes
     }

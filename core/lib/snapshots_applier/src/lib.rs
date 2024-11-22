@@ -13,6 +13,7 @@ use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthChe
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_types::{
     api,
+    bytecode::BytecodeHash,
     snapshots::{
         SnapshotFactoryDependencies, SnapshotHeader, SnapshotRecoveryStatus, SnapshotStorageLog,
         SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey, SnapshotVersion,
@@ -20,7 +21,6 @@ use zksync_types::{
     tokens::TokenInfo,
     L1BatchNumber, L2BlockNumber, StorageKey, H256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
@@ -800,9 +800,15 @@ impl<'a> SnapshotsApplier<'a> {
         // in underlying query, see `https://www.postgresql.org/docs/current/limits.html`
         // there were around 100 thousand contracts on mainnet, where this issue first manifested
         for chunk in factory_deps.factory_deps.chunks(1000) {
+            // TODO: bytecode hashing is ambiguous with EVM bytecodes
             let chunk_deps_hashmap: HashMap<H256, Vec<u8>> = chunk
                 .iter()
-                .map(|dep| (hash_bytecode(&dep.bytecode.0), dep.bytecode.0.clone()))
+                .map(|dep| {
+                    (
+                        BytecodeHash::for_bytecode(&dep.bytecode.0).value(),
+                        dep.bytecode.0.clone(),
+                    )
+                })
                 .collect();
             storage
                 .factory_deps_dal()

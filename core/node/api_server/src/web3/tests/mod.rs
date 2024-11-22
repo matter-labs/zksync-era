@@ -33,6 +33,10 @@ use zksync_system_constants::{
 use zksync_types::{
     api,
     block::{pack_block_info, L2BlockHasher, L2BlockHeader},
+    bytecode::{
+        testonly::{PROCESSED_EVM_BYTECODE, RAW_EVM_BYTECODE},
+        BytecodeHash,
+    },
     fee_model::{BatchFeeInput, FeeParams},
     get_nonce_key,
     l2::L2Tx,
@@ -40,16 +44,10 @@ use zksync_types::{
     system_contracts::get_system_smart_contracts,
     tokens::{TokenInfo, TokenMetadata},
     tx::IncludedTxLocation,
+    u256_to_h256,
     utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance},
     AccountTreeId, Address, L1BatchNumber, Nonce, ProtocolVersionId, StorageKey, StorageLog, H256,
     U256, U64,
-};
-use zksync_utils::{
-    bytecode::{
-        hash_bytecode, hash_evm_bytecode,
-        testonly::{PROCESSED_EVM_BYTECODE, RAW_EVM_BYTECODE},
-    },
-    u256_to_h256,
 };
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 use zksync_web3_decl::{
@@ -678,7 +676,7 @@ impl HttpTest for StorageAccessWithSnapshotRecovery {
     fn storage_initialization(&self) -> StorageInitialization {
         let address = Address::repeat_byte(1);
         let code_key = get_code_key(&address);
-        let code_hash = hash_bytecode(&[0; 32]);
+        let code_hash = BytecodeHash::for_bytecode(&[0; 32]).value();
         let balance_key = storage_key_for_eth_balance(&address);
         let logs = vec![
             StorageLog::new_write_log(code_key, code_hash),
@@ -1173,7 +1171,7 @@ impl GetBytecodeTest {
         at_block: L2BlockNumber,
         address: Address,
     ) -> anyhow::Result<()> {
-        let evm_bytecode_hash = hash_evm_bytecode(RAW_EVM_BYTECODE);
+        let evm_bytecode_hash = BytecodeHash::for_evm_bytecode(RAW_EVM_BYTECODE).value();
         let code_log = StorageLog::new_write_log(get_code_key(&address), evm_bytecode_hash);
         connection
             .storage_logs_dal()

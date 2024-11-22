@@ -250,20 +250,20 @@ impl DataAvailabilityDispatcher {
                 let request_semaphore = self.request_semaphore.clone();
                 inclusion_tasks.spawn(async move {
                     let inclusion_data = if config.use_dummy_inclusion_data() {
-                        let _permit = request_semaphore.acquire_owned().await?;
-                        client
-                            .get_inclusion_data(blob_info.blob_id.as_str())
-                            .await
-                            .with_context(|| {
-                                format!(
-                                    "failed to get inclusion data for blob_id: {}, batch_number: {}",
-                                    blob_info.blob_id, blob_info.l1_batch_number
-                                )
-                            })?
+                        // if the inclusion verification is disabled, we don't need to wait for the inclusion
+                        // data before committing the batch, so simply return an empty vector
+                        Some(InclusionData { data: vec![] })
                         } else {
-                            // if the inclusion verification is disabled, we don't need to wait for the inclusion
-                            // data before committing the batch, so simply return an empty vector
-                            Some(InclusionData { data: vec![] })
+                            let _permit = request_semaphore.acquire_owned().await?;
+                            client
+                                .get_inclusion_data(blob_info.blob_id.as_str())
+                                .await
+                                .with_context(|| {
+                                    format!(
+                                        "failed to get inclusion data for blob_id: {}, batch_number: {}",
+                                        blob_info.blob_id, blob_info.l1_batch_number
+                                    )
+                                })?
                         };
 
                     let Some(inclusion_data) = inclusion_data else {

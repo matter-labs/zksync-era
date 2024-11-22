@@ -1,0 +1,32 @@
+[book]
+authors = ["ZKsync team"]
+language = "en"
+multilingual = false
+src = "src"
+title = "ZKsync Era Documentation"
+
+[output.html]
+smart-punctuation = true
+mathjax-support = true
+git-repository-url = "https://github.com/matter-labs/zksync-era/tree/main/docs"
+edit-url-template = "https://github.com/matter-labs/zksync-era/tree/main/docs/{path}"
+additional-js = ["js/version-box.js", "js/mermaid-init.js"]
+additional-css = ["css/version-box.css"]
+
+[output.html.playground]
+editable = true
+line-numbers = true
+
+[output.html.search]
+limit-results = 20
+use-boolean-and = true
+boost-title = 2
+boost-hierarchy = 2
+boost-paragraph = 1
+expand = true
+heading-split-level = 2
+
+[preprocessor]
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"

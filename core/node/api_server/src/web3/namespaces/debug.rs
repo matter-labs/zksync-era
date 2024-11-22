@@ -96,13 +96,16 @@ impl DebugNamespace {
             CallType::NearCall => unreachable!("We have to filter our near calls before"),
         };
 
-        let result = if call.error.is_none() {
-            Some(CallResult {
-                output: web3::Bytes::from(call.output),
-                gas_used: U256::from(call.gas_used),
-            })
+        let (result, error) = if let Some(error) = call.revert_reason {
+            (None, Some(error))
         } else {
-            None
+            (
+                Some(CallResult {
+                    output: web3::Bytes::from(call.output),
+                    gas_used: U256::from(call.gas_used),
+                }),
+                None,
+            )
         };
 
         calls.push(DebugCallFlat {
@@ -116,6 +119,7 @@ impl DebugNamespace {
             },
             result,
             subtraces,
+            error,
             trace_address: trace_address.clone(), // Clone the current trace address
             transaction_position: meta.index_in_block,
             transaction_hash: meta.tx_hash,

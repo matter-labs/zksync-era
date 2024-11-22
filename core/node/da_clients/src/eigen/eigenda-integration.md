@@ -23,7 +23,7 @@ da_client:
     disperser_rpc: <your_desired_disperser>
     eth_confirmation_depth: -1
     eigenda_eth_rpc: <your_desired_rpc>
-    eigenda_svc_manager_address: '0xD4A7E1Bd8015057293f0D0A557088c286942e84b'
+    eigenda_svc_manager_address: <svc_manager_addr>
     blob_size_limit: 2097152
     status_query_timeout: 1800000 # ms
     status_query_interval: 5 # ms
@@ -33,6 +33,9 @@ da_client:
     path_to_points: ./resources
     chain_id: <your_chain_id>
 ```
+
+You can find the needed variables for holesky dispersal
+[here](https://github.com/Layr-Labs/eigenda-proxy/blob/main/.env.example.holesky).
 
 Also set the private key in `etc/env/file_based/secrets.yaml`:
 
@@ -166,13 +169,7 @@ cargo run <validatorTimelockAddress> <rpc_url> <block_start>
 
 ### Testing
 
-Modify the following flag in `core/lib/config/src/configs/da_dispatcher.rs` (then restart the server)
-
-```rs
-pub const DEFAULT_USE_DUMMY_INCLUSION_DATA: bool = true;
-```
-
-And with the server running on one terminal, you can run the server integration tests on a separate terminal with the
+With the server running on one terminal, you can run the server integration tests on a separate terminal with the
 following command:
 
 ```bash
@@ -229,8 +226,6 @@ zkstack ecosystem init \
           --l1-rpc-url $HOLESKY_RPC_URL \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_holesky_eigen_da \
-          --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --prover-db-name=zksync_prover_holesky_eigen_da \
           --chain holesky_eigen_da \
           --verbose
 ```

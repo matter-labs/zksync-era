@@ -7,12 +7,12 @@ use assert_matches::assert_matches;
 use zksync_system_constants::REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::{pack_block_info, L2BlockHasher},
-    AccountTreeId, Address, Execute, ExecuteTransactionCommon, L1BatchNumber, L1TxCommonData,
-    L2BlockNumber, ProtocolVersionId, StorageKey, Transaction, H256, SYSTEM_CONTEXT_ADDRESS,
-    SYSTEM_CONTEXT_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
-    SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, U256,
+    h256_to_u256, u256_to_h256, AccountTreeId, Address, Execute, ExecuteTransactionCommon,
+    L1BatchNumber, L1TxCommonData, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction, H256,
+    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+    SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
+    U256,
 };
-use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use super::{default_l1_batch, get_empty_storage, tester::VmTesterBuilder, TestedVm};
 use crate::{
