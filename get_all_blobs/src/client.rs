@@ -42,11 +42,11 @@ impl EigenClientRetriever {
             .unwrap()
             .into_inner();
 
-        if get_response.data.len() == 0 {
+        if get_response.data.is_empty() {
             panic!("Empty data returned from Disperser")
         }
 
         let data = kzgpad_rs::remove_empty_byte_from_padded_bytes(&get_response.data);
-        return Ok(Some(data));
+        Ok(Some(data))
     }
 }

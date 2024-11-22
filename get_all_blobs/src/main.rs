@@ -28,7 +28,7 @@ const COMMIT_BATCHES_SELECTOR: &str = "6edd4f12";
 async fn get_blob(commitment: &str) -> anyhow::Result<Vec<u8>> {
     let client = EigenClientRetriever::new(EIGENDA_API_URL).await?;
     let data = client
-        .get_blob_data(&commitment)
+        .get_blob_data(commitment)
         .await?
         .ok_or_else(|| anyhow::anyhow!("Blob not found"))?;
     Ok(data)
@@ -111,9 +111,8 @@ async fn decode_blob_data_input(input: &[u8]) -> anyhow::Result<Vec<BlobData>> {
 
     for pubdata_commitments in commit_batch_info.iter() {
         let pubdata_commitments_bytes = pubdata_commitments.as_bytes();
-        match get_blob_from_pubdata_commitment(pubdata_commitments_bytes).await {
-            Ok(blob_data) => blobs.push(blob_data),
-            Err(_) => (),
+        if let Ok(blob_data) = get_blob_from_pubdata_commitment(pubdata_commitments_bytes).await {
+            blobs.push(blob_data)
         }
     }
 

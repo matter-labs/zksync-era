@@ -35,12 +35,12 @@ pub mod authenticated_reply {
 }
 /// BlobAuthHeader contains information about the blob for the client to verify and sign.
 /// - Once payments are enabled, the BlobAuthHeader will contain the KZG commitment to the blob, which the client
-/// will verify and sign. Having the client verify the KZG commitment instead of calculating it avoids
-/// the need for the client to have the KZG structured reference string (SRS), which can be large.
-/// The signed KZG commitment prevents the disperser from sending a different blob to the DA Nodes
-/// than the one the client sent.
+///   will verify and sign. Having the client verify the KZG commitment instead of calculating it avoids
+///   the need for the client to have the KZG structured reference string (SRS), which can be large.
+///   The signed KZG commitment prevents the disperser from sending a different blob to the DA Nodes
+///   than the one the client sent.
 /// - In the meantime, the BlobAuthHeader contains a simple challenge parameter is used to prevent
-/// replay attacks in the event that a signature is leaked.
+///   replay attacks in the event that a signature is leaked.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BlobAuthHeader {
@@ -184,18 +184,18 @@ pub struct BlobVerificationProof {
     pub inclusion_proof: ::prost::alloc::vec::Vec<u8>,
     /// indexes of quorums in BatchHeader.quorum_numbers that match the quorums in BlobHeader.blob_quorum_params
     /// Ex. BlobHeader.blob_quorum_params = [
-    /// 	{
-    /// 		quorum_number = 0,
-    /// 		...
-    /// 	},
-    /// 	{
-    /// 		quorum_number = 3,
-    /// 		...
-    /// 	},
-    /// 	{
-    /// 		quorum_number = 5,
-    /// 		...
-    /// 	},
+    ///     {
+    ///         quorum_number = 0,
+    ///         ...
+    ///     },
+    ///     {
+    ///         quorum_number = 3,
+    ///         ...
+    ///     },
+    ///     {
+    ///         quorum_number = 5,
+    ///         ...
+    ///     },
     /// ]
     /// BatchHeader.quorum_numbers = \[0, 5, 3\] => 0x000503
     /// Then, quorum_indexes = \[0, 2, 1\] => 0x000201
@@ -246,11 +246,11 @@ pub struct BatchHeader {
 /// BlobStatus represents the status of a blob.
 /// The status of a blob is updated as the blob is processed by the disperser.
 /// The status of a blob can be queried by the client using the GetBlobStatus API.
-/// Intermediate states are states that the blob can be in while being processed, and it can be updated to a differet state:
+///   Intermediate states are states that the blob can be in while being processed, and it can be updated to a differet state:
 /// - PROCESSING
 /// - DISPERSING
 /// - CONFIRMED
-/// Terminal states are states that will not be updated to a different state:
+///   Terminal states are states that will not be updated to a different state:
 /// - FAILED
 /// - FINALIZED
 /// - INSUFFICIENT_SIGNATURES
@@ -415,7 +415,7 @@ pub mod disperser_client {
         /// 2. The Disperser sends back a BlobAuthHeader message containing information for the client to
         ///    verify and sign.
         /// 3. The client verifies the BlobAuthHeader and sends back the signed BlobAuthHeader in an
-        /// 	  AuthenticationData message.
+        ///       AuthenticationData message.
         /// 4. The Disperser verifies the signature and returns a DisperseBlobReply message.
         pub async fn disperse_blob_authenticated(
             &mut self,
