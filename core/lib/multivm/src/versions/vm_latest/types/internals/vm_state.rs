@@ -11,14 +11,14 @@ use zk_evm_1_5_0::{
     },
 };
 use zksync_system_constants::BOOTLOADER_ADDRESS;
-use zksync_types::{block::L2BlockHasher, Address, L2BlockNumber};
-use zksync_utils::h256_to_u256;
+use zksync_types::{block::L2BlockHasher, h256_to_u256, Address, L2BlockNumber};
 
 use crate::{
     interface::{
         storage::{StoragePtr, WriteStorage},
         L1BatchEnv, L2Block, SystemEnv,
     },
+    utils::bytecode::bytes_to_be_words,
     vm_latest::{
         bootloader_state::BootloaderState,
         constants::BOOTLOADER_HEAP_PAGE,
@@ -88,25 +88,20 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         DecommitterOracle::new(storage);
     let mut initial_bytecodes = vec![(
         h256_to_u256(system_env.base_system_smart_contracts.default_aa.hash),
-        system_env
-            .base_system_smart_contracts
-            .default_aa
-            .code
-            .clone(),
+        bytes_to_be_words(&system_env.base_system_smart_contracts.default_aa.code),
     )];
     if let Some(evm_emulator) = &system_env.base_system_smart_contracts.evm_emulator {
-        initial_bytecodes.push((h256_to_u256(evm_emulator.hash), evm_emulator.code.clone()));
+        initial_bytecodes.push((
+            h256_to_u256(evm_emulator.hash),
+            bytes_to_be_words(&evm_emulator.code),
+        ));
     }
     decommittment_processor.populate(initial_bytecodes, Timestamp(0));
 
     memory.populate(
         vec![(
             BOOTLOADER_CODE_PAGE,
-            system_env
-                .base_system_smart_contracts
-                .bootloader
-                .code
-                .clone(),
+            bytes_to_be_words(&system_env.base_system_smart_contracts.bootloader.code),
         )],
         Timestamp(0),
     );

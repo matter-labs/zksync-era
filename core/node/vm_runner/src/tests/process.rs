@@ -5,7 +5,7 @@ use test_casing::test_casing;
 use tokio::sync::{watch, RwLock};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_test_account::Account;
+use zksync_test_contracts::Account;
 use zksync_types::{L1BatchNumber, L2ChainId};
 use zksync_vm_executor::batch::MainBatchExecutorFactory;
 

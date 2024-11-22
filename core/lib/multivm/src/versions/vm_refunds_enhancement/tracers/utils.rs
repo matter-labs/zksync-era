@@ -9,8 +9,7 @@ use zksync_system_constants::{
     ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS,
     L1_MESSENGER_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
 };
-use zksync_types::U256;
-use zksync_utils::u256_to_h256;
+use zksync_types::{u256_to_h256, U256};
 
 use crate::vm_refunds_enhancement::{
     constants::{

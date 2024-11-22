@@ -15,6 +15,7 @@ use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_merkle_tree::{domain::ZkSyncTree, recovery::PersistenceThreadHandle, TreeInstruction};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::prepare_recovery_snapshot;
+use zksync_storage::RocksDB;
 use zksync_types::{L1BatchNumber, U256};
 
 use super::*;
@@ -543,4 +544,9 @@ async fn pruning_during_recovery_is_detected() {
         .unwrap_err();
     let err = format!("{err:#}").to_lowercase();
     assert!(err.contains("continuing recovery is impossible"), "{err}");
+
+    // Because of an abrupt error, terminating a RocksDB instance needs to be handled explicitly.
+    tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
+        .await
+        .unwrap();
 }
