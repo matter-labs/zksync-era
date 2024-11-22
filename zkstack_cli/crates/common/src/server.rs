@@ -146,9 +146,21 @@ where
             .args(additional_args)
             .env_remove("RUSTUP_TOOLCHAIN"),
         ),
-        ExecutionMode::Docker => {
-            unimplemented!()
-        }
+        ExecutionMode::Docker => Cmd::new(cmd!(
+            shell,
+            "docker run
+                --platform linux/amd64
+                --net=host
+                -v ./configs:/configs
+                -v ./chains:/chains
+                matterlabs/server-v2:latest2.0
+                --genesis-path {genesis_path}
+                --wallets-path {wallets_path}
+                --config-path {general_path}
+                --secrets-path {secrets_path}
+                --contracts-config-path {contracts_path}
+                {additional_args...}"
+        )),
     };
 
     // If we are running server in normal mode
