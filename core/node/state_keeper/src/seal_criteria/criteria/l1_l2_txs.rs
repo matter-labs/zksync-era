@@ -54,6 +54,7 @@ mod tests {
         let gas_bound = (max_single_tx_gas as f64 * close_block_at_gas_percentage).round() as u32;
         let l1_tx_count_bound =
             (gas_bound - L1_BATCH_EXECUTE_BASE_COST - 1) / L1_OPERATION_EXECUTE_COST;
+        let l1_tx_count_bound = l1_tx_count_bound.min(599);
 
         // Create an empty config and only setup fields relevant for the test.
         let config = StateKeeperConfig {
