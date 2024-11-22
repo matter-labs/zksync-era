@@ -83,27 +83,21 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
     let mut memory = SimpleMemory::default();
     let event_sink = InMemoryEventSink::default();
     let precompiles_processor = PrecompilesProcessorWithHistory::<H>::default();
+
     let mut decommittment_processor: DecommitterOracle<false, S, H> =
         DecommitterOracle::new(storage);
-
-    decommittment_processor.populate(
-        vec![(
-            h256_to_u256(system_env.base_system_smart_contracts.default_aa.hash),
-            system_env
-                .base_system_smart_contracts
-                .default_aa
-                .code
-                .clone(),
-        )],
-        Timestamp(0),
-    );
-
+    let mut initial_bytecodes = vec![(
+        h256_to_u256(system_env.base_system_smart_contracts.default_aa.hash),
+        system_env
+            .base_system_smart_contracts
+            .default_aa
+            .code
+            .clone(),
+    )];
     if let Some(evm_emulator) = &system_env.base_system_smart_contracts.evm_emulator {
-        decommittment_processor.populate(
-            vec![(h256_to_u256(evm_emulator.hash), evm_emulator.code.clone())],
-            Timestamp(0),
-        );
+        initial_bytecodes.push((h256_to_u256(evm_emulator.hash), evm_emulator.code.clone()));
     }
+    decommittment_processor.populate(initial_bytecodes, Timestamp(0));
 
     memory.populate(
         vec![(

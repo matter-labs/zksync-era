@@ -90,6 +90,25 @@ contract MockContractDeployer {
         ACCOUNT_CODE_STORAGE_CONTRACT.storeAccountConstructedCodeHash(newAddress, _salt);
         return newAddress;
     }
+
+    bytes32 constant CREATE2_PREFIX = keccak256("zksyncCreate2");
+
+    /// Mocks `create2` with real counterpart semantics, other than bytecode passed in `_input`.
+    /// @param _input bytecode to publish
+    function create2(
+        bytes32 _salt,
+        bytes32 _bytecodeHash,
+        bytes calldata _input
+    ) external payable returns (address newAddress) {
+        KNOWN_CODE_STORAGE_CONTRACT.setEVMBytecodeHash(_bytecodeHash);
+        KNOWN_CODE_STORAGE_CONTRACT.publishEVMBytecode(_input);
+
+        bytes32 hash = keccak256(
+            bytes.concat(CREATE2_PREFIX, bytes32(uint256(uint160(msg.sender))), _salt, _bytecodeHash)
+        );
+        newAddress = address(uint160(uint256(hash)));
+        ACCOUNT_CODE_STORAGE_CONTRACT.storeAccountConstructedCodeHash(newAddress, _bytecodeHash);
+    }
 }
 
 interface IAccountCodeStorage {
@@ -99,6 +118,16 @@ interface IAccountCodeStorage {
 
 interface IRecursiveContract {
     function recurse(uint _depth) external returns (uint);
+}
+
+interface IRecursiveDeployment {
+    struct EvmDeployment {
+        bytes32 bytecodeHash;
+        /// Has fixed length to enable array slicing.
+        bytes32 bytecode;
+    }
+
+    function testRecursiveDeployment(EvmDeployment[] calldata _deployments) external;
 }
 
 /// Native incrementing library. Not actually a library to simplify deployment.
@@ -154,7 +183,7 @@ uint constant EVM_EMULATOR_STIPEND = 1 << 30;
 /**
  * Mock EVM emulator used in low-level tests.
  */
-contract MockEvmEmulator is IRecursiveContract, IncrementingContract {
+contract MockEvmEmulator is IRecursiveContract, IRecursiveDeployment, IncrementingContract {
     IAccountCodeStorage constant ACCOUNT_CODE_STORAGE_CONTRACT = IAccountCodeStorage(address(0x8002));
 
     /// Set to `true` for testing logic sanity.
@@ -210,7 +239,11 @@ contract MockEvmEmulator is IRecursiveContract, IncrementingContract {
     MockContractDeployer constant CONTRACT_DEPLOYER_CONTRACT = MockContractDeployer(address(0x8006));
 
     /// Emulates EVM contract deployment and a subsequent call to it in a single transaction.
-    function testDeploymentAndCall(bytes32 _evmBytecodeHash, bytes calldata _evmBytecode) external validEvmEntry {
+    function testDeploymentAndCall(
+        bytes32 _evmBytecodeHash,
+        bytes calldata _evmBytecode,
+        bool _revert
+    ) external validEvmEntry {
         IRecursiveContract newContract = IRecursiveContract(CONTRACT_DEPLOYER_CONTRACT.create(
             _evmBytecodeHash,
             _evmBytecodeHash,
@@ -222,6 +255,69 @@ contract MockEvmEmulator is IRecursiveContract, IncrementingContract {
 
         uint gasToSend = gasleft() - EVM_EMULATOR_STIPEND;
         require(newContract.recurse{gas: gasToSend}(5) == 120, "unexpected recursive result");
+        require(!_revert, "requested revert");
+    }
+
+    function testCallToPreviousDeployment() external validEvmEntry {
+        IRecursiveContract newContract = IRecursiveContract(address(uint160(address(this)) + 1));
+        require(address(newContract).code.length > 0, "contract code length");
+        require(address(newContract).codehash != bytes32(0), "contract code hash");
+
+        uint gasToSend = gasleft() - EVM_EMULATOR_STIPEND;
+        require(newContract.recurse{gas: gasToSend}(5) == 120, "unexpected recursive result");
+    }
+
+    function testRecursiveDeployment(EvmDeployment[] calldata _deployments) external override validEvmEntry {
+        if (_deployments.length == 0) {
+            return;
+        }
+
+        IRecursiveDeployment newContract = IRecursiveDeployment(CONTRACT_DEPLOYER_CONTRACT.create(
+            _deployments[0].bytecodeHash,
+            _deployments[0].bytecodeHash,
+            bytes.concat(_deployments[0].bytecode)
+        ));
+        uint gasToSend = gasleft() - EVM_EMULATOR_STIPEND;
+        newContract.testRecursiveDeployment{gas: gasToSend}(_deployments[1:]);
+    }
+
+    function testDeploymentWithPartialRevert(
+        EvmDeployment[] calldata _deployments,
+        bool[] calldata _shouldRevert
+    ) external validEvmEntry {
+        require(_deployments.length == _shouldRevert.length, "length mismatch");
+
+        for (uint i = 0; i < _deployments.length; i++) {
+            uint gasToSend = gasleft() - EVM_EMULATOR_STIPEND;
+            try this.deployThenRevert{gas: gasToSend}(
+                _deployments[i],
+                bytes32(i),
+                _shouldRevert[i]
+            ) returns(address newAddress) {
+                require(!_shouldRevert[i], "unexpected deploy success");
+                require(newAddress.code.length > 0, "contract code length");
+                require(newAddress.codehash != bytes32(0), "contract code hash");
+            } catch Error(string memory reason) {
+                require(_shouldRevert[i], "unexpected revert");
+                require(keccak256(bytes(reason)) == keccak256("requested revert"), "unexpected error");
+            }
+        }
+    }
+
+    function deployThenRevert(
+        EvmDeployment calldata _deployment,
+        bytes32 _salt,
+        bool _shouldRevert
+    ) external validEvmEntry returns (address newAddress) {
+        newAddress = CONTRACT_DEPLOYER_CONTRACT.create2(
+            _salt,
+            _deployment.bytecodeHash,
+            bytes.concat(_deployment.bytecode)
+        );
+        require(newAddress.code.length > 0, "contract code length");
+        require(newAddress.codehash != bytes32(0), "contract code hash");
+
+        require(!_shouldRevert, "requested revert");
     }
 
     fallback() external validEvmEntry {

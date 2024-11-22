@@ -76,7 +76,7 @@ impl ContractVerificationDal<'_, '_> {
 
     pub async fn add_contract_verification_request(
         &mut self,
-        query: VerificationIncomingRequest,
+        query: &VerificationIncomingRequest,
     ) -> DalResult<usize> {
         sqlx::query!(
             r#"
@@ -104,12 +104,12 @@ impl ContractVerificationDal<'_, '_> {
             query.contract_address.as_bytes(),
             // Serialization should always succeed.
             serde_json::to_string(&query.source_code_data).unwrap(),
-            query.contract_name,
+            &query.contract_name,
             query.compiler_versions.zk_compiler_version(),
             query.compiler_versions.compiler_version(),
             query.optimization_used,
-            query.optimizer_mode,
-            query.constructor_arguments.0,
+            query.optimizer_mode.as_deref(),
+            query.constructor_arguments.0.as_slice(),
             query.is_system,
             query.force_evmla,
         )
@@ -441,7 +441,7 @@ impl ContractVerificationDal<'_, '_> {
     async fn set_compiler_versions(
         &mut self,
         compiler: Compiler,
-        versions: Vec<String>,
+        versions: &[String],
     ) -> DalResult<()> {
         let mut transaction = self.storage.start_transaction().await?;
         let compiler = format!("{compiler}");
@@ -472,7 +472,7 @@ impl ContractVerificationDal<'_, '_> {
                 UNNEST($1::TEXT []) AS u (version)
             ON CONFLICT (version, compiler) DO NOTHING
             "#,
-            &versions,
+            versions,
             &compiler,
         )
         .instrument("set_compiler_versions#insert")
@@ -484,20 +484,20 @@ impl ContractVerificationDal<'_, '_> {
         transaction.commit().await
     }
 
-    pub async fn set_zksolc_versions(&mut self, versions: Vec<String>) -> DalResult<()> {
+    pub async fn set_zksolc_versions(&mut self, versions: &[String]) -> DalResult<()> {
         self.set_compiler_versions(Compiler::ZkSolc, versions).await
     }
 
-    pub async fn set_solc_versions(&mut self, versions: Vec<String>) -> DalResult<()> {
+    pub async fn set_solc_versions(&mut self, versions: &[String]) -> DalResult<()> {
         self.set_compiler_versions(Compiler::Solc, versions).await
     }
 
-    pub async fn set_zkvyper_versions(&mut self, versions: Vec<String>) -> DalResult<()> {
+    pub async fn set_zkvyper_versions(&mut self, versions: &[String]) -> DalResult<()> {
         self.set_compiler_versions(Compiler::ZkVyper, versions)
             .await
     }
 
-    pub async fn set_vyper_versions(&mut self, versions: Vec<String>) -> DalResult<()> {
+    pub async fn set_vyper_versions(&mut self, versions: &[String]) -> DalResult<()> {
         self.set_compiler_versions(Compiler::Vyper, versions).await
     }
 
@@ -567,7 +567,9 @@ mod tests {
     use std::collections::HashMap;
 
     use zksync_types::{
-        tx::IncludedTxLocation, Execute, L1BatchNumber, L2BlockNumber, ProtocolVersion,
+        contract_verification_api::{CompilerVersions, SourceCodeData},
+        tx::IncludedTxLocation,
+        Execute, L1BatchNumber, L2BlockNumber, ProtocolVersion,
     };
     use zksync_utils::bytecode::hash_bytecode;
     use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
@@ -644,5 +646,67 @@ mod tests {
         assert_eq!(contract.bytecode, bytecode);
         assert_eq!(contract.contract_address, Some(CONTRACT_DEPLOYER_ADDRESS));
         assert_eq!(contract.calldata.unwrap(), tx.execute.calldata);
+    }
+
+    async fn test_working_with_verification_requests(zksolc: Option<&str>) {
+        let request = VerificationIncomingRequest {
+            contract_address: Address::repeat_byte(11),
+            source_code_data: SourceCodeData::SolSingleFile("contract Test {}".to_owned()),
+            contract_name: "Test".to_string(),
+            compiler_versions: CompilerVersions::Solc {
+                compiler_zksolc_version: zksolc.map(str::to_owned),
+                compiler_solc_version: "0.8.27".to_owned(),
+            },
+            optimization_used: true,
+            optimizer_mode: Some("z".to_owned()),
+            constructor_arguments: web3::Bytes(b"test".to_vec()),
+            is_system: false,
+            force_evmla: true,
+        };
+
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+        let id = conn
+            .contract_verification_dal()
+            .add_contract_verification_request(&request)
+            .await
+            .unwrap();
+
+        let status = conn
+            .contract_verification_dal()
+            .get_verification_request_status(id)
+            .await
+            .unwrap()
+            .expect("request not persisted");
+        assert_eq!(status.status, "queued");
+
+        let req = conn
+            .contract_verification_dal()
+            .get_next_queued_verification_request(Duration::from_secs(600))
+            .await
+            .unwrap()
+            .expect("request not queued");
+        assert_eq!(req.id, id);
+        assert_eq!(req.req.contract_address, request.contract_address);
+        assert_eq!(req.req.contract_name, request.contract_name);
+        assert_eq!(req.req.compiler_versions, request.compiler_versions);
+        assert_eq!(req.req.optimization_used, request.optimization_used);
+        assert_eq!(req.req.optimizer_mode, request.optimizer_mode);
+        assert_eq!(req.req.constructor_arguments, request.constructor_arguments);
+        assert_eq!(req.req.is_system, request.is_system);
+        assert_eq!(req.req.force_evmla, request.force_evmla);
+
+        let maybe_req = conn
+            .contract_verification_dal()
+            .get_next_queued_verification_request(Duration::from_secs(600))
+            .await
+            .unwrap();
+        assert!(maybe_req.is_none());
+    }
+
+    #[tokio::test]
+    async fn working_with_verification_requests() {
+        test_working_with_verification_requests(None).await;
+        test_working_with_verification_requests(Some("1.5.7")).await;
     }
 }
