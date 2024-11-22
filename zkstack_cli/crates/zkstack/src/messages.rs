@@ -104,7 +104,8 @@ pub(super) const MSG_RECREATE_ROCKS_DB_ERRROR: &str = "Failed to create rocks db
 pub(super) const MSG_ERA_OBSERVABILITY_ALREADY_SETUP: &str = "Era observability already setup";
 pub(super) const MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER: &str =
     "Downloading era observability...";
-pub(super) const MSG_WALLETS_PATH_PROMPT: &str = "Provide the path to the wallets";
+pub(super) const MSG_WALLETS_PATH_PROMPT: &str =
+    "Provide the path to L1 wallets config. It should contain governance and operator wallets.";
 
 pub(super) fn msg_ecosystem_no_found_preexisting_contract(chains: &str) -> String {
     format!("Not found preexisting ecosystem Contracts with chains {chains}")
