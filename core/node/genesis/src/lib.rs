@@ -128,7 +128,12 @@ impl GenesisParams {
             // duplicating all of that work.
             self.system_contracts
                 .iter()
-                .map(|c| (hash_bytecode(&c.bytecode), c.bytecode.clone()))
+                .map(|c| {
+                    (
+                        BytecodeHash::for_bytecode(&c.bytecode).value(),
+                        c.bytecode.clone(),
+                    )
+                })
                 .collect()
         }
     }
