@@ -91,6 +91,7 @@ pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()>
     }
 
     let chain = ZkStackConfig::current_chain(shell).context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    let ecosystem = ZkStackConfig::ecosystem(shell).ok();
 
     match cmd {
         ChainCommands::Create(args) => create::run(args, shell),
@@ -99,23 +100,59 @@ pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()>
         ChainCommands::Genesis(args) => genesis::run(args, shell, chain).await,
         ChainCommands::RegisterChain(args) => register_chain::run(args, shell).await,
         ChainCommands::DeployL2Contracts(args) => {
-            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::All).await
+            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::All, chain, ecosystem)
+                .await
         }
         ChainCommands::AcceptChainOwnership(args) => accept_chain_ownership::run(args, shell).await,
         ChainCommands::DeployConsensusRegistry(args) => {
-            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::ConsensusRegistry).await
+            deploy_l2_contracts::run(
+                args,
+                shell,
+                Deploy2ContractsOption::ConsensusRegistry,
+                chain,
+                ecosystem,
+            )
+            .await
         }
         ChainCommands::DeployMulticall3(args) => {
-            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Multicall3).await
+            deploy_l2_contracts::run(
+                args,
+                shell,
+                Deploy2ContractsOption::Multicall3,
+                chain,
+                ecosystem,
+            )
+            .await
         }
         ChainCommands::DeployTimestampAsserter(args) => {
-            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::TimestampAsserter).await
+            deploy_l2_contracts::run(
+                args,
+                shell,
+                Deploy2ContractsOption::TimestampAsserter,
+                chain,
+                ecosystem,
+            )
+            .await
         }
         ChainCommands::DeployUpgrader(args) => {
-            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Upgrader).await
+            deploy_l2_contracts::run(
+                args,
+                shell,
+                Deploy2ContractsOption::Upgrader,
+                chain,
+                ecosystem,
+            )
+            .await
         }
         ChainCommands::InitializeBridges(args) => {
-            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::InitiailizeBridges).await
+            deploy_l2_contracts::run(
+                args,
+                shell,
+                Deploy2ContractsOption::InitiailizeBridges,
+                chain,
+                ecosystem,
+            )
+            .await
         }
         ChainCommands::DeployPaymaster(args) => deploy_paymaster::run(args, shell, chain).await,
         ChainCommands::UpdateTokenMultiplierSetter(args) => {

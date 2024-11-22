@@ -19,17 +19,13 @@ use config::{
     },
     get_default_era_chain_id,
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    zkstack_config::ZkStackConfig,
-    ChainConfig, ContractsConfig, WalletsConfig,
+    ChainConfig, ContractsConfig, EcosystemConfig, WalletsConfig,
 };
 use xshell::Shell;
 use zksync_basic_types::L2ChainId;
 
 use crate::{
-    messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_L2_CONTRACT_SPINNER,
-        MSG_L1_SECRETS_MUST_BE_PRESENTED,
-    },
+    messages::{MSG_DEPLOYING_L2_CONTRACT_SPINNER, MSG_L1_SECRETS_MUST_BE_PRESENTED},
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
@@ -46,10 +42,9 @@ pub async fn run(
     args: ForgeScriptArgs,
     shell: &Shell,
     deploy_option: Deploy2ContractsOption,
+    chain: ChainConfig,
+    ecosystem: Option<EcosystemConfig>,
 ) -> anyhow::Result<()> {
-    let chain = ZkStackConfig::current_chain(shell).context(MSG_CHAIN_NOT_INITIALIZED)?;
-    let ecosystem = ZkStackConfig::ecosystem(shell).ok();
-
     let mut contracts = chain.get_contracts_config()?;
     let era_chain_id = ecosystem
         .as_ref()
