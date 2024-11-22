@@ -8428,6 +8428,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "boojum-cuda",
  "circuit_definitions",
  "futures 0.3.30",
  "hex",

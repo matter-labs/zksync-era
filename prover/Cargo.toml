@@ -74,6 +74,7 @@ zkevm_test_harness = "=0.150.16"
 # GPU proving dependencies
 wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.152.8" }
 shivini = "=0.152.8"
+boojum-cuda = "=0.152.8"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }
