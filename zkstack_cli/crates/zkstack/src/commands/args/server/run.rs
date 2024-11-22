@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 
 use crate::messages::{
@@ -6,8 +6,27 @@ use crate::messages::{
     MSG_SERVER_URING_HELP,
 };
 
+#[derive(Clone, Debug, Serialize, Deserialize, ValueEnum)]
+pub enum ExecutionMode {
+    Release,
+    Debug,
+    Docker,
+}
+
+impl From<ExecutionMode> for common::server::ExecutionMode {
+    fn from(mode: ExecutionMode) -> Self {
+        match mode {
+            ExecutionMode::Debug => Self::Debug,
+            ExecutionMode::Release => Self::Release,
+            ExecutionMode::Docker => Self::Docker,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct RunServerArgs {
+    #[arg(long, default_value = "release")]
+    pub mode: ExecutionMode,
     #[arg(long, help = MSG_SERVER_COMPONENTS_HELP)]
     pub components: Option<Vec<String>>,
     #[arg(long, help = MSG_SERVER_GENESIS_HELP)]

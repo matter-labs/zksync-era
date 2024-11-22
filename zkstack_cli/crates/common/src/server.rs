@@ -20,6 +20,15 @@ pub enum ServerMode {
     Genesis,
 }
 
+/// Possible execution modes.
+#[derive(Debug, Default)]
+pub enum ExecutionMode {
+    #[default]
+    Release,
+    Debug,
+    Docker,
+}
+
 impl Server {
     /// Creates a new instance of the server.
     pub fn new(components: Option<Vec<String>>, code_path: PathBuf, uring: bool) -> Self {
@@ -35,6 +44,7 @@ impl Server {
     pub fn run<P>(
         &self,
         shell: &Shell,
+        execution_mode: ExecutionMode,
         server_mode: ServerMode,
         genesis_path: P,
         wallets_path: P,
@@ -57,7 +67,7 @@ impl Server {
 
         let uring = self.uring.then_some("--features=rocksdb/io-uring");
 
-        run_binary_component(
+        run_server(
             shell,
             uring,
             genesis_path,
@@ -66,6 +76,7 @@ impl Server {
             secrets_path,
             contracts_path,
             additional_args,
+            execution_mode,
             server_mode,
         )?;
 
@@ -91,7 +102,7 @@ impl Server {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn run_binary_component<P>(
+fn run_server<P>(
     shell: &Shell,
     uring: Option<&str>,
     genesis_path: P,
@@ -100,25 +111,45 @@ fn run_binary_component<P>(
     secrets_path: P,
     contracts_path: P,
     additional_args: Vec<String>,
+    execution_mode: ExecutionMode,
     server_mode: ServerMode,
 ) -> anyhow::Result<()>
 where
     P: AsRef<OsStr>,
 {
-    let mut cmd = Cmd::new(
-        cmd!(
-            shell,
-            "cargo run --release --bin zksync_server {uring...} --
-            --genesis-path {genesis_path}
-            --wallets-path {wallets_path}
-            --config-path {general_path}
-            --secrets-path {secrets_path}
-            --contracts-config-path {contracts_path}
-            "
-        )
-        .args(additional_args)
-        .env_remove("RUSTUP_TOOLCHAIN"),
-    );
+    let mut cmd = match execution_mode {
+        ExecutionMode::Release => Cmd::new(
+            cmd!(
+                shell,
+                "cargo run --release --bin zksync_server {uring...} --
+                    --genesis-path {genesis_path}
+                    --wallets-path {wallets_path}
+                    --config-path {general_path}
+                    --secrets-path {secrets_path}
+                    --contracts-config-path {contracts_path}
+                    "
+            )
+            .args(additional_args)
+            .env_remove("RUSTUP_TOOLCHAIN"),
+        ),
+        ExecutionMode::Debug => Cmd::new(
+            cmd!(
+                shell,
+                "cargo run --bin zksync_server {uring...} --
+                    --genesis-path {genesis_path}
+                    --wallets-path {wallets_path}
+                    --config-path {general_path}
+                    --secrets-path {secrets_path}
+                    --contracts-config-path {contracts_path}
+                    "
+            )
+            .args(additional_args)
+            .env_remove("RUSTUP_TOOLCHAIN"),
+        ),
+        ExecutionMode::Docker => {
+            unimplemented!()
+        }
+    };
 
     // If we are running server in normal mode
     // we need to get the output to the console

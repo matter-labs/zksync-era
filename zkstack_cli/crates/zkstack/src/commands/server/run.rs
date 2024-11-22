@@ -26,15 +26,17 @@ pub(super) fn run_server(
         args.uring,
     );
 
-    let mode = if args.genesis {
+    let server_mode = if args.genesis {
         ServerMode::Genesis
     } else {
         ServerMode::Normal
     };
+
     server
         .run(
             shell,
-            mode,
+            args.mode.into(),
+            server_mode,
             GenesisConfig::get_path_with_base_path(&chain_config.configs),
             WalletsConfig::get_path_with_base_path(&chain_config.configs),
             GeneralConfig::get_path_with_base_path(&chain_config.configs),

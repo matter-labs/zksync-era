@@ -1,7 +1,7 @@
 use anyhow::Context;
 use common::{
     logger,
-    server::{Server, ServerMode},
+    server::{ExecutionMode, Server, ServerMode},
     spinner::Spinner,
 };
 use config::{
@@ -34,6 +34,7 @@ pub fn run_server_genesis(chain_config: &ChainConfig, shell: &Shell) -> anyhow::
     server
         .run(
             shell,
+            ExecutionMode::default(),
             ServerMode::Genesis,
             GenesisConfig::get_path_with_base_path(&chain_config.configs),
             WalletsConfig::get_path_with_base_path(&chain_config.configs),
