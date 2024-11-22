@@ -17,8 +17,7 @@
             "kind": {
               "Enum": [
                 "ProtocolUpgrades",
-                "PriorityTransactions",
-                "ChainBatchRoot"
+                "PriorityTransactions"
               ]
             }
           }
