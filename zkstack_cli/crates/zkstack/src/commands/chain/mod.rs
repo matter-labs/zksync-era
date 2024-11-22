@@ -103,7 +103,9 @@ pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()>
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::All, chain, ecosystem)
                 .await
         }
-        ChainCommands::AcceptChainOwnership(args) => accept_chain_ownership::run(args, shell).await,
+        ChainCommands::AcceptChainOwnership(args) => {
+            accept_chain_ownership::run(args, shell, chain).await
+        }
         ChainCommands::DeployConsensusRegistry(args) => {
             deploy_l2_contracts::run(
                 args,
