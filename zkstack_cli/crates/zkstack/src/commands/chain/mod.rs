@@ -94,7 +94,6 @@ pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()>
     let ecosystem = ZkStackConfig::ecosystem(shell).ok();
 
     match cmd {
-        ChainCommands::Create(args) => create::run(args, shell),
         ChainCommands::Init(args) => init::run(*args, shell, chain, ecosystem).await,
         ChainCommands::BuildTransactions(args) => {
             build_transactions::run(args, shell, chain, ecosystem).await
@@ -165,5 +164,6 @@ pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()>
         ChainCommands::Server(args) => server::run(shell, args, chain).await,
         ChainCommands::ContractVerifier(args) => contract_verifier::run(shell, args, chain).await,
         ChainCommands::Consensus(cmd) => cmd.run(shell).await,
+        ChainCommands::Create(_) => unreachable!("Chain create is handled before loading chain"),
     }
 }
