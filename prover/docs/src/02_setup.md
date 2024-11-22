@@ -6,7 +6,7 @@ machine in place, e.g. a compatible local machine or a prepared GCP VM.
 ## ZKsync repo setup
 
 If you haven't already, you need to initialize the ZKsync repository first. Follow
-[this guide](../../docs/guides/setup-dev.md) for that.
+[this guide](https://matter-labs.github.io/zksync-era/core/latest/guides/setup-dev.html) for that.
 
 Before proceeding, make sure that you can run the server and integration tests pass.
 

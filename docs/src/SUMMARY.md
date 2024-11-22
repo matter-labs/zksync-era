@@ -8,12 +8,12 @@
 
 - [Basic](guides/README.md)
 
-  - [Architecture](guides/architecture.md)
-  - [Build Docker](guides/build-docker.md)
+  - [Setup Dev](guides/setup-dev.md)
   - [Development](guides/development.md)
   - [Launch](guides/launch.md)
+  - [Architecture](guides/architecture.md)
+  - [Build Docker](guides/build-docker.md)
   - [Repositories](guides/repositories.md)
-  - [Setup Dev](guides/setup-dev.md)
 
 - [Advanced](guides/advanced/README.md)
   - [Local initialization](guides/advanced/01_initialization.md)
