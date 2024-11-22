@@ -67,17 +67,17 @@ url = "2.5.2"
 vise = "0.2.0"
 
 # Proving dependencies
-circuit_definitions = { package = "circuit_definitions", version = "=0.150.15" }
-circuit_sequencer_api = { package = "circuit_sequencer_api", version = "=0.150.15" }
-zkevm_test_harness = { package = "zkevm_test_harness", version = "=0.150.15" }
-proof-compression-gpu = { package = "proof-compression", version = "=0.152.7" }
-fflonk-gpu = { package = "fflonk-cuda", version = "=0.152.7" }
-franklin-crypto = { package = "franklin-crypto", version = "=0.30.8" }
+circuit_definitions = { package = "circuit_definitions", git = "https://github.com/matter-labs/zksync-protocol.git", branch = "fflonk" }
+circuit_sequencer_api = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/zksync-protocol.git", branch = "fflonk" }
+zkevm_test_harness = { package = "zkevm_test_harness", git = "https://github.com/matter-labs/zksync-protocol.git", branch = "fflonk" }
+proof-compression-gpu = { package = "proof-compression", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "fflonk" }
+fflonk-gpu = { package = "fflonk-cuda", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "fflonk" }
+franklin-crypto = { package = "franklin-crypto", git = "https://github.com/matter-labs/zksync-crypto.git", branch = "fflonk" }
 
 # GPU proving dependencies
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.152.7"}
-shivini = { package = "shivini", version = "=0.152.7"}
-boojum-cuda = { package = "boojum-cuda", version = "=0.152.7" }
+wrapper_prover = { package = "zksync-wrapper-prover", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "fflonk" }
+shivini = { package = "shivini", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "fflonk" }
+boojum-cuda = { package = "boojum-cuda", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "fflonk" }
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }
