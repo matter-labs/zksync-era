@@ -19,11 +19,18 @@ impl SealCriterion for L1L2TxsCriterion {
         _tx_data: &SealData,
         _protocol_version_id: ProtocolVersionId,
     ) -> SealResolution {
+        // With current gas consumption it's possible to execute 600 L1->L2 txs with 7500000 L1 gas.
+        const L1_L2_TX_COUNT_LIMIT: usize = 600;
+
         let block_l1_gas_bound =
             (config.max_single_tx_gas as f64 * config.close_block_at_gas_percentage).round() as u32;
         let l1_gas = L1_BATCH_EXECUTE_BASE_COST + (l1_tx_count as u32) * L1_OPERATION_EXECUTE_COST;
 
-        if l1_gas >= block_l1_gas_bound {
+        // We check not only gas against `block_l1_gas_bound` but also count against `L1_L2_TX_COUNT_LIMIT`.
+        // It's required in case `max_single_tx_gas` is set to some high value for gateway,
+        // then chain migrates to L1 and there is some batch with large number of L1->L2 txs that is not yet executed.
+        // This check guarantees that it will be possible to execute such batch with reasonable gas limit on L1.
+        if l1_gas >= block_l1_gas_bound || l1_tx_count >= L1_L2_TX_COUNT_LIMIT {
             SealResolution::IncludeAndSeal
         } else {
             SealResolution::NoSeal
