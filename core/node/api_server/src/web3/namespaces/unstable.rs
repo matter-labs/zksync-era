@@ -42,7 +42,7 @@ impl UnstableNamespace {
         tee_type: Option<TeeType>,
     ) -> Result<Vec<TeeProof>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
-        Ok(storage
+        let proofs = storage
             .tee_proof_generation_dal()
             .get_tee_proofs(l1_batch_number, tee_type)
             .await
@@ -55,8 +55,11 @@ impl UnstableNamespace {
                 signature: proof.signature,
                 proof: proof.proof,
                 proved_at: DateTime::<Utc>::from_naive_utc_and_offset(proof.updated_at, Utc),
+                status: proof.status,
                 attestation: proof.attestation,
             })
-            .collect::<Vec<_>>())
+            .collect::<Vec<_>>();
+
+        Ok(proofs)
     }
 }

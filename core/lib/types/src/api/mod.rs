@@ -878,6 +878,7 @@ pub struct TeeProof {
     #[serde_as(as = "Option<Hex>")]
     pub proof: Option<Vec<u8>>,
     pub proved_at: DateTime<Utc>,
+    pub status: String,
     #[serde_as(as = "Option<Hex>")]
     pub attestation: Option<Vec<u8>>,
 }
