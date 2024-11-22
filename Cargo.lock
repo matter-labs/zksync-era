@@ -2224,6 +2224,7 @@ dependencies = [
  "futures 0.3.31",
  "sqlx",
  "tokio",
+ "zksync_types",
 ]
 
 [[package]]

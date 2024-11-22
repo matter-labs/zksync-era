@@ -158,7 +158,7 @@ impl GenesisParams {
             return Err(GenesisError::MalformedConfig("protocol_version"));
         }
         eprintln!("About to load custom genesis...");
-        let path = "/Users/jacob/Projects/zksync-era/core/bin/custom_genesis_export/g3.bin";
+        let path = "/Users/jacob/Projects/zksync-era/core/bin/custom_genesis_export/gexport.bin";
         let genesis_export_reader = Some(GenesisExportReader::new(
             File::open(path).expect("custom genesis file could not be opened"),
         ));

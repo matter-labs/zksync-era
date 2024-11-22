@@ -20,3 +20,5 @@ sqlx = { workspace = true, features = [
     "postgres",
 ] }
 tokio = { workspace = true, features = ["full"] }
+
+zksync_types.workspace = true
