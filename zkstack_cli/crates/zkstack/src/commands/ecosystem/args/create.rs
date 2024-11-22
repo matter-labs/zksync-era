@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, ValueHint};
 use common::{Prompt, PromptConfirm, PromptSelect};
-use config::get_default_era_chain_id;
+use config::{get_default_era_chain_id, WALLETS_FILE};
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use strum::IntoEnumIterator;
@@ -54,8 +54,8 @@ impl EcosystemCreateArgs {
         self.chain.set_as_default = Some(true);
 
         let chains_path = PathBuf::from("chains");
-
         let era_chain_id = get_default_era_chain_id();
+        let l1_wallets_path = PathBuf::from("configs").join(WALLETS_FILE);
 
         let chain = self.chain.fill_values_with_prompt(
             shell,
@@ -66,6 +66,7 @@ impl EcosystemCreateArgs {
             Some(link_to_code.clone()),
             Some(chains_path),
             era_chain_id,
+            Some(l1_wallets_path),
         )?;
 
         let start_containers = self.start_containers.unwrap_or_else(|| {

@@ -39,6 +39,7 @@ pub struct ChainConfigInternal {
     pub link_to_code: Option<PathBuf>,
     pub external_node_config_path: Option<PathBuf>,
     pub artifacts_path: Option<PathBuf>,
+    pub l1_wallets_path: Option<PathBuf>,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub base_token: BaseToken,
     pub wallet_creation: WalletCreation,
@@ -68,6 +69,7 @@ pub struct ChainConfig {
     pub shell: OnceCell<Shell>,
     pub legacy_bridge: Option<bool>,
     pub evm_emulator: bool,
+    pub l1_wallets_path: PathBuf,
 }
 
 impl Serialize for ChainConfig {
@@ -172,6 +174,7 @@ impl ChainConfig {
             wallet_creation: self.wallet_creation,
             legacy_bridge: self.legacy_bridge,
             evm_emulator: self.evm_emulator,
+            l1_wallets_path: Some(self.l1_wallets_path.clone()),
         }
     }
 
@@ -186,6 +189,9 @@ impl ChainConfig {
         let artifacts = chain_internal
             .artifacts_path
             .context("Artifacts path not found")?;
+        let l1_wallets_path = chain_internal
+            .l1_wallets_path
+            .context("L1 wallets path not found")?;
 
         Ok(Self {
             id: chain_internal.id,
@@ -204,6 +210,7 @@ impl ChainConfig {
             artifacts,
             evm_emulator: chain_internal.evm_emulator,
             shell: shell.into(),
+            l1_wallets_path,
         })
     }
 }
