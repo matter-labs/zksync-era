@@ -76,6 +76,16 @@ impl CommitmentComputer for RealCommitmentComputer {
     }
 }
 
+fn expand_memory_contents(packed: &[(usize, U256)], memory_size_bytes: usize) -> Vec<u8> {
+    let mut result: Vec<u8> = vec![0; memory_size_bytes];
+
+    for (offset, value) in packed {
+        value.to_big_endian(&mut result[(offset * 32)..(offset + 1) * 32]);
+    }
+
+    result
+}
+
 fn to_log_query_1_5_0(log_query: LogQuery) -> LogQuery_1_5_0 {
     LogQuery_1_5_0 {
         timestamp: Timestamp_1_5_0(log_query.timestamp.0),
