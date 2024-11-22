@@ -2,17 +2,11 @@
 //! these tests are placed here.
 
 use assert_matches::assert_matches;
-use ethabi::Contract;
-use zksync_contracts::{
-    get_loadnext_contract, load_contract, read_bytecode,
-    test_contracts::LoadnextContractExecutionParams,
-};
-use zksync_test_account::{Account, TxType};
+use zksync_test_contracts::{Account, LoadnextContractExecutionParams, TestContract, TxType};
 use zksync_types::{
     block::L2BlockHasher, fee::Fee, AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber,
     ProtocolVersionId, StorageKey, H256, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{
     interface::{
@@ -61,13 +55,11 @@ struct Harness {
     alice: Account,
     bob: Account,
     storage_contract: ContractToDeploy,
-    storage_contract_abi: Contract,
+    storage_contract_abi: &'static ethabi::Contract,
     current_block: L2BlockEnv,
 }
 
 impl Harness {
-    const STORAGE_CONTRACT_PATH: &'static str =
-        "etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json";
     const STORAGE_CONTRACT_ADDRESS: Address = Address::repeat_byte(23);
 
     fn new(l1_batch_env: &L1BatchEnv) -> Self {
@@ -75,10 +67,10 @@ impl Harness {
             alice: Account::from_seed(0),
             bob: Account::from_seed(1),
             storage_contract: ContractToDeploy::new(
-                read_bytecode(Self::STORAGE_CONTRACT_PATH),
+                TestContract::storage_test().bytecode.to_vec(),
                 Self::STORAGE_CONTRACT_ADDRESS,
             ),
-            storage_contract_abi: load_contract(Self::STORAGE_CONTRACT_PATH),
+            storage_contract_abi: &TestContract::storage_test().abi,
             current_block: l1_batch_env.first_l2_block,
         }
     }
@@ -178,7 +170,7 @@ impl Harness {
         self.new_block(vm, &[out_of_gas_transfer.hash(), simple_write_tx.hash()]);
 
         let deploy_tx = self.alice.get_deploy_tx(
-            &get_loadnext_contract().bytecode,
+            TestContract::load_test().bytecode,
             Some(&[ethabi::Token::Uint(100.into())]),
             TxType::L2,
         );
@@ -207,7 +199,7 @@ where
 {
     let system_env = default_system_env();
     let l1_batch_env = default_l1_batch(L1BatchNumber(1));
-    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+    let mut storage = InMemoryStorage::with_system_contracts();
     let mut harness = Harness::new(&l1_batch_env);
     harness.setup_storage(&mut storage);
 
@@ -231,7 +223,7 @@ fn sanity_check_harness_on_new_vm() {
 fn sanity_check_shadow_vm() {
     let system_env = default_system_env();
     let l1_batch_env = default_l1_batch(L1BatchNumber(1));
-    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+    let mut storage = InMemoryStorage::with_system_contracts();
     let mut harness = Harness::new(&l1_batch_env);
     harness.setup_storage(&mut storage);
 
@@ -258,7 +250,7 @@ fn shadow_vm_basics() {
     pretty_assertions::assert_eq!(replayed_dump, dump);
 
     // Check that the VM executes identically when reading from the original storage and one restored from the dump.
-    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+    let mut storage = InMemoryStorage::with_system_contracts();
     harness.setup_storage(&mut storage);
     let storage = StorageView::new(storage).to_rc_ptr();
 

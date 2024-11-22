@@ -12,10 +12,10 @@ use tower::ServiceExt;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_node_test_utils::create_l2_block;
 use zksync_types::{
-    contract_verification_api::CompilerVersions, get_code_key, Address, L2BlockNumber,
-    ProtocolVersion, StorageLog,
+    bytecode::{BytecodeHash, BytecodeMarker},
+    contract_verification_api::CompilerVersions,
+    get_code_key, Address, L2BlockNumber, ProtocolVersion, StorageLog,
 };
-use zksync_utils::bytecode::{hash_bytecode, hash_evm_bytecode, BytecodeMarker};
 
 use super::*;
 use crate::api_impl::ApiError;
@@ -53,8 +53,8 @@ async fn mock_deploy_contract(
     kind: BytecodeMarker,
 ) {
     let bytecode_hash = match kind {
-        BytecodeMarker::EraVm => hash_bytecode(&[0; 32]),
-        BytecodeMarker::Evm => hash_evm_bytecode(&[0; 96]),
+        BytecodeMarker::EraVm => BytecodeHash::for_bytecode(&[0; 32]).value(),
+        BytecodeMarker::Evm => BytecodeHash::for_evm_bytecode(&[0; 96]).value(),
     };
     let deploy_log = StorageLog::new_write_log(get_code_key(&address), bytecode_hash);
     storage

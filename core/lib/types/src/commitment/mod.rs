@@ -17,7 +17,6 @@ use zksync_system_constants::{
     KNOWN_CODES_STORAGE_ADDRESS, L2_TO_L1_LOGS_TREE_ROOT_KEY, STATE_DIFF_HASH_KEY_PRE_GATEWAY,
     ZKPORTER_IS_AVAILABLE,
 };
-use zksync_utils::u256_to_h256;
 
 use crate::{
     blob::num_blobs_required,
@@ -26,6 +25,7 @@ use crate::{
         l2_to_l1_logs_tree_size, parse_system_logs_for_blob_hashes_pre_gateway, L2ToL1Log,
         SystemL2ToL1Log, UserL2ToL1Log,
     },
+    u256_to_h256,
     web3::keccak256,
     writes::{
         compress_state_diffs, InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord,

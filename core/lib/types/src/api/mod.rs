@@ -4,7 +4,6 @@ use serde_json::Value;
 use serde_with::{hex::Hex, serde_as};
 use strum::Display;
 use zksync_basic_types::{
-    tee_types::TeeType,
     web3::{AccessList, Bytes, Index},
     Bloom, L1BatchNumber, H160, H256, H64, U256, U64,
 };
@@ -16,6 +15,7 @@ pub use crate::transaction_request::{
 use crate::{
     debug_flat_call::{DebugCallFlat, ResultDebugCallFlat},
     protocol_version::L1VerifierConfig,
+    tee_types::TeeType,
     Address, L2BlockNumber, ProtocolVersionId,
 };
 
@@ -515,6 +515,9 @@ pub struct Transaction {
     pub gas: U256,
     /// Input data
     pub input: Bytes,
+    /// The parity (0 for even, 1 for odd) of the y-value of the secp256k1 signature
+    #[serde(rename = "yParity", default, skip_serializing_if = "Option::is_none")]
+    pub y_parity: Option<U64>,
     /// ECDSA recovery id
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub v: Option<U64>,

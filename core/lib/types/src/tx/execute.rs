@@ -1,9 +1,12 @@
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use zksync_basic_types::bytecode::BytecodeHash;
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
-use zksync_utils::{bytecode::hash_bytecode, ZeroPrefixHexSerde};
 
-use crate::{ethabi, Address, EIP712TypedStructure, StructBuilder, H256, U256};
+use crate::{
+    ethabi, serde_wrappers::ZeroPrefixHexSerde, Address, EIP712TypedStructure, StructBuilder, H256,
+    U256,
+};
 
 /// This struct is the `serde` schema for the `Execute` struct.
 /// It allows us to modify `Execute` struct without worrying
@@ -124,7 +127,7 @@ impl Execute {
         contract_bytecode: Vec<u8>,
         constructor_input: &[ethabi::Token],
     ) -> Self {
-        let bytecode_hash = hash_bytecode(&contract_bytecode);
+        let bytecode_hash = BytecodeHash::for_bytecode(&contract_bytecode).value();
         Self {
             contract_address: Some(CONTRACT_DEPLOYER_ADDRESS),
             calldata: Self::encode_deploy_params_create(
@@ -134,6 +137,16 @@ impl Execute {
             ),
             value: 0.into(),
             factory_deps: vec![contract_bytecode],
+        }
+    }
+
+    /// Creates an instance for transferring base token to the specified recipient.
+    pub fn transfer(to: Address, value: U256) -> Self {
+        Self {
+            contract_address: Some(to),
+            calldata: vec![],
+            value,
+            factory_deps: vec![],
         }
     }
 }

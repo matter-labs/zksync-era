@@ -5,8 +5,7 @@ use async_trait::async_trait;
 use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_storage::RocksDB;
-use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
-use zksync_utils::u256_to_h256;
+use zksync_types::{u256_to_h256, L1BatchNumber, StorageKey, StorageValue, H256};
 use zksync_vm_interface::storage::{ReadStorage, StorageSnapshot};
 
 use self::metrics::{SnapshotStage, SNAPSHOT_METRICS};
@@ -201,10 +200,7 @@ impl CommonStorage<'static> {
 
         let factory_deps = bytecodes
             .into_iter()
-            .map(|(hash_u256, words)| {
-                let bytes: Vec<u8> = words.into_iter().flatten().collect();
-                (u256_to_h256(hash_u256), bytes)
-            })
+            .map(|(hash_u256, bytes)| (u256_to_h256(hash_u256), bytes))
             .collect();
 
         let storage = previous_values.into_iter().map(|(key, prev_value)| {

@@ -30,13 +30,12 @@ impl ProtoRepr for proto::Db {
                 .map(|count| NonZeroU32::new(count).context("cannot be 0"))
                 .transpose()
                 .context("state_keeper_db_max_open_files")?,
-            protective_reads_persistence_enabled: self
-                .reads_persistence_enabled
-                .unwrap_or_default(),
+            protective_reads_persistence_enabled: self.reads_persistence_enabled.unwrap_or(false),
             processing_delay_ms: self.processing_delay_ms.unwrap_or_default(),
             include_indices_and_filters_in_block_cache: self
                 .include_indices_and_filters_in_block_cache
-                .unwrap_or_default(),
+                .unwrap_or(false),
+            merkle_tree_repair_stale_keys: self.merkle_tree_repair_stale_keys.unwrap_or(false),
         })
     }
 
@@ -55,6 +54,7 @@ impl ProtoRepr for proto::Db {
             include_indices_and_filters_in_block_cache: Some(
                 this.include_indices_and_filters_in_block_cache,
             ),
+            merkle_tree_repair_stale_keys: Some(this.merkle_tree_repair_stale_keys),
         }
     }
 }

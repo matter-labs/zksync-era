@@ -2,8 +2,10 @@ use zk_evm_1_3_3::{
     aux_structures::{LogQuery as LogQuery_1_3_3, Timestamp as Timestamp_1_3_3},
     zkevm_opcode_defs::FarCallOpcode as FarCallOpcode_1_3_3,
 };
-use zksync_types::zk_evm_types::{FarCallOpcode, LogQuery, Timestamp};
-use zksync_utils::u256_to_h256;
+use zksync_types::{
+    u256_to_h256,
+    zk_evm_types::{FarCallOpcode, LogQuery, Timestamp},
+};
 
 use crate::glue::{GlueFrom, GlueInto};
 

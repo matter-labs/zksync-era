@@ -7,8 +7,7 @@ use zksync_multivm::{
     interface::{TransactionExecutionMetrics, VmEvent, VmExecutionResultAndLogs},
     utils::StorageWritesDeduplicator,
 };
-use zksync_types::H256;
-use zksync_utils::bytecode::bytecode_len_in_bytes;
+use zksync_types::{bytecode::BytecodeHash, H256};
 
 use crate::utils::ReportFilter;
 
@@ -149,7 +148,11 @@ pub(super) fn collect_tx_execution_metrics(
         .sum();
     let published_bytecode_bytes = VmEvent::extract_published_bytecodes(&result.logs.events)
         .iter()
-        .map(|bytecode_hash| bytecode_len_in_bytes(*bytecode_hash))
+        .map(|&bytecode_hash| {
+            BytecodeHash::try_from(bytecode_hash)
+                .expect("published unparseable bytecode hash")
+                .len_in_bytes()
+        })
         .sum();
 
     TransactionExecutionMetrics {
