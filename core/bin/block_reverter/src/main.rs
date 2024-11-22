@@ -198,12 +198,14 @@ async fn main() -> anyhow::Result<()> {
 
     let zksync_network_id = genesis_config.l2_chain_id;
 
-    let is_gateway = match genesis_config.sl_chain_id {
-        Some(x) => x.0 != genesis_config.l1_chain_id.0,
-        _ => false,
-    };
+    let settlement_mode = general_config
+        .eth
+        .context("Missing `eth` config")?
+        .gas_adjuster
+        .context("Missing `gas_adjuster` config")?
+        .settlement_mode;
 
-    let (sl_rpc_url, sl_diamond_proxy, sl_validator_timelock) = if is_gateway {
+    let (sl_rpc_url, sl_diamond_proxy, sl_validator_timelock) = if settlement_mode.is_gateway() {
         let gateway_chain_config: GatewayChainConfig =
             read_yaml_repr::<zksync_protobuf_config::proto::gateway::GatewayChainConfig>(
                 &opts
@@ -232,7 +234,7 @@ async fn main() -> anyhow::Result<()> {
         sl_diamond_proxy,
         sl_validator_timelock,
         zksync_network_id,
-        is_gateway,
+        settlement_mode,
     )?;
 
     let connection_pool = ConnectionPool::<Core>::builder(
