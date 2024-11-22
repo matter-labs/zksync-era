@@ -49,7 +49,8 @@ impl Aggregator {
         settlement_mode: SettlementMode,
     ) -> Self {
         let pubdata_da = config.pubdata_sending_mode;
-        let operate_4844_mode = custom_commit_sender_addr.is_some() && settlement_mode.is_gateway();
+        let operate_4844_mode =
+            custom_commit_sender_addr.is_some() && !settlement_mode.is_gateway();
 
         // We do not have a reliable lower bound for gas needed to execute batches on gateway so we do not aggregate.
         let execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>> = if settlement_mode
