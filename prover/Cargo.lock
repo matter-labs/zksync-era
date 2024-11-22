@@ -8395,9 +8395,7 @@ dependencies = [
  "url",
  "vise",
  "zksync_config",
- "zksync_core_leftovers",
  "zksync_prover_job_monitor",
- "zksync_types",
  "zksync_utils",
  "zksync_vlog",
 ]

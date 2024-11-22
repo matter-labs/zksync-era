@@ -1,5 +1,6 @@
 use std::{str::FromStr, sync::Arc, time::Duration};
 
+use backon::{ConstantBuilder, Retryable};
 use secp256k1::{ecdsa::RecoverableSignature, SecretKey};
 use tokio::{
     sync::{mpsc, Mutex},
@@ -10,7 +11,7 @@ use tonic::{
     transport::{Channel, ClientTlsConfig, Endpoint},
     Streaming,
 };
-use zksync_config::configs::da_client::eigen::DisperserConfig;
+use zksync_config::EigenConfig;
 #[cfg(test)]
 use zksync_da_client::types::DAError;
 
@@ -33,14 +34,15 @@ use crate::eigen::{
 pub(crate) struct RawEigenClient {
     client: Arc<Mutex<DisperserClient<Channel>>>,
     private_key: SecretKey,
-    pub config: DisperserConfig,
+    pub config: EigenConfig,
     verifier: Verifier,
 }
 
 pub(crate) const DATA_CHUNK_SIZE: usize = 32;
+pub(crate) const AVG_BLOCK_TIME: u64 = 12;
 
 impl RawEigenClient {
-    pub async fn new(private_key: SecretKey, config: DisperserConfig) -> anyhow::Result<Self> {
+    pub async fn new(private_key: SecretKey, config: EigenConfig) -> anyhow::Result<Self> {
         let endpoint =
             Endpoint::from_str(config.disperser_rpc.as_str())?.tls_config(ClientTlsConfig::new())?;
         let client = Arc::new(Mutex::new(
@@ -56,6 +58,8 @@ impl RawEigenClient {
             max_blob_size: config.blob_size_limit,
             path_to_points: config.path_to_points.clone(),
             eth_confirmation_depth: config.eth_confirmation_depth.max(0) as u32,
+            private_key: hex::encode(private_key.secret_bytes()),
+            chain_id: config.chain_id,
         };
         let verifier = Verifier::new(verifier_config)
             .map_err(|e| anyhow::anyhow!(format!("Failed to create verifier {:?}", e)))?;
@@ -110,17 +114,18 @@ impl RawEigenClient {
         blob_info: BlobInfo,
         disperse_elapsed: Duration,
     ) -> anyhow::Result<()> {
-        let start = Instant::now();
-        while Instant::now() - start
-            < (Duration::from_millis(self.config.status_query_timeout) - disperse_elapsed)
-        {
-            tokio::time::sleep(Duration::from_secs(12)).await; // avg block time
-            match self.verifier.verify_certificate(blob_info.clone()).await {
-                Ok(_) => return Ok(()),
-                Err(_) => continue,
-            }
-        }
-        Err(anyhow::anyhow!("Failed to validate certificate"))
+        (|| async { self.verifier.verify_certificate(blob_info.clone()).await })
+            .retry(
+                &ConstantBuilder::default()
+                    .with_delay(Duration::from_secs(AVG_BLOCK_TIME))
+                    .with_max_times(
+                        (self.config.status_query_timeout
+                            - disperse_elapsed.as_millis() as u64 / AVG_BLOCK_TIME)
+                            as usize,
+                    ),
+            )
+            .await
+            .map_err(|_| anyhow::anyhow!("Failed to verify certificate"))
     }
 
     async fn dispatch_blob_authenticated(&self, data: Vec<u8>) -> anyhow::Result<String> {
@@ -185,9 +190,10 @@ impl RawEigenClient {
     }
 
     pub async fn dispatch_blob(&self, data: Vec<u8>) -> anyhow::Result<String> {
-        match self.config.authenticated {
-            true => self.dispatch_blob_authenticated(data).await,
-            false => self.dispatch_blob_non_authenticated(data).await,
+        if self.config.authenticated {
+            self.dispatch_blob_authenticated(data).await
+        } else {
+            self.dispatch_blob_non_authenticated(data).await
         }
     }
 
@@ -270,10 +276,7 @@ impl RawEigenClient {
             request_id: disperse_blob_reply.request_id,
         };
 
-        let start_time = Instant::now();
-        while Instant::now() - start_time < Duration::from_millis(self.config.status_query_timeout)
-        {
-            tokio::time::sleep(Duration::from_millis(self.config.status_query_interval)).await;
+        let blob_info = (|| async {
             let resp = self
                 .client
                 .lock()
@@ -283,12 +286,12 @@ impl RawEigenClient {
                 .into_inner();
 
             match disperser::BlobStatus::try_from(resp.status)? {
-                disperser::BlobStatus::Processing | disperser::BlobStatus::Dispersing => {}
-                disperser::BlobStatus::Failed => {
-                    return Err(anyhow::anyhow!("Blob dispatch failed"))
+                disperser::BlobStatus::Processing | disperser::BlobStatus::Dispersing => {
+                    Err(anyhow::anyhow!("Blob is still processing"))
                 }
+                disperser::BlobStatus::Failed => Err(anyhow::anyhow!("Blob dispatch failed")),
                 disperser::BlobStatus::InsufficientSignatures => {
-                    return Err(anyhow::anyhow!("Insufficient signatures"))
+                    Err(anyhow::anyhow!("Insufficient signatures"))
                 }
                 disperser::BlobStatus::Confirmed => {
                     if !self.config.wait_for_finalization {
@@ -297,19 +300,29 @@ impl RawEigenClient {
                             .ok_or_else(|| anyhow::anyhow!("No blob header in response"))?;
                         return Ok(blob_info);
                     }
+                    Err(anyhow::anyhow!("Blob is still processing"))
                 }
                 disperser::BlobStatus::Finalized => {
                     let blob_info = resp
                         .info
                         .ok_or_else(|| anyhow::anyhow!("No blob header in response"))?;
-                    return Ok(blob_info);
+                    Ok(blob_info)
                 }
 
-                _ => return Err(anyhow::anyhow!("Received unknown blob status")),
+                _ => Err(anyhow::anyhow!("Received unknown blob status")),
             }
-        }
+        })
+        .retry(
+            &ConstantBuilder::default()
+                .with_delay(Duration::from_millis(self.config.status_query_interval))
+                .with_max_times(
+                    (self.config.status_query_timeout / self.config.status_query_interval) as usize,
+                ),
+        )
+        .when(|e| e.to_string().contains("Blob is still processing"))
+        .await?;
 
-        Err(anyhow::anyhow!("Failed to disperse blob (timeout)"))
+        Ok(blob_info)
     }
 
     #[cfg(test)]
@@ -353,8 +366,8 @@ impl RawEigenClient {
                 is_retriable: false,
             });
         }
-        //TODO: remove zkgpad_rs
-        let data = kzgpad_rs::remove_empty_byte_from_padded_bytes(&get_response.data);
+
+        let data = remove_empty_byte_from_padded_bytes(&get_response.data);
         Ok(Some(data))
     }
 }
@@ -391,4 +404,57 @@ fn convert_by_padding_empty_byte(data: &[u8]) -> Vec<u8> {
 
     valid_data.truncate(valid_end);
     valid_data
+}
+
+#[cfg(test)]
+fn remove_empty_byte_from_padded_bytes(data: &[u8]) -> Vec<u8> {
+    let parse_size = DATA_CHUNK_SIZE;
+
+    // Calculate the number of chunks
+    let data_len = (data.len() + parse_size - 1) / parse_size;
+
+    // Pre-allocate `valid_data` with enough space for all chunks
+    let mut valid_data = vec![0u8; data_len * (DATA_CHUNK_SIZE - 1)];
+    let mut valid_end = data_len * (DATA_CHUNK_SIZE - 1);
+
+    for (i, chunk) in data.chunks(parse_size).enumerate() {
+        let offset = i * (DATA_CHUNK_SIZE - 1);
+
+        let copy_end = offset + chunk.len() - 1;
+        valid_data[offset..copy_end].copy_from_slice(&chunk[1..]);
+
+        if i == data_len - 1 && chunk.len() < parse_size {
+            valid_end = offset + chunk.len() - 1;
+        }
+    }
+
+    valid_data.truncate(valid_end);
+    valid_data
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_pad_and_unpad() {
+        let data = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let padded_data = super::convert_by_padding_empty_byte(&data);
+        let unpadded_data = super::remove_empty_byte_from_padded_bytes(&padded_data);
+        assert_eq!(data, unpadded_data);
+    }
+
+    #[test]
+    fn test_pad_and_unpad_large() {
+        let data = vec![1; 1000];
+        let padded_data = super::convert_by_padding_empty_byte(&data);
+        let unpadded_data = super::remove_empty_byte_from_padded_bytes(&padded_data);
+        assert_eq!(data, unpadded_data);
+    }
+
+    #[test]
+    fn test_pad_and_unpad_empty() {
+        let data = Vec::new();
+        let padded_data = super::convert_by_padding_empty_byte(&data);
+        let unpadded_data = super::remove_empty_byte_from_padded_bytes(&padded_data);
+        assert_eq!(data, unpadded_data);
+    }
 }

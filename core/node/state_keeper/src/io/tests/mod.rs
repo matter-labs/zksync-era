@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use test_casing::test_casing;
 use zksync_contracts::BaseSystemContractsHashes;
@@ -14,15 +11,19 @@ use zksync_multivm::{
     utils::derive_base_fee_and_gas_per_pubdata,
 };
 use zksync_node_test_utils::prepare_recovery_snapshot;
+use zksync_system_constants::KNOWN_CODES_STORAGE_ADDRESS;
 use zksync_types::{
     block::{BlockGasCount, L2BlockHasher},
-    commitment::L1BatchCommitmentMode,
+    commitment::{L1BatchCommitmentMode, PubdataParams},
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     l2::L2Tx,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
     ProtocolVersionId, StorageKey, TransactionTimeRangeConstraint, H256, U256,
 };
-use zksync_utils::time::seconds_since_epoch;
+use zksync_utils::{
+    bytecode::{hash_bytecode, hash_evm_bytecode},
+    time::seconds_since_epoch,
+};
 
 use self::tester::Tester;
 use crate::{
@@ -229,6 +230,29 @@ async fn l1_batch_timestamp_respects_prev_l2_block_with_clock_skew(
     test_timestamps_are_distinct(connection_pool, current_timestamp + 2, true, tester).await;
 }
 
+fn create_block_seal_command(
+    l1_batch_number: L1BatchNumber,
+    l2_block: L2BlockUpdates,
+) -> L2BlockSealCommand {
+    L2BlockSealCommand {
+        l1_batch_number,
+        l2_block,
+        first_tx_index: 0,
+        fee_account_address: Address::repeat_byte(0x23),
+        fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+            l1_gas_price: 100,
+            fair_l2_gas_price: 100,
+            fair_pubdata_price: 100,
+        }),
+        base_fee_per_gas: 10,
+        base_system_contracts_hashes: BaseSystemContractsHashes::default(),
+        protocol_version: Some(ProtocolVersionId::latest()),
+        l2_legacy_shared_bridge_addr: Some(Address::default()),
+        pre_insert_txs: false,
+        pubdata_params: PubdataParams::default(),
+    }
+}
+
 #[tokio::test]
 async fn processing_storage_logs_when_sealing_l2_block() {
     let connection_pool =
@@ -261,7 +285,6 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         BlockGasCount::default(),
         VmExecutionMetrics::default(),
         vec![],
-        HashMap::new(),
         vec![],
     );
 
@@ -280,28 +303,11 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         BlockGasCount::default(),
         VmExecutionMetrics::default(),
         vec![],
-        HashMap::new(),
         vec![],
     );
 
     let l1_batch_number = L1BatchNumber(2);
-    let seal_command = L2BlockSealCommand {
-        l1_batch_number,
-        l2_block,
-        first_tx_index: 0,
-        fee_account_address: Address::repeat_byte(0x23),
-        fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-            l1_gas_price: 100,
-            fair_l2_gas_price: 100,
-            fair_pubdata_price: 100,
-        }),
-        base_fee_per_gas: 10,
-        base_system_contracts_hashes: BaseSystemContractsHashes::default(),
-        protocol_version: Some(ProtocolVersionId::latest()),
-        l2_legacy_shared_bridge_addr: Some(Address::default()),
-        pre_insert_txs: false,
-        pubdata_params: Default::default(),
-    };
+    let seal_command = create_block_seal_command(l1_batch_number, l2_block);
     connection_pool
         .connection()
         .await
@@ -371,28 +377,11 @@ async fn processing_events_when_sealing_l2_block() {
             BlockGasCount::default(),
             VmExecutionMetrics::default(),
             vec![],
-            HashMap::new(),
             vec![],
         );
     }
 
-    let seal_command = L2BlockSealCommand {
-        l1_batch_number,
-        l2_block,
-        first_tx_index: 0,
-        fee_account_address: Address::repeat_byte(0x23),
-        fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-            l1_gas_price: 100,
-            fair_l2_gas_price: 100,
-            fair_pubdata_price: 100,
-        }),
-        base_fee_per_gas: 10,
-        base_system_contracts_hashes: BaseSystemContractsHashes::default(),
-        protocol_version: Some(ProtocolVersionId::latest()),
-        l2_legacy_shared_bridge_addr: Some(Address::default()),
-        pre_insert_txs: false,
-        pubdata_params: Default::default(),
-    };
+    let seal_command = create_block_seal_command(l1_batch_number, l2_block);
     pool.connection()
         .await
         .unwrap()
@@ -413,6 +402,114 @@ async fn processing_events_when_sealing_l2_block() {
     // The event logs should be inserted in the correct order.
     for (i, log) in logs.iter().enumerate() {
         assert_eq!(log.data.0, [i as u8]);
+    }
+}
+
+fn bytecode_publishing_events(
+    l1_batch_number: L1BatchNumber,
+    tx_index: u32,
+    bytecode_hashes: impl Iterator<Item = H256>,
+) -> Vec<VmEvent> {
+    bytecode_hashes
+        .map(|bytecode_hash| VmEvent {
+            location: (l1_batch_number, tx_index),
+            address: KNOWN_CODES_STORAGE_ADDRESS,
+            indexed_topics: vec![
+                VmEvent::PUBLISHED_BYTECODE_SIGNATURE,
+                bytecode_hash,
+                H256::from_low_u64_be(1), // sentBytecodeToL1
+            ],
+            value: vec![],
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn processing_dynamic_factory_deps_when_sealing_l2_block() {
+    let pool =
+        ConnectionPool::<Core>::constrained_test_pool(L2BlockSealProcess::subtasks_len()).await;
+    let l1_batch_number = L1BatchNumber(2);
+    let l2_block_number = L2BlockNumber(3);
+    let mut l2_block = L2BlockUpdates::new(
+        0,
+        l2_block_number,
+        H256::zero(),
+        1,
+        ProtocolVersionId::latest(),
+    );
+
+    let static_factory_deps: Vec<_> = (0_u8..10)
+        .map(|byte| {
+            let era_bytecode = vec![byte; 32];
+            (hash_bytecode(&era_bytecode), era_bytecode)
+        })
+        .collect();
+    let dynamic_factory_deps: Vec<_> = (0_u8..10)
+        .map(|byte| {
+            let evm_bytecode = vec![byte; 96];
+            (hash_evm_bytecode(&evm_bytecode), evm_bytecode)
+        })
+        .collect();
+    let mut all_factory_deps = static_factory_deps.clone();
+    all_factory_deps.extend_from_slice(&dynamic_factory_deps);
+
+    let events = bytecode_publishing_events(
+        l1_batch_number,
+        0,
+        static_factory_deps
+            .iter()
+            .chain(&dynamic_factory_deps)
+            .map(|(hash, _)| *hash),
+    );
+
+    let mut tx = create_transaction(10, 100);
+    tx.execute.factory_deps = static_factory_deps
+        .into_iter()
+        .map(|(_, bytecode)| bytecode)
+        .collect();
+    let mut execution_result = create_execution_result([]);
+    execution_result.dynamic_factory_deps = dynamic_factory_deps.into_iter().collect();
+    execution_result.logs.events = events;
+    l2_block.extend_from_executed_transaction(
+        tx,
+        execution_result,
+        BlockGasCount::default(),
+        VmExecutionMetrics::default(),
+        vec![],
+        vec![],
+    );
+
+    assert_eq!(
+        l2_block.new_factory_deps.len(),
+        all_factory_deps.len(),
+        "{:?}",
+        l2_block.new_factory_deps
+    );
+    for (hash, bytecode) in &all_factory_deps {
+        assert_eq!(
+            l2_block.new_factory_deps.get(hash),
+            Some(bytecode),
+            "{hash:?}"
+        );
+    }
+
+    let seal_command = create_block_seal_command(l1_batch_number, l2_block);
+    pool.connection()
+        .await
+        .unwrap()
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
+    seal_command.seal(pool.clone()).await.unwrap();
+
+    let mut conn = pool.connection().await.unwrap();
+    let persisted_factory_deps = conn
+        .factory_deps_dal()
+        .dump_all_factory_deps_for_tests()
+        .await;
+    for (hash, bytecode) in &all_factory_deps {
+        assert_eq!(persisted_factory_deps.get(hash), Some(bytecode), "{hash:?}");
     }
 }
 
@@ -445,15 +542,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         tx_filter.gas_per_pubdata,
         TransactionTimeRangeConstraint::default(),
     );
-    storage
-        .transactions_dal()
-        .insert_transaction_l2(
-            &tx,
-            TransactionExecutionMetrics::default(),
-            ValidationTraces::default(),
-        )
-        .await
-        .unwrap();
+    insert_l2_transaction(&mut storage, &tx).await;
 
     let previous_batch_hash = mempool
         .load_batch_state_hash(snapshot_recovery.l1_batch_number)
@@ -479,7 +568,6 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         tx.into(),
         create_execution_result([]),
         vec![],
-        HashMap::new(),
         BlockGasCount::default(),
         VmExecutionMetrics::default(),
         vec![],
@@ -603,15 +691,7 @@ async fn continue_unsealed_batch_on_restart(commitment_mode: L1BatchCommitmentMo
         tx_filter.gas_per_pubdata,
         TransactionTimeRangeConstraint::default(),
     );
-    storage
-        .transactions_dal()
-        .insert_transaction_l2(
-            &tx,
-            TransactionExecutionMetrics::default(),
-            ValidationTraces::default(),
-        )
-        .await
-        .unwrap();
+    insert_l2_transaction(&mut storage, &tx).await;
 
     let old_l1_batch_params = mempool
         .wait_for_new_batch_params(&cursor, Duration::from_secs(10))
