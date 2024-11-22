@@ -55,7 +55,9 @@ async fn main() -> anyhow::Result<()> {
     let contract_verifier = ContractVerifier::new(verifier_config.compilation_timeout(), pool)
         .await
         .context("failed initializing contract verifier")?;
+    let update_task = contract_verifier.sync_compiler_versions_task();
     let tasks = vec![
+        tokio::spawn(update_task),
         tokio::spawn(contract_verifier.run(stop_receiver.clone(), opt.jobs_number)),
         tokio::spawn(
             PrometheusExporterConfig::pull(prometheus_config.listener_port).run(stop_receiver),

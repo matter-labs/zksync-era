@@ -1,4 +1,4 @@
-pub(crate) use self::vm::MultiVMSubversion;
+pub(crate) use self::vm::MultiVmSubversion;
 pub use self::{
     bootloader_state::BootloaderState,
     old_vm::{

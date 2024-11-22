@@ -12,10 +12,10 @@ use zksync_types::{
         AuxCommitments, BlobHash, CommitmentCommonInput, CommitmentInput, L1BatchAuxiliaryOutput,
         L1BatchCommitment, L1BatchCommitmentArtifacts, L1BatchCommitmentMode,
     },
+    h256_to_u256,
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
     L1BatchNumber, ProtocolVersionId, StorageKey, H256, U256,
 };
-use zksync_utils::h256_to_u256;
 
 use crate::{
     metrics::{CommitmentStage, METRICS},

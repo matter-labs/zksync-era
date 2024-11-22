@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-use zksync_basic_types::{web3::Bytes, H256, U256};
-use zksync_utils::bytecode::{hash_bytecode, validate_bytecode, InvalidBytecodeError};
+use zksync_basic_types::{bytecode::BytecodeHash, web3::Bytes, H256, U256};
 
-use crate::Address;
+use crate::{
+    bytecode::{validate_bytecode, InvalidBytecodeError},
+    Address,
+};
 
 /// Collection of overridden accounts.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -44,7 +46,7 @@ impl Bytecode {
 
     /// Returns the canonical hash of this bytecode.
     pub fn hash(&self) -> H256 {
-        hash_bytecode(&self.0 .0)
+        BytecodeHash::for_bytecode(&self.0 .0).value()
     }
 
     /// Converts this bytecode into bytes.

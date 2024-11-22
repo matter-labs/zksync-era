@@ -36,6 +36,7 @@ pub enum Deploy2ContractsOption {
     InitiailizeBridges,
     ConsensusRegistry,
     Multicall3,
+    TimestampAsserter,
 }
 
 pub async fn run(
@@ -85,6 +86,16 @@ pub async fn run(
         }
         Deploy2ContractsOption::Multicall3 => {
             deploy_multicall3(
+                shell,
+                &chain_config,
+                &ecosystem_config,
+                &mut contracts,
+                args,
+            )
+            .await?;
+        }
+        Deploy2ContractsOption::TimestampAsserter => {
+            deploy_timestamp_asserter(
                 shell,
                 &chain_config,
                 &ecosystem_config,
@@ -209,6 +220,27 @@ pub async fn deploy_multicall3(
         forge_args,
         Some("runDeployMulticall3"),
         |shell, out| contracts_config.set_multicall3(&Multicall3Output::read(shell, out)?),
+    )
+    .await
+}
+
+pub async fn deploy_timestamp_asserter(
+    shell: &Shell,
+    chain_config: &ChainConfig,
+    ecosystem_config: &EcosystemConfig,
+    contracts_config: &mut ContractsConfig,
+    forge_args: ForgeScriptArgs,
+) -> anyhow::Result<()> {
+    build_and_deploy(
+        shell,
+        chain_config,
+        ecosystem_config,
+        forge_args,
+        Some("runDeployTimestampAsserter"),
+        |shell, out| {
+            contracts_config
+                .set_timestamp_asserter_addr(&TimestampAsserterOutput::read(shell, out)?)
+        },
     )
     .await
 }

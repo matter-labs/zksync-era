@@ -18,16 +18,17 @@ use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     block::{BlockGasCount, DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader},
+    bytecode::BytecodeHash,
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
     protocol_upgrade::decode_set_chain_id_event,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     system_contracts::get_system_smart_contracts,
+    u256_to_h256,
     web3::{BlockNumber, FilterBuilder},
     AccountTreeId, Address, Bloom, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
     ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog, H256, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use crate::utils::{
     add_eth_token, get_deduped_log_queries, get_storage_logs,
@@ -512,7 +513,12 @@ pub async fn create_genesis_l1_batch(
 
     let factory_deps = system_contracts
         .iter()
-        .map(|c| (hash_bytecode(&c.bytecode), c.bytecode.clone()))
+        .map(|c| {
+            (
+                BytecodeHash::for_bytecode(&c.bytecode).value(),
+                c.bytecode.clone(),
+            )
+        })
         .collect();
 
     create_genesis_l1_batch_from_storage_logs_and_factory_deps(

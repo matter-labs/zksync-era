@@ -5,8 +5,7 @@ use zk_evm_1_3_3::{
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::{self},
 };
-use zksync_types::{StorageKey, H256, U256};
-use zksync_utils::{h256_to_u256, u256_to_h256};
+use zksync_types::{h256_to_u256, u256_to_h256, StorageKey, H256, U256};
 
 use crate::interface::storage::{StoragePtr, WriteStorage};
 

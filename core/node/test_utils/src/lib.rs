@@ -226,7 +226,7 @@ impl Snapshot {
             factory_deps: [&contracts.bootloader, &contracts.default_aa]
                 .into_iter()
                 .chain(contracts.evm_emulator.as_ref())
-                .map(|c| (c.hash, zksync_utils::be_words_to_bytes(&c.code)))
+                .map(|c| (c.hash, c.code.clone()))
                 .collect(),
             storage_logs,
         }
