@@ -13,7 +13,6 @@ use crate::{
 pub(crate) mod bytecode;
 mod deduplicator;
 pub(crate) mod events;
-pub(crate) mod sort_storage_access;
 
 /// Allows to convert `LogQuery` between two different versions, even if they don't provide
 /// direct conversion between each other.
