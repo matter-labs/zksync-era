@@ -3,9 +3,7 @@ use common::logger;
 use config::{
     copy_configs, set_l1_rpc_url,
     traits::{ReadConfig, SaveConfigWithBasePath},
-    update_from_chain_config,
-    zkstack_config::ZkStackConfig,
-    ChainConfig, ContractsConfig,
+    update_from_chain_config, ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use ethers::types::Address;
 use xshell::Shell;
@@ -19,7 +17,7 @@ use crate::{
         portal::update_portal_config,
     },
     messages::{
-        MSG_CHAIN_CONFIGS_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR, MSG_CONSENSUS_CONFIG_MISSING_ERR,
+        MSG_CHAIN_CONFIGS_INITIALIZED, MSG_CONSENSUS_CONFIG_MISSING_ERR,
         MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR,
     },
     utils::{
@@ -28,12 +26,15 @@ use crate::{
     },
 };
 
-pub async fn run(args: InitConfigsArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
-    let chain_config = ZkStackConfig::current_chain(shell).context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    let args = args.fill_values_with_prompt(Some(ecosystem_config), &chain_config)?;
+pub async fn run(
+    args: InitConfigsArgs,
+    shell: &Shell,
+    chain: ChainConfig,
+    ecosystem: Option<EcosystemConfig>,
+) -> anyhow::Result<()> {
+    let args = args.fill_values_with_prompt(ecosystem, &chain)?;
 
-    init_configs(&args, shell, &chain_config).await?;
+    init_configs(&args, shell, &chain).await?;
     logger::outro(MSG_CHAIN_CONFIGS_INITIALIZED);
 
     Ok(())

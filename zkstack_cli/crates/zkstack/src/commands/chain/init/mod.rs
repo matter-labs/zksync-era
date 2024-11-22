@@ -4,7 +4,6 @@ use common::{git, logger, spinner::Spinner};
 use config::{
     get_default_era_chain_id,
     traits::{ReadConfig, SaveConfigWithBasePath},
-    zkstack_config::ZkStackConfig,
     ChainConfig, EcosystemConfig, WalletsConfig,
 };
 use types::BaseToken;
@@ -27,10 +26,9 @@ use crate::{
     },
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_DEPLOYING_PAYMASTER, MSG_GENESIS_DATABASE_ERR,
-        MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
-        MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLETS_CONFIG_MUST_BE_PRESENT,
-        MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
+        MSG_DEPLOYING_PAYMASTER, MSG_GENESIS_DATABASE_ERR, MSG_REGISTERING_CHAIN_SPINNER,
+        MSG_SELECTED_CONFIG, MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
+        MSG_WALLETS_CONFIG_MUST_BE_PRESENT, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
 };
 
@@ -52,23 +50,33 @@ pub struct ChainInitCommand {
     args: InitArgs,
 }
 
-pub(crate) async fn run(args: ChainInitCommand, shell: &Shell) -> anyhow::Result<()> {
+pub(crate) async fn run(
+    args: ChainInitCommand,
+    shell: &Shell,
+    chain: ChainConfig,
+    ecosystem: Option<EcosystemConfig>,
+) -> anyhow::Result<()> {
     match args.command {
-        Some(ChainInitSubcommands::Configs(args)) => configs::run(args, shell).await,
-        None => run_init(args.args, shell).await,
+        Some(ChainInitSubcommands::Configs(args)) => {
+            configs::run(args, shell, chain, ecosystem).await
+        }
+        None => run_init(args.args, shell, chain, ecosystem).await,
     }
 }
 
-async fn run_init(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem = ZkStackConfig::ecosystem(shell).ok();
-    let chain_config = ZkStackConfig::current_chain(shell).context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    let args = args.fill_values_with_prompt(ecosystem.clone(), &chain_config)?;
+async fn run_init(
+    args: InitArgs,
+    shell: &Shell,
+    chain: ChainConfig,
+    ecosystem: Option<EcosystemConfig>,
+) -> anyhow::Result<()> {
+    let args = args.fill_values_with_prompt(ecosystem.clone(), &chain)?;
 
-    logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));
+    logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain));
     logger::info(msg_initializing_chain(""));
-    git::submodule_update(shell, chain_config.link_to_code.clone())?;
+    git::submodule_update(shell, chain.link_to_code.clone())?;
 
-    init(&args, shell, ecosystem, &chain_config).await?;
+    init(&args, shell, ecosystem, &chain).await?;
 
     logger::success(MSG_CHAIN_INITIALIZED);
     Ok(())

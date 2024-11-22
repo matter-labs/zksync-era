@@ -95,7 +95,7 @@ pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()>
 
     match cmd {
         ChainCommands::Create(args) => create::run(args, shell),
-        ChainCommands::Init(args) => init::run(*args, shell).await,
+        ChainCommands::Init(args) => init::run(*args, shell, chain, ecosystem).await,
         ChainCommands::BuildTransactions(args) => build_transactions::run(args, shell).await,
         ChainCommands::Genesis(args) => genesis::run(args, shell, chain).await,
         ChainCommands::RegisterChain(args) => register_chain::run(args, shell).await,
