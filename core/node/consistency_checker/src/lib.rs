@@ -294,13 +294,7 @@ pub fn detect_da(
 
     if protocol_version.is_pre_gateway() {
         return match last_reference_token.first() {
-            Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => {
-                if is_gateway {
-                    Ok(PubdataSendingMode::RelayedL2Calldata)
-                } else {
-                    Ok(PubdataSendingMode::Calldata)
-                }
-            },
+            Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => Ok(PubdataSendingMode::Calldata),
             Some(&byte) if byte == PUBDATA_SOURCE_BLOBS => Ok(PubdataSendingMode::Blobs),
             Some(&byte) if byte == PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY => Ok(PubdataSendingMode::Custom),
             Some(&byte) => Err(parse_error(format!(
@@ -343,7 +337,11 @@ pub fn detect_da(
             })? as usize;
 
             match last_reference_token.get(65 + 32 * number_of_blobs) {
-                Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => Ok(PubdataSendingMode::Calldata),
+                Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => if is_gateway {
+                    Ok(PubdataSendingMode::RelayedL2Calldata)
+                } else {
+                    Ok(PubdataSendingMode::Calldata)
+                },
                 Some(&byte) if byte == PUBDATA_SOURCE_BLOBS => Ok(PubdataSendingMode::Blobs),
                 Some(&byte) => Err(parse_error(format!(
                     "unexpected first byte of the last reference token for rollup; expected one of [{PUBDATA_SOURCE_CALLDATA}, {PUBDATA_SOURCE_BLOBS}], \
