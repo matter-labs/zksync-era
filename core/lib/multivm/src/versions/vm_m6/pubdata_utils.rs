@@ -7,8 +7,7 @@ use zksync_types::{StorageKey, PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS
 use crate::{
     glue::GlueInto,
     interface::VmEvent,
-    utils::bytecode::bytecode_len_in_bytes,
-    utils::glue_log_query,
+    utils::{bytecode::bytecode_len_in_bytes, glue_log_query},
     vm_m6::{
         history_recorder::HistoryMode, oracles::storage::storage_key_of_log, storage::Storage,
         utils::collect_storage_log_queries_after_timestamp, VmInstance,

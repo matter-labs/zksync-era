@@ -18,8 +18,7 @@ use crate::{
         L1BatchEnv, Refunds, VmEvent, VmExecutionResultAndLogs,
     },
     tracers::dynamic::vm_1_3_3::DynTracer,
-    utils::bytecode::bytecode_len_in_bytes,
-    utils::glue_log_query,
+    utils::{bytecode::bytecode_len_in_bytes, glue_log_query},
     vm_virtual_blocks::{
         bootloader_state::BootloaderState,
         constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},
