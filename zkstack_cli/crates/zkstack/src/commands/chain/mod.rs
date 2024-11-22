@@ -160,7 +160,7 @@ pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()>
         }
         ChainCommands::DeployPaymaster(args) => deploy_paymaster::run(args, shell, chain).await,
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
-            set_token_multiplier_setter::run(args, shell).await
+            set_token_multiplier_setter::run(args, shell, chain).await
         }
         ChainCommands::Server(args) => server::run(shell, args, chain).await,
         ChainCommands::ContractVerifier(args) => contract_verifier::run(shell, args, chain).await,

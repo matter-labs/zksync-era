@@ -7,9 +7,7 @@ use common::{
     spinner::Spinner,
     wallets::Wallet,
 };
-use config::{
-    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, zkstack_config::ZkStackConfig,
-};
+use config::{forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, ChainConfig};
 use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
 use lazy_static::lazy_static;
 use xshell::Shell;
@@ -17,9 +15,9 @@ use zksync_basic_types::Address;
 
 use crate::{
     messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED,
-        MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO, MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
-        MSG_WALLETS_CONFIG_MUST_BE_PRESENT, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
+        MSG_L1_SECRETS_MUST_BE_PRESENTED, MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO,
+        MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLETS_CONFIG_MUST_BE_PRESENT,
+        MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
@@ -33,20 +31,16 @@ lazy_static! {
     );
 }
 
-pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
-    let contracts_config = chain_config.get_contracts_config()?;
-    let l1_url = chain_config
+pub async fn run(args: ForgeScriptArgs, shell: &Shell, chain: ChainConfig) -> anyhow::Result<()> {
+    let contracts_config = chain.get_contracts_config()?;
+    let l1_url = chain
         .get_secrets_config()?
         .l1
         .context(MSG_L1_SECRETS_MUST_BE_PRESENTED)?
         .l1_rpc_url
         .expose_str()
         .to_string();
-    let token_multiplier_setter_address = chain_config
+    let token_multiplier_setter_address = chain
         .get_wallets_config()
         .context(MSG_WALLETS_CONFIG_MUST_BE_PRESENT)?
         .token_multiplier_setter
@@ -56,8 +50,8 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
     set_token_multiplier_setter(
         shell,
-        &chain_config.path_to_foundry(),
-        &chain_config.get_wallets_config()?.governor,
+        &chain.path_to_foundry(),
+        &chain.get_wallets_config()?.governor,
         contracts_config.l1.chain_admin_addr,
         token_multiplier_setter_address,
         &args.clone(),
