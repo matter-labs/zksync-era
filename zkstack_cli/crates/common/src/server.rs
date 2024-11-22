@@ -46,6 +46,8 @@ impl Server {
         shell: &Shell,
         execution_mode: ExecutionMode,
         server_mode: ServerMode,
+        configs_folder: P,
+        chains_folder: P,
         genesis_path: P,
         wallets_path: P,
         general_path: P,
@@ -70,6 +72,8 @@ impl Server {
         run_server(
             shell,
             uring,
+            configs_folder,
+            chains_folder,
             genesis_path,
             wallets_path,
             general_path,
@@ -105,6 +109,8 @@ impl Server {
 fn run_server<P>(
     shell: &Shell,
     uring: Option<&str>,
+    configs_folder: P,
+    chains_folder: P,
     genesis_path: P,
     wallets_path: P,
     general_path: P,
@@ -151,8 +157,8 @@ where
             "docker run
                 --platform linux/amd64
                 --net=host
-                -v ./configs:/configs
-                -v ./chains:/chains
+                -v {configs_folder}:/configs
+                -v {chains_folder}:/chains
                 matterlabs/server-v2:latest2.0
                 --genesis-path {genesis_path}
                 --wallets-path {wallets_path}
