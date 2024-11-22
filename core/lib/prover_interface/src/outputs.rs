@@ -1,7 +1,10 @@
 use core::fmt;
 
-use circuit_definitions::circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuitNoLookupCustomGate;
-use circuit_sequencer_api_1_5_0::{boojum::pairing::bn256::Bn256, proof::FinalProof};
+use circuit_definitions::{
+    boojum::pairing::bn256::Bn256,
+    circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuitNoLookupCustomGate,
+};
+use circuit_sequencer_api_1_5_0::proof::FinalProof;
 use fflonk::FflonkProof;
 use serde::{Deserialize, Serialize};
 use serde_with::{hex::Hex, serde_as};
