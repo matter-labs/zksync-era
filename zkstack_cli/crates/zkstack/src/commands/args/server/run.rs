@@ -41,4 +41,6 @@ pub struct RunServerArgs {
     additional_args: Vec<String>,
     #[clap(help = MSG_SERVER_URING_HELP, long, default_missing_value = "true")]
     pub uring: bool,
+    #[arg(long, default_value = "latest")]
+    pub tag: String,
 }

@@ -54,6 +54,7 @@ impl Server {
         secrets_path: P,
         contracts_path: P,
         mut additional_args: Vec<String>,
+        tag: Option<&str>,
     ) -> anyhow::Result<()>
     where
         P: AsRef<OsStr>,
@@ -82,6 +83,7 @@ impl Server {
             additional_args,
             execution_mode,
             server_mode,
+            tag,
         )?;
 
         Ok(())
@@ -119,6 +121,7 @@ fn run_server<P>(
     additional_args: Vec<String>,
     execution_mode: ExecutionMode,
     server_mode: ServerMode,
+    tag: Option<&str>,
 ) -> anyhow::Result<()>
 where
     P: AsRef<OsStr>,
@@ -152,21 +155,25 @@ where
             .args(additional_args)
             .env_remove("RUSTUP_TOOLCHAIN"),
         ),
-        ExecutionMode::Docker => Cmd::new(cmd!(
-            shell,
-            "docker run
+        ExecutionMode::Docker => {
+            let tag = tag.unwrap_or("latest");
+
+            Cmd::new(cmd!(
+                shell,
+                "docker run
                 --platform linux/amd64
                 --net=host
                 -v {configs_folder}:/configs
                 -v {chains_folder}:/chains
-                matterlabs/server-v2:latest2.0
+                matterlabs/server-v2:{tag}
                 --genesis-path {genesis_path}
                 --wallets-path {wallets_path}
                 --config-path {general_path}
                 --secrets-path {secrets_path}
                 --contracts-config-path {contracts_path}
                 {additional_args...}"
-        )),
+            ))
+        }
     };
 
     // If we are running server in normal mode

@@ -47,6 +47,7 @@ pub(super) fn run_server(
             SecretsConfig::get_path_with_base_path(&chain_config.configs),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
             vec![],
+            Some(args.tag.as_str()),
         )
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)
 }
