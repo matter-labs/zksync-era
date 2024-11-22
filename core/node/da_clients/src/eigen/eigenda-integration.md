@@ -166,13 +166,7 @@ cargo run <validatorTimelockAddress> <rpc_url> <block_start>
 
 ### Testing
 
-Modify the following flag in `core/lib/config/src/configs/da_dispatcher.rs` (then restart the server)
-
-```rs
-pub const DEFAULT_USE_DUMMY_INCLUSION_DATA: bool = true;
-```
-
-And with the server running on one terminal, you can run the server integration tests on a separate terminal with the
+With the server running on one terminal, you can run the server integration tests on a separate terminal with the
 following command:
 
 ```bash
@@ -229,8 +223,6 @@ zkstack ecosystem init \
           --l1-rpc-url $HOLESKY_RPC_URL \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_holesky_eigen_da \
-          --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --prover-db-name=zksync_prover_holesky_eigen_da \
           --chain holesky_eigen_da \
           --verbose
 ```
