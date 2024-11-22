@@ -200,6 +200,7 @@ impl VmExecutionResultAndLogs {
             published_bytecode_bytes,
             l2_l1_long_messages,
             l2_to_l1_logs: self.logs.total_l2_to_l1_logs_count(),
+            user_l2_to_l1_logs: self.logs.user_l2_to_l1_logs.len(),
             contracts_used: self.statistics.contracts_used,
             contracts_deployed,
             vm_events: self.logs.events.len(),

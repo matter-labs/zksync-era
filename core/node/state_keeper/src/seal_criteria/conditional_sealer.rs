@@ -144,6 +144,7 @@ impl SequencerSealer {
             Box::new(criteria::TxEncodingSizeCriterion),
             Box::new(criteria::GasForBatchTipCriterion),
             Box::new(criteria::L1L2TxsCriterion),
+            Box::new(criteria::L2L1LogsCriterion),
         ]
     }
 }
