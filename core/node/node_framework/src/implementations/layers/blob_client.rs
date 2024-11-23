@@ -6,7 +6,6 @@ use crate::{
     implementations::resources::{
         blob_client::BlobClientResource, object_store::ObjectStoreResource,
     },
-    service,
     wiring_layer::{WiringError, WiringLayer},
     FromContext,
 };

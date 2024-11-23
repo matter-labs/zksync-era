@@ -7,7 +7,7 @@ use zksync_health_check::AppHealthCheck;
 use zksync_l1_recovery::{
     create_l1_snapshot, insert_recovered_l1_batch, recover_eth_sender, recover_eth_watch,
     recover_latest_protocol_version, BlobClient, CommitBlock, L1RecoveryDetachedMainNodeClient,
-    L1RecoveryOnlineMainNodeClient, LocalStorageBlobSource,
+    L1RecoveryOnlineMainNodeClient,
 };
 use zksync_object_store::ObjectStoreFactory;
 use zksync_shared_metrics::{SnapshotRecoveryStage, APP_METRICS};
@@ -52,16 +52,8 @@ impl InitializeStorage for ExternalNodeSnapshotRecovery {
             .recovery_config
             .recover_from_l1
         {
-            let main_node_connection_pool = ConnectionPool::<Core>::builder(
-                "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
-                    .parse()
-                    .unwrap(),
-                10,
-            )
-            .build()
-            .await?;
             let mut storage = self.pool.connection().await.unwrap();
-            let mut recovery_status = storage
+            let recovery_status = storage
                 .snapshot_recovery_dal()
                 .get_applied_snapshot_status()
                 .await

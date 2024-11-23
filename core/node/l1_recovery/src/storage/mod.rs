@@ -14,11 +14,6 @@ pub const METADATA: &str = "metadata";
 
 pub mod reconstruction_columns {
     pub const LAST_REPEATED_KEY_INDEX: &str = "LAST_REPEATED_KEY_INDEX";
-    /// The latest l1 block number that was processed.
-    pub const LATEST_L1_BLOCK: &str = "LATEST_L1_BLOCK_NUMBER";
-    /// The latest l1 batch number that was processed. This is the batch number
-    /// of the ZKSync transactions.
-    pub const LATEST_L1_BATCH: &str = "LATEST_L2_BLOCK_NUMBER";
 }
 
 pub mod snapshot_columns {

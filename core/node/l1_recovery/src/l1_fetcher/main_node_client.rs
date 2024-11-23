@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use async_trait::async_trait;
 use zksync_basic_types::{protocol_version::ProtocolVersionId, L1BatchNumber, L2BlockNumber, H256};
 use zksync_snapshots_applier::{L1BlockMetadata, L2BlockMetadata, SnapshotsApplierMainNodeClient};

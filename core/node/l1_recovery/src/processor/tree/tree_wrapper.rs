@@ -10,7 +10,7 @@ use tokio::sync::Mutex;
 use zksync_basic_types::{H256, U256};
 use zksync_merkle_tree::{Database, Key, MerkleTree, RocksDBWrapper, TreeEntry};
 use zksync_storage::{RocksDB, RocksDBOptions};
-use zksync_types::{snapshots::SnapshotStorageLog, StorageKey};
+use zksync_types::snapshots::SnapshotStorageLog;
 
 use super::RootHash;
 use crate::{

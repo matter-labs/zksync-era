@@ -2,7 +2,7 @@ use std::{ops::Deref, path::PathBuf};
 
 use anyhow::Result;
 use rocksdb::{Options, DB};
-use zksync_basic_types::{U256, U64};
+use zksync_basic_types::U256;
 
 use crate::storage::{
     reconstruction_columns, DatabaseError, INDEX_TO_KEY_MAP, KEY_TO_INDEX_MAP, METADATA,

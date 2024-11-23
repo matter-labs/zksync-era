@@ -4,28 +4,22 @@ use chrono::DateTime;
 use tempfile::TempDir;
 use tokio::sync::watch;
 use zksync_basic_types::{
-    protocol_version::ProtocolVersionId, web3::keccak256, AccountTreeId, Address, L1BatchNumber,
-    L2BlockNumber, H256, U256,
+    protocol_version::ProtocolVersionId, Address, L1BatchNumber, L2BlockNumber, H256, U256,
 };
-use zksync_dal::{eth_watcher_dal::EventType, Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{eth_watcher_dal::EventType, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
 use zksync_object_store::ObjectStore;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{
-        unpack_block_info, BlockGasCount, L1BatchHeader, L1BatchTreeData, L2BlockHasher,
-        L2BlockHeader, UnsealedL1BatchHeader,
+        BlockGasCount, L1BatchHeader, L1BatchTreeData, L2BlockHasher, L2BlockHeader,
+        UnsealedL1BatchHeader,
     },
     commitment::{L1BatchCommitmentArtifacts, L1BatchCommitmentHash},
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
-    snapshots::{
-        SnapshotFactoryDependencies, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
-    },
+    snapshots::SnapshotFactoryDependencies,
     tokens::{TokenInfo, TokenMetadata},
-    Execute, ExecuteTransactionCommon, StorageKey, Transaction, ETHEREUM_ADDRESS,
-    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
-    SYSTEM_CONTEXT_CURRENT_L2_BLOCK_HASHES_POSITION, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
-    SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, SYSTEM_CONTEXT_STORED_L2_BLOCK_HASHES,
+    Execute, ExecuteTransactionCommon, Transaction, ETHEREUM_ADDRESS,
 };
 use zksync_vm_interface::{
     CircuitStatistic, L2Block, TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics,
@@ -35,10 +29,7 @@ use zksync_web3_decl::client::{DynClient, L1};
 use crate::{
     l1_fetcher::{
         blob_http_client::BlobClient,
-        constants::{
-            initial_states_directory, mainnet_initial_state_path, sepolia_initial_state_path,
-            sepolia_l1_fetcher, sepolia_versioning,
-        },
+        constants::{initial_states_directory, sepolia_versioning},
         l1_fetcher::{L1Fetcher, L1FetcherConfig, ProtocolVersioning::OnlyV3},
         types::CommitBlock,
     },

@@ -2,7 +2,7 @@ use std::{ops::Deref, path::PathBuf};
 
 use anyhow::Result;
 use rocksdb::{Options, DB};
-use zksync_basic_types::{bytecode::BytecodeHash, H256, U256, U64};
+use zksync_basic_types::{bytecode::BytecodeHash, H256, U256};
 use zksync_types::snapshots::{SnapshotFactoryDependency, SnapshotStorageLog};
 
 use crate::storage::{

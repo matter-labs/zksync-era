@@ -2,15 +2,11 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use clap::Parser;
-use zksync_config::{
-    configs::{object_store::ObjectStoreMode, GeneralConfig},
-    ObjectStoreConfig,
-};
 use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_l1_recovery::{BlobKey, BlobWrapper};
-use zksync_object_store::{serialize_using_bincode, Bucket, ObjectStoreFactory, StoredObject};
-use zksync_types::{eth_sender::EthTxBlobSidecar, H512};
+use zksync_object_store::ObjectStoreFactory;
+use zksync_types::eth_sender::EthTxBlobSidecar;
 
 #[derive(Debug, Parser)]
 #[command(author, version, about, long_about)]

@@ -4,7 +4,7 @@ use tokio::sync::watch;
 use zksync_basic_types::{
     h256_to_u256, u256_to_h256,
     web3::{keccak256, Bytes},
-    AccountTreeId, L1BatchNumber, L2BlockNumber, H256, U256,
+    AccountTreeId, L1BatchNumber, H256, U256,
 };
 use zksync_object_store::ObjectStore;
 use zksync_types::{

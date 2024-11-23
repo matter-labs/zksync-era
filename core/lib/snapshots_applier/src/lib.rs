@@ -12,7 +12,6 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError, SqlxError}
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_types::{
-    api,
     bytecode::BytecodeHash,
     snapshots::{
         SnapshotFactoryDependencies, SnapshotHeader, SnapshotRecoveryStatus, SnapshotStorageLog,

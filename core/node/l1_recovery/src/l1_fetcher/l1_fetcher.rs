@@ -1,4 +1,4 @@
-use std::{cmp, cmp::PartialEq, collections::HashMap, fs::File, future::Future, sync::Arc};
+use std::{cmp, cmp::PartialEq, collections::HashMap, future::Future, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use ethabi::{Contract, Event, Function};
@@ -16,23 +16,18 @@ use zksync_basic_types::{
     Address, L1BatchNumber, PriorityOpId, H256, U256, U64,
 };
 use zksync_contracts::{hyperchain_contract, BaseSystemContractsHashes};
-use zksync_dal::eth_watcher_dal::EventType;
 use zksync_eth_client::{CallFunctionArgs, ClientError, EthInterface};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_object_store::{serialize_using_bincode, Bucket, ObjectStore, StoredObject};
 use zksync_types::{l1::L1Tx, ProtocolVersion};
-use zksync_utils::env::Workspace;
 use zksync_web3_decl::{
     client::{DynClient, L1},
     error::EnrichedClientResult,
 };
 
-use crate::{
-    l1_fetcher::{
-        blob_http_client::BlobClient,
-        types::{v1::V1, v2::V2, CommitBlock, ParseError},
-    },
-    BlobKey, BlobWrapper,
+use crate::l1_fetcher::{
+    blob_http_client::BlobClient,
+    types::{v1::V1, v2::V2, CommitBlock, ParseError},
 };
 
 #[derive(Serialize, Deserialize)]
@@ -90,6 +85,7 @@ pub struct L1Fetcher {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RollupEventType {
     Commit,
+    #[allow(unused)]
     Prove,
     Execute,
     NewPriorityTx,
@@ -155,7 +151,7 @@ impl L1Fetcher {
 
     pub async fn find_block_near_genesis(&self) -> U64 {
         let mut start_block: U64 = U64::zero();
-        let mut last_l1_block_number = L1Fetcher::get_last_l1_block_number(&self.eth_client)
+        let last_l1_block_number = L1Fetcher::get_last_l1_block_number(&self.eth_client)
             .await
             .unwrap();
         let mut end_block = last_l1_block_number;
@@ -926,32 +922,23 @@ async fn parse_commit_block_info(
 
 #[cfg(test)]
 mod tests {
-    use std::{num::NonZero, ptr::hash, str::FromStr, sync::Arc};
+    use std::{str::FromStr, sync::Arc};
 
     use tempfile::TempDir;
     use tokio::sync::watch;
-    use zksync_basic_types::{
-        bytecode::BytecodeHash, url::SensitiveUrl, web3::keccak256, L1BatchNumber, H256, U64,
-    };
-    use zksync_dal::{ConnectionPool, Core};
+    use zksync_basic_types::{bytecode::BytecodeHash, H256, U64};
     use zksync_utils::env::Workspace;
-    use zksync_web3_decl::client::{Client, DynClient, L1};
 
     use crate::{
         l1_fetcher::{
-            blob_http_client::{BlobClient, BlobHttpClient, LocalStorageBlobSource},
+            blob_http_client::{BlobClient, BlobHttpClient},
             constants::{
-                local_initial_state_path, sepolia_blob_client, sepolia_diamond_proxy_addr,
-                sepolia_initial_state_path, sepolia_l1_client, sepolia_l1_fetcher,
-                sepolia_versioning,
+                sepolia_blob_client, sepolia_initial_state_path, sepolia_l1_client,
+                sepolia_l1_fetcher, sepolia_versioning,
             },
-            l1_fetcher::{L1Fetcher, L1FetcherConfig, ProtocolVersioning::OnlyV3},
+            l1_fetcher::L1Fetcher,
         },
-        processor::{
-            genesis::{get_genesis_factory_deps, get_genesis_state},
-            snapshot::StateCompressor,
-            tree::TreeProcessor,
-        },
+        processor::{snapshot::StateCompressor, tree::TreeProcessor},
     };
 
     #[test_log::test(tokio::test)]
@@ -1014,7 +1001,7 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn get_blocks_to_process_works_correctly() {
-        let (stop_sender, stop_receiver) = watch::channel(false);
+        let (_, stop_receiver) = watch::channel(false);
         let l1_fetcher = sepolia_l1_fetcher();
         // batches up to 109
         let blocks = l1_fetcher
@@ -1050,7 +1037,7 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn test_process_blocks() {
-        let (stop_sender, stop_receiver) = watch::channel(false);
+        let (_, stop_receiver) = watch::channel(false);
         let temp_dir = TempDir::new().unwrap().into_path().join("db");
 
         let l1_fetcher = sepolia_l1_fetcher();

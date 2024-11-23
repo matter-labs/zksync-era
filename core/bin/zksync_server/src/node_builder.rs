@@ -23,7 +23,7 @@ use zksync_node_framework::{
             base_token_ratio_persister::BaseTokenRatioPersisterLayer,
             base_token_ratio_provider::BaseTokenRatioProviderLayer, ExternalPriceApiLayer,
         },
-        blob_client::BlobClientLayer,
+        blob_client::{BlobClientLayer, BlobClientMode},
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
         consensus::MainNodeConsensusLayer,
@@ -207,7 +207,10 @@ impl MainNodeBuilder {
     }
 
     fn add_blob_client_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(BlobClientLayer::new());
+        self.node.add_layer(BlobClientLayer {
+            mode: BlobClientMode::Local,
+            blobscan_url: None,
+        });
         Ok(self)
     }
 
