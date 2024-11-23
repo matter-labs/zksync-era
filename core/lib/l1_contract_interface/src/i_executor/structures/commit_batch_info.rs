@@ -317,7 +317,12 @@ impl Tokenizable for CommitBatchInfo<'_> {
                     // even if we are not using blobs.
                     // Note, that the only difference from the `PubdataSendingMode::Calldata` is that mutliple
                     // commitments can be provided as the size of a transaction on top of Gateway can exceed 120kb.
-                    let blob_commitments: Vec<u8> = if pubdata.len() > 0 {
+                    let blob_commitments: Vec<u8> = if pubdata.is_empty() {
+                        // For consistency with `Calldata` sending mode we provide some non-empty commitments
+                        // even when pubdata is zero. Note, that this will never actually happen in production,
+                        // but this helps for easier testing.
+                        KzgInfo::new(&pubdata).to_blob_commitment().to_vec()
+                    } else {
                         pubdata
                             .chunks(ZK_SYNC_BYTES_PER_BLOB)
                             .flat_map(|blob| {
@@ -327,8 +332,6 @@ impl Tokenizable for CommitBatchInfo<'_> {
                                 blob_commitment.into_iter().collect::<Vec<u8>>()
                             })
                             .collect()
-                    } else {
-                        KzgInfo::new(&pubdata).to_blob_commitment().to_vec()
                     };
 
                     header
