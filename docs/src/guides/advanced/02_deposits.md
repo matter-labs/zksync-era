@@ -37,7 +37,7 @@ Now, let's see how many tokens we have:
 ./web3 --rpc-url http://localhost:3050 balance  0x618263CE921F7dd5F4f40C29f6c524Aaf97b9bbd
 ```
 
-Unsurprisingly we have 0 on both - let's fix it by first transferring some tokens on L1:
+Unsurprisingly we have 0 on both - let's fix it by first transferring some tokens to L1:
 
 ```shell
 ./web3 --rpc-url http://localhost:8545 transfer --pk 0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110 7.4 to 0x618263CE921F7dd5F4f40C29f6c524Aaf97b9bbd
