@@ -11,7 +11,7 @@ You should create the following file in your `$workspaceFolder/.vscode/` called 
 import os
 import lldb
 
-# Read the .env file and store the key-value pairs in a array with format ["key=value"]
+# Read the .env file and store the key-value pairs in an array with format ["key=value"]
 env_array = []
 with open(os.path.join("etc/env/l2-inits/dev.init.env")) as f:
     for line in f:
