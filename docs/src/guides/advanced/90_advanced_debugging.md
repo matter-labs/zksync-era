@@ -64,7 +64,7 @@ Afterwards you need to add something like this to your launch.json:
 
 ## Debugging contracts in vscode (using hardhat)
 
-Assuming that you created project in hardhat, that you'd normally test with `hardhat test` - you also also test it with
+Assuming that you created project in hardhat, that you'd normally test with `hardhat test` - you can also test it with
 vscode (which is super powerful - especially as you can have both binaries' debug sessions running in VSCode at the same
 time).
 
