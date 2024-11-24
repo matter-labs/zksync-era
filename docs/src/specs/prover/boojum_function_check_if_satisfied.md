@@ -48,7 +48,7 @@ For each row and gate, we need several things.
 Placement is either UniqueOnRow or MultipleOnRow. UniqueOnRow means there is only one gate on the row (typically because
 the gate is larger / more complicated). MultipleOnRow means there are multiple gates within the same row (typically
 because the gate is smaller). For example, if a gate only needs 30 columns, but we have 150 columns, we could include
-five copies fo that gate in the same row.
+five copies of that gate in the same row.
 
 Next, if the placement is UniqueOnRow, we call evaluate_over_general_purpose_columns. All of the evaluations should be
 equal to zero, or we panic.
