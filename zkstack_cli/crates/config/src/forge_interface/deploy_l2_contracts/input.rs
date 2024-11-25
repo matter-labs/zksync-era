@@ -32,8 +32,7 @@ impl DeployL2ContractsInput {
             bridgehub: contracts.ecosystem_contracts.bridgehub_proxy_addr,
             governance: contracts.l1.governance_addr,
             erc20_bridge: contracts.bridges.erc20.l1_address,
-            // FIXME: check whether it should be aliased.
-            consensus_registry_owner: contracts.l1.governance_addr,
+            consensus_registry_owner: wallets.governor.address,
         })
     }
 }
