@@ -17,7 +17,6 @@ use config::{
         },
         script_params::DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS,
     },
-    get_default_era_chain_id,
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig, WalletsConfig,
 };
@@ -43,16 +42,11 @@ pub async fn run(
     shell: &Shell,
     deploy_option: Deploy2ContractsOption,
     chain: ChainConfig,
-    ecosystem: Option<EcosystemConfig>,
+    ecosystem: EcosystemConfig,
 ) -> anyhow::Result<()> {
     let mut contracts = chain.get_contracts_config()?;
-    let era_chain_id = ecosystem
-        .as_ref()
-        .map_or(get_default_era_chain_id(), |e| e.era_chain_id);
-    let wallets = ecosystem.as_ref().map_or(
-        WalletsConfig::read(shell, chain.l1_wallets_path.clone()),
-        |e| e.get_wallets(),
-    )?;
+    let era_chain_id = ecosystem.era_chain_id;
+    let wallets = ecosystem.get_wallets()?;
 
     let spinner = Spinner::new(MSG_DEPLOYING_L2_CONTRACT_SPINNER);
 
