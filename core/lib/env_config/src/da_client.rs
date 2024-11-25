@@ -250,10 +250,9 @@ mod tests {
             DA_CLIENT="Eigen"
             DA_EIGEN_CLIENT_TYPE="Disperser"
             DA_DISPERSER_RPC="http://localhost:8080"
-            DA_ETH_CONFIRMATION_DEPTH=0
+            DA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
             DA_EIGENDA_ETH_RPC="http://localhost:8545"
             DA_EIGENDA_SVC_MANAGER_ADDRESS="0x123"
-            DA_BLOB_SIZE_LIMIT=1000
             DA_STATUS_QUERY_TIMEOUT=2
             DA_STATUS_QUERY_INTERVAL=3
             DA_WAIT_FOR_FINALIZATION=true
@@ -269,10 +268,9 @@ mod tests {
             actual,
             DAClientConfig::Eigen(EigenConfig {
                 disperser_rpc: "http://localhost:8080".to_string(),
-                eth_confirmation_depth: 0,
+                settlement_layer_confirmation_depth: 0,
                 eigenda_eth_rpc: "http://localhost:8545".to_string(),
                 eigenda_svc_manager_address: "0x123".to_string(),
-                blob_size_limit: 1000,
                 status_query_timeout: 2,
                 status_query_interval: 3,
                 wait_for_finalization: true,
