@@ -21,9 +21,9 @@ pub struct DeployL2ContractsInput {
 
 impl DeployL2ContractsInput {
     pub fn new(
-            ecosystem_config: &EcosystemConfig,
-            chain_config: &ChainConfig,
-        ) -> anyhow::Result<Self> {
+        ecosystem_config: &EcosystemConfig,
+        chain_config: &ChainConfig,
+    ) -> anyhow::Result<Self> {
         let contracts = ecosystem_config.get_contracts_config()?;
         Ok(Self {
             era_chain_id: ecosystem_config.era_chain_id,

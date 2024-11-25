@@ -9,9 +9,9 @@ use serde::{Deserialize, Serialize};
 use zksync_basic_types::L2ChainId;
 
 use crate::{
-    consts::INITIAL_DEPLOYMENT_FILE, ERC20_DEPLOYMENT_FILE,
+    consts::INITIAL_DEPLOYMENT_FILE,
     traits::{FileConfigWithDefaultName, ZkToolboxConfig},
-    ContractsConfig, GenesisConfig, WalletsConfig,
+    ContractsConfig, GenesisConfig, WalletsConfig, ERC20_DEPLOYMENT_FILE,
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
