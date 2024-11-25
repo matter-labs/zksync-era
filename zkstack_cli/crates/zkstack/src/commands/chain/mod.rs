@@ -14,7 +14,7 @@ use crate::{
         args::create::ChainCreateArgs, deploy_l2_contracts::Deploy2ContractsOption,
         genesis::GenesisCommand, init::ChainInitCommand,
     },
-    messages::MSG_CHAIN_NOT_FOUND_ERR,
+    messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_ECOSYSTEM_CONFIG_INVALID_ERR},
 };
 
 mod accept_chain_ownership;
@@ -101,8 +101,14 @@ pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()>
         ChainCommands::Genesis(args) => genesis::run(args, shell, chain).await,
         ChainCommands::RegisterChain(args) => register_chain::run(args, shell).await,
         ChainCommands::DeployL2Contracts(args) => {
-            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::All, chain, ecosystem)
-                .await
+            deploy_l2_contracts::run(
+                args,
+                shell,
+                Deploy2ContractsOption::All,
+                chain,
+                ecosystem.context(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)?,
+            )
+            .await
         }
         ChainCommands::AcceptChainOwnership(args) => {
             accept_chain_ownership::run(args, shell, chain).await
@@ -113,7 +119,7 @@ pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()>
                 shell,
                 Deploy2ContractsOption::ConsensusRegistry,
                 chain,
-                ecosystem,
+                ecosystem.context(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)?,
             )
             .await
         }
@@ -123,7 +129,7 @@ pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()>
                 shell,
                 Deploy2ContractsOption::Multicall3,
                 chain,
-                ecosystem,
+                ecosystem.context(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)?,
             )
             .await
         }
@@ -133,7 +139,7 @@ pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()>
                 shell,
                 Deploy2ContractsOption::TimestampAsserter,
                 chain,
-                ecosystem,
+                ecosystem.context(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)?,
             )
             .await
         }
@@ -143,7 +149,7 @@ pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()>
                 shell,
                 Deploy2ContractsOption::Upgrader,
                 chain,
-                ecosystem,
+                ecosystem.context(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)?,
             )
             .await
         }
@@ -153,7 +159,7 @@ pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()>
                 shell,
                 Deploy2ContractsOption::InitiailizeBridges,
                 chain,
-                ecosystem,
+                ecosystem.context(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)?,
             )
             .await
         }
