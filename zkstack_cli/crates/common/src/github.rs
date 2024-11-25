@@ -6,6 +6,8 @@ use reqwest::{
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
+const GITHUB_API_REPO_URL: &str = "https://api.github.com/repos/matter-labs/zksync-era";
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Tag {
     pub name: String,
@@ -58,10 +60,7 @@ impl GitHubTagFetcher {
 
         // Fetch all pages
         loop {
-            let url = format!(
-                "https://api.github.com/repos/matter-labs/zksync-era/tags?page={}&per_page=100",
-                page
-            );
+            let url = format!("{}/tags?page={}&per_page=100", GITHUB_API_REPO_URL, page);
 
             let response = self
                 .client
