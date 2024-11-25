@@ -25,6 +25,7 @@ impl DeployL2ContractsInput {
         chain_config: &ChainConfig,
     ) -> anyhow::Result<Self> {
         let contracts = ecosystem_config.get_contracts_config()?;
+        let wallets = chain_config.get_wallets_config()?;
         Ok(Self {
             era_chain_id: ecosystem_config.era_chain_id,
             chain_id: chain_config.chain_id,

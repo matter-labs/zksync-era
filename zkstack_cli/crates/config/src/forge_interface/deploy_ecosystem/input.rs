@@ -10,7 +10,7 @@ use zksync_basic_types::L2ChainId;
 
 use crate::{
     consts::INITIAL_DEPLOYMENT_FILE,
-    traits::{FileConfigWithDefaultName, ZkToolboxConfig},
+    traits::{FileConfigWithDefaultName, ZkStackConfig},
     ContractsConfig, GenesisConfig, WalletsConfig, ERC20_DEPLOYMENT_FILE,
 };
 
