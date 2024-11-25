@@ -14,7 +14,7 @@ use crate::{
     messages::{MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER},
 };
 
-pub(super) fn run_server(
+pub(super) async fn run_server(
     args: RunServerArgs,
     chain_config: &ChainConfig,
     shell: &Shell,
@@ -47,7 +47,8 @@ pub(super) fn run_server(
             SecretsConfig::get_path_with_base_path(&chain_config.configs),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
             vec![],
-            Some(args.tag.as_str()),
+            args.tag,
         )
+        .await
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)
 }

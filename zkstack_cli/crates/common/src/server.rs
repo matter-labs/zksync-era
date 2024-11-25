@@ -3,7 +3,7 @@ use std::{ffi::OsStr, path::PathBuf};
 use anyhow::Context;
 use xshell::{cmd, Shell};
 
-use crate::cmd::Cmd;
+use crate::{cmd::Cmd, github::GitHubTagFetcher, PromptSelect};
 
 /// Allows to perform server operations.
 #[derive(Debug)]
@@ -41,7 +41,7 @@ impl Server {
 
     /// Runs the server.
     #[allow(clippy::too_many_arguments)]
-    pub fn run<P>(
+    pub async fn run<P>(
         &self,
         shell: &Shell,
         execution_mode: ExecutionMode,
@@ -54,7 +54,7 @@ impl Server {
         secrets_path: P,
         contracts_path: P,
         mut additional_args: Vec<String>,
-        tag: Option<&str>,
+        tag: Option<String>,
     ) -> anyhow::Result<()>
     where
         P: AsRef<OsStr>,
@@ -84,7 +84,8 @@ impl Server {
             execution_mode,
             server_mode,
             tag,
-        )?;
+        )
+        .await?;
 
         Ok(())
     }
@@ -108,7 +109,7 @@ impl Server {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn run_server<P>(
+async fn run_server<P>(
     shell: &Shell,
     uring: Option<&str>,
     configs_folder: P,
@@ -121,7 +122,7 @@ fn run_server<P>(
     additional_args: Vec<String>,
     execution_mode: ExecutionMode,
     server_mode: ServerMode,
-    tag: Option<&str>,
+    tag: Option<String>,
 ) -> anyhow::Result<()>
 where
     P: AsRef<OsStr>,
@@ -156,7 +157,7 @@ where
             .env_remove("RUSTUP_TOOLCHAIN"),
         ),
         ExecutionMode::Docker => {
-            let tag = tag.unwrap_or("latest");
+            let tag = tag.unwrap_or(select_tag().await?.to_owned());
 
             Cmd::new(cmd!(
                 shell,
@@ -183,4 +184,19 @@ where
     }
 
     cmd.run().context("Failed to run server")
+}
+
+async fn select_tag() -> anyhow::Result<String> {
+    let fetcher = GitHubTagFetcher::new(None)?;
+    let gh_tags = fetcher.get_newest_core_tags(Some(5)).await?;
+
+    let tags: Vec<String> = std::iter::once("latest".to_string())
+        .chain(
+            gh_tags
+                .iter()
+                .map(|r| r.name.trim_start_matches("core-").to_string()),
+        )
+        .collect();
+
+    Ok(PromptSelect::new("Select image", tags).ask().into())
 }

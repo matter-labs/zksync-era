@@ -21,7 +21,7 @@ pub async fn run(shell: &Shell, args: ServerArgs) -> anyhow::Result<()> {
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
     match ServerCommand::from(args) {
-        ServerCommand::Run(args) => run_server(args, &chain_config, shell),
+        ServerCommand::Run(args) => run_server(args, &chain_config, shell).await,
         ServerCommand::Build => build_server(&chain_config, shell),
         ServerCommand::Wait(args) => wait_for_server(args, &chain_config).await,
     }

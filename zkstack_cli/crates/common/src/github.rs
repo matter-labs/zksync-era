@@ -7,17 +7,17 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct Tag {
-    name: String,
-    commit: Commit,
-    zipball_url: String,
-    tarball_url: String,
+pub struct Tag {
+    pub name: String,
+    pub commit: Commit,
+    pub zipball_url: String,
+    pub tarball_url: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Commit {
-    sha: String,
-    url: String,
+pub struct Commit {
+    pub sha: String,
+    pub url: String,
 }
 
 /// Fetches and sorts GitHub repository tags by semantic version

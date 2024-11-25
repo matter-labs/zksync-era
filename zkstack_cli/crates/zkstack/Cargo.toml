@@ -45,7 +45,6 @@ zksync_protobuf.workspace = true
 zksync_protobuf_config.workspace = true
 prost.workspace = true
 reqwest.workspace = true
-semver.workspace = true
 
 [dev-dependencies]
 rand.workspace = true

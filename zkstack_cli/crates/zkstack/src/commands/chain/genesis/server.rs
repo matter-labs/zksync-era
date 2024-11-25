@@ -22,14 +22,14 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
     let spinner = Spinner::new(MSG_STARTING_GENESIS_SPINNER);
-    run_server_genesis(&chain_config, shell)?;
+    run_server_genesis(&chain_config, shell).await?;
     spinner.finish();
     logger::outro(MSG_GENESIS_COMPLETED);
 
     Ok(())
 }
 
-pub fn run_server_genesis(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
+pub async fn run_server_genesis(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let server = Server::new(None, chain_config.link_to_code.clone(), false);
     server
@@ -47,5 +47,6 @@ pub fn run_server_genesis(chain_config: &ChainConfig, shell: &Shell) -> anyhow::
             vec![],
             None, // TODO: add support for docker
         )
+        .await
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)
 }

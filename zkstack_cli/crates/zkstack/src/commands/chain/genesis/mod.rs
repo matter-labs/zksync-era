@@ -85,7 +85,7 @@ pub async fn genesis(
     spinner.finish();
 
     let spinner = Spinner::new(MSG_STARTING_GENESIS_SPINNER);
-    run_server_genesis(config, shell)?;
+    run_server_genesis(config, shell).await?;
     spinner.finish();
 
     Ok(())
