@@ -8,7 +8,7 @@ and enabled as follows:
 Run the following to generate consensus secrets:
 
 ```
-docker run --entrypoint /usr/bin/zksync_external_node "matterlabs/external-node:2.0-v25.1.0" generate-secrets > consensus_secrets.yaml
+docker run --entrypoint /usr/bin/zksync_external_node "matterlabs/external-node:2.0-v25.0.0" generate-secrets > consensus_secrets.yaml
 chmod 600 consensus_secrets.yaml
 ```
 
@@ -55,12 +55,12 @@ long) to achieve that:
 
 ## Gitops repo config
 
-If you are using the matterlabs gitops repo to configure the main node, it is even more complicated becase the
+If you are using the matterlabs gitops repo to configure the main node, it is even more complicated because the
 `consensus_config.yaml` file is rendered from a helm chart. See the
 [example](https://github.com/matter-labs/gitops-kubernetes/blob/main/apps/environments/mainnet2/server-v2/server-v2-core.yaml),
 to see where you have to paste the content of the `consensus_config.yaml` file.
 
-You need to embed the `consenus_secrets.yaml` file into a kubernetes config:
+You need to embed the `consensus_secrets.yaml` file into a kubernetes config:
 
 ```yaml
 apiVersion: v1

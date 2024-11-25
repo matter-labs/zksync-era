@@ -11,9 +11,11 @@
 title: Status Diagram
 ---
 stateDiagram-v2
-[*] --> unpicked : insert_tee_proof_generation_job
-unpicked --> picked_by_prover : lock_batch_for_proving
+[*] --> picked_by_prover : lock
 picked_by_prover --> generated : save_proof_artifacts_metadata
-picked_by_prover --> unpicked : unlock_batch
+picked_by_prover --> permanently_ignored : unlock_batch
+picked_by_prover --> failed : unlock_batch
+failed --> picked_by_prover : lock
+permanently_ignored --> [*]
 generated --> [*]
 ```
