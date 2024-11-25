@@ -2,7 +2,8 @@
 
 ## Basics Calls
 
-Interop Calls are the next level of interfaces, built on top of Interop Messages, enabling you to call contracts on other chains.
+Interop Calls are the next level of interfaces, built on top of Interop Messages, enabling you to call contracts on
+other chains.
 
 ![interopcall.png](../img/interopcall.png)
 
@@ -257,20 +258,14 @@ However, there are cases where the bundle should be cancelled. Cancellation can 
 USDCBridge.recoverFailedTransfer(bundleId, cancellationMessage, proof);
 ```
 
-
-
-
 ### Some details on our approach
-
 
 #### Destination Contract
 
-
 - On ElasticChain, the destination contract does not need to know it is being called via an interop call. Requests
-arrive from `aliased accounts'.
+  arrive from `aliased accounts'.
 
 #### Batching
-
 
 - ElasticChain supports bundling of messages, ensuring shared fate and strict order.
 
@@ -280,6 +275,4 @@ arrive from `aliased accounts'.
 
 #### Cancellations
 
-
 - ElasticChain supports restricting who can cancel. Cancellation can happen at any time.
-

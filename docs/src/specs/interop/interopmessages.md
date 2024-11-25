@@ -167,26 +167,15 @@ global root.
 If the Gateway behaves maliciously, it wouldn’t be able to submit its batches to L1, as the proof would fail
 verification. A separate section will cover interop transaction security in more detail.
 
-
-
-
-
-
-
-
-
-
-
 ### Other Features
 
 #### Dependency Set
 
-- In ElasticChain, this is implicitly handled by the Gateway. Any chain that is part of the global
-root can exchange messages with any other chain, effectively forming an undirected graph.
+- In ElasticChain, this is implicitly handled by the Gateway. Any chain that is part of the global root can exchange
+  messages with any other chain, effectively forming an undirected graph.
 
 #### Timestamps and Expiration
 
-
-- In ElasticChain, older messages become increasingly difficult to validate as it becomes harder to
-  gather the data required to construct a Merkle proof. Expiration is also being considered for this reason, but the
-  specifics are yet to be determined.
+- In ElasticChain, older messages become increasingly difficult to validate as it becomes harder to gather the data
+  required to construct a Merkle proof. Expiration is also being considered for this reason, but the specifics are yet
+  to be determined.
