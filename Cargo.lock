@@ -12616,6 +12616,7 @@ dependencies = [
  "async-trait",
  "futures 0.3.31",
  "serde",
+ "serde_json",
  "test-casing",
  "thiserror",
  "tokio",

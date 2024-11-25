@@ -82,6 +82,7 @@ async fn snapshots_creator_can_successfully_recover_db(
         pool.clone(),
         Box::new(client.clone()),
         object_store.clone(),
+        None,
     );
     let task_health = task.health_check();
     let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -138,6 +139,7 @@ async fn snapshots_creator_can_successfully_recover_db(
         pool.clone(),
         Box::new(client.clone()),
         object_store.clone(),
+        None,
     );
 
     let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -163,6 +165,7 @@ async fn snapshots_creator_can_successfully_recover_db(
         pool.clone(),
         Box::new(client),
         object_store,
+        None,
     );
     let (_stop_sender, stop_receiver) = watch::channel(false);
     let stats = task.run(stop_receiver).await.unwrap();
@@ -182,6 +185,7 @@ async fn applier_recovers_v0_snapshot(drop_storage_key_preimages: bool) {
         pool.clone(),
         Box::new(client),
         object_store,
+        None,
     );
     if drop_storage_key_preimages {
         task.drop_storage_key_preimages();
@@ -229,6 +233,7 @@ async fn applier_recovers_explicitly_specified_snapshot() {
         pool.clone(),
         Box::new(client),
         object_store,
+        None,
     );
     task.set_snapshot_l1_batch(expected_status.l1_batch_number);
     let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -255,6 +260,7 @@ async fn applier_error_for_missing_explicitly_specified_snapshot() {
         pool,
         Box::new(client),
         object_store,
+        None,
     );
     task.set_snapshot_l1_batch(expected_status.l1_batch_number + 1);
 
@@ -283,6 +289,7 @@ async fn snapshot_applier_recovers_after_stopping() {
         pool.clone(),
         Box::new(client.clone()),
         Arc::new(stopping_object_store),
+        None,
     );
     let (_stop_sender, task_stop_receiver) = watch::channel(false);
     let task_handle = tokio::spawn(task.run(task_stop_receiver));
@@ -320,6 +327,7 @@ async fn snapshot_applier_recovers_after_stopping() {
         pool.clone(),
         Box::new(client.clone()),
         Arc::new(stopping_object_store),
+        None,
     );
     let (_stop_sender, task_stop_receiver) = watch::channel(false);
     let task_handle = tokio::spawn(task.run(task_stop_receiver));
@@ -347,6 +355,7 @@ async fn snapshot_applier_recovers_after_stopping() {
         pool.clone(),
         Box::new(client.clone()),
         Arc::new(stopping_object_store),
+        None,
     );
     task.set_snapshot_l1_batch(expected_status.l1_batch_number); // check that this works fine
     let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -419,6 +428,7 @@ async fn health_status_immediately_after_task_start() {
         ConnectionPool::<Core>::test_pool().await,
         Box::new(client.clone()),
         object_store,
+        None,
     );
     let task_health = task.health_check();
     let (_stop_sender, task_stop_receiver) = watch::channel(false);
@@ -475,6 +485,7 @@ async fn applier_errors_after_genesis() {
         pool,
         Box::new(client),
         object_store,
+        None,
     );
     let (_stop_sender, task_stop_receiver) = watch::channel(false);
     task.run(task_stop_receiver).await.unwrap_err();
@@ -491,6 +502,7 @@ async fn applier_errors_without_snapshots() {
         pool,
         Box::new(client),
         object_store,
+        None,
     );
     let (_stop_sender, stop_receiver) = watch::channel(false);
     task.run(stop_receiver).await.unwrap_err();
@@ -511,6 +523,7 @@ async fn applier_errors_with_unrecognized_snapshot_version() {
         pool,
         Box::new(client),
         object_store,
+        None,
     );
     let (_stop_sender, stop_receiver) = watch::channel(false);
     task.run(stop_receiver).await.unwrap_err();
@@ -531,6 +544,7 @@ async fn applier_returns_error_on_fatal_object_store_error() {
         pool,
         Box::new(client),
         Arc::new(object_store),
+        None,
     );
     let (_stop_sender, stop_receiver) = watch::channel(false);
     let err = task.run(stop_receiver).await.unwrap_err();
@@ -560,6 +574,7 @@ async fn applier_returns_error_after_too_many_object_store_retries() {
         pool,
         Box::new(client),
         Arc::new(object_store),
+        None,
     );
     let (_stop_sender, stop_receiver) = watch::channel(false);
     let err = task.run(stop_receiver).await.unwrap_err();
@@ -600,6 +615,7 @@ async fn recovering_tokens() {
         pool.clone(),
         Box::new(client.clone()),
         object_store.clone(),
+        None,
     );
     let (_stop_sender, stop_receiver) = watch::channel(false);
     let task_result = task.run(stop_receiver).await;
@@ -617,6 +633,7 @@ async fn recovering_tokens() {
         pool.clone(),
         Box::new(client.clone()),
         object_store.clone(),
+        None,
     );
     let (_stop_sender, stop_receiver) = watch::channel(false);
     task.run(stop_receiver).await.unwrap();
@@ -652,6 +669,7 @@ async fn recovering_tokens() {
         pool,
         Box::new(client),
         object_store,
+        None,
     );
     let (_stop_sender, stop_receiver) = watch::channel(false);
     task.run(stop_receiver).await.unwrap();
@@ -674,6 +692,7 @@ async fn snapshot_applier_can_be_canceled() {
         pool.clone(),
         Box::new(client.clone()),
         Arc::new(stopping_object_store),
+        None,
     );
     let (task_stop_sender, task_stop_receiver) = watch::channel(false);
     let task_handle = tokio::spawn(task.run(task_stop_receiver));
