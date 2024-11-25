@@ -29,18 +29,18 @@ The `InteropCenter` is a contract that is pre-deployed on all chains at a fixed 
 contract InteropCenter {
   // Sends interop message. Can be called by anyone.
   // Returns the unique interopHash.
-	function sendInteropMessage(bytes data) returns interopHash;
+ function sendInteropMessage(bytes data) returns interopHash;
 
   // Interop message - uniquely identified by the hash of the payload.
-	struct InteropMessage {
-	  bytes data;
-	  address sender; // filled by InteropCenter
-	  uint256 sourceChainId; // filled by InteropCenter
-	  uint256 messageNum; // a 'nonce' to guarantee different hashes.
-	}
+ struct InteropMessage {
+   bytes data;
+   address sender; // filled by InteropCenter
+   uint256 sourceChainId; // filled by InteropCenter
+   uint256 messageNum; // a 'nonce' to guarantee different hashes.
+ }
 
-	// Verifies if such interop message was ever producted.
-	function verifyInteropMessage(bytes32 interopHash, Proof merkleProof) return bool;
+ // Verifies if such interop message was ever producted.
+ function verifyInteropMessage(bytes32 interopHash, Proof merkleProof) return bool;
 }
 ```
 
@@ -53,13 +53,13 @@ This `interopHash` serves as a globally unique identifier that can be used on an
 
 ![A message created on one chain can be verified on any other chain.](../img/verifyinteropmsg.png)
 
-#### How do I get the proof?
+#### How do I get the proof
 
 You’ll notice that **verifyInteropMessage** has a second argument — a proof that you need to provide. This proof is a
 Merkle tree proof (more details below). You can obtain it by querying the Settlement Layer (Gateway) or generating it
 off-chain by examining the Gateway state on L1.
 
-#### How does the interop message differ from other layers (InteropTransactions, InteropCalls)?
+#### How does the interop message differ from other layers (InteropTransactions, InteropCalls)
 
 As the most basic layer, an interop message doesn’t include any advanced features — it lacks support for selecting
 destination chains, nullifiers/replay, cancellation, and more.
@@ -94,7 +94,7 @@ contract SignupContract {
     require(message.sourceChainId == CHAIN_A_ID);
     require(message.sender == SIGNUP_MANAGER_ON_CHAIN_A);
     require(message.data == "We are open");
-	  signupIsOpen = true;
+   signupIsOpen = true;
   }
 
   function signup() {
@@ -146,7 +146,7 @@ when calling a method on the destination chain (such as the `openSignup` method 
 
 ![proofmerklepath.png](../img/proofmerklepath.png)
 
-#### What if the Gateway doesn’t respond?
+#### What if the Gateway doesn’t respond
 
 If the Gateway doesn’t respond, users can manually re-create the Merkle proof using data available on L1. Every
 interopMessage is also sent to L1.
@@ -156,111 +156,37 @@ interopMessage is also sent to L1.
 Yes, global roots update continuously as new chains prove their blocks. However, chains retain historical global roots
 for a reasonable period (around 24 hours) to ensure that recently generated Merkle paths remain valid.
 
-#### Is this secure? Could a chain operator, like Chain D, use a different global root?
+#### Is this secure? Could a chain operator, like Chain D, use a different global root
 
 Yes, it’s secure. If a malicious operator on Chain D attempted to use a different global root, they wouldn’t be able to
 submit the proof for their new batch to the Gateway. This is because the proof’s public inputs must include the valid
 global root.
 
-#### What if the Gateway is malicious?
+#### What if the Gateway is malicious
 
 If the Gateway behaves maliciously, it wouldn’t be able to submit its batches to L1, as the proof would fail
 verification. A separate section will cover interop transaction security in more detail.
 
-## ElasticChain vs SuperChain
 
-Optimism’s SuperChain and ElasticChain offer similar interfaces, but there are notable differences. Let’s compare them.
 
-### Main Contract
 
-- **SuperChain:** `CrossL2Inbox` – predeployed at 0x42…..22.
 
-- **ElasticChain:** `InteropCenter` – predeployed at a TBD address.
 
-Note: SuperChain also provides a `L2ToL2CrossDomainMessenger`, which will be compared with ElasticChain’s `InteropCall`
-in the next section.
 
-### Sending Messages
 
-- **SuperChain:** Any existing event can implicitly act as a message. There is no explicit "send" mechanism; you simply
-  rely on existing Ethereum events.
 
-- **ElasticChain:** Requires explicitly calling a method to send the message: `SendInteropMessage`.
 
-#### Why the Difference?
-
-ElasticChain performs additional operations, such as creating Merkle trees and transmitting message content to the
-Gateway and L1. Applying these processes to all Ethereum events would increase costs significantly.
-
-Additionally, in privacy validium setups, not all events can be shared with the settlement layers, necessitating a more
-deliberate approach.
-
-### Receiving Messages
-
-- **SuperChain:** `validateMessage(Identifier identifier, bytes32 msgHash)`
-
-- **ElasticChain:** `verifyInteropMessage(bytes32 identifier, Proof proof)`
-
-#### Why the Difference?
-
-In SuperChain, a larger identifier is required to specify which chain and block should be queried for event data.
-However, the msgHash (derived from Ethereum logs) is not guaranteed to be globally unique.
-
-In ElasticChain, the identifier is globally unique because it’s derived from the hash of a struct that includes the
-source chain ID. ElasticChain also requires the caller to provide a proof, such as the Merkle path to the globalRoot.
-
-The main difference lies in the fact that SuperChain relies on the honesty of its sequencers. In the future, it plans to
-implement cross-chain FaultProofs, though these mechanisms are not yet fully designed.
-
-### Message Struct & Identifier
-
-- **SuperChain:**
-
-```solidity
-// Message
-ethereum Log.
-
-// Identifier
-struct Identifier {
-    address origin;
-    uint256 blocknumber;
-    uint256 logIndex;
-    uint256 timestamp;
-    uint256 chainid;
-}
-```
-
-- **ElasticChain:**
-
-```solidity
-	// Message
-	struct InteropMessage {
-	  bytes data;
-	  address sender;
-	  uint256 sourceChainId;
-	  uint256 messageNum; // a 'nonce' to guarantee different hashes.
-	}
-
-	// Identifier
-	keccak(InteropMessage)
-```
 
 ### Other Features
 
 #### Dependency Set
 
-- **SuperChain:** SuperChain introduces a concept of a dependency set, which defines a list of chains from which a chain
-  will accept messages. This forms a directed graph, meaning chain A can receive messages from chain B, but chain B may
-  not receive messages from chain A.
-
-- **ElasticChain:** In ElasticChain, this is implicitly handled by the Gateway. Any chain that is part of the global
-  root can exchange messages with any other chain, effectively forming an undirected graph.
+- In ElasticChain, this is implicitly handled by the Gateway. Any chain that is part of the global
+root can exchange messages with any other chain, effectively forming an undirected graph.
 
 #### Timestamps and Expiration
 
-- **SuperChain:** SuperChain includes the concept of message expiration, preventing verification of events that are too
-  old (though the exact details are still TBD).
 
-- **ElasticChain:** In ElasticChain, older messages become increasingly difficult to validate as it becomes harder to
+- In ElasticChain, older messages become increasingly difficult to validate as it becomes harder to
   gather the data required to construct a Merkle proof. Expiration is also being considered for this reason, but the
   specifics are yet to be determined.

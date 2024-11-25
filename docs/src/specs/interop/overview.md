@@ -1,6 +1,6 @@
 # Intro Guide to Interop
 
-## What is Interop?
+## What is Interop
 
 Interop is a way to communicate and transact between two ZK Stack chains. It allows you to:
 
@@ -24,13 +24,13 @@ Here’s a simple example of calling a contract on a destination chain:
 
 ```solidity
 cast send source-chain-rpc.com INTEROP_CENTER_ADDRESS sendInteropWithSingleCall(
-	0x1fa72e78 // destination_chain_id,
-	0xb4AB2FF34fa... // destination_contract,
-	0x29723511000000... // destination_calldata,
-	0, // value
-	100_000, // gasLimit
-	250_000_000, // gasPrice
-	)
+ 0x1fa72e78 // destination_chain_id,
+ 0xb4AB2FF34fa... // destination_contract,
+ 0x29723511000000... // destination_calldata,
+ 0, // value
+ 100_000, // gasLimit
+ 250_000_000, // gasPrice
+ )
 ```
 
 While this looks very similar to a 'regular' call, there are some nuances, especially around handling failures and
@@ -40,7 +40,7 @@ Let’s explore these key details together.
 
 ## Common Questions and Considerations
 
-#### 1. Who pays for gas?
+#### 1. Who pays for gas
 
 When using this method, your account must hold `gasLimit * gasPrice` worth of destination chain tokens on the source
 chain.
@@ -50,18 +50,18 @@ SOPH tokens available on Era.
 
 Additional payment options are available, which will be covered in later sections.
 
-#### 2. How does the destination contract know it’s from me?
+#### 2. How does the destination contract know it’s from me
 
 The destination contract will see `msg.sender` as `keccak(source_account, source_chain)[:20]`.
 
 Ideally, we would use something like `source_account@source_chain` (similar to an email format), but since Ethereum
 addresses are limited to 20 bytes, we use a Keccak hash to fit this constraint.
 
-#### 3. Who executes it on the destination chain?
+#### 3. Who executes it on the destination chain
 
 The call is auto-executed on the destination chain. As a user, you don’t need to take any additional actions.
 
-#### 4. What if it runs out of gas or the gasPrice is set too low?
+#### 4. What if it runs out of gas or the gasPrice is set too low
 
 In either scenario, you can retry the transaction using the `retryInteropTransaction` method:
 
@@ -79,7 +79,7 @@ In either scenario, you can retry the transaction using the `retryInteropTransac
 For example, if your call involves transferring a large amount of assets, initiating a new `sendInteropWithSingleCall`
 could result in freezing or burning those assets again.
 
-#### 5. What if my assets were burned during the transaction, but it failed on the destination chain? How do I get them back?
+#### 5. What if my assets were burned during the transaction, but it failed on the destination chain? How do I get them back
 
 If your transaction fails on the destination chain, you can either:
 
@@ -100,7 +100,7 @@ that the details for this step may vary depending on the contract specifics.
 
 ## Complex Scenario
 
-#### 6. What if I want to transfer USDC to the Sophon chain, swap it for PEPE coin, and transfer the results back?
+#### 6. What if I want to transfer USDC to the Sophon chain, swap it for PEPE coin, and transfer the results back
 
 To accomplish this, you’ll need to:
 
@@ -112,7 +112,7 @@ The step-by-step process and exact details will be covered in the next section.
 
 ## Technical Details
 
-### How is Interop Different from a Bridge?
+### How is Interop Different from a Bridge
 
 Bridges generally fall into two categories: Native and Third-Party.
 
@@ -137,7 +137,7 @@ The good news is that third-party bridges can use interop to improve their token
 
 More details on this will follow below.
 
-### How Fast is It?
+### How Fast is It
 
 Interop speed is determined by its lowest level: **InteropMessage** propagation speed. This essentially depends on how
 quickly the destination chain can confirm that the message created by the source chain is valid.

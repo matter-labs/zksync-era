@@ -2,8 +2,7 @@
 
 ## Basics Calls
 
-Interop Calls are the next level of interfaces, built on top of Interop Messages, enabling you to call contracts on
-other chains.
+Interop Calls are the next level of interfaces, built on top of Interop Messages, enabling you to call contracts on other chains.
 
 ![interopcall.png](../img/interopcall.png)
 
@@ -21,14 +20,14 @@ On the sending side, the interface provides the option to send this "call" to th
 
 ```solidity
 struct InteropCall {
-	address sourceSender,
-	address destinationAddress,
-	uint256 destinationChainId,
-	calldata data,
-	uint256 value
+ address sourceSender,
+ address destinationAddress,
+ uint256 destinationChainId,
+ calldata data,
+ uint256 value
 }
 contract InteropCenter {
-	// On source chain.
+ // On source chain.
   // Sends a 'single' basic internal call to destination chain & address.
   // Internally, it starts a bundle, adds this call and sends it over.
   function sendCall(destinationChain, destinationAddress, calldata, msgValue) returns bytes32 bundleId;
@@ -84,18 +83,18 @@ contract on chain A every time a customer makes a purchase.
 ```solidity
 // Deployed on chains B, C, D.
 contract Shop {
-	/// Called by the customers when they buy something.
-	function buy(uint256 itemPrice) {
-	  // handle payment etc.
-	  ...
-	  // report to HQ
-	  InteropCenter(INTEROP_ADDRESS).sendCall(
-		  324,       // chain id of chain A,
-		  0xc425..,  // HQ contract on chain A,
-		  createCalldata("reportSales(uint256)", itemPrice), // calldata
-		  0,         // no value
-		);
-	}
+ /// Called by the customers when they buy something.
+ function buy(uint256 itemPrice) {
+   // handle payment etc.
+   ...
+   // report to HQ
+   InteropCenter(INTEROP_ADDRESS).sendCall(
+    324,       // chain id of chain A,
+    0xc425..,  // HQ contract on chain A,
+    createCalldata("reportSales(uint256)", itemPrice), // calldata
+    0,         // no value
+  );
+ }
 }
 
 // Deployed on chain A
@@ -105,18 +104,18 @@ contract HQ {
   mapping (address => uint256) sales;
   function addShop(address addressOnChain, uint256 chainId) onlyOwner {
     // Adding aliased accounts.
-	  shops[address(keccak(addressOnChain || chainId))] = true;
+   shops[address(keccak(addressOnChain || chainId))] = true;
   }
 
   function reportSales(uint256 itemPrice) {
     // only allow calls from our shops (their aliased accounts).
-	  require(shops[msg.sender]);
-	  sales[msg.sender] += itemPrice;
+   require(shops[msg.sender]);
+   sales[msg.sender] += itemPrice;
   }
 }
 ```
 
-#### Who is paying for gas? How does this Call get to the destination chain?
+#### Who is paying for gas? How does this Call get to the destination chain
 
 At this level, the **InteropCall** acts like a hitchhiker — it relies on someone (anyone) to pick it up, execute it, and
 pay for the gas!
@@ -153,27 +152,27 @@ In this sense, you can think of a bundle as a **"multicall"**, but with two key 
 
 ```solidity
 contract InteropCenter {
-	struct InteropBundle {
-		// Calls have to be done in this order.
-		InteropCall calls[];
-		uint256 destinationChain;
+ struct InteropBundle {
+  // Calls have to be done in this order.
+  InteropCall calls[];
+  uint256 destinationChain;
 
-		// If not set - anyone can execute it.
-		address executionAddresses[];
-		// Who can 'cancel' this bundle.
-		address cancellationAddress;
-	}
+  // If not set - anyone can execute it.
+  address executionAddresses[];
+  // Who can 'cancel' this bundle.
+  address cancellationAddress;
+ }
 
-	// Starts a new bundle.
-	// All the calls that will be added to this bundle (potentially by different contracts)
-	// will have a 'shared fate'.
-	// The whole bundle must be going to a single destination chain.
-	function startBundle(destinationChain) returns bundleId;
-	// Adds a new call to the opened bundle.
-	// Returns the messageId of this single message in the bundle.
-	function addToBundle(bundleId, destinationAddress, calldata, msgValue) return msgHash;
-	// Finishes a given bundle, and sends it.
-	function finishAndSendBundle(bundleId) return msgHash;
+ // Starts a new bundle.
+ // All the calls that will be added to this bundle (potentially by different contracts)
+ // will have a 'shared fate'.
+ // The whole bundle must be going to a single destination chain.
+ function startBundle(destinationChain) returns bundleId;
+ // Adds a new call to the opened bundle.
+ // Returns the messageId of this single message in the bundle.
+ function addToBundle(bundleId, destinationAddress, calldata, msgValue) return msgHash;
+ // Finishes a given bundle, and sends it.
+ function finishAndSendBundle(bundleId) return msgHash;
 }
 ```
 
@@ -246,7 +245,7 @@ traveling in doesn’t reach the destination, they simply find another ride rath
 However, there are cases where the bundle should be cancelled. Cancellation can be performed by the
 `cancellationAddress` specified in the bundle itself.
 
-#### For our cross chain swap example:
+#### For our cross chain swap example
 
 1. Call `cancelInteropBundle(interopMessage, proof)` on the destination chain.
    - A helper method for this will be introduced in the later section.
@@ -258,81 +257,29 @@ However, there are cases where the bundle should be cancelled. Cancellation can 
 USDCBridge.recoverFailedTransfer(bundleId, cancellationMessage, proof);
 ```
 
-## Comparison with Superchain
 
-Superchain offers the `L2ToL2CrossDomainMessenger` contract.
 
-(SuperchainERC20 and SuperchainWETH will be compared in other sections alongside other layers.)
 
-Similar to **InteropCall**, it allows you to send a message to the target contract:
+### Some details on our approach
 
-```solidity
-function sendMessage(
-  uint256 _destination,
-  address _target,
-  bytes calldata _message
-) external returns (bytes32);
-
-```
-
-This contract appends a unique nonce and the sender’s address, resulting in a message structure like this:
-
-```solidity
-event SentMessage(
-	uint256 indexed destination,
-	address indexed target,
-	uint256 indexed messageNonce,
-	address sender,
-	bytes message
-);
-```
-
-The user is then responsible for calling the `L2ToL2CrossDomainMessenger` on the destination chain. This verifies the
-message and calls the target contract.
-
-The target contract must "trust" messages originating from the CrossDomainMessenger contract, as it can directly inspect
-the source sender, which is not aliased.
-
-#### Message Expiration
-
-Superchain allows messages to expire (a.k.a. be canceled), but only after a predefined EXPIRY_WINDOW. Anyone can call
-`sendExpire` on the destination chain, and then they must call `relayExpire` to propagate this information back to the
-source chain.
-
-### Differences in Approaches
-
-TL;DR: Superchain provides a "lower-level" interface with fewer features compared to ElasticChain.
 
 #### Destination Contract
 
-- **Superchain:** The destination contract must be aware that it is being called by Superchain messages and must trust
-  calls originating from the pre-deployed `L2ToL2CrossDomainMessenger`.
 
-- **ElasticChain:** The destination contract does not need to know it is being called via an interop call. Requests
-  arrive from `aliased accounts'.
+- On ElasticChain, the destination contract does not need to know it is being called via an interop call. Requests
+arrive from `aliased accounts'.
 
 #### Batching
 
-- **Superchain:** Supports single calls with no guarantee of ordering.
 
-- **ElasticChain:** Supports bundling of messages, ensuring shared fate and strict order.
+- ElasticChain supports bundling of messages, ensuring shared fate and strict order.
 
 #### Execution Permissions
 
-- **Superchain:** No restrictions — anyone can forward or execute a message on the destination chain.
-
-- **ElasticChain:** Allows restricting who can execute the call or bundle on the destination chain.
+- ElasticChain allows restricting who can execute the call or bundle on the destination chain.
 
 #### Cancellations
 
-- **Superchain:** Messages can be canceled by anyone, but only after a fixed EXPIRY_TIME has passed.
 
-- **ElasticChain:** Supports restricting who can cancel. Cancellation can happen at any time.
+- ElasticChain supports restricting who can cancel. Cancellation can happen at any time.
 
-### How to Bring Them Closer
-
-ElasticChain could introduce an option to be "SuperChain" compatible by adding a special mode to the `call`. This mode
-would specify that the destination contract should be called from a pre-deployed address, allowing anyone to execute or
-cancel the message.
-
-Additionally, ElasticChain would need to implement a **cancellation cutoff timestamp**.

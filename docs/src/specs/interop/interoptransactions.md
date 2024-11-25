@@ -1,6 +1,7 @@
 # Interop Transactions
 
 ## Basics
+
 The **InteropTransaction** sits at the top of our interop stack, acting as the “delivery” mechanism for **Interop Bundles**.
 
 Think of it like a car that picks up our "hitchhiker" bundles and carries them to their destination.
@@ -32,27 +33,27 @@ contract InteropCenter {
   /// Such transaction can be 'picked up' by the destination chain automatically.
   /// This function covers all the cases - we expect most users to use the helper
   /// functions defined later.
-	function sendInteropTransaction(
-		destinationChain, 
-		bundleHash,        // the main bundle that you want to execute on destination chain
-		gasLimit,          // gasLimit & price for execution
-		gasPrice, 
-		feesBundleHash,  // this is the bundle that contains the calls to pay for gas
-		destinationPaymaster,  // optionally - you can use a paymaster on destination chain
-		destinationPaymasterInput); // with specific params
+ function sendInteropTransaction(
+  destinationChain,
+  bundleHash,        // the main bundle that you want to execute on destination chain
+  gasLimit,          // gasLimit & price for execution
+  gasPrice,
+  feesBundleHash,  // this is the bundle that contains the calls to pay for gas
+  destinationPaymaster,  // optionally - you can use a paymaster on destination chain
+  destinationPaymasterInput); // with specific params
 
-	
-	struct InteropTransaction {
-		address sourceChainSender
-		uint256 destinationChain
-	  uint256 gasLimit;
-	  uint256 gasPrice;
-	  uint256 value;
-	  bytes32 bundleHash;
-	  bytes32 feesBundleHash;
- 	  address destinationPaymaster;
-	  bytes destinationPaymasterInput;
-	}
+
+ struct InteropTransaction {
+  address sourceChainSender
+  uint256 destinationChain
+   uint256 gasLimit;
+   uint256 gasPrice;
+   uint256 value;
+   bytes32 bundleHash;
+   bytes32 feesBundleHash;
+    address destinationPaymaster;
+   bytes destinationPaymasterInput;
+ }
 }
 ```
 
@@ -108,22 +109,23 @@ This restriction is crucial for security, preventing others from executing your 
 The simplest scenario is when you (as the sender) already have the destination chain’s base token available on the source chain.
 
 For example:
+
 - If you are sending a transaction from **Era** (base token: ETH) to **Sophon** (base token: SOPH) and already have SOPH on ERA, you can use it for the fee.
 
 To make this easier, we’ll provide a helper function:
 
 ```solidity
 contract InteropCenter {
-		// Creates InteropTransaction to the destination chain with payment with base token.
-		// Before calling, you have to 'approve' InteropCenter to the ERC20/Bridge that holds the destination chain's base tokens.
-		// or if the destination chain's tokens are the same as yours, just attach value to this call.
-		function sendInteropTxMinimal(
-			destinationChain, 
-			bundleHash,        // the main bundle that you want to execute on destination chain
-			gasLimit,          // gasLimit & price for execution
-			gasPrice,
-		);
-	}
+  // Creates InteropTransaction to the destination chain with payment with base token.
+  // Before calling, you have to 'approve' InteropCenter to the ERC20/Bridge that holds the destination chain's base tokens.
+  // or if the destination chain's tokens are the same as yours, just attach value to this call.
+  function sendInteropTxMinimal(
+   destinationChain,
+   bundleHash,        // the main bundle that you want to execute on destination chain
+   gasLimit,          // gasLimit & price for execution
+   gasPrice,
+  );
+ }
 ```
 
 #### Using paymaster on the destination chain
@@ -167,7 +169,5 @@ While the **Gateway** was used above for tasks like providing proofs, if the Gat
 We’ll modify the default account to accept interop proofs as signatures, seamlessly integrating with the existing ZKSync native **Account Abstraction** model.
 
 
-### Comparison with Superchain
 
-Superchain doesn’t offer anything that is comparable to **InteropTransactions** on this level.
 
