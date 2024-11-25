@@ -55,10 +55,6 @@ fn create(
         .as_ref()
         .map(|ecosystem| ecosystem.link_to_code.clone().display().to_string());
 
-    let wallets_path = ecosystem
-        .as_ref()
-        .map(|ecosystem| ecosystem.get_wallets_path());
-
     let args = args
         .fill_values_with_prompt(
             shell,
@@ -69,7 +65,6 @@ fn create(
             link_to_code,
             chains_path,
             era_chain_id,
-            wallets_path,
         )
         .context(MSG_ARGS_VALIDATOR_ERR)?;
 
@@ -137,7 +132,6 @@ pub(crate) fn create_chain_inner(args: ChainCreateArgsFinal, shell: &Shell) -> a
         shell: OnceCell::from(shell.clone()),
         legacy_bridge,
         evm_emulator: args.evm_emulator,
-        l1_wallets_path: args.l1_wallets_path,
     };
 
     create_wallets(

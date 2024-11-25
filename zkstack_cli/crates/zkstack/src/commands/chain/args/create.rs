@@ -23,10 +23,9 @@ use crate::{
         MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT, MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP,
         MSG_L1_NETWORK_HELP, MSG_L1_NETWORK_PROMPT, MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR,
         MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR, MSG_PROVER_MODE_HELP, MSG_PROVER_VERSION_PROMPT,
-        MSG_SET_AS_DEFAULT_HELP, MSG_SET_AS_DEFAULT_PROMPT, MSG_WALLETS_PATH_HELP,
-        MSG_WALLETS_PATH_PROMPT, MSG_WALLET_CREATION_HELP, MSG_WALLET_CREATION_PROMPT,
-        MSG_WALLET_CREATION_VALIDATOR_ERR, MSG_WALLET_PATH_HELP, MSG_WALLET_PATH_INVALID_ERR,
-        MSG_WALLET_PATH_PROMPT,
+        MSG_SET_AS_DEFAULT_HELP, MSG_SET_AS_DEFAULT_PROMPT, MSG_WALLET_CREATION_HELP,
+        MSG_WALLET_CREATION_PROMPT, MSG_WALLET_CREATION_VALIDATOR_ERR, MSG_WALLET_PATH_HELP,
+        MSG_WALLET_PATH_INVALID_ERR, MSG_WALLET_PATH_PROMPT,
     },
     utils::link_to_code::get_link_to_code,
 };
@@ -75,8 +74,6 @@ pub struct ChainCreateArgs {
     evm_emulator: Option<bool>,
     #[clap(long, help = MSG_L1_NETWORK_HELP, value_enum)]
     pub l1_network: Option<L1Network>,
-    #[clap(long, help = MSG_WALLETS_PATH_HELP)]
-    pub l1_wallets_path: Option<String>,
 }
 
 impl ChainCreateArgs {
@@ -91,7 +88,6 @@ impl ChainCreateArgs {
         link_to_code: Option<String>,
         chains_path: Option<PathBuf>,
         era_chain_id: L2ChainId,
-        l1_wallets_path: Option<PathBuf>,
     ) -> anyhow::Result<ChainCreateArgsFinal> {
         let mut chain_name = self
             .chain_name
@@ -244,11 +240,6 @@ impl ChainCreateArgs {
                 .ask()
         });
 
-        let l1_wallets_path = l1_wallets_path.unwrap_or_else(|| {
-            self.l1_wallets_path
-                .map_or_else(|| Prompt::new(MSG_WALLETS_PATH_PROMPT).ask(), PathBuf::from)
-        });
-
         let set_as_default = self.set_as_default.unwrap_or_else(|| {
             if number_of_chains == 0 {
                 return true;
@@ -274,7 +265,6 @@ impl ChainCreateArgs {
             era_chain_id,
             internal_id,
             l1_network,
-            l1_wallets_path,
         })
     }
 }
@@ -296,7 +286,6 @@ pub struct ChainCreateArgsFinal {
     pub era_chain_id: L2ChainId,
     pub internal_id: u32,
     pub l1_network: L1Network,
-    pub l1_wallets_path: PathBuf,
 }
 
 #[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]
