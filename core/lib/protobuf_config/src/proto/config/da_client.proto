@@ -37,7 +37,6 @@ message CelestiaConfig {
 }
 
 message EigenConfig {
-  reserved 1,2;
   optional string disperser_rpc = 3;
   optional int32 eth_confirmation_depth = 4;
   optional string eigenda_eth_rpc = 5;
@@ -49,6 +48,8 @@ message EigenConfig {
   optional bool verify_cert = 11;
   optional string path_to_points = 12;
   optional uint64 chain_id = 13;
+  reserved 1,2;
+  reserved "rpc_node_url","inclusion_polling_interval_ms";
 }
 
 message DataAvailabilityClient {
