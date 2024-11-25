@@ -6,17 +6,10 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Context as _;
-use circuit_definitions::circuit_definitions::{
-    aux_layer::{
-        ZkSyncCompressionForWrapperCircuit, ZkSyncCompressionLayerCircuit,
-        ZkSyncCompressionLayerStorage, ZkSyncSnarkWrapperSetup, ZkSyncSnarkWrapperVK,
-    },
-    recursion_layer::ZkSyncRecursionLayerVerificationKey,
-};
 use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
 use indicatif::{ProgressBar, ProgressStyle};
-use shivini::{cs::gpu_setup_and_vk_from_base_setup_vk_params_and_hints, ProverContext};
+use shivini::ProverContext;
 use tracing::level_filters::LevelFilter;
 use zkevm_test_harness::{
     boojum::worker::Worker,
@@ -24,14 +17,8 @@ use zkevm_test_harness::{
         basic_vk_count, generate_base_layer_vks, generate_recursive_layer_vks,
         recursive_layer_vk_count,
     },
-    data_source::{in_memory_data_source::InMemoryDataSource, BlockDataSource, SetupDataSource},
-    proof_wrapper_utils::{
-        check_trusted_setup_file_existace, get_vk_for_previous_circuit,
-        get_wrapper_setup_and_vk_from_compression_vk, WrapperConfig,
-    },
-    prover_utils::light::{
-        create_light_compression_for_wrapper_setup_data, create_light_compression_layer_setup_data,
-    },
+    data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource},
+    proof_wrapper_utils::{check_trusted_setup_file_existace, WrapperConfig},
 };
 use zksync_prover_fri_types::{
     circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
@@ -39,15 +26,23 @@ use zksync_prover_fri_types::{
 };
 use zksync_prover_keystore::{
     keystore::Keystore,
-    setup_data_generator::{CPUSetupDataGenerator, GPUSetupDataGenerator, SetupDataGenerator},
+    setup_data_generator::{
+        get_fflonk_snark_verifier_setup_and_vk, CPUSetupDataGenerator, GPUSetupDataGenerator,
+        SetupDataGenerator,
+    },
+};
+
+use crate::utils::{
+    generate_compression_for_wrapper_vks, generate_compression_vks,
+    get_plonk_wrapper_setup_and_vk_from_scheduler_vk,
 };
 
 mod commitment_generator;
+mod utils;
 mod vk_commitment_helper;
 
 #[cfg(test)]
 mod tests;
-
 /// Generates new verification keys, and stores them in `keystore`.
 /// Jobs describe how many generators can run in parallel (each one is around 30 GB).
 /// If quiet is true, it doesn't display any progress bar.
@@ -114,11 +109,11 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
 
     tracing::info!("Generating PLONK verification keys for snark wrapper.");
 
-    let (_, plonk_vk) =
-        zkevm_test_harness::proof_wrapper_utils::get_wrapper_setup_and_vk_from_scheduler_vk(
-            scheduler_vk.clone(),
-            WrapperConfig::new(1),
-        );
+    let (_, plonk_vk) = get_plonk_wrapper_setup_and_vk_from_scheduler_vk(
+        &mut in_memory_source,
+        scheduler_vk.clone(),
+        WrapperConfig::new(1),
+    );
 
     keystore
         .save_snark_verification_key(plonk_vk)
@@ -132,8 +127,8 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
 
     tracing::info!("Generating FFLONK verification keys for snark wrapper.");
 
-    let (_, fflonk_vk) =
-        get_wrapper_setup_and_vk_from_scheduler_vk(&mut in_memory_source, scheduler_vk, config);
+    let (_, fflonk_vk) = get_fflonk_snark_verifier_setup_and_vk(&mut in_memory_source);
+
     keystore
         .save_fflonk_snark_verification_key(fflonk_vk)
         .context("save_fflonk_snark_vk")?;
@@ -147,123 +142,6 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
     // Let's also update the commitments file.
     let commitments = keystore.generate_commitments()?;
     keystore.save_commitments(&commitments)
-}
-
-fn generate_compression_vks<DS: SetupDataSource + BlockDataSource>(
-    config: WrapperConfig,
-    source: &mut DS,
-    worker: &Worker,
-) {
-    for circuit_type in config.get_compression_types() {
-        let vk = get_vk_for_previous_circuit(source, circuit_type).unwrap_or_else(|_| {
-            panic!(
-                "VK of previous circuit should be present. Current circuit type: {}",
-                circuit_type
-            )
-        });
-
-        let compression_circuit =
-            ZkSyncCompressionLayerCircuit::from_witness_and_vk(None, vk, circuit_type);
-        let proof_config = compression_circuit.proof_config_for_compression_step();
-
-        let (setup_base, vk_geometry, vars_hint, witness_hint, finalization_hint) =
-            create_light_compression_layer_setup_data(
-                compression_circuit,
-                worker,
-                proof_config.fri_lde_factor,
-                proof_config.merkle_tree_cap_size,
-            );
-
-        let (_, vk) = gpu_setup_and_vk_from_base_setup_vk_params_and_hints(
-            setup_base,
-            vk_geometry,
-            vars_hint.clone(),
-            witness_hint,
-            worker,
-        )
-        .expect("failed creating GPU compression layer setup data");
-
-        source
-            .set_compression_vk(ZkSyncCompressionLayerStorage::from_inner(
-                circuit_type,
-                vk.clone(),
-            ))
-            .unwrap();
-        source
-            .set_compression_hint(ZkSyncCompressionLayerStorage::from_inner(
-                circuit_type,
-                finalization_hint.clone(),
-            ))
-            .unwrap();
-    }
-}
-
-fn generate_compression_for_wrapper_vks<DS: SetupDataSource + BlockDataSource>(
-    config: WrapperConfig,
-    source: &mut DS,
-    worker: &Worker,
-) {
-    let compression_for_wrapper_type = config.get_compression_for_wrapper_type();
-    let vk = get_vk_for_previous_circuit(source, compression_for_wrapper_type).unwrap();
-
-    let circuit = ZkSyncCompressionForWrapperCircuit::from_witness_and_vk(
-        None,
-        vk,
-        compression_for_wrapper_type,
-    );
-
-    let proof_config = circuit.proof_config_for_compression_step();
-
-    let (setup_base, vk_geometry, vars_hint, witness_hint, finalization_hint) =
-        create_light_compression_for_wrapper_setup_data(
-            circuit,
-            worker,
-            proof_config.fri_lde_factor,
-            proof_config.merkle_tree_cap_size,
-        );
-
-    let (_, vk) = gpu_setup_and_vk_from_base_setup_vk_params_and_hints(
-        setup_base,
-        vk_geometry,
-        vars_hint.clone(),
-        witness_hint,
-        worker,
-    )
-    .expect("failed creating GPU compression for wrapper layer setup data");
-
-    source
-        .set_compression_for_wrapper_vk(ZkSyncCompressionLayerStorage::from_inner(
-            compression_for_wrapper_type,
-            vk.clone(),
-        ))
-        .unwrap();
-    source
-        .set_compression_for_wrapper_hint(ZkSyncCompressionLayerStorage::from_inner(
-            compression_for_wrapper_type,
-            finalization_hint.clone(),
-        ))
-        .unwrap();
-}
-
-/// Computes wrapper vk from scheduler vk
-/// We store all vks in the RAM
-pub fn get_wrapper_setup_and_vk_from_scheduler_vk<DS: SetupDataSource + BlockDataSource>(
-    source: &mut DS,
-    vk: ZkSyncRecursionLayerVerificationKey,
-    config: WrapperConfig,
-) -> (ZkSyncSnarkWrapperSetup, ZkSyncSnarkWrapperVK) {
-    // Check trusted setup file for later
-    check_trusted_setup_file_existace();
-
-    // Check circuit type correctness
-    assert_eq!(
-        vk.numeric_circuit_type(),
-        ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8
-    );
-
-    let wrapper_type = config.get_wrapper_type();
-    let wrapper_vk = source.get_compression_for_wrapper_vk(wrapper_type).unwrap();
-    get_wrapper_setup_and_vk_from_compression_vk(wrapper_vk, config)
 }
 
 #[derive(Debug, Parser)]
@@ -288,6 +166,7 @@ enum CircuitSelector {
     Basic,
     Compression,
     CompressionWrapper,
+    Snark,
 }
 
 #[derive(Debug, Parser)]
@@ -404,6 +283,7 @@ fn generate_setup_keys(
                 .numeric_circuit
                 .expect("--numeric-circuit must be provided"),
         ),
+        CircuitSelector::Snark => ProverServiceDataKey::snark(),
     };
 
     let digest = generator

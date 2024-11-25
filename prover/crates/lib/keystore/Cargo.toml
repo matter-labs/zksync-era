@@ -17,6 +17,7 @@ zksync_prover_fri_types.workspace = true
 zkevm_test_harness.workspace = true
 circuit_definitions = { workspace = true, features = ["log_tracing"] }
 shivini = { workspace = true, optional = true }
+fflonk-gpu = { workspace = true, optional = true }
 boojum-cuda.workspace = true
 
 anyhow.workspace = true
@@ -33,4 +34,4 @@ futures = { workspace = true, features = ["compat"] }
 
 [features]
 default = []
-gpu = ["shivini"]
+gpu = ["shivini", "fflonk-gpu"]

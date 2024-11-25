@@ -1,4 +1,5 @@
 #![feature(allocator_api)]
+#![feature(generic_const_exprs)]
 
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "gpu")]

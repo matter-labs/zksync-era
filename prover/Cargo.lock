@@ -8747,6 +8747,7 @@ dependencies = [
  "bincode",
  "boojum-cuda",
  "circuit_definitions",
+ "fflonk-cuda",
  "futures 0.3.30",
  "hex",
  "md5",

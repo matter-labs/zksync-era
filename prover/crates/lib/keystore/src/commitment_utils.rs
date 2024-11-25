@@ -13,7 +13,7 @@ use zksync_prover_fri_types::circuit_definitions::{
 
 use crate::{
     keystore::Keystore,
-    utils::{calculate_snark_vk_hash, get_leaf_vk_params},
+    utils::{calculate_fflonk_snark_vk_hash, calculate_snark_vk_hash, get_leaf_vk_params},
     VkCommitments,
 };
 
@@ -57,7 +57,7 @@ impl Keystore {
         let plonk_snark_vk_hash: String =
             calculate_snark_vk_hash(self.load_snark_verification_key().unwrap())?.encode_hex();
         let fflonk_snark_vk_hash: String =
-            calculate_snark_vk_hash(self.load_fflonk_snark_verification_key().unwrap())?
+            calculate_fflonk_snark_vk_hash(self.load_fflonk_snark_verification_key().unwrap())?
                 .encode_hex();
 
         let result = VkCommitments {

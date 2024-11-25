@@ -156,8 +156,13 @@ impl ProofCompressor {
 
         tracing::info!("Proving FFLONK snark verifier");
 
-        // create fflonk proof in single shot - without precomputation
-        let (proof, _) = fflonk_gpu::gpu_prove_fflonk_snark_verifier_circuit_single_shot(&circuit);
+        let setup = keystore.load_fflonk_snark_verifier_setup_data()?;
+
+        let proof = fflonk_gpu::gpu_prove_fflonk_snark_verifier_circuit_with_precomputation(
+            &circuit,
+            &setup,
+            &setup.get_verification_key(),
+        );
         tracing::info!("Finished proof generation");
         Ok(proof)
     }

@@ -20,6 +20,7 @@ use circuit_definitions::{
     },
     zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
 };
+use fflonk_gpu::{FflonkSnarkVerifierCircuitDeviceSetup, FflonkSnarkVerifierCircuitVK};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use shivini::boojum::field::goldilocks::GoldilocksField;
 use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
@@ -332,14 +333,14 @@ impl Keystore {
 
     pub fn save_fflonk_snark_verification_key(
         &self,
-        vk: ZkSyncSnarkWrapperVK,
+        vk: FflonkSnarkVerifierCircuitVK,
     ) -> anyhow::Result<()> {
         let filepath = self.get_file_path(
             ProverServiceDataKey::snark(),
             ProverServiceDataType::FflonkSnarkVerificationKey,
         );
         tracing::info!("saving snark verification key to: {:?}", filepath);
-        Self::save_json_pretty(filepath, &vk.into_inner())
+        Self::save_json_pretty(filepath, &vk)
     }
 
     ///
@@ -438,6 +439,20 @@ impl Keystore {
         })
     }
 
+    pub fn load_fflonk_snark_verifier_setup_data(
+        &self,
+    ) -> anyhow::Result<FflonkSnarkVerifierCircuitDeviceSetup> {
+        let filepath = self.get_file_path(
+            ProverServiceDataKey::snark(),
+            ProverServiceDataType::SetupData,
+        );
+
+        let file = File::open(filepath.clone())
+            .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
+        FflonkSnarkVerifierCircuitDeviceSetup::read(file)
+            .context("Failed reading FFLONK SNARK setup data from a file")
+    }
+
     pub fn is_setup_data_present(&self, key: &ProverServiceDataKey) -> bool {
         Path::new(&self.get_file_path(*key, ProverServiceDataType::SetupData)).exists()
     }
@@ -451,6 +466,23 @@ impl Keystore {
         tracing::info!("saving {:?} setup data to: {:?}", key, filepath);
         std::fs::write(filepath.clone(), serialized_setup_data)
             .with_context(|| format!("Failed saving setup-data at path: {filepath:?}"))
+    }
+
+    pub fn save_fflonk_snark_setup_data(
+        &self,
+        setup_data: FflonkSnarkVerifierCircuitDeviceSetup,
+    ) -> anyhow::Result<()> {
+        let filepath = self.get_file_path(
+            ProverServiceDataKey::snark(),
+            ProverServiceDataType::SetupData,
+        );
+
+        let file = File::create(filepath.clone())
+            .with_context(|| format!("Failed creating setup-data file at path: {filepath:?}"))?;
+
+        setup_data
+            .write(file)
+            .context("Failed writing FFLONK SNARK setup data to a file")
     }
 
     /// Loads all the verification keys into the Data Source.
