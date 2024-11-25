@@ -144,6 +144,7 @@ async function runBlockReverter(
             --secrets-path=${configPaths['secrets.yaml']}
             --wallets-path=${configPaths['wallets.yaml']}
             --genesis-path=${configPaths['genesis.yaml']}
+            --gateway-chain-path=${configPaths['gateway_chain.yaml']}
         `;
     }
 

@@ -228,14 +228,19 @@ impl LocalL1BatchCommitData {
     }
 
     /// All returned errors are validation errors.
-    fn verify_commitment(&self, reference: &ethabi::Token) -> anyhow::Result<()> {
+    fn verify_commitment(&self, reference: &ethabi::Token, is_gateway: bool) -> anyhow::Result<()> {
         let protocol_version = self
             .l1_batch
             .header
             .protocol_version
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
-        let da = detect_da(protocol_version, reference, self.commitment_mode)
-            .context("cannot detect DA source from reference commitment token")?;
+        let da = detect_da(
+            protocol_version,
+            reference,
+            self.commitment_mode,
+            is_gateway,
+        )
+        .context("cannot detect DA source from reference commitment token")?;
 
         let local_token =
             CommitBatchInfo::new(self.commitment_mode, &self.l1_batch, da).into_token();
@@ -258,6 +263,7 @@ pub fn detect_da(
     protocol_version: ProtocolVersionId,
     reference: &Token,
     commitment_mode: L1BatchCommitmentMode,
+    is_gateway: bool,
 ) -> Result<PubdataSendingMode, ethabi::Error> {
     fn parse_error(message: impl Into<Cow<'static, str>>) -> ethabi::Error {
         ethabi::Error::Other(message.into())
@@ -331,7 +337,11 @@ pub fn detect_da(
             })? as usize;
 
             match last_reference_token.get(65 + 32 * number_of_blobs) {
-                Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => Ok(PubdataSendingMode::Calldata),
+                Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => if is_gateway {
+                    Ok(PubdataSendingMode::RelayedL2Calldata)
+                } else {
+                    Ok(PubdataSendingMode::Calldata)
+                },
                 Some(&byte) if byte == PUBDATA_SOURCE_BLOBS => Ok(PubdataSendingMode::Blobs),
                 Some(&byte) => Err(parse_error(format!(
                     "unexpected first byte of the last reference token for rollup; expected one of [{PUBDATA_SOURCE_CALLDATA}, {PUBDATA_SOURCE_BLOBS}], \
@@ -539,8 +549,10 @@ impl ConsistencyChecker {
             format!("failed extracting commit data for transaction {commit_tx_hash:?}")
         })
         .map_err(CheckError::Validation)?;
+
+        let is_gateway = chain_data.chain_id != self.l1_chain_data.chain_id;
         local
-            .verify_commitment(&commitment)
+            .verify_commitment(&commitment, is_gateway)
             .map_err(CheckError::Validation)
     }
 
