@@ -83,7 +83,6 @@ in-file\:"Specify file with wallets"))' \
 '--set-as-default=[Set as default chain]' \
 '--evm-emulator=[Enable EVM emulator]' \
 '--l1-network=[L1 Network]:L1_NETWORK:(localhost sepolia holesky mainnet)' \
-'--l1-wallets-path=[Wallets path]:L1_WALLETS_PATH:_default' \
 '--start-containers=[Start reth and postgres containers after creation]' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--legacy-bridge[]' \
@@ -246,7 +245,6 @@ in-file\:"Specify file with wallets"))' \
 '--set-as-default=[Set as default chain]' \
 '--evm-emulator=[Enable EVM emulator]' \
 '--l1-network=[L1 Network]:L1_NETWORK:(localhost sepolia holesky mainnet)' \
-'--l1-wallets-path=[Wallets path]:L1_WALLETS_PATH:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--legacy-bridge[]' \
 '-v[Verbose mode]' \
@@ -289,6 +287,7 @@ _arguments "${_arguments_options[@]}" : \
 '--deploy-paymaster=[]' \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
 '--ecosystem-contracts-path=[Ecosystem contracts path]:ECOSYSTEM_CONTRACTS_PATH:_default' \
+'--wallets-path=[Wallets path]:WALLETS_PATH:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
 '-d[]' \

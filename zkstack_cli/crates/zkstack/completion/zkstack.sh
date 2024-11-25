@@ -1652,7 +1652,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__create)
-            opts="-v -h --chain-name --chain-id --prover-mode --wallet-creation --wallet-path --l1-batch-commit-data-generator-mode --base-token-address --base-token-price-nominator --base-token-price-denominator --set-as-default --legacy-bridge --evm-emulator --l1-network --l1-wallets-path --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --chain-name --chain-id --prover-mode --wallet-creation --wallet-path --l1-batch-commit-data-generator-mode --base-token-address --base-token-price-nominator --base-token-price-denominator --set-as-default --legacy-bridge --evm-emulator --l1-network --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1715,10 +1715,6 @@ _zkstack() {
                     ;;
                 --l1-network)
                     COMPREPLY=($(compgen -W "localhost sepolia holesky mainnet" -- "${cur}"))
-                    return 0
-                    ;;
-                --l1-wallets-path)
-                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 --chain)
@@ -2559,7 +2555,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__init)
-            opts="-a -d -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --server-db-url --server-db-name --dont-drop --deploy-paymaster --l1-rpc-url --no-port-reallocation --ecosystem-contracts-path --dev --verbose --chain --ignore-prerequisites --help configs help"
+            opts="-a -d -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --server-db-url --server-db-name --dont-drop --deploy-paymaster --l1-rpc-url --no-port-reallocation --ecosystem-contracts-path --wallets-path --dev --verbose --chain --ignore-prerequisites --help configs help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2606,6 +2602,10 @@ _zkstack() {
                     return 0
                     ;;
                 --ecosystem-contracts-path)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --wallets-path)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -5321,7 +5321,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__ecosystem__create)
-            opts="-v -h --ecosystem-name --l1-network --link-to-code --chain-name --chain-id --prover-mode --wallet-creation --wallet-path --l1-batch-commit-data-generator-mode --base-token-address --base-token-price-nominator --base-token-price-denominator --set-as-default --legacy-bridge --evm-emulator --l1-network --l1-wallets-path --start-containers --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --ecosystem-name --l1-network --link-to-code --chain-name --chain-id --prover-mode --wallet-creation --wallet-path --l1-batch-commit-data-generator-mode --base-token-address --base-token-price-nominator --base-token-price-denominator --set-as-default --legacy-bridge --evm-emulator --l1-network --start-containers --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5399,10 +5399,6 @@ _zkstack() {
                     ;;
                 --l1-network)
                     COMPREPLY=($(compgen -W "localhost sepolia holesky mainnet" -- "${cur}"))
-                    return 0
-                    ;;
-                --l1-wallets-path)
-                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 --start-containers)
