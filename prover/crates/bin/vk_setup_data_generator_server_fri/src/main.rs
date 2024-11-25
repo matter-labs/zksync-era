@@ -311,7 +311,7 @@ fn main() -> anyhow::Result<()> {
                 "Generating verification keys and storing them inside {:?}",
                 keystore.get_base_path()
             );
-            //generate_vks(&keystore, jobs, quiet).context("generate_vks()")
+            generate_vks(&keystore, jobs, quiet).context("generate_vks()")?;
 
             // Let's also update the commitments file.
             let commitments = keystore.generate_commitments()?;
