@@ -13,7 +13,14 @@ use zksync_types::{
 };
 use zksync_web3_decl::client::{Client, DynClient, L1};
 
-use super::blob_info::{BatchHeader, BlobHeader, BlobInfo, G1Commitment};
+use super::{
+    blob_info::{BatchHeader, BlobHeader, BlobInfo, G1Commitment},
+    lib::{
+        BATCH_ID_TO_METADATA_HASH_FUNCTION_SELECTOR,
+        QUORUM_ADVERSARY_THRESHOLD_PERCENTAGES_FUNCTION_SELECTOR,
+        QUORUM_NUMBERS_REQUIRED_FUNCTION_SELECTOR,
+    },
+};
 
 #[derive(Debug)]
 pub enum VerificationError {
@@ -56,9 +63,6 @@ pub struct Verifier {
 
 impl Verifier {
     const DEFAULT_PRIORITY_FEE_PER_GAS: u64 = 100;
-    const BATCH_ID_TO_METADATA_HASH_FUNCTION_SELECTOR: [u8; 4] = [236, 203, 191, 201];
-    const QUORUM_ADVERSARY_THRESHOLD_PERCENTAGES_FUNCTION_SELECTOR: [u8; 4] = [134, 135, 254, 174];
-    const QUORUM_NUMBERS_REQUIRED_FUNCTION_SELECTOR: [u8; 4] = [225, 82, 52, 255];
     pub fn new(cfg: VerifierConfig) -> Result<Self, VerificationError> {
         let srs_points_to_load = cfg.max_blob_size / 32;
         let kzg = Kzg::setup(
@@ -277,7 +281,7 @@ impl Verifier {
     async fn verify_batch(&self, cert: BlobInfo) -> Result<(), VerificationError> {
         let context_block = self.get_context_block().await?;
 
-        let mut data = Self::BATCH_ID_TO_METADATA_HASH_FUNCTION_SELECTOR.to_vec();
+        let mut data = BATCH_ID_TO_METADATA_HASH_FUNCTION_SELECTOR.to_vec();
         let mut batch_id_vec = [0u8; 32];
         U256::from(cert.blob_verification_proof.batch_id).to_big_endian(&mut batch_id_vec);
         data.append(batch_id_vec.to_vec().as_mut());
@@ -370,7 +374,7 @@ impl Verifier {
         &self,
         quorum_number: u32,
     ) -> Result<u8, VerificationError> {
-        let data = Self::QUORUM_ADVERSARY_THRESHOLD_PERCENTAGES_FUNCTION_SELECTOR.to_vec();
+        let data = QUORUM_ADVERSARY_THRESHOLD_PERCENTAGES_FUNCTION_SELECTOR.to_vec();
 
         let call_request = CallRequest {
             to: Some(
@@ -435,7 +439,7 @@ impl Verifier {
             confirmed_quorums.insert(blob_header.blob_quorum_params[i].quorum_number, true);
         }
 
-        let data = Self::QUORUM_NUMBERS_REQUIRED_FUNCTION_SELECTOR.to_vec();
+        let data = QUORUM_NUMBERS_REQUIRED_FUNCTION_SELECTOR.to_vec();
         let call_request = CallRequest {
             to: Some(
                 H160::from_str(&self.cfg.svc_manager_addr)
