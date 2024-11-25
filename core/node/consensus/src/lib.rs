@@ -6,13 +6,10 @@
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 
 mod abi;
-// Currently `batch` module is only used in tests,
-// but will be used in production once batch syncing is implemented in consensus.
-#[allow(unused)]
-mod batch;
 mod config;
 mod en;
 pub mod era;
+mod metrics;
 mod mn;
 mod registry;
 mod storage;

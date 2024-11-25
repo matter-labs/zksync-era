@@ -4,7 +4,6 @@ use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{L2BlockNumber, H256, U256};
-use zksync_utils::{bytes_to_be_words, bytes_to_chunks};
 
 use crate::Core;
 
@@ -94,6 +93,7 @@ impl FactoryDepsDal<'_, '_> {
         &mut self,
         bootloader_hash: H256,
         default_aa_hash: H256,
+        evm_emulator_hash: Option<H256>,
     ) -> anyhow::Result<BaseSystemContracts> {
         let bootloader_bytecode = self
             .get_sealed_factory_dep(bootloader_hash)
@@ -101,7 +101,7 @@ impl FactoryDepsDal<'_, '_> {
             .context("failed loading bootloader code")?
             .with_context(|| format!("bootloader code with hash {bootloader_hash:?} should be present in the database"))?;
         let bootloader_code = SystemContractCode {
-            code: bytes_to_be_words(bootloader_bytecode),
+            code: bootloader_bytecode,
             hash: bootloader_hash,
         };
 
@@ -112,20 +112,34 @@ impl FactoryDepsDal<'_, '_> {
             .with_context(|| format!("default account code with hash {default_aa_hash:?} should be present in the database"))?;
 
         let default_aa_code = SystemContractCode {
-            code: bytes_to_be_words(default_aa_bytecode),
+            code: default_aa_bytecode,
             hash: default_aa_hash,
         };
+
+        let evm_emulator_code = if let Some(evm_emulator_hash) = evm_emulator_hash {
+            let evm_emulator_bytecode = self
+                .get_sealed_factory_dep(evm_emulator_hash)
+                .await
+                .context("failed loading EVM emulator code")?
+                .with_context(|| format!("EVM emulator code with hash {evm_emulator_hash:?} should be present in the database"))?;
+
+            Some(SystemContractCode {
+                code: evm_emulator_bytecode,
+                hash: evm_emulator_hash,
+            })
+        } else {
+            None
+        };
+
         Ok(BaseSystemContracts {
             bootloader: bootloader_code,
             default_aa: default_aa_code,
+            evm_emulator: evm_emulator_code,
         })
     }
 
     /// Returns bytecodes for factory deps with the specified `hashes`.
-    pub async fn get_factory_deps(
-        &mut self,
-        hashes: &HashSet<H256>,
-    ) -> HashMap<U256, Vec<[u8; 32]>> {
+    pub async fn get_factory_deps(&mut self, hashes: &HashSet<H256>) -> HashMap<U256, Vec<u8>> {
         let hashes_as_bytes: Vec<_> = hashes.iter().map(H256::as_bytes).collect();
 
         sqlx::query!(
@@ -144,12 +158,7 @@ impl FactoryDepsDal<'_, '_> {
         .await
         .unwrap()
         .into_iter()
-        .map(|row| {
-            (
-                U256::from_big_endian(&row.bytecode_hash),
-                bytes_to_chunks(&row.bytecode),
-            )
-        })
+        .map(|row| (U256::from_big_endian(&row.bytecode_hash), row.bytecode))
         .collect()
     }
 

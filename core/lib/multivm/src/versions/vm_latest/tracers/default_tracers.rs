@@ -13,7 +13,7 @@ use zk_evm_1_5_0::{
     zkevm_opcode_defs::{decoding::EncodingModeProduction, Opcode, RetOpcode},
 };
 
-use super::PubdataTracer;
+use super::{EvmDeployTracer, PubdataTracer};
 use crate::{
     glue::GlueInto,
     interface::{
@@ -32,13 +32,13 @@ use crate::{
             CircuitsTracer, RefundsTracer, ResultTracer,
         },
         types::internals::ZkSyncVmState,
-        vm::MultiVMSubversion,
+        vm::MultiVmSubversion,
         VmTracer,
     },
 };
 
 /// Default tracer for the VM. It manages the other tracers execution and stop the vm when needed.
-pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
+pub struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     tx_has_been_processed: bool,
     execution_mode: VmExecutionMode,
 
@@ -63,20 +63,24 @@ pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     // It only takes into account circuits that are generated for actual execution. It doesn't
     // take into account e.g circuits produced by the initial bootloader memory commitment.
     pub(crate) circuits_tracer: CircuitsTracer<S, H>,
-    subversion: MultiVMSubversion,
+    // This tracer is responsible for handling EVM deployments and providing the data to the code decommitter.
+    pub(crate) evm_deploy_tracer: Option<EvmDeployTracer<S>>,
+    subversion: MultiVmSubversion,
     storage: StoragePtr<S>,
     _phantom: PhantomData<H>,
 }
 
 impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         computational_gas_limit: u32,
+        use_evm_emulator: bool,
         execution_mode: VmExecutionMode,
         dispatcher: TracerDispatcher<S, H>,
         storage: StoragePtr<S>,
         refund_tracer: Option<RefundsTracer<S>>,
         pubdata_tracer: Option<PubdataTracer<S>>,
-        subversion: MultiVMSubversion,
+        subversion: MultiVmSubversion,
     ) -> Self {
         Self {
             tx_has_been_processed: false,
@@ -92,6 +96,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             pubdata_tracer,
             ret_from_the_bootloader: None,
             circuits_tracer: CircuitsTracer::new(),
+            evm_deploy_tracer: use_evm_emulator.then(EvmDeployTracer::new),
             storage,
             _phantom: PhantomData,
         }
@@ -172,6 +177,9 @@ macro_rules! dispatch_tracers {
             tracer.$function($( $params ),*);
         }
         $self.circuits_tracer.$function($( $params ),*);
+        if let Some(tracer) = &mut $self.evm_deploy_tracer {
+            tracer.$function($( $params ),*);
+        }
     };
 }
 
@@ -220,7 +228,10 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
         );
 
         match hook {
-            VmHook::TxHasEnded => self.tx_has_been_processed = true,
+            VmHook::TxHasEnded if matches!(self.execution_mode, VmExecutionMode::OneTx) => {
+                self.result_tracer.tx_finished_in_one_tx_mode = true;
+                self.tx_has_been_processed = true;
+            }
             VmHook::NoValidationEntered => self.in_account_validation = false,
             VmHook::AccountValidationEntered => self.in_account_validation = true,
             VmHook::FinalBatchInfo => self.final_batch_info_requested = true,
@@ -288,6 +299,12 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             .circuits_tracer
             .finish_cycle(state, bootloader_state)
             .stricter(&result);
+
+        if let Some(evm_deploy_tracer) = &mut self.evm_deploy_tracer {
+            result = evm_deploy_tracer
+                .finish_cycle(state, bootloader_state)
+                .stricter(&result);
+        }
 
         result.stricter(&self.should_stop_execution())
     }

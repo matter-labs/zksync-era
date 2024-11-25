@@ -6,13 +6,15 @@ use zk_evm_1_3_1::{
         DecommittmentQuery, MemoryIndex, MemoryLocation, MemoryPage, MemoryQuery, Timestamp,
     },
 };
-use zksync_types::U256;
-use zksync_utils::{bytecode::bytecode_len_in_words, bytes_to_be_words, u256_to_h256};
+use zksync_types::{u256_to_h256, U256};
 
 use super::OracleWithHistory;
-use crate::vm_m6::{
-    history_recorder::{HistoryEnabled, HistoryMode, HistoryRecorder, WithHistory},
-    storage::{Storage, StoragePtr},
+use crate::{
+    utils::bytecode::{bytecode_len_in_words, bytes_to_be_words},
+    vm_m6::{
+        history_recorder::{HistoryEnabled, HistoryMode, HistoryRecorder, WithHistory},
+        storage::{Storage, StoragePtr},
+    },
 };
 
 /// The main job of the DecommiterOracle is to implement the DecommitmentProcessor trait - that is
@@ -59,7 +61,7 @@ impl<S: Storage, const B: bool, H: HistoryMode> DecommitterOracle<B, S, H> {
                     .load_factory_dep(u256_to_h256(hash))
                     .expect("Trying to decode unexisting hash");
 
-                let value = bytes_to_be_words(value);
+                let value = bytes_to_be_words(&value);
                 self.known_bytecodes.insert(hash, value.clone(), timestamp);
                 value
             }

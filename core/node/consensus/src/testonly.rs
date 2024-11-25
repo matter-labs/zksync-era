@@ -16,10 +16,7 @@ use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
 use zksync_consensus_roles::{attester, validator, validator::testonly::Setup};
 use zksync_dal::{CoreDal, DalError};
-use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
-use zksync_metadata_calculator::{
-    LazyAsyncTreeReader, MetadataCalculator, MetadataCalculatorConfig,
-};
+use zksync_metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
 use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::TestServerBuilder};
 use zksync_node_genesis::GenesisParams;
 use zksync_node_sync::{
@@ -33,26 +30,20 @@ use zksync_state_keeper::{
     executor::MainBatchExecutorFactory,
     io::{IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
-    testonly::{
-        fund, l1_transaction, l2_transaction, test_batch_executor::MockReadStorageFactory,
-        MockBatchExecutor,
-    },
+    testonly::{fee, fund, test_batch_executor::MockReadStorageFactory, MockBatchExecutor},
     AsyncRocksdbCache, OutputHandler, StateKeeperPersistence, TreeWritesPersistence,
     ZkSyncStateKeeper,
 };
-use zksync_test_account::Account;
+use zksync_test_contracts::Account;
 use zksync_types::{
     ethabi,
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
-    L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, Transaction,
+    Address, Execute, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
+    Transaction,
 };
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
-use crate::{
-    batch::{L1BatchCommit, L1BatchWithWitness, LastBlockCommit},
-    en,
-    storage::ConnectionPool,
-};
+use crate::{en, storage::ConnectionPool};
 
 /// Fake StateKeeper for tests.
 #[derive(Debug)]
@@ -70,7 +61,6 @@ pub(super) struct StateKeeper {
     sync_state: SyncState,
     addr: sync::watch::Receiver<Option<std::net::SocketAddr>>,
     pool: ConnectionPool,
-    tree_reader: LazyAsyncTreeReader,
 }
 
 #[derive(Clone)]
@@ -154,6 +144,7 @@ fn make_config(
     genesis_spec: Option<config::GenesisSpec>,
 ) -> config::ConsensusConfig {
     config::ConsensusConfig {
+        port: Some(cfg.server_addr.port()),
         server_addr: *cfg.server_addr,
         public_addr: config::Host(cfg.public_addr.0.clone()),
         max_payload_size: usize::MAX,
@@ -248,7 +239,6 @@ impl StateKeeper {
         let metadata_calculator = MetadataCalculator::new(config, None, pool.0.clone())
             .await
             .context("MetadataCalculator::new()")?;
-        let tree_reader = metadata_calculator.tree_reader();
         Ok((
             Self {
                 protocol_version,
@@ -261,7 +251,6 @@ impl StateKeeper {
                 sync_state: sync_state.clone(),
                 addr: addr.subscribe(),
                 pool: pool.clone(),
-                tree_reader,
             },
             StateKeeperRunner {
                 actions_queue,
@@ -293,6 +282,7 @@ impl StateKeeper {
                         timestamp: self.last_timestamp,
                         virtual_blocks: 1,
                     },
+                    pubdata_params: Default::default(),
                 },
                 number: self.last_batch,
                 first_l2_block_number: self.last_block,
@@ -323,12 +313,15 @@ impl StateKeeper {
     /// Pushes a new L2 block with `transactions` transactions to the `StateKeeper`.
     pub async fn push_random_block(&mut self, rng: &mut impl Rng, account: &mut Account) {
         let txs: Vec<_> = (0..rng.gen_range(3..8))
-            .map(|_| match rng.gen() {
-                true => l2_transaction(account, 1_000_000),
-                false => {
-                    let tx = l1_transaction(account, self.next_priority_op);
-                    self.next_priority_op += 1;
-                    tx
+            .map(|_| {
+                let execute = Execute::transfer(Address::random(), 0.into());
+                match rng.gen() {
+                    true => account.get_l2_tx_for_execute(execute, Some(fee(1_000_000))),
+                    false => {
+                        let tx = account.get_l1_tx(execute, self.next_priority_op.0);
+                        self.next_priority_op += 1;
+                        tx
+                    }
                 }
             })
             .collect();
@@ -369,51 +362,14 @@ impl StateKeeper {
     }
 
     /// Batch of the `last_block`.
-    pub fn last_batch(&self) -> L1BatchNumber {
-        self.last_batch
+    pub fn last_batch(&self) -> attester::BatchNumber {
+        attester::BatchNumber(self.last_batch.0.into())
     }
 
     /// Last L1 batch that has been sealed and will have
     /// metadata computed eventually.
-    pub fn last_sealed_batch(&self) -> L1BatchNumber {
-        self.last_batch - (!self.batch_sealed) as u32
-    }
-
-    /// Loads a commitment to L1 batch directly from the database.
-    // TODO: ideally, we should rather fake fetching it from Ethereum.
-    // We can use `zksync_eth_client::clients::MockEthereum` for that,
-    // which implements `EthInterface`. It should be enough to use
-    // `MockEthereum.with_call_handler()`.
-    pub async fn load_batch_commit(
-        &self,
-        ctx: &ctx::Ctx,
-        number: L1BatchNumber,
-    ) -> ctx::Result<L1BatchCommit> {
-        // TODO: we should mock the `eth_sender` as well.
-        let mut conn = self.pool.connection(ctx).await?;
-        let this = conn.batch(ctx, number).await?.context("missing batch")?;
-        let prev = conn
-            .batch(ctx, number - 1)
-            .await?
-            .context("missing batch")?;
-        Ok(L1BatchCommit {
-            number,
-            this_batch: LastBlockCommit {
-                info: StoredBatchInfo::from(&this).hash(),
-            },
-            prev_batch: LastBlockCommit {
-                info: StoredBatchInfo::from(&prev).hash(),
-            },
-        })
-    }
-
-    /// Loads an `L1BatchWithWitness`.
-    pub async fn load_batch_with_witness(
-        &self,
-        ctx: &ctx::Ctx,
-        n: L1BatchNumber,
-    ) -> ctx::Result<L1BatchWithWitness> {
-        L1BatchWithWitness::load(ctx, n, &self.pool, &self.tree_reader).await
+    pub fn last_sealed_batch(&self) -> attester::BatchNumber {
+        attester::BatchNumber((self.last_batch.0 - (!self.batch_sealed) as u32).into())
     }
 
     /// Connects to the json RPC endpoint exposed by the state keeper.
@@ -568,9 +524,11 @@ impl StateKeeperRunner {
             let (stop_send, stop_recv) = sync::watch::channel(false);
             let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
                 self.pool.0.clone(),
-                ethabi::Address::repeat_byte(11),
+                Some(ethabi::Address::repeat_byte(11)),
                 5,
-            );
+            )
+            .await
+            .unwrap();
 
             let io = ExternalIO::new(
                 self.pool.0.clone(),
@@ -675,9 +633,11 @@ impl StateKeeperRunner {
             let (stop_send, stop_recv) = sync::watch::channel(false);
             let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
                 self.pool.0.clone(),
-                ethabi::Address::repeat_byte(11),
+                Some(ethabi::Address::repeat_byte(11)),
                 5,
-            );
+            )
+            .await
+            .unwrap();
             let tree_writes_persistence = TreeWritesPersistence::new(self.pool.0.clone());
 
             let io = ExternalIO::new(

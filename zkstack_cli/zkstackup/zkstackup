@@ -1,0 +1,272 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+LOCAL_DIR="$HOME/.local/"
+BIN_DIR="$LOCAL_DIR/bin"
+
+BINS=()
+
+main() {
+  parse_args "$@"
+
+  zkstack_banner
+
+  check_prerequisites
+  mkdir -p "$BIN_DIR"
+
+  BINS+=(zkstack)
+
+  if [ -n "$ZKSTACKUP_PATH" ]; then
+    install_local
+  else
+    install_from_repo
+  fi
+
+  zkstack_banner
+
+  add_bin_folder_to_path
+
+  for bin in "${BINS[@]}"; do
+    success "Installed $bin to $BIN_DIR/$bin"
+  done
+}
+
+PREREQUISITES=(cargo git)
+
+check_prerequisites() {
+  say "Checking prerequisites"
+
+  failed_prerequisites=()
+  for prerequisite in "${PREREQUISITES[@]}"; do
+    if ! check_prerequisite "$prerequisite"; then
+      failed_prerequisites+=("$prerequisite")
+    fi
+  done
+  if [ ${#failed_prerequisites[@]} -gt 0 ]; then
+    err "The following prerequisites are missing: ${failed_prerequisites[*]}"
+    exit 1
+  fi
+}
+
+check_prerequisite() {
+  command -v "$1" &>/dev/null
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+    --)
+      shift
+      break
+      ;;
+    -p | --path)
+      shift
+      ZKSTACKUP_PATH=$1
+      ;;
+    -l | --local)
+      ZKSTACKUP_PATH="./"
+      ;;
+    -g | --global)
+      LOCAL_DIR="/usr/local"
+      BIN_DIR="$LOCAL_DIR/bin"
+      ;;
+    -r | --repo)
+      shift
+      ZKSTACKUP_REPO=$1
+      ;;
+    -b | --branch)
+      shift
+      ZKSTACKUP_BRANCH=$1
+      ;;
+    -c | --commit)
+      shift
+      ZKSTACKUP_COMMIT=$1
+      ;;
+    -v | --version)
+      shift
+      ZKSTACKUP_VERSION=$1
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      err "Unknown argument: $1"
+      usage
+      exit 1
+      ;;
+    esac
+    shift
+  done
+}
+
+usage() {
+  cat <<EOF
+zkstackup - A tool for managing ZK Stack CLI installation.
+
+Usage: $(basename "$0") [OPTIONS]
+
+Options:
+  -p, --path <path>         Specify a local path to install ZK Stack CLI from. Ignored if --repo is provided.
+  -l, --local               Install ZK Stack CLI from the current directory. Ignored if --repo is provided.
+  -g, --global              Install ZK Stack CLI for all users.
+  -r, --repo <repo>         GitHub repository to install from (e.g., "matter-labs/zksync-era"). Defaults to "matter-labs/zksync-era".
+  -b, --branch <branch>     Git branch to use when installing from a repository. Ignored if --commit or --version is provided.
+  -c, --commit <commit>     Git commit hash to use when installing from a repository. Ignored if --branch or --version is provided.
+  -v, --version <version>   Git tag to use when installing from a repository. Ignored if --branch or --commit is provided.
+  -h, --help                Show this help message and exit.
+
+Examples:
+  $(basename "$0") --repo matter-labs/zksync-era --version 0.1.1
+EOF
+}
+
+install_local() {
+  if [ ! -d "$ZKSTACKUP_PATH/zkstack_cli" ]; then
+    err "Path $ZKSTACKUP_PATH does not contain zkstack_cli"
+    exit 1
+  fi
+
+  if [ "$ZKSTACKUP_PATH" = "./" ]; then
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      git config --local core.hooksPath ||
+      git config --local core.hooksPath ./.githooks
+    fi
+  fi
+
+  if [ -n "$ZKSTACKUP_BRANCH" ] || [ -n "$ZKSTACKUP_COMMIT" ] || [ -n "$ZKSTACKUP_VERSION" ] || [ -n "$ZKSTACKUP_REPO" ]; then
+    warn "Ignoring --repo, --branch, --commit and --version arguments when installing from local path"
+  fi
+
+  say "Installing ZK Stack CLI from $ZKSTACKUP_PATH"
+  ensure cd "$ZKSTACKUP_PATH"/zkstack_cli
+
+  for bin in "${BINS[@]}"; do
+    say "Installing $bin"
+    ensure cargo install --root $LOCAL_DIR --path ./crates/$bin --force
+    chmod +x "$BIN_DIR/$bin"
+  done
+}
+
+install_from_repo() {
+  if [ -n "$ZKSTACKUP_PATH" ]; then
+    warn "Ignoring --path argument when installing from repository"
+  fi
+
+  ZKSTACKUP_REPO=${ZKSTACKUP_REPO:-"matter-labs/zksync-era"}
+
+  say "Installing ZK Stack CLI from $ZKSTACKUP_REPO"
+
+  if [ -n "$ZKSTACKUP_VERSION" ]; then
+    if [ -n "$ZKSTACKUP_COMMIT" ] || [ -n "$ZKSTACKUP_BRANCH" ]; then
+      warn "Ignoring --commit and --branch arguments when installing by version"
+    fi
+    ensure cargo install --root $LOCAL_DIR --git "https://github.com/$ZKSTACKUP_REPO" --tag "zkstack_cli-v$ZKSTACKUP_VERSION" --locked "${BINS[@]}" --force
+  elif [ -n "$ZKSTACKUP_COMMIT" ]; then
+    if [ -n "$ZKSTACKUP_BRANCH" ]; then
+      warn "Ignoring --branch argument when installing by commit"
+    fi
+    ensure cargo install --root $LOCAL_DIR --git "https://github.com/$ZKSTACKUP_REPO" --rev "$ZKSTACKUP_COMMIT" --locked "${BINS[@]}" --force
+  elif [ -n "$ZKSTACKUP_BRANCH" ]; then
+    ensure cargo install --root $LOCAL_DIR --git "https://github.com/$ZKSTACKUP_REPO" --branch "$ZKSTACKUP_BRANCH" --locked "${BINS[@]}" --force
+  else
+    ensure cargo install --root $LOCAL_DIR --git "https://github.com/$ZKSTACKUP_REPO" --locked "${BINS[@]}" --force
+  fi
+}
+
+add_bin_folder_to_path() {
+  if [[ ":$PATH:" == *":${BIN_DIR}:"* ]]; then
+    echo "found ${BIN_DIR} in PATH"
+    exit 0
+  fi
+
+  case $SHELL in
+  */zsh)
+    PROFILE="${ZDOTDIR-"$HOME"}/.zshenv"
+    ;;
+  */bash)
+    PROFILE="$HOME/.bashrc"
+    ;;
+  */fish)
+    PROFILE="$HOME/.config/fish/config.fish"
+    ;;
+  */ash)
+    PROFILE="$HOME/.profile"
+    ;;
+  *)
+    echo "could not detect shell, manually add ${BIN_DIR} to your PATH."
+    exit 1
+    ;;
+  esac
+
+  if [[ ! -f "$PROFILE" ]]; then
+    echo "Profile file $PROFILE does not exist, creating it."
+    touch "$PROFILE"
+  fi
+
+  if [[ "$SHELL" == *"/fish"* ]]; then
+    echo -e "\n# Added by zkstackup\nfish_add_path -a $BIN_DIR" >>"$PROFILE"
+    echo "Added $BIN_DIR to PATH in $PROFILE using fish_add_path."
+  else
+    echo -e "\n# Added by zkstackup\nexport PATH=\"\$PATH:$BIN_DIR\"" >>"$PROFILE"
+    echo "Added $BIN_DIR to PATH in $PROFILE."
+  fi
+
+  echo
+  echo "Added zkstack to PATH."
+  echo "Run 'source $PROFILE' or start a new terminal session to use zkstack."
+}
+
+ensure() {
+  if ! "$@"; then
+    err "command failed: $*"
+    exit 1
+  fi
+}
+
+say() {
+  local action="${1%% *}"
+  local rest="${1#"$action" }"
+
+  echo -e "\033[1;32m$action\033[0m $rest"
+}
+
+success() {
+  echo -e "\033[1;32m$1\033[0m"
+}
+
+warn() {
+  echo -e "\033[1;33mWARNING: $1\033[0m"
+}
+
+err() {
+  echo -e "\033[1;31mERROR: $1\033[0m" >&2
+}
+
+zkstack_banner() {
+  printf '
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+         ███████╗██╗  ██╗    ███████╗████████╗ █████╗  ██████╗██╗  ██╗
+         ╚══███╔╝██║ ██╔╝    ██╔════╝╚══██╔══╝██╔══██╗██╔════╝██║ ██╔╝
+           ███╔╝ █████╔╝     ███████╗   ██║   ███████║██║     █████╔╝ 
+          ███╔╝  ██╔═██╗     ╚════██║   ██║   ██╔══██║██║     ██╔═██╗ 
+         ███████╗██║  ██╗    ███████║   ██║   ██║  ██║╚██████╗██║  ██╗
+         ╚══════╝╚═╝  ╚═╝    ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
+                                                             
+
+    A Comprehensive Toolkit for Creating and Managing ZK Stack Chains
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+Repo       : https://github.com/matter-labs/zksync-era/
+Docs       : https://docs.zksync.io/
+Contribute : https://github.com/matter-labs/zksync-era/pulls
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+'
+}
+
+main "$@"

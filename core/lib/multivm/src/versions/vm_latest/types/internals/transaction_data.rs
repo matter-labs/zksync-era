@@ -1,19 +1,24 @@
 use std::convert::TryInto;
 
 use zksync_types::{
+    address_to_h256,
+    bytecode::BytecodeHash,
     ethabi::{encode, Address, Token},
     fee::{encoding_len, Fee},
+    h256_to_u256,
     l1::is_l1_tx_type,
     l2::{L2Tx, TransactionType},
     transaction_request::{PaymasterParams, TransactionRequest},
     web3::Bytes,
     Execute, ExecuteTransactionCommon, L2ChainId, L2TxCommonData, Nonce, Transaction, H256, U256,
 };
-use zksync_utils::{address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
 
-use crate::vm_latest::{
-    constants::{MAX_GAS_PER_PUBDATA_BYTE, TX_MAX_COMPUTE_GAS_LIMIT},
-    utils::overhead::derive_overhead,
+use crate::{
+    utils::bytecode::bytes_to_be_words,
+    vm_latest::{
+        constants::{MAX_GAS_PER_PUBDATA_BYTE, TX_MAX_COMPUTE_GAS_LIMIT},
+        utils::overhead::derive_overhead,
+    },
 };
 
 /// This structure represents the data that is used by
@@ -46,8 +51,8 @@ pub(crate) struct TransactionData {
     pub(crate) raw_bytes: Option<Vec<u8>>,
 }
 
-impl From<Transaction> for TransactionData {
-    fn from(execute_tx: Transaction) -> Self {
+impl TransactionData {
+    pub(crate) fn new(execute_tx: Transaction, use_evm_emulator: bool) -> Self {
         match execute_tx.common_data {
             ExecuteTransactionCommon::L2(common_data) => {
                 let nonce = U256::from_big_endian(&common_data.nonce.to_be_bytes());
@@ -57,6 +62,19 @@ impl From<Transaction> for TransactionData {
                     TransactionType::LegacyTransaction
                 ) && common_data.extract_chain_id().is_some()
                 {
+                    U256([1, 0, 0, 0])
+                } else {
+                    U256::zero()
+                };
+
+                let should_deploy_contract = if execute_tx.execute.contract_address.is_none() {
+                    // Transactions with no `contract_address` should be filtered out by the API server,
+                    // so this is more of a sanity check.
+                    assert!(
+                        use_evm_emulator,
+                        "`execute.contract_address` not set for transaction {:?} with EVM emulation disabled",
+                        common_data.hash()
+                    );
                     U256([1, 0, 0, 0])
                 } else {
                     U256::zero()
@@ -85,7 +103,7 @@ impl From<Transaction> for TransactionData {
                     value: execute_tx.execute.value,
                     reserved: [
                         should_check_chain_id,
-                        U256::zero(),
+                        should_deploy_contract,
                         U256::zero(),
                         U256::zero(),
                     ],
@@ -190,16 +208,13 @@ impl TransactionData {
         let factory_deps_hashes = self
             .factory_deps
             .iter()
-            .map(|dep| h256_to_u256(hash_bytecode(dep)))
+            .map(|dep| BytecodeHash::for_bytecode(dep).value_u256())
             .collect();
         self.abi_encode_with_custom_factory_deps(factory_deps_hashes)
     }
 
     pub(crate) fn into_tokens(self) -> Vec<U256> {
-        let bytes = self.abi_encode();
-        assert!(bytes.len() % 32 == 0);
-
-        bytes_to_be_words(bytes)
+        bytes_to_be_words(&self.abi_encode())
     }
 
     pub(crate) fn overhead_gas(&self) -> u32 {

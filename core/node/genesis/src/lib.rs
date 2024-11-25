@@ -17,16 +17,17 @@ use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     block::{BlockGasCount, DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader},
+    bytecode::BytecodeHash,
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
     protocol_upgrade::decode_set_chain_id_event,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     system_contracts::get_system_smart_contracts,
+    u256_to_h256,
     web3::{BlockNumber, FilterBuilder},
     AccountTreeId, Address, Bloom, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
     ProtocolVersion, ProtocolVersionId, StorageKey, H256, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use crate::utils::{
     add_eth_token, get_deduped_log_queries, get_storage_logs,
@@ -104,6 +105,7 @@ impl GenesisParams {
             default_aa: config
                 .default_aa_hash
                 .ok_or(GenesisError::MalformedConfig("default_aa_hash"))?,
+            evm_emulator: config.evm_emulator_hash,
         };
         if base_system_contracts_hashes != base_system_contracts.hashes() {
             return Err(GenesisError::BaseSystemContractsHashes(Box::new(
@@ -124,15 +126,18 @@ impl GenesisParams {
     }
 
     pub fn load_genesis_params(config: GenesisConfig) -> Result<GenesisParams, GenesisError> {
-        let base_system_contracts = BaseSystemContracts::load_from_disk();
-        let system_contracts = get_system_smart_contracts();
+        let mut base_system_contracts = BaseSystemContracts::load_from_disk();
+        if config.evm_emulator_hash.is_some() {
+            base_system_contracts = base_system_contracts.with_latest_evm_emulator();
+        }
+        let system_contracts = get_system_smart_contracts(config.evm_emulator_hash.is_some());
         Self::from_genesis_config(config, base_system_contracts, system_contracts)
     }
 
     pub fn mock() -> Self {
         Self {
             base_system_contracts: BaseSystemContracts::load_from_disk(),
-            system_contracts: get_system_smart_contracts(),
+            system_contracts: get_system_smart_contracts(false),
             config: mock_genesis_config(),
         }
     }
@@ -172,6 +177,7 @@ pub fn mock_genesis_config() -> GenesisConfig {
         genesis_commitment: Some(H256::default()),
         bootloader_hash: Some(base_system_contracts_hashes.bootloader),
         default_aa_hash: Some(base_system_contracts_hashes.default_aa),
+        evm_emulator_hash: base_system_contracts_hashes.evm_emulator,
         l1_chain_id: L1ChainId(9),
         sl_chain_id: None,
         l2_chain_id: L2ChainId::default(),
@@ -235,6 +241,7 @@ pub async fn insert_genesis_batch(
             .config
             .default_aa_hash
             .ok_or(GenesisError::MalformedConfig("default_aa_hash"))?,
+        evm_emulator: genesis_params.config.evm_emulator_hash,
     };
     let commitment_input = CommitmentInput::for_genesis_batch(
         genesis_root_hash,
@@ -386,6 +393,7 @@ pub async fn create_genesis_l1_batch(
         base_system_contracts.hashes(),
         protocol_version.minor,
     );
+    let batch_fee_input = BatchFeeInput::pubdata_independent(0, 0, 0);
 
     let genesis_l2_block_header = L2BlockHeader {
         number: L2BlockNumber(0),
@@ -396,12 +404,13 @@ pub async fn create_genesis_l1_batch(
         fee_account_address: Default::default(),
         base_fee_per_gas: 0,
         gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(protocol_version.minor.into()),
-        batch_fee_input: BatchFeeInput::l1_pegged(0, 0),
+        batch_fee_input,
         base_system_contracts_hashes: base_system_contracts.hashes(),
         protocol_version: Some(protocol_version.minor),
         virtual_blocks: 0,
         gas_limit: 0,
         logs_bloom: Bloom::zero(),
+        pubdata_params: Default::default(),
     };
 
     let mut transaction = storage.start_transaction().await?;
@@ -412,7 +421,11 @@ pub async fn create_genesis_l1_batch(
         .await?;
     transaction
         .blocks_dal()
-        .insert_l1_batch(
+        .insert_l1_batch(genesis_l1_batch_header.to_unsealed_header(batch_fee_input))
+        .await?;
+    transaction
+        .blocks_dal()
+        .mark_l1_batch_as_sealed(
             &genesis_l1_batch_header,
             &[],
             BlockGasCount::default(),
@@ -434,7 +447,12 @@ pub async fn create_genesis_l1_batch(
 
     let factory_deps = system_contracts
         .iter()
-        .map(|c| (hash_bytecode(&c.bytecode), c.bytecode.clone()))
+        .map(|c| {
+            (
+                BytecodeHash::for_bytecode(&c.bytecode).value(),
+                c.bytecode.clone(),
+            )
+        })
         .collect();
 
     insert_base_system_contracts_to_factory_deps(&mut transaction, base_system_contracts).await?;

@@ -64,7 +64,7 @@ pub(crate) fn build_commit_tx_input_data(
     let tokens = CommitBatches {
         last_committed_l1_batch: &batches[0],
         l1_batches: batches,
-        pubdata_da: PubdataDA::Calldata,
+        pubdata_da: PubdataSendingMode::Calldata,
         mode,
     }
     .into_tokens();
@@ -167,7 +167,7 @@ fn build_commit_tx_input_data_is_correct(commitment_mode: L1BatchCommitmentMode)
         .unwrap();
         assert_eq!(
             commit_data,
-            CommitBatchInfo::new(commitment_mode, batch, PubdataDA::Calldata).into_token(),
+            CommitBatchInfo::new(commitment_mode, batch, PubdataSendingMode::Calldata).into_token(),
         );
     }
 }

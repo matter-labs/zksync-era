@@ -11,22 +11,23 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+chrono.workspace = true
 vise.workspace = true
 zksync_config.workspace = true
 zksync_dal.workspace = true
 zksync_object_store.workspace = true
 zksync_prover_interface.workspace = true
 zksync_types.workspace = true
+zksync_vm_executor.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 tokio.workspace = true
+tower-http = { workspace = true, features = ["compression-zstd", "decompression-zstd"] }
 tracing.workspace = true
 
 [dev-dependencies]
 hyper.workspace = true
-chrono.workspace = true
 zksync_multivm.workspace = true
 serde_json.workspace = true
 tower.workspace = true
-zksync_basic_types.workspace = true
 zksync_contracts.workspace = true

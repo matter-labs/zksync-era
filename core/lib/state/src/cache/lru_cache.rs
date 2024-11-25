@@ -46,6 +46,13 @@ where
         Self { name, cache }
     }
 
+    /// Returns the capacity of this cache in bytes.
+    pub fn capacity(&self) -> u64 {
+        self.cache
+            .as_ref()
+            .map_or(0, |cache| cache.policy().max_capacity().unwrap_or(u64::MAX))
+    }
+
     /// Gets an entry and pulls it to the front if it exists.
     pub fn get(&self, key: &K) -> Option<V> {
         let latency = METRICS.latency[&(self.name, Method::Get)].start();

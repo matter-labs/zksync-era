@@ -4,7 +4,6 @@ use serde_json::Value;
 use serde_with::{hex::Hex, serde_as};
 use strum::Display;
 use zksync_basic_types::{
-    tee_types::TeeType,
     web3::{AccessList, Bytes, Index},
     Bloom, L1BatchNumber, H160, H256, H64, U256, U64,
 };
@@ -14,8 +13,10 @@ pub use crate::transaction_request::{
     Eip712Meta, SerializationTransactionError, TransactionRequest,
 };
 use crate::{
-    debug_flat_call::DebugCallFlat, protocol_version::L1VerifierConfig, Address, L2BlockNumber,
-    ProtocolVersionId,
+    debug_flat_call::{DebugCallFlat, ResultDebugCallFlat},
+    protocol_version::L1VerifierConfig,
+    tee_types::TeeType,
+    Address, L2BlockNumber, ProtocolVersionId,
 };
 
 pub mod en;
@@ -205,6 +206,7 @@ pub struct BridgeAddresses {
     pub l2_erc20_default_bridge: Option<Address>,
     pub l1_weth_bridge: Option<Address>,
     pub l2_weth_bridge: Option<Address>,
+    pub l2_legacy_shared_bridge: Option<Address>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
@@ -255,8 +257,6 @@ pub struct TransactionReceipt {
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
     /// Status: either 1 (success) or 0 (failure).
     pub status: U64,
-    /// State root.
-    pub root: H256,
     /// Logs bloom
     #[serde(rename = "logsBloom")]
     pub logs_bloom: Bloom,
@@ -515,6 +515,9 @@ pub struct Transaction {
     pub gas: U256,
     /// Input data
     pub input: Bytes,
+    /// The parity (0 for even, 1 for odd) of the y-value of the secp256k1 signature
+    #[serde(rename = "yParity", default, skip_serializing_if = "Option::is_none")]
+    pub y_parity: Option<U64>,
     /// ECDSA recovery id
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub v: Option<U64>,
@@ -643,7 +646,7 @@ pub struct ProtocolVersion {
     /// Verifier configuration
     #[deprecated]
     pub verification_keys_hashes: Option<L1VerifierConfig>,
-    /// Hashes of base system contracts (bootloader and default account)
+    /// Hashes of base system contracts (bootloader, default account and evm emulator)
     #[deprecated]
     pub base_system_contracts: Option<BaseSystemContractsHashes>,
     /// Bootloader code hash
@@ -652,6 +655,9 @@ pub struct ProtocolVersion {
     /// Default account code hash
     #[serde(rename = "defaultAccountCodeHash")]
     pub default_account_code_hash: Option<H256>,
+    /// EVM emulator code hash
+    #[serde(rename = "evmSimulatorCodeHash")]
+    pub evm_emulator_code_hash: Option<H256>,
     /// L2 Upgrade transaction hash
     #[deprecated]
     pub l2_system_upgrade_tx_hash: Option<H256>,
@@ -667,6 +673,7 @@ impl ProtocolVersion {
         timestamp: u64,
         bootloader_code_hash: H256,
         default_account_code_hash: H256,
+        evm_emulator_code_hash: Option<H256>,
         l2_system_upgrade_tx_hash: Option<H256>,
     ) -> Self {
         Self {
@@ -677,9 +684,11 @@ impl ProtocolVersion {
             base_system_contracts: Some(BaseSystemContractsHashes {
                 bootloader: bootloader_code_hash,
                 default_aa: default_account_code_hash,
+                evm_emulator: evm_emulator_code_hash,
             }),
             bootloader_code_hash: Some(bootloader_code_hash),
             default_account_code_hash: Some(default_account_code_hash),
+            evm_emulator_code_hash,
             l2_system_upgrade_tx_hash,
             l2_system_upgrade_tx_hash_new: l2_system_upgrade_tx_hash,
         }
@@ -693,6 +702,13 @@ impl ProtocolVersion {
     pub fn default_account_code_hash(&self) -> Option<H256> {
         self.default_account_code_hash
             .or_else(|| self.base_system_contracts.map(|hashes| hashes.default_aa))
+    }
+
+    pub fn evm_emulator_code_hash(&self) -> Option<H256> {
+        self.evm_emulator_code_hash.or_else(|| {
+            self.base_system_contracts
+                .and_then(|hashes| hashes.evm_emulator)
+        })
     }
 
     pub fn minor_version(&self) -> Option<u16> {
@@ -750,11 +766,11 @@ pub enum BlockStatus {
 #[serde(untagged)]
 pub enum CallTracerBlockResult {
     CallTrace(Vec<ResultDebugCall>),
-    FlatCallTrace(Vec<DebugCallFlat>),
+    FlatCallTrace(Vec<ResultDebugCallFlat>),
 }
 
 impl CallTracerBlockResult {
-    pub fn unwrap_flat(self) -> Vec<DebugCallFlat> {
+    pub fn unwrap_flat(self) -> Vec<ResultDebugCallFlat> {
         match self {
             Self::CallTrace(_) => panic!("Result is a FlatCallTrace"),
             Self::FlatCallTrace(trace) => trace,
@@ -917,6 +933,7 @@ mod tests {
             base_system_contracts: Some(Default::default()),
             bootloader_code_hash: Some(Default::default()),
             default_account_code_hash: Some(Default::default()),
+            evm_emulator_code_hash: Some(Default::default()),
             l2_system_upgrade_tx_hash: Default::default(),
             l2_system_upgrade_tx_hash_new: Default::default(),
         };
