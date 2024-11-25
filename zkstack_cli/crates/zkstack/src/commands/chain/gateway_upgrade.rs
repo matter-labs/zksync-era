@@ -234,7 +234,7 @@ async fn prepare_stage1(
             .deployed_addresses
             .rollup_l1_da_validator_addr,
     );
-    contracts_config.l1.validium_l1_da_validator_addr = Some(
+    contracts_config.l1.no_da_validium_l1_validator_addr = Some(
         gateway_ecosystem_preparation_output
             .deployed_addresses
             .validium_l1_da_validator_addr,
@@ -382,7 +382,7 @@ async fn finalize_stage1(
         ecosystem_config
             .get_contracts_config()?
             .l1
-            .validium_l1_da_validator_addr
+            .no_da_validium_l1_validator_addr
     }
     .context("l1 da validator")?;
 

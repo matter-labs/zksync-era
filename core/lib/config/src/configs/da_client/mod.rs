@@ -1,3 +1,5 @@
+use std::{fmt::Display, string::ToString};
+
 use crate::{AvailConfig, CelestiaConfig, EigenConfig, ObjectStoreConfig};
 
 pub mod avail;
@@ -15,4 +17,22 @@ pub enum DAClientConfig {
     Celestia(CelestiaConfig),
     Eigen(EigenConfig),
     ObjectStore(ObjectStoreConfig),
+}
+
+impl From<AvailConfig> for DAClientConfig {
+    fn from(config: AvailConfig) -> Self {
+        Self::Avail(config)
+    }
+}
+
+impl Display for DAClientConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
+            DAClientConfig::Avail(_) => AVAIL_CLIENT_CONFIG_NAME.to_string(),
+            DAClientConfig::Celestia(_) => CELESTIA_CLIENT_CONFIG_NAME.to_string(),
+            DAClientConfig::Eigen(_) => EIGEN_CLIENT_CONFIG_NAME.to_string(),
+            DAClientConfig::ObjectStore(_) => OBJECT_STORE_CLIENT_CONFIG_NAME.to_string(),
+        };
+        write!(f, "{}", str)
+    }
 }

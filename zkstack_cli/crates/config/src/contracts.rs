@@ -104,10 +104,15 @@ impl ContractsConfig {
                 .deployed_addresses
                 .rollup_l1_da_validator_addr,
         );
-        self.l1.validium_l1_da_validator_addr = Some(
+        self.l1.no_da_validium_l1_validator_addr = Some(
             deploy_l1_output
                 .deployed_addresses
-                .validium_l1_da_validator_addr,
+                .no_da_validium_l1_validator_addr,
+        );
+        self.l1.avail_l1_da_validator_addr = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .avail_l1_da_validator_addr,
         );
         self.l1.chain_admin_addr = deploy_l1_output.deployed_addresses.chain_admin;
     }
@@ -231,7 +236,10 @@ pub struct L1Contracts {
     pub rollup_l1_da_validator_addr: Option<Address>,
     // `Option` to be able to parse configs from previous protocol version
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub validium_l1_da_validator_addr: Option<Address>,
+    pub avail_l1_da_validator_addr: Option<Address>,
+    // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub no_da_validium_l1_validator_addr: Option<Address>,
     // `Option` to be able to parse configs from previous protocol version
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_filterer_addr: Option<Address>,

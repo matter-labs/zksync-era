@@ -4,9 +4,13 @@ use config::ChainConfig;
 use serde::{Deserialize, Serialize};
 use types::L1Network;
 use url::Url;
+use zksync_basic_types::commitment::L1BatchCommitmentMode;
 
 use crate::{
-    commands::chain::args::genesis::{GenesisArgs, GenesisArgsFinal},
+    commands::chain::args::{
+        genesis::{GenesisArgs, GenesisArgsFinal},
+        init::da_configs::ValidiumType,
+    },
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_DEPLOY_PAYMASTER_PROMPT, MSG_DEV_ARG_HELP, MSG_L1_RPC_URL_HELP,
@@ -16,6 +20,7 @@ use crate::{
 };
 
 pub mod configs;
+pub(crate) mod da_configs;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct InitArgs {
@@ -31,6 +36,8 @@ pub struct InitArgs {
     pub dont_drop: bool,
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub deploy_paymaster: Option<bool>,
+    // #[clap(long, default_missing_value = "NoDA")]
+    // pub validium_config: Option<ValidiumType>,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub l1_rpc_url: Option<String>,
     #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP)]
@@ -86,6 +93,13 @@ impl InitArgs {
             })
         };
 
+        let validium_config =
+            if config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium {
+                Some(ValidiumType::read())
+            } else {
+                None
+            };
+
         InitArgsFinal {
             forge_args: self.forge_args,
             genesis_args: genesis.fill_values_with_prompt(config),
@@ -94,6 +108,7 @@ impl InitArgs {
             no_port_reallocation: self.no_port_reallocation,
             dev: self.dev,
             skip_submodules_checkout: self.skip_submodules_checkout,
+            validium_config,
         }
     }
 }
@@ -107,4 +122,5 @@ pub struct InitArgsFinal {
     pub no_port_reallocation: bool,
     pub dev: bool,
     pub skip_submodules_checkout: bool,
+    pub validium_config: Option<ValidiumType>,
 }

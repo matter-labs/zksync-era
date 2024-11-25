@@ -1,6 +1,5 @@
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
-use types::L1BatchCommitmentMode;
 use zksync_basic_types::L2ChainId;
 
 use crate::{traits::ZkStackConfig, ChainConfig, ContractsConfig};
@@ -17,7 +16,7 @@ pub struct DeployL2ContractsInput {
     pub bridgehub: Address,
     pub governance: Address,
     pub erc20_bridge: Address,
-    pub validium_mode: bool,
+    pub validium_type: String,
     pub consensus_registry_owner: Address,
 }
 
@@ -30,9 +29,6 @@ impl DeployL2ContractsInput {
         let contracts = chain_config.get_contracts_config()?;
         let wallets = chain_config.get_wallets_config()?;
 
-        let validium_mode =
-            chain_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium;
-
         Ok(Self {
             era_chain_id,
             chain_id: chain_config.chain_id,
@@ -40,7 +36,7 @@ impl DeployL2ContractsInput {
             bridgehub: contracts.ecosystem_contracts.bridgehub_proxy_addr,
             governance: contracts_config.l1.governance_addr,
             erc20_bridge: contracts.bridges.erc20.l1_address,
-            validium_mode,
+            validium_type: chain_config.get_validium_type().unwrap_or_default(),
             consensus_registry_owner: wallets.governor.address,
         })
     }

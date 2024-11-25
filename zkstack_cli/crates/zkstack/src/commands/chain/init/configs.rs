@@ -10,7 +10,10 @@ use xshell::Shell;
 use crate::{
     commands::{
         chain::{
-            args::init::configs::{InitConfigsArgs, InitConfigsArgsFinal},
+            args::init::{
+                configs::{InitConfigsArgs, InitConfigsArgsFinal},
+                da_configs::ValidiumType,
+            },
             gateway_upgrade::encode_ntv_asset_id,
             genesis,
         },
@@ -78,6 +81,17 @@ pub async fn init_configs(
     consensus_config.genesis_spec = Some(get_genesis_specs(chain_config, &consensus_keys));
 
     general_config.consensus_config = Some(consensus_config);
+    if let Some(validium_config) = init_args.validium_config.clone() {
+        match validium_config {
+            ValidiumType::NoDA => {
+                general_config.da_client_config = None;
+            }
+            ValidiumType::Avail(avail_config) => {
+                general_config.da_client_config = Some(avail_config.into());
+            }
+        }
+    }
+
     general_config.save_with_base_path(shell, &chain_config.configs)?;
 
     // Initialize genesis config

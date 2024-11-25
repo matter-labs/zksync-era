@@ -179,7 +179,8 @@ async fn governance_stage_1(
             .deployed_addresses
             .rollup_l1_da_validator_addr,
     );
-    contracts_config.l1.validium_l1_da_validator_addr = Some(
+
+    contracts_config.l1.no_da_validium_l1_validator_addr = Some(
         gateway_ecosystem_preparation_output
             .deployed_addresses
             .validium_l1_da_validator_addr,

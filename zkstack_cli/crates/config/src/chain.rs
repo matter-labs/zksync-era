@@ -101,6 +101,19 @@ impl ChainConfig {
         }
         anyhow::bail!("Wallets configs has not been found");
     }
+
+    pub fn get_validium_type(&self) -> Option<String> {
+        let general = self.get_general_config().expect("General config not found");
+        match (
+            self.l1_batch_commit_data_generator_mode,
+            general.da_client_config,
+        ) {
+            (L1BatchCommitmentMode::Validium, Some(conf)) => Some(conf.to_string()),
+            (L1BatchCommitmentMode::Validium, None) => Some("NoDA".to_string()),
+            _ => None,
+        }
+    }
+
     pub fn get_contracts_config(&self) -> anyhow::Result<ContractsConfig> {
         ContractsConfig::read_with_base_path(self.get_shell(), &self.configs)
     }
