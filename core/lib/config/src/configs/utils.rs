@@ -1,8 +1,9 @@
 use std::{env, time::Duration};
 
 use serde::Deserialize;
+use smart_config::{DescribeConfig, DeserializeConfig};
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct PrometheusConfig {
     /// Port to which the Prometheus exporter server is listening.
     pub listener_port: u16,

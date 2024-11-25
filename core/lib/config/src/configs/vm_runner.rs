@@ -1,36 +1,32 @@
-use serde::Deserialize;
+use std::{num::NonZeroU32, path::PathBuf};
+
+use smart_config::{metadata::BasicType, DescribeConfig, DeserializeConfig};
 use zksync_basic_types::L1BatchNumber;
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
 pub struct ProtectiveReadsWriterConfig {
     /// Path to the RocksDB data directory that serves state cache.
-    #[serde(default = "ProtectiveReadsWriterConfig::default_db_path")]
-    pub db_path: String,
+    #[config(default_t = "./db/protective_reads_writer".into())]
+    pub db_path: PathBuf,
     /// How many max batches should be processed at the same time.
-    pub window_size: u32,
+    #[config(default_t = NonZeroU32::new(1).unwrap())]
+    pub window_size: NonZeroU32,
     /// All batches before this one (inclusive) are always considered to be processed.
+    #[config(default, with = BasicType::Integer)]
     pub first_processed_batch: L1BatchNumber,
 }
 
-impl ProtectiveReadsWriterConfig {
-    fn default_db_path() -> String {
-        "./db/protective_reads_writer".to_owned()
-    }
-}
-
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
 pub struct BasicWitnessInputProducerConfig {
     /// Path to the RocksDB data directory that serves state cache.
-    #[serde(default = "BasicWitnessInputProducerConfig::default_db_path")]
-    pub db_path: String,
+    #[config(default_t = "./db/basic_witness_input_producer".into())]
+    pub db_path: PathBuf,
     /// How many max batches should be processed at the same time.
-    pub window_size: u32,
+    #[config(default_t = NonZeroU32::new(1).unwrap())]
+    pub window_size: NonZeroU32,
     /// All batches before this one (inclusive) are always considered to be processed.
+    #[config(default, with = BasicType::Integer)]
     pub first_processed_batch: L1BatchNumber,
-}
-
-impl BasicWitnessInputProducerConfig {
-    fn default_db_path() -> String {
-        "./db/basic_witness_input_producer".to_owned()
-    }
 }

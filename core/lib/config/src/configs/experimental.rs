@@ -1,15 +1,20 @@
 //! Experimental part of configuration.
 
-use std::num::NonZeroU32;
+use std::{num::NonZeroU32, time::Duration};
 
 use serde::Deserialize;
+use smart_config::{
+    metadata::{SizeUnit, TimeUnit},
+    ByteSize, DescribeConfig, DeserializeConfig,
+};
 use zksync_basic_types::{vm::FastVmMode, L1BatchNumber};
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
 pub struct ExperimentalDBConfig {
     /// Block cache capacity of the state keeper RocksDB cache. The default value is 128 MB.
-    #[serde(default = "ExperimentalDBConfig::default_state_keeper_db_block_cache_capacity_mb")]
-    pub state_keeper_db_block_cache_capacity_mb: usize,
+    #[config(default_t = ByteSize::new(128, SizeUnit::MiB), with = SizeUnit::MiB)]
+    pub state_keeper_db_block_cache_capacity_mb: ByteSize,
     /// Maximum number of files concurrently opened by state keeper cache RocksDB. Useful to fit into OS limits; can be used
     /// as a rudimentary way to control RAM usage of the cache.
     pub state_keeper_db_max_open_files: Option<NonZeroU32>,
@@ -18,48 +23,20 @@ pub struct ExperimentalDBConfig {
     /// (presumably, to participate in L1 batch proving).
     /// By default, set to `false` as it is expected that a separate `vm_runner_protective_reads` component
     /// which is capable of saving protective reads is run.
-    #[serde(default)]
+    #[config(default)]
     pub protective_reads_persistence_enabled: bool,
     // Merkle tree config
     /// Processing delay between processing L1 batches in the Merkle tree.
-    #[serde(default = "ExperimentalDBConfig::default_merkle_tree_processing_delay_ms")]
-    pub processing_delay_ms: u64,
+    #[config(default_t = Duration::from_millis(100), with = TimeUnit::Millis)]
+    pub processing_delay_ms: Duration,
     /// If specified, RocksDB indices and Bloom filters will be managed by the block cache, rather than
     /// being loaded entirely into RAM on the RocksDB initialization. The block cache capacity should be increased
     /// correspondingly; otherwise, RocksDB performance can significantly degrade.
-    #[serde(default)]
+    #[config(default)]
     pub include_indices_and_filters_in_block_cache: bool,
     /// Enables the stale keys repair task for the Merkle tree.
-    #[serde(default)]
+    #[config(default)]
     pub merkle_tree_repair_stale_keys: bool,
-}
-
-impl Default for ExperimentalDBConfig {
-    fn default() -> Self {
-        Self {
-            state_keeper_db_block_cache_capacity_mb:
-                Self::default_state_keeper_db_block_cache_capacity_mb(),
-            state_keeper_db_max_open_files: None,
-            protective_reads_persistence_enabled: false,
-            processing_delay_ms: Self::default_merkle_tree_processing_delay_ms(),
-            include_indices_and_filters_in_block_cache: false,
-            merkle_tree_repair_stale_keys: false,
-        }
-    }
-}
-
-impl ExperimentalDBConfig {
-    const fn default_state_keeper_db_block_cache_capacity_mb() -> usize {
-        128
-    }
-
-    pub fn state_keeper_db_block_cache_capacity(&self) -> usize {
-        self.state_keeper_db_block_cache_capacity_mb * super::BYTES_IN_MEGABYTE
-    }
-
-    const fn default_merkle_tree_processing_delay_ms() -> u64 {
-        100
-    }
 }
 
 /// Configuration for the VM playground (an experimental component that's unlikely to ever be stabilized).

@@ -1,7 +1,12 @@
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
 
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
+use smart_config::{
+    de::{DeserializeParam, WellKnown},
+    metadata::{BasicType, SizeUnit, TimeUnit},
+    ByteSize, DescribeConfig, DeserializeConfig,
+};
 
 use crate::configs::ExperimentalDBConfig;
 
@@ -20,115 +25,59 @@ pub enum MerkleTreeMode {
     Lightweight,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+impl WellKnown for MerkleTreeMode {
+    const DE: &'static dyn DeserializeParam<Self> = &BasicType::String;
+}
+
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
 pub struct MerkleTreeConfig {
     /// Path to the RocksDB data directory for Merkle tree.
-    #[serde(default = "MerkleTreeConfig::default_path")]
-    pub path: String,
+    #[config(default_t = "./db/lightweight-new".into())]
+    pub path: PathBuf,
     /// Operation mode for the Merkle tree. If not specified, the full mode will be used.
-    #[serde(default)]
+    #[config(default)]
     pub mode: MerkleTreeMode,
     /// Chunk size for multi-get operations. Can speed up loading data for the Merkle tree on some environments,
     /// but the effects vary wildly depending on the setup (e.g., the filesystem used).
-    #[serde(default = "MerkleTreeConfig::default_multi_get_chunk_size")]
+    #[config(default_t = 500)]
     pub multi_get_chunk_size: usize,
     /// Capacity of the block cache for the Merkle tree RocksDB. Reasonable values range from ~100 MB to several GB.
     /// The default value is 128 MB.
-    #[serde(default = "MerkleTreeConfig::default_block_cache_size_mb")]
-    pub block_cache_size_mb: usize,
+    #[config(default_t = ByteSize::new(128, SizeUnit::MiB), with = SizeUnit::MiB)]
+    pub block_cache_size_mb: ByteSize,
     /// Byte capacity of memtables (recent, non-persisted changes to RocksDB). Setting this to a reasonably
     /// large value (order of 512 MiB) is helpful for large DBs that experience write stalls.
-    #[serde(default = "MerkleTreeConfig::default_memtable_capacity_mb")]
-    pub memtable_capacity_mb: usize,
+    #[config(default_t = ByteSize::new(256, SizeUnit::MiB), with = SizeUnit::MiB)]
+    pub memtable_capacity_mb: ByteSize,
     /// Timeout to wait for the Merkle tree database to run compaction on stalled writes.
-    #[serde(default = "MerkleTreeConfig::default_stalled_writes_timeout_sec")]
-    pub stalled_writes_timeout_sec: u64,
+    #[config(default_t = Duration::from_secs(30), with = TimeUnit::Seconds)]
+    pub stalled_writes_timeout_sec: Duration,
     /// Maximum number of L1 batches to be processed by the Merkle tree at a time.
-    #[serde(default = "MerkleTreeConfig::default_max_l1_batches_per_iter")]
+    #[config(default_t = 20)]
     pub max_l1_batches_per_iter: usize,
 }
 
-impl Default for MerkleTreeConfig {
-    fn default() -> Self {
-        Self {
-            path: Self::default_path(),
-            mode: MerkleTreeMode::default(),
-            multi_get_chunk_size: Self::default_multi_get_chunk_size(),
-            block_cache_size_mb: Self::default_block_cache_size_mb(),
-            memtable_capacity_mb: Self::default_memtable_capacity_mb(),
-            stalled_writes_timeout_sec: Self::default_stalled_writes_timeout_sec(),
-            max_l1_batches_per_iter: Self::default_max_l1_batches_per_iter(),
-        }
-    }
-}
-
-impl MerkleTreeConfig {
-    fn default_path() -> String {
-        "./db/lightweight-new".to_owned() // named this way for legacy reasons
-    }
-
-    const fn default_multi_get_chunk_size() -> usize {
-        500
-    }
-
-    const fn default_block_cache_size_mb() -> usize {
-        128
-    }
-
-    const fn default_memtable_capacity_mb() -> usize {
-        256
-    }
-
-    const fn default_stalled_writes_timeout_sec() -> u64 {
-        30
-    }
-
-    const fn default_max_l1_batches_per_iter() -> usize {
-        20
-    }
-
-    /// Returns the size of block cache size for Merkle tree in bytes.
-    pub fn block_cache_size(&self) -> usize {
-        self.block_cache_size_mb * super::BYTES_IN_MEGABYTE
-    }
-
-    /// Returns the memtable capacity in bytes.
-    pub fn memtable_capacity(&self) -> usize {
-        self.memtable_capacity_mb * super::BYTES_IN_MEGABYTE
-    }
-
-    /// Returns the timeout to wait for the Merkle tree database to run compaction on stalled writes.
-    pub fn stalled_writes_timeout(&self) -> Duration {
-        Duration::from_secs(self.stalled_writes_timeout_sec)
-    }
-}
-
 /// Database configuration.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
 pub struct DBConfig {
     /// Path to the RocksDB data directory that serves state cache.
-    #[serde(default = "DBConfig::default_state_keeper_db_path")]
-    pub state_keeper_db_path: String,
+    #[config(default_t = "./db/state_keeper".into())]
+    pub state_keeper_db_path: PathBuf,
     /// Merkle tree configuration.
-    #[serde(skip)]
-    // ^ Filled in separately in `Self::from_env()`. We cannot use `serde(flatten)` because it
-    // doesn't work with `envy`.
+    #[config(nest)]
     pub merkle_tree: MerkleTreeConfig,
     /// Experimental parts of the config.
-    #[serde(skip)] // same reasoning as for `merkle_tree`
+    #[config(nest)]
     pub experimental: ExperimentalDBConfig,
-}
-
-impl DBConfig {
-    fn default_state_keeper_db_path() -> String {
-        "./db/state_keeper".to_owned()
-    }
 }
 
 /// Collection of different database URLs and general PostgreSQL options.
 /// All the entries are optional, since some components may only require a subset of them,
 /// and any component may have overrides.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
 pub struct PostgresConfig {
     /// Maximum size of the connection pool.
     pub max_connections: Option<u32>,
@@ -137,43 +86,23 @@ pub struct PostgresConfig {
 
     /// Acquire timeout in seconds for a single connection attempt. There are multiple attempts (currently 3)
     /// before acquire methods will return an error.
-    pub acquire_timeout_sec: Option<u64>,
+    #[config(default_t = Duration::from_secs(30), with = TimeUnit::Seconds)]
+    pub acquire_timeout_sec: Duration,
     /// Statement timeout in seconds for Postgres connections. Applies only to the replica
     /// connection pool used by the API servers.
-    pub statement_timeout_sec: Option<u64>,
+    #[config(default_t = Duration::from_secs(10), with = TimeUnit::Seconds)]
+    pub statement_timeout_sec: Duration,
     /// Threshold in milliseconds for the DB connection lifetime to denote it as long-living and log its details.
-    pub long_connection_threshold_ms: Option<u64>,
+    #[config(default_t = Duration::from_secs(5), with = TimeUnit::Millis)]
+    pub long_connection_threshold_ms: Duration,
     /// Threshold in milliseconds to denote a DB query as "slow" and log its details.
-    pub slow_query_threshold_ms: Option<u64>,
-    pub test_server_url: Option<String>,
-    pub test_prover_url: Option<String>,
+    #[config(default_t = Duration::from_secs(3), with = TimeUnit::Millis)]
+    pub slow_query_threshold_ms: Duration,
 }
 
 impl PostgresConfig {
     /// Returns the maximum size of the connection pool as a `Result` to simplify error propagation.
     pub fn max_connections(&self) -> anyhow::Result<u32> {
         self.max_connections.context("Max connections is absent")
-    }
-
-    pub fn max_connections_master(&self) -> Option<u32> {
-        self.max_connections_master
-    }
-
-    /// Returns the Postgres statement timeout.
-    pub fn statement_timeout(&self) -> Option<Duration> {
-        self.statement_timeout_sec.map(Duration::from_secs)
-    }
-
-    /// Returns the acquire timeout for a single connection attempt.
-    pub fn acquire_timeout(&self) -> Option<Duration> {
-        self.acquire_timeout_sec.map(Duration::from_secs)
-    }
-
-    pub fn long_connection_threshold(&self) -> Option<Duration> {
-        self.long_connection_threshold_ms.map(Duration::from_millis)
-    }
-
-    pub fn slow_query_threshold(&self) -> Option<Duration> {
-        self.slow_query_threshold_ms.map(Duration::from_millis)
     }
 }

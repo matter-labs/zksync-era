@@ -40,7 +40,9 @@ pub struct FriProverConfig {
 
     // whether to write to public GCS bucket for https://github.com/matter-labs/era-boojum-validator-cli
     pub shall_save_to_public_bucket: bool,
+    #[serde(skip)] // FIXME
     pub prover_object_store: Option<ObjectStoreConfig>,
+    #[serde(skip)] // FIXME
     pub public_object_store: Option<ObjectStoreConfig>,
     #[serde(default)]
     pub cloud_type: CloudConnectionMode,

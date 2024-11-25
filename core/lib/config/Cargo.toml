@@ -19,6 +19,7 @@ zksync_vlog = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
 anyhow.workspace = true
+smart-config.workspace = true
 rand.workspace = true
 secrecy.workspace = true
 serde = { workspace = true, features = ["derive"] }

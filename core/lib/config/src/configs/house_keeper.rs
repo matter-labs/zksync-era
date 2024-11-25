@@ -1,7 +1,11 @@
-use serde::Deserialize;
+use std::time::Duration;
 
-/// Configuration for the house keeper.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
+
+/// Configuration for the housekeeper.
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
 pub struct HouseKeeperConfig {
-    pub l1_batch_metrics_reporting_interval_ms: u64,
+    #[config(default_t = Duration::from_secs(10), with = TimeUnit::Millis)]
+    pub l1_batch_metrics_reporting_interval_ms: Duration,
 }

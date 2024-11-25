@@ -1,5 +1,3 @@
-use std::num::NonZeroUsize;
-
 use rand::{distributions::Distribution, Rng};
 use secrecy::Secret;
 use zksync_basic_types::{
@@ -18,7 +16,6 @@ use zksync_crypto_primitives::K256PrivateKey;
 use crate::{
     configs::{
         self,
-        chain::TimestampAsserterConfig,
         da_client::{
             avail::{AvailClientConfig, AvailDefaultConfig},
             DAClientConfig::Avail,
@@ -58,101 +55,11 @@ impl Distribution<configs::chain::FeeModelVersion> for EncodeDist {
     }
 }
 
-impl Distribution<configs::ApiConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ApiConfig {
-        configs::ApiConfig {
-            web3_json_rpc: self.sample(rng),
-            prometheus: self.sample(rng),
-            healthcheck: self.sample(rng),
-            merkle_tree: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::api::Web3JsonRpcConfig {
-        configs::api::Web3JsonRpcConfig {
-            http_port: self.sample(rng),
-            http_url: self.sample(rng),
-            ws_port: self.sample(rng),
-            ws_url: self.sample(rng),
-            req_entities_limit: self.sample(rng),
-            filters_disabled: self.sample(rng),
-            filters_limit: self.sample(rng),
-            subscriptions_limit: self.sample(rng),
-            pubsub_polling_interval: self.sample(rng),
-            max_nonce_ahead: self.sample(rng),
-            gas_price_scale_factor: self.sample(rng),
-            estimate_gas_scale_factor: self.sample(rng),
-            estimate_gas_acceptable_overestimation: self.sample(rng),
-            estimate_gas_optimize_search: self.sample(rng),
-            max_tx_size: self.sample(rng),
-            vm_execution_cache_misses_limit: self.sample(rng),
-            vm_concurrency_limit: self.sample(rng),
-            factory_deps_cache_size_mb: self.sample(rng),
-            initial_writes_cache_size_mb: self.sample(rng),
-            latest_values_cache_size_mb: self.sample(rng),
-            latest_values_max_block_lag: self.sample(rng),
-            fee_history_limit: self.sample(rng),
-            max_batch_request_size: self.sample(rng),
-            max_response_body_size_mb: self.sample(rng),
-            max_response_body_size_overrides_mb: [
-                (
-                    "eth_call",
-                    NonZeroUsize::new(self.sample(rng)).unwrap_or(NonZeroUsize::MAX),
-                ),
-                (
-                    "zks_getProof",
-                    NonZeroUsize::new(self.sample(rng)).unwrap_or(NonZeroUsize::MAX),
-                ),
-            ]
-            .into_iter()
-            .collect(),
-            websocket_requests_per_minute_limit: self.sample(rng),
-            tree_api_url: self.sample(rng),
-            mempool_cache_update_interval: self.sample(rng),
-            mempool_cache_size: self.sample(rng),
-            whitelisted_tokens_for_aa: self.sample_range(rng).map(|_| rng.gen()).collect(),
-            api_namespaces: self
-                .sample_opt(|| self.sample_range(rng).map(|_| self.sample(rng)).collect()),
-            extended_api_tracing: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::api::HealthCheckConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::api::HealthCheckConfig {
-        configs::api::HealthCheckConfig {
-            port: self.sample(rng),
-            slow_time_limit_ms: self.sample(rng),
-            hard_time_limit_ms: self.sample(rng),
-        }
-    }
-}
-
 impl Distribution<configs::api::ContractVerificationApiConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::api::ContractVerificationApiConfig {
         configs::api::ContractVerificationApiConfig {
             port: self.sample(rng),
             url: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::api::MerkleTreeApiConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::api::MerkleTreeApiConfig {
-        configs::api::MerkleTreeApiConfig {
-            port: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::PrometheusConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::PrometheusConfig {
-        configs::PrometheusConfig {
-            listener_port: self.sample(rng),
-            pushgateway_url: self.sample(rng),
-            push_interval_ms: self.sample(rng),
         }
     }
 }
@@ -163,86 +70,6 @@ impl Distribution<configs::chain::NetworkConfig> for EncodeDist {
             network: Sample::sample(rng),
             zksync_network: self.sample(rng),
             zksync_network_id: L2ChainId::max(),
-        }
-    }
-}
-
-impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
-    #[allow(deprecated)]
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::chain::StateKeeperConfig {
-        configs::chain::StateKeeperConfig {
-            transaction_slots: self.sample(rng),
-            block_commit_deadline_ms: self.sample(rng),
-            l2_block_commit_deadline_ms: self.sample(rng),
-            l2_block_seal_queue_capacity: self.sample(rng),
-            l2_block_max_payload_size: self.sample(rng),
-            max_single_tx_gas: self.sample(rng),
-            max_allowed_l2_tx_gas_limit: self.sample(rng),
-            reject_tx_at_geometry_percentage: self.sample(rng),
-            reject_tx_at_eth_params_percentage: self.sample(rng),
-            reject_tx_at_gas_percentage: self.sample(rng),
-            close_block_at_geometry_percentage: self.sample(rng),
-            close_block_at_eth_params_percentage: self.sample(rng),
-            close_block_at_gas_percentage: self.sample(rng),
-            minimal_l2_gas_price: self.sample(rng),
-            compute_overhead_part: self.sample(rng),
-            pubdata_overhead_part: self.sample(rng),
-            batch_overhead_l1_gas: self.sample(rng),
-            max_gas_per_batch: self.sample(rng),
-            max_pubdata_per_batch: self.sample(rng),
-            fee_model_version: self.sample(rng),
-            validation_computational_gas_limit: self.sample(rng),
-            save_call_traces: self.sample(rng),
-            max_circuits_per_batch: self.sample(rng),
-            protective_reads_persistence_enabled: self.sample(rng),
-            // These values are not involved into files serialization skip them
-            fee_account_addr: None,
-            bootloader_hash: None,
-            default_aa_hash: None,
-            evm_emulator_hash: None,
-            l1_batch_commit_data_generator_mode: Default::default(),
-        }
-    }
-}
-
-impl Distribution<configs::chain::OperationsManagerConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::chain::OperationsManagerConfig {
-        configs::chain::OperationsManagerConfig {
-            delay_interval: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::chain::CircuitBreakerConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::chain::CircuitBreakerConfig {
-        configs::chain::CircuitBreakerConfig {
-            sync_interval_ms: self.sample(rng),
-            http_req_max_retry_number: self.sample(rng),
-            http_req_retry_interval_sec: self.sample(rng),
-            replication_lag_limit_sec: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::chain::MempoolConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::chain::MempoolConfig {
-        configs::chain::MempoolConfig {
-            sync_interval_ms: self.sample(rng),
-            sync_batch_size: self.sample(rng),
-            capacity: self.sample(rng),
-            stuck_tx_timeout: self.sample(rng),
-            remove_stuck_txs: self.sample(rng),
-            delay_interval: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::ContractVerifierConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ContractVerifierConfig {
-        configs::ContractVerifierConfig {
-            compilation_timeout: self.sample(rng),
-            prometheus_port: self.sample(rng),
-            port: self.sample(rng),
         }
     }
 }
@@ -283,33 +110,6 @@ impl Distribution<configs::database::MerkleTreeMode> for EncodeDist {
     }
 }
 
-impl Distribution<configs::database::MerkleTreeConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::database::MerkleTreeConfig {
-        configs::database::MerkleTreeConfig {
-            path: self.sample(rng),
-            mode: self.sample(rng),
-            multi_get_chunk_size: self.sample(rng),
-            block_cache_size_mb: self.sample(rng),
-            memtable_capacity_mb: self.sample(rng),
-            stalled_writes_timeout_sec: self.sample(rng),
-            max_l1_batches_per_iter: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::ExperimentalDBConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ExperimentalDBConfig {
-        configs::ExperimentalDBConfig {
-            state_keeper_db_block_cache_capacity_mb: self.sample(rng),
-            state_keeper_db_max_open_files: self.sample(rng),
-            protective_reads_persistence_enabled: self.sample(rng),
-            processing_delay_ms: self.sample(rng),
-            include_indices_and_filters_in_block_cache: self.sample(rng),
-            merkle_tree_repair_stale_keys: self.sample(rng),
-        }
-    }
-}
-
 impl Distribution<configs::ExperimentalVmPlaygroundConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ExperimentalVmPlaygroundConfig {
         configs::ExperimentalVmPlaygroundConfig {
@@ -336,31 +136,6 @@ impl Distribution<configs::ExperimentalVmConfig> for EncodeDist {
             playground: self.sample(rng),
             state_keeper_fast_vm_mode: gen_fast_vm_mode(rng),
             api_fast_vm_mode: gen_fast_vm_mode(rng),
-        }
-    }
-}
-
-impl Distribution<configs::database::DBConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::database::DBConfig {
-        configs::database::DBConfig {
-            state_keeper_db_path: self.sample(rng),
-            merkle_tree: self.sample(rng),
-            experimental: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::database::PostgresConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::database::PostgresConfig {
-        configs::database::PostgresConfig {
-            max_connections: self.sample(rng),
-            max_connections_master: self.sample(rng),
-            acquire_timeout_sec: self.sample(rng),
-            statement_timeout_sec: self.sample(rng),
-            long_connection_threshold_ms: self.sample(rng),
-            slow_query_threshold_ms: self.sample(rng),
-            test_server_url: self.sample(rng),
-            test_prover_url: self.sample(rng),
         }
     }
 }
@@ -503,8 +278,8 @@ impl Distribution<configs::FriProverConfig> for EncodeDist {
             zone_read_url: self.sample(rng),
             shall_save_to_public_bucket: self.sample(rng),
             availability_check_interval_in_secs: self.sample(rng),
-            prover_object_store: self.sample(rng),
-            public_object_store: self.sample(rng),
+            prover_object_store: None,
+            public_object_store: None,
             cloud_type: self.sample(rng),
         }
     }
@@ -633,45 +408,6 @@ impl Distribution<configs::FriWitnessVectorGeneratorConfig> for EncodeDist {
     }
 }
 
-impl Distribution<configs::house_keeper::HouseKeeperConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::house_keeper::HouseKeeperConfig {
-        configs::house_keeper::HouseKeeperConfig {
-            l1_batch_metrics_reporting_interval_ms: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::object_store::ObjectStoreMode> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::object_store::ObjectStoreMode {
-        type T = configs::object_store::ObjectStoreMode;
-        match rng.gen_range(0..4) {
-            0 => T::GCS {
-                bucket_base_url: self.sample(rng),
-            },
-            1 => T::GCSWithCredentialFile {
-                bucket_base_url: self.sample(rng),
-                gcs_credential_file_path: self.sample(rng),
-            },
-            2 => T::FileBacked {
-                file_backed_base_path: self.sample(rng),
-            },
-            _ => T::GCSAnonymousReadOnly {
-                bucket_base_url: self.sample(rng),
-            },
-        }
-    }
-}
-
-impl Distribution<configs::ObjectStoreConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ObjectStoreConfig {
-        configs::ObjectStoreConfig {
-            mode: self.sample(rng),
-            max_retries: self.sample(rng),
-            local_mirror_path: self.sample(rng),
-        }
-    }
-}
-
 impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ProofDataHandlerConfig {
         configs::ProofDataHandlerConfig {
@@ -683,18 +419,6 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
                 tee_proof_generation_timeout_in_secs: self.sample(rng),
                 tee_batch_permanently_ignored_timeout_in_hours: self.sample(rng),
             },
-        }
-    }
-}
-
-impl Distribution<configs::SnapshotsCreatorConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::SnapshotsCreatorConfig {
-        configs::SnapshotsCreatorConfig {
-            l1_batch_number: self.sample_opt(|| L1BatchNumber(rng.gen())),
-            version: if rng.gen() { 0 } else { 1 },
-            storage_logs_chunk_size: self.sample(rng),
-            concurrent_queries_count: self.sample(rng),
-            object_store: self.sample(rng),
         }
     }
 }
@@ -967,17 +691,6 @@ impl Distribution<configs::secrets::DataAvailabilitySecrets> for EncodeDist {
     }
 }
 
-impl Distribution<configs::da_dispatcher::DADispatcherConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::da_dispatcher::DADispatcherConfig {
-        configs::da_dispatcher::DADispatcherConfig {
-            polling_interval_ms: self.sample(rng),
-            max_rows_to_dispatch: self.sample(rng),
-            max_retries: self.sample(rng),
-            use_dummy_inclusion_data: self.sample(rng),
-        }
-    }
-}
-
 impl Distribution<configs::vm_runner::ProtectiveReadsWriterConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(
         &self,
@@ -1008,94 +721,6 @@ impl Distribution<configs::CommitmentGeneratorConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::CommitmentGeneratorConfig {
         configs::CommitmentGeneratorConfig {
             max_parallelism: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::snapshot_recovery::TreeRecoveryConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(
-        &self,
-        rng: &mut R,
-    ) -> configs::snapshot_recovery::TreeRecoveryConfig {
-        configs::snapshot_recovery::TreeRecoveryConfig {
-            chunk_size: self.sample(rng),
-            parallel_persistence_buffer: self.sample_opt(|| rng.gen()),
-        }
-    }
-}
-
-impl Distribution<configs::snapshot_recovery::PostgresRecoveryConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(
-        &self,
-        rng: &mut R,
-    ) -> configs::snapshot_recovery::PostgresRecoveryConfig {
-        configs::snapshot_recovery::PostgresRecoveryConfig {
-            max_concurrency: self.sample_opt(|| rng.gen()),
-        }
-    }
-}
-
-impl Distribution<configs::snapshot_recovery::SnapshotRecoveryConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(
-        &self,
-        rng: &mut R,
-    ) -> configs::snapshot_recovery::SnapshotRecoveryConfig {
-        use configs::snapshot_recovery::{SnapshotRecoveryConfig, TreeRecoveryConfig};
-        let tree: TreeRecoveryConfig = self.sample(rng);
-        SnapshotRecoveryConfig {
-            enabled: self.sample(rng),
-            l1_batch: self.sample_opt(|| L1BatchNumber(rng.gen())),
-            drop_storage_key_preimages: (tree != TreeRecoveryConfig::default()) && self.sample(rng),
-            tree,
-            postgres: self.sample(rng),
-            object_store: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::pruning::PruningConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::pruning::PruningConfig {
-        configs::pruning::PruningConfig {
-            enabled: self.sample(rng),
-            chunk_size: self.sample(rng),
-            removal_delay_sec: self.sample_opt(|| rng.gen()),
-            data_retention_sec: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::base_token_adjuster::BaseTokenAdjusterConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(
-        &self,
-        rng: &mut R,
-    ) -> configs::base_token_adjuster::BaseTokenAdjusterConfig {
-        configs::base_token_adjuster::BaseTokenAdjusterConfig {
-            price_polling_interval_ms: self.sample(rng),
-            price_cache_update_interval_ms: self.sample(rng),
-            max_tx_gas: self.sample(rng),
-            default_priority_fee_per_gas: self.sample(rng),
-            max_acceptable_priority_fee_in_gwei: self.sample(rng),
-            l1_receipt_checking_max_attempts: self.sample(rng),
-            l1_receipt_checking_sleep_ms: self.sample(rng),
-            l1_tx_sending_max_attempts: self.sample(rng),
-            l1_tx_sending_sleep_ms: self.sample(rng),
-            l1_update_deviation_percentage: self.sample(rng),
-            price_fetching_max_attempts: self.sample(rng),
-            price_fetching_sleep_ms: self.sample(rng),
-            halt_on_error: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::external_proof_integration_api::ExternalProofIntegrationApiConfig>
-    for EncodeDist
-{
-    fn sample<R: Rng + ?Sized>(
-        &self,
-        rng: &mut R,
-    ) -> configs::external_proof_integration_api::ExternalProofIntegrationApiConfig {
-        configs::external_proof_integration_api::ExternalProofIntegrationApiConfig {
-            http_port: self.sample(rng),
         }
     }
 }
@@ -1148,49 +773,41 @@ impl Distribution<configs::prover_job_monitor::ProverJobMonitorConfig> for Encod
 impl Distribution<configs::GeneralConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::GeneralConfig {
         configs::GeneralConfig {
-            postgres_config: self.sample(rng),
-            api_config: self.sample(rng),
-            contract_verifier: self.sample(rng),
-            circuit_breaker_config: self.sample(rng),
-            mempool_config: self.sample(rng),
-            operations_manager_config: self.sample(rng),
-            state_keeper_config: self.sample(rng),
-            house_keeper_config: self.sample(rng),
+            postgres_config: None,
+            api_config: None,
+            contract_verifier: None,
+            circuit_breaker_config: None,
+            mempool_config: None,
+            operations_manager_config: None,
+            state_keeper_config: None,
+            house_keeper_config: None,
             proof_compressor_config: self.sample(rng),
             prover_config: self.sample(rng),
             prover_gateway: self.sample(rng),
             witness_vector_generator: self.sample(rng),
             prover_group_config: self.sample(rng),
             witness_generator_config: self.sample(rng),
-            prometheus_config: self.sample(rng),
+            prometheus_config: None,
             proof_data_handler_config: self.sample(rng),
-            db_config: self.sample(rng),
+            db_config: None,
             eth: self.sample(rng),
-            snapshot_creator: self.sample(rng),
+            snapshot_creator: None,
             observability: self.sample(rng),
             da_client_config: self.sample(rng),
-            da_dispatcher_config: self.sample(rng),
+            da_dispatcher_config: None,
             protective_reads_writer_config: self.sample(rng),
             basic_witness_input_producer_config: self.sample(rng),
             commitment_generator: self.sample(rng),
-            snapshot_recovery: self.sample(rng),
-            pruning: self.sample(rng),
-            core_object_store: self.sample(rng),
-            base_token_adjuster: self.sample(rng),
+            snapshot_recovery: None,
+            pruning: None,
+            core_object_store: None,
+            base_token_adjuster: None,
             external_price_api_client_config: self.sample(rng),
             consensus_config: self.sample(rng),
-            external_proof_integration_api_config: self.sample(rng),
+            external_proof_integration_api_config: None,
             experimental_vm_config: self.sample(rng),
             prover_job_monitor_config: self.sample(rng),
-            timestamp_asserter_config: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<TimestampAsserterConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> TimestampAsserterConfig {
-        TimestampAsserterConfig {
-            min_time_till_end_sec: self.sample(rng),
+            timestamp_asserter_config: None,
         }
     }
 }
