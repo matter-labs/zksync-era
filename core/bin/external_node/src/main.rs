@@ -130,7 +130,6 @@ fn main() -> anyhow::Result<()> {
 
     let mut config = if let Some(config_path) = opt.config_path.clone() {
         let secrets_path = opt.secrets_path.clone().unwrap();
-        println!("Secrets path: {:#?}", secrets_path);
         let external_node_config_path = opt.external_node_config_path.clone().unwrap();
         if opt.enable_consensus {
             anyhow::ensure!(
@@ -145,11 +144,8 @@ fn main() -> anyhow::Result<()> {
             opt.consensus_path.clone(),
         )?
     } else {
-        println!("Using env!");
         ExternalNodeConfig::new().context("Failed to load node configuration")?
     };
-
-    println!("Final config: {:#?}", config);
 
     if !opt.enable_consensus {
         config.consensus = None;
