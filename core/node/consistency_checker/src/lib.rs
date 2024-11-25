@@ -662,7 +662,7 @@ impl ConsistencyChecker {
                 continue;
             };
             let chain_id = client_data.chain_id;
-            tracing::debug!("Performing sanity checks for chain id {chain_id}, diamond proxy contract {address:?}");
+            tracing::info!("Performing sanity checks for chain id {chain_id}, diamond proxy contract {address:?}");
 
             let version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
                 .for_contract(address, &self.contract)

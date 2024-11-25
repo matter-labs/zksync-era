@@ -312,41 +312,41 @@ jobs:
           --server-db-name=zksync_server_localhost_custom_token \
           --chain custom_token
 
-      # - name: Create and register chain with transactions signed "offline"
-      #   run: |
-      #     ci_run zkstack chain create \
-      #     --chain-name offline_chain \
-      #     --chain-id sequential \
-      #     --prover-mode no-proofs \
-      #     --wallet-creation localhost \
-      #     --l1-batch-commit-data-generator-mode rollup \
-      #     --base-token-address 0x0000000000000000000000000000000000000001 \
-      #     --base-token-price-nominator 1 \
-      #     --base-token-price-denominator 1 \
-      #     --set-as-default false \
-      #     --ignore-prerequisites \
-      #     --evm-emulator false
+      - name: Create and register chain with transactions signed "offline"
+        run: |
+          ci_run zkstack chain create \
+          --chain-name offline_chain \
+          --chain-id sequential \
+          --prover-mode no-proofs \
+          --wallet-creation localhost \
+          --l1-batch-commit-data-generator-mode rollup \
+          --base-token-address 0x0000000000000000000000000000000000000001 \
+          --base-token-price-nominator 1 \
+          --base-token-price-denominator 1 \
+          --set-as-default false \
+          --ignore-prerequisites \
+          --evm-emulator false
 
-      #     ci_run zkstack chain build-transactions --chain offline_chain --l1-rpc-url http://127.0.0.1:8545
+          ci_run zkstack chain build-transactions --chain offline_chain --l1-rpc-url http://127.0.0.1:8545
 
-      #     governor_pk=$(awk '/governor:/ {flag=1} flag && /private_key:/ {print $2; exit}' ./configs/wallets.yaml)
+          governor_pk=$(awk '/governor:/ {flag=1} flag && /private_key:/ {print $2; exit}' ./configs/wallets.yaml)
 
-      #     ci_run zkstack dev send-transactions \
-      #     --file ./transactions/chain/offline_chain/register-hyperchain-txns.json \
-      #     --l1-rpc-url http://127.0.0.1:8545 \
-      #     --private-key $governor_pk
+          ci_run zkstack dev send-transactions \
+          --file ./transactions/chain/offline_chain/register-zk-chain-txns.json \
+          --l1-rpc-url http://127.0.0.1:8545 \
+          --private-key $governor_pk
 
-      #     bridge_hub=$(awk '/bridgehub_proxy_addr/ {print $2}' ./configs/contracts.yaml)
-      #     chain_id=$(awk '/chain_id:/ {print $2}' ./chains/offline_chain/ZkStack.yaml)
+          bridge_hub=$(awk '/bridgehub_proxy_addr/ {print $2}' ./configs/contracts.yaml)
+          chain_id=$(awk '/chain_id:/ {print $2}' ./chains/offline_chain/ZkStack.yaml)
 
-      #     hyperchain_output=$(ci_run cast call $bridge_hub "getHyperchain(uint256)" $chain_id)
+          hyperchain_output=$(ci_run cast call $bridge_hub "getHyperchain(uint256)" $chain_id)
 
-      #     if [[ $hyperchain_output == 0x* && ${#hyperchain_output} -eq 66 ]]; then
-      #         echo "Chain successfully registered: $hyperchain_output"
-      #     else
-      #         echo "Failed to register chain: $hyperchain_output"
-      #         exit 1
-      #     fi
+          if [[ $hyperchain_output == 0x* && ${#hyperchain_output} -eq 66 ]]; then
+              echo "Chain successfully registered: $hyperchain_output"
+          else
+              echo "Failed to register chain: $hyperchain_output"
+              exit 1
+          fi
 
       - name: Create and initialize Consensus chain
         run: |
@@ -465,19 +465,19 @@ jobs:
       - name: Init external nodes
         run: |
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_rollup --l1-rpc-url=http://localhost:8545 --gateway-rpc-url=http://localhost:3450 --chain era
+          --db-name=zksync_en_localhost_era_rollup --l1-rpc-url=http://localhost:8545 --gateway-rpc-url=http://localhost:3550 --chain era
           ci_run zkstack external-node init --ignore-prerequisites --chain era
 
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_validium1 --l1-rpc-url=http://localhost:8545 --gateway-rpc-url=http://localhost:3450 --chain validium
+          --db-name=zksync_en_localhost_era_validium1 --l1-rpc-url=http://localhost:8545 --gateway-rpc-url=http://localhost:3550 --chain validium
           ci_run zkstack external-node init --ignore-prerequisites --chain validium
 
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_custom_token --l1-rpc-url=http://localhost:8545 --gateway-rpc-url=http://localhost:3450 --chain custom_token
+          --db-name=zksync_en_localhost_era_custom_token --l1-rpc-url=http://localhost:8545 --gateway-rpc-url=http://localhost:3550 --chain custom_token
           ci_run zkstack external-node init --ignore-prerequisites --chain custom_token
 
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_consensus --l1-rpc-url=http://localhost:8545 --gateway-rpc-url=http://localhost:3450 --chain consensus
+          --db-name=zksync_en_localhost_era_consensus --l1-rpc-url=http://localhost:8545 --gateway-rpc-url=http://localhost:3550 --chain consensus
           ci_run zkstack external-node init --ignore-prerequisites --chain consensus
 
       - name: Run recovery tests (from snapshot)
