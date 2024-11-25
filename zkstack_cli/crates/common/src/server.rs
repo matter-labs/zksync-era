@@ -128,33 +128,27 @@ where
     P: AsRef<OsStr>,
 {
     let mut cmd = match execution_mode {
-        ExecutionMode::Release => Cmd::new(
-            cmd!(
-                shell,
-                "cargo run --release --bin zksync_server {uring...} --
-                    --genesis-path {genesis_path}
-                    --wallets-path {wallets_path}
-                    --config-path {general_path}
-                    --secrets-path {secrets_path}
-                    --contracts-config-path {contracts_path}
-                    "
-            )
-            .args(additional_args)
-            .env_remove("RUSTUP_TOOLCHAIN"),
+        ExecutionMode::Release => cargo_run(
+            shell,
+            true,
+            uring,
+            genesis_path,
+            wallets_path,
+            general_path,
+            secrets_path,
+            contracts_path,
+            additional_args,
         ),
-        ExecutionMode::Debug => Cmd::new(
-            cmd!(
-                shell,
-                "cargo run --bin zksync_server {uring...} --
-                    --genesis-path {genesis_path}
-                    --wallets-path {wallets_path}
-                    --config-path {general_path}
-                    --secrets-path {secrets_path}
-                    --contracts-config-path {contracts_path}
-                    "
-            )
-            .args(additional_args)
-            .env_remove("RUSTUP_TOOLCHAIN"),
+        ExecutionMode::Debug => cargo_run(
+            shell,
+            false,
+            uring,
+            genesis_path,
+            wallets_path,
+            general_path,
+            secrets_path,
+            contracts_path,
+            additional_args,
         ),
         ExecutionMode::Docker => {
             let tag = tag.unwrap_or(select_tag().await?.to_owned());
@@ -199,4 +193,36 @@ async fn select_tag() -> anyhow::Result<String> {
         .collect();
 
     Ok(PromptSelect::new("Select image", tags).ask().into())
+}
+
+fn cargo_run<'a, P>(
+    shell: &'a Shell,
+    release: bool,
+    uring: Option<&str>,
+    genesis_path: P,
+    wallets_path: P,
+    general_path: P,
+    secrets_path: P,
+    contracts_path: P,
+    additional_args: Vec<String>,
+) -> Cmd<'a>
+where
+    P: AsRef<OsStr>,
+{
+    let mode: &str = release.then(|| "--release").unwrap_or("");
+
+    Cmd::new(
+        cmd!(
+            shell,
+            "cargo run {mode} --bin zksync_server {uring...} --
+            --genesis-path {genesis_path}
+            --wallets-path {wallets_path}
+            --config-path {general_path}
+            --secrets-path {secrets_path}
+            --contracts-config-path {contracts_path}
+            "
+        )
+        .args(additional_args)
+        .env_remove("RUSTUP_TOOLCHAIN"),
+    )
 }
