@@ -111,28 +111,3 @@ fn clean_version(tag_name: &str) -> Version {
     let cleaned = tag_name.trim_start_matches("core-v");
     Version::parse(cleaned).unwrap_or_else(|_| Version::new(0, 0, 0))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_get_sorted_tags() -> anyhow::Result<()> {
-        // Replace with your GitHub token if needed
-        let auth_token = std::env::var("GITHUB_TOKEN").ok();
-
-        let fetcher = GitHubTagFetcher::new(auth_token)?;
-
-        // Example usage
-        let tags = fetcher.get_newest_core_tags(Some(5)).await?;
-
-        println!("\nLatest Repository Tags (sorted by version):");
-        for tag in tags {
-            println!("Tag: {}", tag.name);
-            println!("Commit SHA: {}", tag.commit.sha);
-            println!("ZIP URL: {}\n", tag.zipball_url);
-        }
-
-        Ok(())
-    }
-}
