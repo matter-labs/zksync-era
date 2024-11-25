@@ -2006,9 +2006,11 @@ esac
 ;;
 (server)
 _arguments "${_arguments_options[@]}" : \
+'--mode=[]:MODE:(release debug docker)' \
 '*--components=[Components of server to run]:COMPONENTS:_default' \
 '*-a+[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '*--additional-args=[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--tag=[]:TAG:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--genesis[Run server in genesis mode]' \
 '--uring[Enables uring support for RocksDB]' \
@@ -2039,9 +2041,11 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (run)
 _arguments "${_arguments_options[@]}" : \
+'--mode=[]:MODE:(release debug docker)' \
 '*--components=[Components of server to run]:COMPONENTS:_default' \
 '*-a+[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '*--additional-args=[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--tag=[]:TAG:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--genesis[Run server in genesis mode]' \
 '--uring[Enables uring support for RocksDB]' \
