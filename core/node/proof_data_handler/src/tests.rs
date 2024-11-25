@@ -6,12 +6,13 @@ use axum::{
 };
 use serde_json::json;
 use tower::ServiceExt;
-use zksync_basic_types::L2ChainId;
 use zksync_config::configs::{ProofDataHandlerConfig, TeeConfig};
 use zksync_dal::{ConnectionPool, CoreDal};
 use zksync_object_store::MockObjectStore;
 use zksync_prover_interface::api::SubmitTeeProofRequest;
-use zksync_types::{commitment::L1BatchCommitmentMode, tee_types::TeeType, L1BatchNumber};
+use zksync_types::{
+    commitment::L1BatchCommitmentMode, tee_types::TeeType, L1BatchNumber, L2ChainId,
+};
 
 use crate::create_proof_processing_router;
 
@@ -29,6 +30,7 @@ async fn request_tee_proof_inputs() {
                 tee_support: true,
                 first_tee_processed_batch: L1BatchNumber(0),
                 tee_proof_generation_timeout_in_secs: 600,
+                tee_batch_permanently_ignored_timeout_in_hours: 10 * 24,
             },
         },
         L1BatchCommitmentMode::Rollup,
@@ -88,6 +90,7 @@ async fn submit_tee_proof() {
                 tee_support: true,
                 first_tee_processed_batch: L1BatchNumber(0),
                 tee_proof_generation_timeout_in_secs: 600,
+                tee_batch_permanently_ignored_timeout_in_hours: 10 * 24,
             },
         },
         L1BatchCommitmentMode::Rollup,
@@ -119,7 +122,7 @@ async fn submit_tee_proof() {
     let mut proof_db_conn = db_conn_pool.connection().await.unwrap();
     let oldest_batch_number = proof_db_conn
         .tee_proof_generation_dal()
-        .get_oldest_unpicked_batch()
+        .get_oldest_picked_by_prover_batch()
         .await
         .unwrap();
 
@@ -156,7 +159,7 @@ async fn mock_tee_batch_status(
 
     // there should not be any batches awaiting proof in the db yet
 
-    let oldest_batch_number = proof_dal.get_oldest_unpicked_batch().await.unwrap();
+    let oldest_batch_number = proof_dal.get_oldest_picked_by_prover_batch().await.unwrap();
     assert!(oldest_batch_number.is_none());
 
     // mock SQL table with relevant information about the status of TEE proof generation
@@ -169,7 +172,7 @@ async fn mock_tee_batch_status(
     // now, there should be one batch in the db awaiting proof
 
     let oldest_batch_number = proof_dal
-        .get_oldest_unpicked_batch()
+        .get_oldest_picked_by_prover_batch()
         .await
         .unwrap()
         .unwrap();
