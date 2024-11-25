@@ -18,7 +18,10 @@ use zkevm_test_harness::{
         recursive_layer_vk_count,
     },
     data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource},
-    proof_wrapper_utils::{check_trusted_setup_file_existace, WrapperConfig},
+    proof_wrapper_utils::{
+        check_trusted_setup_file_existace, get_wrapper_setup_and_vk_from_scheduler_vk,
+        WrapperConfig,
+    },
 };
 use zksync_prover_fri_types::{
     circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
@@ -109,11 +112,8 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
 
     tracing::info!("Generating PLONK verification keys for snark wrapper.");
 
-    let (_, plonk_vk) = get_plonk_wrapper_setup_and_vk_from_scheduler_vk(
-        &mut in_memory_source,
-        scheduler_vk.clone(),
-        WrapperConfig::new(1),
-    );
+    let (_, plonk_vk) =
+        get_wrapper_setup_and_vk_from_scheduler_vk(scheduler_vk.clone(), WrapperConfig::new(1));
 
     keystore
         .save_snark_verification_key(plonk_vk)
@@ -311,7 +311,11 @@ fn main() -> anyhow::Result<()> {
                 "Generating verification keys and storing them inside {:?}",
                 keystore.get_base_path()
             );
-            generate_vks(&keystore, jobs, quiet).context("generate_vks()")
+            //generate_vks(&keystore, jobs, quiet).context("generate_vks()")
+
+            // Let's also update the commitments file.
+            let commitments = keystore.generate_commitments()?;
+            keystore.save_commitments(&commitments)
         }
         Command::UpdateCommitments { dryrun, path } => {
             let keystore = keystore_from_optional_path(path, None);

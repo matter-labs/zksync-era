@@ -10,6 +10,7 @@ use circuit_definitions::{
 use fflonk_gpu::{bellman::bn256::Fq2, FflonkSnarkVerifierCircuitVK};
 use sha3::Digest;
 use zkevm_test_harness::{
+    boojum::gadgets::u256::UInt256,
     franklin_crypto::bellman::{CurveAffine, PrimeField, PrimeFieldRepr},
     witness::recursive_aggregation::compute_leaf_params,
 };
@@ -120,20 +121,19 @@ pub fn calculate_fflonk_snark_vk_hash(verification_key: String) -> anyhow::Resul
     let mut res = vec![];
 
     let num_inputs = verification_key.num_inputs;
-    // todo: this might not be the right way
-    U256::from(num_inputs).to_big_endian(&mut res);
+    // todo: write num_inputs
 
     // C0 G1
     let c0_g1 = verification_key.c0;
     let (x, y) = c0_g1.as_xy();
 
-    x.into_repr().write_be(&mut res).unwrap();
-    y.into_repr().write_be(&mut res).unwrap();
+    x.into_repr().write_be(&mut res)?;
+    y.into_repr().write_be(&mut res)?;
 
     // NON RESIDUES
     let non_residues = verification_key.non_residues;
     for non_residue in non_residues {
-        non_residue.into_repr().write_be(&mut res).unwrap();
+        non_residue.into_repr().write_be(&mut res)?;
     }
 
     // G2 ELEMENTS
@@ -142,13 +142,13 @@ pub fn calculate_fflonk_snark_vk_hash(verification_key: String) -> anyhow::Resul
         let (e1, e2) = g2_element.as_xy();
         let Fq2 { c0: x, c1: y } = e1;
 
-        x.into_repr().write_be(&mut res).unwrap();
-        y.into_repr().write_be(&mut res).unwrap();
+        x.into_repr().write_be(&mut res)?;
+        y.into_repr().write_be(&mut res)?;
 
         let Fq2 { c0: x, c1: y } = e2;
 
-        x.into_repr().write_be(&mut res).unwrap();
-        y.into_repr().write_be(&mut res).unwrap();
+        x.into_repr().write_be(&mut res)?;
+        y.into_repr().write_be(&mut res)?;
     }
 
     let mut hasher = sha3::Keccak256::new();
