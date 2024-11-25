@@ -64,7 +64,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 eigenda_svc_manager_address: required(&conf.eigenda_svc_manager_address)
                     .context("eigenda_svc_manager_address")?
                     .clone(),
-                blob_size_limit: *required(&conf.blob_size_limit).context("blob_size_limit")?,
                 status_query_timeout: *required(&conf.status_query_timeout)
                     .context("status_query_timeout")?,
                 status_query_interval: *required(&conf.status_query_interval)
@@ -119,7 +118,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 eth_confirmation_depth: Some(config.settlement_layer_confirmation_depth),
                 eigenda_eth_rpc: Some(config.eigenda_eth_rpc.clone()),
                 eigenda_svc_manager_address: Some(config.eigenda_svc_manager_address.clone()),
-                blob_size_limit: Some(config.blob_size_limit),
                 status_query_timeout: Some(config.status_query_timeout),
                 status_query_interval: Some(config.status_query_interval),
                 wait_for_finalization: Some(config.wait_for_finalization),

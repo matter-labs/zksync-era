@@ -40,6 +40,7 @@ pub(crate) const AVG_BLOCK_TIME: u64 = 12;
 
 impl RawEigenClient {
     pub(crate) const BUFFER_SIZE: usize = 1000;
+    const BLOB_SIZE_LIMIT: usize = 1024 * 1024 * 2; // 2 MB
 
     pub async fn new(private_key: SecretKey, config: EigenConfig) -> anyhow::Result<Self> {
         let endpoint =
@@ -52,7 +53,7 @@ impl RawEigenClient {
             verify_certs: true,
             rpc_url: config.eigenda_eth_rpc.clone(),
             svc_manager_addr: config.eigenda_svc_manager_address.clone(),
-            max_blob_size: config.blob_size_limit,
+            max_blob_size: Self::BLOB_SIZE_LIMIT as u32,
             path_to_points: config.path_to_points.clone(),
             settlement_layer_confirmation_depth: config.settlement_layer_confirmation_depth.max(0)
                 as u32,
@@ -67,6 +68,10 @@ impl RawEigenClient {
             config,
             verifier,
         })
+    }
+
+    pub fn blob_size_limit() -> usize {
+        Self::BLOB_SIZE_LIMIT
     }
 
     async fn dispatch_blob_non_authenticated(&self, data: Vec<u8>) -> anyhow::Result<String> {

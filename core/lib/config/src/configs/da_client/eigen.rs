@@ -12,8 +12,6 @@ pub struct EigenConfig {
     pub eigenda_eth_rpc: String,
     /// Address of the service manager contract
     pub eigenda_svc_manager_address: String,
-    /// Maximum size permitted for a blob in bytes
-    pub blob_size_limit: u32,
     /// Maximun amount of time in milliseconds to wait for a status query response
     pub status_query_timeout: u64,
     /// Interval in milliseconds to query the status of a blob
