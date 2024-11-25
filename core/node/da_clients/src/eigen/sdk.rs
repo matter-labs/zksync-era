@@ -97,7 +97,7 @@ impl RawEigenClient {
             .verify_commitment(blob_info.blob_header.commitment.clone(), data)
             .map_err(|_| anyhow::anyhow!("Failed to verify commitment"))?;
 
-        self.loop_verify_certificate(blob_info.clone(), disperse_elapsed)
+        self.perform_verification(blob_info.clone(), disperse_elapsed)
             .await?;
         let verification_proof = blob_info.blob_verification_proof.clone();
         let blob_id = format!(
@@ -109,7 +109,7 @@ impl RawEigenClient {
         Ok(hex::encode(rlp::encode(&blob_info)))
     }
 
-    async fn loop_verify_certificate(
+    async fn perform_verification(
         &self,
         blob_info: BlobInfo,
         disperse_elapsed: Duration,
@@ -175,7 +175,7 @@ impl RawEigenClient {
             .verify_commitment(blob_info.blob_header.commitment.clone(), data)
             .map_err(|_| anyhow::anyhow!("Failed to verify commitment"))?;
 
-        self.loop_verify_certificate(blob_info.clone(), disperse_elapsed)
+        self.perform_verification(blob_info.clone(), disperse_elapsed)
             .await?;
 
         let verification_proof = blob_info.blob_verification_proof.clone();
