@@ -102,7 +102,7 @@ mod tests {
     async fn test_non_auth_dispersal() {
         let config = EigenConfig {
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
-            eth_confirmation_depth: -1,
+            settlement_layer_confirmation_depth: -1,
             eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             blob_size_limit: 2 * 1024 * 1024, // 2MB
@@ -142,7 +142,7 @@ mod tests {
     async fn test_auth_dispersal() {
         let config = EigenConfig {
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
-            eth_confirmation_depth: -1,
+            settlement_layer_confirmation_depth: -1,
             eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             blob_size_limit: 2 * 1024 * 1024, // 2MB
@@ -189,7 +189,7 @@ mod tests {
             authenticated: true,
             verify_cert: true,
             path_to_points: "../../../resources".to_string(),
-            eth_confirmation_depth: 0,
+            settlement_layer_confirmation_depth: 0,
             eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             chain_id: 17000,
@@ -228,7 +228,7 @@ mod tests {
             authenticated: true,
             verify_cert: true,
             path_to_points: "../../../resources".to_string(),
-            eth_confirmation_depth: 0,
+            settlement_layer_confirmation_depth: 0,
             eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             chain_id: 17000,
@@ -253,10 +253,10 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_eth_confirmation_depth() {
+    async fn test_settlement_layer_confirmation_depth() {
         let config = EigenConfig {
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
-            eth_confirmation_depth: 5,
+            settlement_layer_confirmation_depth: 5,
             eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             blob_size_limit: 2 * 1024 * 1024, // 2MB
@@ -293,10 +293,10 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_auth_dispersal_eth_confirmation_depth() {
+    async fn test_auth_dispersal_settlement_layer_confirmation_depth() {
         let config = EigenConfig {
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
-            eth_confirmation_depth: 5,
+            settlement_layer_confirmation_depth: 5,
             eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             blob_size_limit: 2 * 1024 * 1024, // 2MB

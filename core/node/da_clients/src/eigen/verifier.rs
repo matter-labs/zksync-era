@@ -39,7 +39,7 @@ pub struct VerifierConfig {
     pub svc_manager_addr: String,
     pub max_blob_size: u32,
     pub path_to_points: String,
-    pub eth_confirmation_depth: u32,
+    pub settlement_layer_confirmation_depth: u32,
     pub private_key: String,
     pub chain_id: u64,
 }
@@ -267,10 +267,10 @@ impl Verifier {
             .map_err(|_| VerificationError::ServiceManagerError)?
             .as_u64();
 
-        if self.cfg.eth_confirmation_depth == 0 {
+        if self.cfg.settlement_layer_confirmation_depth == 0 {
             return Ok(latest);
         }
-        Ok(latest - (self.cfg.eth_confirmation_depth as u64 - 1))
+        Ok(latest - (self.cfg.settlement_layer_confirmation_depth as u64 - 1))
     }
 
     /// Verifies the certificate batch hash
@@ -491,7 +491,7 @@ mod test {
             svc_manager_addr: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             max_blob_size: 2 * 1024 * 1024,
             path_to_points: "../../../resources".to_string(),
-            eth_confirmation_depth: 0,
+            settlement_layer_confirmation_depth: 0,
             private_key: "0xd08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6"
                 .to_string(),
             chain_id: 17000,
@@ -520,7 +520,7 @@ mod test {
             svc_manager_addr: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             max_blob_size: 2 * 1024 * 1024,
             path_to_points: "../../../resources".to_string(),
-            eth_confirmation_depth: 0,
+            settlement_layer_confirmation_depth: 0,
             private_key: "0xd08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6"
                 .to_string(),
             chain_id: 17000,
@@ -610,7 +610,7 @@ mod test {
             svc_manager_addr: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             max_blob_size: 2 * 1024 * 1024,
             path_to_points: "../../../resources".to_string(),
-            eth_confirmation_depth: 0,
+            settlement_layer_confirmation_depth: 0,
             private_key: "0xd08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6"
                 .to_string(),
             chain_id: 17000,
@@ -656,7 +656,7 @@ mod test {
             svc_manager_addr: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             max_blob_size: 2 * 1024 * 1024,
             path_to_points: "../../../resources".to_string(),
-            eth_confirmation_depth: 0,
+            settlement_layer_confirmation_depth: 0,
             private_key: "0xd08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6"
                 .to_string(),
             chain_id: 17000,
@@ -685,7 +685,7 @@ mod test {
             svc_manager_addr: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             max_blob_size: 2 * 1024 * 1024,
             path_to_points: "../../../resources".to_string(),
-            eth_confirmation_depth: 0,
+            settlement_layer_confirmation_depth: 0,
             private_key: "0xd08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6"
                 .to_string(),
             chain_id: 17000,
@@ -775,7 +775,7 @@ mod test {
             svc_manager_addr: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             max_blob_size: 2 * 1024 * 1024,
             path_to_points: "../../../resources".to_string(),
-            eth_confirmation_depth: 0,
+            settlement_layer_confirmation_depth: 0,
             private_key: "0xd08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6"
                 .to_string(),
             chain_id: 17000,
