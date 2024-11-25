@@ -94,7 +94,7 @@ pub async fn init(
         init_configs_args.no_port_reallocation = true;
     }
     let mut contracts_config = init_configs(&init_configs_args, shell, chain_config).await?;
-    let wallets = WalletsConfig::read(shell, chain_config.l1_wallets_path.clone())?;
+    let wallets = WalletsConfig::read(shell, init_args.wallets_path.clone())?;
 
     // Fund some wallet addresses with ETH or base token (only for Localhost)
     distribute_eth(chain_config, init_args.l1_rpc_url.clone(), &wallets).await?;

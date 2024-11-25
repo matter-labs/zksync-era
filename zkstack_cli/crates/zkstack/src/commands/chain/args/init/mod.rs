@@ -15,6 +15,7 @@ use crate::{
         MSG_DEPLOY_PAYMASTER_PROMPT, MSG_DEV_ARG_HELP, MSG_ECOSYSTEM_CONTRACTS_PATH_HELP,
         MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
         MSG_NO_PORT_REALLOCATION_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
+        MSG_WALLETS_PATH_HELP, MSG_WALLETS_PATH_PROMPT,
     },
 };
 
@@ -40,6 +41,8 @@ pub struct InitArgs {
     pub no_port_reallocation: bool,
     #[clap(long, help = MSG_ECOSYSTEM_CONTRACTS_PATH_HELP)]
     pub ecosystem_contracts_path: Option<String>,
+    #[clap(long, help = MSG_WALLETS_PATH_HELP)]
+    pub wallets_path: Option<String>,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
 }
@@ -105,6 +108,14 @@ impl InitArgs {
             get_ecosystem_contracts_path(self.ecosystem_contracts_path, ecosystem.clone(), chain)?
         };
 
+        let wallets_path = ecosystem.map_or_else(
+            || {
+                self.wallets_path
+                    .map_or_else(|| Prompt::new(MSG_WALLETS_PATH_PROMPT).ask(), PathBuf::from)
+            },
+            |e| e.get_wallets_path(),
+        );
+
         Ok(InitArgsFinal {
             forge_args: self.forge_args,
             genesis_args: genesis.fill_values_with_prompt(chain),
@@ -112,6 +123,7 @@ impl InitArgs {
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
             ecosystem_contracts_path,
+            wallets_path,
             dev: self.dev,
         })
     }
@@ -125,5 +137,6 @@ pub struct InitArgsFinal {
     pub l1_rpc_url: String,
     pub no_port_reallocation: bool,
     pub ecosystem_contracts_path: PathBuf,
+    pub wallets_path: PathBuf,
     pub dev: bool,
 }
