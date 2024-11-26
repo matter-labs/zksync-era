@@ -14,7 +14,7 @@ bridges:
   weth:
     l1_address: 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9
 l1:
-  default_upgrade_addr: 0x27A7F18106281fE53d371958E8bC3f833694D24a
+  default_upgrade_addr: 0xA7Cc1Bf4d8404d14caB00d2b2F0b2F4198CddDfF
   diamond_proxy_addr: 0x9A6DE0f62Aa270A8bCB1e2610078650D539B1Ef9
   governance_addr: 0x62e77441531b4B045a6B6f4891be4AdBA7eD4d88
   multicall3_addr: 0xca11bde05977b3631167028862be2a173976ca11
