@@ -41,7 +41,7 @@ pub(super) async fn add_eth_token(transaction: &mut Connection<'_, Core>) -> any
     Ok(())
 }
 
-pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<StorageLog> {
+pub fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<StorageLog> {
     let system_context_init_logs =
         // During the genesis all chains have the same id.
         // TODO(EVM-579): make sure that the logic is compatible with Era.
@@ -177,6 +177,7 @@ pub(super) async fn insert_system_contracts(
     factory_deps: HashMap<H256, Vec<u8>>,
     storage_logs: &[StorageLog],
 ) -> Result<(), GenesisError> {
+    tracing::warn!("Inserting {} system contracts", factory_deps.len());
     let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) =
         get_deduped_log_queries(storage_logs)
             .into_iter()

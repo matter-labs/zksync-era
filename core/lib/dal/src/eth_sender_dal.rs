@@ -6,7 +6,7 @@ use zksync_db_connection::{connection::Connection, interpolate_query, match_quer
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::{EthTx, EthTxBlobSidecar, TxHistory, TxHistoryToSend},
-    Address, L1BatchNumber, H256, U256,
+    Address, L1BatchNumber, H160, H256, U256,
 };
 
 use crate::{
@@ -490,9 +490,10 @@ impl EthSenderDal<'_, '_> {
             // Insert general tx descriptor.
             let eth_tx_id = sqlx::query_scalar!(
                 "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, created_at, updated_at) \
-                VALUES ('\\x00', 0, $1, '', 0, now(), now()) \
+                VALUES ('\\x00', 0, $1, $2, 0, now(), now()) \
                 RETURNING id",
-                tx_type.to_string()
+                tx_type.to_string(),
+                format!("{:#x}", H160::zero()),
             )
             .fetch_one(transaction.conn())
             .await?;
@@ -500,8 +501,8 @@ impl EthSenderDal<'_, '_> {
             // Insert a "sent transaction".
             let eth_history_id = sqlx::query_scalar!(
                 "INSERT INTO eth_txs_history \
-                (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at) \
-                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), $3) \
+                (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, sent_at_block, created_at, updated_at, confirmed_at) \
+                VALUES ($1, 0, 0, $2, '\\x00', 0, now(), now(), $3) \
                 RETURNING id",
                 eth_tx_id,
                 tx_hash,

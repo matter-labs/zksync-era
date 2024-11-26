@@ -6,11 +6,13 @@ use zksync_node_storage_init::{
     external_node::{ExternalNodeGenesis, ExternalNodeReverter, ExternalNodeSnapshotRecovery},
     InitializeStorage, NodeInitializationStrategy, RevertStorage,
 };
-use zksync_types::L2ChainId;
+use zksync_types::{Address, L2ChainId};
 
 use super::NodeInitializationStrategyResource;
 use crate::{
     implementations::resources::{
+        blob_client::BlobClientResource,
+        eth_interface::EthInterfaceResource,
         healthcheck::AppHealthCheckResource,
         main_node_client::MainNodeClientResource,
         pools::{MasterPool, PoolResource},
@@ -26,16 +28,19 @@ pub struct ExternalNodeInitStrategyLayer {
     pub l2_chain_id: L2ChainId,
     pub max_postgres_concurrency: NonZeroUsize,
     pub snapshot_recovery_config: Option<SnapshotRecoveryConfig>,
+    pub diamond_proxy_addr: Address,
 }
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
+    pub l1_client: EthInterfaceResource,
     pub master_pool: PoolResource<MasterPool>,
     pub main_node_client: MainNodeClientResource,
     pub block_reverter: Option<BlockReverterResource>,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
+    pub blob_client: Option<BlobClientResource>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -82,11 +87,14 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
                     .get_custom(self.max_postgres_concurrency.get() as u32 + 1)
                     .await?;
                 let recovery: Arc<dyn InitializeStorage> = Arc::new(ExternalNodeSnapshotRecovery {
-                    client: client.clone(),
+                    main_node_client: Some(client.clone()),
+                    l1_client: input.l1_client.0.clone(),
                     pool: recovery_pool,
                     max_concurrency: self.max_postgres_concurrency,
                     recovery_config,
                     app_health,
+                    diamond_proxy_addr: self.diamond_proxy_addr,
+                    blob_client: input.blob_client.clone().map(|x| x.0),
                 });
                 Some(recovery)
             }

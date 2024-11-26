@@ -18,6 +18,7 @@ use zksync_node_api_server::web3::Namespace;
 use zksync_node_framework::{
     implementations::layers::{
         batch_status_updater::BatchStatusUpdaterLayer,
+        blob_client::{BlobClientLayer, BlobClientMode},
         block_reverter::BlockReverterLayer,
         commitment_generator::CommitmentGeneratorLayer,
         consensus::ExternalNodeConsensusLayer,
@@ -523,6 +524,15 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_blob_client_layer(mut self) -> anyhow::Result<Self> {
+        let layer = BlobClientLayer {
+            mode: BlobClientMode::Blobscan,
+            blobscan_url: Some("https://api.sepolia.blobscan.com/blobs/".to_string()),
+        };
+        self.node.add_layer(layer);
+        Ok(self)
+    }
+
     /// This layer will make sure that the database is initialized correctly,
     /// e.g.:
     /// - genesis or snapshot recovery will be performed if it's required.
@@ -543,11 +553,13 @@ impl ExternalNodeBuilder {
                 .optional
                 .snapshots_recovery_enabled
                 .then_some(SnapshotRecoveryConfig {
+                    recover_from_l1: config.experimental.snapshots_recovery_recover_from_l1,
                     snapshot_l1_batch_override: config.experimental.snapshots_recovery_l1_batch,
                     drop_storage_key_preimages: config
                         .experimental
                         .snapshots_recovery_drop_storage_key_preimages,
                     object_store_config: config.optional.snapshots_recovery_object_store.clone(),
+                    recover_main_node_components: false,
                 });
         self.node.add_layer(ExternalNodeInitStrategyLayer {
             l2_chain_id: self.config.required.l2_chain_id,
@@ -556,6 +568,7 @@ impl ExternalNodeBuilder {
                 .optional
                 .snapshots_recovery_postgres_max_concurrency,
             snapshot_recovery_config,
+            diamond_proxy_addr: self.config.diamond_proxy_address(),
         });
         let mut layer = NodeStorageInitializerLayer::new();
         if matches!(kind, LayerKind::Precondition) {
@@ -572,6 +585,7 @@ impl ExternalNodeBuilder {
             .add_healthcheck_layer()?
             .add_prometheus_exporter_layer()?
             .add_pools_layer()?
+            .add_blob_client_layer()?
             .add_main_node_client_layer()?
             .add_query_eth_client_layer()?
             .add_reorg_detector_layer()?;

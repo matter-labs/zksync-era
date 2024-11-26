@@ -20,6 +20,8 @@ pub enum Bucket {
     StorageSnapshot,
     DataAvailability,
     VmDumps,
+    LocalBlobs,
+    CommitBlocksCache,
 }
 
 impl Bucket {
@@ -39,6 +41,8 @@ impl Bucket {
             Self::StorageSnapshot => "storage_logs_snapshots",
             Self::DataAvailability => "data_availability",
             Self::VmDumps => "vm_dumps",
+            Self::LocalBlobs => "local_blobs",
+            Self::CommitBlocksCache => "commit_blocks_cache",
         }
     }
 }

@@ -5085,6 +5085,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "local_blobs_dump"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap 4.5.20",
+ "hex",
+ "tokio",
+ "tracing",
+ "zksync_config",
+ "zksync_core_leftovers",
+ "zksync_dal",
+ "zksync_l1_recovery",
+ "zksync_object_store",
+ "zksync_protobuf_config",
+ "zksync_types",
+]
+
+[[package]]
 name = "lock_api"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11968,10 +11986,56 @@ dependencies = [
  "serde_with",
  "sha2 0.10.8",
  "sha3 0.10.8",
+ "tracing",
  "zksync_kzg",
  "zksync_prover_interface",
  "zksync_solidity_vk_codegen",
  "zksync_types",
+]
+
+[[package]]
+name = "zksync_l1_recovery"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-recursion",
+ "async-trait",
+ "bincode",
+ "blake2 0.10.6",
+ "chrono",
+ "clap 4.5.20",
+ "ethabi",
+ "hex",
+ "indexmap 2.6.0",
+ "rand 0.8.5",
+ "reqwest 0.12.9",
+ "rocksdb",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "test-log",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "zkevm_circuits 0.150.7",
+ "zksync_basic_types",
+ "zksync_block_reverter",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_eth_client",
+ "zksync_l1_contract_interface",
+ "zksync_merkle_tree",
+ "zksync_node_genesis",
+ "zksync_object_store",
+ "zksync_protobuf",
+ "zksync_protobuf_build",
+ "zksync_snapshots_applier",
+ "zksync_storage",
+ "zksync_types",
+ "zksync_utils",
+ "zksync_vm_interface",
+ "zksync_web3_decl",
 ]
 
 [[package]]
@@ -12275,6 +12339,7 @@ dependencies = [
  "zksync_external_proof_integration_api",
  "zksync_health_check",
  "zksync_house_keeper",
+ "zksync_l1_recovery",
  "zksync_logs_bloom_backfill",
  "zksync_metadata_calculator",
  "zksync_node_api_server",
@@ -12340,6 +12405,7 @@ dependencies = [
  "zksync_config",
  "zksync_dal",
  "zksync_health_check",
+ "zksync_l1_recovery",
  "zksync_node_genesis",
  "zksync_node_sync",
  "zksync_object_store",
@@ -12577,6 +12643,7 @@ dependencies = [
  "tikv-jemallocator",
  "tokio",
  "tracing",
+ "zksync_block_reverter",
  "zksync_concurrency",
  "zksync_config",
  "zksync_consensus_crypto",

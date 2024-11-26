@@ -12,6 +12,8 @@ pub enum Error {
     Other(String),
 }
 
+use ethabi::{Token, Token::Uint};
+
 use crate::{H160, H256, U256};
 
 pub trait Detokenize: Sized {
@@ -175,6 +177,19 @@ impl<T: TokenizableItem> Tokenizable for Vec<T> {
 
     fn into_token(self) -> ethabi::Token {
         ethabi::Token::Array(self.into_iter().map(Tokenizable::into_token).collect())
+    }
+}
+
+impl Detokenize for (u32, u32, u32) {
+    fn from_tokens(tokens: Vec<Token>) -> anyhow::Result<Self, Error> {
+        match tokens.as_slice() {
+            [Uint(val1), Uint(val2), Uint(val3)] => {
+                Ok((val1.as_u32(), val2.as_u32(), val3.as_u32()))
+            }
+            other => Err(Error::InvalidOutputType(format!(
+                "Expected 3-element `Tuple`, got {other:?}"
+            ))),
+        }
     }
 }
 
