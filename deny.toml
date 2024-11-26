@@ -12,7 +12,6 @@ ignore = [
     "RUSTSEC-2020-0168", # mach dependency being unmaintained, dependency in consensus, we should consider moving to mach2 fork
     "RUSTSEC-2024-0370", # `cs_derive` needs to be updated to not rely on `proc-macro-error`
     # all below caused by StructOpt which we still use and we should move to clap v4 instead
-    "RUSTSEC-2024-0375",
     "RUSTSEC-2021-0145",
     "RUSTSEC-2021-0139",
     "RUSTSEC-2024-0388", # `derivative` is unmaintained, crypto dependenicies (boojum, circuit_encodings and others) rely on it

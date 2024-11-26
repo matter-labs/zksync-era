@@ -1,5 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use tokio::sync::watch;
 use zksync_multivm::interface::{DeduplicatedWritesMetrics, VmExecutionMetrics};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, block::BlockGasCount, ExecuteTransactionCommon,
@@ -87,6 +88,10 @@ pub(super) fn gas_count_from_writes(
         prove: 0,
         execute: 0,
     }
+}
+
+pub(super) fn is_canceled(stop_receiver: &watch::Receiver<bool>) -> bool {
+    *stop_receiver.borrow()
 }
 
 // TODO (SMA-1206): use seconds instead of milliseconds.
