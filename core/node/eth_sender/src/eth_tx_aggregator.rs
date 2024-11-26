@@ -3,6 +3,7 @@ use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
+use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::{
         commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
@@ -27,6 +28,7 @@ use zksync_types::{
 
 use super::aggregated_operations::AggregatedOperation;
 use crate::{
+    health::{EthTxAggregatorHealthDetails, EthTxDetails},
     metrics::{PubdataKind, METRICS},
     utils::agg_l1_batch_base_cost,
     zksync_functions::ZkSyncFunctions,
@@ -65,6 +67,7 @@ pub struct EthTxAggregator {
     pool: ConnectionPool<Core>,
     settlement_mode: SettlementMode,
     sl_chain_id: SLChainId,
+    health_updater: HealthUpdater,
 }
 
 struct TxData {
@@ -119,10 +122,14 @@ impl EthTxAggregator {
             pool,
             settlement_mode,
             sl_chain_id,
+            health_updater: ReactiveHealthCheck::new("eth_tx_aggregator").1,
         }
     }
 
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        self.health_updater
+            .update(Health::from(HealthStatus::Ready));
+
         let pool = self.pool.clone();
         loop {
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
@@ -431,6 +438,13 @@ impl EthTxAggregator {
                 )
                 .await?;
             Self::report_eth_tx_saving(storage, &agg_op, &tx).await;
+
+            self.health_updater.update(
+                EthTxAggregatorHealthDetails {
+                    last_saved_tx: EthTxDetails::new(&tx, None),
+                }
+                .into(),
+            );
         }
         Ok(())
     }
@@ -669,5 +683,10 @@ impl EthTxAggregator {
                     .expect("custom base nonce is expected to be initialized; qed"),
             )
         })
+    }
+
+    /// Returns the health check for eth tx aggregator.
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.health_updater.subscribe()
     }
 }

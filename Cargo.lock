@@ -11158,6 +11158,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_bin_metadata"
+version = "0.1.0"
+dependencies = [
+ "rustc_version 0.4.1",
+ "serde",
+ "tracing",
+ "vise",
+]
+
+[[package]]
 name = "zksync_block_reverter"
 version = "0.1.0"
 dependencies = [
@@ -11735,6 +11745,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "once_cell",
+ "serde",
  "test-casing",
  "test-log",
  "thiserror",
@@ -11745,6 +11756,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
+ "zksync_health_check",
  "zksync_l1_contract_interface",
  "zksync_node_fee_model",
  "zksync_node_test_utils",
@@ -11921,6 +11933,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
+ "zksync_bin_metadata",
 ]
 
 [[package]]
@@ -12250,11 +12263,13 @@ dependencies = [
  "futures 0.3.31",
  "pin-project-lite",
  "semver 1.0.23",
+ "serde",
  "thiserror",
  "tokio",
  "tracing",
  "trybuild",
  "zksync_base_token_adjuster",
+ "zksync_bin_metadata",
  "zksync_block_reverter",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",
@@ -12288,6 +12303,7 @@ dependencies = [
  "zksync_proof_data_handler",
  "zksync_queued_job_processor",
  "zksync_reorg_detector",
+ "zksync_shared_metrics",
  "zksync_state",
  "zksync_state_keeper",
  "zksync_storage",
@@ -12600,9 +12616,10 @@ dependencies = [
 name = "zksync_shared_metrics"
 version = "0.1.0"
 dependencies = [
- "rustc_version 0.4.1",
+ "serde",
  "tracing",
  "vise",
+ "zksync_bin_metadata",
  "zksync_dal",
  "zksync_types",
 ]
@@ -12683,6 +12700,7 @@ dependencies = [
  "itertools 0.10.5",
  "once_cell",
  "rand 0.8.5",
+ "serde",
  "tempfile",
  "test-casing",
  "thiserror",
@@ -12694,6 +12712,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
+ "zksync_health_check",
  "zksync_mempool",
  "zksync_multivm",
  "zksync_node_fee_model",
