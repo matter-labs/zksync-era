@@ -16,6 +16,8 @@ use crate::{
     utils::docker::select_tag,
 };
 
+pub mod server;
+
 #[derive(Debug, Clone, Serialize, Deserialize, Parser, Default)]
 pub struct GenesisArgs {
     #[arg(long, default_value = "release")]
@@ -45,10 +47,10 @@ impl GenesisArgs {
         let chain_name = config.name.clone();
         if self.dev {
             GenesisArgsFinal {
-                mode: self.mode,
-                tag,
                 server_db: DatabaseConfig::new(DATABASE_SERVER_URL.clone(), server_name),
                 dont_drop: self.dont_drop,
+                mode: self.mode,
+                tag,
             }
         } else {
             let server_db_url = self.server_db_url.unwrap_or_else(|| {
@@ -65,10 +67,10 @@ impl GenesisArgs {
                 separator = "_"
             );
             GenesisArgsFinal {
-                mode: self.mode,
-                tag,
                 server_db: DatabaseConfig::new(server_db_url, server_db_name),
                 dont_drop: self.dont_drop,
+                mode: self.mode,
+                tag,
             }
         }
     }
@@ -104,8 +106,8 @@ impl GenesisArgs {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GenesisArgsFinal {
-    pub mode: ExecutionMode,
-    pub tag: Option<String>,
     pub server_db: DatabaseConfig,
     pub dont_drop: bool,
+    pub mode: ExecutionMode,
+    pub tag: Option<String>,
 }

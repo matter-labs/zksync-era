@@ -4,6 +4,7 @@ use common::{logger, spinner::Spinner};
 use config::{ChainConfig, EcosystemConfig};
 use xshell::Shell;
 
+use super::args::genesis::server::GenesisServerArgs;
 use crate::{
     commands::chain::{
         args::genesis::{GenesisArgs, GenesisArgsFinal},
@@ -25,7 +26,7 @@ pub enum GenesisSubcommands {
     #[command(alias = "database")]
     InitDatabase(Box<GenesisArgs>),
     /// Runs server genesis
-    Server,
+    Server(GenesisServerArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -40,7 +41,7 @@ pub struct GenesisCommand {
 pub(crate) async fn run(args: GenesisCommand, shell: &Shell) -> anyhow::Result<()> {
     match args.command {
         Some(GenesisSubcommands::InitDatabase(args)) => database::run(*args, shell).await,
-        Some(GenesisSubcommands::Server) => server::run(shell).await,
+        Some(GenesisSubcommands::Server(args)) => server::run(args, shell).await,
         None => run_genesis(args.args, shell).await,
     }
 }
@@ -85,7 +86,7 @@ pub async fn genesis(
     spinner.finish();
 
     let spinner = Spinner::new(MSG_STARTING_GENESIS_SPINNER);
-    run_server_genesis(config, shell).await?;
+    run_server_genesis(config, shell, args.mode.into(), args.tag).await?;
     spinner.finish();
 
     Ok(())
