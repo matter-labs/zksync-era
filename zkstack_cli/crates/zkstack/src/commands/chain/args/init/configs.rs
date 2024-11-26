@@ -36,7 +36,7 @@ pub struct InitConfigsArgsFinal {
 }
 
 impl InitConfigsArgs {
-    pub fn fill_values_with_prompt(self, config: &ChainConfig) -> InitConfigsArgsFinal {
+    pub async fn fill_values_with_prompt(self, config: &ChainConfig) -> InitConfigsArgsFinal {
         let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
             let mut prompt = Prompt::new(MSG_L1_RPC_URL_PROMPT);
             if config.l1_network == L1Network::Localhost {
@@ -52,7 +52,7 @@ impl InitConfigsArgs {
         });
 
         InitConfigsArgsFinal {
-            genesis_args: self.genesis_args.fill_values_with_prompt(config),
+            genesis_args: self.genesis_args.fill_values_with_prompt(config).await,
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
         }

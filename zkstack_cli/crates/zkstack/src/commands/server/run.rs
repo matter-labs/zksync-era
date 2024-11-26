@@ -19,6 +19,8 @@ pub(super) async fn run_server(
     chain_config: &ChainConfig,
     shell: &Shell,
 ) -> anyhow::Result<()> {
+    let args = args.fill_values_with_prompt().await;
+
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     logger::info(MSG_STARTING_SERVER);
@@ -39,7 +41,6 @@ pub(super) async fn run_server(
             shell,
             args.mode.into(),
             server_mode,
-            ecosystem_config.config,
             ecosystem_config.chains,
             GenesisConfig::get_path_with_base_path(&chain_config.configs),
             WalletsConfig::get_path_with_base_path(&chain_config.configs),

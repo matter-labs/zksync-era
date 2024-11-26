@@ -367,7 +367,7 @@ async fn init_chains(
             no_port_reallocation: final_init_args.no_port_reallocation,
             dev: final_init_args.dev,
         };
-        let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
+        let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config).await;
 
         chain::init::init(
             &final_chain_init_args,

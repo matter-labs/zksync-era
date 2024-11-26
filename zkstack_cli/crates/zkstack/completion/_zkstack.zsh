@@ -307,6 +307,8 @@ _arguments "${_arguments_options[@]}" : \
         case $line[1] in
             (configs)
 _arguments "${_arguments_options[@]}" : \
+'--mode=[]:MODE:(release debug docker)' \
+'--tag=[]:TAG:_default' \
 '--server-db-url=[Server database url without database name]:SERVER_DB_URL:_default' \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
@@ -353,6 +355,8 @@ esac
 ;;
 (genesis)
 _arguments "${_arguments_options[@]}" : \
+'--mode=[]:MODE:(release debug docker)' \
+'--tag=[]:TAG:_default' \
 '--server-db-url=[Server database url without database name]:SERVER_DB_URL:_default' \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
@@ -377,6 +381,8 @@ _arguments "${_arguments_options[@]}" : \
         case $line[1] in
             (init-database)
 _arguments "${_arguments_options[@]}" : \
+'--mode=[]:MODE:(release debug docker)' \
+'--tag=[]:TAG:_default' \
 '--server-db-url=[Server database url without database name]:SERVER_DB_URL:_default' \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
@@ -2007,10 +2013,10 @@ esac
 (server)
 _arguments "${_arguments_options[@]}" : \
 '--mode=[]:MODE:(release debug docker)' \
+'--tag=[]:TAG:_default' \
 '*--components=[Components of server to run]:COMPONENTS:_default' \
 '*-a+[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '*--additional-args=[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'--tag=[]:TAG:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--genesis[Run server in genesis mode]' \
 '--uring[Enables uring support for RocksDB]' \
@@ -2042,10 +2048,10 @@ _arguments "${_arguments_options[@]}" : \
 (run)
 _arguments "${_arguments_options[@]}" : \
 '--mode=[]:MODE:(release debug docker)' \
+'--tag=[]:TAG:_default' \
 '*--components=[Components of server to run]:COMPONENTS:_default' \
 '*-a+[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '*--additional-args=[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'--tag=[]:TAG:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--genesis[Run server in genesis mode]' \
 '--uring[Enables uring support for RocksDB]' \

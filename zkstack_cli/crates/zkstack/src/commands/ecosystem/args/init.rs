@@ -7,7 +7,7 @@ use types::L1Network;
 use url::Url;
 
 use crate::{
-    commands::chain::args::genesis::GenesisArgs,
+    commands::{args::run::ExecutionMode, chain::args::genesis::GenesisArgs},
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEV_ARG_HELP,
@@ -106,6 +106,8 @@ pub struct EcosystemInitArgs {
 impl EcosystemInitArgs {
     pub fn get_genesis_args(&self) -> GenesisArgs {
         GenesisArgs {
+            mode: ExecutionMode::Release,
+            tag: None,
             server_db_url: self.server_db_url.clone(),
             server_db_name: self.server_db_name.clone(),
             dev: self.dev,

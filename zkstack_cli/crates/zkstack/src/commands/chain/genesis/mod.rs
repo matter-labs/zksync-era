@@ -50,7 +50,7 @@ pub async fn run_genesis(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()>
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
-    let args = args.fill_values_with_prompt(&chain_config);
+    let args = args.fill_values_with_prompt(&chain_config).await;
 
     genesis(args, shell, &chain_config).await?;
     logger::outro(MSG_GENESIS_COMPLETED);

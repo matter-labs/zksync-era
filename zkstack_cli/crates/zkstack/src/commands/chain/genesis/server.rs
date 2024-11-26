@@ -37,7 +37,6 @@ pub async fn run_server_genesis(chain_config: &ChainConfig, shell: &Shell) -> an
             shell,
             ExecutionMode::default(),
             ServerMode::Genesis,
-            ecosystem_config.config,
             ecosystem_config.chains,
             GenesisConfig::get_path_with_base_path(&chain_config.configs),
             WalletsConfig::get_path_with_base_path(&chain_config.configs),

@@ -3,7 +3,7 @@ use std::{ffi::OsStr, path::PathBuf};
 use anyhow::Context;
 use xshell::{cmd, Shell};
 
-use crate::{cmd::Cmd, github::GitHubTagFetcher, PromptSelect};
+use crate::cmd::Cmd;
 
 /// Allows to perform server operations.
 #[derive(Debug)]
@@ -46,7 +46,6 @@ impl Server {
         shell: &Shell,
         execution_mode: ExecutionMode,
         server_mode: ServerMode,
-        configs_folder: P,
         chains_folder: P,
         genesis_path: P,
         wallets_path: P,
@@ -149,7 +148,8 @@ where
             additional_args,
         ),
         ExecutionMode::Docker => {
-            let tag = tag.unwrap_or(select_tag().await?.to_owned());
+            // safe to unwrap when ExecutionMode is Docker because we invoke fill_values_with_prompt
+            let tag = tag.unwrap();
 
             Cmd::new(cmd!(
                 shell,
@@ -177,21 +177,7 @@ where
     cmd.run().context("Failed to run server")
 }
 
-async fn select_tag() -> anyhow::Result<String> {
-    let fetcher = GitHubTagFetcher::new(None)?;
-    let gh_tags = fetcher.get_newest_core_tags(Some(5)).await?;
-
-    let tags: Vec<String> = std::iter::once("latest".to_string())
-        .chain(
-            gh_tags
-                .iter()
-                .map(|r| r.name.trim_start_matches("core-").to_string()),
-        )
-        .collect();
-
-    Ok(PromptSelect::new("Select image", tags).ask().into())
-}
-
+#[allow(clippy::too_many_arguments)]
 fn cargo_run<'a, P>(
     shell: &'a Shell,
     release: bool,
@@ -206,7 +192,7 @@ fn cargo_run<'a, P>(
 where
     P: AsRef<OsStr>,
 {
-    let compilation_mode: &str = release.then_some("--release").unwrap_or("");
+    let compilation_mode: &str = if release { "--release" } else { "" };
 
     Cmd::new(
         cmd!(
