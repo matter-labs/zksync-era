@@ -18,17 +18,13 @@ use config::{
         script_params::DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    zkstack_config::ZkStackConfig,
-    ChainConfig, ContractsConfig, WalletsConfig,
+    ChainConfig, ContractsConfig, EcosystemConfig, WalletsConfig,
 };
 use xshell::Shell;
 use zksync_basic_types::L2ChainId;
 
 use crate::{
-    messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_L2_CONTRACT_SPINNER,
-        MSG_L1_SECRETS_MUST_BE_PRESENTED,
-    },
+    messages::{MSG_DEPLOYING_L2_CONTRACT_SPINNER, MSG_L1_SECRETS_MUST_BE_PRESENTED},
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
@@ -45,88 +41,40 @@ pub async fn run(
     args: ForgeScriptArgs,
     shell: &Shell,
     deploy_option: Deploy2ContractsOption,
+    chain: ChainConfig,
+    ecosystem: EcosystemConfig,
 ) -> anyhow::Result<()> {
-    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
-
-    let mut contracts = chain_config.get_contracts_config()?;
-    let era_chain_id = ecosystem_config.era_chain_id;
-    let wallets = ecosystem_config.get_wallets()?;
+    let mut contracts = chain.get_contracts_config()?;
+    let era_chain_id = ecosystem.era_chain_id;
+    let wallets = ecosystem.get_wallets()?;
 
     let spinner = Spinner::new(MSG_DEPLOYING_L2_CONTRACT_SPINNER);
 
     match deploy_option {
         Deploy2ContractsOption::All => {
-            deploy_l2_contracts(
-                shell,
-                &chain_config,
-                era_chain_id,
-                &wallets,
-                &mut contracts,
-                args,
-            )
-            .await?;
+            deploy_l2_contracts(shell, &chain, era_chain_id, &wallets, &mut contracts, args)
+                .await?;
         }
         Deploy2ContractsOption::Upgrader => {
-            deploy_upgrader(
-                shell,
-                &chain_config,
-                era_chain_id,
-                &wallets,
-                &mut contracts,
-                args,
-            )
-            .await?;
+            deploy_upgrader(shell, &chain, era_chain_id, &wallets, &mut contracts, args).await?;
         }
         Deploy2ContractsOption::ConsensusRegistry => {
-            deploy_consensus_registry(
-                shell,
-                &chain_config,
-                era_chain_id,
-                &wallets,
-                &mut contracts,
-                args,
-            )
-            .await?;
+            deploy_consensus_registry(shell, &chain, era_chain_id, &wallets, &mut contracts, args)
+                .await?;
         }
         Deploy2ContractsOption::Multicall3 => {
-            deploy_multicall3(
-                shell,
-                &chain_config,
-                era_chain_id,
-                &wallets,
-                &mut contracts,
-                args,
-            )
-            .await?;
+            deploy_multicall3(shell, &chain, era_chain_id, &wallets, &mut contracts, args).await?;
         }
         Deploy2ContractsOption::TimestampAsserter => {
-            deploy_timestamp_asserter(
-                shell,
-                &chain_config,
-                era_chain_id,
-                &wallets,
-                &mut contracts,
-                args,
-            )
-            .await?;
+            deploy_timestamp_asserter(shell, &chain, era_chain_id, &wallets, &mut contracts, args)
+                .await?;
         }
         Deploy2ContractsOption::InitiailizeBridges => {
-            initialize_bridges(
-                shell,
-                &chain_config,
-                era_chain_id,
-                &wallets,
-                &mut contracts,
-                args,
-            )
-            .await?
+            initialize_bridges(shell, &chain, era_chain_id, &wallets, &mut contracts, args).await?
         }
     }
 
-    contracts.save_with_base_path(shell, &chain_config.configs)?;
+    contracts.save_with_base_path(shell, &chain.configs)?;
     spinner.finish();
 
     Ok(())
