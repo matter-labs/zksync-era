@@ -1698,12 +1698,32 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__genesis__server)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-a -v -h --mode --tag --components --genesis --additional-args --uring --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
+                --mode)
+                    COMPREPLY=($(compgen -W "release debug docker" -- "${cur}"))
+                    return 0
+                    ;;
+                --tag)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --components)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --additional-args)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -a)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 --chain)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0

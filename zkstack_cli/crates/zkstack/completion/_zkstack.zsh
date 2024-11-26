@@ -399,7 +399,14 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (server)
 _arguments "${_arguments_options[@]}" : \
+'--mode=[]:MODE:(release debug docker)' \
+'--tag=[]:TAG:_default' \
+'*--components=[Components of server to run]:COMPONENTS:_default' \
+'*-a+[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
+'--genesis[Run server in genesis mode]' \
+'--uring[Enables uring support for RocksDB]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
