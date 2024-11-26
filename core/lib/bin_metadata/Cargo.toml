@@ -1,0 +1,18 @@
+[package]
+name = "zksync_bin_metadata"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+serde.workspace = true
+vise.workspace = true
+tracing.workspace = true
+
+[build-dependencies]
+rustc_version.workspace = true
