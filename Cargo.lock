@@ -1040,7 +1040,7 @@ dependencies = [
  "bitflags 2.6.0",
  "cexpr",
  "clang-sys",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "lazy_static",
  "lazycell",
  "log",
@@ -4156,7 +4156,7 @@ dependencies = [
  "hyper 1.5.0",
  "hyper-util",
  "log",
- "rustls 0.23.16",
+ "rustls 0.23.18",
  "rustls-native-certs 0.8.0",
  "rustls-pki-types",
  "tokio",
@@ -4568,7 +4568,7 @@ dependencies = [
  "http 1.1.0",
  "jsonrpsee-core 0.23.2",
  "pin-project",
- "rustls 0.23.16",
+ "rustls 0.23.18",
  "rustls-pki-types",
  "rustls-platform-verifier",
  "soketto 0.8.0",
@@ -4667,7 +4667,7 @@ dependencies = [
  "hyper-util",
  "jsonrpsee-core 0.23.2",
  "jsonrpsee-types 0.23.2",
- "rustls 0.23.16",
+ "rustls 0.23.18",
  "rustls-platform-verifier",
  "serde",
  "serde_json",
@@ -4920,7 +4920,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -6588,7 +6588,7 @@ checksum = "22505a5c94da8e3b7c2996394d1c933236c4d743e81a410bcca4e6989fc066a4"
 dependencies = [
  "bytes",
  "heck 0.5.0",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "log",
  "multimap",
  "once_cell",
@@ -6608,7 +6608,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "proc-macro2 1.0.89",
  "quote 1.0.37",
  "syn 2.0.85",
@@ -6798,7 +6798,7 @@ dependencies = [
  "quinn-proto",
  "quinn-udp",
  "rustc-hash 2.0.0",
- "rustls 0.23.16",
+ "rustls 0.23.18",
  "socket2",
  "thiserror",
  "tokio",
@@ -6815,7 +6815,7 @@ dependencies = [
  "rand 0.8.5",
  "ring",
  "rustc-hash 2.0.0",
- "rustls 0.23.16",
+ "rustls 0.23.18",
  "slab",
  "thiserror",
  "tinyvec",
@@ -7118,7 +7118,7 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "quinn",
- "rustls 0.23.16",
+ "rustls 0.23.18",
  "rustls-native-certs 0.8.0",
  "rustls-pemfile 2.2.0",
  "rustls-pki-types",
@@ -7434,9 +7434,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.16"
+version = "0.23.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eee87ff5d9b36712a58574e12e9f0ea80f915a5b0ac518d322b24a465617925e"
+checksum = "9c9cc1d47e243d655ace55ed38201c19ae02c148ae56412ab8750e8f0166ab7f"
 dependencies = [
  "aws-lc-rs",
  "log",
@@ -7521,7 +7521,7 @@ dependencies = [
  "jni",
  "log",
  "once_cell",
- "rustls 0.23.16",
+ "rustls 0.23.18",
  "rustls-native-certs 0.7.3",
  "rustls-platform-verifier-android",
  "rustls-webpki 0.102.8",
@@ -9620,7 +9620,7 @@ version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c7bc40d0e5a97695bb96e27995cd3a08538541b0a846f65bba7a359f36700d4"
 dependencies = [
- "rustls 0.23.16",
+ "rustls 0.23.18",
  "rustls-pki-types",
  "tokio",
 ]
@@ -11158,6 +11158,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_bin_metadata"
+version = "0.1.0"
+dependencies = [
+ "rustc_version 0.4.1",
+ "serde",
+ "tracing",
+ "vise",
+]
+
+[[package]]
 name = "zksync_block_reverter"
 version = "0.1.0"
 dependencies = [
@@ -11494,7 +11504,7 @@ dependencies = [
  "octocrab",
  "regex",
  "reqwest 0.12.9",
- "rustls 0.23.16",
+ "rustls 0.23.18",
  "semver 1.0.23",
  "serde",
  "serde_json",
@@ -11735,6 +11745,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "once_cell",
+ "serde",
  "test-casing",
  "test-log",
  "thiserror",
@@ -11745,6 +11756,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
+ "zksync_health_check",
  "zksync_l1_contract_interface",
  "zksync_node_fee_model",
  "zksync_node_test_utils",
@@ -11921,6 +11933,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
+ "zksync_bin_metadata",
 ]
 
 [[package]]
@@ -12250,11 +12263,13 @@ dependencies = [
  "futures 0.3.31",
  "pin-project-lite",
  "semver 1.0.23",
+ "serde",
  "thiserror",
  "tokio",
  "tracing",
  "trybuild",
  "zksync_base_token_adjuster",
+ "zksync_bin_metadata",
  "zksync_block_reverter",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",
@@ -12288,6 +12303,7 @@ dependencies = [
  "zksync_proof_data_handler",
  "zksync_queued_job_processor",
  "zksync_reorg_detector",
+ "zksync_shared_metrics",
  "zksync_state",
  "zksync_state_keeper",
  "zksync_storage",
@@ -12600,9 +12616,10 @@ dependencies = [
 name = "zksync_shared_metrics"
 version = "0.1.0"
 dependencies = [
- "rustc_version 0.4.1",
+ "serde",
  "tracing",
  "vise",
+ "zksync_bin_metadata",
  "zksync_dal",
  "zksync_types",
 ]
@@ -12683,6 +12700,7 @@ dependencies = [
  "itertools 0.10.5",
  "once_cell",
  "rand 0.8.5",
+ "serde",
  "tempfile",
  "test-casing",
  "thiserror",
@@ -12694,6 +12712,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
+ "zksync_health_check",
  "zksync_mempool",
  "zksync_multivm",
  "zksync_node_fee_model",
@@ -12965,7 +12984,7 @@ dependencies = [
  "pin-project-lite",
  "rand 0.8.5",
  "rlp",
- "rustls 0.23.16",
+ "rustls 0.23.18",
  "serde",
  "serde_json",
  "test-casing",
