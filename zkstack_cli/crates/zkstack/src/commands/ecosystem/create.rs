@@ -62,7 +62,8 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     let link_to_code = resolve_link_to_code(shell, shell.current_dir(), args.link_to_code.clone())?;
 
     let spinner = Spinner::new(MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER);
-    let chain_config = args.chain_config();
+    let mut chain_config = args.chain_config();
+    chain_config.link_to_code = link_to_code.display().to_string();
     let chains_path = shell.create_dir("chains")?;
     let default_chain_name = args.chain_args.chain_name.clone();
 
@@ -97,7 +98,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     spinner.finish();
 
     let spinner = Spinner::new(MSG_CREATING_DEFAULT_CHAIN_SPINNER);
-    create_chain_inner(chain_config, &ecosystem_config, shell)?;
+    create_chain_inner(chain_config, shell)?;
     spinner.finish();
 
     if args.start_containers {

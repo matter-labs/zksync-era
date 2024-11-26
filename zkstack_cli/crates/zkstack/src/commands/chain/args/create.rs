@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use strum::{Display, EnumIter, IntoEnumIterator};
 use types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
-use zksync_basic_types::H160;
+use xshell::Shell;
+use zksync_basic_types::{L2ChainId, H160};
 
 use crate::{
     defaults::L2_CHAIN_ID,
@@ -20,12 +21,13 @@ use crate::{
         MSG_CHAIN_ID_PROMPT, MSG_CHAIN_ID_VALIDATOR_ERR, MSG_CHAIN_NAME_PROMPT,
         MSG_EVM_EMULATOR_HELP, MSG_EVM_EMULATOR_PROMPT,
         MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT, MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP,
-        MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR, MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR,
-        MSG_PROVER_MODE_HELP, MSG_PROVER_VERSION_PROMPT, MSG_SET_AS_DEFAULT_HELP,
-        MSG_SET_AS_DEFAULT_PROMPT, MSG_WALLET_CREATION_HELP, MSG_WALLET_CREATION_PROMPT,
-        MSG_WALLET_CREATION_VALIDATOR_ERR, MSG_WALLET_PATH_HELP, MSG_WALLET_PATH_INVALID_ERR,
-        MSG_WALLET_PATH_PROMPT,
+        MSG_L1_NETWORK_HELP, MSG_L1_NETWORK_PROMPT, MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR,
+        MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR, MSG_PROVER_MODE_HELP, MSG_PROVER_VERSION_PROMPT,
+        MSG_SET_AS_DEFAULT_HELP, MSG_SET_AS_DEFAULT_PROMPT, MSG_WALLET_CREATION_HELP,
+        MSG_WALLET_CREATION_PROMPT, MSG_WALLET_CREATION_VALIDATOR_ERR, MSG_WALLET_PATH_HELP,
+        MSG_WALLET_PATH_INVALID_ERR, MSG_WALLET_PATH_PROMPT,
     },
+    utils::link_to_code::get_link_to_code,
 };
 
 // We need to duplicate it for using enum inside the arguments
@@ -70,20 +72,29 @@ pub struct ChainCreateArgs {
     pub(crate) legacy_bridge: bool,
     #[arg(long, help = MSG_EVM_EMULATOR_HELP, default_missing_value = "true", num_args = 0..=1)]
     evm_emulator: Option<bool>,
+    #[clap(long, help = MSG_L1_NETWORK_HELP, value_enum)]
+    pub l1_network: Option<L1Network>,
 }
 
 impl ChainCreateArgs {
+    #[allow(clippy::too_many_arguments)]
     pub fn fill_values_with_prompt(
         self,
+        shell: &Shell,
         number_of_chains: u32,
-        l1_network: &L1Network,
+        internal_id: u32,
+        l1_network: Option<L1Network>,
         possible_erc20: Vec<Erc20Token>,
-        link_to_code: String,
+        link_to_code: Option<String>,
+        chains_path: Option<PathBuf>,
+        era_chain_id: L2ChainId,
     ) -> anyhow::Result<ChainCreateArgsFinal> {
         let mut chain_name = self
             .chain_name
             .unwrap_or_else(|| Prompt::new(MSG_CHAIN_NAME_PROMPT).ask());
         chain_name = slugify!(&chain_name, separator = "_");
+
+        let chain_path = chains_path.unwrap_or_default().join(&chain_name);
 
         let chain_id = self
             .chain_id
@@ -97,8 +108,14 @@ impl ChainCreateArgs {
                     .ask()
             });
 
+        let l1_network = l1_network.unwrap_or_else(|| {
+            self.l1_network.unwrap_or_else(|| {
+                PromptSelect::new(MSG_L1_NETWORK_PROMPT, L1Network::iter()).ask()
+            })
+        });
+
         let wallet_creation = if let Some(wallet) = self.wallet_creation {
-            if wallet == WalletCreation::Localhost && *l1_network != L1Network::Localhost {
+            if wallet == WalletCreation::Localhost && l1_network != L1Network::Localhost {
                 bail!(MSG_WALLET_CREATION_VALIDATOR_ERR);
             } else {
                 wallet
@@ -108,7 +125,7 @@ impl ChainCreateArgs {
                 MSG_WALLET_CREATION_PROMPT,
                 WalletCreation::iter().filter(|wallet| {
                     // Disable localhost wallets for external networks
-                    if *l1_network == L1Network::Localhost {
+                    if l1_network == L1Network::Localhost {
                         true
                     } else {
                         *wallet != WalletCreation::Localhost
@@ -215,6 +232,8 @@ impl ChainCreateArgs {
             }
         };
 
+        let link_to_code = link_to_code.unwrap_or_else(|| get_link_to_code(shell));
+
         let evm_emulator = self.evm_emulator.unwrap_or_else(|| {
             PromptConfirm::new(MSG_EVM_EMULATOR_PROMPT)
                 .default(false)
@@ -222,6 +241,9 @@ impl ChainCreateArgs {
         });
 
         let set_as_default = self.set_as_default.unwrap_or_else(|| {
+            if number_of_chains == 0 {
+                return true;
+            }
             PromptConfirm::new(MSG_SET_AS_DEFAULT_PROMPT)
                 .default(true)
                 .ask()
@@ -239,6 +261,10 @@ impl ChainCreateArgs {
             legacy_bridge: self.legacy_bridge,
             evm_emulator,
             link_to_code,
+            chain_path,
+            era_chain_id,
+            internal_id,
+            l1_network,
         })
     }
 }
@@ -256,6 +282,10 @@ pub struct ChainCreateArgsFinal {
     pub legacy_bridge: bool,
     pub evm_emulator: bool,
     pub link_to_code: String,
+    pub chain_path: PathBuf,
+    pub era_chain_id: L2ChainId,
+    pub internal_id: u32,
+    pub l1_network: L1Network,
 }
 
 #[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]
