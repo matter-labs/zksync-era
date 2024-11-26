@@ -43,12 +43,8 @@ sudo apt install git build-essential pkg-config cmake clang lldb lld libssl-dev 
 On mac:
 
 ```bash
-brew install git build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates software-properties-common
+brew install openssl
 ```
-
-Note that in order to install `clang` on MacOS you need to have an up-to-date `Xcode`. You can install it directly from
-`App Store`. With `Xcode` command line tools, you get the Clang compiler installed by default. Thus, having `Xcode` you
-don't need to install `clang`.
 
 ### Rust
 
