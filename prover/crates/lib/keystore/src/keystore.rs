@@ -714,7 +714,7 @@ impl Keystore {
         // deserialization is. For larger files, it makes a big difference.
         // Note: `collect` is important, because iterators are lazy, and otherwise we won't actually
         // spawn threads.
-        let handles: Vec<_> = ProverServiceDataKey::all()
+        let handles: Vec<_> = ProverServiceDataKey::all_boojum()
             .into_iter()
             .map(|key| {
                 let filepath = self.get_file_path(key, data_type);

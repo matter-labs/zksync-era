@@ -9,6 +9,7 @@ use circuit_definitions::{
 #[cfg(feature = "gpu")]
 use fflonk_gpu::{bellman::bn256::Fq2, FflonkSnarkVerifierCircuitVK};
 use sha3::Digest;
+use tokio::io::AsyncWriteExt;
 use zkevm_test_harness::{
     boojum::gadgets::u256::UInt256,
     franklin_crypto::bellman::{CurveAffine, PrimeField, PrimeFieldRepr},
@@ -116,12 +117,19 @@ pub fn calculate_snark_vk_hash(verification_key: String) -> anyhow::Result<H256>
 }
 
 pub fn calculate_fflonk_snark_vk_hash(verification_key: String) -> anyhow::Result<H256> {
+    use byteorder::{BigEndian, WriteBytesExt};
+
     let verification_key: FflonkSnarkVerifierCircuitVK = serde_json::from_str(&verification_key)?;
 
     let mut res = vec![];
 
-    let num_inputs = verification_key.num_inputs;
-    // todo: write num_inputs
+    // NUM INPUTS
+    // Writing as u256 to comply with the contract
+    let num_inputs = U256::from(verification_key.num_inputs);
+
+    for digit in num_inputs.0.iter().rev() {
+        res.write_u64::<BigEndian>(*digit).unwrap();
+    }
 
     // C0 G1
     let c0_g1 = verification_key.c0;

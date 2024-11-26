@@ -20,6 +20,7 @@ shivini = { workspace = true, optional = true }
 fflonk-gpu = { workspace = true, optional = true }
 boojum-cuda.workspace = true
 
+byteorder.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 serde_json.workspace = true

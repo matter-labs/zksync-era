@@ -176,6 +176,7 @@ pub enum ProvingStage {
     Scheduler = 4,
     Compression = 5,
     CompressionWrapper = 6,
+    Snark = 7,
 }
 
 impl From<ProvingStage> for AggregationRound {
@@ -191,6 +192,9 @@ impl From<ProvingStage> for AggregationRound {
             }
             ProvingStage::CompressionWrapper => {
                 unreachable!("Compression wrapper stage is not a part of the aggregation rounds")
+            }
+            ProvingStage::Snark => {
+                unreachable!("Snark stage is not a part of the aggregation rounds")
             }
         }
     }
@@ -301,7 +305,7 @@ impl ProverServiceDataKey {
     pub fn snark() -> Self {
         Self {
             circuit_id: 1,
-            stage: ProvingStage::Scheduler,
+            stage: ProvingStage::Snark,
         }
     }
 
@@ -328,6 +332,7 @@ impl ProverServiceDataKey {
             ProvingStage::Scheduler => "scheduler".to_string(),
             ProvingStage::Compression => format!("compression_{}", self.circuit_id),
             ProvingStage::CompressionWrapper => format!("compression_wrapper_{}", self.circuit_id),
+            ProvingStage::Snark => "snark".to_string(),
         }
     }
 }

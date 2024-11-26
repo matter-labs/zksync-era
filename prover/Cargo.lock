@@ -8746,6 +8746,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "boojum-cuda",
+ "byteorder",
  "circuit_definitions",
  "fflonk-cuda",
  "futures 0.3.30",
