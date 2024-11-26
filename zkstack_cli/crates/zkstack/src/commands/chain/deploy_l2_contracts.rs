@@ -27,7 +27,7 @@ use crate::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_L2_CONTRACT_SPINNER,
         MSG_L1_SECRETS_MUST_BE_PRESENTED,
     },
-    utils::forge::{check_the_balance, fill_forge_private_key, WalletType},
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 pub enum Deploy2ContractsOption {
@@ -314,7 +314,7 @@ async fn call_forge(
     forge = fill_forge_private_key(
         forge,
         Some(&ecosystem_config.get_wallets()?.governor),
-        WalletType::Governor,
+        WalletOwner::Governor,
     )?;
 
     check_the_balance(&forge).await?;

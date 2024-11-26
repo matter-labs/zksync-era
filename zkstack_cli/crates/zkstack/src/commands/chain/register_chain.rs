@@ -19,7 +19,7 @@ use crate::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_CHAIN_REGISTERED, MSG_L1_SECRETS_MUST_BE_PRESENTED,
         MSG_REGISTERING_CHAIN_SPINNER,
     },
-    utils::forge::{check_the_balance, fill_forge_private_key, WalletType},
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -84,7 +84,7 @@ pub async fn register_chain(
         forge = fill_forge_private_key(
             forge,
             Some(&config.get_wallets()?.governor),
-            WalletType::Governor,
+            WalletOwner::Governor,
         )?;
         check_the_balance(&forge).await?;
     }

@@ -14,7 +14,7 @@ use xshell::Shell;
 
 use crate::{
     messages::{MSG_DEPLOYING_PAYMASTER, MSG_L1_SECRETS_MUST_BE_PRESENTED},
-    utils::forge::{check_the_balance, fill_forge_private_key, WalletType},
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 pub async fn setup_legacy_bridge(
@@ -62,7 +62,7 @@ pub async fn setup_legacy_bridge(
     forge = fill_forge_private_key(
         forge,
         Some(&ecosystem_config.get_wallets()?.governor),
-        WalletType::Governor,
+        WalletOwner::Governor,
     )?;
 
     let spinner = Spinner::new(MSG_DEPLOYING_PAYMASTER);

@@ -14,7 +14,7 @@ use config::{
 use types::{L1Network, ProverMode};
 use xshell::Shell;
 
-use crate::utils::forge::{check_the_balance, fill_forge_private_key, WalletType};
+use crate::utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner};
 
 pub async fn deploy_l1(
     shell: &Shell,
@@ -57,7 +57,7 @@ pub async fn deploy_l1(
         forge = fill_forge_private_key(
             forge,
             wallets_config.deployer.as_ref(),
-            WalletType::Deployer,
+            WalletOwner::Deployer,
         )?;
     }
 
