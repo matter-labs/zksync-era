@@ -19,7 +19,7 @@ use crate::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
         SaveConfigWithBasePath, ZkStackConfig,
     },
-    utils::find_file,
+    utils::{find_file, get_preexisting_ecosystem_contracts_path},
     ContractsConfig, EcosystemConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
 
@@ -149,6 +149,10 @@ impl ChainConfig {
     pub fn save_with_base_path(self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
         let config = self.get_internal();
         config.save_with_base_path(shell, path)
+    }
+
+    pub fn get_preexisting_ecosystem_contracts_path(&self) -> PathBuf {
+        get_preexisting_ecosystem_contracts_path(&self.link_to_code, self.l1_network)
     }
 
     fn get_internal(&self) -> ChainConfigInternal {

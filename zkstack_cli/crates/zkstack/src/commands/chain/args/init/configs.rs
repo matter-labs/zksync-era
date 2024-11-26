@@ -1,17 +1,23 @@
+use std::path::PathBuf;
+
 use clap::Parser;
 use common::Prompt;
-use config::ChainConfig;
+use config::{ChainConfig, EcosystemConfig};
 use serde::{Deserialize, Serialize};
 use types::L1Network;
 use url::Url;
 
 use crate::{
-    commands::chain::args::{
-        genesis::{GenesisArgs, GenesisArgsFinal},
-        init::InitArgsFinal,
+    commands::{
+        chain::args::{
+            genesis::{GenesisArgs, GenesisArgsFinal},
+            init::InitArgsFinal,
+        },
+        ecosystem::init::prompt_ecosystem_contracts_path,
     },
     defaults::LOCAL_RPC_URL,
     messages::{
+        msg_ecosystem_no_found_preexisting_contract, MSG_ECOSYSTEM_CONTRACTS_PATH_HELP,
         MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR,
         MSG_L1_RPC_URL_PROMPT, MSG_NO_PORT_REALLOCATION_HELP,
     },
@@ -26,6 +32,8 @@ pub struct InitConfigsArgs {
     pub l1_rpc_url: Option<String>,
     #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP)]
     pub no_port_reallocation: bool,
+    #[clap(long, help = MSG_ECOSYSTEM_CONTRACTS_PATH_HELP)]
+    pub ecosystem_contracts_path: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -33,13 +41,18 @@ pub struct InitConfigsArgsFinal {
     pub genesis_args: GenesisArgsFinal,
     pub l1_rpc_url: String,
     pub no_port_reallocation: bool,
+    pub ecosystem_contracts_path: PathBuf,
 }
 
 impl InitConfigsArgs {
-    pub fn fill_values_with_prompt(self, config: &ChainConfig) -> InitConfigsArgsFinal {
+    pub fn fill_values_with_prompt(
+        self,
+        ecosystem: Option<EcosystemConfig>,
+        chain: &ChainConfig,
+    ) -> anyhow::Result<InitConfigsArgsFinal> {
         let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
             let mut prompt = Prompt::new(MSG_L1_RPC_URL_PROMPT);
-            if config.l1_network == L1Network::Localhost {
+            if chain.l1_network == L1Network::Localhost {
                 prompt = prompt.default(LOCAL_RPC_URL);
             }
             prompt
@@ -51,12 +64,43 @@ impl InitConfigsArgs {
                 .ask()
         });
 
-        InitConfigsArgsFinal {
-            genesis_args: self.genesis_args.fill_values_with_prompt(config),
+        let ecosystem_contracts_path =
+            get_ecosystem_contracts_path(self.ecosystem_contracts_path, ecosystem, chain)?;
+
+        Ok(InitConfigsArgsFinal {
+            genesis_args: self.genesis_args.fill_values_with_prompt(chain),
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
-        }
+            ecosystem_contracts_path,
+        })
     }
+}
+
+pub fn get_ecosystem_contracts_path(
+    ecosystem_contracts_path: Option<String>,
+    ecosystem: Option<EcosystemConfig>,
+    chain: &ChainConfig,
+) -> anyhow::Result<PathBuf> {
+    let ecosystem_preexisting_contracts_path = ecosystem.map_or_else(
+        || chain.get_preexisting_ecosystem_contracts_path(),
+        |e| e.get_preexisting_ecosystem_contracts_path(),
+    );
+
+    let ecosystem_contracts_path =
+        ecosystem_contracts_path.map_or_else(prompt_ecosystem_contracts_path, |path| {
+            if path.is_empty() {
+                return None;
+            }
+            Some(PathBuf::from(path))
+        });
+
+    if ecosystem_contracts_path.is_none() && !ecosystem_preexisting_contracts_path.exists() {
+        anyhow::bail!(msg_ecosystem_no_found_preexisting_contract(
+            &chain.l1_network.to_string()
+        ))
+    }
+
+    Ok(ecosystem_contracts_path.unwrap_or(ecosystem_preexisting_contracts_path))
 }
 
 impl InitConfigsArgsFinal {
@@ -65,6 +109,7 @@ impl InitConfigsArgsFinal {
             genesis_args: init_args.genesis_args.clone(),
             l1_rpc_url: init_args.l1_rpc_url.clone(),
             no_port_reallocation: init_args.no_port_reallocation,
+            ecosystem_contracts_path: init_args.ecosystem_contracts_path.clone(),
         }
     }
 }

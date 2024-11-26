@@ -2555,7 +2555,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__init)
-            opts="-a -d -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --server-db-url --server-db-name --dont-drop --deploy-paymaster --l1-rpc-url --no-port-reallocation --dev --verbose --chain --ignore-prerequisites --help configs help"
+            opts="-a -d -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --server-db-url --server-db-name --dont-drop --deploy-paymaster --l1-rpc-url --no-port-reallocation --ecosystem-contracts-path --wallets-path --dev --verbose --chain --ignore-prerequisites --help configs help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2601,6 +2601,14 @@ _zkstack() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
+                --ecosystem-contracts-path)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --wallets-path)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 --chain)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
@@ -2613,7 +2621,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__init__configs)
-            opts="-d -d -v -h --server-db-url --server-db-name --dev --dont-drop --l1-rpc-url --no-port-reallocation --verbose --chain --ignore-prerequisites --help"
+            opts="-d -d -v -h --server-db-url --server-db-name --dev --dont-drop --l1-rpc-url --no-port-reallocation --ecosystem-contracts-path --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2628,6 +2636,10 @@ _zkstack() {
                     return 0
                     ;;
                 --l1-rpc-url)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --ecosystem-contracts-path)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;

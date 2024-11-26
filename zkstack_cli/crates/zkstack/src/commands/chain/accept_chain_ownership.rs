@@ -1,23 +1,19 @@
 use anyhow::Context;
 use common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
-use config::zkstack_config::ZkStackConfig;
+use config::ChainConfig;
 use xshell::Shell;
 
 use crate::{
     accept_ownership::accept_admin,
     messages::{
-        MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_NOT_INITIALIZED, MSG_CHAIN_OWNERSHIP_TRANSFERRED,
+        MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_OWNERSHIP_TRANSFERRED,
         MSG_L1_SECRETS_MUST_BE_PRESENTED,
     },
 };
 
-pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
-    let contracts = chain_config.get_contracts_config()?;
-    let secrets = chain_config.get_secrets_config()?;
+pub async fn run(args: ForgeScriptArgs, shell: &Shell, chain: ChainConfig) -> anyhow::Result<()> {
+    let contracts = chain.get_contracts_config()?;
+    let secrets = chain.get_secrets_config()?;
     let l1_rpc_url = secrets
         .l1
         .context(MSG_L1_SECRETS_MUST_BE_PRESENTED)?
@@ -28,9 +24,9 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_ACCEPTING_ADMIN_SPINNER);
     accept_admin(
         shell,
-        &ecosystem_config,
+        &chain.path_to_foundry(),
         contracts.l1.chain_admin_addr,
-        &chain_config.get_wallets_config()?.governor,
+        &chain.get_wallets_config()?.governor,
         contracts.l1.diamond_proxy_addr,
         &args,
         l1_rpc_url.clone(),

@@ -286,6 +286,8 @@ _arguments "${_arguments_options[@]}" : \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '--deploy-paymaster=[]' \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
+'--ecosystem-contracts-path=[Ecosystem contracts path]:ECOSYSTEM_CONTRACTS_PATH:_default' \
+'--wallets-path=[Wallets path]:WALLETS_PATH:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
 '-d[]' \
@@ -312,6 +314,7 @@ _arguments "${_arguments_options[@]}" : \
 '--server-db-url=[Server database url without database name]:SERVER_DB_URL:_default' \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
+'--ecosystem-contracts-path=[Ecosystem contracts path]:ECOSYSTEM_CONTRACTS_PATH:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-d[Use default database urls and names]' \
 '--dev[Use default database urls and names]' \

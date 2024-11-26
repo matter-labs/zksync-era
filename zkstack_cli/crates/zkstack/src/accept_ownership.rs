@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use common::{
     forge::{Forge, ForgeScript, ForgeScriptArgs},
     spinner::Spinner,
@@ -26,7 +28,7 @@ lazy_static! {
 
 pub async fn accept_admin(
     shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
+    foundry_contracts_path: &Path,
     admin: Address,
     governor: &Wallet,
     target_address: Address,
@@ -42,8 +44,7 @@ pub async fn accept_admin(
     let calldata = ACCEPT_ADMIN
         .encode("chainAdminAcceptAdmin", (admin, target_address))
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_foundry();
-    let forge = Forge::new(&foundry_contracts_path)
+    let forge = Forge::new(foundry_contracts_path)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
             forge_args.clone(),

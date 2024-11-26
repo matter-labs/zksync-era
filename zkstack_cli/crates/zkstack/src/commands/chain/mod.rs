@@ -14,7 +14,7 @@ use crate::{
         args::create::ChainCreateArgs, deploy_l2_contracts::Deploy2ContractsOption,
         genesis::GenesisCommand, init::ChainInitCommand,
     },
-    messages::MSG_CHAIN_NOT_FOUND_ERR,
+    messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_ECOSYSTEM_CONFIG_INVALID_ERR},
 };
 
 mod accept_chain_ownership;
@@ -91,38 +91,85 @@ pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()>
     }
 
     let chain = ZkStackConfig::current_chain(shell).context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    let ecosystem = ZkStackConfig::ecosystem(shell).ok();
 
     match cmd {
-        ChainCommands::Create(args) => create::run(args, shell),
-        ChainCommands::Init(args) => init::run(*args, shell).await,
-        ChainCommands::BuildTransactions(args) => build_transactions::run(args, shell).await,
+        ChainCommands::Init(args) => init::run(*args, shell, chain, ecosystem).await,
+        ChainCommands::BuildTransactions(args) => {
+            build_transactions::run(args, shell, chain, ecosystem).await
+        }
         ChainCommands::Genesis(args) => genesis::run(args, shell, chain).await,
         ChainCommands::RegisterChain(args) => register_chain::run(args, shell).await,
         ChainCommands::DeployL2Contracts(args) => {
-            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::All).await
+            deploy_l2_contracts::run(
+                args,
+                shell,
+                Deploy2ContractsOption::All,
+                chain,
+                ecosystem.context(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)?,
+            )
+            .await
         }
-        ChainCommands::AcceptChainOwnership(args) => accept_chain_ownership::run(args, shell).await,
+        ChainCommands::AcceptChainOwnership(args) => {
+            accept_chain_ownership::run(args, shell, chain).await
+        }
         ChainCommands::DeployConsensusRegistry(args) => {
-            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::ConsensusRegistry).await
+            deploy_l2_contracts::run(
+                args,
+                shell,
+                Deploy2ContractsOption::ConsensusRegistry,
+                chain,
+                ecosystem.context(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)?,
+            )
+            .await
         }
         ChainCommands::DeployMulticall3(args) => {
-            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Multicall3).await
+            deploy_l2_contracts::run(
+                args,
+                shell,
+                Deploy2ContractsOption::Multicall3,
+                chain,
+                ecosystem.context(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)?,
+            )
+            .await
         }
         ChainCommands::DeployTimestampAsserter(args) => {
-            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::TimestampAsserter).await
+            deploy_l2_contracts::run(
+                args,
+                shell,
+                Deploy2ContractsOption::TimestampAsserter,
+                chain,
+                ecosystem.context(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)?,
+            )
+            .await
         }
         ChainCommands::DeployUpgrader(args) => {
-            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Upgrader).await
+            deploy_l2_contracts::run(
+                args,
+                shell,
+                Deploy2ContractsOption::Upgrader,
+                chain,
+                ecosystem.context(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)?,
+            )
+            .await
         }
         ChainCommands::InitializeBridges(args) => {
-            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::InitiailizeBridges).await
+            deploy_l2_contracts::run(
+                args,
+                shell,
+                Deploy2ContractsOption::InitiailizeBridges,
+                chain,
+                ecosystem.context(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)?,
+            )
+            .await
         }
         ChainCommands::DeployPaymaster(args) => deploy_paymaster::run(args, shell, chain).await,
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
-            set_token_multiplier_setter::run(args, shell).await
+            set_token_multiplier_setter::run(args, shell, chain).await
         }
         ChainCommands::Server(args) => server::run(shell, args, chain).await,
         ChainCommands::ContractVerifier(args) => contract_verifier::run(shell, args, chain).await,
         ChainCommands::Consensus(cmd) => cmd.run(shell).await,
+        ChainCommands::Create(_) => unreachable!("Chain create is handled before loading chain"),
     }
 }

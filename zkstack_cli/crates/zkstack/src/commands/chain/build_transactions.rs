@@ -1,8 +1,8 @@
 use anyhow::Context;
 use common::{git, logger, spinner::Spinner};
 use config::{
-    copy_configs, traits::SaveConfigWithBasePath, update_from_chain_config,
-    zkstack_config::ZkStackConfig,
+    copy_configs, traits::SaveConfigWithBasePath, update_from_chain_config, ChainConfig,
+    EcosystemConfig,
 };
 use ethers::utils::hex::ToHex;
 use xshell::Shell;
@@ -12,9 +12,9 @@ use crate::{
         args::build_transactions::BuildTransactionsArgs, register_chain::register_chain,
     },
     messages::{
-        MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER, MSG_CHAIN_NOT_FOUND_ERR,
-        MSG_CHAIN_TRANSACTIONS_BUILT, MSG_CHAIN_TXN_MISSING_CONTRACT_CONFIG,
-        MSG_CHAIN_TXN_OUT_PATH_INVALID_ERR, MSG_PREPARING_CONFIG_SPINNER, MSG_SELECTED_CONFIG,
+        MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER, MSG_CHAIN_TRANSACTIONS_BUILT,
+        MSG_CHAIN_TXN_MISSING_CONTRACT_CONFIG, MSG_CHAIN_TXN_OUT_PATH_INVALID_ERR,
+        MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_PREPARING_CONFIG_SPINNER, MSG_SELECTED_CONFIG,
         MSG_WRITING_OUTPUT_FILES_SPINNER,
     },
 };
@@ -27,40 +27,43 @@ const SCRIPT_CONFIG_FILE_SRC: &str =
     "contracts/l1-contracts/script-config/register-hyperchain.toml";
 const SCRIPT_CONFIG_FILE_DST: &str = "register-hyperchain.toml";
 
-pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<()> {
-    let config = ZkStackConfig::ecosystem(shell)?;
-    let chain_config = config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+pub(crate) async fn run(
+    args: BuildTransactionsArgs,
+    shell: &Shell,
+    chain: ChainConfig,
+    ecosystem: Option<EcosystemConfig>,
+) -> anyhow::Result<()> {
+    let ecosystem = ecosystem.context(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)?;
 
-    let args = args.fill_values_with_prompt(config.default_chain.clone());
+    let args = args.fill_values_with_prompt(ecosystem.default_chain.clone());
 
-    git::submodule_update(shell, config.link_to_code.clone())?;
+    git::submodule_update(shell, ecosystem.link_to_code.clone())?;
 
     let spinner = Spinner::new(MSG_PREPARING_CONFIG_SPINNER);
-    copy_configs(shell, &config.link_to_code, &chain_config.configs)?;
+    copy_configs(shell, &ecosystem.link_to_code, &chain.configs)?;
 
-    logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));
+    logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain));
 
-    let mut genesis_config = chain_config.get_genesis_config()?;
-    update_from_chain_config(&mut genesis_config, &chain_config)?;
+    let mut genesis_config = chain.get_genesis_config()?;
+    update_from_chain_config(&mut genesis_config, &chain)?;
 
     // Copy ecosystem contracts
-    let mut contracts_config = config
+    let mut contracts_config = ecosystem
         .get_contracts_config()
         .context(MSG_CHAIN_TXN_MISSING_CONTRACT_CONFIG)?;
-    contracts_config.l1.base_token_addr = chain_config.base_token.address;
+    contracts_config.l1.base_token_addr = chain.base_token.address;
     spinner.finish();
 
     let spinner = Spinner::new(MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER);
-    let governor: String = config.get_wallets()?.governor.address.encode_hex_upper();
+    let wallets = ecosystem.get_wallets()?;
+    let governor: String = wallets.governor.address.encode_hex_upper();
 
     register_chain(
         shell,
         args.forge_args.clone(),
-        &config,
-        &chain_config,
+        &chain,
         &mut contracts_config,
+        &wallets,
         args.l1_rpc_url.clone(),
         Some(governor),
         false,
@@ -76,12 +79,12 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
         .context(MSG_CHAIN_TXN_OUT_PATH_INVALID_ERR)?;
 
     shell.copy_file(
-        config.link_to_code.join(REGISTER_CHAIN_TXNS_FILE_SRC),
+        ecosystem.link_to_code.join(REGISTER_CHAIN_TXNS_FILE_SRC),
         args.out.join(REGISTER_CHAIN_TXNS_FILE_DST),
     )?;
 
     shell.copy_file(
-        config.link_to_code.join(SCRIPT_CONFIG_FILE_SRC),
+        ecosystem.link_to_code.join(SCRIPT_CONFIG_FILE_SRC),
         args.out.join(SCRIPT_CONFIG_FILE_DST),
     )?;
     spinner.finish();
