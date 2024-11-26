@@ -16,6 +16,7 @@ vise.workspace = true
 zksync_multivm.workspace = true
 zksync_types.workspace = true
 zksync_dal.workspace = true
+zksync_health_check.workspace = true
 zksync_state.workspace = true
 zksync_storage.workspace = true
 zksync_mempool.workspace = true
@@ -38,6 +39,7 @@ tracing.workspace = true
 futures.workspace = true
 once_cell.workspace = true
 itertools.workspace = true
+serde.workspace = true
 hex.workspace = true
 
 [dev-dependencies]

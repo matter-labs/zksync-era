@@ -7,6 +7,7 @@ use std::{
 use anyhow::Context as _;
 use tokio::sync::watch;
 use tracing::{info_span, Instrument};
+use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
@@ -24,12 +25,13 @@ use zksync_types::{
 
 use crate::{
     executor::TxExecutionResult,
+    health::StateKeeperHealthDetails,
     io::{IoCursor, L1BatchParams, L2BlockParams, OutputHandler, PendingBatchData, StateKeeperIO},
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
     seal_criteria::{ConditionalSealer, SealData, SealResolution, UnexecutableReason},
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
-    utils::gas_count_from_writes,
+    utils::{gas_count_from_writes, is_canceled},
 };
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
@@ -65,17 +67,16 @@ impl Error {
 /// a sequence of executed L2 blocks and batches.
 #[derive(Debug)]
 pub struct ZkSyncStateKeeper {
-    stop_receiver: watch::Receiver<bool>,
     io: Box<dyn StateKeeperIO>,
     output_handler: OutputHandler,
     batch_executor: Box<dyn BatchExecutorFactory<OwnedStorage>>,
     sealer: Arc<dyn ConditionalSealer>,
     storage_factory: Arc<dyn ReadStorageFactory>,
+    health_updater: HealthUpdater,
 }
 
 impl ZkSyncStateKeeper {
     pub fn new(
-        stop_receiver: watch::Receiver<bool>,
         sequencer: Box<dyn StateKeeperIO>,
         batch_executor: Box<dyn BatchExecutorFactory<OwnedStorage>>,
         output_handler: OutputHandler,
@@ -83,17 +84,17 @@ impl ZkSyncStateKeeper {
         storage_factory: Arc<dyn ReadStorageFactory>,
     ) -> Self {
         Self {
-            stop_receiver,
             io: sequencer,
             batch_executor,
             output_handler,
             sealer,
             storage_factory,
+            health_updater: ReactiveHealthCheck::new("state_keeper").1,
         }
     }
 
-    pub async fn run(mut self) -> anyhow::Result<()> {
-        match self.run_inner().await {
+    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        match self.run_inner(stop_receiver).await {
             Ok(_) => unreachable!(),
             Err(Error::Fatal(err)) => Err(err).context("state_keeper failed"),
             Err(Error::Canceled) => {
@@ -104,9 +105,14 @@ impl ZkSyncStateKeeper {
     }
 
     /// Fallible version of `run` routine that allows to easily exit upon cancellation.
-    async fn run_inner(&mut self) -> Result<Infallible, Error> {
+    async fn run_inner(
+        &mut self,
+        mut stop_receiver: watch::Receiver<bool>,
+    ) -> Result<Infallible, Error> {
         let (cursor, pending_batch_params) = self.io.initialize().await?;
         self.output_handler.initialize(&cursor).await?;
+        self.health_updater
+            .update(StateKeeperHealthDetails::from(&cursor).into());
         tracing::info!(
             "Starting state keeper. Next l1 batch to seal: {}, next L2 block to seal: {}",
             cursor.l1_batch,
@@ -135,7 +141,7 @@ impl ZkSyncStateKeeper {
             None => {
                 tracing::info!("There is no open pending batch, starting a new empty batch");
                 let (system_env, l1_batch_env, pubdata_params) = self
-                    .wait_for_new_batch_env(&cursor)
+                    .wait_for_new_batch_env(&cursor, &mut stop_receiver)
                     .await
                     .map_err(|e| e.context("wait_for_new_batch_params()"))?;
                 PendingBatchData {
@@ -154,22 +160,29 @@ impl ZkSyncStateKeeper {
             .await?;
 
         let mut batch_executor = self
-            .create_batch_executor(l1_batch_env.clone(), system_env.clone(), pubdata_params)
+            .create_batch_executor(
+                l1_batch_env.clone(),
+                system_env.clone(),
+                pubdata_params,
+                &stop_receiver,
+            )
             .await?;
         self.restore_state(
             &mut *batch_executor,
             &mut updates_manager,
             pending_l2_blocks,
+            &stop_receiver,
         )
         .await?;
 
         let mut l1_batch_seal_delta: Option<Instant> = None;
-        while !self.is_canceled() {
+        while !is_canceled(&stop_receiver) {
             // This function will run until the batch can be sealed.
             self.process_l1_batch(
                 &mut *batch_executor,
                 &mut updates_manager,
                 protocol_upgrade_tx,
+                &stop_receiver,
             )
             .await?;
 
@@ -178,8 +191,9 @@ impl ZkSyncStateKeeper {
                 self.seal_l2_block(&updates_manager).await?;
                 // We've sealed the L2 block that we had, but we still need to set up the timestamp
                 // for the fictive L2 block.
-                let new_l2_block_params =
-                    self.wait_for_new_l2_block_params(&updates_manager).await?;
+                let new_l2_block_params = self
+                    .wait_for_new_l2_block_params(&updates_manager, &stop_receiver)
+                    .await?;
                 Self::start_next_l2_block(
                     new_l2_block_params,
                     &mut updates_manager,
@@ -204,11 +218,17 @@ impl ZkSyncStateKeeper {
 
             // Start the new batch.
             next_cursor.l1_batch += 1;
-            (system_env, l1_batch_env, pubdata_params) =
-                self.wait_for_new_batch_env(&next_cursor).await?;
+            (system_env, l1_batch_env, pubdata_params) = self
+                .wait_for_new_batch_env(&next_cursor, &mut stop_receiver)
+                .await?;
             updates_manager = UpdatesManager::new(&l1_batch_env, &system_env, pubdata_params);
             batch_executor = self
-                .create_batch_executor(l1_batch_env.clone(), system_env.clone(), pubdata_params)
+                .create_batch_executor(
+                    l1_batch_env.clone(),
+                    system_env.clone(),
+                    pubdata_params,
+                    &stop_receiver,
+                )
                 .await?;
 
             let version_changed = system_env.version != sealed_batch_protocol_version;
@@ -226,10 +246,11 @@ impl ZkSyncStateKeeper {
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
         pubdata_params: PubdataParams,
+        stop_receiver: &watch::Receiver<bool>,
     ) -> Result<Box<dyn BatchExecutor<OwnedStorage>>, Error> {
         let storage = self
             .storage_factory
-            .access_storage(&self.stop_receiver, l1_batch_env.number - 1)
+            .access_storage(stop_receiver, l1_batch_env.number - 1)
             .await
             .context("failed creating VM storage")?
             .ok_or(Error::Canceled)?;
@@ -287,10 +308,6 @@ impl ZkSyncStateKeeper {
         Ok(protocol_upgrade_tx)
     }
 
-    fn is_canceled(&self) -> bool {
-        *self.stop_receiver.borrow()
-    }
-
     async fn load_upgrade_tx(
         &mut self,
         protocol_version: ProtocolVersionId,
@@ -310,8 +327,9 @@ impl ZkSyncStateKeeper {
     async fn wait_for_new_batch_params(
         &mut self,
         cursor: &IoCursor,
+        stop_receiver: &watch::Receiver<bool>,
     ) -> Result<L1BatchParams, Error> {
-        while !self.is_canceled() {
+        while !is_canceled(stop_receiver) {
             if let Some(params) = self
                 .io
                 .wait_for_new_batch_params(cursor, POLL_WAIT_DURATION)
@@ -332,10 +350,13 @@ impl ZkSyncStateKeeper {
     async fn wait_for_new_batch_env(
         &mut self,
         cursor: &IoCursor,
+        stop_receiver: &mut watch::Receiver<bool>,
     ) -> Result<(SystemEnv, L1BatchEnv, PubdataParams), Error> {
         // `io.wait_for_new_batch_params(..)` is not cancel-safe; once we get new batch params, we must hold onto them
         // until we get the rest of parameters from I/O or receive a stop signal.
-        let params = self.wait_for_new_batch_params(cursor).await?;
+        let params = self
+            .wait_for_new_batch_params(cursor, stop_receiver)
+            .await?;
         let contracts = self
             .io
             .load_base_system_contracts(params.protocol_version, cursor)
@@ -353,7 +374,7 @@ impl ZkSyncStateKeeper {
                 let previous_batch_hash = hash_result.context("cannot load state hash for previous L1 batch")?;
                 Ok(params.into_env(self.io.chain_id(), contracts, cursor, previous_batch_hash))
             }
-            _ = self.stop_receiver.changed() => Err(Error::Canceled),
+            _ = stop_receiver.changed() => Err(Error::Canceled),
         }
     }
 
@@ -367,16 +388,20 @@ impl ZkSyncStateKeeper {
     async fn wait_for_new_l2_block_params(
         &mut self,
         updates: &UpdatesManager,
+        stop_receiver: &watch::Receiver<bool>,
     ) -> Result<L2BlockParams, Error> {
         let latency = KEEPER_METRICS.wait_for_l2_block_params.start();
         let cursor = updates.io_cursor();
-        while !self.is_canceled() {
+        while !is_canceled(stop_receiver) {
             if let Some(params) = self
                 .io
                 .wait_for_new_l2_block_params(&cursor, POLL_WAIT_DURATION)
                 .await
                 .context("error waiting for new L2 block params")?
             {
+                self.health_updater
+                    .update(StateKeeperHealthDetails::from(&cursor).into());
+
                 latency.observe();
                 return Ok(params);
             }
@@ -439,6 +464,7 @@ impl ZkSyncStateKeeper {
         batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
         updates_manager: &mut UpdatesManager,
         l2_blocks_to_reexecute: Vec<L2BlockExecutionData>,
+        stop_receiver: &watch::Receiver<bool>,
     ) -> Result<(), Error> {
         if l2_blocks_to_reexecute.is_empty() {
             return Ok(());
@@ -530,7 +556,7 @@ impl ZkSyncStateKeeper {
 
         // We've processed all the L2 blocks, and right now we're initializing the next *actual* L2 block.
         let new_l2_block_params = self
-            .wait_for_new_l2_block_params(updates_manager)
+            .wait_for_new_l2_block_params(updates_manager, stop_receiver)
             .await
             .map_err(|e| e.context("wait_for_new_l2_block_params"))?;
         Self::start_next_l2_block(new_l2_block_params, updates_manager, batch_executor).await?;
@@ -547,13 +573,14 @@ impl ZkSyncStateKeeper {
         batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
         updates_manager: &mut UpdatesManager,
         protocol_upgrade_tx: Option<ProtocolUpgradeTx>,
+        stop_receiver: &watch::Receiver<bool>,
     ) -> Result<(), Error> {
         if let Some(protocol_upgrade_tx) = protocol_upgrade_tx {
             self.process_upgrade_tx(batch_executor, updates_manager, protocol_upgrade_tx)
                 .await?;
         }
 
-        while !self.is_canceled() {
+        while !is_canceled(stop_receiver) {
             let full_latency = KEEPER_METRICS.process_l1_batch_loop_iteration.start();
 
             if self
@@ -576,7 +603,7 @@ impl ZkSyncStateKeeper {
                 self.seal_l2_block(updates_manager).await?;
 
                 let new_l2_block_params = self
-                    .wait_for_new_l2_block_params(updates_manager)
+                    .wait_for_new_l2_block_params(updates_manager, stop_receiver)
                     .await
                     .map_err(|e| e.context("wait_for_new_l2_block_params"))?;
                 tracing::debug!(
@@ -873,5 +900,10 @@ impl ZkSyncStateKeeper {
         };
         latency.observe();
         Ok((resolution, exec_result))
+    }
+
+    /// Returns the health check for state keeper.
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.health_updater.subscribe()
     }
 }
