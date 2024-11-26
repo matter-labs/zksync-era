@@ -46,7 +46,6 @@ impl Server {
         shell: &Shell,
         execution_mode: ExecutionMode,
         server_mode: ServerMode,
-        chains_folder: P,
         genesis_path: P,
         wallets_path: P,
         general_path: P,
@@ -72,7 +71,6 @@ impl Server {
         run_server(
             shell,
             uring,
-            chains_folder,
             genesis_path,
             wallets_path,
             general_path,
@@ -110,7 +108,6 @@ impl Server {
 async fn run_server<P>(
     shell: &Shell,
     uring: Option<&str>,
-    chains_folder: P,
     genesis_path: P,
     wallets_path: P,
     general_path: P,
@@ -156,13 +153,17 @@ where
                 "docker run
                 --platform linux/amd64
                 --net=host
-                -v {chains_folder}:/chains
+                -v {genesis_path}:/genesis.yaml
+                -v {wallets_path}:/wallets.yaml
+                -v {general_path}:/general.yaml
+                -v {secrets_path}:/secrets.yaml
+                -v {contracts_path}:/contracts.yaml
                 matterlabs/server-v2:{tag}
-                --genesis-path {genesis_path}
-                --wallets-path {wallets_path}
-                --config-path {general_path}
-                --secrets-path {secrets_path}
-                --contracts-config-path {contracts_path}
+                --genesis-path /genesis.yaml
+                --wallets-path /wallets.yaml
+                --config-path /general.yaml
+                --secrets-path /secrets.yaml
+                --contracts-config-path /contracts.yaml
                 {additional_args...}"
             ))
         }

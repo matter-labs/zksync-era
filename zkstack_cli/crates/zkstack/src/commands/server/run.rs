@@ -4,8 +4,8 @@ use common::{
     server::{Server, ServerMode},
 };
 use config::{
-    traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
-    GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
+    traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, GeneralConfig, GenesisConfig,
+    SecretsConfig, WalletsConfig,
 };
 use xshell::Shell;
 
@@ -20,8 +20,6 @@ pub(super) async fn run_server(
     shell: &Shell,
 ) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt().await;
-
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     logger::info(MSG_STARTING_SERVER);
     let server = Server::new(
@@ -41,7 +39,6 @@ pub(super) async fn run_server(
             shell,
             args.mode.into(),
             server_mode,
-            ecosystem_config.chains,
             GenesisConfig::get_path_with_base_path(&chain_config.configs),
             WalletsConfig::get_path_with_base_path(&chain_config.configs),
             GeneralConfig::get_path_with_base_path(&chain_config.configs),

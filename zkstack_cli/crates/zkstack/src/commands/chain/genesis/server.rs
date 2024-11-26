@@ -30,14 +30,12 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
 }
 
 pub async fn run_server_genesis(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let server = Server::new(None, chain_config.link_to_code.clone(), false);
     server
         .run(
             shell,
             ExecutionMode::default(),
             ServerMode::Genesis,
-            ecosystem_config.chains,
             GenesisConfig::get_path_with_base_path(&chain_config.configs),
             WalletsConfig::get_path_with_base_path(&chain_config.configs),
             GeneralConfig::get_path_with_base_path(&chain_config.configs),
