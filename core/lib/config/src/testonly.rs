@@ -680,6 +680,7 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
                 tee_support: self.sample(rng),
                 first_tee_processed_batch: L1BatchNumber(rng.gen()),
                 tee_proof_generation_timeout_in_secs: self.sample(rng),
+                tee_batch_permanently_ignored_timeout_in_hours: self.sample(rng),
             },
         }
     }
@@ -850,6 +851,7 @@ impl Distribution<configs::secrets::L1Secrets> for EncodeDist {
         use configs::secrets::L1Secrets;
         L1Secrets {
             l1_rpc_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
+            gateway_rpc_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
         }
     }
 }
@@ -936,8 +938,6 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
                 _ => L1BatchCommitmentMode::Validium,
             },
             main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
-            gateway_url: self
-                .sample_opt(|| format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
             bridge_addresses_refresh_interval_sec: self.sample_opt(|| rng.gen()),
         }
     }

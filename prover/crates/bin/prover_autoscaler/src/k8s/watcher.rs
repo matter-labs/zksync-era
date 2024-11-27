@@ -13,9 +13,11 @@ use reqwest::{
     Method,
 };
 use tokio::sync::Mutex;
-use zksync_utils::http_with_retries::send_request_with_retries;
 
-use crate::cluster_types::{Cluster, Deployment, Namespace, Pod, ScaleEvent};
+use crate::{
+    cluster_types::{Cluster, Deployment, Namespace, Pod, ScaleEvent},
+    http_client::HttpClient,
+};
 
 #[derive(Clone)]
 pub struct Watcher {
@@ -23,11 +25,13 @@ pub struct Watcher {
     pub cluster: Arc<Mutex<Cluster>>,
 }
 
-async fn get_cluster_name() -> anyhow::Result<String> {
+async fn get_cluster_name(http_client: HttpClient) -> anyhow::Result<String> {
     let mut headers = HeaderMap::new();
     headers.insert("Metadata-Flavor", HeaderValue::from_static("Google"));
     let url = "http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name";
-    let response = send_request_with_retries(url, 5, Method::GET, Some(headers), None).await;
+    let response = http_client
+        .send_request_with_retries(url, Method::GET, Some(headers), None)
+        .await;
     response
         .map_err(|err| anyhow::anyhow!("Failed fetching response from url: {url}: {err:?}"))?
         .text()
@@ -37,6 +41,7 @@ async fn get_cluster_name() -> anyhow::Result<String> {
 
 impl Watcher {
     pub async fn new(
+        http_client: HttpClient,
         client: kube::Client,
         cluster_name: Option<String>,
         namespaces: Vec<String>,
@@ -48,7 +53,7 @@ impl Watcher {
 
         let cluster_name = match cluster_name {
             Some(c) => c,
-            None => get_cluster_name()
+            None => get_cluster_name(http_client)
                 .await
                 .expect("Load cluster_name from GCP"),
         };

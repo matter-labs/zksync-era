@@ -11,7 +11,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{
     block::{L1BatchTreeData, L2BlockHeader},
-    Address, L1BatchNumber,
+    Address, L1BatchNumber, L2ChainId,
 };
 use zksync_web3_decl::{
     client::{DynClient, L1, L2},
@@ -127,10 +127,12 @@ impl TreeDataFetcher {
     /// Attempts to fetch root hashes from L1 (namely, `BlockCommit` events emitted by the diamond proxy) if possible.
     /// The main node will still be used as a fallback in case communicating with L1 fails, or for newer batches,
     /// which may not be committed on L1.
-    pub fn with_l1_data(
+    pub async fn with_l1_data(
         mut self,
-        eth_client: Box<DynClient<L1>>,
-        diamond_proxy_address: Address,
+        l1_client: Box<DynClient<L1>>,
+        l1_diamond_proxy_addr: Address,
+        gateway_client: Option<Box<DynClient<L1>>>,
+        l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         anyhow::ensure!(
             self.diamond_proxy_address.is_none(),
@@ -138,11 +140,15 @@ impl TreeDataFetcher {
         );
 
         let l1_provider = L1DataProvider::new(
-            eth_client.for_component("tree_data_fetcher"),
-            diamond_proxy_address,
-        )?;
+            l1_client.for_component("tree_data_fetcher"),
+            l1_diamond_proxy_addr,
+            gateway_client.map(|c| c.for_component("tree_data_fetcher")),
+            self.pool.clone(),
+            l2_chain_id,
+        )
+        .await?;
         self.data_provider.set_l1(l1_provider);
-        self.diamond_proxy_address = Some(diamond_proxy_address);
+        self.diamond_proxy_address = Some(l1_diamond_proxy_addr);
         Ok(self)
     }
 

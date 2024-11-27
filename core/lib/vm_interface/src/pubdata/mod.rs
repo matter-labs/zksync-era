@@ -13,7 +13,7 @@ use zksync_types::{
 ///     bytes32 value;
 /// }
 /// ```
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct L1MessengerL2ToL1Log {
     pub l2_shard_id: u8,
     pub is_service: bool,
@@ -63,7 +63,7 @@ impl From<L1MessengerL2ToL1Log> for L2ToL1Log {
 }
 
 /// Struct based on which the pubdata blob is formed
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PubdataInput {
     pub user_logs: Vec<L1MessengerL2ToL1Log>,
     pub l2_to_l1_messages: Vec<Vec<u8>>,
