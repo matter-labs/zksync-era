@@ -29,9 +29,8 @@ use crate::{
     io::{IoCursor, L1BatchParams, L2BlockParams, OutputHandler, PendingBatchData, StateKeeperIO},
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
     seal_criteria::{ConditionalSealer, SealData, SealResolution, UnexecutableReason},
-    types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
-    utils::{gas_count_from_writes, is_canceled},
+    utils::is_canceled,
 };
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
@@ -500,7 +499,7 @@ impl ZkSyncStateKeeper {
 
                 let TxExecutionResult::Success {
                     tx_result,
-                    tx_metrics,
+                    tx_metrics: tx_execution_metrics,
                     compressed_bytecodes,
                     call_tracer_result,
                     ..
@@ -517,11 +516,6 @@ impl ZkSyncStateKeeper {
                     .into());
                 };
 
-                let ExecutionMetricsForCriteria {
-                    l1_gas: tx_l1_gas_this_tx,
-                    execution_metrics: tx_execution_metrics,
-                } = *tx_metrics;
-
                 let tx_hash = tx.hash();
                 let is_l1 = tx.is_l1();
                 let exec_result_status = tx_result.result.clone();
@@ -531,20 +525,17 @@ impl ZkSyncStateKeeper {
                     tx,
                     *tx_result,
                     compressed_bytecodes,
-                    tx_l1_gas_this_tx,
-                    tx_execution_metrics,
+                    *tx_execution_metrics,
                     call_tracer_result,
                 );
 
                 tracing::debug!(
                     "Finished re-executing tx {tx_hash} by {initiator_account} (is_l1: {is_l1}, \
                      #{idx_in_l1_batch} in L1 batch #{l1_batch_number}, #{idx_in_l2_block} in L2 block #{l2_block_number}); \
-                     status: {exec_result_status:?}. L1 gas spent: {tx_l1_gas_this_tx:?}, total in L1 batch: {pending_l1_gas:?}, \
-                     tx execution metrics: {tx_execution_metrics:?}, block execution metrics: {block_execution_metrics:?}",
+                     status: {exec_result_status:?}. Tx execution metrics: {tx_execution_metrics:?}, block execution metrics: {block_execution_metrics:?}",
                     idx_in_l1_batch = updates_manager.pending_executed_transactions_len(),
                     l1_batch_number = updates_manager.l1_batch.number,
                     idx_in_l2_block = updates_manager.l2_block.executed_transactions.len(),
-                    pending_l1_gas = updates_manager.pending_l1_gas_count(),
                     block_execution_metrics = updates_manager.pending_execution_metrics()
                 );
             }
@@ -639,7 +630,7 @@ impl ZkSyncStateKeeper {
                 SealResolution::NoSeal | SealResolution::IncludeAndSeal => {
                     let TxExecutionResult::Success {
                         tx_result,
-                        tx_metrics,
+                        tx_metrics: tx_execution_metrics,
                         call_tracer_result,
                         compressed_bytecodes,
                         ..
@@ -649,16 +640,11 @@ impl ZkSyncStateKeeper {
                             "Tx inclusion seal resolution must be a result of a successful tx execution",
                         );
                     };
-                    let ExecutionMetricsForCriteria {
-                        l1_gas: tx_l1_gas_this_tx,
-                        execution_metrics: tx_execution_metrics,
-                    } = *tx_metrics;
                     updates_manager.extend_from_executed_transaction(
                         tx,
                         *tx_result,
                         compressed_bytecodes,
-                        tx_l1_gas_this_tx,
-                        tx_execution_metrics,
+                        *tx_execution_metrics,
                         call_tracer_result,
                     );
                 }
@@ -714,7 +700,7 @@ impl ZkSyncStateKeeper {
             SealResolution::NoSeal | SealResolution::IncludeAndSeal => {
                 let TxExecutionResult::Success {
                     tx_result,
-                    tx_metrics,
+                    tx_metrics: tx_execution_metrics,
                     compressed_bytecodes,
                     call_tracer_result,
                     ..
@@ -729,17 +715,11 @@ impl ZkSyncStateKeeper {
                     anyhow::bail!("Failed upgrade tx {:?}", tx.hash());
                 }
 
-                let ExecutionMetricsForCriteria {
-                    l1_gas: tx_l1_gas_this_tx,
-                    execution_metrics: tx_execution_metrics,
-                    ..
-                } = *tx_metrics;
                 updates_manager.extend_from_executed_transaction(
                     tx,
                     *tx_result,
                     compressed_bytecodes,
-                    tx_l1_gas_this_tx,
-                    tx_execution_metrics,
+                    *tx_execution_metrics,
                     call_tracer_result,
                 );
                 Ok(())
@@ -823,20 +803,15 @@ impl ZkSyncStateKeeper {
             }
             TxExecutionResult::Success {
                 tx_result,
-                tx_metrics,
+                tx_metrics: tx_execution_metrics,
                 gas_remaining,
                 ..
             } => {
                 let tx_execution_status = &tx_result.result;
-                let ExecutionMetricsForCriteria {
-                    l1_gas: tx_l1_gas_this_tx,
-                    execution_metrics: tx_execution_metrics,
-                } = **tx_metrics;
 
                 tracing::trace!(
                     "finished tx {:?} by {:?} (is_l1: {}) (#{} in l1 batch {}) (#{} in L2 block {}) \
-                    status: {:?}. L1 gas spent: {:?}, total in l1 batch: {:?}, \
-                    tx execution metrics: {:?}, block execution metrics: {:?}",
+                    status: {:?}. Tx execution metrics: {:?}, block execution metrics: {:?}",
                     tx.hash(),
                     tx.initiator_account(),
                     tx.is_l1(),
@@ -845,10 +820,8 @@ impl ZkSyncStateKeeper {
                     updates_manager.l2_block.executed_transactions.len() + 1,
                     updates_manager.l2_block.number,
                     tx_execution_status,
-                    tx_l1_gas_this_tx,
-                    updates_manager.pending_l1_gas_count() + tx_l1_gas_this_tx,
                     &tx_execution_metrics,
-                    updates_manager.pending_execution_metrics() + tx_execution_metrics,
+                    updates_manager.pending_execution_metrics() + **tx_execution_metrics,
                 );
 
                 let encoding_len = tx.encoding_len();
@@ -858,20 +831,11 @@ impl ZkSyncStateKeeper {
                     .storage_writes_deduplicator
                     .apply_and_rollback(logs_to_apply_iter.clone());
 
-                let block_writes_l1_gas = gas_count_from_writes(
-                    &block_writes_metrics,
-                    updates_manager.protocol_version(),
-                );
-
                 let tx_writes_metrics =
                     StorageWritesDeduplicator::apply_on_empty_state(logs_to_apply_iter);
-                let tx_writes_l1_gas =
-                    gas_count_from_writes(&tx_writes_metrics, updates_manager.protocol_version());
-                let tx_gas_excluding_writes = tx_l1_gas_this_tx;
 
                 let tx_data = SealData {
-                    execution_metrics: tx_execution_metrics,
-                    gas_count: tx_gas_excluding_writes + tx_writes_l1_gas,
+                    execution_metrics: **tx_execution_metrics,
                     cumulative_size: encoding_len,
                     writes_metrics: tx_writes_metrics,
                     gas_remaining: *gas_remaining,
@@ -879,19 +843,18 @@ impl ZkSyncStateKeeper {
                 let block_data = SealData {
                     execution_metrics: tx_data.execution_metrics
                         + updates_manager.pending_execution_metrics(),
-                    gas_count: tx_gas_excluding_writes
-                        + block_writes_l1_gas
-                        + updates_manager.pending_l1_gas_count(),
                     cumulative_size: tx_data.cumulative_size
                         + updates_manager.pending_txs_encoding_size(),
                     writes_metrics: block_writes_metrics,
                     gas_remaining: *gas_remaining,
                 };
+                let is_tx_l1 = tx.is_l1() as usize;
 
                 self.sealer.should_seal_l1_batch(
                     updates_manager.l1_batch.number.0,
                     updates_manager.batch_timestamp() as u128 * 1_000,
                     updates_manager.pending_executed_transactions_len() + 1,
+                    updates_manager.pending_l1_transactions_len() + is_tx_l1,
                     &block_data,
                     &tx_data,
                     updates_manager.protocol_version(),

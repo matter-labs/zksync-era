@@ -231,7 +231,7 @@ impl EthSenderDal<'_, '_> {
         raw_tx: Vec<u8>,
         tx_type: AggregatedActionType,
         contract_address: Address,
-        predicted_gas_cost: u32,
+        predicted_gas_cost: Option<u32>,
         from_address: Option<Address>,
         blob_sidecar: Option<EthTxBlobSidecar>,
         is_gateway: bool,
@@ -262,7 +262,7 @@ impl EthSenderDal<'_, '_> {
             nonce as i64,
             tx_type.to_string(),
             address,
-            i64::from(predicted_gas_cost),
+            predicted_gas_cost.map(|c| i64::from(c)),
             from_address.as_ref().map(Address::as_bytes),
             blob_sidecar.map(|sidecar| bincode::serialize(&sidecar)
                 .expect("can always bincode serialize EthTxBlobSidecar; qed")),
@@ -515,7 +515,7 @@ impl EthSenderDal<'_, '_> {
             // Insert general tx descriptor.
             let eth_tx_id = sqlx::query_scalar!(
                 "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, chain_id, created_at, updated_at) \
-                VALUES ('\\x00', 0, $1, '', 0, $2, now(), now()) \
+                VALUES ('\\x00', 0, $1, '', NULL, $2, now(), now()) \
                 RETURNING id",
                 tx_type.to_string(),
                 sl_chain_id.map(|chain_id| chain_id.0 as i64)
