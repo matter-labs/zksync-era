@@ -9,9 +9,7 @@ use circuit_definitions::{
 #[cfg(feature = "gpu")]
 use fflonk_gpu::{bellman::bn256::Fq2, FflonkSnarkVerifierCircuitVK};
 use sha3::Digest;
-use tokio::io::AsyncWriteExt;
 use zkevm_test_harness::{
-    boojum::gadgets::u256::UInt256,
     franklin_crypto::bellman::{CurveAffine, PrimeField, PrimeFieldRepr},
     witness::recursive_aggregation::compute_leaf_params,
 };

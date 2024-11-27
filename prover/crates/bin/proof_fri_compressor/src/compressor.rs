@@ -158,6 +158,8 @@ impl ProofCompressor {
 
         let setup = keystore.load_fflonk_snark_verifier_setup_data()?;
 
+        tracing::info!("Loaded setup data for FFLONK verification");
+
         let proof = fflonk_gpu::gpu_prove_fflonk_snark_verifier_circuit_with_precomputation(
             &circuit,
             &setup,

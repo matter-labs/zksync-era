@@ -311,11 +311,7 @@ fn main() -> anyhow::Result<()> {
                 "Generating verification keys and storing them inside {:?}",
                 keystore.get_base_path()
             );
-            generate_vks(&keystore, jobs, quiet).context("generate_vks()")?;
-
-            // Let's also update the commitments file.
-            let commitments = keystore.generate_commitments()?;
-            keystore.save_commitments(&commitments)
+            generate_vks(&keystore, jobs, quiet).context("generate_vks()")
         }
         Command::UpdateCommitments { dryrun, path } => {
             let keystore = keystore_from_optional_path(path, None);

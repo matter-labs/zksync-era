@@ -125,9 +125,9 @@ impl Keystore {
             ProverServiceDataType::FinalizationHints => self
                 .basedir
                 .join(format!("finalization_hints_{}.bin", name)),
-            ProverServiceDataType::SnarkVerificationKey => self
-                .basedir
-                .join(format!("verification_{}_key.json", name)),
+            ProverServiceDataType::SnarkVerificationKey => {
+                self.basedir.join(format!("verification_{}_key.json", name))
+            }
             ProverServiceDataType::FflonkSnarkVerificationKey => self
                 .basedir
                 .join(format!("fflonk_verification_{}_key.json", name)),

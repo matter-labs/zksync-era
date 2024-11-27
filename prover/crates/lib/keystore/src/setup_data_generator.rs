@@ -229,7 +229,7 @@ impl SetupDataGenerator for GPUSetupDataGenerator {
                     Ok(bincode::serialize(&gpu_prover_setup_data)
                         .expect("Failed serializing setup data"))
                 }
-                ProvingStage::Scheduler => {
+                ProvingStage::Snark => {
                     unreachable!(
                         "We cannot serialize Fflonk data with bincode, it is done separately"
                     )
