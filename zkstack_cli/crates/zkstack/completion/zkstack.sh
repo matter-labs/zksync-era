@@ -1990,7 +1990,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__init)
-            opts="-a -d -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --server-db-url --server-db-name --dont-drop --deploy-paymaster --l1-rpc-url --no-port-reallocation --dev --verbose --chain --ignore-prerequisites --help configs help"
+            opts="-a -d -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --mode --tag --server-db-url --server-db-name --dont-drop --deploy-paymaster --l1-rpc-url --no-port-reallocation --dev --verbose --chain --ignore-prerequisites --help configs help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2017,6 +2017,14 @@ _zkstack() {
                     return 0
                     ;;
                 -a)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --mode)
+                    COMPREPLY=($(compgen -W "release debug docker" -- "${cur}"))
+                    return 0
+                    ;;
+                --tag)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -5128,7 +5136,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__ecosystem__init)
-            opts="-a -d -o -v -h --deploy-erc20 --deploy-ecosystem --ecosystem-contracts-path --l1-rpc-url --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --deploy-paymaster --server-db-url --server-db-name --dont-drop --ecosystem-only --dev --observability --no-port-reallocation --verbose --chain --ignore-prerequisites --help"
+            opts="-a -d -o -v -h --deploy-erc20 --deploy-ecosystem --ecosystem-contracts-path --l1-rpc-url --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --deploy-paymaster --mode --tag --server-db-url --server-db-name --dont-drop --ecosystem-only --dev --observability --no-port-reallocation --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5176,6 +5184,14 @@ _zkstack() {
                     ;;
                 --deploy-paymaster)
                     COMPREPLY=($(compgen -W "true false" -- "${cur}"))
+                    return 0
+                    ;;
+                --mode)
+                    COMPREPLY=($(compgen -W "release debug docker" -- "${cur}"))
+                    return 0
+                    ;;
+                --tag)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 --server-db-url)

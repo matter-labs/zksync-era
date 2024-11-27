@@ -126,6 +126,8 @@ _arguments "${_arguments_options[@]}" : \
 '*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--deploy-paymaster=[Deploy Paymaster contract]' \
+'--mode=[]:MODE:(release debug docker)' \
+'--tag=[]:TAG:_default' \
 '--server-db-url=[Server database url without database name]:SERVER_DB_URL:_default' \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '-o+[Enable Grafana]' \
@@ -280,6 +282,8 @@ _arguments "${_arguments_options[@]}" : \
 '--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
 '*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--mode=[]:MODE:(release debug docker)' \
+'--tag=[]:TAG:_default' \
 '--server-db-url=[Server database url without database name]:SERVER_DB_URL:_default' \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '--deploy-paymaster=[]' \

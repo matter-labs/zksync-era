@@ -103,6 +103,8 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_se
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l deploy-paymaster -d 'Deploy Paymaster contract' -r -f -a "{true\t'',false\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l mode -r -f -a "{release\t'',debug\t'',docker\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l tag -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l server-db-url -d 'Server database url without database name' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l server-db-name -d 'Server database name' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -s o -l observability -d 'Enable Grafana' -r -f -a "{true\t'',false\t''}"
@@ -181,6 +183,8 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l mode -r -f -a "{release\t'',debug\t'',docker\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l tag -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l server-db-url -d 'Server database url without database name' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l server-db-name -d 'Server database name' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l deploy-paymaster -r -f -a "{true\t'',false\t''}"
