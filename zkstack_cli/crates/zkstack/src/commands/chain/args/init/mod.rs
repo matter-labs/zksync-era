@@ -26,6 +26,10 @@ pub struct InitArgs {
     #[clap(flatten)]
     #[serde(flatten)]
     pub forge_args: ForgeScriptArgs,
+    #[arg(long, default_value = "release")]
+    pub mode: Mode,
+    #[arg(long)]
+    pub tag: Option<String>,
     #[clap(long, help = MSG_SERVER_DB_URL_HELP)]
     pub server_db_url: Option<Url>,
     #[clap(long, help = MSG_SERVER_DB_NAME_HELP)]
@@ -45,8 +49,8 @@ pub struct InitArgs {
 impl InitArgs {
     pub fn get_genesis_args(&self) -> GenesisArgs {
         GenesisArgs {
-            mode: Mode::Release, // TODO
-            tag: None,           // TODO
+            mode: self.mode.clone(),
+            tag: self.tag.clone(),
             server_db_url: self.server_db_url.clone(),
             server_db_name: self.server_db_name.clone(),
             dev: self.dev,

@@ -86,6 +86,10 @@ pub struct EcosystemInitArgs {
     /// Deploy Paymaster contract
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub deploy_paymaster: Option<bool>,
+    #[arg(long, default_value = "release")]
+    pub mode: Mode,
+    #[arg(long)]
+    pub tag: Option<String>,
     #[clap(long, help = MSG_SERVER_DB_URL_HELP)]
     pub server_db_url: Option<Url>,
     #[clap(long, help = MSG_SERVER_DB_NAME_HELP)]
@@ -106,8 +110,8 @@ pub struct EcosystemInitArgs {
 impl EcosystemInitArgs {
     pub fn get_genesis_args(&self) -> GenesisArgs {
         GenesisArgs {
-            mode: Mode::Release, // TODO
-            tag: None,           // TODO
+            mode: self.mode.clone(),
+            tag: self.tag.clone(),
             server_db_url: self.server_db_url.clone(),
             server_db_name: self.server_db_name.clone(),
             dev: self.dev,
