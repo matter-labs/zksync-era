@@ -216,17 +216,17 @@ where
         "docker run
             --platform linux/amd64
             --net=host
-            -v {genesis_path}:/genesis.yaml
-            -v {wallets_path}:/wallets.yaml
-            -v {general_path}:/general.yaml
-            -v {secrets_path}:/secrets.yaml
-            -v {contracts_path}:/contracts.yaml
+            -v {genesis_path}:/config/genesis.yaml
+            -v {wallets_path}:/config/wallets.yaml
+            -v {general_path}:/config/general.yaml
+            -v {secrets_path}:/config/secrets.yaml
+            -v {contracts_path}:/config/contracts.yaml
             matterlabs/server-v2:{tag}
-            --genesis-path /genesis.yaml
-            --wallets-path /wallets.yaml
-            --config-path /general.yaml
-            --secrets-path /secrets.yaml
-            --contracts-config-path /contracts.yaml
+            --genesis-path /config/genesis.yaml
+            --wallets-path /config/wallets.yaml
+            --config-path /config/general.yaml
+            --secrets-path /config/secrets.yaml
+            --contracts-config-path /config/contracts.yaml
             {additional_args...}"
     ))
 }
