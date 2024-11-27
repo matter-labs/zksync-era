@@ -7,6 +7,7 @@ use zksync_db_connection::{
     connection::Connection,
     error::DalResult,
     instrument::{InstrumentExt, Instrumented},
+    interpolate_query, match_query_as,
     utils::pg_interval_from_duration,
 };
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
@@ -242,13 +243,16 @@ impl TeeProofGenerationDal<'_, '_> {
         batch_number: L1BatchNumber,
         tee_type: Option<TeeType>,
     ) -> DalResult<Vec<StorageTeeProof>> {
-        let query = format!(
+        let query = match_query_as!(
+            StorageTeeProof,
+            [
             r#"
             SELECT
                 tp.pubkey,
                 tp.signature,
                 tp.proof,
                 tp.updated_at,
+                tp.status,
                 ta.attestation
             FROM
                 tee_proof_generation_details tp
@@ -256,22 +260,22 @@ impl TeeProofGenerationDal<'_, '_> {
                 tee_attestations ta ON tp.pubkey = ta.pubkey
             WHERE
                 tp.l1_batch_number = $1
-                AND tp.status = $2
-                {}
-            ORDER BY tp.l1_batch_number ASC, tp.tee_type ASC
             "#,
-            tee_type.map_or_else(String::new, |_| "AND tp.tee_type = $3".to_string())
+            _,
+            "ORDER BY tp.l1_batch_number ASC, tp.tee_type ASC"
+            ],
+            match(&tee_type) {
+                Some(tee_type) =>
+                    ("AND tp.tee_type = $2"; i64::from(batch_number.0), tee_type.to_string()),
+                None => (""; i64::from(batch_number.0)),
+            }
         );
 
-        let mut query = sqlx::query_as(&query)
-            .bind(i64::from(batch_number.0))
-            .bind(TeeProofGenerationJobStatus::Generated.to_string());
-
-        if let Some(tee_type) = tee_type {
-            query = query.bind(tee_type.to_string());
-        }
-
-        let proofs: Vec<StorageTeeProof> = query.fetch_all(self.storage.conn()).await.unwrap();
+        let proofs = query
+            .instrument("get_tee_proofs")
+            .with_arg("l1_batch_number", &batch_number)
+            .fetch_all(self.storage)
+            .await?;
 
         Ok(proofs)
     }
