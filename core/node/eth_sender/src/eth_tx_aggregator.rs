@@ -22,7 +22,7 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementMode,
-    web3::{contract::Error as Web3ContractError, BlockNumber},
+    web3::contract::Error as Web3ContractError,
     Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
 
@@ -51,19 +51,13 @@ pub struct MulticallData {
 pub struct EthTxAggregator {
     aggregator: Aggregator,
     eth_client: Box<dyn BoundEthInterface>,
+    eth_client_blobs: Option<Box<dyn BoundEthInterface>>,
     config: SenderConfig,
     timelock_contract_address: Address,
     l1_multicall3_address: Address,
     pub(super) state_transition_chain_contract: Address,
     functions: ZkSyncFunctions,
-    base_nonce: u64,
-    base_nonce_custom_commit_sender: Option<u64>,
     rollup_chain_id: L2ChainId,
-    /// If set to `Some` node is operating in the 4844 mode with two operator
-    /// addresses at play: the main one and the custom address for sending commit
-    /// transactions. The `Some` then contains the address of this custom operator
-    /// address.
-    custom_commit_sender_addr: Option<Address>,
     pool: ConnectionPool<Core>,
     settlement_mode: SettlementMode,
     sl_chain_id: SLChainId,
@@ -82,28 +76,15 @@ impl EthTxAggregator {
         config: SenderConfig,
         aggregator: Aggregator,
         eth_client: Box<dyn BoundEthInterface>,
+        eth_client_blobs: Option<Box<dyn BoundEthInterface>>,
         timelock_contract_address: Address,
         l1_multicall3_address: Address,
         state_transition_chain_contract: Address,
         rollup_chain_id: L2ChainId,
-        custom_commit_sender_addr: Option<Address>,
         settlement_mode: SettlementMode,
     ) -> Self {
         let eth_client = eth_client.for_component("eth_tx_aggregator");
         let functions = ZkSyncFunctions::default();
-        let base_nonce = eth_client.pending_nonce().await.unwrap().as_u64();
-
-        let base_nonce_custom_commit_sender = match custom_commit_sender_addr {
-            Some(addr) => Some(
-                (*eth_client)
-                    .as_ref()
-                    .nonce_at_for_account(addr, BlockNumber::Pending)
-                    .await
-                    .unwrap()
-                    .as_u64(),
-            ),
-            None => None,
-        };
 
         let sl_chain_id = (*eth_client).as_ref().fetch_chain_id().await.unwrap();
 
@@ -111,14 +92,12 @@ impl EthTxAggregator {
             config,
             aggregator,
             eth_client,
+            eth_client_blobs,
             timelock_contract_address,
             l1_multicall3_address,
             state_transition_chain_contract,
             functions,
-            base_nonce,
-            base_nonce_custom_commit_sender,
             rollup_chain_id,
-            custom_commit_sender_addr,
             pool,
             settlement_mode,
             sl_chain_id,
@@ -379,6 +358,21 @@ impl EthTxAggregator {
         &mut self,
         storage: &mut Connection<'_, Core>,
     ) -> Result<(), EthSenderError> {
+        if storage
+            .eth_sender_dal()
+            .get_number_of_failed_transactions()
+            .await
+            .unwrap()
+            != 0
+        {
+            tracing::error!(
+                "Skipping creating new transactions for eth-sender as there are failed transactions \
+                in database, they can be removed using block-reverter tool \
+                with option clear-failed-transactions",
+                );
+            return Ok(());
+        }
+
         let MulticallData {
             base_system_contracts_hashes,
             verifier_address,
@@ -612,11 +606,14 @@ impl EthTxAggregator {
     ) -> Result<EthTx, EthSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
         let op_type = aggregated_op.get_action_type();
-        // We may be using a custom sender for commit transactions, so use this
+        // We may be using a custom sender for transactions, so use this
         // var whatever it actually is: a `None` for single-addr operator or `Some`
         // for multi-addr operator in 4844 mode.
         let sender_addr = match (op_type, is_gateway) {
-            (AggregatedActionType::Commit, false) => self.custom_commit_sender_addr,
+            (AggregatedActionType::Commit, false) => self
+                .eth_client_blobs
+                .as_deref()
+                .map(BoundEthInterface::sender_account),
             (_, _) => None,
         };
         let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
@@ -673,16 +670,15 @@ impl EthTxAggregator {
             .await
             .unwrap()
             .unwrap_or(0);
-        // Between server starts we can execute some txs using operator account or remove some txs from the database
-        // At the start we have to consider this fact and get the max nonce.
-        Ok(if from_addr.is_none() {
-            db_nonce.max(self.base_nonce)
+        let client = if from_addr.is_some() {
+            self.eth_client_blobs.as_deref().unwrap()
         } else {
-            db_nonce.max(
-                self.base_nonce_custom_commit_sender
-                    .expect("custom base nonce is expected to be initialized; qed"),
-            )
-        })
+            self.eth_client.as_ref()
+        };
+        // We can execute some txs using operator account or remove some txs from the database
+        // We have to consider this fact and get the max nonce.
+        let base_nonce = client.pending_nonce().await.unwrap().as_u64();
+        Ok(db_nonce.max(base_nonce))
     }
 
     /// Returns the health check for eth tx aggregator.

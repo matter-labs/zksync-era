@@ -420,6 +420,10 @@ impl EthTxManager {
         finalized_block: L1BlockNumber,
     ) {
         let receipt_block_number = tx_status.receipt.block_number.unwrap().as_u32();
+        // We want to get info about failed transactions in metrics as soon as possible
+        if !tx_status.success {
+            METRICS.failed_transactions.inc();
+        }
         if receipt_block_number <= finalized_block.0 {
             self.health_updater.update(
                 EthTxManagerHealthDetails {
@@ -475,7 +479,6 @@ impl EthTxManager {
             tx_status.receipt,
             failure_reason
         );
-        panic!("We can't operate after tx fail");
     }
 
     pub async fn confirm_tx(
@@ -565,6 +568,20 @@ impl EthTxManager {
         current_block: L1BlockNumber,
         operator_type: OperatorType,
     ) {
+        // In case of failed transactions, we don't want to send any new transactions, but we
+        // don't panic to be able to process all in-flight txs (most likely mark them as failed).
+        // This strategy makes sense to make absolutely sure that we don't remove any transactions
+        // from database that are confirmed on L1, but not yet marked as such in our database
+        if storage
+            .eth_sender_dal()
+            .get_number_of_failed_transactions()
+            .await
+            .unwrap()
+            != 0
+        {
+            tracing::warn!("Skipping sending new transactions because of failed transactions");
+            return;
+        }
         let number_inflight_txs = storage
             .eth_sender_dal()
             .get_inflight_txs(
