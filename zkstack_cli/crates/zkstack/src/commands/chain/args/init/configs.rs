@@ -28,7 +28,7 @@ pub struct InitConfigsArgs {
     pub no_port_reallocation: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone)]
 pub struct InitConfigsArgsFinal {
     pub genesis_args: GenesisArgsFinal,
     pub l1_rpc_url: String,

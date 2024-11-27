@@ -1,13 +1,13 @@
 use anyhow::Context;
 use clap::Parser;
-use common::{db::DatabaseConfig, Prompt};
+use common::{db::DatabaseConfig, server::ExecutionMode, Prompt};
 use config::ChainConfig;
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use url::Url;
 
 use crate::{
-    commands::args::run::ExecutionMode,
+    commands::args::run::Mode,
     defaults::{generate_db_names, DBNames, DATABASE_SERVER_URL},
     messages::{
         msg_server_db_name_prompt, msg_server_db_url_prompt, MSG_SERVER_DB_NAME_HELP,
@@ -21,7 +21,7 @@ pub mod server;
 #[derive(Debug, Clone, Serialize, Deserialize, Parser, Default)]
 pub struct GenesisArgs {
     #[arg(long, default_value = "release")]
-    pub mode: ExecutionMode,
+    pub mode: Mode,
     #[arg(long)]
     pub tag: Option<String>,
     #[clap(long, help = MSG_SERVER_DB_URL_HELP)]
@@ -36,7 +36,7 @@ pub struct GenesisArgs {
 
 impl GenesisArgs {
     pub async fn fill_values_with_prompt(self, config: &ChainConfig) -> GenesisArgsFinal {
-        let tag = if let ExecutionMode::Docker = self.mode {
+        let tag = if let Mode::Docker = self.mode {
             self.tag
                 .or(select_tag().await.ok().or(Some("latest".to_string())))
         } else {
@@ -49,8 +49,7 @@ impl GenesisArgs {
             GenesisArgsFinal {
                 server_db: DatabaseConfig::new(DATABASE_SERVER_URL.clone(), server_name),
                 dont_drop: self.dont_drop,
-                mode: self.mode,
-                tag,
+                mode: self.mode.as_execution_mode(tag),
             }
         } else {
             let server_db_url = self.server_db_url.unwrap_or_else(|| {
@@ -66,11 +65,11 @@ impl GenesisArgs {
                 }),
                 separator = "_"
             );
+
             GenesisArgsFinal {
                 server_db: DatabaseConfig::new(server_db_url, server_db_name),
                 dont_drop: self.dont_drop,
-                mode: self.mode,
-                tag,
+                mode: self.mode.as_execution_mode(tag),
             }
         }
     }
@@ -104,10 +103,9 @@ impl GenesisArgs {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct GenesisArgsFinal {
     pub server_db: DatabaseConfig,
     pub dont_drop: bool,
     pub mode: ExecutionMode,
-    pub tag: Option<String>,
 }

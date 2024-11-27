@@ -1,6 +1,6 @@
 use std::{ffi::OsStr, path::PathBuf};
 
-use anyhow::{bail, Context};
+use anyhow::Context;
 use xshell::{cmd, Shell};
 
 use crate::cmd::Cmd;
@@ -21,12 +21,14 @@ pub enum ServerMode {
 }
 
 /// Possible execution modes.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub enum ExecutionMode {
     #[default]
     Release,
     Debug,
-    Docker,
+    Docker {
+        tag: String,
+    },
 }
 
 impl Server {
@@ -52,7 +54,6 @@ impl Server {
         secrets_path: P,
         contracts_path: P,
         mut additional_args: Vec<String>,
-        tag: Option<String>,
     ) -> anyhow::Result<()>
     where
         P: AsRef<OsStr>,
@@ -79,7 +80,6 @@ impl Server {
             additional_args,
             execution_mode,
             server_mode,
-            tag,
         )
         .await?;
 
@@ -116,7 +116,6 @@ async fn run_server<P>(
     additional_args: Vec<String>,
     execution_mode: ExecutionMode,
     server_mode: ServerMode,
-    tag: Option<String>,
 ) -> anyhow::Result<()>
 where
     P: AsRef<OsStr>,
@@ -144,14 +143,9 @@ where
             contracts_path,
             additional_args,
         ),
-        ExecutionMode::Docker => {
-            let Some(tag) = tag else {
-                bail!("Undefined docker image tag");
-            };
-
-            Cmd::new(cmd!(
-                shell,
-                "docker run
+        ExecutionMode::Docker { tag } => Cmd::new(cmd!(
+            shell,
+            "docker run
                 --platform linux/amd64
                 --net=host
                 -v {genesis_path}:/genesis.yaml
@@ -166,8 +160,7 @@ where
                 --secrets-path /secrets.yaml
                 --contracts-config-path /contracts.yaml
                 {additional_args...}"
-            ))
-        }
+        )),
     };
 
     // If we are running server in normal mode

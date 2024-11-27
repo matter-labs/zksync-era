@@ -37,7 +37,7 @@ pub(super) async fn run_server(
     server
         .run(
             shell,
-            args.mode.into(),
+            args.mode,
             server_mode,
             GenesisConfig::get_path_with_base_path(&chain_config.configs),
             WalletsConfig::get_path_with_base_path(&chain_config.configs),
@@ -45,7 +45,6 @@ pub(super) async fn run_server(
             SecretsConfig::get_path_with_base_path(&chain_config.configs),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
             vec![],
-            args.tag,
         )
         .await
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)

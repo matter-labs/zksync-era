@@ -7,7 +7,7 @@ use url::Url;
 
 use crate::{
     commands::{
-        args::run::ExecutionMode,
+        args::run::Mode,
         chain::args::genesis::{GenesisArgs, GenesisArgsFinal},
     },
     defaults::LOCAL_RPC_URL,
@@ -45,8 +45,8 @@ pub struct InitArgs {
 impl InitArgs {
     pub fn get_genesis_args(&self) -> GenesisArgs {
         GenesisArgs {
-            mode: ExecutionMode::Release,
-            tag: None,
+            mode: Mode::Release, // TODO
+            tag: None,           // TODO
             server_db_url: self.server_db_url.clone(),
             server_db_name: self.server_db_name.clone(),
             dev: self.dev,
@@ -96,7 +96,7 @@ impl InitArgs {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone)]
 pub struct InitArgsFinal {
     pub forge_args: ForgeScriptArgs,
     pub genesis_args: GenesisArgsFinal,

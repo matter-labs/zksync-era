@@ -1,4 +1,5 @@
 use clap::{Parser, ValueEnum};
+use common::server::ExecutionMode;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -10,19 +11,21 @@ use crate::{
 };
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, ValueEnum)]
-pub enum ExecutionMode {
+pub enum Mode {
     #[default]
     Release,
     Debug,
     Docker,
 }
 
-impl From<ExecutionMode> for common::server::ExecutionMode {
-    fn from(mode: ExecutionMode) -> Self {
-        match mode {
-            ExecutionMode::Debug => Self::Debug,
-            ExecutionMode::Release => Self::Release,
-            ExecutionMode::Docker => Self::Docker,
+impl Mode {
+    pub fn as_execution_mode(self, tag: Option<String>) -> ExecutionMode {
+        match self {
+            Mode::Debug => ExecutionMode::Debug,
+            Mode::Release => ExecutionMode::Release,
+            Mode::Docker => ExecutionMode::Docker {
+                tag: tag.unwrap_or("latest".to_string()),
+            },
         }
     }
 }
@@ -30,7 +33,7 @@ impl From<ExecutionMode> for common::server::ExecutionMode {
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct RunServerArgs {
     #[arg(long, default_value = "release")]
-    pub mode: ExecutionMode,
+    pub mode: Mode,
     #[arg(long)]
     pub tag: Option<String>,
     #[arg(long, help = MSG_SERVER_COMPONENTS_HELP)]
@@ -51,7 +54,7 @@ pub struct RunServerArgs {
 
 impl RunServerArgs {
     pub async fn fill_values_with_prompt(self) -> RunServerArgsFinal {
-        let tag = if let ExecutionMode::Docker = self.mode {
+        let tag = if let Mode::Docker = self.mode {
             self.tag
                 .or(select_tag().await.ok().or(Some("latest".to_string())))
         } else {
@@ -59,8 +62,7 @@ impl RunServerArgs {
         };
 
         RunServerArgsFinal {
-            mode: self.mode,
-            tag,
+            mode: self.mode.as_execution_mode(tag),
             components: self.components,
             genesis: self.genesis,
             additional_args: self.additional_args,
@@ -69,10 +71,9 @@ impl RunServerArgs {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Parser)]
+#[derive(Debug)]
 pub struct RunServerArgsFinal {
     pub mode: ExecutionMode,
-    pub tag: Option<String>,
     pub components: Option<Vec<String>>,
     pub genesis: bool,
     pub additional_args: Vec<String>,

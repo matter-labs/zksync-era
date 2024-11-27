@@ -27,7 +27,7 @@ pub async fn run(args: GenesisServerArgs, shell: &Shell) -> anyhow::Result<()> {
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
     let spinner = Spinner::new(MSG_STARTING_GENESIS_SPINNER);
-    run_server_genesis(&chain_config, shell, args.mode.into(), args.tag).await?;
+    run_server_genesis(&chain_config, shell, args.mode.into()).await?;
     spinner.finish();
     logger::outro(MSG_GENESIS_COMPLETED);
 
@@ -38,7 +38,6 @@ pub async fn run_server_genesis(
     chain_config: &ChainConfig,
     shell: &Shell,
     execution_mode: ExecutionMode,
-    tag: Option<String>,
 ) -> anyhow::Result<()> {
     let server = Server::new(None, chain_config.link_to_code.clone(), false);
     server
@@ -52,7 +51,6 @@ pub async fn run_server_genesis(
             SecretsConfig::get_path_with_base_path(&chain_config.configs),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
             vec![],
-            tag,
         )
         .await
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)
