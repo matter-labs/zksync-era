@@ -161,7 +161,7 @@ impl MainNodeBuilder {
         let query_eth_client_layer = QueryEthClientLayer::new(
             genesis.settlement_layer_id(),
             eth_config.l1_rpc_url,
-            eth_config.gateway_url,
+            eth_config.gateway_rpc_url,
         );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)

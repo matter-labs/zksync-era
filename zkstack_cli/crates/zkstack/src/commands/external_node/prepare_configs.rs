@@ -111,7 +111,7 @@ fn prepare_configs(
         }),
         l1: Some(L1Secrets {
             l1_rpc_url: SensitiveUrl::from_str(&args.l1_rpc_url).context("l1_rpc_url")?,
-            gateway_url: None,
+            gateway_rpc_url: None,
         }),
         data_availability: None,
     };
