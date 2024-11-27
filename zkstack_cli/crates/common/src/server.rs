@@ -1,6 +1,6 @@
 use std::{ffi::OsStr, path::PathBuf};
 
-use anyhow::Context;
+use anyhow::{bail, Context};
 use xshell::{cmd, Shell};
 
 use crate::cmd::Cmd;
@@ -145,8 +145,9 @@ where
             additional_args,
         ),
         ExecutionMode::Docker => {
-            // safe to unwrap when ExecutionMode is Docker because we invoke fill_values_with_prompt
-            let tag = tag.unwrap();
+            let Some(tag) = tag else {
+                bail!("Undefined docker image tag");
+            };
 
             Cmd::new(cmd!(
                 shell,
