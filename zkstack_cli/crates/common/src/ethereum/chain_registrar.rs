@@ -11,9 +11,6 @@ abigen!(
     r"[
         struct RegisteredChainConfig {address pendingChainAdmin;address chainAdmin;address diamondProxy;address l2BridgeAddress;}
         function getRegisteredChainConfig(uint256 chainId) public view returns (RegisteredChainConfig memory)
-        event NewChainDeployed(uint256 indexed chainId, address author, address diamondProxy, address chainAdmin)
-        event NewChainRegistrationProposal(uint256 indexed chainId, address author, bytes32 key)
-        event SharedBridgeRegistered(uint256 indexed chainId, address l2Address)
     ]"
 );
 
