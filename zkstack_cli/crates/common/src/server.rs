@@ -143,24 +143,16 @@ where
             contracts_path,
             additional_args,
         ),
-        ExecutionMode::Docker { tag } => Cmd::new(cmd!(
+        ExecutionMode::Docker { tag } => docker_run(
             shell,
-            "docker run
-                --platform linux/amd64
-                --net=host
-                -v {genesis_path}:/genesis.yaml
-                -v {wallets_path}:/wallets.yaml
-                -v {general_path}:/general.yaml
-                -v {secrets_path}:/secrets.yaml
-                -v {contracts_path}:/contracts.yaml
-                matterlabs/server-v2:{tag}
-                --genesis-path /genesis.yaml
-                --wallets-path /wallets.yaml
-                --config-path /general.yaml
-                --secrets-path /secrets.yaml
-                --contracts-config-path /contracts.yaml
-                {additional_args...}"
-        )),
+            genesis_path,
+            wallets_path,
+            general_path,
+            secrets_path,
+            contracts_path,
+            additional_args,
+            tag,
+        ),
     };
 
     // If we are running server in normal mode
@@ -203,4 +195,38 @@ where
         .args(additional_args)
         .env_remove("RUSTUP_TOOLCHAIN"),
     )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn docker_run<'a, P>(
+    shell: &'a Shell,
+    genesis_path: P,
+    wallets_path: P,
+    general_path: P,
+    secrets_path: P,
+    contracts_path: P,
+    additional_args: Vec<String>,
+    tag: String,
+) -> Cmd<'a>
+where
+    P: AsRef<OsStr>,
+{
+    Cmd::new(cmd!(
+        shell,
+        "docker run
+            --platform linux/amd64
+            --net=host
+            -v {genesis_path}:/genesis.yaml
+            -v {wallets_path}:/wallets.yaml
+            -v {general_path}:/general.yaml
+            -v {secrets_path}:/secrets.yaml
+            -v {contracts_path}:/contracts.yaml
+            matterlabs/server-v2:{tag}
+            --genesis-path /genesis.yaml
+            --wallets-path /wallets.yaml
+            --config-path /general.yaml
+            --secrets-path /secrets.yaml
+            --contracts-config-path /contracts.yaml
+            {additional_args...}"
+    ))
 }
