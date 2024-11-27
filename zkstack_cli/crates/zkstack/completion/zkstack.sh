@@ -1698,7 +1698,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__genesis__server)
-            opts="-a -v -h --mode --tag --components --genesis --additional-args --uring --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --mode --tag --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1709,18 +1709,6 @@ _zkstack() {
                     return 0
                     ;;
                 --tag)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --components)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --additional-args)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                -a)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
