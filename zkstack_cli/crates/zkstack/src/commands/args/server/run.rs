@@ -19,7 +19,7 @@ pub enum Mode {
 }
 
 impl Mode {
-    pub fn as_execution_mode(self, tag: Option<String>) -> ExecutionMode {
+    pub fn as_execution_mode(&self, tag: Option<String>) -> ExecutionMode {
         match self {
             Mode::Debug => ExecutionMode::Debug,
             Mode::Release => ExecutionMode::Release,
@@ -65,7 +65,6 @@ impl RunServerArgs {
             mode: self.mode.as_execution_mode(tag),
             components: self.components,
             genesis: self.genesis,
-            additional_args: self.additional_args,
             uring: self.uring,
         }
     }
@@ -76,6 +75,5 @@ pub struct RunServerArgsFinal {
     pub mode: ExecutionMode,
     pub components: Option<Vec<String>>,
     pub genesis: bool,
-    pub additional_args: Vec<String>,
     pub uring: bool,
 }

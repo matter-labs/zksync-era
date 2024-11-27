@@ -91,7 +91,6 @@ impl InitArgs {
             deploy_paymaster,
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
-            dev: self.dev,
         }
     }
 }
@@ -103,5 +102,4 @@ pub struct InitArgsFinal {
     pub deploy_paymaster: bool,
     pub l1_rpc_url: String,
     pub no_port_reallocation: bool,
-    pub dev: bool,
 }

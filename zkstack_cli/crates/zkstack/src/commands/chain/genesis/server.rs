@@ -27,7 +27,7 @@ pub async fn run(args: GenesisServerArgs, shell: &Shell) -> anyhow::Result<()> {
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
     let spinner = Spinner::new(MSG_STARTING_GENESIS_SPINNER);
-    run_server_genesis(&chain_config, shell, args.mode.into()).await?;
+    run_server_genesis(&chain_config, shell, args.mode).await?;
     spinner.finish();
     logger::outro(MSG_GENESIS_COMPLETED);
 
