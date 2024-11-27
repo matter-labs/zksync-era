@@ -198,8 +198,8 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-fn docker_run<'a, P>(
-    shell: &'a Shell,
+fn docker_run<P>(
+    shell: &Shell,
     genesis_path: P,
     wallets_path: P,
     general_path: P,
@@ -207,7 +207,7 @@ fn docker_run<'a, P>(
     contracts_path: P,
     additional_args: Vec<String>,
     tag: String,
-) -> Cmd<'a>
+) -> Cmd<'_>
 where
     P: AsRef<OsStr>,
 {
