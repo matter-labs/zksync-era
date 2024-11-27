@@ -204,14 +204,13 @@ impl TestScenario {
         let (stop_sender, stop_receiver) = watch::channel(false);
         let (io, output_handler) = TestIO::new(stop_sender, self);
         let state_keeper = ZkSyncStateKeeper::new(
-            stop_receiver,
             Box::new(io),
             Box::new(batch_executor),
             output_handler,
             Arc::new(sealer),
             Arc::new(MockReadStorageFactory),
         );
-        let sk_thread = tokio::spawn(state_keeper.run());
+        let sk_thread = tokio::spawn(state_keeper.run(stop_receiver));
 
         // We must assume that *theoretically* state keeper may ignore the stop signal from IO once scenario is
         // completed, so we spawn it in a separate thread to not get test stuck.

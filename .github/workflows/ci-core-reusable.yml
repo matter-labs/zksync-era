@@ -69,7 +69,7 @@ jobs:
 
       - name: Build contracts
         run: |
-          ci_run zkstack dev contracts
+          ci_run zkstack dev contracts -v
 
       - name: Contracts unit tests
         run: ci_run yarn l1-contracts test
