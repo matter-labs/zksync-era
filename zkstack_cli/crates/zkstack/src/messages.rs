@@ -266,6 +266,7 @@ pub(super) const MSG_SERVER_GENESIS_HELP: &str = "Run server in genesis mode";
 pub(super) const MSG_SERVER_ADDITIONAL_ARGS_HELP: &str =
     "Additional arguments that can be passed through the CLI";
 pub(super) const MSG_SERVER_URING_HELP: &str = "Enables uring support for RocksDB";
+pub(super) const MSG_SERVER_SELECT_DOCKER_IMAGE_TAG: &str = "Select Docker image tag:";
 
 /// Accept ownership related messages
 pub(super) const MSG_ACCEPTING_GOVERNANCE_SPINNER: &str = "Accepting governance...";

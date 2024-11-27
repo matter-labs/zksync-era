@@ -1,5 +1,7 @@
 use common::{github::GitHubTagFetcher, PromptSelect};
 
+use crate::messages::MSG_SERVER_SELECT_DOCKER_IMAGE_TAG;
+
 pub async fn select_tag() -> anyhow::Result<String> {
     let fetcher = GitHubTagFetcher::new(None)?;
     let gh_tags = fetcher.get_newest_core_tags(Some(5)).await?;
@@ -12,5 +14,5 @@ pub async fn select_tag() -> anyhow::Result<String> {
         )
         .collect();
 
-    Ok(PromptSelect::new("Select image", tags).ask())
+    Ok(PromptSelect::new(MSG_SERVER_SELECT_DOCKER_IMAGE_TAG, tags).ask())
 }
