@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use zksync_bin_metadata::BIN_METADATA;
 use zksync_config::configs::api::HealthCheckConfig;
 use zksync_health_check::AppHealthCheck;
 use zksync_node_api_server::healthcheck::HealthCheckHandle;
@@ -73,8 +74,9 @@ impl Task for HealthCheckTask {
     }
 
     async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.app_health_check.set_details(BIN_METADATA);
         let handle =
-            HealthCheckHandle::spawn_server(self.config.bind_addr(), self.app_health_check.clone());
+            HealthCheckHandle::spawn_server(self.config.bind_addr(), self.app_health_check);
         stop_receiver.0.changed().await?;
         handle.stop().await;
 

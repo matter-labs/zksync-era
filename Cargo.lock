@@ -11933,7 +11933,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_bin_metadata",
 ]
 
 [[package]]
