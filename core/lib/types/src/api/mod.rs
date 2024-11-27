@@ -4,7 +4,6 @@ use serde_json::Value;
 use serde_with::{hex::Hex, serde_as};
 use strum::Display;
 use zksync_basic_types::{
-    tee_types::TeeType,
     web3::{AccessList, Bytes, Index},
     Bloom, L1BatchNumber, SLChainId, H160, H256, H64, U256, U64,
 };
@@ -16,6 +15,7 @@ pub use crate::transaction_request::{
 use crate::{
     debug_flat_call::{DebugCallFlat, ResultDebugCallFlat},
     protocol_version::L1VerifierConfig,
+    tee_types::TeeType,
     Address, L2BlockNumber, ProtocolVersionId,
 };
 
@@ -927,6 +927,7 @@ pub struct TeeProof {
     #[serde_as(as = "Option<Hex>")]
     pub proof: Option<Vec<u8>>,
     pub proved_at: DateTime<Utc>,
+    pub status: String,
     #[serde_as(as = "Option<Hex>")]
     pub attestation: Option<Vec<u8>>,
 }

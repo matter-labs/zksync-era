@@ -695,7 +695,7 @@ impl EthSenderDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_number_of_failed_transactions(&mut self) -> anyhow::Result<i64> {
+    pub async fn get_number_of_failed_transactions(&mut self) -> anyhow::Result<u64> {
         sqlx::query!(
             r#"
             SELECT
@@ -709,6 +709,7 @@ impl EthSenderDal<'_, '_> {
         .fetch_one(self.storage.conn())
         .await?
         .count
+        .map(|c| c as u64)
         .context("count field is missing")
     }
 

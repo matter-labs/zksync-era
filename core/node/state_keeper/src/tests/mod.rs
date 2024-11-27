@@ -417,14 +417,13 @@ async fn load_upgrade_tx() {
     let sealer = SequencerSealer::default();
     let scenario = TestScenario::new();
     let batch_executor = TestBatchExecutorBuilder::new(&scenario);
-    let (stop_sender, stop_receiver) = watch::channel(false);
+    let (stop_sender, _stop_receiver) = watch::channel(false);
 
     let (mut io, output_handler) = TestIO::new(stop_sender, scenario);
     io.add_upgrade_tx(ProtocolVersionId::latest(), random_upgrade_tx(1));
     io.add_upgrade_tx(ProtocolVersionId::next(), random_upgrade_tx(2));
 
     let mut sk = ZkSyncStateKeeper::new(
-        stop_receiver,
         Box::new(io),
         Box::new(batch_executor),
         output_handler,
