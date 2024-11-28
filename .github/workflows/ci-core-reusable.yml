@@ -189,6 +189,7 @@ jobs:
           echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
           echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
           echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
+          echo "RUST_LOG=info,foundry_compilers::compilers::zksolc=trace" >> .env
           echo "RUSTC_WRAPPER=sccache" >> .env
           echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> $GITHUB_ENV
