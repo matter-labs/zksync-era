@@ -20,7 +20,11 @@ import { assert, expect } from 'chai';
 import fs from 'node:fs/promises';
 import * as child_process from 'child_process';
 import * as dotenv from 'dotenv';
-import { loadConfig, replaceAggregatedBlockExecuteDeadline, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+import {
+    loadConfig,
+    replaceL1BatchMinAgeBeforeExecuteSeconds,
+    shouldLoadConfigFromFile
+} from 'utils/build/file-configs';
 import path from 'path';
 import { logsTestPath } from 'utils/build/logs';
 import { IZkSyncHyperchain, IZkSyncHyperchain__factory } from 'zksync-ethers/build/typechain';
@@ -288,7 +292,7 @@ describe('Block reverting test', function () {
         await extNode.terminate();
 
         if (fileConfig.loadFromFile) {
-            replaceAggregatedBlockExecuteDeadline(pathToHome, fileConfig, 10);
+            replaceL1BatchMinAgeBeforeExecuteSeconds(pathToHome, fileConfig, 0);
         }
     });
 });
