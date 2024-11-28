@@ -50,7 +50,7 @@ impl UnstableNamespace {
         tee_type: Option<TeeType>,
     ) -> Result<Vec<TeeProof>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
-        Ok(storage
+        let proofs = storage
             .tee_proof_generation_dal()
             .get_tee_proofs(l1_batch_number, tee_type)
             .await
@@ -63,9 +63,12 @@ impl UnstableNamespace {
                 signature: proof.signature,
                 proof: proof.proof,
                 proved_at: DateTime::<Utc>::from_naive_utc_and_offset(proof.updated_at, Utc),
+                status: proof.status,
                 attestation: proof.attestation,
             })
-            .collect::<Vec<_>>())
+            .collect::<Vec<_>>();
+
+        Ok(proofs)
     }
 
     pub async fn get_chain_log_proof_impl(
@@ -98,20 +101,20 @@ impl UnstableNamespace {
 
         let Some((chain_id_leaf_proof_mask, _)) = chain_ids
             .iter()
-            .find_position(|id| **id == H256::from_low_u64_be(l2_chain_id.0))
+            .find_position(|id| **id == H256::from_low_u64_be(l2_chain_id.as_u64()))
         else {
             return Ok(None);
         };
 
-        let mut leafs = Vec::new();
+        let mut leaves = Vec::new();
         for chain_id in chain_ids {
             let chain_root =
                 get_chain_root_from_id(&mut connection, chain_id, l2_block_number).await?;
-            leafs.push(chain_id_leaf_preimage(chain_root, chain_id));
+            leaves.push(chain_id_leaf_preimage(chain_root, chain_id));
         }
 
         let chain_merkle_tree =
-            MiniMerkleTree::<[u8; 96], KeccakHasher>::new(leafs.into_iter(), None);
+            MiniMerkleTree::<[u8; 96], KeccakHasher>::new(leaves.into_iter(), None);
 
         let mut chain_id_leaf_proof = chain_merkle_tree
             .merkle_root_and_path(chain_id_leaf_proof_mask)
@@ -133,7 +136,7 @@ impl UnstableNamespace {
 
         Ok(Some(ChainAggProof {
             chain_id_leaf_proof,
-            chain_id_leaf_proof_mask: chain_id_leaf_proof_mask.into(),
+            chain_id_leaf_proof_mask: chain_id_leaf_proof_mask as u64,
         }))
     }
 }

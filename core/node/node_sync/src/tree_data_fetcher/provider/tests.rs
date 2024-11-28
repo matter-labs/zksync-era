@@ -317,7 +317,7 @@ async fn create_l1_data_provider(
         L1_DIAMOND_PROXY_ADDRESS,
         None,
         pool,
-        L2ChainId(ERA_CHAIN_ID),
+        L2ChainId::new(ERA_CHAIN_ID).unwrap(),
     )
     .await
     .unwrap()
@@ -403,7 +403,7 @@ async fn using_different_settlement_layers() {
         L1_DIAMOND_PROXY_ADDRESS,
         Some(Box::new(params_array[1].client())),
         pool,
-        L2ChainId(ERA_CHAIN_ID),
+        L2ChainId::new(ERA_CHAIN_ID).unwrap(),
     )
     .await
     .unwrap();
@@ -413,7 +413,7 @@ async fn using_different_settlement_layers() {
             .batch_details(number, &get_last_l2_block(&mut storage, number).await)
             .await
             .unwrap()
-            .unwrap_or_else(|_| panic!("no root hash for batch #{number}"));
+            .expect(&format!("no root hash for batch #{number}"));
         assert_eq!(root_hash, H256::repeat_byte(number.0 as u8));
 
         let past_l1_batch = provider.past_l1_batch.unwrap();

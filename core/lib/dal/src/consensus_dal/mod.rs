@@ -301,10 +301,10 @@ impl ConsensusDal<'_, '_> {
             .get_pruning_info()
             .await
             .context("get_pruning_info()")?;
-        Ok(match info.last_soft_pruned_l2_block {
+        Ok(match info.last_soft_pruned {
             // It is guaranteed that pruning info values are set for storage recovered from
             // snapshot, even if pruning was not enabled.
-            Some(last_pruned) => validator::BlockNumber(last_pruned.0.into()) + 1,
+            Some(last_pruned) => validator::BlockNumber(last_pruned.l2_block.0.into()) + 1,
             // No snapshot and no pruning:
             None => validator::BlockNumber(0),
         })

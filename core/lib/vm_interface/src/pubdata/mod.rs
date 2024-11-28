@@ -63,7 +63,7 @@ impl From<L1MessengerL2ToL1Log> for L2ToL1Log {
 }
 
 /// Struct based on which the pubdata blob is formed
-#[derive(Debug, Clone, Default, Eq, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PubdataInput {
     pub user_logs: Vec<L1MessengerL2ToL1Log>,
     pub l2_to_l1_messages: Vec<Vec<u8>>,

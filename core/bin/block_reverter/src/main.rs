@@ -214,7 +214,9 @@ async fn main() -> anyhow::Result<()> {
             )
             .context("failed decoding genesis YAML config")?;
 
-        let gateway_url = l1_secrets.gateway_url.context("Gateway URL not found")?;
+        let gateway_url = l1_secrets
+            .gateway_rpc_url
+            .context("Gateway URL not found")?;
 
         (
             gateway_url,

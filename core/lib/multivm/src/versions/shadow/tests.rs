@@ -3,11 +3,11 @@
 use std::{collections::HashSet, rc::Rc};
 
 use zksync_types::{writes::StateDiffRecord, StorageKey, Transaction, H256, U256};
-use zksync_vm_interface::pubdata::{PubdataBuilder, PubdataInput};
 
 use super::ShadowedFastVm;
 use crate::{
     interface::{
+        pubdata::{PubdataBuilder, PubdataInput},
         utils::{ShadowMut, ShadowRef},
         CurrentExecutionState, L2BlockEnv, VmExecutionResultAndLogs,
     },
@@ -120,21 +120,12 @@ impl TestedVm for ShadowedFastVm {
         });
     }
 
-    fn push_transaction_with_refund_and_compression(
-        &mut self,
-        tx: Transaction,
-        refund: u64,
-        compression: bool,
-    ) {
+    fn push_transaction_with_refund(&mut self, tx: Transaction, refund: u64) {
         self.get_mut(
             "push_transaction_with_refund_and_compression",
             |r| match r {
-                ShadowMut::Main(vm) => {
-                    vm.push_transaction_with_refund_and_compression(tx.clone(), refund, compression)
-                }
-                ShadowMut::Shadow(vm) => {
-                    vm.push_transaction_with_refund_and_compression(tx.clone(), refund, compression)
-                }
+                ShadowMut::Main(vm) => vm.push_transaction_with_refund(tx.clone(), refund),
+                ShadowMut::Shadow(vm) => vm.push_transaction_with_refund(tx.clone(), refund),
             },
         );
     }

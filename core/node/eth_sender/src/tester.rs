@@ -146,7 +146,6 @@ impl EthSenderTester {
                 PubdataSendingMode::Calldata
             };
         let aggregator_config = SenderConfig {
-            aggregated_proof_sizes: vec![1],
             pubdata_sending_mode,
             ..eth_sender_config.clone().sender.unwrap()
         };
@@ -249,9 +248,10 @@ impl EthSenderTester {
         let aggregator = Aggregator::new(
             aggregator_config.clone(),
             MockObjectStore::arc(),
-            aggregator_operate_4844_mode,
+            custom_commit_sender_addr,
             commitment_mode,
             &mut connection,
+            SettlementMode::SettlesToL1,
         )
         .await
         .unwrap();
