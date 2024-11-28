@@ -820,7 +820,7 @@ export function getGatewayInfo(pathToHome: string, chain: string): GatewayInfo |
 
         return {
             gatewayChainId: slChainId,
-            gatewayProvider: new zksync.Provider(secretsConfig.l1.gateway_url),
+            gatewayProvider: new zksync.Provider(secretsConfig.l1.gateway_rpc_url),
             gatewayCTM: gatewayChainConfig.state_transition_proxy_addr,
             l2ChainAdmin: gatewayChainConfig.chain_admin_addr,
             l2DiamondProxyAddress: gatewayChainConfig.diamond_proxy_addr
