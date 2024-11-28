@@ -1,8 +1,8 @@
 # Merkle Tree
 
-Binary Merkle tree implementation based on amortized radix-16 Merkle tree (AR16MT) described in the [Jellyfish Merkle
-tree] white paper. Unlike Jellyfish Merkle tree, our construction uses vanilla binary tree hashing algorithm to make it
-easier for the circuit creation. The depth of the tree is 256, and Blake2 is used as the hashing function.
+Binary Merkle tree implementation based on amortized radix-16 Merkle tree (AR16MT) described in the [Jellyfish
+Merkle tree] white paper. Unlike Jellyfish Merkle tree, our construction uses vanilla binary tree hashing algorithm to
+make it easier for the circuit creation. The depth of the tree is 256, and Blake2 is used as the hashing function.
 
 ## Snapshot tests
 

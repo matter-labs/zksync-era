@@ -28,7 +28,8 @@ You then have two different paths depending if your main node is using file-base
 
 ### File-based configuration
 
-If you are using the recommended file-based configuration then you'll need to add the following information to your `general.yaml` config file (see [Ecosystem Configuration](../launch.md#ecosystem-configuration)):
+If you are using the recommended file-based configuration then you'll need to add the following information to your
+`general.yaml` config file (see [Ecosystem Configuration](../launch.md#ecosystem-configuration)):
 
 ```yaml
 consensus:
@@ -61,7 +62,8 @@ consensus:
 
 ### Env-based configuration
 
-If you are using the env-based configuration you'll need to create a `consensus_config.yaml` file with the following content:
+If you are using the env-based configuration you'll need to create a `consensus_config.yaml` file with the following
+content:
 
 ```yaml
 server_addr: '0.0.0.0:3054'
@@ -105,7 +107,9 @@ Finally, to enable the consensus component for the main node you just need to ap
 
 ## Gitops repo config
 
-If you are using the matterlabs gitops repo to configure the main node, you'll need to add this information to your kubernetes config for the core server,  `server-v2-core.yaml` file (see [example](https://github.com/matter-labs/gitops-kubernetes/blob/177dcd575c6ab446e70b9a9ced8024766095b516/apps/environments/era-stage-proofs/server-v2/server-v2-core.yaml#L23-L35)):
+If you are using the matterlabs gitops repo to configure the main node, you'll need to add this information to your
+kubernetes config for the core server, `server-v2-core.yaml` file (see
+[example](https://github.com/matter-labs/gitops-kubernetes/blob/177dcd575c6ab446e70b9a9ced8024766095b516/apps/environments/era-stage-proofs/server-v2/server-v2-core.yaml#L23-L35)):
 
 ```yaml
 spec:
@@ -115,17 +119,22 @@ spec:
     service:
       main:
         ports:
-            consensus:
-              enabled: true
-              port: 3054
+          consensus:
+            enabled: true
+            port: 3054
 ```
-Then again you have two paths depending if the deployment is using file-based or env-based configuration. Although by default you should be using file-based configuration.
+
+Then again you have two paths depending if the deployment is using file-based or env-based configuration. Although by
+default you should be using file-based configuration.
 
 ### File-based configuration
 
-Just like before you'll add the consensus config information to the `general.yaml` config file (see [example](https://github.com/matter-labs/gitops-kubernetes/blob/177dcd575c6ab446e70b9a9ced8024766095b516/apps/environments/era-stage-proofs/server-v2-config/general.yaml#L353-L368)).
+Just like before you'll add the consensus config information to the `general.yaml` config file (see
+[example](https://github.com/matter-labs/gitops-kubernetes/blob/177dcd575c6ab446e70b9a9ced8024766095b516/apps/environments/era-stage-proofs/server-v2-config/general.yaml#L353-L368)).
 
-And the secrets you generated to your whatever secrets managing system you are using (see an example [here](https://github.com/matter-labs/gitops-kubernetes/blob/177dcd575c6ab446e70b9a9ced8024766095b516/apps/clusters/era-stage-proofs/stage2/secrets/server-v2-secrets.yaml) using SOPS).
+And the secrets you generated to your whatever secrets managing system you are using (see an example
+[here](https://github.com/matter-labs/gitops-kubernetes/blob/177dcd575c6ab446e70b9a9ced8024766095b516/apps/clusters/era-stage-proofs/stage2/secrets/server-v2-secrets.yaml)
+using SOPS).
 
 ```yaml
 consensus:
@@ -133,9 +142,12 @@ consensus:
   attester_key: attester:secret:???
   node_key: node:secret:???
 ```
+
 ### Env-based configuration
 
-It is even more complicated because the `consensus_config.yaml` file is rendered from a helm chart. See the [example](https://github.com/matter-labs/gitops-kubernetes/blob/177dcd575c6ab446e70b9a9ced8024766095b516/apps/environments/mainnet2/server-v2/server-v2-core.yaml#L37-L92), to see where you have to paste the content of the `consensus_config.yaml` file.
+It is even more complicated because the `consensus_config.yaml` file is rendered from a helm chart. See the
+[example](https://github.com/matter-labs/gitops-kubernetes/blob/177dcd575c6ab446e70b9a9ced8024766095b516/apps/environments/mainnet2/server-v2/server-v2-core.yaml#L37-L92),
+to see where you have to paste the content of the `consensus_config.yaml` file.
 
 You also need to add the following sections to your `server-v2-core.yaml` file:
 
@@ -160,7 +172,10 @@ spec:
         value: /etc/consensus_secrets/.consensus_secrets.yaml
 ```
 
-You need to embed the `consensus_secrets.yaml` file into a kubernetes config (see how to do it [here](https://github.com/matter-labs/gitops-kubernetes/blob/177dcd575c6ab446e70b9a9ced8024766095b516/apps/environments/mainnet2/zksync-v2-secret/kustomization.yaml#L3-L4) and [here](https://github.com/matter-labs/gitops-kubernetes/blob/177dcd575c6ab446e70b9a9ced8024766095b516/apps/environments/mainnet2/zksync-v2-secret/consensus_secrets.yaml)):
+You need to embed the `consensus_secrets.yaml` file into a kubernetes config (see how to do it
+[here](https://github.com/matter-labs/gitops-kubernetes/blob/177dcd575c6ab446e70b9a9ced8024766095b516/apps/environments/mainnet2/zksync-v2-secret/kustomization.yaml#L3-L4)
+and
+[here](https://github.com/matter-labs/gitops-kubernetes/blob/177dcd575c6ab446e70b9a9ced8024766095b516/apps/environments/mainnet2/zksync-v2-secret/consensus_secrets.yaml)):
 
 ```yaml
 apiVersion: v1
