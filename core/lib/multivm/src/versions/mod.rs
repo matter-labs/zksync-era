@@ -1,8 +1,8 @@
+#[cfg(test)]
+mod shadow;
 mod shared;
 #[cfg(test)]
 mod testonly;
-#[cfg(test)]
-mod tests;
 pub mod vm_1_3_2;
 pub mod vm_1_4_1;
 pub mod vm_1_4_2;

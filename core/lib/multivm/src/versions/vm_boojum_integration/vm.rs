@@ -1,15 +1,18 @@
+use std::rc::Rc;
+
 use circuit_sequencer_api_1_4_0::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     Transaction,
 };
+use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{
     glue::GlueInto,
     interface::{
         storage::{StoragePtr, WriteStorage},
         BytecodeCompressionError, BytecodeCompressionResult, CurrentExecutionState,
-        FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
+        FinishedL1Batch, L1BatchEnv, L2BlockEnv, PushTransactionResult, SystemEnv, VmExecutionMode,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
     },
     utils::events::extract_l2tol1logs_from_l1_messenger,
@@ -81,18 +84,23 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher<S, H::VmBoojumIntegration>;
 
-    /// Push tx into memory for the future execution
-    fn push_transaction(&mut self, tx: Transaction) {
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult {
         self.push_transaction_with_compression(tx, true);
+        PushTransactionResult {
+            compressed_bytecodes: self
+                .bootloader_state
+                .get_last_tx_compressed_bytecodes()
+                .into(),
+        }
     }
 
     /// Execute VM with custom tracers.
     fn inspect(
         &mut self,
         tracer: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        self.inspect_inner(tracer, execution_mode)
+        self.inspect_inner(tracer, execution_mode.into())
     }
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
@@ -124,8 +132,8 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         }
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        let result = self.inspect(&mut TracerDispatcher::default(), VmExecutionMode::Batch);
+    fn finish_batch(&mut self, _pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
+        let result = self.inspect_inner(&mut TracerDispatcher::default(), VmExecutionMode::Batch);
         let execution_state = self.get_current_execution_state();
         let bootloader_memory = self.bootloader_state.bootloader_memory();
         FinishedL1Batch {

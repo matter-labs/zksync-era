@@ -84,19 +84,19 @@ async fn get_cluster(State(app): State<App>) -> Result<Json<Cluster>, AppError> 
     Ok(Json(cluster))
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ScaleDeploymentRequest {
     pub namespace: String,
     pub name: String,
     pub size: i32,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ScaleRequest {
     pub deployments: Vec<ScaleDeploymentRequest>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ScaleResponse {
     pub scale_result: Vec<String>,
 }

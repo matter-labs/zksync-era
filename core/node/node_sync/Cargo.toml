@@ -21,9 +21,9 @@ zksync_state_keeper.workspace = true
 zksync_shared_metrics.workspace = true
 zksync_web3_decl.workspace = true
 zksync_health_check.workspace = true
-zksync_utils.workspace = true
 zksync_eth_client.workspace = true
 zksync_concurrency.workspace = true
+zksync_consensus_roles.workspace = true
 vise.workspace = true
 zksync_vm_executor.workspace = true
 
@@ -43,3 +43,4 @@ zksync_node_test_utils.workspace = true
 assert_matches.workspace = true
 once_cell.workspace = true
 test-casing.workspace = true
+backon.workspace = true

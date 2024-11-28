@@ -1,7 +1,7 @@
 use std::{path::PathBuf, str::FromStr};
 
 use anyhow::{bail, Context};
-use clap::{Parser, ValueEnum};
+use clap::{Parser, ValueEnum, ValueHint};
 use common::{Prompt, PromptConfirm, PromptSelect};
 use config::forge_interface::deploy_ecosystem::output::Erc20Token;
 use serde::{Deserialize, Serialize};
@@ -18,6 +18,7 @@ use crate::{
         MSG_BASE_TOKEN_PRICE_DENOMINATOR_PROMPT, MSG_BASE_TOKEN_PRICE_NOMINATOR_HELP,
         MSG_BASE_TOKEN_PRICE_NOMINATOR_PROMPT, MSG_BASE_TOKEN_SELECTION_PROMPT, MSG_CHAIN_ID_HELP,
         MSG_CHAIN_ID_PROMPT, MSG_CHAIN_ID_VALIDATOR_ERR, MSG_CHAIN_NAME_PROMPT,
+        MSG_EVM_EMULATOR_HELP, MSG_EVM_EMULATOR_PROMPT,
         MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT, MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP,
         MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR, MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR,
         MSG_PROVER_MODE_HELP, MSG_PROVER_VERSION_PROMPT, MSG_SET_AS_DEFAULT_HELP,
@@ -53,7 +54,7 @@ pub struct ChainCreateArgs {
     prover_mode: Option<ProverMode>,
     #[clap(long, help = MSG_WALLET_CREATION_HELP, value_enum)]
     wallet_creation: Option<WalletCreation>,
-    #[clap(long, help = MSG_WALLET_PATH_HELP)]
+    #[clap(long, help = MSG_WALLET_PATH_HELP, value_hint = ValueHint::FilePath)]
     wallet_path: Option<PathBuf>,
     #[clap(long, help = MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP)]
     l1_batch_commit_data_generator_mode: Option<L1BatchCommitmentModeInternal>,
@@ -67,6 +68,8 @@ pub struct ChainCreateArgs {
     pub(crate) set_as_default: Option<bool>,
     #[clap(long, default_value = "false")]
     pub(crate) legacy_bridge: bool,
+    #[arg(long, help = MSG_EVM_EMULATOR_HELP, default_missing_value = "true", num_args = 0..=1)]
+    evm_emulator: Option<bool>,
 }
 
 impl ChainCreateArgs {
@@ -75,6 +78,7 @@ impl ChainCreateArgs {
         number_of_chains: u32,
         l1_network: &L1Network,
         possible_erc20: Vec<Erc20Token>,
+        link_to_code: String,
     ) -> anyhow::Result<ChainCreateArgsFinal> {
         let mut chain_name = self
             .chain_name
@@ -211,6 +215,12 @@ impl ChainCreateArgs {
             }
         };
 
+        let evm_emulator = self.evm_emulator.unwrap_or_else(|| {
+            PromptConfirm::new(MSG_EVM_EMULATOR_PROMPT)
+                .default(false)
+                .ask()
+        });
+
         let set_as_default = self.set_as_default.unwrap_or_else(|| {
             PromptConfirm::new(MSG_SET_AS_DEFAULT_PROMPT)
                 .default(true)
@@ -227,6 +237,8 @@ impl ChainCreateArgs {
             base_token,
             set_as_default,
             legacy_bridge: self.legacy_bridge,
+            evm_emulator,
+            link_to_code,
         })
     }
 }
@@ -242,6 +254,8 @@ pub struct ChainCreateArgsFinal {
     pub base_token: BaseToken,
     pub set_as_default: bool,
     pub legacy_bridge: bool,
+    pub evm_emulator: bool,
+    pub link_to_code: String,
 }
 
 #[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]

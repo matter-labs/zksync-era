@@ -4,8 +4,9 @@ use async_trait::async_trait;
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_types::{
-    block::L2BlockExecutionData, fee_model::BatchFeeInput, protocol_upgrade::ProtocolUpgradeTx,
-    Address, L1BatchNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
+    block::L2BlockExecutionData, commitment::PubdataParams, fee_model::BatchFeeInput,
+    protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2ChainId, ProtocolVersionId,
+    Transaction, H256,
 };
 use zksync_vm_executor::storage::l1_batch_params;
 
@@ -38,6 +39,7 @@ pub struct PendingBatchData {
     /// (e.g. timestamp) are the same, so transaction would have the same result after re-execution.
     pub(crate) l1_batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
+    pub(crate) pubdata_params: PubdataParams,
     /// List of L2 blocks and corresponding transactions that were executed within batch.
     pub(crate) pending_l2_blocks: Vec<L2BlockExecutionData>,
 }
@@ -70,6 +72,8 @@ pub struct L1BatchParams {
     pub fee_input: BatchFeeInput,
     /// Parameters of the first L2 block in the batch.
     pub first_l2_block: L2BlockParams,
+    /// Params related to how the pubdata should be processed by the bootloader in the batch.
+    pub pubdata_params: PubdataParams,
 }
 
 impl L1BatchParams {
@@ -79,8 +83,8 @@ impl L1BatchParams {
         contracts: BaseSystemContracts,
         cursor: &IoCursor,
         previous_batch_hash: H256,
-    ) -> (SystemEnv, L1BatchEnv) {
-        l1_batch_params(
+    ) -> (SystemEnv, L1BatchEnv, PubdataParams) {
+        let (system_env, l1_batch_env) = l1_batch_params(
             cursor.l1_batch,
             self.operator_address,
             self.first_l2_block.timestamp,
@@ -93,7 +97,9 @@ impl L1BatchParams {
             self.protocol_version,
             self.first_l2_block.virtual_blocks,
             chain_id,
-        )
+        );
+
+        (system_env, l1_batch_env, self.pubdata_params)
     }
 }
 
@@ -131,8 +137,11 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
 
     /// Blocks for up to `max_wait` until the next transaction is available for execution.
     /// Returns `None` if no transaction became available until the timeout.
-    async fn wait_for_next_tx(&mut self, max_wait: Duration)
-        -> anyhow::Result<Option<Transaction>>;
+    async fn wait_for_next_tx(
+        &mut self,
+        max_wait: Duration,
+        l2_block_timestamp: u64,
+    ) -> anyhow::Result<Option<Transaction>>;
     /// Marks the transaction as "not executed", so it can be retrieved from the IO again.
     async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()>;
     /// Marks the transaction as "rejected", e.g. one that is not correct and can't be executed.

@@ -3,8 +3,9 @@ use std::cell::OnceCell;
 use anyhow::Context;
 use common::{logger, spinner::Spinner};
 use config::{
-    create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
-    EcosystemConfig,
+    create_local_configs_dir, create_wallets,
+    traits::{ReadConfigWithBasePath, SaveConfigWithBasePath},
+    ChainConfig, EcosystemConfig, GenesisConfig,
 };
 use xshell::Shell;
 use zksync_basic_types::L2ChainId;
@@ -13,8 +14,10 @@ use crate::{
     commands::chain::args::create::{ChainCreateArgs, ChainCreateArgsFinal},
     messages::{
         MSG_ARGS_VALIDATOR_ERR, MSG_CHAIN_CREATED, MSG_CREATING_CHAIN,
-        MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER, MSG_SELECTED_CONFIG,
+        MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER, MSG_EVM_EMULATOR_HASH_MISSING_ERR,
+        MSG_SELECTED_CONFIG,
     },
+    utils::link_to_code::resolve_link_to_code,
 };
 
 pub fn run(args: ChainCreateArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -33,6 +36,7 @@ fn create(
             ecosystem_config.list_of_chains().len() as u32,
             &ecosystem_config.l1_network,
             tokens,
+            ecosystem_config.link_to_code.clone().display().to_string(),
         )
         .context(MSG_ARGS_VALIDATOR_ERR)?;
 
@@ -72,6 +76,15 @@ pub(crate) fn create_chain_inner(
         (L2ChainId::from(args.chain_id), None)
     };
     let internal_id = ecosystem_config.list_of_chains().len() as u32;
+    let link_to_code = resolve_link_to_code(shell, chain_path.clone(), args.link_to_code.clone())?;
+    let default_genesis_config = GenesisConfig::read_with_base_path(
+        shell,
+        EcosystemConfig::default_configs_path(&link_to_code),
+    )?;
+    let has_evm_emulation_support = default_genesis_config.evm_emulator_hash.is_some();
+    if args.evm_emulator && !has_evm_emulation_support {
+        anyhow::bail!(MSG_EVM_EMULATOR_HASH_MISSING_ERR);
+    }
 
     let chain_config = ChainConfig {
         id: internal_id,
@@ -89,6 +102,7 @@ pub(crate) fn create_chain_inner(
         wallet_creation: args.wallet_creation,
         shell: OnceCell::from(shell.clone()),
         legacy_bridge,
+        evm_emulator: args.evm_emulator,
     };
 
     create_wallets(

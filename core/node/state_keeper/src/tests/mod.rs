@@ -3,15 +3,15 @@ use std::{
         atomic::{AtomicBool, AtomicU64, Ordering},
         Arc,
     },
-    time::Instant,
+    time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
 use tokio::sync::watch;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_multivm::{
     interface::{
-        ExecutionResult, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv, TxExecutionMode,
-        VmExecutionLogs, VmExecutionResultAndLogs, VmExecutionStatistics,
+        Halt, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionLogs,
+        VmExecutionResultAndLogs, VmExecutionStatistics,
     },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
@@ -20,11 +20,10 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L2BlockExecutionData, L2BlockHasher},
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
-    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, StorageKey,
-    StorageLog, StorageLogKind, StorageLogWithPreviousValue, Transaction, H256, U256,
-    ZKPORTER_IS_AVAILABLE,
+    u256_to_h256, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
+    ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
+    Transaction, H256, U256, ZKPORTER_IS_AVAILABLE,
 };
-use zksync_utils::u256_to_h256;
 
 use crate::{
     io::PendingBatchData,
@@ -46,6 +45,13 @@ use crate::{
     ZkSyncStateKeeper,
 };
 
+pub(crate) fn seconds_since_epoch() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Incorrect system time")
+        .as_secs()
+}
+
 /// Creates a mock `PendingBatchData` object containing the provided sequence of L2 blocks.
 pub(crate) fn pending_batch_data(pending_l2_blocks: Vec<L2BlockExecutionData>) -> PendingBatchData {
     PendingBatchData {
@@ -59,6 +65,7 @@ pub(crate) fn pending_batch_data(pending_l2_blocks: Vec<L2BlockExecutionData>) -
             default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             chain_id: L2ChainId::from(270),
         },
+        pubdata_params: Default::default(),
         pending_l2_blocks,
     }
 }
@@ -102,7 +109,7 @@ pub(super) fn default_l1_batch_env(
 
 pub(super) fn create_updates_manager() -> UpdatesManager {
     let l1_batch_env = default_l1_batch_env(1, 1, Address::default());
-    UpdatesManager::new(&l1_batch_env, &default_system_env())
+    UpdatesManager::new(&l1_batch_env, &default_system_env(), Default::default())
 }
 
 pub(super) fn create_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> Transaction {
@@ -119,26 +126,16 @@ pub(super) fn create_execution_result(
 
     let total_log_queries = storage_logs.len() + 2;
     VmExecutionResultAndLogs {
-        result: ExecutionResult::Success { output: vec![] },
         logs: VmExecutionLogs {
-            events: vec![],
-            system_l2_to_l1_logs: vec![],
-            user_l2_to_l1_logs: vec![],
             storage_logs,
             total_log_queries_count: total_log_queries,
+            ..VmExecutionLogs::default()
         },
         statistics: VmExecutionStatistics {
-            contracts_used: 0,
-            cycles_used: 0,
-            gas_used: 0,
-            gas_remaining: 0,
-            computational_gas_used: 0,
             total_log_queries,
-            pubdata_published: 0,
-            circuit_statistic: Default::default(),
+            ..VmExecutionStatistics::default()
         },
-        refunds: Refunds::default(),
-        new_known_factory_deps: None,
+        ..VmExecutionResultAndLogs::mock_success()
     }
 }
 

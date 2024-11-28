@@ -71,6 +71,7 @@ mod hasher;
 mod metrics;
 mod pruning;
 pub mod recovery;
+pub mod repair;
 mod storage;
 mod types;
 mod utils;
@@ -82,7 +83,7 @@ mod utils;
 pub mod unstable {
     pub use crate::{
         errors::DeserializeError,
-        types::{Manifest, Node, NodeKey, ProfiledTreeOperation, Root},
+        types::{Manifest, Node, NodeKey, ProfiledTreeOperation, RawNode, Root},
     };
 }
 
@@ -200,15 +201,12 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
         root.unwrap_or(Root::Empty)
     }
 
-    /// Removes the most recent versions from the database.
-    ///
-    /// The current implementation does not actually remove node data for the removed versions
-    /// since it's likely to be reused in the future (especially upper-level internal nodes).
-    ///
-    /// # Errors
-    ///
-    /// Proxies database I/O errors.
-    pub fn truncate_recent_versions(&mut self, retained_version_count: u64) -> anyhow::Result<()> {
+    /// Incorrect version of [`Self::truncate_recent_versions()`] that doesn't remove stale keys for the truncated tree versions.
+    #[cfg(test)]
+    fn truncate_recent_versions_incorrectly(
+        &mut self,
+        retained_version_count: u64,
+    ) -> anyhow::Result<()> {
         let mut manifest = self.db.manifest().unwrap_or_default();
         if manifest.version_count > retained_version_count {
             manifest.version_count = retained_version_count;
@@ -259,6 +257,26 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
 }
 
 impl<DB: PruneDatabase> MerkleTree<DB> {
+    /// Removes the most recent versions from the database.
+    ///
+    /// The current implementation does not actually remove node data for the removed versions
+    /// since it's likely to be reused in the future (especially upper-level internal nodes).
+    ///
+    /// # Errors
+    ///
+    /// Proxies database I/O errors.
+    pub fn truncate_recent_versions(&mut self, retained_version_count: u64) -> anyhow::Result<()> {
+        let mut manifest = self.db.manifest().unwrap_or_default();
+        let current_version_count = manifest.version_count;
+        if current_version_count > retained_version_count {
+            // It is necessary to remove "future" stale keys since otherwise they may be used in future pruning and lead
+            // to non-obsolete tree nodes getting removed.
+            manifest.version_count = retained_version_count;
+            self.db.truncate(manifest, ..current_version_count)?;
+        }
+        Ok(())
+    }
+
     /// Returns the first retained version of the tree.
     pub fn first_retained_version(&self) -> Option<u64> {
         match self.db.min_stale_key_version() {
