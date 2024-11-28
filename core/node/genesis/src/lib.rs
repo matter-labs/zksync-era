@@ -36,7 +36,7 @@ use crate::utils::{
     save_genesis_l1_batch_metadata,
 };
 
-mod export;
+pub mod export;
 #[cfg(test)]
 mod tests;
 mod utils;
@@ -103,14 +103,7 @@ impl GenesisParams {
             // once. Since the intended use-case of this feature is for
             // exceptionally large states, this might not actually work.
 
-            e.storage_logs()
-                .map(|s| {
-                    StorageLog::new_write_log(
-                        StorageKey::new(AccountTreeId::new(s.address), s.key),
-                        s.value,
-                    )
-                })
-                .collect()
+            e.storage_logs().map(Into::into).collect()
         } else {
             get_storage_logs(&self.system_contracts)
         }
@@ -164,7 +157,8 @@ impl GenesisParams {
             return Err(GenesisError::MalformedConfig("protocol_version"));
         }
         eprintln!("About to load custom genesis...");
-        let path = "/Users/jacob/Projects/zksync-era/core/bin/custom_genesis_export/gexport.bin";
+        let path =
+            "/Users/jacob/Projects/zksync-era/core/bin/custom_genesis_export/usermanager.bin";
         let genesis_export_reader = Some(GenesisExportReader::new(
             File::open(path).expect("custom genesis file could not be opened"),
         ));
@@ -240,6 +234,48 @@ pub fn mock_genesis_config() -> GenesisConfig {
     }
 }
 
+pub fn make_genesis_batch_params(
+    storage_logs: &[StorageLog],
+    base_system_contract_hashes: BaseSystemContractsHashes,
+    protocol_version: ProtocolVersionId,
+) -> (GenesisBatchParams, L1BatchCommitment) {
+    let storage_logs = get_deduped_log_queries(storage_logs)
+        .iter()
+        .filter(|log_query| log_query.rw_flag) // only writes
+        .enumerate()
+        .map(|(index, log)| {
+            TreeInstruction::write(
+                StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key))
+                    .hashed_key_u256(),
+                (index + 1) as u64,
+                u256_to_h256(log.written_value),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    let metadata = ZkSyncTree::process_genesis_batch(&storage_logs);
+    let root_hash = metadata.root_hash;
+    let rollup_last_leaf_index = metadata.leaf_count + 1;
+
+    let commitment_input = CommitmentInput::for_genesis_batch(
+        root_hash,
+        rollup_last_leaf_index,
+        base_system_contract_hashes,
+        protocol_version,
+    );
+    let block_commitment = L1BatchCommitment::new(commitment_input);
+    let commitment = block_commitment.hash().commitment;
+
+    (
+        GenesisBatchParams {
+            root_hash,
+            commitment,
+            rollup_last_leaf_index,
+        },
+        block_commitment,
+    )
+}
+
 // Insert genesis batch into the database
 pub async fn insert_genesis_batch(
     storage: &mut Connection<'_, Core>,
@@ -261,29 +297,6 @@ pub async fn insert_genesis_batch(
     .await?;
     tracing::info!("chain_schema_genesis is complete");
 
-    let deduped_log_queries = get_deduped_log_queries(&genesis_params.storage_logs());
-
-    let (deduplicated_writes, _): (Vec<_>, Vec<_>) = deduped_log_queries
-        .into_iter()
-        .partition(|log_query| log_query.rw_flag);
-
-    let storage_logs: Vec<TreeInstruction> = deduplicated_writes
-        .iter()
-        .enumerate()
-        .map(|(index, log)| {
-            TreeInstruction::write(
-                StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key))
-                    .hashed_key_u256(),
-                (index + 1) as u64,
-                u256_to_h256(log.written_value),
-            )
-        })
-        .collect();
-
-    let metadata = ZkSyncTree::process_genesis_batch(&storage_logs);
-    let genesis_root_hash = metadata.root_hash;
-    let rollup_last_leaf_index = metadata.leaf_count + 1;
-
     let base_system_contract_hashes = BaseSystemContractsHashes {
         bootloader: genesis_params
             .config
@@ -295,27 +308,23 @@ pub async fn insert_genesis_batch(
             .ok_or(GenesisError::MalformedConfig("default_aa_hash"))?,
         evm_emulator: genesis_params.config.evm_emulator_hash,
     };
-    let commitment_input = CommitmentInput::for_genesis_batch(
-        genesis_root_hash,
-        rollup_last_leaf_index,
+
+    let (genesis_batch_params, block_commitment) = make_genesis_batch_params(
+        &genesis_params.storage_logs(),
         base_system_contract_hashes,
         genesis_params.minor_protocol_version(),
     );
-    let block_commitment = L1BatchCommitment::new(commitment_input);
 
     save_genesis_l1_batch_metadata(
         &mut transaction,
         block_commitment.clone(),
-        genesis_root_hash,
-        rollup_last_leaf_index,
+        genesis_batch_params.root_hash,
+        genesis_batch_params.rollup_last_leaf_index,
     )
     .await?;
     transaction.commit().await?;
-    Ok(GenesisBatchParams {
-        root_hash: genesis_root_hash,
-        commitment: block_commitment.hash().commitment,
-        rollup_last_leaf_index,
-    })
+
+    Ok(genesis_batch_params)
 }
 
 pub async fn is_genesis_needed(storage: &mut Connection<'_, Core>) -> Result<bool, GenesisError> {

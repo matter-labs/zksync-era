@@ -34,6 +34,7 @@ zksync_basic_types = { path = "../core/lib/basic_types" }
 zksync_consensus_roles = "=0.5.0"
 zksync_consensus_crypto = "=0.5.0"
 zksync_consensus_utils = "=0.5.0"
+zksync_node_genesis = { path = "../core/node/genesis" }
 zksync_protobuf = "=0.5.0"
 zksync_protobuf_build = "=0.5.0"
 
