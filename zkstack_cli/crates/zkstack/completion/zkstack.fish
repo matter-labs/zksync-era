@@ -104,7 +104,7 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_se
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l deploy-paymaster -d 'Deploy Paymaster contract' -r -f -a "{true\t'',false\t''}"
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l mode -r -f -a "{release\t'',debug\t'',docker\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l tag -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l tag -d 'Select a specific Docker image tag' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l server-db-url -d 'Server database url without database name' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l server-db-name -d 'Server database name' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -s o -l observability -d 'Enable Grafana' -r -f -a "{true\t'',false\t''}"
@@ -184,7 +184,7 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l mode -r -f -a "{release\t'',debug\t'',docker\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l tag -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l tag -d 'Select a specific Docker image tag' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l server-db-url -d 'Server database url without database name' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l server-db-name -d 'Server database name' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l deploy-paymaster -r -f -a "{true\t'',false\t''}"
@@ -200,7 +200,7 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -f -a "configs" -d 'Initialize chain configs'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from genesis" -l mode -r -f -a "{release\t'',debug\t'',docker\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from genesis" -l tag -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from genesis" -l tag -d 'Select a specific Docker image tag' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from genesis" -l server-db-url -d 'Server database url without database name' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from genesis" -l server-db-name -d 'Server database name' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from genesis" -l chain -d 'Chain to use' -r
@@ -509,7 +509,7 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -s h -l heavy-wvg-count -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -s m -l max-allocation -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l docker -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l tag -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l tag -d 'Select a specific Docker image tag' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l ignore-prerequisites -d 'Ignores prerequisites checks'
@@ -532,7 +532,7 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from help" -f -a "compressor-keys" -d 'Download compressor keys'
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -l mode -r -f -a "{release\t'',debug\t'',docker\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -l tag -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -l tag -d 'Select a specific Docker image tag' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -l components -d 'Components of server to run' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -s a -l additional-args -d 'Additional arguments that can be passed through the CLI' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -l chain -d 'Chain to use' -r
@@ -550,7 +550,7 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from build" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from build" -s h -l help -d 'Print help'
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -l mode -r -f -a "{release\t'',debug\t'',docker\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -l tag -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -l tag -d 'Select a specific Docker image tag' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -l components -d 'Components of server to run' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -s a -l additional-args -d 'Additional arguments that can be passed through the CLI' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -l chain -d 'Chain to use' -r
