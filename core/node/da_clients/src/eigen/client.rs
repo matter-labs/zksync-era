@@ -32,6 +32,11 @@ impl EigenClient {
             client: Arc::new(client),
         })
     }
+
+    pub async fn get_commitment(&self, blob_id: &str) -> anyhow::Result<String> {
+        let blob_info = self.client.get_inclusion_data(blob_id).await?;
+        Ok(blob_info)
+    }
 }
 
 #[async_trait]
@@ -60,7 +65,11 @@ impl DataAvailabilityClient for EigenClient {
     }
 
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError> {
-        let rlp_encoded_bytes = hex::decode(blob_id).map_err(|_| DAError {
+        let blob_info = self
+            .get_commitment(blob_id)
+            .await
+            .map_err(to_non_retriable_da_error)?;
+        let rlp_encoded_bytes = hex::decode(blob_info).map_err(|_| DAError {
             error: anyhow!("Failed to decode blob_id"),
             is_retriable: false,
         })?;
@@ -123,8 +132,11 @@ mod tests {
         let client = EigenClient::new(config, secrets).await.unwrap();
         let data = vec![1; 20];
         let result = client.dispatch_blob(0, data.clone()).await.unwrap();
+
+        let blob_info_str = client.get_commitment(&result.blob_id).await.unwrap();
+
         let blob_info: BlobInfo =
-            rlp::decode(&hex::decode(result.blob_id.clone()).unwrap()).unwrap();
+            rlp::decode(&hex::decode(blob_info_str.clone()).unwrap()).unwrap();
         let expected_inclusion_data = blob_info.blob_verification_proof.inclusion_proof;
         let actual_inclusion_data = client
             .get_inclusion_data(&result.blob_id)
@@ -133,7 +145,7 @@ mod tests {
             .unwrap()
             .data;
         assert_eq!(expected_inclusion_data, actual_inclusion_data);
-        let retrieved_data = client.get_blob_data(&result.blob_id).await.unwrap();
+        let retrieved_data = client.get_blob_data(&blob_info_str).await.unwrap();
         assert_eq!(retrieved_data.unwrap(), data);
     }
 
@@ -163,8 +175,10 @@ mod tests {
         let client = EigenClient::new(config, secrets).await.unwrap();
         let data = vec![1; 20];
         let result = client.dispatch_blob(0, data.clone()).await.unwrap();
+        let blob_info_str = client.get_commitment(&result.blob_id).await.unwrap();
+
         let blob_info: BlobInfo =
-            rlp::decode(&hex::decode(result.blob_id.clone()).unwrap()).unwrap();
+            rlp::decode(&hex::decode(blob_info_str.clone()).unwrap()).unwrap();
         let expected_inclusion_data = blob_info.blob_verification_proof.inclusion_proof;
         let actual_inclusion_data = client
             .get_inclusion_data(&result.blob_id)
@@ -173,7 +187,7 @@ mod tests {
             .unwrap()
             .data;
         assert_eq!(expected_inclusion_data, actual_inclusion_data);
-        let retrieved_data = client.get_blob_data(&result.blob_id).await.unwrap();
+        let retrieved_data = client.get_blob_data(&blob_info_str).await.unwrap();
         assert_eq!(retrieved_data.unwrap(), data);
     }
 
@@ -203,8 +217,10 @@ mod tests {
         let client = EigenClient::new(config, secrets).await.unwrap();
         let data = vec![1; 20];
         let result = client.dispatch_blob(0, data.clone()).await.unwrap();
+        let blob_info_str = client.get_commitment(&result.blob_id).await.unwrap();
+
         let blob_info: BlobInfo =
-            rlp::decode(&hex::decode(result.blob_id.clone()).unwrap()).unwrap();
+            rlp::decode(&hex::decode(blob_info_str.clone()).unwrap()).unwrap();
         let expected_inclusion_data = blob_info.blob_verification_proof.inclusion_proof;
         let actual_inclusion_data = client
             .get_inclusion_data(&result.blob_id)
@@ -213,7 +229,7 @@ mod tests {
             .unwrap()
             .data;
         assert_eq!(expected_inclusion_data, actual_inclusion_data);
-        let retrieved_data = client.get_blob_data(&result.blob_id).await.unwrap();
+        let retrieved_data = client.get_blob_data(&blob_info_str).await.unwrap();
         assert_eq!(retrieved_data.unwrap(), data);
     }
 
@@ -277,8 +293,10 @@ mod tests {
         let client = EigenClient::new(config, secrets).await.unwrap();
         let data = vec![1; 20];
         let result = client.dispatch_blob(0, data.clone()).await.unwrap();
+        let blob_info_str = client.get_commitment(&result.blob_id).await.unwrap();
+
         let blob_info: BlobInfo =
-            rlp::decode(&hex::decode(result.blob_id.clone()).unwrap()).unwrap();
+            rlp::decode(&hex::decode(blob_info_str.clone()).unwrap()).unwrap();
         let expected_inclusion_data = blob_info.blob_verification_proof.inclusion_proof;
         let actual_inclusion_data = client
             .get_inclusion_data(&result.blob_id)
@@ -287,7 +305,7 @@ mod tests {
             .unwrap()
             .data;
         assert_eq!(expected_inclusion_data, actual_inclusion_data);
-        let retrieved_data = client.get_blob_data(&result.blob_id).await.unwrap();
+        let retrieved_data = client.get_blob_data(&blob_info_str).await.unwrap();
         assert_eq!(retrieved_data.unwrap(), data);
     }
 
@@ -317,8 +335,10 @@ mod tests {
         let client = EigenClient::new(config, secrets).await.unwrap();
         let data = vec![1; 20];
         let result = client.dispatch_blob(0, data.clone()).await.unwrap();
+        let blob_info_str = client.get_commitment(&result.blob_id).await.unwrap();
+
         let blob_info: BlobInfo =
-            rlp::decode(&hex::decode(result.blob_id.clone()).unwrap()).unwrap();
+            rlp::decode(&hex::decode(blob_info_str.clone()).unwrap()).unwrap();
         let expected_inclusion_data = blob_info.blob_verification_proof.inclusion_proof;
         let actual_inclusion_data = client
             .get_inclusion_data(&result.blob_id)
@@ -327,7 +347,7 @@ mod tests {
             .unwrap()
             .data;
         assert_eq!(expected_inclusion_data, actual_inclusion_data);
-        let retrieved_data = client.get_blob_data(&result.blob_id).await.unwrap();
+        let retrieved_data = client.get_blob_data(&blob_info_str).await.unwrap();
         assert_eq!(retrieved_data.unwrap(), data);
     }
 }
