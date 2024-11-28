@@ -2,13 +2,14 @@ use clap::Parser;
 use common::server::ExecutionMode;
 use serde::{Deserialize, Serialize};
 
+use super::MSG_DOCKER_IMAGE_TAG_OPTION;
 use crate::{commands::args::run::Mode, utils::docker::select_tag};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Parser)]
 pub struct GenesisServerArgs {
     #[arg(long, default_value = "release")]
     pub mode: Mode,
-    #[arg(long)]
+    #[arg(long, help = MSG_DOCKER_IMAGE_TAG_OPTION)]
     pub tag: Option<String>,
 }
 

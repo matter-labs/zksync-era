@@ -12,9 +12,9 @@ use crate::{
     },
     defaults::LOCAL_RPC_URL,
     messages::{
-        MSG_DEPLOY_PAYMASTER_PROMPT, MSG_DEV_ARG_HELP, MSG_L1_RPC_URL_HELP,
-        MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT, MSG_NO_PORT_REALLOCATION_HELP,
-        MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
+        MSG_DEPLOY_PAYMASTER_PROMPT, MSG_DEV_ARG_HELP, MSG_DOCKER_IMAGE_TAG_OPTION,
+        MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
+        MSG_NO_PORT_REALLOCATION_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
     },
 };
 
@@ -28,7 +28,7 @@ pub struct InitArgs {
     pub forge_args: ForgeScriptArgs,
     #[arg(long, default_value = "release")]
     pub mode: Mode,
-    #[arg(long)]
+    #[arg(long, help = MSG_DOCKER_IMAGE_TAG_OPTION)]
     pub tag: Option<String>,
     #[clap(long, help = MSG_SERVER_DB_URL_HELP)]
     pub server_db_url: Option<Url>,

@@ -10,8 +10,8 @@ use crate::{
     commands::args::run::Mode,
     defaults::{generate_db_names, DBNames, DATABASE_SERVER_URL},
     messages::{
-        msg_server_db_name_prompt, msg_server_db_url_prompt, MSG_SERVER_DB_NAME_HELP,
-        MSG_SERVER_DB_URL_HELP, MSG_USE_DEFAULT_DATABASES_HELP,
+        msg_server_db_name_prompt, msg_server_db_url_prompt, MSG_DOCKER_IMAGE_TAG_OPTION,
+        MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP, MSG_USE_DEFAULT_DATABASES_HELP,
     },
     utils::docker::select_tag,
 };
@@ -22,7 +22,7 @@ pub mod server;
 pub struct GenesisArgs {
     #[arg(long, default_value = "release")]
     pub mode: Mode,
-    #[arg(long)]
+    #[arg(long, help = MSG_DOCKER_IMAGE_TAG_OPTION)]
     pub tag: Option<String>,
     #[clap(long, help = MSG_SERVER_DB_URL_HELP)]
     pub server_db_url: Option<Url>,
