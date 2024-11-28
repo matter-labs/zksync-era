@@ -39,6 +39,7 @@ pub(crate) const AVG_BLOCK_TIME: u64 = 12;
 
 impl RawEigenClient {
     pub(crate) const BUFFER_SIZE: usize = 1000;
+    const BLOB_SIZE_LIMIT: usize = 1024 * 1024 * 2; // 2 MB
 
     pub async fn new(private_key: SecretKey, config: EigenConfig) -> anyhow::Result<Self> {
         let endpoint =
@@ -50,9 +51,10 @@ impl RawEigenClient {
         let verifier_config = VerifierConfig {
             rpc_url: config.eigenda_eth_rpc.clone(),
             svc_manager_addr: config.eigenda_svc_manager_address.clone(),
-            max_blob_size: config.blob_size_limit,
+            max_blob_size: Self::BLOB_SIZE_LIMIT as u32,
             path_to_points: config.path_to_points.clone(),
-            eth_confirmation_depth: config.eth_confirmation_depth.max(0) as u32,
+            settlement_layer_confirmation_depth: config.settlement_layer_confirmation_depth.max(0)
+                as u32,
             private_key: hex::encode(private_key.secret_bytes()),
             chain_id: config.chain_id,
         };
@@ -64,6 +66,10 @@ impl RawEigenClient {
             config,
             verifier,
         })
+    }
+
+    pub fn blob_size_limit() -> usize {
+        Self::BLOB_SIZE_LIMIT
     }
 
     async fn dispatch_blob_non_authenticated(&self, data: Vec<u8>) -> anyhow::Result<String> {
@@ -80,7 +86,7 @@ impl RawEigenClient {
         Ok(hex::encode(disperse_reply.request_id))
     }
 
-    async fn loop_verify_certificate(
+    async fn perform_verification(
         &self,
         blob_info: BlobInfo,
         disperse_elapsed: Duration,
@@ -155,7 +161,7 @@ impl RawEigenClient {
             .verify_commitment(blob_info.blob_header.commitment.clone(), data.unwrap())
             .map_err(|_| anyhow::anyhow!("Failed to verify commitment"))?;
 
-        self.loop_verify_certificate(blob_info.clone(), disperse_elapsed)
+        self.perform_verification(blob_info.clone(), disperse_elapsed)
             .await?;
 
         let verification_proof = blob_info.blob_verification_proof.clone();

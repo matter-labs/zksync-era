@@ -7,13 +7,11 @@ pub struct EigenConfig {
     pub disperser_rpc: String,
     /// Block height needed to reach in order to consider the blob finalized
     /// a value less or equal to 0 means that the disperser will not wait for finalization
-    pub eth_confirmation_depth: i32,
+    pub settlement_layer_confirmation_depth: i32,
     /// URL of the Ethereum RPC server
     pub eigenda_eth_rpc: String,
     /// Address of the service manager contract
     pub eigenda_svc_manager_address: String,
-    /// Maximum size permitted for a blob in bytes
-    pub blob_size_limit: u32,
     /// Maximun amount of time in milliseconds to wait for a status query response
     pub status_query_timeout: u64,
     /// Interval in milliseconds to query the status of a blob

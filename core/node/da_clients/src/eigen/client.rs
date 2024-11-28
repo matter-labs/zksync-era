@@ -46,15 +46,6 @@ impl DataAvailabilityClient for EigenClient {
         _: u32, // batch number
         data: Vec<u8>,
     ) -> Result<DispatchResponse, DAError> {
-        if let Some(blob_size_limit) = self.blob_size_limit() {
-            if data.len() > blob_size_limit {
-                return Err(DAError {
-                    error: anyhow!("Blob size limit exceeded"),
-                    is_retriable: false,
-                });
-            }
-        }
-
         let blob_id = self
             .client
             .dispatch_blob(data)
@@ -88,7 +79,7 @@ impl DataAvailabilityClient for EigenClient {
     }
 
     fn blob_size_limit(&self) -> Option<usize> {
-        Some(self.client.clone().config.blob_size_limit as usize)
+        Some(RawEigenClient::blob_size_limit())
     }
 }
 
@@ -111,12 +102,11 @@ mod tests {
     async fn test_non_auth_dispersal() {
         let config = EigenConfig {
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
-            eth_confirmation_depth: -1,
+            settlement_layer_confirmation_depth: -1,
             eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
-            blob_size_limit: 2 * 1024 * 1024, // 2MB
-            status_query_timeout: 1800000,    // 30 minutes
-            status_query_interval: 5,         // 5 ms
+            status_query_timeout: 1800000, // 30 minutes
+            status_query_interval: 5,      // 5 ms
             wait_for_finalization: false,
             authenticated: false,
             verify_cert: true,
@@ -154,12 +144,11 @@ mod tests {
     async fn test_auth_dispersal() {
         let config = EigenConfig {
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
-            eth_confirmation_depth: -1,
+            settlement_layer_confirmation_depth: -1,
             eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
-            blob_size_limit: 2 * 1024 * 1024, // 2MB
-            status_query_timeout: 1800000,    // 30 minutes
-            status_query_interval: 5,         // 5 ms
+            status_query_timeout: 1800000, // 30 minutes
+            status_query_interval: 5,      // 5 ms
             wait_for_finalization: false,
             authenticated: true,
             verify_cert: true,
@@ -196,14 +185,13 @@ mod tests {
     async fn test_wait_for_finalization() {
         let config = EigenConfig {
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
-            blob_size_limit: 2 * 1024 * 1024, // 2MB
-            status_query_timeout: 1800000,    // 30 minutes
-            status_query_interval: 5000,      // 5000 ms
+            status_query_timeout: 1800000, // 30 minutes
+            status_query_interval: 5000,   // 5000 ms
             wait_for_finalization: true,
             authenticated: true,
             verify_cert: true,
             path_to_points: "../../../resources".to_string(),
-            eth_confirmation_depth: 0,
+            settlement_layer_confirmation_depth: 0,
             eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             chain_id: 17000,
@@ -234,50 +222,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_eigenda_dispatch_blob_too_large() {
-        let config = EigenConfig {
-            disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
-            blob_size_limit: 99,
-            status_query_timeout: 1800000, // 30 minutes
-            status_query_interval: 5000,   // 5000 ms
-            wait_for_finalization: true,
-            authenticated: true,
-            verify_cert: true,
-            path_to_points: "../../../resources".to_string(),
-            eth_confirmation_depth: 0,
-            eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
-            eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
-            chain_id: 17000,
-        };
-        let secrets = EigenSecrets {
-            private_key: PrivateKey::from_str(
-                "d08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6",
-            )
-            .unwrap(),
-        };
-        let client = EigenClient::new(config, secrets).await.unwrap();
-        let data = vec![1u8; 100];
-        let actual_error = client
-            .dispatch_blob(0, data.clone())
-            .await
-            .err()
-            .unwrap()
-            .error;
-        let expected_error = anyhow!("Blob size limit exceeded");
-        assert_eq!(format!("{}", actual_error), format!("{}", expected_error));
-    }
-
-    #[tokio::test]
     #[serial]
-    async fn test_eth_confirmation_depth() {
+    async fn test_settlement_layer_confirmation_depth() {
         let config = EigenConfig {
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
-            eth_confirmation_depth: 5,
+            settlement_layer_confirmation_depth: 5,
             eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
-            blob_size_limit: 2 * 1024 * 1024, // 2MB
-            status_query_timeout: 1800000,    // 30 minutes
-            status_query_interval: 5,         // 5 ms
+            status_query_timeout: 1800000, // 30 minutes
+            status_query_interval: 5,      // 5 ms
             wait_for_finalization: false,
             authenticated: false,
             verify_cert: true,
@@ -311,15 +264,14 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_auth_dispersal_eth_confirmation_depth() {
+    async fn test_auth_dispersal_settlement_layer_confirmation_depth() {
         let config = EigenConfig {
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
-            eth_confirmation_depth: 5,
+            settlement_layer_confirmation_depth: 5,
             eigenda_eth_rpc: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
-            blob_size_limit: 2 * 1024 * 1024, // 2MB
-            status_query_timeout: 1800000,    // 30 minutes
-            status_query_interval: 5,         // 5 ms
+            status_query_timeout: 1800000, // 30 minutes
+            status_query_interval: 5,      // 5 ms
             wait_for_finalization: false,
             authenticated: true,
             verify_cert: true,

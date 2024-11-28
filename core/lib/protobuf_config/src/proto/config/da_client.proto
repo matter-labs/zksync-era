@@ -37,19 +37,19 @@ message CelestiaConfig {
 }
 
 message EigenConfig {
-  reserved 1,2;
   optional string disperser_rpc = 3;
-  optional int32 eth_confirmation_depth = 4;
+  optional int32 settlement_layer_confirmation_depth = 4;
   optional string eigenda_eth_rpc = 5;
   optional string eigenda_svc_manager_address = 6;
-  optional uint32 blob_size_limit = 7;
-  optional uint64 status_query_timeout = 8;
-  optional uint64 status_query_interval = 9;
-  optional bool wait_for_finalization = 10;
-  optional bool authenticated = 11;
-  optional bool verify_cert = 12;
-  optional string path_to_points = 13;
-  optional uint64 chain_id = 14;
+  optional uint64 status_query_timeout = 7;
+  optional uint64 status_query_interval = 8;
+  optional bool wait_for_finalization = 9;
+  optional bool authenticated = 10;
+  optional bool verify_cert = 11;
+  optional string path_to_points = 12;
+  optional uint64 chain_id = 13;
+  reserved 1,2;
+  reserved "rpc_node_url","inclusion_polling_interval_ms";
 }
 
 message DataAvailabilityClient {
