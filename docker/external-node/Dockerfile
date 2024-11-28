@@ -23,7 +23,9 @@ COPY --from=builder /usr/src/zksync/target/release/zksync_external_node /usr/bin
 COPY --from=builder /usr/src/zksync/target/release/block_reverter /usr/bin
 COPY --from=builder /usr/local/cargo/bin/sqlx /usr/bin
 COPY --from=builder /usr/src/zksync/docker/external-node/entrypoint.sh /usr/bin
-COPY contracts/system-contracts/zkout/ /contracts/system-contracts/zkout/
+COPY contracts/system-contracts/artifacts-zk/ /contracts/system-contracts/artifacts-zk/
+COPY contracts/system-contracts/bootloader/ /contracts/system-contracts/bootloader/
+COPY contracts/system-contracts/contracts-preprocessed/ /contracts/system-contracts/contracts-preprocessed/
 COPY contracts/l1-contracts/out/ /contracts/l1-contracts/out/
 COPY contracts/l2-contracts/zkout/ /contracts/l2-contracts/zkout/
 COPY etc/tokens/ /etc/tokens/
