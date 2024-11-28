@@ -126,14 +126,14 @@ jobs:
           context: .
           push: ${{ inputs.action == 'push' }}
           build-args: |
-            CUDA_ARCH='${{ inputs.CUDA_ARCH }}'
+            CUDA_ARCH="${{ inputs.CUDA_ARCH }}"
             SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage
             SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
             SCCACHE_GCS_RW_MODE=READ_WRITE
             RUSTC_WRAPPER=sccache
-            PROTOCOL_VERSION='${{ env.PROTOCOL_VERSION }}'
-            ERA_BELLMAN_CUDA_RELEASE='${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}'
-            RUST_FLAGS='${{ inputs.WITNESS_GENERATOR_RUST_FLAGS }}'
+            PROTOCOL_VERSION="${{ env.PROTOCOL_VERSION }}"
+            ERA_BELLMAN_CUDA_RELEASE="${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}"
+            RUST_FLAGS="${{ inputs.WITNESS_GENERATOR_RUST_FLAGS }}"
           file: docker/${{ matrix.components }}/Dockerfile
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
