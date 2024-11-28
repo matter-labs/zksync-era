@@ -4,6 +4,10 @@ use std::collections::VecDeque;
 
 use super::*;
 
+fn empty_subtree_root(depth: usize) -> H256 {
+    <KeccakHasher as HashEmptySubtree<[u8; 88]>>::empty_subtree_hash(&KeccakHasher, depth)
+}
+
 #[test]
 fn tree_depth_is_computed_correctly() {
     const TREE_SIZES_AND_DEPTHS: &[(usize, usize)] = &[
@@ -29,7 +33,7 @@ fn hash_of_empty_tree_with_single_item() {
         let len = 1 << depth;
         println!("checking tree with {len} items");
         let tree = MiniMerkleTree::new(iter::once([0_u8; 88]), Some(len));
-        assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(depth));
+        assert_eq!(tree.merkle_root(), empty_subtree_root(depth));
     }
 }
 
@@ -42,10 +46,10 @@ fn hash_of_large_empty_tree_with_multiple_items() {
 
         let tree = MiniMerkleTree::new(leaves.clone(), Some(tree_size));
         let depth = tree_depth_by_size(tree_size);
-        assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(depth));
+        assert_eq!(tree.merkle_root(), empty_subtree_root(depth));
         let tree = MiniMerkleTree::new(leaves, None);
         let depth = tree_depth_by_size(tree_size);
-        assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(depth));
+        assert_eq!(tree.merkle_root(), empty_subtree_root(depth));
     }
 }
 
@@ -285,20 +289,20 @@ fn merkle_proofs_are_valid_in_very_small_trees() {
 fn dynamic_merkle_tree_growth() {
     let mut tree = MiniMerkleTree::new(iter::empty(), None);
     assert_eq!(tree.binary_tree_size, 1);
-    assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(0));
+    assert_eq!(tree.merkle_root(), empty_subtree_root(0));
 
     for len in 1..=8_usize {
         tree.push([0; 88]);
         assert_eq!(tree.binary_tree_size, len.next_power_of_two());
 
         let depth = tree_depth_by_size(tree.binary_tree_size);
-        assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(depth));
+        assert_eq!(tree.merkle_root(), empty_subtree_root(depth));
     }
 
     // Shouldn't shrink after caching
     tree.trim_start(6);
     assert_eq!(tree.binary_tree_size, 8);
-    assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(3));
+    assert_eq!(tree.merkle_root(), empty_subtree_root(3));
 }
 
 #[test]

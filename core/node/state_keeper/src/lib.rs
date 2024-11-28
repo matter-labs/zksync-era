@@ -7,7 +7,7 @@ pub use self::{
     mempool_actor::MempoolFetcher,
     seal_criteria::SequencerSealer,
     state_keeper_storage::AsyncRocksdbCache,
-    types::{ExecutionMetricsForCriteria, MempoolGuard},
+    types::MempoolGuard,
     updates::UpdatesManager,
 };
 
