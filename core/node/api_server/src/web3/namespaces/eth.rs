@@ -9,8 +9,8 @@ use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{api::{
     state_override::StateOverride, BlockId, BlockNumber, FeeHistory, GetLogsFilter,
     Transaction, TransactionId, TransactionReceipt, TransactionVariant,
-}, l2::{L2Tx, TransactionType}, transaction_request::CallRequest, utils::decompose_full_nonce, web3::{self, Bytes, SyncInfo, SyncState}, AccountTreeId, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256, H160};
-use zksync_utils::{bytecode::{prepare_evm_bytecode, BytecodeMarker}, h256_to_u256, u256_to_h256};
+}, l2::{L2Tx, TransactionType}, transaction_request::CallRequest, utils::decompose_full_nonce, web3::{self, Bytes, SyncInfo, SyncState}, AccountTreeId, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256, H160, u256_to_h256, h256_to_u256};
+use zksync_types::bytecode::{BytecodeMarker, trim_padded_evm_bytecode};
 use zksync_web3_decl::{
     error::Web3Error,
     types::{Address, Block, Filter, FilterChanges, Log, U64},
@@ -77,7 +77,7 @@ impl EthNamespace {
 
         let call_overrides = request.get_call_overrides()?;
         let tx = L2Tx::from_request(
-            request.into(),
+            request.clone().into(),
             self.state.api_config.max_tx_size,
             block_args.use_evm_emulator(),
         )?;
@@ -88,6 +88,8 @@ impl EthNamespace {
             .tx_sender
             .eth_call(block_args, call_overrides, tx, state_override)
             .await?;
+
+        tracing::info!("result of eth_call ({:?}): {:?}", request, call_result);
 
         Ok(call_result.into())
     }
@@ -176,6 +178,8 @@ impl EthNamespace {
         let key = address_into_special_storage_key(&address);
         //todo: maybe reimport?
         let flat_key = derive_flat_storage_key(&NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, &key);
+
+        tracing::info!("key for get_balance: {:?}", flat_key);
 
         let storage_hashed_key = H256::from_slice(&flat_key.as_u8_array());
 

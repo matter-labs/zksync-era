@@ -28,5 +28,6 @@ anyhow.workspace = true
 ruint.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+serde = { version = "1.0.214", features = ["derive"] }
 #hex = "0.4.3"
 #sha3 = { version = "0.10", default-features = false }

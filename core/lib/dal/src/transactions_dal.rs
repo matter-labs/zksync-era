@@ -16,7 +16,6 @@ use zksync_types::{
     TransactionTimeRangeConstraint, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_types::api::BlockId;
-use zksync_utils::u256_to_big_decimal;
 use zksync_vm_interface::{
     tracer::ValidationTraces, Call, TransactionExecutionMetrics, TransactionExecutionResult,
     TxExecutionStatus,

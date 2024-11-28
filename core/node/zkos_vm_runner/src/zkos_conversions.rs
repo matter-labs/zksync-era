@@ -7,10 +7,8 @@ use zk_ee::utils::Bytes32;
 use zk_os_basic_system::basic_io_implementer::address_into_special_storage_key;
 use zk_os_forward_system::run::test_impl::{InMemoryPreimageSource, InMemoryTree};
 use zksync_types::ethabi::{Address, encode, Token};
-use zksync_types::{ExecuteTransactionCommon, H256, Transaction, U256};
+use zksync_types::{address_to_h256, ExecuteTransactionCommon, H256, h256_to_u256, Transaction, U256};
 use zksync_types::l2::TransactionType;
-use zksync_utils::{address_to_h256, h256_to_u256};
-use zksync_utils::bytecode::hash_bytecode;
 
 
 pub(crate) const MAX_GAS_PER_PUBDATA_BYTE: u64 = 50_000;

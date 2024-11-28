@@ -17,7 +17,7 @@ use zk_ee::system::system_io_oracle::PreimageType;
 use zk_ee::utils::Bytes32;
 use zk_os_basic_system::basic_io_implementer::address_into_special_storage_key;
 use zk_os_basic_system::basic_system::simple_growable_storage::TestingTree;
-use zk_os_forward_system::run::test_impl::{InMemoryPreimageSource, InMemoryTree};
+use zk_os_forward_system::run::test_impl::{InMemoryPreimageSource, InMemoryTree, TxListSource};
 use zk_os_system_hooks::addresses_constants::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
@@ -26,11 +26,10 @@ use zksync_state_keeper::io::IoCursor;
 use zksync_state_keeper::MempoolGuard;
 use zksync_types::{Address, ERC20_TRANSFER_TOPIC, H256, L1BatchNumber, L2BlockNumber, StorageKey, StorageLog, Transaction};
 use zksync_types::snapshots::SnapshotStorageLog;
-use zksync_utils::time::{millis_since_epoch, seconds_since_epoch};
 use crate::preimage_source::ZkSyncPreimageSource;
 use crate::seal_logic::seal_in_db;
-use crate::single_tx_source::SingleTxSource;
-use zksync_zkos_vm_runner::zkos_conversions::{bytes32_to_h256, h256_to_bytes32};
+use zksync_zkos_vm_runner::zkos_conversions::{bytes32_to_h256, h256_to_bytes32, tx_abi_encode};
+use crate::millis_since_epoch;
 
 const POLL_WAIT_DURATION: Duration = Duration::from_millis(50);
 
@@ -133,14 +132,17 @@ impl ZkosStateKeeper {
             };
             tracing::info!("Transaction found: {:?}", tx);
             let tx_hash = tx.hash();
-            let tx_source = SingleTxSource::new(tx);
+            let encoded = tx_abi_encode(tx);
+            let tx_source = TxListSource {
+                transactions: vec![encoded].into(),
+            };
 
             let context = BatchContext {
                 eip1559_basefee: U256::from(1),
                 ergs_price: U256::from(1),
                 // todo: consider changing type
                 block_number: pending_block_number.0 as u64,
-                timestamp: seconds_since_epoch(),
+                timestamp: (millis_since_epoch() / 1000) as u64,
             };
 
             let storage_commitment = StorageCommitment {

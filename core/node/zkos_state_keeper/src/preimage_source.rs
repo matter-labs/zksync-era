@@ -7,7 +7,6 @@ use zk_os_forward_system::run::PreimageSource;
 use zksync_state::interface::ReadStorage;
 use zksync_state::OwnedStorage;
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
-use zksync_utils::u256_to_h256;
 
 pub struct ZkSyncPreimageSource {
     storage: OwnedStorage,

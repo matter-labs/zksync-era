@@ -1,8 +1,10 @@
 use tracing::log::logger;
 use zk_os_forward_system::run::{NextTxResponse, TxSource};
+use serde::{Deserialize, Serialize};
 use zksync_types::Transaction;
 use zksync_zkos_vm_runner::zkos_conversions::tx_abi_encode;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SingleTxSource {
     pending_response: NextTxResponse,
 }

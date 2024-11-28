@@ -1,6 +1,6 @@
 //! Implementation of "executing" methods, e.g. `eth_call`.
 
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -15,7 +15,6 @@ use zksync_state::{PostgresStorage, PostgresStorageCaches, PostgresStorageForZkO
 use zksync_types::{
     api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, Transaction,
 };
-use zksync_utils::time::seconds_since_epoch;
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 use zksync_zkos_vm_runner::zkos_conversions::tx_abi_encode;
 use super::{
@@ -167,7 +166,10 @@ impl SandboxExecutor {
             // todo: consider changing type
             // todo: check if need to increment here
             block_number: (env.l1_batch.number.0 + 1) as u64,
-            timestamp: seconds_since_epoch(),
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Incorrect system time")
+                .as_secs(),
         };
 
         let storage_commitment = StorageCommitment {

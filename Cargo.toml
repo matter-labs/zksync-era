@@ -338,3 +338,4 @@ ark-bn254 = { git = "https://github.com/arkworks-rs/algebra.git" }
 ark-std = { git = "https://github.com/arkworks-rs/std/" }
 franklin-crypto = {path = "../zksync-crypto/crates/franklin-crypto"}
 zksync_bellman = {path = "../zksync-crypto/crates/bellman"}
+boojum = {path = "../zksync-crypto/crates/boojum"}

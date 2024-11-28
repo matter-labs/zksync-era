@@ -5,6 +5,7 @@ use std::{
 };
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Mutex;
 use anyhow::Context as _;
 use backon::{BlockingRetryable, ConstantBuilder};
 use tokio::{
@@ -530,11 +531,14 @@ impl ZkOsReadStorage for PostgresStorageForZkOs {
         let hashed_key = H256::from_slice(&key.as_u8_array());
 
         let mut borrow = self.inner.borrow_mut();
+        let handle = borrow.rt_handle.clone();
+        let block_number = borrow.l2_block_number;
         let mut dal = borrow.connection.storage_web3_dal();
         let value: Option<H256> =
-            self.inner.borrow().rt_handle
-                .block_on(dal.get_historical_option_value_unchecked(hashed_key, self.inner.borrow_mut().l2_block_number))
+            handle
+                .block_on(dal.get_historical_option_value_unchecked(hashed_key, block_number))
                 .expect("Failed executing `get_historical_option_value_unchecked`");
+        tracing::info!("value for key {:?} read: {:?}", key, value);
 
         value.map(|v| {
             let mut new = Bytes32::zero();
@@ -550,9 +554,10 @@ impl ZkOsPreimageSource for PostgresStorageForZkOs {
 
 
         let mut borrow = self.inner.borrow_mut();
+        let handle = borrow.rt_handle.clone();
         let mut dal = borrow.connection.factory_deps_dal();
         let value: Option<Vec<u8>> =
-            self.inner.borrow().rt_handle
+            handle
                 .block_on(dal.get_sealed_factory_dep(hash))
                 .expect("Failed executing `get_sealed_factory_dep`");
 
