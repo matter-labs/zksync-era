@@ -1780,7 +1780,7 @@
     chalk "4.1.2"
     dockerode "^3.3.4"
 
-"@matterlabs/hardhat-zksync-solc@^1.0.5", "@matterlabs/hardhat-zksync-solc@^1.1.4":
+"@matterlabs/hardhat-zksync-solc@^1.0.5":
   version "1.1.4"
   resolved "https://registry.yarnpkg.com/@matterlabs/hardhat-zksync-solc/-/hardhat-zksync-solc-1.1.4.tgz#04a2fad6fb6b6944c64ad969080ee65b9af3f617"
   integrity sha512-4/usbogh9neewR2/v8Dn2OzqVblZMUuT/iH2MyPZgPRZYQlL4SlZtMvokU9UQjZT6iSoaKCbbdWESHDHSzfUjA==
@@ -1814,7 +1814,7 @@
     sinon-chai "^3.7.0"
     undici "^6.18.2"
 
-"@matterlabs/hardhat-zksync-solc@^1.2.4":
+"@matterlabs/hardhat-zksync-solc@^1.2.4", "@matterlabs/hardhat-zksync-solc@^1.2.5":
   version "1.2.5"
   resolved "https://registry.yarnpkg.com/@matterlabs/hardhat-zksync-solc/-/hardhat-zksync-solc-1.2.5.tgz#fbeeabc3fea0dd232fa3c8cb31bd93c103eba11a"
   integrity sha512-iZyznWl1Hoe/Z46hnUe1s2drBZBjJOS/eN+Ql2lIBX9B6NevBl9DYzkKzH5HEIMCLGnX9sWpRAJqUQJWy9UB6w==
@@ -10411,7 +10411,7 @@ synckit@^0.8.6:
   version "0.1.0"
   dependencies:
     "@matterlabs/hardhat-zksync-deploy" "^0.7.0"
-    "@matterlabs/hardhat-zksync-solc" "^1.1.4"
+    "@matterlabs/hardhat-zksync-solc" "^1.2.5"
     "@matterlabs/hardhat-zksync-verify" "^1.4.3"
     commander "^9.4.1"
     eslint "^8.51.0"
