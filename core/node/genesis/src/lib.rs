@@ -413,21 +413,18 @@ pub async fn ensure_genesis_state(
             ))?;
 
     if expected_root_hash != root_hash {
-        tracing::warn!("Encountered GenesisError::RootHash error case, skipping.");
-        // return Err(GenesisError::RootHash(expected_root_hash, root_hash));
+        return Err(GenesisError::RootHash(expected_root_hash, root_hash));
     }
 
     if expected_commitment != commitment {
-        tracing::warn!("Encountered GenesisError::Commitment error case, skipping.");
-        // return Err(GenesisError::Commitment(expected_commitment, commitment));
+        return Err(GenesisError::Commitment(expected_commitment, commitment));
     }
 
     if expected_rollup_last_leaf_index != rollup_last_leaf_index {
-        tracing::warn!("Encountered GenesisError::LeafIndexes error case, skipping.");
-        // return Err(GenesisError::LeafIndexes(
-        //     expected_rollup_last_leaf_index,
-        //     rollup_last_leaf_index,
-        // ));
+        return Err(GenesisError::LeafIndexes(
+            expected_rollup_last_leaf_index,
+            rollup_last_leaf_index,
+        ));
     }
 
     tracing::info!("genesis is complete");
