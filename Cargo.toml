@@ -79,6 +79,7 @@ members = [
   # Test infrastructure
   "core/tests/loadnext",
   "core/tests/vm-benchmark",
+  "core/lib/bin_metadata",
 ]
 resolver = "2"
 
@@ -249,16 +250,16 @@ zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.7" }
 zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "457d8a7eea9093af9440662e33e598c13ba41633" }
 
 # Consensus dependencies.
-zksync_concurrency = "=0.5.0"
-zksync_consensus_bft = "=0.5.0"
-zksync_consensus_crypto = "=0.5.0"
-zksync_consensus_executor = "=0.5.0"
-zksync_consensus_network = "=0.5.0"
-zksync_consensus_roles = "=0.5.0"
-zksync_consensus_storage = "=0.5.0"
-zksync_consensus_utils = "=0.5.0"
-zksync_protobuf = "=0.5.0"
-zksync_protobuf_build = "=0.5.0"
+zksync_concurrency = "=0.6.0"
+zksync_consensus_bft = "=0.6.0"
+zksync_consensus_crypto = "=0.6.0"
+zksync_consensus_executor = "=0.6.0"
+zksync_consensus_network = "=0.6.0"
+zksync_consensus_roles = "=0.6.0"
+zksync_consensus_storage = "=0.6.0"
+zksync_consensus_utils = "=0.6.0"
+zksync_protobuf = "=0.6.0"
+zksync_protobuf_build = "=0.6.0"
 
 # "Local" dependencies
 zksync_multivm = { version = "0.1.0", path = "core/lib/multivm" }
@@ -281,6 +282,7 @@ zksync_health_check = { version = "0.1.0", path = "core/lib/health_check" }
 zksync_l1_contract_interface = { version = "0.1.0", path = "core/lib/l1_contract_interface" }
 zksync_mempool = { version = "0.1.0", path = "core/lib/mempool" }
 zksync_merkle_tree = { version = "0.1.0", path = "core/lib/merkle_tree" }
+zksync_bin_metadata = { version = "0.1.0", path = "core/lib/bin_metadata" }
 zksync_mini_merkle_tree = { version = "0.1.0", path = "core/lib/mini_merkle_tree" }
 zksync_object_store = { version = "0.1.0", path = "core/lib/object_store" }
 zksync_protobuf_config = { version = "0.1.0", path = "core/lib/protobuf_config" }
