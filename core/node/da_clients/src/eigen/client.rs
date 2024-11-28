@@ -14,9 +14,6 @@ use super::{blob_info::BlobInfo, sdk::RawEigenClient};
 use crate::utils::to_retriable_da_error;
 
 /// EigenClient is a client for the Eigen DA service.
-/// It can be configured to use one of two dispersal methods:
-/// - Remote: Dispatch blobs to a remote Eigen service.
-/// - Memstore: Stores blobs in memory, used for testing purposes.
 #[derive(Debug, Clone)]
 pub struct EigenClient {
     client: Arc<RawEigenClient>,
@@ -83,12 +80,10 @@ impl DataAvailabilityClient for EigenClient {
     }
 }
 
-#[cfg(test)]
-impl EigenClient {
-    pub async fn get_blob_data(&self, blob_id: &str) -> anyhow::Result<Option<Vec<u8>>, DAError> {
-        self.client.get_blob_data(blob_id).await
-    }
-}
+/// EigenDA Client tests are ignored by default, because they require a remote dependency,
+/// which may not always be available, causing tests to be flaky.
+/// To run these tests, use the following command:
+/// `cargo test -p zksync_da_clients -- --ignored`
 #[cfg(test)]
 mod tests {
     use serial_test::serial;
@@ -98,6 +93,16 @@ mod tests {
     use super::*;
     use crate::eigen::blob_info::BlobInfo;
 
+    impl EigenClient {
+        pub async fn get_blob_data(
+            &self,
+            blob_id: &str,
+        ) -> anyhow::Result<Option<Vec<u8>>, DAError> {
+            self.client.get_blob_data(blob_id).await
+        }
+    }
+
+    #[ignore = "depends on external RPC"]
     #[tokio::test]
     #[serial]
     async fn test_non_auth_dispersal() {
@@ -140,6 +145,7 @@ mod tests {
         assert_eq!(retrieved_data.unwrap(), data);
     }
 
+    #[ignore = "depends on external RPC"]
     #[tokio::test]
     #[serial]
     async fn test_auth_dispersal() {
@@ -181,6 +187,7 @@ mod tests {
         assert_eq!(retrieved_data.unwrap(), data);
     }
 
+    #[ignore = "depends on external RPC"]
     #[tokio::test]
     #[serial]
     async fn test_wait_for_finalization() {
@@ -222,6 +229,7 @@ mod tests {
         assert_eq!(retrieved_data.unwrap(), data);
     }
 
+    #[ignore = "depends on external RPC"]
     #[tokio::test]
     #[serial]
     async fn test_settlement_layer_confirmation_depth() {
@@ -263,6 +271,7 @@ mod tests {
         assert_eq!(retrieved_data.unwrap(), data);
     }
 
+    #[ignore = "depends on external RPC"]
     #[tokio::test]
     #[serial]
     async fn test_auth_dispersal_settlement_layer_confirmation_depth() {

@@ -13,6 +13,9 @@ use tonic::{
 };
 use zksync_config::EigenConfig;
 use zksync_da_client::types::DAError;
+use zksync_eth_client::clients::PKSigningClient;
+use zksync_types::{url::SensitiveUrl, K256PrivateKey, SLChainId, H160};
+use zksync_web3_decl::client::{Client, DynClient, L1};
 
 use super::{
     blob_info::BlobInfo,
@@ -58,7 +61,21 @@ impl RawEigenClient {
             private_key: hex::encode(private_key.secret_bytes()),
             chain_id: config.chain_id,
         };
-        let verifier = Verifier::new(verifier_config)
+
+        let url = SensitiveUrl::from_str(&verifier_config.rpc_url)?;
+        let query_client: Client<L1> = Client::http(url)?.build();
+        let query_client = Box::new(query_client) as Box<DynClient<L1>>;
+        let signing_client = PKSigningClient::new_raw(
+            K256PrivateKey::from_bytes(zksync_types::H256::from_str(
+                &verifier_config.private_key,
+            )?)?,
+            H160::from_str(&verifier_config.svc_manager_addr)?,
+            Verifier::DEFAULT_PRIORITY_FEE_PER_GAS,
+            SLChainId(verifier_config.chain_id),
+            query_client,
+        );
+
+        let verifier = Verifier::new(verifier_config, signing_client)
             .await
             .map_err(|e| anyhow::anyhow!(format!("Failed to create verifier {:?}", e)))?;
         Ok(RawEigenClient {
