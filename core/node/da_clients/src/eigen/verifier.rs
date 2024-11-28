@@ -34,7 +34,6 @@ pub enum VerificationError {
 /// Configuration for the verifier used for authenticated dispersals
 #[derive(Debug, Clone)]
 pub struct VerifierConfig {
-    pub verify_certs: bool,
     pub rpc_url: String,
     pub svc_manager_addr: String,
     pub max_blob_size: u32,
@@ -466,9 +465,6 @@ impl Verifier {
 
     /// Verifies that the certificate is valid
     pub async fn verify_certificate(&self, cert: BlobInfo) -> Result<(), VerificationError> {
-        if !self.cfg.verify_certs {
-            return Ok(());
-        }
         self.verify_batch(cert.clone()).await?;
         self.verify_merkle_proof(cert.clone())?;
         self.verify_security_params(cert.clone()).await?;
@@ -486,7 +482,6 @@ mod test {
     #[test]
     fn test_verify_commitment() {
         let verifier = super::Verifier::new(super::VerifierConfig {
-            verify_certs: true,
             rpc_url: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             svc_manager_addr: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             max_blob_size: 2 * 1024 * 1024,
@@ -515,7 +510,6 @@ mod test {
     #[test]
     fn test_verify_merkle_proof() {
         let verifier = super::Verifier::new(super::VerifierConfig {
-            verify_certs: true,
             rpc_url: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             svc_manager_addr: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             max_blob_size: 2 * 1024 * 1024,
@@ -605,7 +599,6 @@ mod test {
     #[test]
     fn test_hash_blob_header() {
         let verifier = super::Verifier::new(super::VerifierConfig {
-            verify_certs: true,
             rpc_url: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             svc_manager_addr: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             max_blob_size: 2 * 1024 * 1024,
@@ -651,7 +644,6 @@ mod test {
     #[test]
     fn test_inclusion_proof() {
         let verifier = super::Verifier::new(super::VerifierConfig {
-            verify_certs: true,
             rpc_url: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             svc_manager_addr: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             max_blob_size: 2 * 1024 * 1024,
@@ -680,7 +672,6 @@ mod test {
     #[tokio::test]
     async fn test_verify_batch() {
         let verifier = super::Verifier::new(super::VerifierConfig {
-            verify_certs: true,
             rpc_url: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             svc_manager_addr: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             max_blob_size: 2 * 1024 * 1024,
@@ -770,7 +761,6 @@ mod test {
     #[tokio::test]
     async fn test_verify_security_params() {
         let verifier = super::Verifier::new(super::VerifierConfig {
-            verify_certs: true,
             rpc_url: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             svc_manager_addr: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             max_blob_size: 2 * 1024 * 1024,

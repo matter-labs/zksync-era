@@ -48,7 +48,6 @@ impl RawEigenClient {
             .map_err(|e| anyhow::anyhow!("Failed to connect to Disperser server: {}", e))?;
 
         let verifier_config = VerifierConfig {
-            verify_certs: true,
             rpc_url: config.eigenda_eth_rpc.clone(),
             svc_manager_addr: config.eigenda_svc_manager_address.clone(),
             max_blob_size: config.blob_size_limit,
