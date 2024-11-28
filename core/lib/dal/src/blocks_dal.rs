@@ -6,19 +6,18 @@ use std::{
 };
 
 use anyhow::Context as _;
-use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
+use bigdecimal::{BigDecimal, FromPrimitive};
 use sqlx::types::chrono::{DateTime, Utc};
 use zksync_db_connection::{
     connection::Connection,
     error::{DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
-    interpolate_query, match_query_as,
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{
-        BlockGasCount, L1BatchHeader, L1BatchStatistics, L1BatchTreeData, L2BlockHeader,
-        StorageOracleInfo, UnsealedL1BatchHeader,
+        L1BatchHeader, L1BatchStatistics, L1BatchTreeData, L2BlockHeader, StorageOracleInfo,
+        UnsealedL1BatchHeader,
     },
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
     fee_model::BatchFeeInput,
@@ -688,7 +687,6 @@ impl BlocksDal<'_, '_> {
         &mut self,
         header: &L1BatchHeader,
         initial_bootloader_contents: &[(usize, U256)],
-        predicted_block_gas: BlockGasCount,
         storage_refunds: &[u32],
         pubdata_costs: &[i32],
         predicted_circuits_by_type: CircuitStatistic, // predicted number of circuits for each circuit type
@@ -728,20 +726,17 @@ impl BlocksDal<'_, '_> {
                 l2_to_l1_messages = $4,
                 bloom = $5,
                 priority_ops_onchain_data = $6,
-                predicted_commit_gas_cost = $7,
-                predicted_prove_gas_cost = $8,
-                predicted_execute_gas_cost = $9,
-                initial_bootloader_heap_content = $10,
-                used_contract_hashes = $11,
-                bootloader_code_hash = $12,
-                default_aa_code_hash = $13,
-                evm_emulator_code_hash = $14,
-                protocol_version = $15,
-                system_logs = $16,
-                storage_refunds = $17,
-                pubdata_costs = $18,
-                pubdata_input = $19,
-                predicted_circuits_by_type = $20,
+                initial_bootloader_heap_content = $7,
+                used_contract_hashes = $8,
+                bootloader_code_hash = $9,
+                default_aa_code_hash = $10,
+                evm_emulator_code_hash = $11,
+                protocol_version = $12,
+                system_logs = $13,
+                storage_refunds = $14,
+                pubdata_costs = $15,
+                pubdata_input = $16,
+                predicted_circuits_by_type = $17,
                 updated_at = NOW(),
                 sealed_at = NOW(),
                 is_sealed = TRUE
@@ -754,9 +749,6 @@ impl BlocksDal<'_, '_> {
             &header.l2_to_l1_messages,
             header.bloom.as_bytes(),
             &priority_onchain_data,
-            i64::from(predicted_block_gas.commit),
-            i64::from(predicted_block_gas.prove),
-            i64::from(predicted_block_gas.execute),
             initial_bootloader_contents,
             used_contract_hashes,
             header.base_system_contracts_hashes.bootloader.as_bytes(),
@@ -2395,40 +2387,6 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    /// Returns sum of predicted gas costs on the given L1 batch range.
-    /// Panics if the sum doesn't fit into `u32`.
-    pub async fn get_l1_batches_predicted_gas(
-        &mut self,
-        number_range: ops::RangeInclusive<L1BatchNumber>,
-        op_type: AggregatedActionType,
-    ) -> anyhow::Result<u32> {
-        #[derive(Debug)]
-        struct SumRow {
-            sum: BigDecimal,
-        }
-
-        let start = i64::from(number_range.start().0);
-        let end = i64::from(number_range.end().0);
-        let query = match_query_as!(
-            SumRow,
-            [
-                "SELECT COALESCE(SUM(", _, r#"), 0) AS "sum!" FROM l1_batches WHERE number BETWEEN $1 AND $2"#
-            ],
-            match (op_type) {
-                AggregatedActionType::Commit => ("predicted_commit_gas_cost"; start, end),
-                AggregatedActionType::PublishProofOnchain => ("predicted_prove_gas_cost"; start, end),
-                AggregatedActionType::Execute => ("predicted_execute_gas_cost"; start, end),
-            }
-        );
-
-        query
-            .fetch_one(self.storage.conn())
-            .await?
-            .sum
-            .to_u32()
-            .context("Sum of predicted gas costs should fit into u32")
-    }
-
     pub async fn get_l2_block_range_of_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
@@ -2956,15 +2914,8 @@ impl BlocksDal<'_, '_> {
             header.to_unsealed_header(BatchFeeInput::pubdata_independent(100, 100, 100)),
         )
         .await?;
-        self.mark_l1_batch_as_sealed(
-            header,
-            &[],
-            Default::default(),
-            &[],
-            &[],
-            Default::default(),
-        )
-        .await
+        self.mark_l1_batch_as_sealed(header, &[], &[], &[], Default::default())
+            .await
     }
 
     /// Deletes all L2 blocks and L1 batches, including the genesis ones. Should only be used in tests.
@@ -3030,8 +2981,7 @@ impl BlocksDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use zksync_contracts::BaseSystemContractsHashes;
-    use zksync_types::{tx::IncludedTxLocation, Address, ProtocolVersion, ProtocolVersionId};
+    use zksync_types::{tx::IncludedTxLocation, Address, ProtocolVersion};
 
     use super::*;
     use crate::{
@@ -3046,7 +2996,7 @@ mod tests {
                 vec![],
                 action_type,
                 Address::default(),
-                1,
+                Some(1),
                 None,
                 None,
                 false,
@@ -3245,78 +3195,5 @@ mod tests {
             .await
             .unwrap()
             .is_none());
-    }
-
-    #[tokio::test]
-    async fn getting_predicted_gas() {
-        let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.connection().await.unwrap();
-        conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(&ProtocolVersion::default())
-            .await
-            .unwrap();
-        let mut header = L1BatchHeader::new(
-            L1BatchNumber(1),
-            100,
-            BaseSystemContractsHashes::default(),
-            ProtocolVersionId::default(),
-        );
-        let mut predicted_gas = BlockGasCount {
-            commit: 2,
-            prove: 3,
-            execute: 10,
-        };
-        conn.blocks_dal()
-            .insert_l1_batch(
-                header.to_unsealed_header(BatchFeeInput::pubdata_independent(100, 100, 100)),
-            )
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .mark_l1_batch_as_sealed(&header, &[], predicted_gas, &[], &[], Default::default())
-            .await
-            .unwrap();
-
-        header.number = L1BatchNumber(2);
-        header.timestamp += 100;
-        predicted_gas += predicted_gas;
-        conn.blocks_dal()
-            .insert_l1_batch(
-                header.to_unsealed_header(BatchFeeInput::pubdata_independent(100, 100, 100)),
-            )
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .mark_l1_batch_as_sealed(&header, &[], predicted_gas, &[], &[], Default::default())
-            .await
-            .unwrap();
-
-        let action_types_and_predicted_gas = [
-            (AggregatedActionType::Execute, 10),
-            (AggregatedActionType::Commit, 2),
-            (AggregatedActionType::PublishProofOnchain, 3),
-        ];
-        for (action_type, expected_gas) in action_types_and_predicted_gas {
-            let gas = conn
-                .blocks_dal()
-                .get_l1_batches_predicted_gas(L1BatchNumber(1)..=L1BatchNumber(1), action_type)
-                .await
-                .unwrap();
-            assert_eq!(gas, expected_gas);
-
-            let gas = conn
-                .blocks_dal()
-                .get_l1_batches_predicted_gas(L1BatchNumber(2)..=L1BatchNumber(2), action_type)
-                .await
-                .unwrap();
-            assert_eq!(gas, 2 * expected_gas);
-
-            let gas = conn
-                .blocks_dal()
-                .get_l1_batches_predicted_gas(L1BatchNumber(1)..=L1BatchNumber(2), action_type)
-                .await
-                .unwrap();
-            assert_eq!(gas, 3 * expected_gas);
-        }
     }
 }

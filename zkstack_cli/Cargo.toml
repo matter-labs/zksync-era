@@ -32,11 +32,11 @@ zksync_config = { path = "../core/lib/config" }
 zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
 zksync_basic_types = { path = "../core/lib/basic_types" }
 zksync_system_constants = { path = "../core/lib/constants" }
-zksync_consensus_roles = "=0.5.0"
-zksync_consensus_crypto = "=0.5.0"
-zksync_consensus_utils = "=0.5.0"
-zksync_protobuf = "=0.5.0"
-zksync_protobuf_build = "=0.5.0"
+zksync_consensus_roles = "=0.6.0"
+zksync_consensus_crypto = "=0.6.0"
+zksync_consensus_utils = "=0.6.0"
+zksync_protobuf = "=0.6.0"
+zksync_protobuf_build = "=0.6.0"
 zksync_types = { path = "../core/lib/types" }
 zksync_web3_decl = { path = "../core/lib/web3_decl" }
 zksync_eth_client = { path = "../core/lib/eth_client" }

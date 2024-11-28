@@ -50,7 +50,7 @@ impl WiringLayer for QueryEthClientLayer {
     }
 
     async fn wire(self, _input: Self::Input) -> Result<Output, WiringError> {
-        // Both the L1 and L2 client have the same URL, but provide different type guarantees.
+        // Both `query_client_gateway` and `query_client_l2` use the same URL, but provide different type guarantees.
         Ok(Output {
             query_client_l1: EthInterfaceResource(Box::new(
                 Client::http(self.web3_url.clone())
@@ -58,29 +58,21 @@ impl WiringLayer for QueryEthClientLayer {
                     .for_network(self.chain_id.into())
                     .build(),
             )),
-            query_client_l2: if self.gateway_web3_url.is_some() {
+            query_client_l2: if let Some(gateway_web3_url) = self.gateway_web3_url.clone() {
                 Some(L2InterfaceResource(Box::new(
-                    Client::http(
-                        self.gateway_web3_url
-                            .clone()
-                            .expect("gateway url is required"),
-                    )
-                    .context("Client::new()")?
-                    .for_network(L2ChainId::try_from(self.chain_id.0).unwrap().into())
-                    .build(),
+                    Client::http(gateway_web3_url)
+                        .context("Client::new()")?
+                        .for_network(L2ChainId::try_from(self.chain_id.0).unwrap().into())
+                        .build(),
                 )))
             } else {
                 None
             },
-            query_client_gateway: if self.gateway_web3_url.is_some() {
+            query_client_gateway: if let Some(gateway_web3_url) = self.gateway_web3_url {
                 Some(GatewayEthInterfaceResource(Box::new(
-                    Client::http(
-                        self.gateway_web3_url
-                            .clone()
-                            .expect("gateway url is required"),
-                    )
-                    .context("Client::new()")?
-                    .build(),
+                    Client::http(gateway_web3_url)
+                        .context("Client::new()")?
+                        .build(),
                 )))
             } else {
                 None

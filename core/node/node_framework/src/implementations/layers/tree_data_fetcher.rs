@@ -67,12 +67,11 @@ impl WiringLayer for TreeDataFetcherLayer {
             "Running tree data fetcher (allows a node to operate w/o a Merkle tree or w/o waiting the tree to catch up). \
              This is an experimental feature; do not use unless you know what you're doing"
         );
-        let task = TreeDataFetcher::new(client, pool.clone())
+        let task = TreeDataFetcher::new(client, pool)
             .with_l1_data(
                 l1_client,
                 self.l1_diamond_proxy_addr,
                 gateway_client,
-                pool,
                 self.l2_chain_id,
             )
             .await?;

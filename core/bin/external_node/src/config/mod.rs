@@ -103,11 +103,15 @@ impl ConfigurationSource for Environment {
 #[derive(Debug, Deserialize)]
 pub(crate) struct RemoteENConfig {
     pub l1_bytecodes_supplier_addr: Option<Address>,
+    #[serde(alias = "bridgehub_proxy_addr")]
     pub l1_bridgehub_proxy_addr: Option<Address>,
+    #[serde(alias = "state_transition_proxy_addr")]
     pub l1_state_transition_proxy_addr: Option<Address>,
+    #[serde(alias = "transparent_proxy_admin_addr")]
     pub l1_transparent_proxy_admin_addr: Option<Address>,
     /// Should not be accessed directly. Use [`ExternalNodeConfig::l1_diamond_proxy_address`] instead.
-    pub l1_diamond_proxy_addr: Address,
+    #[serde(alias = "diamond_proxy_addr")]
+    l1_diamond_proxy_addr: Address,
     // While on L1 shared bridge and legacy bridge are different contracts with different addresses,
     // the `l2_erc20_bridge_addr` and `l2_shared_bridge_addr` are basically the same contract, but with
     // a different name, with names adapted only for consistency.
@@ -729,7 +733,10 @@ impl OptionalENConfig {
                 .unwrap_or_else(Self::default_main_node_rate_limit_rps),
             api_namespaces,
             contracts_diamond_proxy_addr: None,
-            gateway_url: secrets.l1.as_ref().and_then(|l1| l1.gateway_url.clone()),
+            gateway_url: secrets
+                .l1
+                .as_ref()
+                .and_then(|l1| l1.gateway_rpc_url.clone()),
             bridge_addresses_refresh_interval_sec: enconfig.bridge_addresses_refresh_interval_sec,
             timestamp_asserter_min_time_till_end_sec: general_config
                 .timestamp_asserter_config

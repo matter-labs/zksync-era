@@ -334,16 +334,7 @@ impl ZksNamespace {
             return Ok(None);
         };
 
-        let Some(batch) = storage
-            .blocks_dal()
-            .get_l1_batch_header(l1_batch_number)
-            .await
-            .map_err(DalError::generalize)?
-        else {
-            return Ok(None);
-        };
-
-        let Some(batch_meta) = storage
+        let Some(batch_with_metadata) = storage
             .blocks_dal()
             .get_l1_batch_metadata(l1_batch_number)
             .await
@@ -354,7 +345,8 @@ impl ZksNamespace {
 
         let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
 
-        let protocol_version = batch
+        let protocol_version = batch_with_metadata
+            .header
             .protocol_version
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
         let tree_size = l2_to_l1_logs_tree_size(protocol_version);
@@ -370,7 +362,7 @@ impl ZksNamespace {
             }));
         }
 
-        let aggregated_root = batch_meta
+        let aggregated_root = batch_with_metadata
             .metadata
             .aggregation_root
             .expect("`aggregation_root` must be present for post-gateway branch");
@@ -379,23 +371,30 @@ impl ZksNamespace {
         let mut log_leaf_proof = proof;
         log_leaf_proof.push(aggregated_root);
 
-        let settlement_layer_chain_id = self.state.api_config.sl_chain_id.0;
-        let l1_chain_id = self.state.api_config.l1_chain_id.0;
-
-        let (batch_proof_len, batch_chain_proof) = if settlement_layer_chain_id != l1_chain_id {
-            let Some(batch_chain_proof) = storage
-                .blocks_dal()
-                .get_l1_batch_chain_merkle_path(l1_batch_number)
-                .await
-                .map_err(DalError::generalize)?
-            else {
-                return Ok(None);
-            };
-
-            (batch_chain_proof.batch_proof_len, batch_chain_proof.proof)
-        } else {
-            (0, Vec::new())
+        let Some(sl_chain_id) = storage
+            .eth_sender_dal()
+            .get_batch_commit_chain_id(l1_batch_number)
+            .await
+            .map_err(DalError::generalize)?
+        else {
+            return Ok(None);
         };
+
+        let (batch_proof_len, batch_chain_proof) =
+            if sl_chain_id.0 != self.state.api_config.l1_chain_id.0 {
+                let Some(batch_chain_proof) = storage
+                    .blocks_dal()
+                    .get_l1_batch_chain_merkle_path(l1_batch_number)
+                    .await
+                    .map_err(DalError::generalize)?
+                else {
+                    return Ok(None);
+                };
+
+                (batch_chain_proof.batch_proof_len, batch_chain_proof.proof)
+            } else {
+                (0, Vec::new())
+            };
 
         let proof = {
             let mut metadata = [0u8; 32];

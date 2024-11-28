@@ -18,7 +18,9 @@ use crate::{
     event_processors::{EventProcessor, EventProcessorError, EventsSource},
 };
 
-/// Responsible for `AppendedChainBatchRoot` events and saving `BatchAndChainMerklePath` for batches.
+/// Listens to `AppendedChainBatchRoot` events and saves `BatchAndChainMerklePath` for batches.
+/// These events are emitted on SL each time L1 batch is executed. Processor uses them to track which batches are already executed
+/// and group them by SL's batch number they are executed in as this data is required to build `BatchAndChainMerklePath`.
 #[derive(Debug)]
 pub struct BatchRootProcessor {
     next_batch_number_lower_bound: L1BatchNumber,
@@ -184,7 +186,7 @@ impl EventProcessor for BatchRootProcessor {
     }
 
     fn topic2(&self) -> Option<H256> {
-        Some(H256::from_low_u64_be(self.l2_chain_id.0))
+        Some(H256::from_low_u64_be(self.l2_chain_id.as_u64()))
     }
 
     fn event_source(&self) -> EventsSource {
@@ -217,8 +219,8 @@ impl BatchRootProcessor {
         chain_agg_proof: ChainAggProof,
         sl_chain_id: SLChainId,
     ) -> Vec<H256> {
-        let sl_encoded_data = U256::from(sl_l1_batch_number.0) * U256::from(2).pow(128.into())
-            + chain_agg_proof.chain_id_leaf_proof_mask;
+        let sl_encoded_data =
+            (U256::from(sl_l1_batch_number.0) << 128u32) + chain_agg_proof.chain_id_leaf_proof_mask;
 
         let mut metadata = [0u8; 32];
         metadata[0] = LOG_PROOF_SUPPORTED_METADATA_VERSION;

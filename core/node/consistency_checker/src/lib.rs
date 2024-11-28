@@ -354,7 +354,7 @@ pub fn detect_da(
 }
 
 #[derive(Debug)]
-pub struct SLChainData {
+pub struct SLChainAccess {
     client: Box<DynClient<L1>>,
     chain_id: SLChainId,
     diamond_proxy_addr: Option<Address>,
@@ -367,8 +367,8 @@ pub struct ConsistencyChecker {
     /// How many past batches to check when starting
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
-    l1_chain_data: SLChainData,
-    gateway_chain_data: Option<SLChainData>,
+    l1_chain_data: SLChainAccess,
+    gateway_chain_data: Option<SLChainAccess>,
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool<Core>,
@@ -389,7 +389,7 @@ impl ConsistencyChecker {
     ) -> anyhow::Result<Self> {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         let l1_chain_id = l1_client.fetch_chain_id().await?;
-        let l1_chain_data = SLChainData {
+        let l1_chain_data = SLChainAccess {
             client: l1_client.for_component("consistency_checker"),
             chain_id: l1_chain_id,
             diamond_proxy_addr: None,
@@ -402,7 +402,7 @@ impl ConsistencyChecker {
                     .call(&client)
                     .await?;
             let chain_id = client.fetch_chain_id().await?;
-            Some(SLChainData {
+            Some(SLChainAccess {
                 client: client.for_component("consistency_checker"),
                 chain_id,
                 diamond_proxy_addr: Some(gateway_diamond_proxy),
@@ -599,7 +599,7 @@ impl ConsistencyChecker {
             let decoded_data = ethabi::decode(
                 &[
                     StoredBatchInfo::schema(),
-                    ParamType::Array(Box::new(CommitBatchInfo::schema())),
+                    ParamType::Array(Box::new(CommitBatchInfo::post_gateway_schema())),
                 ],
                 encoded_data,
             )
@@ -662,7 +662,7 @@ impl ConsistencyChecker {
                 continue;
             };
             let chain_id = client_data.chain_id;
-            tracing::info!("Performing sanity checks for chain id {chain_id}, diamond proxy contract {address:?}");
+            tracing::debug!("Performing sanity checks for chain id {chain_id}, diamond proxy contract {address:?}");
 
             let version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
                 .for_contract(address, &self.contract)
@@ -812,7 +812,7 @@ impl ConsistencyChecker {
         Ok(())
     }
 
-    fn chain_data_by_id(&self, searched_chain_id: SLChainId) -> Option<&SLChainData> {
+    fn chain_data_by_id(&self, searched_chain_id: SLChainId) -> Option<&SLChainAccess> {
         if searched_chain_id == self.l1_chain_data.chain_id {
             Some(&self.l1_chain_data)
         } else if Some(searched_chain_id) == self.gateway_chain_data.as_ref().map(|d| d.chain_id) {
