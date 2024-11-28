@@ -14,6 +14,11 @@ pub struct StorageTeeProof {
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
+pub struct StorageBatch {
+    pub l1_batch_number: i64,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StorageLockedBatch {
     pub l1_batch_number: i64,
     pub created_at: NaiveDateTime,
