@@ -1,10 +1,11 @@
-use std::{collections::HashMap, str::FromStr};
+use std::{collections::HashMap, fs::File, io::copy, path::Path, str::FromStr};
 
 use ark_bn254::{Fq, G1Affine};
 use ethabi::{encode, Token};
 use rust_kzg_bn254::{blob::Blob, kzg::Kzg, polynomial::PolynomialFormat};
 use tiny_keccak::{Hasher, Keccak};
 use zksync_basic_types::web3::CallRequest;
+use zksync_config::configs::da_client::eigen::PointsSource;
 use zksync_eth_client::clients::PKSigningClient;
 use zksync_types::{
     url::SensitiveUrl,
@@ -36,6 +37,7 @@ pub enum VerificationError {
     QuorumNotConfirmed,
     CommitmentNotOnCurve,
     CommitmentNotOnCorrectSubgroup,
+    LinkError,
 }
 
 /// Configuration for the verifier used for authenticated dispersals
@@ -44,7 +46,7 @@ pub struct VerifierConfig {
     pub rpc_url: String,
     pub svc_manager_addr: String,
     pub max_blob_size: u32,
-    pub path_to_points: String,
+    pub points: PointsSource,
     pub settlement_layer_confirmation_depth: u32,
     pub private_key: String,
     pub chain_id: u64,
@@ -62,12 +64,43 @@ pub struct Verifier {
 
 impl Verifier {
     const DEFAULT_PRIORITY_FEE_PER_GAS: u64 = 100;
-    pub fn new(cfg: VerifierConfig) -> Result<Self, VerificationError> {
+    async fn save_points(link: String) -> Result<String, VerificationError> {
+        let url_g1 = format!("{}{}", link, "/g1.point");
+        let response = reqwest::get(url_g1)
+            .await
+            .map_err(|_| VerificationError::LinkError)?;
+        let path = Path::new("./g1.point");
+        let mut file = File::create(path).map_err(|_| VerificationError::LinkError)?;
+        let content = response
+            .bytes()
+            .await
+            .map_err(|_| VerificationError::LinkError)?;
+        copy(&mut content.as_ref(), &mut file).map_err(|_| VerificationError::LinkError)?;
+
+        let url_g2 = format!("{}{}", link, "/g2.point.powerOf2");
+        let response = reqwest::get(url_g2)
+            .await
+            .map_err(|_| VerificationError::LinkError)?;
+        let path = Path::new("./g2.point.powerOf2");
+        let mut file = File::create(path).map_err(|_| VerificationError::LinkError)?;
+        let content = response
+            .bytes()
+            .await
+            .map_err(|_| VerificationError::LinkError)?;
+        copy(&mut content.as_ref(), &mut file).map_err(|_| VerificationError::LinkError)?;
+
+        Ok(".".to_string())
+    }
+    pub async fn new(cfg: VerifierConfig) -> Result<Self, VerificationError> {
         let srs_points_to_load = cfg.max_blob_size / 32;
+        let path = match cfg.points.clone() {
+            PointsSource::Path(path) => path,
+            PointsSource::Link(link) => Self::save_points(link).await?,
+        };
         let kzg = Kzg::setup(
-            &format!("{}{}", cfg.path_to_points, "/g1.point"),
+            &format!("{}{}", path, "/g1.point"),
             "",
-            &format!("{}{}", cfg.path_to_points, "/g2.point.powerOf2"),
+            &format!("{}{}", path, "/g2.point.powerOf2"),
             268435456, // 2 ^ 28
             srs_points_to_load,
             "".to_string(),
@@ -478,23 +511,26 @@ impl Verifier {
 
 #[cfg(test)]
 mod test {
+    use zksync_config::configs::da_client::eigen::PointsSource;
+
     use crate::eigen::blob_info::{
         BatchHeader, BatchMetadata, BlobHeader, BlobInfo, BlobQuorumParam, BlobVerificationProof,
         G1Commitment,
     };
 
-    #[test]
-    fn test_verify_commitment() {
+    #[tokio::test]
+    async fn test_verify_commitment() {
         let verifier = super::Verifier::new(super::VerifierConfig {
             rpc_url: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             svc_manager_addr: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             max_blob_size: 2 * 1024 * 1024,
-            path_to_points: "../../../resources".to_string(),
+            points: PointsSource::Path("../../../resources".to_string()),
             settlement_layer_confirmation_depth: 0,
             private_key: "0xd08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6"
                 .to_string(),
             chain_id: 17000,
         })
+        .await
         .unwrap();
         let commitment = G1Commitment {
             x: vec![
@@ -511,18 +547,19 @@ mod test {
         assert!(result.is_ok());
     }
 
-    #[test]
-    fn test_verify_merkle_proof() {
+    #[tokio::test]
+    async fn test_verify_merkle_proof() {
         let verifier = super::Verifier::new(super::VerifierConfig {
             rpc_url: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             svc_manager_addr: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             max_blob_size: 2 * 1024 * 1024,
-            path_to_points: "../../../resources".to_string(),
+            points: PointsSource::Path("../../../resources".to_string()),
             settlement_layer_confirmation_depth: 0,
             private_key: "0xd08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6"
                 .to_string(),
             chain_id: 17000,
         })
+        .await
         .unwrap();
         let cert = BlobInfo {
             blob_header: BlobHeader {
@@ -600,18 +637,19 @@ mod test {
         assert!(result.is_ok());
     }
 
-    #[test]
-    fn test_hash_blob_header() {
+    #[tokio::test]
+    async fn test_hash_blob_header() {
         let verifier = super::Verifier::new(super::VerifierConfig {
             rpc_url: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             svc_manager_addr: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             max_blob_size: 2 * 1024 * 1024,
-            path_to_points: "../../../resources".to_string(),
+            points: PointsSource::Path("../../../resources".to_string()),
             settlement_layer_confirmation_depth: 0,
             private_key: "0xd08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6"
                 .to_string(),
             chain_id: 17000,
         })
+        .await
         .unwrap();
         let blob_header = BlobHeader {
             commitment: G1Commitment {
@@ -645,18 +683,19 @@ mod test {
         assert_eq!(result, hex::decode(expected).unwrap());
     }
 
-    #[test]
-    fn test_inclusion_proof() {
+    #[tokio::test]
+    async fn test_inclusion_proof() {
         let verifier = super::Verifier::new(super::VerifierConfig {
             rpc_url: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             svc_manager_addr: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             max_blob_size: 2 * 1024 * 1024,
-            path_to_points: "../../../resources".to_string(),
+            points: PointsSource::Path("../../../resources".to_string()),
             settlement_layer_confirmation_depth: 0,
             private_key: "0xd08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6"
                 .to_string(),
             chain_id: 17000,
         })
+        .await
         .unwrap();
 
         let proof = hex::decode("c455c1ea0e725d7ea3e5f29e9f48be8fc2787bb0a914d5a86710ba302c166ac4f626d76f67f1055bb960a514fb8923af2078fd84085d712655b58a19612e8cd15c3e4ac1cef57acde3438dbcf63f47c9fefe1221344c4d5c1a4943dd0d1803091ca81a270909dc0e146841441c9bd0e08e69ce6168181a3e4060ffacf3627480bec6abdd8d7bb92b49d33f180c42f49e041752aaded9c403db3a17b85e48a11e9ea9a08763f7f383dab6d25236f1b77c12b4c49c5cdbcbea32554a604e3f1d2f466851cb43fe73617b3d01e665e4c019bf930f92dea7394c25ed6a1e200d051fb0c30a2193c459f1cfef00bf1ba6656510d16725a4d1dc031cb759dbc90bab427b0f60ddc6764681924dda848824605a4f08b7f526fe6bd4572458c94e83fbf2150f2eeb28d3011ec921996dc3e69efa52d5fcf3182b20b56b5857a926aa66605808079b4d52c0c0cfe06923fa92e65eeca2c3e6126108e8c1babf5ac522f4d7").unwrap();
@@ -679,12 +718,13 @@ mod test {
             rpc_url: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             svc_manager_addr: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             max_blob_size: 2 * 1024 * 1024,
-            path_to_points: "../../../resources".to_string(),
+            points: PointsSource::Path("../../../resources".to_string()),
             settlement_layer_confirmation_depth: 0,
             private_key: "0xd08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6"
                 .to_string(),
             chain_id: 17000,
         })
+        .await
         .unwrap();
         let cert = BlobInfo {
             blob_header: BlobHeader {
@@ -768,12 +808,13 @@ mod test {
             rpc_url: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
             svc_manager_addr: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             max_blob_size: 2 * 1024 * 1024,
-            path_to_points: "../../../resources".to_string(),
+            points: PointsSource::Path("../../../resources".to_string()),
             settlement_layer_confirmation_depth: 0,
             private_key: "0xd08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6"
                 .to_string(),
             chain_id: 17000,
         })
+        .await
         .unwrap();
         let cert = BlobInfo {
             blob_header: BlobHeader {

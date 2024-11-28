@@ -36,6 +36,14 @@ message CelestiaConfig {
   optional uint64 timeout_ms = 4;
 }
 
+message Path {
+  optional string path = 1;
+}
+
+message Link {
+  optional string link = 1;
+}
+
 message EigenConfig {
   optional string disperser_rpc = 3;
   optional int32 settlement_layer_confirmation_depth = 4;
@@ -46,8 +54,11 @@ message EigenConfig {
   optional bool wait_for_finalization = 9;
   optional bool authenticated = 10;
   optional bool verify_cert = 11;
-  optional string path_to_points = 12;
-  optional uint64 chain_id = 13;
+  oneof points_source {
+    Path path = 12;
+    Link link = 13;
+  }
+  optional uint64 chain_id = 14;
   reserved 1,2;
   reserved "rpc_node_url","inclusion_polling_interval_ms";
 }

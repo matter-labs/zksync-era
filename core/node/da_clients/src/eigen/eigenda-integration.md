@@ -29,7 +29,8 @@ da_client:
     wait_for_finalization: false
     authenticated: false
     verify_cert: true
-    path_to_points: ./resources
+    link:
+      link: <link_to_points>
     chain_id: <your_chain_id>
 ```
 
