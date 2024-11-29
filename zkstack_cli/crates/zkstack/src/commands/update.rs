@@ -1,6 +1,6 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Ok};
+use anyhow::Ok;
 use common::{
     db::migrate_db,
     git, logger,
@@ -8,7 +8,7 @@ use common::{
     yaml::{merge_yaml, ConfigDiff},
 };
 use config::{
-    zkstack_config::ZkStackConfig, ChainConfig, EcosystemConfig, CONTRACTS_FILE, EN_CONFIG_FILE,
+    zkstack_config::ZkStackConfig, ChainConfig, CONFIGS_PATH, CONTRACTS_FILE, EN_CONFIG_FILE,
     ERA_OBSERBAVILITY_DIR, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
 };
 use xshell::Shell;
@@ -18,19 +18,20 @@ use crate::{
     consts::{PROVER_MIGRATIONS, SERVER_MIGRATIONS},
     messages::{
         msg_diff_contracts_config, msg_diff_genesis_config, msg_diff_secrets, msg_updating_chain,
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_DIFF_EN_CONFIG, MSG_DIFF_EN_GENERAL_CONFIG,
-        MSG_DIFF_GENERAL_CONFIG, MSG_PULLING_ZKSYNC_CODE_SPINNER,
-        MSG_UPDATING_ERA_OBSERVABILITY_SPINNER, MSG_UPDATING_SUBMODULES_SPINNER,
-        MSG_UPDATING_ZKSYNC, MSG_ZKSYNC_UPDATED,
+        MSG_DIFF_EN_CONFIG, MSG_DIFF_EN_GENERAL_CONFIG, MSG_DIFF_GENERAL_CONFIG,
+        MSG_PULLING_ZKSYNC_CODE_SPINNER, MSG_UPDATING_ERA_OBSERVABILITY_SPINNER,
+        MSG_UPDATING_SUBMODULES_SPINNER, MSG_UPDATING_ZKSYNC, MSG_ZKSYNC_UPDATED,
     },
 };
 
 pub async fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
     logger::info(MSG_UPDATING_ZKSYNC);
-    let ecosystem = ZkStackConfig::ecosystem(shell)?;
+    let config = ZkStackConfig::from_file(shell)?;
+    let link_to_code = config.link_to_code();
+    let default_configs_path = link_to_code.join(CONFIGS_PATH);
 
     if !args.only_config {
-        update_repo(shell, &ecosystem)?;
+        update_repo(shell, link_to_code)?;
         let path_to_era_observability = shell.current_dir().join(ERA_OBSERBAVILITY_DIR);
         if shell.path_exists(path_to_era_observability.clone()) {
             let spinner = Spinner::new(MSG_UPDATING_ERA_OBSERVABILITY_SPINNER);
@@ -39,17 +40,25 @@ pub async fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
         }
     }
 
-    let general_config_path = ecosystem.get_default_configs_path().join(GENERAL_FILE);
-    let external_node_config_path = ecosystem.get_default_configs_path().join(EN_CONFIG_FILE);
-    let genesis_config_path = ecosystem.get_default_configs_path().join(GENESIS_FILE);
-    let contracts_config_path = ecosystem.get_default_configs_path().join(CONTRACTS_FILE);
-    let secrets_path = ecosystem.get_default_configs_path().join(SECRETS_FILE);
+    let general_config_path = default_configs_path.join(GENERAL_FILE);
+    let external_node_config_path = default_configs_path.join(EN_CONFIG_FILE);
+    let genesis_config_path = default_configs_path.join(GENESIS_FILE);
+    let contracts_config_path = default_configs_path.join(CONTRACTS_FILE);
+    let secrets_path = default_configs_path.join(SECRETS_FILE);
 
-    for chain in ecosystem.list_of_chains() {
-        logger::step(msg_updating_chain(&chain));
-        let chain = ecosystem
-            .load_chain(Some(chain))
-            .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    let chains = match config {
+        ZkStackConfig::EcosystemConfig(ecosystem) => {
+            let mut chains = vec![];
+            for chain_name in ecosystem.list_of_chains() {
+                chains.push(ecosystem.load_chain(Some(chain_name))?);
+            }
+            chains
+        }
+        ZkStackConfig::ChainConfig(chain) => vec![chain],
+    };
+
+    for chain in chains {
+        logger::step(msg_updating_chain(&chain.name));
         update_chain(
             shell,
             &chain,
@@ -67,9 +76,7 @@ pub async fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn update_repo(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::Result<()> {
-    let link_to_code = ecosystem.link_to_code.clone();
-
+fn update_repo(shell: &Shell, link_to_code: PathBuf) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_PULLING_ZKSYNC_CODE_SPINNER);
     git::pull(shell, link_to_code.clone())?;
     spinner.finish();
