@@ -132,12 +132,7 @@ fn assert_raw_nodes_response(response: &serde_json::Value) {
     }
 
     let node = response["0:0"].as_object().expect("not an object");
-    assert!(
-        node.len() == 2
-            && (node.contains_key("internal") || node.contains_key("leaf"))
-            && node.contains_key("raw"),
-        "{node:#?}"
-    );
+    assert!(node.len() == 2 && node.contains_key("internal") && node.contains_key("raw"),);
 }
 
 fn assert_raw_stale_keys_response(response: &serde_json::Value) {
