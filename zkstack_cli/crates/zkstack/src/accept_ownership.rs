@@ -10,7 +10,7 @@ use xshell::Shell;
 
 use crate::{
     messages::MSG_ACCEPTING_GOVERNANCE_SPINNER,
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 lazy_static! {
@@ -89,7 +89,7 @@ async fn accept_ownership(
     governor: &Wallet,
     mut forge: ForgeScript,
 ) -> anyhow::Result<()> {
-    forge = fill_forge_private_key(forge, Some(governor))?;
+    forge = fill_forge_private_key(forge, Some(governor), WalletOwner::Governor)?;
     check_the_balance(&forge).await?;
     let spinner = Spinner::new(MSG_ACCEPTING_GOVERNANCE_SPINNER);
     forge.run(shell)?;
