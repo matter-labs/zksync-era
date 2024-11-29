@@ -17,16 +17,10 @@ use zksync_multivm::{
     interface::{DeduplicatedWritesMetrics, Halt, TransactionExecutionMetrics, VmExecutionMetrics},
     vm_latest::TransactionVmExt,
 };
-use zksync_types::{
-    block::BlockGasCount, utils::display_timestamp, ProtocolVersionId, Transaction,
-};
+use zksync_types::{utils::display_timestamp, ProtocolVersionId, Transaction};
 
 pub use self::conditional_sealer::{ConditionalSealer, NoopSealer, SequencerSealer};
-use crate::{
-    metrics::AGGREGATION_METRICS,
-    updates::UpdatesManager,
-    utils::{gas_count_from_tx_and_metrics, gas_count_from_writes, millis_since},
-};
+use crate::{metrics::AGGREGATION_METRICS, updates::UpdatesManager, utils::millis_since};
 
 mod conditional_sealer;
 pub(super) mod criteria;
@@ -68,6 +62,7 @@ pub enum UnexecutableReason {
     OutOfGasForBatchTip,
     BootloaderOutOfGas,
     NotEnoughGasProvided,
+    TooMuchUserL2L1Logs,
 }
 
 impl UnexecutableReason {
@@ -82,6 +77,7 @@ impl UnexecutableReason {
             UnexecutableReason::OutOfGasForBatchTip => "OutOfGasForBatchTip",
             UnexecutableReason::BootloaderOutOfGas => "BootloaderOutOfGas",
             UnexecutableReason::NotEnoughGasProvided => "NotEnoughGasProvided",
+            UnexecutableReason::TooMuchUserL2L1Logs => "TooMuchUserL2L1Logs",
         }
     }
 }
@@ -106,6 +102,7 @@ impl fmt::Display for UnexecutableReason {
             UnexecutableReason::OutOfGasForBatchTip => write!(f, "Out of gas for batch tip"),
             UnexecutableReason::BootloaderOutOfGas => write!(f, "Bootloader out of gas"),
             UnexecutableReason::NotEnoughGasProvided => write!(f, "Not enough gas provided"),
+            UnexecutableReason::TooMuchUserL2L1Logs => write!(f, "Too much user l2 l1 logs"),
         }
     }
 }
@@ -159,7 +156,6 @@ impl SealResolution {
 #[derive(Debug, Default)]
 pub struct SealData {
     pub(super) execution_metrics: VmExecutionMetrics,
-    pub(super) gas_count: BlockGasCount,
     pub(super) cumulative_size: usize,
     pub(super) writes_metrics: DeduplicatedWritesMetrics,
     pub(super) gas_remaining: u32,
@@ -171,15 +167,11 @@ impl SealData {
     pub fn for_transaction(
         transaction: &Transaction,
         tx_metrics: &TransactionExecutionMetrics,
-        protocol_version: ProtocolVersionId,
     ) -> Self {
         let execution_metrics = VmExecutionMetrics::from_tx_metrics(tx_metrics);
         let writes_metrics = DeduplicatedWritesMetrics::from_tx_metrics(tx_metrics);
-        let gas_count = gas_count_from_tx_and_metrics(transaction, &execution_metrics)
-            + gas_count_from_writes(&writes_metrics, protocol_version);
         Self {
             execution_metrics,
-            gas_count,
             cumulative_size: transaction.bootloader_encoding_size(),
             writes_metrics,
             gas_remaining: tx_metrics.gas_remaining,
@@ -188,11 +180,13 @@ impl SealData {
 }
 
 pub(super) trait SealCriterion: fmt::Debug + Send + Sync + 'static {
+    #[allow(clippy::too_many_arguments)]
     fn should_seal(
         &self,
         config: &StateKeeperConfig,
         block_open_timestamp_ms: u128,
         tx_count: usize,
+        l1_tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
@@ -287,7 +281,6 @@ mod tests {
             tx,
             create_execution_result([]),
             vec![],
-            BlockGasCount::default(),
             VmExecutionMetrics::default(),
             vec![],
         );

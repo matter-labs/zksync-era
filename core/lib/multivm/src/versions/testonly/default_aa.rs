@@ -34,7 +34,12 @@ pub(crate) fn test_default_aa_interaction<VM: TestedVm>() {
     let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
-    vm.vm.finish_batch(default_pubdata_builder());
+    let batch_result = vm.vm.finish_batch(default_pubdata_builder());
+    assert!(
+        !batch_result.block_tip_execution_result.result.is_failed(),
+        "Batch tip execution wasn't successful"
+    );
+
     vm.vm.get_current_execution_state();
 
     // Both deployment and ordinary nonce should be incremented by one.

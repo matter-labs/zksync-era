@@ -11431,6 +11431,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_bin_metadata"
+version = "0.1.0"
+dependencies = [
+ "rustc_version 0.4.1",
+ "serde",
+ "tracing",
+ "vise",
+]
+
+[[package]]
 name = "zksync_block_reverter"
 version = "0.1.0"
 dependencies = [
@@ -11503,9 +11513,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_concurrency"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "035269d811b3770debca372141ab64cad067dce8e58cb39a48cb7617d30c626b"
+checksum = "4c24c9a056499823227503dd9e5fb3037d93bcc3ae9b06c1ac0a47334c6283af"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -11539,9 +11549,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_bft"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8001633dee671134cf572175a6c4f817904ce5f8d92e9b51f49891c5184a831"
+checksum = "e9e7ae72c257d6a4956ecb1b9d77eb082b0b31e9f47a7860d107509fb55c474d"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11561,9 +11571,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_crypto"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49e38d1b5ed28c66e785caff53ea4863375555d818aafa03290397192dd3e665"
+checksum = "5da303b01f24283e93f80f361bf62c3df4a761d061c8b38b4faebeebf26362fc"
 dependencies = [
  "anyhow",
  "blst",
@@ -11582,9 +11592,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_executor"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "061546668dd779ecb08302d2c84a6419e0093ad42aaa279bf20a8fa2ffda1be4"
+checksum = "a33cfae30ebaaa817394718fe0858dfa7c0abfa2ed800ea283c407560aac2465"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11604,9 +11614,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_network"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e9789b5be26d20511bd7930bd9916d91122ff6cb09a28898563152a52f9f5eb"
+checksum = "e0129eab96f940ce24f975a27ef9408592d64da7cff51153755dedefbcf58a73"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11641,9 +11651,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_roles"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e49fbd4e69b276058f3dfc06cf6ada0e8caa6ed826e81289e4d596da95a0f17a"
+checksum = "50f07db2a8ec2d2cda5cb4c5ac408101e81c8fa5d95c9f3302829dafae78d11c"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -11663,9 +11673,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_storage"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2b2aab4ed18b13cd584f4edcc2546c8da82f89ac62e525063e12935ff28c9be"
+checksum = "57a42f57cc5afcee634cbd336e9e6ea891d0171352d7c0bc7d6e17f6c8faa554"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11683,9 +11693,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_utils"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10bac8f471b182d4fa3d40cf158aac3624fe636a1ff0b4cf3fe26a0e20c68a42"
+checksum = "3222410c67617a86edb192e0c4bb48afc254a17052200a0a839c90e8b0378842"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -12019,6 +12029,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "once_cell",
+ "serde",
  "test-casing",
  "test-log",
  "thiserror",
@@ -12029,6 +12040,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
+ "zksync_health_check",
  "zksync_l1_contract_interface",
  "zksync_node_fee_model",
  "zksync_node_test_utils",
@@ -12056,6 +12068,9 @@ dependencies = [
  "anyhow",
  "async-recursion",
  "async-trait",
+ "bincode",
+ "hex",
+ "itertools 0.10.5",
  "test-log",
  "thiserror",
  "tokio",
@@ -12065,9 +12080,11 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
+ "zksync_mini_merkle_tree",
  "zksync_shared_metrics",
  "zksync_system_constants",
  "zksync_types",
+ "zksync_web3_decl",
 ]
 
 [[package]]
@@ -12205,6 +12222,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
+ "zksync_bin_metadata",
 ]
 
 [[package]]
@@ -12420,6 +12438,7 @@ dependencies = [
  "zksync_config",
  "zksync_consensus_roles",
  "zksync_contracts",
+ "zksync_crypto_primitives",
  "zksync_dal",
  "zksync_health_check",
  "zksync_metadata_calculator",
@@ -12534,11 +12553,13 @@ dependencies = [
  "futures 0.3.31",
  "pin-project-lite",
  "semver 1.0.23",
+ "serde",
  "thiserror",
  "tokio",
  "tracing",
  "trybuild",
  "zksync_base_token_adjuster",
+ "zksync_bin_metadata",
  "zksync_block_reverter",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",
@@ -12572,6 +12593,7 @@ dependencies = [
  "zksync_proof_data_handler",
  "zksync_queued_job_processor",
  "zksync_reorg_detector",
+ "zksync_shared_metrics",
  "zksync_state",
  "zksync_state_keeper",
  "zksync_storage",
@@ -12745,9 +12767,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "abd55c64f54cb10967a435422f66ff5880ae14a232b245517c7ce38da32e0cab"
+checksum = "f05755c38b134b409736008bfdfd0fdb42bfa061947be93be4c78069aa10c9b3"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -12766,9 +12788,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_build"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4121952bcaf711005dd554612fc6e2de9b30cb58088508df87f1d38046ce8ac8"
+checksum = "64c3930a73ca667780be6dcd94e469d40a93fa52f4654c9ab732991b62238cb5"
 dependencies = [
  "anyhow",
  "heck 0.5.0",
@@ -12884,9 +12906,10 @@ dependencies = [
 name = "zksync_shared_metrics"
 version = "0.1.0"
 dependencies = [
- "rustc_version 0.4.1",
+ "serde",
  "tracing",
  "vise",
+ "zksync_bin_metadata",
  "zksync_dal",
  "zksync_types",
 ]
@@ -12967,6 +12990,7 @@ dependencies = [
  "itertools 0.10.5",
  "once_cell",
  "rand 0.8.5",
+ "serde",
  "tempfile",
  "test-casing",
  "thiserror",
@@ -12978,6 +13002,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
+ "zksync_health_check",
  "zksync_mempool",
  "zksync_multivm",
  "zksync_node_fee_model",
