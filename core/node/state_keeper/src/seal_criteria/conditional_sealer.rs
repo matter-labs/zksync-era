@@ -23,11 +23,13 @@ pub trait ConditionalSealer: 'static + fmt::Debug + Send + Sync {
     ) -> Option<&'static str>;
 
     /// Returns the action that should be taken by the state keeper after executing a transaction.
+    #[allow(clippy::too_many_arguments)]
     fn should_seal_l1_batch(
         &self,
         l1_batch_number: u32,
         block_open_timestamp_ms: u128,
         tx_count: usize,
+        l1_tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
@@ -59,6 +61,7 @@ impl ConditionalSealer for SequencerSealer {
                 &self.config,
                 MOCK_BLOCK_TIMESTAMP,
                 TX_COUNT,
+                TX_COUNT,
                 data,
                 data,
                 protocol_version,
@@ -75,6 +78,7 @@ impl ConditionalSealer for SequencerSealer {
         l1_batch_number: u32,
         block_open_timestamp_ms: u128,
         tx_count: usize,
+        l1_tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
@@ -91,6 +95,7 @@ impl ConditionalSealer for SequencerSealer {
                 &self.config,
                 block_open_timestamp_ms,
                 tx_count,
+                l1_tx_count,
                 block_data,
                 tx_data,
                 protocol_version,
@@ -132,13 +137,14 @@ impl SequencerSealer {
     fn default_sealers(config: &StateKeeperConfig) -> Vec<Box<dyn SealCriterion>> {
         vec![
             Box::new(criteria::SlotsCriterion),
-            Box::new(criteria::GasCriterion),
             Box::new(criteria::PubDataBytesCriterion {
                 max_pubdata_per_batch: config.max_pubdata_per_batch,
             }),
             Box::new(criteria::CircuitsCriterion),
             Box::new(criteria::TxEncodingSizeCriterion),
             Box::new(criteria::GasForBatchTipCriterion),
+            Box::new(criteria::L1L2TxsCriterion),
+            Box::new(criteria::L2L1LogsCriterion),
         ]
     }
 }
@@ -163,6 +169,7 @@ impl ConditionalSealer for NoopSealer {
         _l1_batch_number: u32,
         _block_open_timestamp_ms: u128,
         _tx_count: usize,
+        _l1_tx_count: usize,
         _block_data: &SealData,
         _tx_data: &SealData,
         _protocol_version: ProtocolVersionId,
