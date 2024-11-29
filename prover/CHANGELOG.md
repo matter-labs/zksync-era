@@ -1,5 +1,12 @@
 # Changelog
 
+## [17.1.1](https://github.com/matter-labs/zksync-era/compare/prover-v17.1.0...prover-v17.1.1) (2024-11-26)
+
+
+### Bug Fixes
+
+* Add prometheus exporter to circut prover ([#3311](https://github.com/matter-labs/zksync-era/issues/3311)) ([920eba1](https://github.com/matter-labs/zksync-era/commit/920eba15fc64b40f10fcc9f6910d5e7607f3d313))
+
 ## [17.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v17.0.0...prover-v17.1.0) (2024-11-18)
 
 

@@ -24,7 +24,7 @@ pub mod node_storage_init;
 pub mod object_store;
 pub mod pk_signing_eth_client;
 pub mod pools_layer;
-pub mod postgres_metrics;
+pub mod postgres;
 pub mod prometheus_exporter;
 pub mod proof_data_handler;
 pub mod pruning;
