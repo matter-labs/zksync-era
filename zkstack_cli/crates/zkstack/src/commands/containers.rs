@@ -1,28 +1,24 @@
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
 use common::{docker, logger, spinner::Spinner};
-use config::{
-    zkstack_config::ZkStackConfig, EcosystemConfig, DOCKER_COMPOSE_FILE,
-    ERA_OBSERVABILITY_COMPOSE_FILE,
-};
+use config::{zkstack_config::ZkStackConfig, DOCKER_COMPOSE_FILE, ERA_OBSERVABILITY_COMPOSE_FILE};
 use xshell::Shell;
 
 use super::args::ContainersArgs;
 use crate::{
     commands::ecosystem::setup_observability,
     messages::{
-        MSG_CONTAINERS_STARTED, MSG_FAILED_TO_FIND_ECOSYSTEM_ERR,
-        MSG_RETRY_START_CONTAINERS_PROMPT, MSG_STARTING_CONTAINERS,
+        MSG_CONTAINERS_STARTED, MSG_RETRY_START_CONTAINERS_PROMPT, MSG_STARTING_CONTAINERS,
         MSG_STARTING_DOCKER_CONTAINERS_SPINNER,
     },
 };
 
 pub fn run(shell: &Shell, args: ContainersArgs) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
-    let ecosystem = ZkStackConfig::ecosystem(shell).context(MSG_FAILED_TO_FIND_ECOSYSTEM_ERR)?;
+    let link_to_code = ZkStackConfig::from_file(shell)?.link_to_code();
 
-    initialize_docker(shell, &ecosystem)?;
+    initialize_docker(shell, link_to_code)?;
 
     logger::info(MSG_STARTING_CONTAINERS);
 
@@ -38,9 +34,9 @@ pub fn run(shell: &Shell, args: ContainersArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn initialize_docker(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::Result<()> {
+pub fn initialize_docker(shell: &Shell, link_to_code: PathBuf) -> anyhow::Result<()> {
     if !shell.path_exists(DOCKER_COMPOSE_FILE) {
-        copy_dockerfile(shell, ecosystem.link_to_code.clone())?;
+        copy_dockerfile(shell, link_to_code)?;
     };
 
     Ok(())

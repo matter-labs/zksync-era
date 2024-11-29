@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::bail;
 use xshell::Shell;
 
@@ -9,14 +11,18 @@ pub enum ZkStackConfig {
 }
 
 impl ZkStackConfig {
-    fn from_file(shell: &Shell) -> anyhow::Result<ZkStackConfig> {
+    pub fn from_file(shell: &Shell) -> anyhow::Result<ZkStackConfig> {
         if let Ok(ecosystem) = EcosystemConfig::from_file(shell) {
-            Ok(ZkStackConfig::EcosystemConfig(ecosystem))
-        } else {
-            let chain_internal = ChainConfigInternal::from_file(shell)?;
-            let chain = ChainConfig::from_internal(chain_internal, shell.clone())?;
-            Ok(ZkStackConfig::ChainConfig(chain))
+            return Ok(ZkStackConfig::EcosystemConfig(ecosystem));
         }
+
+        if let Ok(chain_internal) = ChainConfigInternal::from_file(shell) {
+            if let Ok(chain) = ChainConfig::from_internal(chain_internal, shell.clone()) {
+                return Ok(ZkStackConfig::ChainConfig(chain));
+            }
+        }
+
+        bail!("Missing ZkStackConfig. Failed to find ecosystem or chain");
     }
 
     pub fn current_chain(shell: &Shell) -> anyhow::Result<ChainConfig> {
@@ -30,6 +36,13 @@ impl ZkStackConfig {
         match EcosystemConfig::from_file(shell) {
             Ok(ecosystem) => Ok(ecosystem),
             Err(e) => bail!(e),
+        }
+    }
+
+    pub fn link_to_code(&self) -> PathBuf {
+        match self {
+            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.link_to_code.clone(),
+            ZkStackConfig::ChainConfig(chain) => chain.link_to_code.clone(),
         }
     }
 }
