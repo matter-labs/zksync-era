@@ -31,6 +31,12 @@ pub async fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
 
     if !args.only_config {
         update_repo(shell, &ecosystem)?;
+        let path_to_era_observability = shell.current_dir().join(ERA_OBSERBAVILITY_DIR);
+        if shell.path_exists(path_to_era_observability.clone()) {
+            let spinner = Spinner::new(MSG_UPDATING_ERA_OBSERVABILITY_SPINNER);
+            git::pull(shell, path_to_era_observability)?;
+            spinner.finish();
+        }
     }
 
     let general_config_path = ecosystem.get_default_configs_path().join(GENERAL_FILE);
@@ -54,13 +60,6 @@ pub async fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
             &secrets_path,
         )
         .await?;
-    }
-
-    let path_to_era_observability = shell.current_dir().join(ERA_OBSERBAVILITY_DIR);
-    if shell.path_exists(path_to_era_observability.clone()) {
-        let spinner = Spinner::new(MSG_UPDATING_ERA_OBSERVABILITY_SPINNER);
-        git::pull(shell, path_to_era_observability)?;
-        spinner.finish();
     }
 
     logger::outro(MSG_ZKSYNC_UPDATED);
