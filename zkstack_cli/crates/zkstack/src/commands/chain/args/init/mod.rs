@@ -42,7 +42,7 @@ pub struct InitArgs {
     #[clap(long, help = MSG_ECOSYSTEM_CONTRACTS_PATH_HELP)]
     pub ecosystem_contracts_path: Option<String>,
     #[clap(long, help = MSG_WALLETS_PATH_HELP)]
-    pub wallets_path: Option<String>,
+    pub ecosystem_wallets_path: Option<String>,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
 }
@@ -108,9 +108,9 @@ impl InitArgs {
             get_ecosystem_contracts_path(self.ecosystem_contracts_path, ecosystem.clone(), chain)?
         };
 
-        let wallets_path = ecosystem.map_or_else(
+        let ecosystem_wallets_path = ecosystem.map_or_else(
             || {
-                self.wallets_path
+                self.ecosystem_wallets_path
                     .map_or_else(|| Prompt::new(MSG_WALLETS_PATH_PROMPT).ask(), PathBuf::from)
             },
             |e| e.get_wallets_path(),
@@ -123,7 +123,7 @@ impl InitArgs {
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
             ecosystem_contracts_path,
-            wallets_path,
+            ecosystem_wallets_path,
             dev: self.dev,
         })
     }
@@ -137,6 +137,6 @@ pub struct InitArgsFinal {
     pub l1_rpc_url: String,
     pub no_port_reallocation: bool,
     pub ecosystem_contracts_path: PathBuf,
-    pub wallets_path: PathBuf,
+    pub ecosystem_wallets_path: PathBuf,
     pub dev: bool,
 }
