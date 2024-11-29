@@ -1,4 +1,4 @@
-use std::cell::OnceCell;
+use std::{cell::OnceCell, path::PathBuf};
 
 use anyhow::Context;
 use common::{logger, spinner::Spinner};
@@ -95,7 +95,11 @@ pub(crate) fn create_chain_inner(args: ChainCreateArgsFinal, shell: &Shell) -> a
         logger::warn("WARNING!!! You are creating a chain with legacy bridge, use it only for testing compatibility")
     }
     let default_chain_name = args.chain_name.clone();
-    let chain_path = args.chain_path;
+    let chain_path = args
+        .chains_path
+        .clone()
+        .unwrap_or_default()
+        .join(&default_chain_name);
     let chain_configs_path = create_local_configs_dir(shell, &chain_path)?;
     let (chain_id, legacy_bridge) = if args.legacy_bridge {
         // Legacy bridge is distinguished by using the same chain id as ecosystem
@@ -112,8 +116,17 @@ pub(crate) fn create_chain_inner(args: ChainCreateArgsFinal, shell: &Shell) -> a
     if args.evm_emulator && !has_evm_emulation_support {
         anyhow::bail!(MSG_EVM_EMULATOR_HASH_MISSING_ERR);
     }
-    let rocks_db_path = chain_path.join(LOCAL_DB_PATH);
-    let artifacts = chain_path.join(LOCAL_ARTIFACTS_PATH);
+    let (rocks_db_path, artifacts) = if args.chains_path.is_none() {
+        (
+            PathBuf::from(LOCAL_DB_PATH),
+            PathBuf::from(LOCAL_ARTIFACTS_PATH),
+        )
+    } else {
+        (
+            chain_path.join(LOCAL_DB_PATH),
+            chain_path.join(LOCAL_ARTIFACTS_PATH),
+        )
+    };
 
     let chain_config = ChainConfig {
         id: args.internal_id,

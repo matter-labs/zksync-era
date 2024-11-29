@@ -94,8 +94,6 @@ impl ChainCreateArgs {
             .unwrap_or_else(|| Prompt::new(MSG_CHAIN_NAME_PROMPT).ask());
         chain_name = slugify!(&chain_name, separator = "_");
 
-        let chain_path = chains_path.unwrap_or_default().join(&chain_name);
-
         let chain_id = self
             .chain_id
             .map(|v| match v {
@@ -261,7 +259,7 @@ impl ChainCreateArgs {
             legacy_bridge: self.legacy_bridge,
             evm_emulator,
             link_to_code,
-            chain_path,
+            chains_path,
             era_chain_id,
             internal_id,
             l1_network,
@@ -282,7 +280,7 @@ pub struct ChainCreateArgsFinal {
     pub legacy_bridge: bool,
     pub evm_emulator: bool,
     pub link_to_code: String,
-    pub chain_path: PathBuf,
+    pub chains_path: Option<PathBuf>,
     pub era_chain_id: L2ChainId,
     pub internal_id: u32,
     pub l1_network: L1Network,
