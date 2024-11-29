@@ -146,7 +146,6 @@ impl EthSenderTester {
                 PubdataSendingMode::Calldata
             };
         let aggregator_config = SenderConfig {
-            aggregated_proof_sizes: vec![1],
             pubdata_sending_mode,
             ..eth_sender_config.clone().sender.unwrap()
         };
@@ -256,8 +255,9 @@ impl EthSenderTester {
             Aggregator::new(
                 aggregator_config.clone(),
                 MockObjectStore::arc(),
-                aggregator_operate_4844_mode,
+                custom_commit_sender_addr,
                 commitment_mode,
+                SettlementMode::SettlesToL1,
             ),
             gateway.clone(),
             // ZKsync contract address
@@ -414,6 +414,7 @@ impl EthSenderTester {
             .into_iter()
             .map(l1_batch_with_metadata)
             .collect(),
+            priority_ops_proofs: Vec::new(),
         });
         self.next_l1_batch_number_to_execute += 1;
         self.save_operation(operation).await
@@ -514,7 +515,6 @@ impl EthSenderTester {
             .save_eth_tx(
                 &mut self.conn.connection().await.unwrap(),
                 &aggregated_operation,
-                false,
                 self.is_l2,
             )
             .await

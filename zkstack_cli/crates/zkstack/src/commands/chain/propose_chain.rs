@@ -18,7 +18,7 @@ use xshell::Shell;
 use crate::{
     commands::chain::args::propose_registration::ProposeRegistrationArgs,
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_PROPOSE_CHAIN_SPINNER},
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 pub async fn run(shell: &Shell, args: ProposeRegistrationArgs) -> anyhow::Result<()> {
@@ -79,7 +79,7 @@ pub async fn run_propose_chain_registration(
     if let Some(address) = sender {
         forge = forge.with_sender(address.encode_hex_upper());
     } else {
-        forge = fill_forge_private_key(forge, Some(wallet))?;
+        forge = fill_forge_private_key(forge, Some(wallet), WalletOwner::Governor)?;
         check_the_balance(&forge).await?;
     }
 
