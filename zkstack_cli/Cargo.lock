@@ -713,7 +713,7 @@ dependencies = [
  "futures",
  "git_version_macro",
  "once_cell",
- "reqwest 0.12.8",
+ "reqwest 0.12.9",
  "semver",
  "serde",
  "serde_json",
