@@ -36,45 +36,45 @@ jobs:
       - uses: mozilla-actions/sccache-action@89e9040de88b577a072e3760aaf59f585da083af # v0.0.5
 
       # before
-      # - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
-      #   with:
-      #     ref: ${{ env.BASE }}
-      #     path: before
-      #     fetch-depth: 0 # fetches all branches and tags, which is needed to compute the LCA.
-      #     submodules: "recursive"
-      # - name: checkout LCA
-      #   run:
-      #     git checkout $(git merge-base $BASE $HEAD) --recurse-submodules
-      #   working-directory: ./before
-      # - name: compile before
-      #   run: cargo check --all-targets
-      #   working-directory: ./before/
-      # - name: build before.binpb
-      #   run: >
-      #     perl -ne 'print "$1\n" if /PROTOBUF_DESCRIPTOR="(.*)"/'
-      #     `find ./before/target/debug/build/*/output`
-      #     | xargs cat > ./before.binpb
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+        with:
+          ref: ${{ env.BASE }}
+          path: before
+          fetch-depth: 0 # fetches all branches and tags, which is needed to compute the LCA.
+          submodules: "recursive"
+      - name: checkout LCA
+        run:
+          git checkout $(git merge-base $BASE $HEAD) --recurse-submodules
+        working-directory: ./before
+      - name: compile before
+        run: cargo check --all-targets
+        working-directory: ./before/
+      - name: build before.binpb
+        run: >
+          perl -ne 'print "$1\n" if /PROTOBUF_DESCRIPTOR="(.*)"/'
+          `find ./before/target/debug/build/*/output`
+          | xargs cat > ./before.binpb
 
-      # # after
-      # - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
-      #   with:
-      #     ref: ${{ env.HEAD }}
-      #     path: after
-      #     submodules: recursive
-      # - name: compile after
-      #   run: cargo check --all-targets
-      #   working-directory: ./after
-      # - name: build after.binpb
-      #   run: >
-      #     perl -ne 'print "$1\n" if /PROTOBUF_DESCRIPTOR="(.*)"/'
-      #     `find ./after/target/debug/build/*/output`
-      #     | xargs cat > ./after.binpb
+      # after
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+        with:
+          ref: ${{ env.HEAD }}
+          path: after
+          submodules: recursive
+      - name: compile after
+        run: cargo check --all-targets
+        working-directory: ./after
+      - name: build after.binpb
+        run: >
+          perl -ne 'print "$1\n" if /PROTOBUF_DESCRIPTOR="(.*)"/'
+          `find ./after/target/debug/build/*/output`
+          | xargs cat > ./after.binpb
 
-      # # compare
-      # - uses: bufbuild/buf-setup-action@54abbed4fe8d8d45173eca4798b0c39a53a7b658 # v1.39.0
-      #   with:
-      #     github_token: ${{ github.token }}
-      # - name: buf breaking
-      #   run: >
-      #     buf breaking './after.binpb' --against './before.binpb' --exclude-path 'zksync/config/experimental.proto'
-      #     --config '{"version":"v1","breaking":{"use":["WIRE_JSON","WIRE"]}}' --error-format 'github-actions'
+      # compare
+      - uses: bufbuild/buf-setup-action@54abbed4fe8d8d45173eca4798b0c39a53a7b658 # v1.39.0
+        with:
+          github_token: ${{ github.token }}
+      - name: buf breaking
+        run: >
+          buf breaking './after.binpb' --against './before.binpb' --exclude-path 'zksync/config/experimental.proto'
+          --config '{"version":"v1","breaking":{"use":["WIRE_JSON","WIRE"]}}' --error-format 'github-actions'
