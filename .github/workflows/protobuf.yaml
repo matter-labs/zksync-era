@@ -40,6 +40,7 @@ jobs:
         with:
           ref: ${{ env.BASE }}
           path: before
+          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
           fetch-depth: 0 # fetches all branches and tags, which is needed to compute the LCA.
           submodules: "recursive"
       - name: checkout LCA
@@ -60,6 +61,7 @@ jobs:
         with:
           ref: ${{ env.HEAD }}
           path: after
+          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
           submodules: recursive
       - name: compile after
         run: cargo check --all-targets
