@@ -20,6 +20,7 @@ impl SealCriterion for PubDataBytesCriterion {
         config: &StateKeeperConfig,
         _block_open_timestamp_ms: u128,
         _tx_count: usize,
+        _l1_tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
@@ -99,6 +100,7 @@ mod tests {
             &config,
             0,
             0,
+            0,
             &SealData {
                 execution_metrics: block_execution_metrics,
                 ..SealData::default()
@@ -120,6 +122,7 @@ mod tests {
             &config,
             0,
             0,
+            0,
             &SealData {
                 execution_metrics: block_execution_metrics,
                 ..SealData::default()
@@ -135,6 +138,7 @@ mod tests {
         };
         let full_block_resolution = criterion.should_seal(
             &config,
+            0,
             0,
             0,
             &SealData {

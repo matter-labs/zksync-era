@@ -5,19 +5,16 @@
 //!
 //! These "extensions" are required to provide more ZKsync-specific information while remaining Web3-compilant.
 
-use core::{
-    convert::{TryFrom, TryInto},
-    fmt,
-    marker::PhantomData,
-};
+use core::convert::{TryFrom, TryInto};
 
 use rlp::Rlp;
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 pub use zksync_types::{
     api::{Block, BlockNumber, Log, TransactionReceipt, TransactionRequest},
     ethabi,
     web3::{
-        BlockHeader, Bytes, CallRequest, FeeHistory, Index, SyncState, TraceFilter, U64Number, Work,
+        BlockHeader, Bytes, CallRequest, FeeHistory, Index, SyncState, TraceFilter, U64Number,
+        ValueOrArray, Work,
     },
     Address, Transaction, H160, H256, H64, U256, U64,
 };
@@ -101,71 +98,6 @@ pub enum FilterChanges {
     Empty([u8; 0]),
 }
 
-/// Either value or array of values.
-///
-/// A value must serialize into a string.
-#[derive(Default, Debug, PartialEq, Clone)]
-pub struct ValueOrArray<T>(pub Vec<T>);
-
-impl<T> From<T> for ValueOrArray<T> {
-    fn from(value: T) -> Self {
-        Self(vec![value])
-    }
-}
-
-impl<T: Serialize> Serialize for ValueOrArray<T> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self.0.len() {
-            0 => serializer.serialize_none(),
-            1 => Serialize::serialize(&self.0[0], serializer),
-            _ => Serialize::serialize(&self.0, serializer),
-        }
-    }
-}
-
-impl<'de, T: Deserialize<'de>> Deserialize<'de> for ValueOrArray<T> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct Visitor<T>(PhantomData<T>);
-
-        impl<'de, T: Deserialize<'de>> de::Visitor<'de> for Visitor<T> {
-            type Value = ValueOrArray<T>;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("string value or sequence of values")
-            }
-
-            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-            where
-                E: de::Error,
-            {
-                use serde::de::IntoDeserializer;
-
-                Deserialize::deserialize(value.into_deserializer())
-                    .map(|value| ValueOrArray(vec![value]))
-            }
-
-            fn visit_seq<S>(self, mut visitor: S) -> Result<Self::Value, S::Error>
-            where
-                S: de::SeqAccess<'de>,
-            {
-                let mut elements = Vec::with_capacity(visitor.size_hint().unwrap_or(1));
-                while let Some(element) = visitor.next_element()? {
-                    elements.push(element);
-                }
-                Ok(ValueOrArray(elements))
-            }
-        }
-
-        deserializer.deserialize_any(Visitor(PhantomData))
-    }
-}
-
 /// Filter
 #[derive(Default, Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Filter {
@@ -183,6 +115,28 @@ pub struct Filter {
     pub topics: Option<Vec<Option<ValueOrArray<H256>>>>,
     #[serde(rename = "blockHash", skip_serializing_if = "Option::is_none")]
     pub block_hash: Option<H256>,
+}
+
+impl From<zksync_types::web3::Filter> for Filter {
+    fn from(value: zksync_types::web3::Filter) -> Self {
+        let convert_block_number = |b: zksync_types::web3::BlockNumber| match b {
+            zksync_types::web3::BlockNumber::Finalized => BlockNumber::Finalized,
+            zksync_types::web3::BlockNumber::Safe => BlockNumber::Finalized,
+            zksync_types::web3::BlockNumber::Latest => BlockNumber::Latest,
+            zksync_types::web3::BlockNumber::Earliest => BlockNumber::Earliest,
+            zksync_types::web3::BlockNumber::Pending => BlockNumber::Pending,
+            zksync_types::web3::BlockNumber::Number(n) => BlockNumber::Number(n),
+        };
+        let from_block = value.from_block.map(convert_block_number);
+        let to_block = value.to_block.map(convert_block_number);
+        Filter {
+            from_block,
+            to_block,
+            address: value.address,
+            topics: value.topics,
+            block_hash: value.block_hash,
+        }
+    }
 }
 
 /// Filter Builder

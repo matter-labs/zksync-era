@@ -12,7 +12,7 @@ use xshell::Shell;
 
 use crate::{
     messages::MSG_L1_SECRETS_MUST_BE_PRESENTED,
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell, chain: ChainConfig) -> anyhow::Result<()> {
@@ -52,7 +52,11 @@ pub async fn deploy_paymaster(
     if let Some(address) = sender {
         forge = forge.with_sender(address);
     } else {
-        forge = fill_forge_private_key(forge, Some(&chain_config.get_wallets_config()?.governor))?;
+        forge = fill_forge_private_key(
+            forge,
+            Some(&chain_config.get_wallets_config()?.governor),
+            WalletOwner::Governor,
+        )?;
     }
 
     if broadcast {

@@ -500,13 +500,14 @@ impl EthTxManager {
             .track_eth_tx_metrics(storage, BlockL1Stage::Mined, tx)
             .await;
 
-        if gas_used > U256::from(tx.predicted_gas_cost) {
-            tracing::error!(
-                "Predicted gas {} lower than used gas {gas_used} for tx {:?} {}",
-                tx.predicted_gas_cost,
-                tx.tx_type,
-                tx.id
-            );
+        if let Some(predicted_gas_cost) = tx.predicted_gas_cost {
+            if gas_used > U256::from(predicted_gas_cost) {
+                tracing::error!(
+                    "Predicted gas {predicted_gas_cost} lower than used gas {gas_used} for tx {:?} {}",
+                    tx.tx_type,
+                    tx.id
+                );
+            }
         }
         tracing::info!(
             "eth_tx {} with hash {tx_hash:?} for {} is confirmed. Gas spent: {gas_used:?}",

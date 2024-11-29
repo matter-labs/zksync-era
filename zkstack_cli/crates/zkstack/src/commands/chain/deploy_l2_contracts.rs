@@ -25,7 +25,7 @@ use zksync_basic_types::L2ChainId;
 
 use crate::{
     messages::{MSG_DEPLOYING_L2_CONTRACT_SPINNER, MSG_L1_SECRETS_MUST_BE_PRESENTED},
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 pub enum Deploy2ContractsOption {
@@ -291,7 +291,7 @@ async fn call_forge(
         forge = forge.with_signature(signature);
     }
 
-    forge = fill_forge_private_key(forge, Some(&wallets.governor))?;
+    forge = fill_forge_private_key(forge, Some(&wallets.governor), WalletOwner::Governor)?;
 
     check_the_balance(&forge).await?;
     forge.run(shell)?;

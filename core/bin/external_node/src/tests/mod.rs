@@ -35,7 +35,7 @@ async fn external_node_basics(components_str: &'static str) {
     }
 
     let l2_client = utils::mock_l2_client(&env);
-    let eth_client = utils::mock_eth_client(env.config.diamond_proxy_address());
+    let eth_client = utils::mock_eth_client(env.config.l1_diamond_proxy_address());
 
     let node_handle = tokio::task::spawn_blocking(move || {
         std::thread::spawn(move || {
@@ -104,7 +104,7 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
     let (env, env_handles) = utils::TestEnvironment::with_genesis_block("core").await;
 
     let l2_client = utils::mock_l2_client_hanging();
-    let eth_client = utils::mock_eth_client(env.config.diamond_proxy_address());
+    let eth_client = utils::mock_eth_client(env.config.l1_diamond_proxy_address());
 
     let mut node_handle = tokio::task::spawn_blocking(move || {
         std::thread::spawn(move || {
@@ -140,7 +140,7 @@ async fn running_tree_without_core_is_not_allowed() {
     let (env, _env_handles) = utils::TestEnvironment::with_genesis_block("tree").await;
 
     let l2_client = utils::mock_l2_client(&env);
-    let eth_client = utils::mock_eth_client(env.config.diamond_proxy_address());
+    let eth_client = utils::mock_eth_client(env.config.l1_diamond_proxy_address());
 
     let node_handle = tokio::task::spawn_blocking(move || {
         std::thread::spawn(move || {
