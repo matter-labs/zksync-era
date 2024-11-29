@@ -33,6 +33,42 @@ pub struct Secrets {
     pub data_availability: Option<DataAvailabilitySecrets>,
 }
 
+impl Secrets {
+    pub fn set_prover_url_host(&mut self, host: &str) -> anyhow::Result<()> {
+        if let Some(database) = self.database.as_mut() {
+            if let Some(url) = database.prover_url.as_mut() {
+                let mut new_url = url.expose_url().clone();
+                new_url.set_host(Some(host))?;
+                *url = SensitiveUrl::from(new_url);
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn set_server_url_host(&mut self, host: &str) -> anyhow::Result<()> {
+        if let Some(database) = self.database.as_mut() {
+            if let Some(url) = database.server_url.as_mut() {
+                let mut new_url = url.expose_url().clone();
+                new_url.set_host(Some(host))?;
+                *url = SensitiveUrl::from(new_url);
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn set_l1_rpc_url_host(&mut self, host: &str) -> anyhow::Result<()> {
+        if let Some(l1) = &mut self.l1 {
+            let mut new_url = l1.l1_rpc_url.expose_url().clone();
+            new_url.set_host(Some(host))?;
+            l1.l1_rpc_url = SensitiveUrl::from(new_url);
+        }
+
+        Ok(())
+    }
+}
+
 impl DatabaseSecrets {
     /// Returns a copy of the master database URL as a `Result` to simplify error propagation.
     pub fn master_url(&self) -> anyhow::Result<SensitiveUrl> {

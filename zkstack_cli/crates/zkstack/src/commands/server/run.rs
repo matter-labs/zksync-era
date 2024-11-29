@@ -12,7 +12,7 @@ use xshell::Shell;
 use crate::{
     commands::args::run::RunServerArgs,
     messages::{MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER},
-    utils::ports::EcosystemPortsScanner,
+    utils::{docker::adjust_host_to_execution_mode, ports::EcosystemPortsScanner},
 };
 
 pub(super) async fn run_server(
@@ -35,6 +35,8 @@ pub(super) async fn run_server(
     } else {
         ServerMode::Normal
     };
+
+    adjust_host_to_execution_mode(shell, &args.mode, chain_config)?;
 
     server
         .run(

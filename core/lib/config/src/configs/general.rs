@@ -1,3 +1,5 @@
+use url::Url;
+
 use crate::{
     configs::{
         base_token_adjuster::BaseTokenAdjusterConfig,
@@ -60,4 +62,18 @@ pub struct GeneralConfig {
     pub experimental_vm_config: Option<ExperimentalVmConfig>,
     pub prover_job_monitor_config: Option<ProverJobMonitorConfig>,
     pub timestamp_asserter_config: Option<TimestampAsserterConfig>,
+}
+
+impl GeneralConfig {
+    pub fn set_prometheus_host(&mut self, host: &str) -> anyhow::Result<()> {
+        if let Some(api) = self.api_config.as_mut() {
+            if let Some(url) = api.prometheus.pushgateway_url.as_mut() {
+                let mut new_url = Url::parse(url)?;
+                new_url.set_host(Some(host))?;
+                *url = new_url.to_string();
+            }
+        }
+
+        Ok(())
+    }
 }

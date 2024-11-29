@@ -16,7 +16,7 @@ use crate::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_GENESIS_COMPLETED,
         MSG_STARTING_GENESIS_SPINNER,
     },
-    utils::ports::EcosystemPortsScanner,
+    utils::{docker::adjust_host_to_execution_mode, ports::EcosystemPortsScanner},
 };
 
 pub async fn run(args: GenesisServerArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -42,6 +42,8 @@ pub async fn run_server_genesis(
 ) -> anyhow::Result<()> {
     let ports = EcosystemPortsScanner::scan(shell)?;
     let server = Server::new(None, chain_config.link_to_code.clone(), false);
+
+    adjust_host_to_execution_mode(shell, &execution_mode, &chain_config)?;
 
     server
         .run(

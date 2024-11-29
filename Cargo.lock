@@ -11267,6 +11267,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
+ "url",
  "zksync_basic_types",
  "zksync_concurrency",
  "zksync_consensus_utils",
