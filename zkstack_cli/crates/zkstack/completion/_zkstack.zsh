@@ -287,7 +287,7 @@ _arguments "${_arguments_options[@]}" : \
 '--deploy-paymaster=[]' \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
 '--ecosystem-contracts-path=[Ecosystem contracts path]:ECOSYSTEM_CONTRACTS_PATH:_default' \
-'--wallets-path=[Wallets path]:WALLETS_PATH:_default' \
+'--ecosystem-wallets-path=[Ecosystem wallets path]:ECOSYSTEM_WALLETS_PATH:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
 '-d[]' \
