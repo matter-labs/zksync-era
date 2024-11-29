@@ -13,7 +13,7 @@ use zksync_db_connection::{
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
 
 use crate::{
-    models::storage_tee_proof::{StorageBatch, StorageLockedBatch, StorageTeeProof},
+    models::storage_tee_proof::{StorageLockedBatch, StorageTeeProof},
     Core,
 };
 
@@ -65,8 +65,7 @@ impl TeeProofGenerationDal<'_, '_> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let min_batch_number = i64::from(min_batch_number.0);
         let mut transaction = self.storage.start_transaction().await?;
-        let batch_number = sqlx::query_as!(
-            StorageBatch,
+        let batch_number = sqlx::query!(
             r#"
             SELECT
                 p.l1_batch_number
@@ -90,7 +89,9 @@ impl TeeProofGenerationDal<'_, '_> {
                         AND tee.prover_taken_at < NOW() - $4::INTERVAL
                     )
                 )
-            FETCH FIRST ROW ONLY
+            LIMIT 1
+            FOR UPDATE OF p
+            SKIP LOCKED
             "#,
             tee_type.to_string(),
             TeeProofGenerationJobStatus::PickedByProver.to_string(),
@@ -108,7 +109,6 @@ impl TeeProofGenerationDal<'_, '_> {
         let batch_number = match batch_number {
             Some(batch) => batch.l1_batch_number,
             None => {
-                transaction.commit().await?;
                 return Ok(None);
             }
         };
