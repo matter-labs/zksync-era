@@ -283,7 +283,6 @@ pub(super) const MSG_STARTING_DOCKER_CONTAINERS_SPINNER: &str =
 pub(super) const MSG_CONTAINERS_STARTED: &str = "Containers started successfully";
 pub(super) const MSG_RETRY_START_CONTAINERS_PROMPT: &str =
     "Failed to start containers. Make sure there is nothing running on default ports for Ethereum node l1 and postgres. Want to try again?";
-pub(super) const MSG_FAILED_TO_FIND_ECOSYSTEM_ERR: &str = "Failed to find ecosystem folder.";
 pub(super) const MSG_OBSERVABILITY_RUN_PROMPT: &str = "Do you want to run observability?";
 
 /// Server related messages
