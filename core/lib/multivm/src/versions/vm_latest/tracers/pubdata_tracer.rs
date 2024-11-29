@@ -162,7 +162,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
             storage
                 .storage_log_queries_after_timestamp(Timestamp(0))
                 .iter()
-                .map(|log| &log.log_query),
+                .map(|log| log.log_query),
         )
         .1
         .into_iter()

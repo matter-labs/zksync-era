@@ -2798,7 +2798,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__contracts)
-            opts="-v -h --l1-contracts --l2-contracts --system-contracts --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --l1-contracts --l2-contracts --system-contracts --test-contracts --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2813,6 +2813,10 @@ _zkstack() {
                     return 0
                     ;;
                 --system-contracts)
+                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
+                    return 0
+                    ;;
+                --test-contracts)
                     COMPREPLY=($(compgen -W "true false" -- "${cur}"))
                     return 0
                     ;;
@@ -7062,7 +7066,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__prover__compressor__keys)
-            opts="-v -h --path --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --path --compressor-type --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7070,6 +7074,10 @@ _zkstack() {
             case "${prev}" in
                 --path)
                     COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --compressor-type)
+                    COMPREPLY=($(compgen -W "fflonk plonk" -- "${cur}"))
                     return 0
                     ;;
                 --chain)
@@ -7182,7 +7190,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__prover__init)
-            opts="-u -d -v -h --dev --proof-store-dir --bucket-base-url --credentials-file --bucket-name --location --project-id --shall-save-to-public-bucket --public-store-dir --public-bucket-base-url --public-credentials-file --public-bucket-name --public-location --public-project-id --clone --bellman-cuda-dir --bellman-cuda --setup-compressor-key --path --region --mode --setup-keys --setup-database --prover-db-url --prover-db-name --use-default --dont-drop --cloud-type --verbose --chain --ignore-prerequisites --help"
+            opts="-u -d -v -h --dev --proof-store-dir --bucket-base-url --credentials-file --bucket-name --location --project-id --shall-save-to-public-bucket --public-store-dir --public-bucket-base-url --public-credentials-file --public-bucket-name --public-location --public-project-id --clone --bellman-cuda-dir --bellman-cuda --setup-compressor-key --path --compressor-type --region --mode --setup-keys --setup-database --prover-db-url --prover-db-name --use-default --dont-drop --cloud-type --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7254,6 +7262,10 @@ _zkstack() {
                     ;;
                 --path)
                     COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --compressor-type)
+                    COMPREPLY=($(compgen -W "fflonk plonk" -- "${cur}"))
                     return 0
                     ;;
                 --region)
@@ -7334,7 +7346,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__prover__run)
-            opts="-l -h -m -v -h --component --round --threads --max-allocation --light-wvg-count --heavy-wvg-count --max-allocation --docker --tag --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --component --round --threads --max-allocation --witness-vector-generator-count --max-allocation --mode --docker --tag --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7356,19 +7368,7 @@ _zkstack() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
-                --light-wvg-count)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                -l)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --heavy-wvg-count)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                -h)
+                --witness-vector-generator-count)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -7376,8 +7376,8 @@ _zkstack() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
-                -m)
-                    COMPREPLY=($(compgen -f "${cur}"))
+                --mode)
+                    COMPREPLY=($(compgen -W "fflonk plonk" -- "${cur}"))
                     return 0
                     ;;
                 --docker)

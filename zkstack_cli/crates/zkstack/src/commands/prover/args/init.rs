@@ -360,6 +360,7 @@ impl ProverInitArgs {
         if self.dev {
             return Some(CompressorKeysArgs {
                 path: Some(default_path.to_string()),
+                ..self.compressor_keys_args.clone()
             });
         }
 

@@ -13,7 +13,7 @@ use zksync_prover_fri_types::circuit_definitions::{
 
 use crate::{
     keystore::Keystore,
-    utils::{calculate_snark_vk_hash, get_leaf_vk_params},
+    utils::{calculate_fflonk_snark_vk_hash, calculate_snark_vk_hash, get_leaf_vk_params},
     VkCommitments,
 };
 
@@ -54,13 +54,18 @@ impl Keystore {
         let leaf_aggregation_commitment_hex = hex_concatenator(leaf_vk_commitment);
         let node_aggregation_commitment_hex = hex_concatenator(node_vk_commitment);
         let scheduler_commitment_hex = hex_concatenator(scheduler_vk_commitment);
-        let snark_vk_hash: String = calculate_snark_vk_hash(self)?.encode_hex();
+        let plonk_snark_vk_hash: String =
+            calculate_snark_vk_hash(self.load_snark_verification_key().unwrap())?.encode_hex();
+        let fflonk_snark_vk_hash: String =
+            calculate_fflonk_snark_vk_hash(self.load_fflonk_snark_verification_key().unwrap())?
+                .encode_hex();
 
         let result = VkCommitments {
             leaf: leaf_aggregation_commitment_hex,
             node: node_aggregation_commitment_hex,
             scheduler: scheduler_commitment_hex,
-            snark_wrapper: format!("0x{}", snark_vk_hash),
+            snark_wrapper: format!("0x{}", plonk_snark_vk_hash),
+            fflonk_snark_wrapper: format!("0x{}", fflonk_snark_vk_hash),
         };
         tracing::info!("Commitments: {:?}", result);
         Ok(result)

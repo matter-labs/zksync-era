@@ -1,6 +1,9 @@
 #![feature(allocator_api)]
+#![feature(generic_const_exprs)]
 
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "gpu")]
+use shivini::cs::GpuSetup;
 use zkevm_test_harness::compute_setups::CircuitSetupData;
 use zksync_prover_fri_types::circuit_definitions::boojum::{
     algebraic_props::{round_function::AbsorptionModeOverwrite, sponge::GenericAlgebraicSponge},
@@ -19,8 +22,6 @@ use zksync_prover_fri_types::circuit_definitions::boojum::{
     },
     implementations::poseidon2::Poseidon2Goldilocks,
 };
-#[cfg(feature = "gpu")]
-use {shivini::cs::GpuSetup, std::alloc::Global};
 
 pub mod commitment_utils;
 pub mod keystore;
@@ -84,11 +85,12 @@ impl From<CircuitSetupData> for GoldilocksProverSetupData {
 #[cfg(feature = "gpu")]
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "F: serde::Serialize + serde::de::DeserializeOwned")]
-pub struct GpuProverSetupData<F: PrimeField + SmallField, H: TreeHasher<F>> {
-    pub setup: GpuSetup<Global>,
+pub struct GpuProverSetupData<F: PrimeField + SmallField, H: shivini::GpuTreeHasher + TreeHasher<F>>
+{
+    pub setup: GpuSetup<H>,
     #[serde(bound(
-        serialize = "H::Output: serde::Serialize",
-        deserialize = "H::Output: serde::de::DeserializeOwned"
+        serialize = "<H as TreeHasher<F>>::Output: serde::Serialize",
+        deserialize = "<H as TreeHasher<F>>::Output: serde::de::DeserializeOwned"
     ))]
     pub vk: VerificationKey<F, H>,
     pub finalization_hint: FinalizationHintsForProver,
@@ -117,4 +119,5 @@ pub struct VkCommitments {
     pub scheduler: String,
     // Hash computed over Snark verification key fields.
     pub snark_wrapper: String,
+    pub fflonk_snark_wrapper: String,
 }

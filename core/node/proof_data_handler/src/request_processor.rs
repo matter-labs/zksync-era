@@ -204,18 +204,17 @@ impl RequestProcessor {
             SubmitProofRequest::Proof(proof) => {
                 let blob_url = self
                     .blob_store
-                    .put((l1_batch_number, proof.protocol_version), &*proof)
+                    .put((l1_batch_number, proof.protocol_version()), &*proof)
                     .await
                     .map_err(RequestProcessorError::ObjectStore)?;
 
-                let system_logs_hash_from_prover =
-                    H256::from_slice(&proof.aggregation_result_coords[0]);
-                let state_diff_hash_from_prover =
-                    H256::from_slice(&proof.aggregation_result_coords[1]);
+                let aggregation_coords = proof.aggregation_result_coords();
+
+                let system_logs_hash_from_prover = H256::from_slice(&aggregation_coords[0]);
+                let state_diff_hash_from_prover = H256::from_slice(&aggregation_coords[1]);
                 let bootloader_heap_initial_content_from_prover =
-                    H256::from_slice(&proof.aggregation_result_coords[2]);
-                let events_queue_state_from_prover =
-                    H256::from_slice(&proof.aggregation_result_coords[3]);
+                    H256::from_slice(&aggregation_coords[2]);
+                let events_queue_state_from_prover = H256::from_slice(&aggregation_coords[3]);
 
                 let mut storage = self.pool.connection().await.unwrap();
 

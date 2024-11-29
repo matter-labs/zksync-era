@@ -124,7 +124,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 
         let storage_log_queries = self.state.storage.get_final_log_queries();
         let deduped_storage_log_queries =
-            sort_storage_access_queries(storage_log_queries.iter().map(|log| &log.log_query)).1;
+            sort_storage_access_queries(storage_log_queries.iter().map(|log| log.log_query)).1;
 
         CurrentExecutionState {
             events,
