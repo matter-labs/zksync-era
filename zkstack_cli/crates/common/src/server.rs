@@ -183,22 +183,31 @@ fn cargo_run<'a, P>(
 where
     P: AsRef<OsStr>,
 {
-    let compilation_mode: &str = if release { "--release" } else { "" };
+    let mut cmd = cmd!(shell, "cargo run");
 
-    Cmd::new(
-        cmd!(
-            shell,
-            "cargo run {compilation_mode} --bin zksync_server {uring...} --
-            --genesis-path {genesis_path}
-            --wallets-path {wallets_path}
-            --config-path {general_path}
-            --secrets-path {secrets_path}
-            --contracts-config-path {contracts_path}
-            "
-        )
+    if release {
+        cmd = cmd.arg("--release");
+    }
+
+    cmd = cmd
+        .arg("--bin")
+        .arg("zksync_server")
+        .args(uring)
+        .arg("--")
+        .arg("--genesis-path")
+        .arg(genesis_path)
+        .arg("--wallets-path")
+        .arg(wallets_path)
+        .arg("--config-path")
+        .arg(general_path)
+        .arg("--secrets-path")
+        .arg(secrets_path)
+        .arg("--contracts-config-path")
+        .arg(contracts_path)
         .args(additional_args)
-        .env_remove("RUSTUP_TOOLCHAIN"),
-    )
+        .env_remove("RUSTUP_TOOLCHAIN");
+
+    Cmd::new(cmd)
 }
 
 #[allow(clippy::too_many_arguments)]
