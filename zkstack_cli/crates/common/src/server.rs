@@ -54,6 +54,8 @@ impl Server {
         secrets_path: P,
         contracts_path: P,
         mut additional_args: Vec<String>,
+        rpc_port: String,
+        healthcheck_port: String,
     ) -> anyhow::Result<()>
     where
         P: AsRef<OsStr>,
@@ -80,6 +82,8 @@ impl Server {
             additional_args,
             execution_mode,
             server_mode,
+            rpc_port,
+            healthcheck_port,
         )
         .await?;
 
@@ -116,6 +120,8 @@ async fn run_server<P>(
     additional_args: Vec<String>,
     execution_mode: ExecutionMode,
     server_mode: ServerMode,
+    rpc_port: String,
+    healthcheck_port: String,
 ) -> anyhow::Result<()>
 where
     P: AsRef<OsStr>,
@@ -152,6 +158,8 @@ where
             contracts_path,
             additional_args,
             tag,
+            rpc_port,
+            healthcheck_port,
         ),
     };
 
@@ -207,6 +215,8 @@ fn docker_run<P>(
     contracts_path: P,
     additional_args: Vec<String>,
     tag: String,
+    rpc_port: String,
+    healthcheck_port: String,
 ) -> Cmd<'_>
 where
     P: AsRef<OsStr>,
@@ -214,19 +224,20 @@ where
     Cmd::new(cmd!(
         shell,
         "docker run
-            --platform linux/amd64
-            --net=host
-            -v {genesis_path}:/config/genesis.yaml
-            -v {wallets_path}:/config/wallets.yaml
-            -v {general_path}:/config/general.yaml
-            -v {secrets_path}:/config/secrets.yaml
-            -v {contracts_path}:/config/contracts.yaml
-            matterlabs/server-v2:{tag}
-            --genesis-path /config/genesis.yaml
-            --wallets-path /config/wallets.yaml
-            --config-path /config/general.yaml
-            --secrets-path /config/secrets.yaml
-            --contracts-config-path /config/contracts.yaml
-            {additional_args...}"
+                --platform linux/amd64
+                -v {genesis_path}:/config/genesis.yaml
+                -v {wallets_path}:/config/wallets.yaml
+                -v {general_path}:/config/general.yaml
+                -v {secrets_path}:/config/secrets.yaml
+                -v {contracts_path}:/config/contracts.yaml
+                -p {rpc_port}:{rpc_port}
+                -p {healthcheck_port}:{healthcheck_port}
+                matterlabs/server-v2:{tag}
+                --genesis-path /config/genesis.yaml
+                --wallets-path /config/wallets.yaml
+                --config-path /config/general.yaml
+                --secrets-path /config/secrets.yaml
+                --contracts-config-path /config/contracts.yaml
+                {additional_args...}"
     ))
 }

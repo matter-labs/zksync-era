@@ -39,6 +39,12 @@ pub async fn run_server_genesis(
     shell: &Shell,
     execution_mode: ExecutionMode,
 ) -> anyhow::Result<()> {
+    let general_config = chain_config.get_general_config()?;
+    let api_config = general_config.api_config.context("Missing API config")?;
+
+    let rpc_port = api_config.web3_json_rpc.http_port.to_string();
+    let healthcheck_port = api_config.healthcheck.port.to_string();
+
     let server = Server::new(None, chain_config.link_to_code.clone(), false);
     server
         .run(
@@ -51,6 +57,8 @@ pub async fn run_server_genesis(
             SecretsConfig::get_path_with_base_path(&chain_config.configs),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
             vec![],
+            rpc_port,
+            healthcheck_port,
         )
         .await
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)
