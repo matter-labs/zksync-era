@@ -16,6 +16,7 @@ use crate::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_GENESIS_COMPLETED,
         MSG_STARTING_GENESIS_SPINNER,
     },
+    utils::ports::EcosystemPortsScanner,
 };
 
 pub async fn run(args: GenesisServerArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -39,13 +40,9 @@ pub async fn run_server_genesis(
     shell: &Shell,
     execution_mode: ExecutionMode,
 ) -> anyhow::Result<()> {
-    let general_config = chain_config.get_general_config()?;
-    let api_config = general_config.api_config.context("Missing API config")?;
-
-    let rpc_port = api_config.web3_json_rpc.http_port.to_string();
-    let healthcheck_port = api_config.healthcheck.port.to_string();
-
+    let ports = EcosystemPortsScanner::scan(shell)?;
     let server = Server::new(None, chain_config.link_to_code.clone(), false);
+
     server
         .run(
             shell,
@@ -57,8 +54,12 @@ pub async fn run_server_genesis(
             SecretsConfig::get_path_with_base_path(&chain_config.configs),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
             vec![],
-            rpc_port,
-            healthcheck_port,
+            ports
+                .ports
+                .keys()
+                .into_iter()
+                .map(|p| p.to_owned())
+                .collect(),
         )
         .await
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)

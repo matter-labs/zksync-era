@@ -54,8 +54,7 @@ impl Server {
         secrets_path: P,
         contracts_path: P,
         mut additional_args: Vec<String>,
-        rpc_port: String,
-        healthcheck_port: String,
+        ports: Vec<u16>,
     ) -> anyhow::Result<()>
     where
         P: AsRef<OsStr>,
@@ -82,8 +81,7 @@ impl Server {
             additional_args,
             execution_mode,
             server_mode,
-            rpc_port,
-            healthcheck_port,
+            ports,
         )
         .await?;
 
@@ -120,8 +118,7 @@ async fn run_server<P>(
     additional_args: Vec<String>,
     execution_mode: ExecutionMode,
     server_mode: ServerMode,
-    rpc_port: String,
-    healthcheck_port: String,
+    ports: Vec<u16>,
 ) -> anyhow::Result<()>
 where
     P: AsRef<OsStr>,
@@ -158,8 +155,7 @@ where
             contracts_path,
             additional_args,
             tag,
-            rpc_port,
-            healthcheck_port,
+            ports,
         ),
     };
 
@@ -215,29 +211,54 @@ fn docker_run<P>(
     contracts_path: P,
     additional_args: Vec<String>,
     tag: String,
-    rpc_port: String,
-    healthcheck_port: String,
+    ports: Vec<u16>,
 ) -> Cmd<'_>
 where
     P: AsRef<OsStr>,
 {
-    Cmd::new(cmd!(
-        shell,
-        "docker run
-                --platform linux/amd64
-                -v {genesis_path}:/config/genesis.yaml
-                -v {wallets_path}:/config/wallets.yaml
-                -v {general_path}:/config/general.yaml
-                -v {secrets_path}:/config/secrets.yaml
-                -v {contracts_path}:/config/contracts.yaml
-                -p {rpc_port}:{rpc_port}
-                -p {healthcheck_port}:{healthcheck_port}
-                matterlabs/server-v2:{tag}
-                --genesis-path /config/genesis.yaml
-                --wallets-path /config/wallets.yaml
-                --config-path /config/general.yaml
-                --secrets-path /config/secrets.yaml
-                --contracts-config-path /config/contracts.yaml
-                {additional_args...}"
-    ))
+    let genesis_path = genesis_path.as_ref().to_string_lossy();
+    let wallets_path = wallets_path.as_ref().to_string_lossy();
+    let general_path = general_path.as_ref().to_string_lossy();
+    let secrets_path = secrets_path.as_ref().to_string_lossy();
+    let contracts_path = contracts_path.as_ref().to_string_lossy();
+
+    // do not expose postgres and reth ports
+    let ports = ports
+        .into_iter()
+        .filter(|p| *p != 5432 && *p != 8545)
+        .collect::<Vec<_>>();
+
+    let mut cmd = cmd!(shell, "docker run")
+        .arg("--platform")
+        .arg("linux/amd64")
+        .arg("-v")
+        .arg(format!("{genesis_path}:/config/genesis.yaml"))
+        .arg("-v")
+        .arg(format!("{wallets_path}:/config/wallets.yaml"))
+        .arg("-v")
+        .arg(format!("{general_path}:/config/general.yaml"))
+        .arg("-v")
+        .arg(format!("{secrets_path}:/config/secrets.yaml"))
+        .arg("-v")
+        .arg(format!("{contracts_path}:/config/contracts.yaml"));
+
+    for p in ports {
+        cmd = cmd.arg("-p").arg(format!("{p}:{p}"));
+    }
+
+    cmd = cmd
+        .arg(format!("matterlabs/server-v2:{tag}"))
+        .arg("--genesis-path")
+        .arg("/config/genesis.yaml")
+        .arg("--wallets-path")
+        .arg("/config/wallets.yaml")
+        .arg("--config-path")
+        .arg("/config/general.yaml")
+        .arg("--secrets-path")
+        .arg("/config/secrets.yaml")
+        .arg("--contracts-config-path")
+        .arg("/config/contracts.yaml")
+        .args(additional_args);
+
+    Cmd::new(cmd)
 }

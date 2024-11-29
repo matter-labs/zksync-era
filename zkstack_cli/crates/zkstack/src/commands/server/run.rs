@@ -4,14 +4,15 @@ use common::{
     server::{Server, ServerMode},
 };
 use config::{
-    traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
-    GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
+    traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, GeneralConfig, GenesisConfig,
+    SecretsConfig, WalletsConfig,
 };
 use xshell::Shell;
 
 use crate::{
     commands::args::run::RunServerArgs,
-    messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER},
+    messages::{MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER},
+    utils::ports::EcosystemPortsScanner,
 };
 
 pub(super) async fn run_server(
@@ -20,16 +21,7 @@ pub(super) async fn run_server(
     shell: &Shell,
 ) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt().await;
-
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain = ecosystem_config
-        .load_current_chain()
-        .expect(MSG_CHAIN_NOT_FOUND_ERR);
-    let general_config = chain.get_general_config()?;
-    let api_config = general_config.api_config.context("Missing API config")?;
-
-    let rpc_port = api_config.web3_json_rpc.http_port.to_string();
-    let healthcheck_port = api_config.healthcheck.port.to_string();
+    let ports = EcosystemPortsScanner::scan(shell)?;
 
     logger::info(MSG_STARTING_SERVER);
     let server = Server::new(
@@ -55,8 +47,12 @@ pub(super) async fn run_server(
             SecretsConfig::get_path_with_base_path(&chain_config.configs),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
             vec![],
-            rpc_port,
-            healthcheck_port,
+            ports
+                .ports
+                .keys()
+                .into_iter()
+                .map(|p| p.to_owned())
+                .collect(),
         )
         .await
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)
