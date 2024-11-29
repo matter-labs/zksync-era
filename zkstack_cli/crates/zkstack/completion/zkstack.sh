@@ -2555,7 +2555,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__init)
-            opts="-a -d -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --server-db-url --server-db-name --dont-drop --deploy-paymaster --l1-rpc-url --no-port-reallocation --ecosystem-contracts-path --wallets-path --dev --verbose --chain --ignore-prerequisites --help configs help"
+            opts="-a -d -v -h --verify --verifier --verifier-url --verifier-api-key --resume --additional-args --server-db-url --server-db-name --dont-drop --deploy-paymaster --l1-rpc-url --no-port-reallocation --ecosystem-contracts-path --ecosystem-wallets-path --dev --verbose --chain --ignore-prerequisites --help configs help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2605,7 +2605,7 @@ _zkstack() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
-                --wallets-path)
+                --ecosystem-wallets-path)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
