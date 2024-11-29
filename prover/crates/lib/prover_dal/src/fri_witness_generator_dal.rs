@@ -1237,7 +1237,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 updated_at = NOW()
             WHERE
                 {job_id_column} = {job_id}
-                AND status != 'successful
+                AND status != 'successful'
             "#,
         );
 
