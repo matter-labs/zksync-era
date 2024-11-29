@@ -11,6 +11,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zksync_crypto_primitives.workspace = true
 zksync_config.workspace = true
 zksync_consensus_roles.workspace = true
 zksync_contracts.workspace = true

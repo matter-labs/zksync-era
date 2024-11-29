@@ -43,7 +43,7 @@ use crate::{
         MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT, MSG_INITIALIZING_ECOSYSTEM,
         MSG_INTALLING_DEPS_SPINNER,
     },
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -150,7 +150,11 @@ async fn deploy_erc20(
         .with_rpc_url(l1_rpc_url)
         .with_broadcast();
 
-    forge = fill_forge_private_key(forge, ecosystem_config.get_wallets()?.deployer.as_ref())?;
+    forge = fill_forge_private_key(
+        forge,
+        ecosystem_config.get_wallets()?.deployer.as_ref(),
+        WalletOwner::Deployer,
+    )?;
 
     let spinner = Spinner::new(MSG_DEPLOYING_ERC20_SPINNER);
     check_the_balance(&forge).await?;

@@ -31,11 +31,11 @@ git_version_macro = { path = "crates/git_version_macro" }
 zksync_config = { path = "../core/lib/config" }
 zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
 zksync_basic_types = { path = "../core/lib/basic_types" }
-zksync_consensus_roles = "=0.5.0"
-zksync_consensus_crypto = "=0.5.0"
-zksync_consensus_utils = "=0.5.0"
-zksync_protobuf = "=0.5.0"
-zksync_protobuf_build = "=0.5.0"
+zksync_consensus_roles = "=0.6.0"
+zksync_consensus_crypto = "=0.6.0"
+zksync_consensus_utils = "=0.6.0"
+zksync_protobuf = "=0.6.0"
+zksync_protobuf_build = "=0.6.0"
 
 # External dependencies
 anyhow = "1.0.82"

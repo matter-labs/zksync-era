@@ -1,18 +1,17 @@
-use std::fmt;
+use std::{fmt, ops};
 
 use async_trait::async_trait;
 use chrono::Utc;
 use zksync_dal::{Connection, Core, CoreDal};
-use zksync_l1_contract_interface::{i_executor::structures::CommitBatchInfo, Tokenizable};
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
-    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
-    ethabi,
-    pubdata_da::PubdataSendingMode,
+    aggregated_operations::{
+        AggregatedActionType, L1_BATCH_EXECUTE_BASE_COST, L1_OPERATION_EXECUTE_COST,
+    },
+    commitment::L1BatchWithMetadata,
     L1BatchNumber,
 };
 
-use super::{metrics::METRICS, utils::agg_l1_batch_base_cost};
+use super::metrics::METRICS;
 
 #[async_trait]
 pub trait L1BatchPublishCriterion: fmt::Debug + Send + Sync {
@@ -123,32 +122,82 @@ impl L1BatchPublishCriterion for TimestampDeadlineCriterion {
     }
 }
 
-#[derive(Debug)]
-pub struct GasCriterion {
-    pub op: AggregatedActionType,
-    pub gas_limit: u32,
+#[derive(Debug, Clone, Copy)]
+pub enum GasCriterionKind {
+    CommitValidium,
+    Execute,
 }
 
-impl GasCriterion {
-    pub fn new(op: AggregatedActionType, gas_limit: u32) -> GasCriterion {
-        GasCriterion { op, gas_limit }
+impl From<GasCriterionKind> for AggregatedActionType {
+    fn from(value: GasCriterionKind) -> Self {
+        match value {
+            GasCriterionKind::CommitValidium => AggregatedActionType::Commit,
+            GasCriterionKind::Execute => AggregatedActionType::Execute,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct L1GasCriterion {
+    pub gas_limit: u32,
+    pub kind: GasCriterionKind,
+}
+
+impl L1GasCriterion {
+    /// Base gas cost of processing aggregated `Execute` operation.
+    /// It's applicable iff SL is Ethereum.
+    const AGGR_L1_BATCH_EXECUTE_BASE_COST: u32 = 241_000;
+
+    /// Base gas cost of processing aggregated `Commit` operation.
+    /// It's applicable iff SL is Ethereum.
+    const AGGR_L1_BATCH_COMMIT_BASE_COST: u32 = 242_000;
+
+    /// Additional gas cost of processing `Commit` operation per batch.
+    /// It's applicable iff SL is Ethereum.
+    pub const L1_BATCH_COMMIT_BASE_COST: u32 = 31_000;
+
+    pub fn new(gas_limit: u32, kind: GasCriterionKind) -> L1GasCriterion {
+        L1GasCriterion { gas_limit, kind }
     }
 
-    async fn get_gas_amount(
-        &self,
+    pub async fn total_execute_gas_amount(
+        storage: &mut Connection<'_, Core>,
+        batch_numbers: ops::RangeInclusive<L1BatchNumber>,
+    ) -> u32 {
+        let mut total = Self::AGGR_L1_BATCH_EXECUTE_BASE_COST;
+
+        for batch_number in batch_numbers.start().0..=batch_numbers.end().0 {
+            total += Self::get_execute_gas_amount(storage, batch_number.into()).await;
+        }
+
+        total
+    }
+
+    pub fn total_validium_commit_gas_amount(
+        batch_numbers: ops::RangeInclusive<L1BatchNumber>,
+    ) -> u32 {
+        Self::AGGR_L1_BATCH_COMMIT_BASE_COST
+            + (batch_numbers.end().0 - batch_numbers.start().0 + 1)
+                * Self::L1_BATCH_COMMIT_BASE_COST
+    }
+
+    async fn get_execute_gas_amount(
         storage: &mut Connection<'_, Core>,
         batch_number: L1BatchNumber,
     ) -> u32 {
-        storage
+        let header = storage
             .blocks_dal()
-            .get_l1_batches_predicted_gas(batch_number..=batch_number, self.op)
+            .get_l1_batch_header(batch_number)
             .await
             .unwrap()
+            .unwrap_or_else(|| panic!("Missing L1 batch header in DB for #{batch_number}"));
+
+        L1_BATCH_EXECUTE_BASE_COST + u32::from(header.l1_tx_count) * L1_OPERATION_EXECUTE_COST
     }
 }
 
 #[async_trait]
-impl L1BatchPublishCriterion for GasCriterion {
+impl L1BatchPublishCriterion for L1GasCriterion {
     fn name(&self) -> &'static str {
         "gas_limit"
     }
@@ -159,17 +208,25 @@ impl L1BatchPublishCriterion for GasCriterion {
         consecutive_l1_batches: &[L1BatchWithMetadata],
         _last_sealed_l1_batch: L1BatchNumber,
     ) -> Option<L1BatchNumber> {
-        let base_cost = agg_l1_batch_base_cost(self.op);
+        let aggr_cost = match self.kind {
+            GasCriterionKind::Execute => Self::AGGR_L1_BATCH_EXECUTE_BASE_COST,
+            GasCriterionKind::CommitValidium => Self::AGGR_L1_BATCH_COMMIT_BASE_COST,
+        };
         assert!(
-            self.gas_limit > base_cost,
+            self.gas_limit > aggr_cost,
             "Config max gas cost for operations is too low"
         );
         // We're not sure our predictions are accurate, so it's safer to lower the gas limit by 10%
-        let mut gas_left = (self.gas_limit as f64 * 0.9).round() as u32 - base_cost;
+        let mut gas_left = (self.gas_limit as f64 * 0.9).round() as u32 - aggr_cost;
 
         let mut last_l1_batch = None;
         for (index, l1_batch) in consecutive_l1_batches.iter().enumerate() {
-            let batch_gas = self.get_gas_amount(storage, l1_batch.header.number).await;
+            let batch_gas = match self.kind {
+                GasCriterionKind::Execute => {
+                    Self::get_execute_gas_amount(storage, l1_batch.header.number).await
+                }
+                GasCriterionKind::CommitValidium => Self::L1_BATCH_COMMIT_BASE_COST,
+            };
             if batch_gas >= gas_left {
                 if index == 0 {
                     panic!(
@@ -185,70 +242,16 @@ impl L1BatchPublishCriterion for GasCriterion {
         }
 
         if let Some(last_l1_batch) = last_l1_batch {
+            let op: AggregatedActionType = self.kind.into();
             let first_l1_batch_number = consecutive_l1_batches.first().unwrap().header.number.0;
             tracing::debug!(
                 "`gas_limit` publish criterion (gas={}) triggered for op {} with L1 batch range {:?}",
                 self.gas_limit - gas_left,
-                self.op,
+                op,
                 first_l1_batch_number..=last_l1_batch.0
             );
-            METRICS.block_aggregation_reason[&(self.op, "gas").into()].inc();
+            METRICS.block_aggregation_reason[&(op, "gas").into()].inc();
         }
         last_l1_batch
-    }
-}
-
-#[derive(Debug)]
-pub struct DataSizeCriterion {
-    pub op: AggregatedActionType,
-    pub data_limit: usize,
-    pub pubdata_da: PubdataSendingMode,
-    pub commitment_mode: L1BatchCommitmentMode,
-}
-
-#[async_trait]
-impl L1BatchPublishCriterion for DataSizeCriterion {
-    fn name(&self) -> &'static str {
-        "data_size"
-    }
-
-    async fn last_l1_batch_to_publish(
-        &mut self,
-        _storage: &mut Connection<'_, Core>,
-        consecutive_l1_batches: &[L1BatchWithMetadata],
-        _last_sealed_l1_batch: L1BatchNumber,
-    ) -> Option<L1BatchNumber> {
-        const STORED_BLOCK_INFO_SIZE: usize = 96; // size of `StoredBlockInfo` solidity struct
-        let mut data_size_left = self.data_limit - STORED_BLOCK_INFO_SIZE;
-
-        for (index, l1_batch) in consecutive_l1_batches.iter().enumerate() {
-            // TODO (PLA-771): Make sure that this estimation is correct.
-            let commit_token =
-                CommitBatchInfo::new(self.commitment_mode, l1_batch, self.pubdata_da).into_token();
-            let l1_commit_data_size = ethabi::encode(&[commit_token]).len();
-
-            if data_size_left < l1_commit_data_size {
-                if index == 0 {
-                    panic!(
-                        "L1 batch #{} requires {} data, which is more than the range limit of {}",
-                        l1_batch.header.number, l1_commit_data_size, self.data_limit
-                    );
-                }
-
-                let first_l1_batch_number = consecutive_l1_batches.first().unwrap().header.number.0;
-                let output = l1_batch.header.number - 1;
-                tracing::debug!(
-                    "`data_size` publish criterion (data={}) triggered for op {} with L1 batch range {:?}",
-                    self.data_limit - data_size_left,
-                    self.op,
-                    first_l1_batch_number..=output.0
-                );
-                METRICS.block_aggregation_reason[&(self.op, "data_size").into()].inc();
-                return Some(output);
-            }
-            data_size_left -= l1_commit_data_size;
-        }
-
-        None
     }
 }

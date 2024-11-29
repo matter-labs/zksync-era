@@ -402,12 +402,17 @@ async fn error_on_pruned_next_l1_batch(sealed_protective_reads: bool) {
     extend_db_state(&mut storage, new_logs).await;
     storage
         .pruning_dal()
-        .soft_prune_batches_range(L1BatchNumber(5), L2BlockNumber(5))
+        .insert_soft_pruning_log(L1BatchNumber(5), L2BlockNumber(5))
         .await
         .unwrap();
     storage
         .pruning_dal()
         .hard_prune_batches_range(L1BatchNumber(5), L2BlockNumber(5))
+        .await
+        .unwrap();
+    storage
+        .pruning_dal()
+        .insert_hard_pruning_log(L1BatchNumber(5), L2BlockNumber(5), H256::zero())
         .await
         .unwrap();
     // Sanity check: there should be no pruned batch headers.
@@ -696,7 +701,7 @@ async fn setup_calculator_with_options(
 ) -> MetadataCalculator {
     let mut storage = pool.connection().await.unwrap();
     let pruning_info = storage.pruning_dal().get_pruning_info().await.unwrap();
-    let has_pruning_logs = pruning_info.last_hard_pruned_l1_batch.is_some();
+    let has_pruning_logs = pruning_info.last_hard_pruned.is_some();
     if !has_pruning_logs && storage.blocks_dal().is_genesis_needed().await.unwrap() {
         insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
