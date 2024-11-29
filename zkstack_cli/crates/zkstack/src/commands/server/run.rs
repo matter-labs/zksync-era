@@ -49,12 +49,7 @@ pub(super) async fn run_server(
             SecretsConfig::get_path_with_base_path(&chain_config.configs),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
             vec![],
-            ports
-                .ports
-                .keys()
-                .into_iter()
-                .map(|p| p.to_owned())
-                .collect(),
+            ports.ports.keys().map(|p| p.to_owned()).collect(),
         )
         .await
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)

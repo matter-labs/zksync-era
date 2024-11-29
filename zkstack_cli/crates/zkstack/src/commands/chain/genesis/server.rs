@@ -43,7 +43,7 @@ pub async fn run_server_genesis(
     let ports = EcosystemPortsScanner::scan(shell)?;
     let server = Server::new(None, chain_config.link_to_code.clone(), false);
 
-    adjust_host_to_execution_mode(shell, &execution_mode, &chain_config)?;
+    adjust_host_to_execution_mode(shell, &execution_mode, chain_config)?;
 
     server
         .run(
@@ -56,12 +56,7 @@ pub async fn run_server_genesis(
             SecretsConfig::get_path_with_base_path(&chain_config.configs),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
             vec![],
-            ports
-                .ports
-                .keys()
-                .into_iter()
-                .map(|p| p.to_owned())
-                .collect(),
+            ports.ports.keys().map(|p| p.to_owned()).collect(),
         )
         .await
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)
