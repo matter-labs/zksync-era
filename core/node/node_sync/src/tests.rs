@@ -132,7 +132,6 @@ impl StateKeeperHandles {
         }
 
         let state_keeper = ZkSyncStateKeeper::new(
-            stop_receiver,
             Box::new(io),
             Box::new(batch_executor),
             output_handler,
@@ -143,7 +142,7 @@ impl StateKeeperHandles {
         Self {
             stop_sender,
             sync_state,
-            task: tokio::spawn(state_keeper.run()),
+            task: tokio::spawn(state_keeper.run(stop_receiver)),
         }
     }
 

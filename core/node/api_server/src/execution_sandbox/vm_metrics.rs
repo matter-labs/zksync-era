@@ -164,6 +164,7 @@ pub(super) fn collect_tx_execution_metrics(
         published_bytecode_bytes,
         l2_l1_long_messages,
         l2_l1_logs: result.logs.total_l2_to_l1_logs_count(),
+        user_l2_l1_logs: result.logs.user_l2_to_l1_logs.len(),
         contracts_used: result.statistics.contracts_used,
         contracts_deployed,
         vm_events: result.logs.events.len(),

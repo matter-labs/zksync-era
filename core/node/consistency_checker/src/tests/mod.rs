@@ -7,7 +7,7 @@ use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_config::GenesisConfig;
 use zksync_dal::Connection;
-use zksync_eth_client::{clients::MockSettlementLayer, Options};
+use zksync_eth_client::{clients::MockSettlementLayer, EthInterface, Options};
 use zksync_l1_contract_interface::{i_executor::methods::CommitBatches, Tokenizable, Tokenize};
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
@@ -30,9 +30,12 @@ pub(crate) fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata 
 }
 
 const PRE_BOOJUM_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version10;
-const DIAMOND_PROXY_ADDR: Address = Address::repeat_byte(1);
+const L1_DIAMOND_PROXY_ADDR: Address = Address::repeat_byte(1);
+const GATEWAY_DIAMOND_PROXY_ADDR: Address = Address::repeat_byte(2);
 const VALIDATOR_TIMELOCK_ADDR: Address = Address::repeat_byte(23);
-const CHAIN_ID: u32 = 270;
+const ERA_CHAIN_ID: u64 = 270;
+const L1_CHAIN_ID: u64 = 9;
+const GATEWAY_CHAIN_ID: u64 = 505;
 const COMMITMENT_MODES: [L1BatchCommitmentMode; 2] = [
     L1BatchCommitmentMode::Rollup,
     L1BatchCommitmentMode::Validium,
@@ -72,14 +75,10 @@ pub(crate) fn build_commit_tx_input_data(
     if protocol_version.is_pre_boojum() {
         PRE_BOOJUM_COMMIT_FUNCTION.encode_input(&tokens).unwrap()
     } else if protocol_version.is_pre_shared_bridge() {
-        contract
-            .function("commitBatches")
-            .unwrap()
-            .encode_input(&tokens)
-            .unwrap()
+        POST_BOOJUM_COMMIT_FUNCTION.encode_input(&tokens).unwrap()
     } else {
         // Post shared bridge transactions also require chain id
-        let tokens: Vec<_> = vec![Token::Uint(CHAIN_ID.into())]
+        let tokens: Vec<_> = vec![Token::Uint(ERA_CHAIN_ID.into())]
             .into_iter()
             .chain(tokens)
             .collect();
@@ -91,18 +90,25 @@ pub(crate) fn build_commit_tx_input_data(
     }
 }
 
-pub(crate) fn create_mock_checker(
+pub(crate) async fn create_mock_checker(
     client: MockSettlementLayer,
     pool: ConnectionPool<Core>,
     commitment_mode: L1BatchCommitmentMode,
 ) -> ConsistencyChecker {
     let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
+    let client = client.into_client();
+    let chain_id = client.fetch_chain_id().await.unwrap();
+    let l1_chain_data = SLChainAccess {
+        client: Box::new(client),
+        chain_id,
+        diamond_proxy_addr: Some(L1_DIAMOND_PROXY_ADDR),
+    };
     ConsistencyChecker {
         contract: zksync_contracts::hyperchain_contract(),
-        diamond_proxy_addr: Some(DIAMOND_PROXY_ADDR),
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
-        l1_client: Box::new(client.into_client()),
+        l1_chain_data,
+        gateway_chain_data: None,
         event_handler: Box::new(health_updater),
         l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
         pool,
@@ -111,21 +117,49 @@ pub(crate) fn create_mock_checker(
     }
 }
 
-fn create_mock_ethereum() -> MockSettlementLayer {
-    let mock = MockSettlementLayer::builder().with_call_handler(|call, _block_id| {
-        assert_eq!(call.to, Some(DIAMOND_PROXY_ADDR));
-        let packed_semver = ProtocolVersionId::latest().into_packed_semver_with_patch(0);
-        let contract = zksync_contracts::hyperchain_contract();
-        let expected_input = contract
-            .function("getProtocolVersion")
-            .unwrap()
-            .encode_input(&[])
-            .unwrap();
-        assert_eq!(call.data, Some(expected_input.into()));
+fn create_mock_sl(chain_id: u64, with_get_zk_chain: bool) -> MockSettlementLayer {
+    let mock = MockSettlementLayer::builder()
+        .with_call_handler(move |call, _block_id| match call.to {
+            Some(addr) if addr == L1_DIAMOND_PROXY_ADDR || addr == GATEWAY_DIAMOND_PROXY_ADDR => {
+                let packed_semver = ProtocolVersionId::latest().into_packed_semver_with_patch(0);
+                let contract = zksync_contracts::hyperchain_contract();
+                let expected_input = contract
+                    .function("getProtocolVersion")
+                    .unwrap()
+                    .encode_input(&[])
+                    .unwrap();
+                assert_eq!(call.data, Some(expected_input.into()));
 
-        ethabi::Token::Uint(packed_semver)
-    });
+                ethabi::Token::Uint(packed_semver)
+            }
+            Some(addr) if with_get_zk_chain && addr == L2_BRIDGEHUB_ADDRESS => {
+                let contract = zksync_contracts::bridgehub_contract();
+                let function_name = if contract.function("getZKChain").is_ok() {
+                    "getZKChain"
+                } else {
+                    "getHyperchain"
+                };
+                let expected_input = contract
+                    .function(function_name)
+                    .unwrap()
+                    .encode_input(&[Token::Uint(ERA_CHAIN_ID.into())])
+                    .unwrap();
+                assert_eq!(call.data, Some(expected_input.into()));
+
+                ethabi::Token::Address(GATEWAY_DIAMOND_PROXY_ADDR)
+            }
+            _ => panic!("Received unexpected call"),
+        })
+        .with_chain_id(chain_id);
     mock.build()
+}
+
+fn create_mock_ethereum() -> MockSettlementLayer {
+    create_mock_sl(L1_CHAIN_ID, false)
+}
+
+fn create_mock_gateway() -> MockSettlementLayer {
+    create_mock_sl(GATEWAY_CHAIN_ID, true)
 }
 
 impl HandleConsistencyCheckerEvent for mpsc::UnboundedSender<L1BatchNumber> {
@@ -141,8 +175,8 @@ impl HandleConsistencyCheckerEvent for mpsc::UnboundedSender<L1BatchNumber> {
         self.send(last_checked_batch).ok();
     }
 
-    fn report_inconsistent_batch(&mut self, _number: L1BatchNumber, _err: &anyhow::Error) {
-        // Do nothing
+    fn report_inconsistent_batch(&mut self, number: L1BatchNumber, err: &anyhow::Error) {
+        panic!("Error on batch #{number}: {err}");
     }
 }
 
@@ -163,6 +197,11 @@ fn build_commit_tx_input_data_is_correct(commitment_mode: L1BatchCommitmentMode)
             &commit_tx_input_data,
             commit_function,
             batch.header.number,
+            batch
+                .header
+                .protocol_version
+                .map(|v| v.is_pre_gateway())
+                .unwrap_or(true),
         )
         .unwrap();
         assert_eq!(
@@ -174,8 +213,7 @@ fn build_commit_tx_input_data_is_correct(commitment_mode: L1BatchCommitmentMode)
 
 #[test]
 fn extracting_commit_data_for_boojum_batch() {
-    let contract = zksync_contracts::hyperchain_contract();
-    let commit_function = contract.function("commitBatches").unwrap();
+    let commit_function = &*POST_BOOJUM_COMMIT_FUNCTION;
     // Calldata taken from the commit transaction for `https://sepolia.explorer.zksync.io/batch/4470`;
     // `https://sepolia.etherscan.io/tx/0x300b9115037028b1f8aa2177abf98148c3df95c9b04f95a4e25baf4dfee7711f`
     let commit_tx_input_data = include_bytes!("commit_l1_batch_4470_testnet_sepolia.calldata");
@@ -184,6 +222,7 @@ fn extracting_commit_data_for_boojum_batch() {
         commit_tx_input_data,
         commit_function,
         L1BatchNumber(4_470),
+        true,
     )
     .unwrap();
 
@@ -197,6 +236,7 @@ fn extracting_commit_data_for_boojum_batch() {
             commit_tx_input_data,
             commit_function,
             L1BatchNumber(bogus_l1_batch),
+            true,
         )
         .unwrap_err();
     }
@@ -204,8 +244,7 @@ fn extracting_commit_data_for_boojum_batch() {
 
 #[test]
 fn extracting_commit_data_for_multiple_batches() {
-    let contract = zksync_contracts::hyperchain_contract();
-    let commit_function = contract.function("commitBatches").unwrap();
+    let commit_function = &*POST_BOOJUM_COMMIT_FUNCTION;
     // Calldata taken from the commit transaction for `https://explorer.zksync.io/batch/351000`;
     // `https://etherscan.io/tx/0xbd8dfe0812df0da534eb95a2d2a4382d65a8172c0b648a147d60c1c2921227fd`
     let commit_tx_input_data = include_bytes!("commit_l1_batch_351000-351004_mainnet.calldata");
@@ -215,6 +254,7 @@ fn extracting_commit_data_for_multiple_batches() {
             commit_tx_input_data,
             commit_function,
             L1BatchNumber(l1_batch),
+            true,
         )
         .unwrap();
 
@@ -229,6 +269,7 @@ fn extracting_commit_data_for_multiple_batches() {
             commit_tx_input_data,
             commit_function,
             L1BatchNumber(bogus_l1_batch),
+            true,
         )
         .unwrap_err();
     }
@@ -244,6 +285,7 @@ fn extracting_commit_data_for_pre_boojum_batch() {
         commit_tx_input_data,
         &PRE_BOOJUM_COMMIT_FUNCTION,
         L1BatchNumber(200_000),
+        true,
     )
     .unwrap();
 
@@ -265,6 +307,7 @@ impl SaveAction<'_> {
         self,
         storage: &mut Connection<'_, Core>,
         commit_tx_hash_by_l1_batch: &HashMap<L1BatchNumber, H256>,
+        chain_id_by_l1_batch: &HashMap<L1BatchNumber, SLChainId>,
     ) {
         match self {
             Self::InsertBatch(l1_batch) => {
@@ -291,6 +334,7 @@ impl SaveAction<'_> {
             }
             Self::InsertCommitTx(l1_batch_number) => {
                 let commit_tx_hash = commit_tx_hash_by_l1_batch[&l1_batch_number];
+                let chain_id = chain_id_by_l1_batch.get(&l1_batch_number).copied();
                 storage
                     .eth_sender_dal()
                     .insert_bogus_confirmed_eth_tx(
@@ -298,6 +342,7 @@ impl SaveAction<'_> {
                         AggregatedActionType::Commit,
                         commit_tx_hash,
                         chrono::Utc::now(),
+                        chain_id,
                     )
                     .await
                     .unwrap();
@@ -367,7 +412,7 @@ fn l1_batch_commit_log(l1_batch: &L1BatchWithMetadata) -> Log {
     });
 
     Log {
-        address: DIAMOND_PROXY_ADDR,
+        address: L1_DIAMOND_PROXY_ADDR,
         topics: vec![
             *BLOCK_COMMIT_EVENT_HASH,
             H256::from_low_u64_be(l1_batch.header.number.0.into()), // batch number
@@ -432,7 +477,7 @@ async fn normal_checker_function(
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         event_handler: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone(), commitment_mode)
+        ..create_mock_checker(client, pool.clone(), commitment_mode).await
     };
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -441,7 +486,112 @@ async fn normal_checker_function(
     // Add new batches to the storage.
     for save_action in save_actions_mapper(&l1_batches) {
         save_action
-            .apply(&mut storage, &commit_tx_hash_by_l1_batch)
+            .apply(
+                &mut storage,
+                &commit_tx_hash_by_l1_batch,
+                &Default::default(),
+            )
+            .await;
+        tokio::time::sleep(Duration::from_millis(7)).await;
+    }
+
+    // Wait until all batches are checked.
+    loop {
+        let checked_batch = l1_batch_updates_receiver.recv().await.unwrap();
+        if checked_batch == l1_batches.last().unwrap().header.number {
+            break;
+        }
+    }
+
+    // Send the stop signal to the checker and wait for it to stop.
+    stop_sender.send_replace(true);
+    checker_task.await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn checker_works_with_different_settlement_layers() {
+    // Use default action mapper.
+    let save_actions_mapper = SAVE_ACTION_MAPPERS[0].1;
+    let commitment_mode = L1BatchCommitmentMode::Rollup;
+
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
+
+    let l1_batches: Vec<_> = (1..=10).map(create_l1_batch_with_metadata).collect();
+    let mut commit_tx_hash_by_l1_batch = HashMap::with_capacity(l1_batches.len());
+    let mut chain_id_by_l1_batch = HashMap::with_capacity(l1_batches.len());
+    let l1_client = create_mock_ethereum();
+    let gateway_client = create_mock_gateway();
+
+    let clients = [l1_client, gateway_client];
+    let diamond_proxies = [L1_DIAMOND_PROXY_ADDR, GATEWAY_DIAMOND_PROXY_ADDR];
+
+    for (i, l1_batches) in l1_batches.chunks(2).enumerate() {
+        let client = &clients[i & 1];
+        let input_data = build_commit_tx_input_data(l1_batches, commitment_mode);
+        let signed_tx = client.sign_prepared_tx(
+            input_data.clone(),
+            VALIDATOR_TIMELOCK_ADDR,
+            Options {
+                nonce: Some((i / 2).into()),
+                ..Options::default()
+            },
+        );
+        let signed_tx = signed_tx.unwrap();
+        client.as_ref().send_raw_tx(signed_tx.raw_tx).await.unwrap();
+        client.execute_tx(signed_tx.hash, true, 1).with_logs(
+            l1_batches
+                .iter()
+                .map(|batch| {
+                    let mut log = l1_batch_commit_log(batch);
+                    log.address = diamond_proxies[i & 1];
+                    log
+                })
+                .collect(),
+        );
+
+        commit_tx_hash_by_l1_batch.extend(
+            l1_batches
+                .iter()
+                .map(|batch| (batch.header.number, signed_tx.hash)),
+        );
+        let chain_id = client.as_ref().fetch_chain_id().await.unwrap();
+        chain_id_by_l1_batch.extend(
+            l1_batches
+                .iter()
+                .map(|batch| (batch.header.number, chain_id)),
+        )
+    }
+
+    let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
+    let mut checker = ConsistencyChecker::new(
+        Box::new(clients[0].clone().into_client()),
+        Some(Box::new(clients[1].clone().into_client())),
+        100,
+        pool.clone(),
+        commitment_mode,
+        L2ChainId::new(ERA_CHAIN_ID).unwrap(),
+    )
+    .await
+    .unwrap();
+    checker.sleep_interval = Duration::from_millis(10);
+    checker.event_handler = Box::new(l1_batch_updates_sender);
+    checker.l1_data_mismatch_behavior = L1DataMismatchBehavior::Bail;
+
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let checker_task = tokio::spawn(checker.run(stop_receiver));
+
+    // Add new batches to the storage.
+    for save_action in save_actions_mapper(&l1_batches) {
+        save_action
+            .apply(
+                &mut storage,
+                &commit_tx_hash_by_l1_batch,
+                &chain_id_by_l1_batch,
+            )
             .await;
         tokio::time::sleep(Duration::from_millis(7)).await;
     }
@@ -515,7 +665,7 @@ async fn checker_processes_pre_boojum_batches(
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         event_handler: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone(), commitment_mode)
+        ..create_mock_checker(client, pool.clone(), commitment_mode).await
     };
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -524,7 +674,11 @@ async fn checker_processes_pre_boojum_batches(
     // Add new batches to the storage.
     for save_action in save_actions_mapper(&l1_batches) {
         save_action
-            .apply(&mut storage, &commit_tx_hash_by_l1_batch)
+            .apply(
+                &mut storage,
+                &commit_tx_hash_by_l1_batch,
+                &Default::default(),
+            )
             .await;
         tokio::time::sleep(Duration::from_millis(7)).await;
     }
@@ -586,7 +740,11 @@ async fn checker_functions_after_snapshot_recovery(
     if !delay_batch_insertion {
         for &save_action in &save_actions {
             save_action
-                .apply(&mut storage, &commit_tx_hash_by_l1_batch)
+                .apply(
+                    &mut storage,
+                    &commit_tx_hash_by_l1_batch,
+                    &Default::default(),
+                )
                 .await;
         }
     }
@@ -594,7 +752,7 @@ async fn checker_functions_after_snapshot_recovery(
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         event_handler: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone(), commitment_mode)
+        ..create_mock_checker(client, pool.clone(), commitment_mode).await
     };
     let (stop_sender, stop_receiver) = watch::channel(false);
     let checker_task = tokio::spawn(checker.run(stop_receiver));
@@ -603,7 +761,11 @@ async fn checker_functions_after_snapshot_recovery(
         tokio::time::sleep(Duration::from_millis(10)).await;
         for &save_action in &save_actions {
             save_action
-                .apply(&mut storage, &commit_tx_hash_by_l1_batch)
+                .apply(
+                    &mut storage,
+                    &commit_tx_hash_by_l1_batch,
+                    &Default::default(),
+                )
                 .await;
         }
     }
@@ -654,7 +816,7 @@ impl IncorrectDataKind {
         l1_batch: &L1BatchWithMetadata,
         commitment_mode: L1BatchCommitmentMode,
     ) -> H256 {
-        let mut log_origin = Some(DIAMOND_PROXY_ADDR);
+        let mut log_origin = Some(L1_DIAMOND_PROXY_ADDR);
         let (commit_tx_input_data, successful_status) = match self {
             Self::MissingStatus => {
                 return H256::zero(); // Do not execute the transaction
@@ -771,12 +933,16 @@ async fn checker_detects_incorrect_tx_data(
     ];
     for save_action in save_actions {
         save_action
-            .apply(&mut storage, &commit_tx_hash_by_l1_batch)
+            .apply(
+                &mut storage,
+                &commit_tx_hash_by_l1_batch,
+                &Default::default(),
+            )
             .await;
     }
     drop(storage);
 
-    let checker = create_mock_checker(client, pool, commitment_mode);
+    let checker = create_mock_checker(client, pool, commitment_mode).await;
     let (_stop_sender, stop_receiver) = watch::channel(false);
     // The checker must stop with an error.
     tokio::time::timeout(Duration::from_secs(30), checker.run(stop_receiver))
