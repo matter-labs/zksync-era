@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::bail;
 use xshell::Shell;
 
@@ -34,6 +36,13 @@ impl ZkStackConfig {
         match EcosystemConfig::from_file(shell) {
             Ok(ecosystem) => Ok(ecosystem),
             Err(e) => bail!(e),
+        }
+    }
+
+    pub fn link_to_code(&self) -> PathBuf {
+        match self {
+            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.link_to_code.clone(),
+            ZkStackConfig::ChainConfig(chain) => chain.link_to_code.clone(),
         }
     }
 }

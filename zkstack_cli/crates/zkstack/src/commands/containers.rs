@@ -16,10 +16,7 @@ use crate::{
 
 pub fn run(shell: &Shell, args: ContainersArgs) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
-    let link_to_code = match ZkStackConfig::from_file(shell)? {
-        ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.link_to_code,
-        ZkStackConfig::ChainConfig(chain) => chain.link_to_code,
-    };
+    let link_to_code = ZkStackConfig::from_file(shell)?.link_to_code();
 
     initialize_docker(shell, link_to_code)?;
 
