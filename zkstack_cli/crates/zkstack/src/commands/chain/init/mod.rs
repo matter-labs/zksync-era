@@ -227,7 +227,7 @@ pub async fn init(
 }
 
 pub(crate) fn get_l1_da_validator(chain_config: &ChainConfig) -> anyhow::Result<Address> {
-    let mut contracts_config = chain_config.get_contracts_config()?;
+    let contracts_config = chain_config.get_contracts_config()?;
 
     let l1_da_validator_contract = match chain_config.l1_batch_commit_data_generator_mode {
         L1BatchCommitmentMode::Rollup => contracts_config.l1.rollup_l1_da_validator_addr,

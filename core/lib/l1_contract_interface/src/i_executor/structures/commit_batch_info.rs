@@ -278,7 +278,10 @@ impl Tokenizable for CommitBatchInfo<'_> {
                             .clone()
                             .unwrap_or_default(),
                     );
-
+                    println!(
+                        "operator_da_input: {:?}",
+                        hex::encode(operator_da_input.clone())
+                    );
                     operator_da_input
                 }
                 // Here we're not pushing any pubdata on purpose; no pubdata is sent in Validium mode.

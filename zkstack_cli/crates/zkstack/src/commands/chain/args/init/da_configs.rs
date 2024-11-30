@@ -8,11 +8,14 @@ use zksync_config::{
     AvailConfig,
 };
 
-use crate::messages::{
-    MSG_AVAIL_API_NODE_URL_PROMPT, MSG_AVAIL_API_TIMEOUT_MS, MSG_AVAIL_APP_ID_PROMPT,
-    MSG_AVAIL_BRIDGE_API_URL_PROMPT, MSG_AVAIL_CLIENT_TYPE_PROMPT,
-    MSG_AVAIL_GAS_RELAY_API_URL_PROMPT, MSG_AVAIL_GAS_RELAY_MAX_RETRIES_PROMPT,
-    MSG_INVALID_URL_ERR, MSG_VALIDIUM_TYPE_PROMPT,
+use crate::{
+    defaults::{AVAIL_BRIDGE_API_URL, AVAIL_RPC_URL},
+    messages::{
+        MSG_AVAIL_API_NODE_URL_PROMPT, MSG_AVAIL_API_TIMEOUT_MS, MSG_AVAIL_APP_ID_PROMPT,
+        MSG_AVAIL_BRIDGE_API_URL_PROMPT, MSG_AVAIL_CLIENT_TYPE_PROMPT,
+        MSG_AVAIL_GAS_RELAY_API_URL_PROMPT, MSG_AVAIL_GAS_RELAY_MAX_RETRIES_PROMPT,
+        MSG_INVALID_URL_ERR, MSG_VALIDIUM_TYPE_PROMPT,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, EnumIter, Display, ValueEnum)]
@@ -48,6 +51,7 @@ impl ValidiumType {
                         AvailClientTypeInternal::FullClient => {
                             AvailClientConfig::FullClient(AvailDefaultConfig {
                                 api_node_url: Prompt::new(MSG_AVAIL_API_NODE_URL_PROMPT)
+                                    .default(AVAIL_RPC_URL.as_str())
                                     .validate_with(url_validator)
                                     .ask(),
                                 app_id: Prompt::new(MSG_AVAIL_APP_ID_PROMPT)
@@ -77,6 +81,7 @@ impl ValidiumType {
 
                 ValidiumType::Avail(AvailConfig {
                     bridge_api_url: Prompt::new(MSG_AVAIL_BRIDGE_API_URL_PROMPT)
+                        .default(AVAIL_BRIDGE_API_URL.as_str())
                         .validate_with(url_validator)
                         .ask(),
                     timeout_ms: Prompt::new(MSG_AVAIL_API_TIMEOUT_MS)
