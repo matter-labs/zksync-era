@@ -39,7 +39,8 @@ impl Secrets {
         self.database
             .as_ref()
             .and_then(|database| database.prover_url.as_ref())
-            .map(|url| url.expose_url().host_str().unwrap().to_string())
+            .and_then(|url| url.expose_url().host_str())
+            .map(String::from)
     }
 
     pub fn set_prover_url_host(&mut self, host: &str) -> anyhow::Result<()> {
@@ -58,7 +59,8 @@ impl Secrets {
         self.database
             .as_ref()
             .and_then(|database| database.server_url.as_ref())
-            .map(|url| url.expose_url().host_str().unwrap().to_string())
+            .and_then(|url| url.expose_url().host_str())
+            .map(String::from)
     }
 
     pub fn set_server_url_host(&mut self, host: &str) -> anyhow::Result<()> {
@@ -76,7 +78,8 @@ impl Secrets {
     pub fn l1_rpc_url_host(&self) -> Option<String> {
         self.l1
             .as_ref()
-            .map(|l1| l1.l1_rpc_url.expose_url().host_str().unwrap().to_string())
+            .and_then(|l1| l1.l1_rpc_url.expose_url().host_str())
+            .map(String::from)
     }
 
     pub fn set_l1_rpc_url_host(&mut self, host: &str) -> anyhow::Result<()> {
