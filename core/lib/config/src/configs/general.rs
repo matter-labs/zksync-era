@@ -65,6 +65,14 @@ pub struct GeneralConfig {
 }
 
 impl GeneralConfig {
+    pub fn prometheus_host(&self) -> Option<String> {
+        self.api_config
+            .as_ref()
+            .and_then(|api| api.prometheus.pushgateway_url.as_ref())
+            .and_then(|url| Url::parse(url).ok())
+            .and_then(|url| url.host_str().map(String::from))
+    }
+
     pub fn set_prometheus_host(&mut self, host: &str) -> anyhow::Result<()> {
         if let Some(api) = self.api_config.as_mut() {
             if let Some(url) = api.prometheus.pushgateway_url.as_mut() {

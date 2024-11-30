@@ -35,6 +35,13 @@ pub struct Secrets {
 }
 
 impl Secrets {
+    pub fn prover_url_host(&self) -> Option<String> {
+        self.database
+            .as_ref()
+            .and_then(|database| database.prover_url.as_ref())
+            .map(|url| url.expose_url().host_str().unwrap().to_string())
+    }
+
     pub fn set_prover_url_host(&mut self, host: &str) -> anyhow::Result<()> {
         if let Some(database) = self.database.as_mut() {
             if let Some(url) = database.prover_url.as_mut() {
@@ -47,6 +54,13 @@ impl Secrets {
         Ok(())
     }
 
+    pub fn server_url_host(&self) -> Option<String> {
+        self.database
+            .as_ref()
+            .and_then(|database| database.server_url.as_ref())
+            .map(|url| url.expose_url().host_str().unwrap().to_string())
+    }
+
     pub fn set_server_url_host(&mut self, host: &str) -> anyhow::Result<()> {
         if let Some(database) = self.database.as_mut() {
             if let Some(url) = database.server_url.as_mut() {
@@ -57,6 +71,12 @@ impl Secrets {
         }
 
         Ok(())
+    }
+
+    pub fn l1_rpc_url_host(&self) -> Option<String> {
+        self.l1
+            .as_ref()
+            .map(|l1| l1.l1_rpc_url.expose_url().host_str().unwrap().to_string())
     }
 
     pub fn set_l1_rpc_url_host(&mut self, host: &str) -> anyhow::Result<()> {
