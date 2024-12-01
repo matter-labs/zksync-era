@@ -4,7 +4,7 @@ How to efficiently debug CI issues locally.
 
 This document will be useful in case you struggle with reproducing some CI issues on your local machine.
 
-In most cases, this is due to the fact that your local machine has some arifacts, configs, files that you might have set
+In most cases, this is due to the fact that your local machine has some artifacts, configs, files that you might have set
 in the past, that are missing from the CI.
 
 ## Basic docker commands
@@ -48,7 +48,7 @@ You should see something like this:
  ⠿ Container zksync-era-reth-1      Started   0.3s
 ```
 
-Start the docker with the 'basic' imge
+Start the docker with the 'basic' image
 
 ```
 # We tell it to connect to the same 'subnetwork' as other containers (zksync-era_default).

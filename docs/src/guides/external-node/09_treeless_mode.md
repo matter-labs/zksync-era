@@ -18,7 +18,7 @@ storage. It uses the following 2 sources of hashes:
 - Main L2 node (or more generally, the L2 node that the current node is configured to sync from). Only used if the L1
   data source does not work (e.g., very recent L1 batches may be not yet committed to L1).
 
-If the tree fetcher run concurrently to the Merkle tree, the tree will still compute state root hashes for all batches.
+If the tree fetcher runs concurrently with the Merkle tree, the tree will still compute state root hashes for all batches.
 If the tree is slower than the fetcher (which is expected in most cases), it will compare the computed hash against the
 state root hash from the tree fetcher and crash on a mismatch.
 
