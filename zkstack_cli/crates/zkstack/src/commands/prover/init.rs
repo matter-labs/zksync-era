@@ -10,7 +10,7 @@ use common::{
 };
 use config::{
     copy_configs, get_link_to_prover, set_prover_database, traits::SaveConfigWithBasePath,
-    EcosystemConfig,
+    zkstack_config::ZkStackConfig, EcosystemConfig,
 };
 use xshell::{cmd, Shell};
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
@@ -34,7 +34,7 @@ use crate::{
 };
 
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     let default_compressor_key_path = get_default_compressor_keys_path(&ecosystem_config)?;
 
@@ -112,7 +112,7 @@ fn get_object_store_config(
     let object_store = match config {
         Some(ProofStorageConfig::FileBacked(config)) => Some(init_file_backed_proof_storage(
             shell,
-            &EcosystemConfig::from_file(shell)?,
+            &ZkStackConfig::ecosystem(shell)?,
             config,
         )?),
         Some(ProofStorageConfig::GCS(config)) => Some(ObjectStoreConfig {

@@ -1,15 +1,12 @@
 use anyhow::Context;
 use common::{cmd::Cmd, logger};
-use config::EcosystemConfig;
+use config::zkstack_config::ZkStackConfig;
 use xshell::{cmd, Shell};
 
-use crate::messages::{MSG_BUILDING_EN, MSG_CHAIN_NOT_FOUND_ERR, MSG_FAILED_TO_BUILD_EN_ERR};
+use crate::messages::{MSG_BUILDING_EN, MSG_FAILED_TO_BUILD_EN_ERR};
 
 pub(crate) async fn build(shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem = EcosystemConfig::from_file(shell)?;
-    let chain = ecosystem
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    let chain = ZkStackConfig::current_chain(shell)?;
     let _dir_guard = shell.push_dir(&chain.link_to_code);
 
     logger::info(MSG_BUILDING_EN);

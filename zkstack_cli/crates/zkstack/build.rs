@@ -26,7 +26,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     zksync_protobuf_build::Config {
-        input_root: "src/commands/consensus/proto".into(),
+        input_root: "src/commands/chain/consensus/proto".into(),
         proto_root: "zksync/toolbox/consensus".into(),
         dependencies: vec!["::zksync_protobuf_config::proto".parse().unwrap()],
         protobuf_crate: "::zksync_protobuf".parse().unwrap(),

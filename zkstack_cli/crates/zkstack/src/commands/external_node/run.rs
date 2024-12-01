@@ -1,6 +1,6 @@
 use anyhow::Context;
 use common::logger;
-use config::{ChainConfig, EcosystemConfig};
+use config::{zkstack_config::ZkStackConfig, ChainConfig};
 use xshell::Shell;
 
 use crate::{
@@ -10,7 +10,7 @@ use crate::{
 };
 
 pub async fn run(shell: &Shell, args: RunExternalNodeArgs) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     let chain_config = ecosystem_config
         .load_current_chain()

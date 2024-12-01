@@ -1,5 +1,5 @@
 use common::{cmd::Cmd, logger, spinner::Spinner};
-use config::EcosystemConfig;
+use config::{zkstack_config::ZkStackConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
 
 use super::{args::upgrade::UpgradeArgs, utils::install_and_build_dependencies};
@@ -8,7 +8,7 @@ use crate::commands::dev::messages::{MSG_UPGRADE_TEST_RUN_INFO, MSG_UPGRADE_TEST
 const UPGRADE_TESTS_PATH: &str = "core/tests/upgrade-test";
 
 pub fn run(shell: &Shell, args: UpgradeArgs) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     shell.change_dir(ecosystem_config.link_to_code.join(UPGRADE_TESTS_PATH));
 
     logger::info(MSG_UPGRADE_TEST_RUN_INFO);

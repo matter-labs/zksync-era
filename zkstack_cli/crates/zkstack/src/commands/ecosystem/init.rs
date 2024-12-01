@@ -18,6 +18,7 @@ use config::{
         script_params::DEPLOY_ERC20_SCRIPT_PARAMS,
     },
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    zkstack_config::ZkStackConfig,
     ContractsConfig, EcosystemConfig,
 };
 use types::L1Network;
@@ -47,7 +48,7 @@ use crate::{
 };
 
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
 
@@ -189,33 +190,11 @@ async fn deploy_ecosystem(
 
     let ecosystem_contracts_path = match &ecosystem.ecosystem_contracts_path {
         Some(path) => Some(path.clone()),
-        None => {
-            let input_path: String = Prompt::new(MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT)
-                .allow_empty()
-                .validate_with(|val: &String| {
-                    if val.is_empty() {
-                        return Ok(());
-                    }
-                    PathBuf::from_str(val)
-                        .map(|_| ())
-                        .map_err(|_| MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR.to_string())
-                })
-                .ask();
-            if input_path.is_empty() {
-                None
-            } else {
-                Some(input_path.into())
-            }
-        }
+        None => prompt_ecosystem_contracts_path(),
     };
 
     let ecosystem_preexisting_configs_path =
-        ecosystem_config
-            .get_preexisting_configs_path()
-            .join(format!(
-                "{}.yaml",
-                ecosystem_config.l1_network.to_string().to_lowercase()
-            ));
+        ecosystem_config.get_preexisting_ecosystem_contracts_path();
 
     // currently there are not some preexisting ecosystem contracts in
     // chains, so we need check if this file exists.
@@ -236,6 +215,25 @@ async fn deploy_ecosystem(
         });
 
     ContractsConfig::read(shell, ecosystem_contracts_path)
+}
+
+pub fn prompt_ecosystem_contracts_path() -> Option<PathBuf> {
+    let input_path: String = Prompt::new(MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT)
+        .allow_empty()
+        .validate_with(|val: &String| {
+            if val.is_empty() {
+                return Ok(());
+            }
+            PathBuf::from_str(val)
+                .map(|_| ())
+                .map_err(|_| MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR.to_string())
+        })
+        .ask();
+    if input_path.is_empty() {
+        None
+    } else {
+        Some(input_path.into())
+    }
 }
 
 async fn deploy_ecosystem_inner(
@@ -271,7 +269,7 @@ async fn deploy_ecosystem_inner(
 
     accept_admin(
         shell,
-        config,
+        &config.path_to_foundry(),
         contracts_config.l1.chain_admin_addr,
         &config.get_wallets()?.governor,
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
@@ -293,7 +291,7 @@ async fn deploy_ecosystem_inner(
 
     accept_admin(
         shell,
-        config,
+        &config.path_to_foundry(),
         contracts_config.l1.chain_admin_addr,
         &config.get_wallets()?.governor,
         contracts_config.bridges.shared.l1_address,
@@ -317,7 +315,7 @@ async fn deploy_ecosystem_inner(
 
     accept_admin(
         shell,
-        config,
+        &config.path_to_foundry(),
         contracts_config.l1.chain_admin_addr,
         &config.get_wallets()?.governor,
         contracts_config
@@ -354,6 +352,13 @@ async fn init_chains(
     if list_of_chains.len() > 1 {
         genesis_args.reset_db_names();
     }
+    let ecosystem_contracts_path =
+        Some(ecosystem_config.get_contracts_path().display().to_string());
+    let wallets_path = Some(ecosystem_config.get_wallets_path().display().to_string());
+    logger::debug(format!(
+        "Ecosystem contracts path: {:?}",
+        ecosystem_contracts_path
+    ));
     // Initialize chains
     for chain_name in &list_of_chains {
         logger::info(msg_initializing_chain(chain_name));
@@ -370,13 +375,16 @@ async fn init_chains(
             l1_rpc_url: Some(final_init_args.ecosystem.l1_rpc_url.clone()),
             no_port_reallocation: final_init_args.no_port_reallocation,
             dev: final_init_args.dev,
+            ecosystem_contracts_path: ecosystem_contracts_path.clone(),
+            ecosystem_wallets_path: wallets_path.clone(),
         };
-        let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
+        let final_chain_init_args = chain_init_args
+            .fill_values_with_prompt(Some(ecosystem_config.clone()), &chain_config)?;
 
         chain::init::init(
             &final_chain_init_args,
             shell,
-            ecosystem_config,
+            Some(ecosystem_config.clone()),
             &chain_config,
         )
         .await?;

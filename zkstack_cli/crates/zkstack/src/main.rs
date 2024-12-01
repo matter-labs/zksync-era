@@ -1,7 +1,6 @@
 use clap::{command, Parser, Subcommand};
 use commands::{
     args::{AutocompleteArgs, ContainersArgs, UpdateArgs},
-    contract_verifier::ContractVerifierCommands,
     dev::DevCommands,
 };
 use common::{
@@ -11,12 +10,12 @@ use common::{
     init_prompt_theme, logger,
     version::version_message,
 };
-use config::EcosystemConfig;
+use config::zkstack_config::ZkStackConfig;
 use xshell::Shell;
 
 use crate::commands::{
-    args::ServerArgs, chain::ChainCommands, consensus, ecosystem::EcosystemCommands,
-    explorer::ExplorerCommands, external_node::ExternalNodeCommands, prover::ProverCommands,
+    chain::ChainCommands, ecosystem::EcosystemCommands, explorer::ExplorerCommands,
+    external_node::ExternalNodeCommands, prover::ProverCommands,
 };
 
 pub mod accept_ownership;
@@ -56,25 +55,17 @@ pub enum ZkStackSubcommands {
     /// Prover related commands
     #[command(subcommand, alias = "p")]
     Prover(ProverCommands),
-    /// Run server
-    Server(ServerArgs),
     /// External Node related commands
     #[command(subcommand, alias = "en")]
     ExternalNode(ExternalNodeCommands),
     /// Run containers for local development
     #[command(alias = "up")]
     Containers(ContainersArgs),
-    /// Run contract verifier
-    #[command(subcommand)]
-    ContractVerifier(ContractVerifierCommands),
     /// Run dapp-portal
     Portal,
     /// Run block-explorer
     #[command(subcommand)]
     Explorer(ExplorerCommands),
-    /// Consensus utilities
-    #[command(subcommand)]
-    Consensus(consensus::Command),
     /// Update ZKsync
     #[command(alias = "u")]
     Update(UpdateArgs),
@@ -136,16 +127,11 @@ async fn run_subcommand(zkstack_args: ZkStack) -> anyhow::Result<()> {
         ZkStackSubcommands::Chain(args) => commands::chain::run(&shell, *args).await?,
         ZkStackSubcommands::Dev(args) => commands::dev::run(&shell, args).await?,
         ZkStackSubcommands::Prover(args) => commands::prover::run(&shell, args).await?,
-        ZkStackSubcommands::Server(args) => commands::server::run(&shell, args).await?,
         ZkStackSubcommands::Containers(args) => commands::containers::run(&shell, args)?,
         ZkStackSubcommands::ExternalNode(args) => {
             commands::external_node::run(&shell, args).await?
         }
-        ZkStackSubcommands::ContractVerifier(args) => {
-            commands::contract_verifier::run(&shell, args).await?
-        }
         ZkStackSubcommands::Explorer(args) => commands::explorer::run(&shell, args).await?,
-        ZkStackSubcommands::Consensus(cmd) => cmd.run(&shell).await?,
         ZkStackSubcommands::Portal => commands::portal::run(&shell).await?,
         ZkStackSubcommands::Update(args) => commands::update::run(&shell, args).await?,
         ZkStackSubcommands::Markdown => {
@@ -157,7 +143,7 @@ async fn run_subcommand(zkstack_args: ZkStack) -> anyhow::Result<()> {
 
 fn init_global_config_inner(shell: &Shell, zkstack_args: &ZkStackGlobalArgs) -> anyhow::Result<()> {
     if let Some(name) = &zkstack_args.chain {
-        if let Ok(config) = EcosystemConfig::from_file(shell) {
+        if let Ok(config) = ZkStackConfig::ecosystem(shell) {
             let chains = config.list_of_chains();
             if !chains.contains(name) {
                 anyhow::bail!(

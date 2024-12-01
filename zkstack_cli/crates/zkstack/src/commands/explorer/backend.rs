@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::Context;
 use common::docker;
-use config::{explorer_compose::ExplorerBackendComposeConfig, EcosystemConfig};
+use config::{explorer_compose::ExplorerBackendComposeConfig, zkstack_config::ZkStackConfig};
 use xshell::Shell;
 
 use crate::messages::{
@@ -11,7 +11,7 @@ use crate::messages::{
 };
 
 pub(crate) fn run(shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;

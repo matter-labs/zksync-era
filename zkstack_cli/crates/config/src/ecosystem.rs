@@ -12,9 +12,9 @@ use zksync_basic_types::L2ChainId;
 
 use crate::{
     consts::{
-        CONFIGS_PATH, CONFIG_NAME, CONTRACTS_FILE, ECOSYSTEM_PATH, ERA_CHAIN_ID,
-        ERC20_CONFIGS_FILE, ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE, L1_CONTRACTS_FOUNDRY,
-        LOCAL_ARTIFACTS_PATH, LOCAL_DB_PATH, WALLETS_FILE,
+        CONFIGS_PATH, CONFIG_NAME, CONTRACTS_FILE, ERA_CHAIN_ID, ERC20_CONFIGS_FILE,
+        ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE, L1_CONTRACTS_FOUNDRY, LOCAL_ARTIFACTS_PATH,
+        LOCAL_DB_PATH, WALLETS_FILE,
     },
     create_localhost_wallets,
     forge_interface::deploy_ecosystem::{
@@ -22,6 +22,7 @@ use crate::{
         output::{ERC20Tokens, Erc20Token},
     },
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, ZkStackConfig},
+    utils::{find_file, get_preexisting_ecosystem_contracts_path},
     ChainConfig, ChainConfigInternal, ContractsConfig, WalletsConfig,
 };
 
@@ -103,7 +104,7 @@ impl EcosystemConfig {
         self.shell.get().expect("Must be initialized")
     }
 
-    pub fn from_file(shell: &Shell) -> Result<Self, EcosystemConfigFromFileError> {
+    pub(crate) fn from_file(shell: &Shell) -> Result<Self, EcosystemConfigFromFileError> {
         let Ok(path) = find_file(shell, shell.current_dir(), CONFIG_NAME) else {
             return Err(EcosystemConfigFromFileError::NotExists {
                 path: shell.current_dir(),
@@ -122,7 +123,6 @@ impl EcosystemConfig {
                 // with chain and we will find the ecosystem config somewhere in parent directories
                 let chain_config = ChainConfigInternal::read(shell, CONFIG_NAME)
                     .map_err(|err| EcosystemConfigFromFileError::InvalidConfig { source: err })?;
-                logger::info(format!("You are in a directory with chain config, default chain for execution has changed to {}", &chain_config.name));
 
                 let current_dir = shell.current_dir();
                 let Some(parent) = current_dir.parent() else {
@@ -130,8 +130,15 @@ impl EcosystemConfig {
                 };
                 // Try to find ecosystem somewhere in parent directories
                 shell.change_dir(parent);
-                let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
+                let mut ecosystem_config = match EcosystemConfig::from_file(shell) {
+                    Ok(ecosystem) => ecosystem,
+                    Err(err) => {
+                        shell.change_dir(&current_dir);
+                        return Err(err);
+                    }
+                };
                 // change the default chain for using it in later executions
+                logger::info(format!("You are in a directory with chain config, default chain for execution has changed to {}", &chain_config.name));
                 ecosystem_config.default_chain = chain_config.name;
                 ecosystem_config
             }
@@ -196,7 +203,7 @@ impl EcosystemConfig {
     }
 
     pub fn get_wallets(&self) -> anyhow::Result<WalletsConfig> {
-        let path = self.config.join(WALLETS_FILE);
+        let path = self.get_wallets_path();
         if self.get_shell().path_exists(&path) {
             return WalletsConfig::read(self.get_shell(), &path);
         }
@@ -210,7 +217,7 @@ impl EcosystemConfig {
     }
 
     pub fn get_contracts_config(&self) -> anyhow::Result<ContractsConfig> {
-        ContractsConfig::read(self.get_shell(), self.config.join(CONTRACTS_FILE))
+        ContractsConfig::read(self.get_shell(), self.get_contracts_path())
     }
 
     pub fn path_to_foundry(&self) -> PathBuf {
@@ -241,8 +248,8 @@ impl EcosystemConfig {
     }
 
     /// Path to the predefined ecosystem configs
-    pub fn get_preexisting_configs_path(&self) -> PathBuf {
-        self.link_to_code.join(ECOSYSTEM_PATH)
+    pub fn get_preexisting_ecosystem_contracts_path(&self) -> PathBuf {
+        get_preexisting_ecosystem_contracts_path(&self.link_to_code, self.l1_network)
     }
 
     pub fn get_chain_rocks_db_path(&self, chain_name: &str) -> PathBuf {
@@ -271,6 +278,14 @@ impl EcosystemConfig {
             wallet_creation: self.wallet_creation,
         }
     }
+
+    pub fn get_contracts_path(&self) -> PathBuf {
+        self.config.join(CONTRACTS_FILE)
+    }
+
+    pub fn get_wallets_path(&self) -> PathBuf {
+        self.config.join(WALLETS_FILE)
+    }
 }
 
 /// Result of checking if the ecosystem exists.
@@ -285,20 +300,6 @@ pub enum EcosystemConfigFromFileError {
 
 pub fn get_default_era_chain_id() -> L2ChainId {
     L2ChainId::from(ERA_CHAIN_ID)
-}
-
-// Find file in all parents repository and return necessary path or an empty error if nothing has been found
-fn find_file(shell: &Shell, path_buf: PathBuf, file_name: &str) -> Result<PathBuf, ()> {
-    let _dir = shell.push_dir(path_buf);
-    if shell.path_exists(file_name) {
-        Ok(shell.current_dir())
-    } else {
-        let current_dir = shell.current_dir();
-        let Some(path) = current_dir.parent() else {
-            return Err(());
-        };
-        find_file(shell, path.to_path_buf(), file_name)
-    }
 }
 
 pub fn get_link_to_prover(config: &EcosystemConfig) -> PathBuf {

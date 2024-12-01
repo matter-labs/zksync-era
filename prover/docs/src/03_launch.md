@@ -35,7 +35,7 @@ We will be running a bunch of binaries, it's recommended to run each in a separa
 ### Server
 
 ```bash
-zkstack server --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip
+zkstack chain server --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip
 ```
 
 ### Prover gateway

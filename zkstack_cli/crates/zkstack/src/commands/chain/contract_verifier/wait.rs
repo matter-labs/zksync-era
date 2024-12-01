@@ -1,15 +1,10 @@
 use anyhow::Context as _;
 use common::{config::global_config, logger};
-use config::EcosystemConfig;
-use xshell::Shell;
+use config::ChainConfig;
 
-use crate::{commands::args::WaitArgs, messages::MSG_CHAIN_NOT_FOUND_ERR};
+use crate::commands::args::WaitArgs;
 
-pub(crate) async fn wait(shell: &Shell, args: WaitArgs) -> anyhow::Result<()> {
-    let ecosystem = EcosystemConfig::from_file(shell)?;
-    let chain = ecosystem
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+pub(crate) async fn wait(args: WaitArgs, chain: ChainConfig) -> anyhow::Result<()> {
     let verbose = global_config().verbose;
 
     let prometheus_port = chain

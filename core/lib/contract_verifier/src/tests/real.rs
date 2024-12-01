@@ -1,4 +1,4 @@
-//! Tests using real compiler toolchains. Should be prepared by calling `zkstack contract-verifier init`
+//! Tests using real compiler toolchains. Should be prepared by calling `zkstack chain contract-verifier init`
 //! with at least one `solc` and `zksolc` version. If there are no compilers, the tests will be ignored
 //! unless the `RUN_CONTRACT_VERIFICATION_TEST` env var is set to `true`, in which case the tests will fail.
 
@@ -90,7 +90,7 @@ fn assert_no_compilers_expected() {
         env::var("RUN_CONTRACT_VERIFICATION_TEST").ok().as_deref(),
         Some("true"),
         "Expected pre-installed compilers since `RUN_CONTRACT_VERIFICATION_TEST=true`, but they are not installed. \
-         Use `zkstack contract-verifier init` to install compilers"
+         Use `zkstack chain contract-verifier init` to install compilers"
     );
     println!("No compilers found, skipping the test");
 }

@@ -3,7 +3,9 @@ use common::{
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     spinner::Spinner,
 };
-use config::{traits::ReadConfigWithBasePath, ChainConfig, EcosystemConfig, SecretsConfig};
+use config::{
+    traits::ReadConfigWithBasePath, zkstack_config::ZkStackConfig, ChainConfig, SecretsConfig,
+};
 use xshell::Shell;
 
 use crate::{
@@ -17,7 +19,7 @@ use crate::{
 };
 
 pub async fn run(shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     let chain_config = ecosystem_config
         .load_current_chain()

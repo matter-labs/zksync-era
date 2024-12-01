@@ -96,7 +96,7 @@ If everything goes well, you should see that L1 blocks are being produced.
 Now we can start the main server:
 
 ```bash
-zkstack server
+zkstack chain server
 ```
 
 This will actually run a cargo binary (`zksync_server`).

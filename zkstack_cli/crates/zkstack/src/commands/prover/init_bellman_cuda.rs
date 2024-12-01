@@ -1,6 +1,6 @@
 use anyhow::Context;
 use common::{check_prerequisites, cmd::Cmd, git, logger, spinner::Spinner, GPU_PREREQUISITES};
-use config::{traits::SaveConfigWithBasePath, EcosystemConfig};
+use config::{traits::SaveConfigWithBasePath, zkstack_config::ZkStackConfig};
 use xshell::{cmd, Shell};
 
 use super::args::init_bellman_cuda::InitBellmanCudaArgs;
@@ -15,7 +15,7 @@ use crate::{
 pub(crate) async fn run(shell: &Shell, args: InitBellmanCudaArgs) -> anyhow::Result<()> {
     check_prerequisites(shell, &GPU_PREREQUISITES, false);
 
-    let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let mut ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     let args = args.fill_values_with_prompt();
 

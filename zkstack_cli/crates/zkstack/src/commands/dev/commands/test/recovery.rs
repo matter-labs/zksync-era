@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use common::{cmd::Cmd, logger, server::Server, spinner::Spinner};
-use config::EcosystemConfig;
+use config::{zkstack_config::ZkStackConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
 
 use super::{
@@ -17,7 +17,7 @@ use crate::commands::dev::messages::{
 const RECOVERY_TESTS_PATH: &str = "core/tests/recovery-test";
 
 pub async fn run(shell: &Shell, args: RecoveryArgs) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     shell.change_dir(ecosystem_config.link_to_code.join(RECOVERY_TESTS_PATH));
 
     logger::info(MSG_RECOVERY_TEST_RUN_INFO);

@@ -10,7 +10,8 @@ use config::{
         script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig,
+    zkstack_config::ZkStackConfig,
+    ChainConfig, ContractsConfig, WalletsConfig,
 };
 use xshell::Shell;
 
@@ -23,11 +24,12 @@ use crate::{
 };
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let mut contracts = chain_config.get_contracts_config()?;
+    let wallets = ecosystem_config.get_wallets()?;
     let secrets = chain_config.get_secrets_config()?;
     let l1_rpc_url = secrets
         .l1
@@ -39,9 +41,9 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     register_chain(
         shell,
         args,
-        &ecosystem_config,
         &chain_config,
         &mut contracts,
+        &wallets,
         l1_rpc_url,
         None,
         true,
@@ -57,19 +59,19 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 pub async fn register_chain(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
-    config: &EcosystemConfig,
     chain_config: &ChainConfig,
     contracts: &mut ContractsConfig,
+    wallets: &WalletsConfig,
     l1_rpc_url: String,
     sender: Option<String>,
     broadcast: bool,
 ) -> anyhow::Result<()> {
-    let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&config.link_to_code);
+    let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&chain_config.link_to_code);
 
     let deploy_config = RegisterChainL1Config::new(chain_config, contracts)?;
     deploy_config.save(shell, deploy_config_path)?;
 
-    let mut forge = Forge::new(&config.path_to_foundry())
+    let mut forge = Forge::new(&chain_config.path_to_foundry())
         .script(&REGISTER_CHAIN_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url);
@@ -81,11 +83,7 @@ pub async fn register_chain(
     if let Some(address) = sender {
         forge = forge.with_sender(address);
     } else {
-        forge = fill_forge_private_key(
-            forge,
-            Some(&config.get_wallets()?.governor),
-            WalletOwner::Governor,
-        )?;
+        forge = fill_forge_private_key(forge, Some(&wallets.governor), WalletOwner::Governor)?;
         check_the_balance(&forge).await?;
     }
 

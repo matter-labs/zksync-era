@@ -1,6 +1,6 @@
 use anyhow::Context;
 use common::{cmd::Cmd, spinner::Spinner};
-use config::EcosystemConfig;
+use config::zkstack_config::ZkStackConfig;
 use xshell::{cmd, Shell};
 
 use crate::{
@@ -12,7 +12,7 @@ use crate::{
 };
 
 pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem = EcosystemConfig::from_file(shell)?;
+    let ecosystem = ZkStackConfig::ecosystem(shell)?;
     let chain = ecosystem
         .load_chain(Some(ecosystem.current_chain().to_string()))
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;

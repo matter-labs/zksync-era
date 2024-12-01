@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context};
 use common::{check_prerequisites, cmd::Cmd, logger, GPU_PREREQUISITES};
-use config::{get_link_to_prover, ChainConfig, EcosystemConfig};
+use config::{get_link_to_prover, zkstack_config::ZkStackConfig, ChainConfig};
 use xshell::{cmd, Shell};
 
 use super::args::run::{ProverComponent, ProverRunArgs};
@@ -18,7 +18,7 @@ use crate::messages::{
 
 pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt()?;
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain = ecosystem_config
         .load_current_chain()
         .expect(MSG_CHAIN_NOT_FOUND_ERR);

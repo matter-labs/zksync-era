@@ -8,7 +8,7 @@ use config::{
         script_params::SETUP_LEGACY_BRIDGE, setup_legacy_bridge::SetupLegacyBridgeInput,
     },
     traits::SaveConfig,
-    ChainConfig, ContractsConfig, EcosystemConfig,
+    ChainConfig, ContractsConfig, WalletsConfig,
 };
 use xshell::Shell;
 
@@ -20,7 +20,7 @@ use crate::{
 pub async fn setup_legacy_bridge(
     shell: &Shell,
     chain_config: &ChainConfig,
-    ecosystem_config: &EcosystemConfig,
+    wallets: &WalletsConfig,
     contracts_config: &ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
@@ -59,11 +59,7 @@ pub async fn setup_legacy_bridge(
         )
         .with_broadcast();
 
-    forge = fill_forge_private_key(
-        forge,
-        Some(&ecosystem_config.get_wallets()?.governor),
-        WalletOwner::Governor,
-    )?;
+    forge = fill_forge_private_key(forge, Some(&wallets.governor), WalletOwner::Governor)?;
 
     let spinner = Spinner::new(MSG_DEPLOYING_PAYMASTER);
     check_the_balance(&forge).await?;

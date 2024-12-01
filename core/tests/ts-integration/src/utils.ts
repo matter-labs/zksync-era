@@ -29,7 +29,7 @@ export function runServerInBackground({
 }): ChildProcessWithoutNullStreams {
     let command = '';
     if (useZkStack) {
-        command = 'zkstack server';
+        command = 'zkstack chain server';
         if (chain) {
             command += ` --chain ${chain}`;
         }

@@ -6,7 +6,7 @@ use common::{
     logger,
     spinner::Spinner,
 };
-use config::EcosystemConfig;
+use config::{zkstack_config::ZkStackConfig, EcosystemConfig};
 use xshell::Shell;
 
 use crate::commands::dev::messages::{
@@ -104,7 +104,7 @@ pub fn run(shell: &Shell, args: ContractsArgs) -> anyhow::Result<()> {
 
     logger::info(MSG_BUILDING_CONTRACTS);
 
-    let ecosystem = EcosystemConfig::from_file(shell)?;
+    let ecosystem = ZkStackConfig::ecosystem(shell)?;
 
     contracts
         .iter()

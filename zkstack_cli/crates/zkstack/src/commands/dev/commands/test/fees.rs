@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use common::{cmd::Cmd, config::global_config, logger};
-use config::EcosystemConfig;
+use config::zkstack_config::ZkStackConfig;
 use xshell::{cmd, Shell};
 
 use super::{
@@ -18,7 +18,7 @@ use crate::commands::dev::{
 };
 
 pub async fn run(shell: &Shell, args: FeesArgs) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     shell.change_dir(ecosystem_config.link_to_code.join(TS_INTEGRATION_PATH));
     let chain_config = ecosystem_config
         .load_current_chain()

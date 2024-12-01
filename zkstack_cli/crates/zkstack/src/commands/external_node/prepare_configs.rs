@@ -6,7 +6,8 @@ use config::{
     external_node::ENConfig,
     set_rocks_db_config,
     traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig, GeneralConfig, SecretsConfig,
+    zkstack_config::ZkStackConfig,
+    ChainConfig, GeneralConfig, SecretsConfig,
 };
 use xshell::Shell;
 use zksync_basic_types::url::SensitiveUrl;
@@ -33,7 +34,7 @@ use crate::{
 
 pub fn run(shell: &Shell, args: PrepareConfigArgs) -> anyhow::Result<()> {
     logger::info(MSG_PREPARING_EN_CONFIGS);
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let mut chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;

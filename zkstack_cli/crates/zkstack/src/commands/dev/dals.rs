@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use config::{EcosystemConfig, SecretsConfig};
+use config::{zkstack_config::ZkStackConfig, SecretsConfig};
 use url::Url;
 use xshell::Shell;
 
@@ -88,7 +88,7 @@ pub fn get_core_dal(shell: &Shell, url: Option<String>) -> anyhow::Result<Dal> {
 }
 
 fn get_secrets(shell: &Shell) -> anyhow::Result<SecretsConfig> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;

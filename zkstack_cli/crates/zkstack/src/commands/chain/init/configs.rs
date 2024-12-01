@@ -1,8 +1,9 @@
 use anyhow::Context;
 use common::logger;
 use config::{
-    copy_configs, set_l1_rpc_url, traits::SaveConfigWithBasePath, update_from_chain_config,
-    ChainConfig, ContractsConfig, EcosystemConfig,
+    copy_configs, set_l1_rpc_url,
+    traits::{ReadConfig, SaveConfigWithBasePath},
+    update_from_chain_config, ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use ethers::types::Address;
 use xshell::Shell;
@@ -16,7 +17,7 @@ use crate::{
         portal::update_portal_config,
     },
     messages::{
-        MSG_CHAIN_CONFIGS_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR, MSG_CONSENSUS_CONFIG_MISSING_ERR,
+        MSG_CHAIN_CONFIGS_INITIALIZED, MSG_CONSENSUS_CONFIG_MISSING_ERR,
         MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR,
     },
     utils::{
@@ -25,14 +26,15 @@ use crate::{
     },
 };
 
-pub async fn run(args: InitConfigsArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    let args = args.fill_values_with_prompt(&chain_config);
+pub async fn run(
+    args: InitConfigsArgs,
+    shell: &Shell,
+    chain: ChainConfig,
+    ecosystem: Option<EcosystemConfig>,
+) -> anyhow::Result<()> {
+    let args = args.fill_values_with_prompt(ecosystem, &chain)?;
 
-    init_configs(&args, shell, &ecosystem_config, &chain_config).await?;
+    init_configs(&args, shell, &chain).await?;
     logger::outro(MSG_CHAIN_CONFIGS_INITIALIZED);
 
     Ok(())
@@ -41,15 +43,14 @@ pub async fn run(args: InitConfigsArgs, shell: &Shell) -> anyhow::Result<()> {
 pub async fn init_configs(
     init_args: &InitConfigsArgsFinal,
     shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
     chain_config: &ChainConfig,
 ) -> anyhow::Result<ContractsConfig> {
     // Port scanner should run before copying configs to avoid marking initial ports as assigned
-    let mut ecosystem_ports = EcosystemPortsScanner::scan(shell)?;
-    copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
+    let ecosystem_ports = EcosystemPortsScanner::scan(shell);
+    copy_configs(shell, &chain_config.link_to_code, &chain_config.configs)?;
 
     if !init_args.no_port_reallocation {
-        ecosystem_ports.allocate_ports_in_yaml(
+        ecosystem_ports?.allocate_ports_in_yaml(
             shell,
             &chain_config.path_to_general_config(),
             chain_config.id,
@@ -85,7 +86,7 @@ pub async fn init_configs(
     genesis_config.save_with_base_path(shell, &chain_config.configs)?;
 
     // Initialize contracts config
-    let mut contracts_config = ecosystem_config.get_contracts_config()?;
+    let mut contracts_config = ContractsConfig::read(shell, &init_args.ecosystem_contracts_path)?;
     contracts_config.l1.diamond_proxy_addr = Address::zero();
     contracts_config.l1.governance_addr = Address::zero();
     contracts_config.l1.chain_admin_addr = Address::zero();

@@ -1,5 +1,5 @@
 use common::PromptSelect;
-use config::{traits::SaveConfigWithBasePath, EcosystemConfig};
+use config::{traits::SaveConfigWithBasePath, zkstack_config::ZkStackConfig};
 use xshell::Shell;
 
 use crate::{
@@ -8,7 +8,7 @@ use crate::{
 };
 
 pub fn run(args: ChangeDefaultChain, shell: &Shell) -> anyhow::Result<()> {
-    let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let mut ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     let chains = ecosystem_config.list_of_chains();
     let chain_name = args.name.unwrap_or_else(|| {

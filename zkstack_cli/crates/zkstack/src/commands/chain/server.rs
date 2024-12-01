@@ -6,30 +6,25 @@ use common::{
     server::{Server, ServerMode},
 };
 use config::{
-    traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
-    GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
+    traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, GeneralConfig, GenesisConfig,
+    SecretsConfig, WalletsConfig,
 };
 use xshell::{cmd, Shell};
 
+use super::args::run_server::{RunServerArgs, ServerArgs, ServerCommand};
 use crate::{
-    commands::args::{RunServerArgs, ServerArgs, ServerCommand, WaitArgs},
+    commands::args::WaitArgs,
     messages::{
-        msg_waiting_for_server_success, MSG_BUILDING_SERVER, MSG_CHAIN_NOT_INITIALIZED,
-        MSG_FAILED_TO_BUILD_SERVER_ERR, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER,
-        MSG_WAITING_FOR_SERVER,
+        msg_waiting_for_server_success, MSG_BUILDING_SERVER, MSG_FAILED_TO_BUILD_SERVER_ERR,
+        MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER, MSG_WAITING_FOR_SERVER,
     },
 };
 
-pub async fn run(shell: &Shell, args: ServerArgs) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
-
+pub async fn run(shell: &Shell, args: ServerArgs, chain: ChainConfig) -> anyhow::Result<()> {
     match ServerCommand::from(args) {
-        ServerCommand::Run(args) => run_server(args, &chain_config, shell),
-        ServerCommand::Build => build_server(&chain_config, shell),
-        ServerCommand::Wait(args) => wait_for_server(args, &chain_config).await,
+        ServerCommand::Run(args) => run_server(args, &chain, shell),
+        ServerCommand::Build => build_server(&chain, shell),
+        ServerCommand::Wait(args) => wait_for_server(args, &chain).await,
     }
 }
 

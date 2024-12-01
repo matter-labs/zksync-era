@@ -8,7 +8,7 @@ use common::{
 };
 use config::{
     override_config, set_file_artifacts, set_rocks_db_config, set_server_database,
-    traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig, FileArtifacts,
+    traits::SaveConfigWithBasePath, ChainConfig, FileArtifacts,
 };
 use types::ProverMode;
 use xshell::Shell;
@@ -21,28 +21,22 @@ use crate::{
         SERVER_MIGRATIONS,
     },
     messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR,
-        MSG_GENESIS_DATABASES_INITIALIZED, MSG_INITIALIZING_SERVER_DATABASE,
-        MSG_RECREATE_ROCKS_DB_ERRROR,
+        MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_GENESIS_DATABASES_INITIALIZED,
+        MSG_INITIALIZING_SERVER_DATABASE, MSG_RECREATE_ROCKS_DB_ERRROR,
     },
     utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
 };
 
-pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
-
-    let mut secrets = chain_config.get_secrets_config()?;
-    let args = args.fill_values_with_secrets(&chain_config)?;
+pub async fn run(args: GenesisArgs, shell: &Shell, chain: ChainConfig) -> anyhow::Result<()> {
+    let mut secrets = chain.get_secrets_config()?;
+    let args = args.fill_values_with_secrets(&chain)?;
     set_server_database(&mut secrets, &args.server_db)?;
-    secrets.save_with_base_path(shell, &chain_config.configs)?;
+    secrets.save_with_base_path(shell, &chain.configs)?;
 
     initialize_server_database(
         shell,
         &args.server_db,
-        chain_config.link_to_code.clone(),
+        chain.link_to_code.clone(),
         args.dont_drop,
     )
     .await?;

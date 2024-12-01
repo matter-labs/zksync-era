@@ -2,5 +2,5 @@
 
 include!(concat!(
     env!("OUT_DIR"),
-    "/src/commands/consensus/proto/gen.rs"
+    "/src/commands/chain/consensus/proto/gen.rs"
 ));

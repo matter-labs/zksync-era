@@ -2,7 +2,8 @@ use anyhow::{bail, Context};
 use common::{logger, spinner::Spinner};
 use config::{
     create_local_configs_dir, create_wallets, get_default_era_chain_id,
-    traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError,
+    traits::SaveConfigWithBasePath, zkstack_config::ZkStackConfig, EcosystemConfig,
+    EcosystemConfigFromFileError,
 };
 use xshell::Shell;
 
@@ -28,12 +29,17 @@ use crate::{
 };
 
 pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
-    match EcosystemConfig::from_file(shell) {
+    match ZkStackConfig::ecosystem(shell) {
         Ok(_) => bail!(MSG_ECOSYSTEM_ALREADY_EXISTS_ERR),
-        Err(EcosystemConfigFromFileError::InvalidConfig { .. }) => {
-            bail!(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)
+        Err(e) => {
+            if let Some(EcosystemConfigFromFileError::NotExists { .. }) =
+                e.downcast_ref::<EcosystemConfigFromFileError>()
+            {
+                create(args, shell)?;
+            } else {
+                bail!(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)
+            }
         }
-        Err(EcosystemConfigFromFileError::NotExists { .. }) => create(args, shell)?,
     };
 
     Ok(())
@@ -56,7 +62,8 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     let link_to_code = resolve_link_to_code(shell, shell.current_dir(), args.link_to_code.clone())?;
 
     let spinner = Spinner::new(MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER);
-    let chain_config = args.chain_config();
+    let mut chain_config = args.chain_config();
+    chain_config.link_to_code = link_to_code.display().to_string();
     let chains_path = shell.create_dir("chains")?;
     let default_chain_name = args.chain_args.chain_name.clone();
 
@@ -91,12 +98,12 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     spinner.finish();
 
     let spinner = Spinner::new(MSG_CREATING_DEFAULT_CHAIN_SPINNER);
-    create_chain_inner(chain_config, &ecosystem_config, shell)?;
+    create_chain_inner(chain_config, shell)?;
     spinner.finish();
 
     if args.start_containers {
         let spinner = Spinner::new(MSG_STARTING_CONTAINERS_SPINNER);
-        initialize_docker(shell, &ecosystem_config)?;
+        initialize_docker(shell, ecosystem_config.link_to_code)?;
         start_containers(shell, false)?;
         spinner.finish();
     }

@@ -8,8 +8,8 @@ use common::{
     yaml::{merge_yaml, ConfigDiff},
 };
 use config::{
-    ChainConfig, EcosystemConfig, CONTRACTS_FILE, EN_CONFIG_FILE, ERA_OBSERBAVILITY_DIR,
-    GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
+    zkstack_config::ZkStackConfig, ChainConfig, EcosystemConfig, CONTRACTS_FILE, EN_CONFIG_FILE,
+    ERA_OBSERBAVILITY_DIR, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
 };
 use xshell::Shell;
 
@@ -27,7 +27,7 @@ use crate::{
 
 pub async fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
     logger::info(MSG_UPDATING_ZKSYNC);
-    let ecosystem = EcosystemConfig::from_file(shell)?;
+    let ecosystem = ZkStackConfig::ecosystem(shell)?;
 
     if !args.only_config {
         update_repo(shell, &ecosystem)?;
