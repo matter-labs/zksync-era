@@ -72,13 +72,13 @@ jobs:
       - name: Run server
         run: |
           ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs/server.log &
-      - name: Run Gateway
+      - name: Run prover gateway
         run: |
           ci_run zkstack prover run --component=gateway --docker=false &>prover_logs/gateway.log &
       - name: Run Prover Job Monitor
         run: |
           ci_run zkstack prover run --component=prover-job-monitor --docker=false &>prover_logs/prover-job-monitor.log &
-      - name: Wait for batch to be passed through gateway
+      - name: Wait for batch to be passed through prover gateway
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
           BATCH_NUMBER: 1
