@@ -13,7 +13,6 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
 import { DataAvailabityMode } from '../src/types';
-import { isNetworkLocalL2 } from 'utils';
 import { BigNumberish } from 'ethers';
 
 const contracts = {
@@ -33,10 +32,6 @@ describe('System behavior checks', () => {
     });
 
     test('Network should be supporting Cancun+Deneb', async () => {
-        if (isNetworkLocalL2(process.env.CHAIN_ETH_NETWORK!)) {
-            // Skipping for L2 networks
-            return;
-        }
         const address_a = '0x000000000000000000000000000000000000000A';
         const address_b = '0x000000000000000000000000000000000000000b';
 

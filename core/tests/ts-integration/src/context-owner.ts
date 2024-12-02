@@ -7,7 +7,6 @@ import { lookupPrerequisites } from './prerequisites';
 import { Reporter } from './reporter';
 import { scaledGasPrice } from './helpers';
 import { RetryProvider } from './retry-provider';
-import { isNetworkLocal } from 'utils';
 import { killPidWithAllChilds } from 'utils/build/kill';
 
 // These amounts of ETH would be provided to each test suite through its "main" account.
@@ -79,7 +78,7 @@ export class TestContextOwner {
             this.reporter
         );
 
-        if (isNetworkLocal(env.network)) {
+        if (env.network == 'localhost') {
             // Setup small polling interval on localhost to speed up tests.
             this.l1Provider.pollingInterval = 100;
             this.l2Provider.pollingInterval = 100;
@@ -91,12 +90,12 @@ export class TestContextOwner {
 
     // Returns the required amount of L1 ETH
     requiredL1ETHPerAccount() {
-        return isNetworkLocal(this.env.network) ? L1_EXTENDED_TESTS_ETH_PER_ACCOUNT : L1_DEFAULT_ETH_PER_ACCOUNT;
+        return this.env.network === 'localhost' ? L1_EXTENDED_TESTS_ETH_PER_ACCOUNT : L1_DEFAULT_ETH_PER_ACCOUNT;
     }
 
     // Returns the required amount of L2 ETH
     requiredL2ETHPerAccount() {
-        return isNetworkLocal(this.env.network) ? L2_EXTENDED_TESTS_ETH_PER_ACCOUNT : L2_DEFAULT_ETH_PER_ACCOUNT;
+        return this.env.network === 'localhost' ? L2_EXTENDED_TESTS_ETH_PER_ACCOUNT : L2_DEFAULT_ETH_PER_ACCOUNT;
     }
 
     /**
