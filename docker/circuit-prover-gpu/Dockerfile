@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.2.0-devel-ubuntu22.04 AS builder
+FROM nvidia/cuda:12.4.0-devel-ubuntu22.04 AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -45,7 +45,7 @@ COPY . .
 
 RUN cd prover && cargo build --release --bin zksync_circuit_prover
 
-FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
+FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04
 
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
 
