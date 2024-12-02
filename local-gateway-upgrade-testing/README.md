@@ -1,7 +1,7 @@
 # Local upgrade testing
 
-
-While it is theoretically possible to do it in CI-like style, it generally leads to needless recompilations, esp of rust programs.
+While it is theoretically possible to do it in CI-like style, it generally leads to needless recompilations, esp of rust
+programs.
 
 Here we contain the files/instructions needed to test the gateway upgrade locally.
 
@@ -18,11 +18,13 @@ We use the second approach for robustness and simplicity.
 
 Copy `era-cacher` to some other folder (as the zksync-era one will change) and add it to PATH, so it can be invoked.
 
-You should download a clone of zksync-era, put it into the `zksync-era-old` directory. It should point to the commit of `main` we will upgrade from.
+You should download a clone of zksync-era, put it into the `zksync-era-old` directory. It should point to the commit of
+`main` we will upgrade from.
 
 ## Step 2: spawning old chain
 
-Run `use-old-era.sh`. The old contents of the zksync-era will be moved to `zksync-era-new` folder (there the gateway version is stored), while the old one will be present in `zksync-era-new`.
+Run `use-old-era.sh`. The old contents of the zksync-era will be moved to `zksync-era-new` folder (there the gateway
+version is stored), while the old one will be present in `zksync-era-new`.
 
 ## Step 3: Move to new chain and upgrade it
 
@@ -30,9 +32,8 @@ Use upgrade scripts as in the example below.
 
 ## Full flow
 
-
 ```
-use-old-era.sh 
+use-old-era.sh
 
 zkt && zks clean all
 
@@ -45,7 +46,7 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
     --ignore-prerequisites --verbose \
     --observability=false
 
-use-new-era.sh 
+use-new-era.sh
 
 zkstack dev contracts
 zks database migrate
@@ -83,4 +84,3 @@ zki chain gateway-upgrade -- finalize-stage2
 
 zk_supervisor test integration --no-deps --ignore-prerequisites --chain era
 ```
-
