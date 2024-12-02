@@ -207,7 +207,6 @@ describe('web3 API compatibility tests', () => {
             return;
         }
 
-        const EIP1559_TX_TYPE = 2;
         const amount = 1;
         const erc20ABI = ['function transfer(address to, uint256 amount)'];
         const erc20contract = new ethers.Contract(l2Token, erc20ABI, alice);
@@ -230,7 +229,7 @@ describe('web3 API compatibility tests', () => {
         expect(tx1.l1BatchNumber).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
         expect(tx1.l1BatchTxIndex).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
         expect(tx1.chainId).toEqual(chainId);
-        expect(tx1.type).toEqual(EIP1559_TX_TYPE);
+        expect(tx1.type).toEqual(EIP712_TX_TYPE);
 
         expect(receipt!.l1BatchNumber).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
         expect(receipt!.l1BatchTxIndex).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
@@ -240,6 +239,8 @@ describe('web3 API compatibility tests', () => {
         expect(block.l1BatchTimestamp).toEqual(expect.anything());
         expect(blockWithTransactions.l1BatchNumber).toEqual(receipt!.l1BatchNumber);
         expect(blockWithTransactions.l1BatchTimestamp).toEqual(expect.anything());
+
+        const EIP1559_TX_TYPE = 2;
         for (const tx of blockWithTransactions.prefetchedTransactions) {
             expect(tx.l1BatchNumber).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
             expect(tx.l1BatchTxIndex).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
