@@ -291,12 +291,8 @@ describe('web3 API compatibility tests', () => {
         const filterId = await alice.provider.send('eth_newPendingTransactionFilter', []);
         let changes: string[] = await alice.provider.send('eth_getFilterChanges', [filterId]);
 
-        // Explicit nonce is required because of the bug in SDK: https://github.com/zksync-sdk/zksync-ethers/issues/221.
-        // TODO: remove explicit nonce when SDK is updated.
-        const nonce = await alice.getNonce();
         const tx1 = await alice.sendTransaction({
-            to: alice.address,
-            nonce
+            to: alice.address
         });
         testMaster.reporter.debug(`Sent a transaction ${tx1.hash}`);
 
@@ -308,16 +304,13 @@ describe('web3 API compatibility tests', () => {
         expect(changes).toContain(tx1.hash);
 
         const tx2 = await alice.sendTransaction({
-            to: alice.address,
-            nonce: nonce + 1
+            to: alice.address
         });
         const tx3 = await alice.sendTransaction({
-            to: alice.address,
-            nonce: nonce + 2
+            to: alice.address
         });
         const tx4 = await alice.sendTransaction({
-            to: alice.address,
-            nonce: nonce + 3
+            to: alice.address
         });
         const remainingHashes = new Set([tx2.hash, tx3.hash, tx4.hash]);
         testMaster.reporter.debug('Sent new transactions with hashes', remainingHashes);
@@ -349,12 +342,10 @@ describe('web3 API compatibility tests', () => {
             }
         });
 
-        // Explicit nonce is required because of the bug in SDK: https://github.com/zksync-sdk/zksync-ethers/issues/221.
-        // TODO: remove explicit nonce when SDK is updated.
-        const nonce = await alice.getNonce('pending');
-        const tx = await alice.sendTransaction({
+        const tx = await alice.transfer({
             to: alice.address,
-            nonce
+            amount: 1,
+            token: l2Token
         });
 
         let iterationsCount = 0;
