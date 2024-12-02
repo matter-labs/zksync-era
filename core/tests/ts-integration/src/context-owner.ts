@@ -394,7 +394,7 @@ export class TestContextOwner {
                     overrides: {
                         nonce: nonce + (ethIsBaseToken ? 0 : 1), // if eth is base token the approve tx does not happen
                         gasPrice
-                    },
+                    }
                 })
                 .then((tx) => {
                     const amount = ethers.formatEther(l2ETHAmountToDeposit);
