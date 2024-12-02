@@ -291,8 +291,10 @@ describe('web3 API compatibility tests', () => {
         const filterId = await alice.provider.send('eth_newPendingTransactionFilter', []);
         let changes: string[] = await alice.provider.send('eth_getFilterChanges', [filterId]);
 
+        const nonce = await alice.getNonce();
         const tx1 = await alice.sendTransaction({
-            to: alice.address
+            to: alice.address,
+            nonce
         });
         testMaster.reporter.debug(`Sent a transaction ${tx1.hash}`);
 
@@ -304,13 +306,16 @@ describe('web3 API compatibility tests', () => {
         expect(changes).toContain(tx1.hash);
 
         const tx2 = await alice.sendTransaction({
-            to: alice.address
+            to: alice.address,
+            nonce: nonce + 1
         });
         const tx3 = await alice.sendTransaction({
-            to: alice.address
+            to: alice.address,
+            nonce: nonce + 2
         });
         const tx4 = await alice.sendTransaction({
-            to: alice.address
+            to: alice.address,
+            nonce: nonce + 3
         });
         const remainingHashes = new Set([tx2.hash, tx3.hash, tx4.hash]);
         testMaster.reporter.debug('Sent new transactions with hashes', remainingHashes);
