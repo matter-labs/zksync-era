@@ -38,13 +38,8 @@ jobs:
       matrix:
         components:
           - server-v2
-          - external-node
-          - snapshots-creator
         platforms:
           - linux/amd64
-        include:
-          - components: external-node
-            platforms: linux/arm64
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -171,10 +166,6 @@ jobs:
       matrix:
         component:
           - name: server-v2
-            platform: linux/amd64
-          - name: external-node
-            platform: linux/amd64,linux/arm64
-          - name: snapshots-creator
             platform: linux/amd64
 
     env:
