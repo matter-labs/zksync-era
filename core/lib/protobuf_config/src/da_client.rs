@@ -10,7 +10,10 @@ use zksync_config::configs::{
 };
 use zksync_protobuf::{required, ProtoRepr};
 
-use crate::proto::{da_client as proto, object_store as object_store_proto};
+use crate::proto::{
+    da_client::{self as proto, Link, Path},
+    object_store as object_store_proto,
+};
 
 impl ProtoRepr for proto::DataAvailabilityClient {
     type Type = configs::DAClientConfig;
@@ -56,15 +59,16 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 disperser_rpc: required(&conf.disperser_rpc)
                     .context("disperser_rpc")?
                     .clone(),
-                eth_confirmation_depth: *required(&conf.eth_confirmation_depth)
-                    .context("eth_confirmation_depth")?,
+                settlement_layer_confirmation_depth: *required(
+                    &conf.settlement_layer_confirmation_depth,
+                )
+                .context("settlement_layer_confirmation_depth")?,
                 eigenda_eth_rpc: required(&conf.eigenda_eth_rpc)
                     .context("eigenda_eth_rpc")?
                     .clone(),
                 eigenda_svc_manager_address: required(&conf.eigenda_svc_manager_address)
                     .context("eigenda_svc_manager_address")?
                     .clone(),
-                blob_size_limit: *required(&conf.blob_size_limit).context("blob_size_limit")?,
                 status_query_timeout: *required(&conf.status_query_timeout)
                     .context("status_query_timeout")?,
                 status_query_interval: *required(&conf.status_query_interval)
@@ -73,9 +77,17 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     .context("wait_for_finalization")?,
                 authenticated: *required(&conf.authenticated).context("authenticated")?,
                 verify_cert: *required(&conf.verify_cert).context("verify_cert")?,
-                path_to_points: required(&conf.path_to_points)
-                    .context("path_to_points")?
-                    .clone(),
+                points_source: match conf.points_source.clone() {
+                    Some(proto::eigen_config::PointsSource::Path(path)) => {
+                        let path = required(&path.path).context("path")?;
+                        zksync_config::configs::da_client::eigen::PointsSource::Path(path.clone())
+                    }
+                    Some(proto::eigen_config::PointsSource::Link(link)) => {
+                        let link = required(&link.link).context("link")?;
+                        zksync_config::configs::da_client::eigen::PointsSource::Link(link.clone())
+                    }
+                    None => return Err(anyhow::anyhow!("Invalid Eigen DA configuration")),
+                },
                 chain_id: *required(&conf.chain_id).context("chain_id")?,
             }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
@@ -116,16 +128,28 @@ impl ProtoRepr for proto::DataAvailabilityClient {
             }
             Eigen(config) => proto::data_availability_client::Config::Eigen(proto::EigenConfig {
                 disperser_rpc: Some(config.disperser_rpc.clone()),
-                eth_confirmation_depth: Some(config.eth_confirmation_depth),
+                settlement_layer_confirmation_depth: Some(
+                    config.settlement_layer_confirmation_depth,
+                ),
                 eigenda_eth_rpc: Some(config.eigenda_eth_rpc.clone()),
                 eigenda_svc_manager_address: Some(config.eigenda_svc_manager_address.clone()),
-                blob_size_limit: Some(config.blob_size_limit),
                 status_query_timeout: Some(config.status_query_timeout),
                 status_query_interval: Some(config.status_query_interval),
                 wait_for_finalization: Some(config.wait_for_finalization),
                 authenticated: Some(config.authenticated),
                 verify_cert: Some(config.verify_cert),
-                path_to_points: Some(config.path_to_points.clone()),
+                points_source: Some(match &config.points_source {
+                    zksync_config::configs::da_client::eigen::PointsSource::Path(path) => {
+                        proto::eigen_config::PointsSource::Path(Path {
+                            path: Some(path.to_string()),
+                        })
+                    }
+                    zksync_config::configs::da_client::eigen::PointsSource::Link(link) => {
+                        proto::eigen_config::PointsSource::Link(Link {
+                            link: Some(link.to_string()),
+                        })
+                    }
+                }),
                 chain_id: Some(config.chain_id),
             }),
             ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(

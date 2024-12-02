@@ -11,11 +11,14 @@ pub use async_trait::async_trait;
 use futures::future;
 use serde::Serialize;
 use tokio::sync::watch;
+use zksync_bin_metadata::BIN_METADATA;
 
 use self::metrics::{CheckResult, METRICS};
 use crate::metrics::AppHealthCheckConfig;
 
+mod binary;
 mod metrics;
+
 #[cfg(test)]
 mod tests;
 
@@ -235,7 +238,7 @@ impl AppHealthCheck {
             .map(|health| health.status)
             .max_by_key(|status| status.priority_for_aggregation())
             .unwrap_or(HealthStatus::Ready);
-        let inner = aggregated_status.into();
+        let inner = Health::with_details(aggregated_status.into(), BIN_METADATA);
 
         let health = AppHealth { inner, components };
         if !health.inner.status.is_healthy() {
