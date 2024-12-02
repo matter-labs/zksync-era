@@ -10,6 +10,7 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { Provider, Wallet } from 'ethers';
 import { scaledGasPrice, deployContract, readContract, waitForL2ToL1LogProof } from '../src/helpers';
+import { encodeNTVAssetId } from 'zksync-ethers/build/utils';
 
 describe('L2 native ERC20 contract checks', () => {
     let testMaster: TestMaster;
@@ -64,11 +65,11 @@ describe('L2 native ERC20 contract checks', () => {
         };
         const mintTx = await aliceErc20.mint(alice.address, 1000n);
         await mintTx.wait();
-        // const mintTx2 = await aliceErc20.mint('0x36615Cf349d7F6344891B1e7CA7C72883F5dc049', 1000n);
-        // await mintTx2.wait();
-        const registerZKTx = await l2NativeTokenVault.registerToken(tokenDetails.l2Address);
-        await registerZKTx.wait();
-        zkTokenAssetId = await l2NativeTokenVault.assetId(l2TokenAddress);
+
+        // We will test that the token can be withdrawn and work with without explicit registration
+        const l2ChainId = (await l2Provider.getNetwork()).chainId;
+        zkTokenAssetId = encodeNTVAssetId(l2ChainId, l2TokenAddress);
+
         const tokenApprovalTx = await aliceErc20.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, 100n);
         await tokenApprovalTx.wait();
     });
