@@ -380,7 +380,7 @@ impl ZksNamespace {
             return Ok(None);
         };
 
-        let (batch_proof_len, batch_chain_proof) =
+        let (batch_proof_len, batch_chain_proof, is_final_node) =
             if sl_chain_id.0 != self.state.api_config.l1_chain_id.0 {
                 let Some(batch_chain_proof) = storage
                     .blocks_dal()
@@ -391,9 +391,13 @@ impl ZksNamespace {
                     return Ok(None);
                 };
 
-                (batch_chain_proof.batch_proof_len, batch_chain_proof.proof)
+                (
+                    batch_chain_proof.batch_proof_len,
+                    batch_chain_proof.proof,
+                    false,
+                )
             } else {
-                (0, Vec::new())
+                (0, Vec::new(), true)
             };
 
         let proof = {
@@ -401,6 +405,7 @@ impl ZksNamespace {
             metadata[0] = LOG_PROOF_SUPPORTED_METADATA_VERSION;
             metadata[1] = log_leaf_proof.len() as u8;
             metadata[2] = batch_proof_len as u8;
+            metadata[3] = if is_final_node { 1 } else { 0 };
 
             let mut result = vec![H256(metadata)];
 
