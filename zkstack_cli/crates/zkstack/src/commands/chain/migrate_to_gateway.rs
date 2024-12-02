@@ -32,7 +32,7 @@ use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use crate::{
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
@@ -468,7 +468,7 @@ async fn call_script(
         .with_calldata(data);
 
     // Governor private key is required for this script
-    forge = fill_forge_private_key(forge, Some(governor))?;
+    forge = fill_forge_private_key(forge, Some(governor), WalletOwner::Governor)?;
     check_the_balance(&forge).await?;
     forge.run(shell)?;
 

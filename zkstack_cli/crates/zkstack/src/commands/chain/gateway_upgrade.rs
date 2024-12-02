@@ -39,7 +39,7 @@ use crate::{
         set_da_validator_pair,
     },
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
-    utils::forge::fill_forge_private_key,
+    utils::forge::{fill_forge_private_key, WalletOwner},
 };
 
 lazy_static! {
@@ -178,7 +178,7 @@ async fn prepare_stage1(
         .with_slow()
         .with_broadcast();
 
-    forge = fill_forge_private_key(forge, Some(&chain_config.get_wallets_config()?.governor))?;
+    forge = fill_forge_private_key(forge, Some(&chain_config.get_wallets_config()?.governor), WalletOwner::Governor)?;
 
     println!("Preparing the chain for the upgrade!");
 
