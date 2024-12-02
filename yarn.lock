@@ -11322,4 +11322,4 @@ zksync-ethers@^6.9.0:
 
 "zksync-ethers@git+https://github.com/zksync-sdk/zksync-ethers#ra/fix-l2-l1-bridging":
   version "6.12.1"
-  resolved "git+https://github.com/zksync-sdk/zksync-ethers#d33ee6003e529adf79d9de4b19de9235da3a6da7"
+  resolved "git+https://github.com/zksync-sdk/zksync-ethers#79362d6a39eef95780cacb174e375ab5bf6eaf45"
