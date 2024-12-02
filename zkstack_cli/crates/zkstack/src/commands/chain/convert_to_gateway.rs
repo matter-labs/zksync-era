@@ -187,7 +187,11 @@ async fn calculate_gateway_ctm(
         .with_broadcast();
 
     // Governor private key should not be needed for this script
-    forge = fill_forge_private_key(forge, config.get_wallets()?.deployer.as_ref(), WalletOwner::Deployer)?;
+    forge = fill_forge_private_key(
+        forge,
+        config.get_wallets()?.deployer.as_ref(),
+        WalletOwner::Deployer,
+    )?;
     check_the_balance(&forge).await?;
     forge.run(shell)?;
 
@@ -234,7 +238,11 @@ async fn deploy_gateway_ctm(
         .with_broadcast();
 
     // Governor private key should not be needed for this script
-    forge = fill_forge_private_key(forge, config.get_wallets()?.deployer.as_ref(), WalletOwner::Deployer)?;
+    forge = fill_forge_private_key(
+        forge,
+        config.get_wallets()?.deployer.as_ref(),
+        WalletOwner::Deployer,
+    )?;
     check_the_balance(&forge).await?;
     forge.run(shell)?;
 

@@ -276,7 +276,7 @@ pub enum ForgeScriptArg {
     },
     #[strum(to_string = "gas-limit={gas_limit}")]
     GasLimit {
-        gas_limit: u64
+        gas_limit: u64,
     },
     Zksync,
 }

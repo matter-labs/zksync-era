@@ -20,7 +20,8 @@ use super::args::gateway_upgrade::{GatewayUpgradeArgs, GatewayUpgradeArgsFinal};
 use crate::{
     accept_ownership::governance_execute_calls,
     commands::ecosystem::args::gateway_upgrade::GatewayUpgradeStage,
-    messages::MSG_INTALLING_DEPS_SPINNER, utils::forge::{fill_forge_private_key, WalletOwner},
+    messages::MSG_INTALLING_DEPS_SPINNER,
+    utils::forge::{fill_forge_private_key, WalletOwner},
 };
 
 pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -98,7 +99,11 @@ async fn no_governance_prepare(
         .with_gas_limit(1_000_000_000_000)
         .with_broadcast();
 
-    forge = fill_forge_private_key(forge, ecosystem_config.get_wallets()?.deployer.as_ref(), WalletOwner::Deployer)?;
+    forge = fill_forge_private_key(
+        forge,
+        ecosystem_config.get_wallets()?.deployer.as_ref(),
+        WalletOwner::Deployer,
+    )?;
 
     println!("Preparing the ecosystem for the upgrade!");
 

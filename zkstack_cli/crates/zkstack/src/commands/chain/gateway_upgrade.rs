@@ -143,16 +143,16 @@ pub fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
 fn replace_in_file(file_path: &str, target: &str, replacement: &str) -> std::io::Result<()> {
     // Read the file content
     let content = std::fs::read_to_string(file_path)?;
-    
+
     // Replace all occurrences of the target substring
     let modified_content = content.replace(target, replacement);
-    
+
     // Write the modified content back to the file
     let mut file = std::fs::OpenOptions::new()
         .write(true)
         .truncate(true) // Clear the file before writing
         .open(file_path)?;
-    
+
     file.write_all(modified_content.as_bytes())?;
     Ok(())
 }
@@ -171,9 +171,12 @@ async fn adapt_config(shell: &Shell, chain_config: ChainConfig) -> anyhow::Resul
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     replace_in_file(
-        chain_config.path_to_general_config().to_str().context("failed to get general config path")?, 
-        "internal_l1_pricing_multiplier", 
-        "internal_sl_pricing_multiplier"
+        chain_config
+            .path_to_general_config()
+            .to_str()
+            .context("failed to get general config path")?,
+        "internal_l1_pricing_multiplier",
+        "internal_sl_pricing_multiplier",
     )?;
     println!("Done");
 
@@ -203,7 +206,11 @@ async fn prepare_stage1(
         .with_slow()
         .with_broadcast();
 
-    forge = fill_forge_private_key(forge, Some(&chain_config.get_wallets_config()?.governor), WalletOwner::Governor)?;
+    forge = fill_forge_private_key(
+        forge,
+        Some(&chain_config.get_wallets_config()?.governor),
+        WalletOwner::Governor,
+    )?;
 
     println!("Preparing the chain for the upgrade!");
 
