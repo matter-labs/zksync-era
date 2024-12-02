@@ -22,7 +22,7 @@ use zksync_config::configs::GatewayConfig;
 
 use crate::{
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 lazy_static! {
@@ -187,7 +187,7 @@ async fn calculate_gateway_ctm(
         .with_broadcast();
 
     // Governor private key should not be needed for this script
-    forge = fill_forge_private_key(forge, config.get_wallets()?.deployer.as_ref())?;
+    forge = fill_forge_private_key(forge, config.get_wallets()?.deployer.as_ref(), WalletOwner::Deployer)?;
     check_the_balance(&forge).await?;
     forge.run(shell)?;
 
@@ -234,7 +234,7 @@ async fn deploy_gateway_ctm(
         .with_broadcast();
 
     // Governor private key should not be needed for this script
-    forge = fill_forge_private_key(forge, config.get_wallets()?.deployer.as_ref())?;
+    forge = fill_forge_private_key(forge, config.get_wallets()?.deployer.as_ref(), WalletOwner::Deployer)?;
     check_the_balance(&forge).await?;
     forge.run(shell)?;
 
@@ -354,7 +354,7 @@ async fn call_script(
         .with_calldata(data);
 
     // Governor private key is required for this script
-    forge = fill_forge_private_key(forge, Some(governor))?;
+    forge = fill_forge_private_key(forge, Some(governor), WalletOwner::Governor)?;
     check_the_balance(&forge).await?;
     forge.run(shell)?;
 
