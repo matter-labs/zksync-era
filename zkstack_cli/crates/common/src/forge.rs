@@ -150,6 +150,11 @@ impl ForgeScript {
         self
     }
 
+    pub fn with_gas_limit(mut self, gas_limit: u64) -> Self {
+        self.args.add_arg(ForgeScriptArg::GasLimit { gas_limit });
+        self
+    }
+
     /// Adds the private key of the deployer account.
     pub fn with_private_key(mut self, private_key: H256) -> Self {
         self.args.add_arg(ForgeScriptArg::PrivateKey {
@@ -268,6 +273,10 @@ pub enum ForgeScriptArg {
     #[strum(to_string = "sender={address}")]
     Sender {
         address: String,
+    },
+    #[strum(to_string = "gas-limit={gas_limit}")]
+    GasLimit {
+        gas_limit: u64
     },
     Zksync,
 }

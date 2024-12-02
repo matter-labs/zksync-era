@@ -172,9 +172,11 @@ impl MainNodeBuilder {
     }
 
     fn add_gas_adjuster_layer(mut self) -> anyhow::Result<Self> {
+        println!("I am here! {:#?}", self.configs.eth);
         let gas_adjuster_config = try_load_config!(self.configs.eth)
             .gas_adjuster
             .context("Gas adjuster")?;
+        println!("I am here!2");
         let eth_sender_config = try_load_config!(self.configs.eth);
         let gas_adjuster_layer = GasAdjusterLayer::new(
             gas_adjuster_config,

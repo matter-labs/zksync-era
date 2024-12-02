@@ -179,16 +179,20 @@ pub struct EcosystemContracts {
     pub state_transition_proxy_addr: Address,
     pub transparent_proxy_admin_addr: Address,
     // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub stm_deployment_tracker_proxy_addr: Option<Address>,
     pub validator_timelock_addr: Address,
     pub diamond_cut_data: String,
     // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub force_deployments_data: Option<String>,
     // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub native_token_vault_addr: Option<Address>,
     // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub l1_bytecodes_supplier_addr: Option<Address>,
-
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub expected_rollup_l2_da_validator: Option<Address>,
 }
 
@@ -198,6 +202,7 @@ impl ZkStackConfig for EcosystemContracts {}
 pub struct BridgesContracts {
     pub erc20: BridgeContractsDefinition,
     pub shared: BridgeContractsDefinition,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub l1_nullifier_addr: Option<Address>,
 }
 
@@ -216,8 +221,10 @@ pub struct L1Contracts {
     #[serde(default)]
     pub chain_admin_addr: Address,
     // Option to be able to parse old configs
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub access_control_restriction_addr: Option<Address>,
     // Option to be able to parse old configs
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub chain_proxy_admin_addr: Option<Address>,
     pub multicall3_addr: Address,
     pub verifier_addr: Address,
