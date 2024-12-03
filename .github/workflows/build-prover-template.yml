@@ -30,7 +30,7 @@ on:
       CUDA_ARCH:
         description: "CUDA Arch to build"
         type: string
-        default: "89"
+        default: "75;80;89"
         required: false
     outputs:
       protocol_version:
