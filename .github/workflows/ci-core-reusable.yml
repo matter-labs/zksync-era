@@ -301,7 +301,8 @@ jobs:
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_custom_token \
-          --chain custom_token
+          --chain custom_token \
+          --validium-type no-da
 
       - name: Create and register chain with transactions signed "offline"
         run: |
@@ -359,7 +360,8 @@ jobs:
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_consensus \
-          --chain consensus
+          --chain consensus \
+          --validium-type no-da
 
       - name: Export chain list to environment variable
         run: |
@@ -386,7 +388,8 @@ jobs:
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_gateway \
-          --chain gateway
+          --chain gateway \
+          --validium-type no-da
           
           ci_run zkstack chain convert-to-gateway --chain gateway --ignore-prerequisites
 
