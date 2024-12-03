@@ -48,6 +48,8 @@ pub struct InitArgs {
         default_missing_value = "true"
     )]
     pub skip_submodules_checkout: bool,
+    #[clap(flatten)]
+    pub validium_args: da_configs::ValidiumTypeArgs,
 }
 
 impl InitArgs {
@@ -91,12 +93,16 @@ impl InitArgs {
             })
         };
 
-        let validium_config =
-            if config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium {
-                Some(ValidiumType::read())
-            } else {
-                None
-            };
+        let validium_config = match config.l1_batch_commit_data_generator_mode {
+            L1BatchCommitmentMode::Validium => match self.validium_args.validium_type {
+                None => Some(ValidiumType::read()),
+                Some(da_configs::ValidiumTypeInternal::NoDA) => Some(ValidiumType::NoDA),
+                Some(da_configs::ValidiumTypeInternal::Avail) => panic!(
+                    "Avail is not supported via CLI args, use interactive mode" // TODO: Add support for configuration via CLI args
+                ),
+            },
+            _ => None,
+        };
 
         InitArgsFinal {
             forge_args: self.forge_args,

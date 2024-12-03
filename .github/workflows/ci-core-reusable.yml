@@ -278,7 +278,8 @@ jobs:
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_validium \
-          --chain validium
+          --chain validium \
+          --validium-type no-da
 
       - name: Create and initialize chain with Custom Token
         run: |

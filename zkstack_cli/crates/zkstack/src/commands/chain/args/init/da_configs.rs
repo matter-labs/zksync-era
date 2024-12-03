@@ -1,4 +1,4 @@
-use clap::ValueEnum;
+use clap::{Parser, ValueEnum};
 use common::{Prompt, PromptSelect};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter, IntoEnumIterator};
@@ -20,6 +20,12 @@ use crate::{
         MSG_VALIDIUM_TYPE_PROMPT,
     },
 };
+
+#[derive(Debug, Serialize, Deserialize, Parser, Clone)]
+pub struct ValidiumTypeArgs {
+    #[clap(long, help = "Type of the Validium network")]
+    pub validium_type: Option<ValidiumTypeInternal>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, EnumIter, Display, ValueEnum)]
 pub enum ValidiumTypeInternal {

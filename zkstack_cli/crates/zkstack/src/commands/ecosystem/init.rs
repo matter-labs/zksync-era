@@ -383,6 +383,7 @@ async fn init_chains(
             no_port_reallocation: final_init_args.no_port_reallocation,
             skip_submodules_checkout: final_init_args.skip_submodules_checkout,
             dev: final_init_args.dev,
+            validium_args: final_init_args.validium_args.clone(),
         };
         let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
 
