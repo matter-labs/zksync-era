@@ -50,6 +50,7 @@ RUN cd prover && \
 
 RUN cd prover && BELLMAN_CUDA_DIR=$PWD/bellman-cuda cargo build --features "gpu" --release --bin zksync_proof_fri_compressor
 
+# Output build in CUDA architectures for debugging purposes.
 RUN cuobjdump /usr/src/zksync/prover/target/release/zksync_proof_fri_compressor
 
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04

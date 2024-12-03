@@ -45,6 +45,7 @@ COPY . .
 
 RUN cd prover && cargo build --release --features "gpu" --bin zksync_prover_fri
 
+# Output build in CUDA architectures for debugging purposes.
 RUN cuobjdump /usr/src/zksync/prover/target/release/zksync_prover_fri
 
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
