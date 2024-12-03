@@ -4,7 +4,7 @@ import { TestEnvironment, TestContext } from './types';
 import { claimEtherBack } from './context-owner';
 import { RetryableWallet, RetryProvider } from './retry-provider';
 import { Reporter } from './reporter';
-import { bigIntReviver } from './helpers';
+import { bigIntReviver, isLocalHost } from './helpers';
 import { L1Provider } from './l1-provider';
 
 /**
@@ -63,7 +63,7 @@ export class TestMaster {
             this.reporter
         );
 
-        if (context.environment.network == 'localhost') {
+        if (isLocalHost(context.environment.network)) {
             // Setup small polling interval on localhost to speed up tests.
             this.l1Provider.pollingInterval = 100;
             this.l2Provider.pollingInterval = 100;
@@ -81,7 +81,7 @@ export class TestMaster {
      * @returns `true` if the test suite is run on localhost and `false` otherwise.
      */
     isLocalHost(): boolean {
-        return this.env.network == 'localhost';
+        return isLocalHost(this.env.network);
     }
 
     /**

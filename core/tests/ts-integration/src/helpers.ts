@@ -151,3 +151,7 @@ export function bigIntMax(...args: bigint[]) {
 
     return args.reduce((max, current) => (current > max ? current : max), args[0]);
 }
+
+export function isLocalHost(network: string): boolean {
+    return network == 'localhost';
+}
