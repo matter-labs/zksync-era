@@ -64,57 +64,39 @@ impl TeeProofGenerationDal<'_, '_> {
     ) -> DalResult<Option<LockedBatch>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let min_batch_number = i64::from(min_batch_number.0);
-        let locked_batch = sqlx::query_as!(
-            StorageLockedBatch,
+        let mut transaction = self.storage.start_transaction().await?;
+
+        // Lock rows in the proof_generation_details table to prevent race conditions. The
+        // tee_proof_generation_details table does not have corresponding entries yet if this is the
+        // first time the query is invoked for a batch. Locking rows in proof_generation_details
+        // ensures that two different TEE prover instances will not try to prove the same batch.
+        let batch_number = sqlx::query!(
             r#"
-            WITH upsert AS (
-                SELECT
-                    p.l1_batch_number
-                FROM
-                    proof_generation_details p
-                LEFT JOIN
-                    tee_proof_generation_details tee
-                    ON
-                        p.l1_batch_number = tee.l1_batch_number
-                        AND tee.tee_type = $1
-                WHERE
-                    (
-                        p.l1_batch_number >= $5
-                        AND p.vm_run_data_blob_url IS NOT NULL
-                        AND p.proof_gen_data_blob_url IS NOT NULL
-                    )
-                    AND (
-                        tee.l1_batch_number IS NULL
-                        OR (
-                            (tee.status = $2 OR tee.status = $3)
-                            AND tee.prover_taken_at < NOW() - $4::INTERVAL
-                        )
-                    )
-                FETCH FIRST ROW ONLY
-            )
-            
-            INSERT INTO
-            tee_proof_generation_details (
-                l1_batch_number, tee_type, status, created_at, updated_at, prover_taken_at
-            )
             SELECT
-                l1_batch_number,
-                $1,
-                $2,
-                NOW(),
-                NOW(),
-                NOW()
+                p.l1_batch_number
             FROM
-                upsert
-            ON CONFLICT (l1_batch_number, tee_type) DO
-            UPDATE
-            SET
-            status = $2,
-            updated_at = NOW(),
-            prover_taken_at = NOW()
-            RETURNING
-            l1_batch_number,
-            created_at
+                proof_generation_details p
+            LEFT JOIN
+                tee_proof_generation_details tee
+                ON
+                    p.l1_batch_number = tee.l1_batch_number
+                    AND tee.tee_type = $1
+            WHERE
+                (
+                    p.l1_batch_number >= $5
+                    AND p.vm_run_data_blob_url IS NOT NULL
+                    AND p.proof_gen_data_blob_url IS NOT NULL
+                )
+                AND (
+                    tee.l1_batch_number IS NULL
+                    OR (
+                        (tee.status = $2 OR tee.status = $3)
+                        AND tee.prover_taken_at < NOW() - $4::INTERVAL
+                    )
+                )
+            LIMIT 1
+            FOR UPDATE OF p
+            SKIP LOCKED
             "#,
             tee_type.to_string(),
             TeeProofGenerationJobStatus::PickedByProver.to_string(),
@@ -122,14 +104,58 @@ impl TeeProofGenerationDal<'_, '_> {
             processing_timeout,
             min_batch_number
         )
-        .instrument("lock_batch_for_proving")
+        .instrument("lock_batch_for_proving#get_batch_no")
         .with_arg("tee_type", &tee_type)
         .with_arg("processing_timeout", &processing_timeout)
-        .with_arg("l1_batch_number", &min_batch_number)
-        .fetch_optional(self.storage)
+        .with_arg("min_batch_number", &min_batch_number)
+        .fetch_optional(&mut transaction)
+        .await?;
+
+        let batch_number = match batch_number {
+            Some(batch) => batch.l1_batch_number,
+            None => {
+                return Ok(None);
+            }
+        };
+
+        let locked_batch = sqlx::query_as!(
+            StorageLockedBatch,
+            r#"
+            INSERT INTO
+            tee_proof_generation_details (
+                l1_batch_number, tee_type, status, created_at, updated_at, prover_taken_at
+            )
+            VALUES
+            (
+                $1,
+                $2,
+                $3,
+                NOW(),
+                NOW(),
+                NOW()
+            )
+            ON CONFLICT (l1_batch_number, tee_type) DO
+            UPDATE
+            SET
+            status = $3,
+            updated_at = NOW(),
+            prover_taken_at = NOW()
+            RETURNING
+            l1_batch_number,
+            created_at
+            "#,
+            batch_number,
+            tee_type.to_string(),
+            TeeProofGenerationJobStatus::PickedByProver.to_string(),
+        )
+        .instrument("lock_batch_for_proving#insert")
+        .with_arg("batch_number", &batch_number)
+        .with_arg("tee_type", &tee_type)
+        .fetch_optional(&mut transaction)
         .await?
         .map(Into::into);
 
+        transaction.commit().await?;
         Ok(locked_batch)
     }
 
