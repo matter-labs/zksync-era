@@ -47,7 +47,7 @@
           packages = {
             # to ease potential cross-compilation, the overlay is used
             inherit (appliedOverlay.zksync-era) zksync tee_prover container-tee-prover-azure container-tee-prover-dcap;
-            default = appliedOverlay.zksync-era.zksync;
+            default = appliedOverlay.zksync-era.tee_prover;
           };
 
           devShells.default = appliedOverlay.zksync-era.devShell;
@@ -67,7 +67,6 @@
           };
 
           craneLib = (crane.mkLib pkgs).overrideToolchain rustVersion;
-          NIX_OUTPATH_USED_AS_RANDOM_SEED = "aaaaaaaaaa";
 
           commonArgs = {
             nativeBuildInputs = with pkgs;[
@@ -81,6 +80,8 @@
               snappy.dev
               lz4.dev
               bzip2.dev
+              rocksdb
+              snappy.dev
             ];
 
             src = with pkgs.lib.fileset; toSource {
@@ -90,24 +91,22 @@
                 ./Cargo.toml
                 ./core
                 ./prover
-                ./zk_toolbox
+                ./zkstack_cli
                 ./.github/release-please/manifest.json
               ];
             };
 
             env = {
               OPENSSL_NO_VENDOR = "1";
-              inherit NIX_OUTPATH_USED_AS_RANDOM_SEED;
+              ROCKSDB_LIB_DIR = "${pkgs.rocksdb.out}/lib";
+              SNAPPY_LIB_DIR = "${pkgs.snappy.out}/lib";
+              NIX_OUTPATH_USED_AS_RANDOM_SEED = "aaaaaaaaaa";
             };
 
             doCheck = false;
             strictDeps = true;
             inherit hardeningEnable;
           };
-
-          cargoArtifacts = craneLib.buildDepsOnly (commonArgs // {
-            pname = "zksync-era-workspace";
-          });
         in
         {
           zksync-era = rec {
@@ -117,12 +116,11 @@
             };
 
             zksync = pkgs.callPackage ./etc/nix/zksync.nix {
-              inherit cargoArtifacts;
               inherit craneLib;
               inherit commonArgs;
             };
+
             tee_prover = pkgs.callPackage ./etc/nix/tee_prover.nix {
-              inherit cargoArtifacts;
               inherit craneLib;
               inherit commonArgs;
             };

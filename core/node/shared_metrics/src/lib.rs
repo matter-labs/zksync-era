@@ -5,10 +5,9 @@ use std::{fmt, time::Duration};
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics, Unit,
 };
+use zksync_bin_metadata::{GitMetrics, RustMetrics};
 use zksync_dal::transactions_dal::L2TxSubmissionResult;
 use zksync_types::aggregated_operations::AggregatedActionType;
-
-pub mod rustc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
@@ -29,7 +28,6 @@ pub enum InitStage {
     EthTxAggregator,
     EthTxManager,
     Tree,
-    TeeVerifierInputProducer,
     Consensus,
     DADispatcher,
 }
@@ -45,7 +43,6 @@ impl fmt::Display for InitStage {
             Self::EthTxAggregator => formatter.write_str("eth_tx_aggregator"),
             Self::EthTxManager => formatter.write_str("eth_tx_manager"),
             Self::Tree => formatter.write_str("tree"),
-            Self::TeeVerifierInputProducer => formatter.write_str("tee_verifier_input_producer"),
             Self::Consensus => formatter.write_str("consensus"),
             Self::DADispatcher => formatter.write_str("da_dispatcher"),
         }
@@ -198,3 +195,9 @@ pub struct ExternalNodeMetrics {
 
 #[vise::register]
 pub static EN_METRICS: vise::Global<ExternalNodeMetrics> = vise::Global::new();
+
+#[vise::register]
+pub static RUST_METRICS: vise::Global<RustMetrics> = vise::Global::new();
+
+#[vise::register]
+pub static GIT_METRICS: vise::Global<GitMetrics> = vise::Global::new();

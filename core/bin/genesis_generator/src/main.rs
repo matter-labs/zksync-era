@@ -9,7 +9,7 @@ use clap::Parser;
 use serde_yaml::Serializer;
 use zksync_config::{configs::DatabaseSecrets, GenesisConfig};
 use zksync_contracts::BaseSystemContracts;
-use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
+use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
@@ -40,17 +40,13 @@ async fn main() -> anyhow::Result<()> {
     let database_secrets = match opt.config_path {
         None => DatabaseSecrets::from_env()?,
         Some(path) => {
-            let yaml =
-                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            let config = decode_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&yaml)
-                .context("failed decoding general YAML config")?;
+            let config = read_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&path)
+                .context("failed decoding secrets YAML")?;
             config.database.context("Database secrets must exist")?
         }
     };
 
-    let yaml = std::fs::read_to_string(DEFAULT_GENESIS_FILE_PATH)
-        .with_context(|| DEFAULT_GENESIS_FILE_PATH.to_string())?;
-    let original_genesis = decode_yaml_repr::<Genesis>(&yaml)?;
+    let original_genesis = read_yaml_repr::<Genesis>(&DEFAULT_GENESIS_FILE_PATH.into())?;
     let db_url = database_secrets.master_url()?;
     let new_genesis = generate_new_config(db_url, original_genesis.clone()).await?;
     if opt.check {
@@ -91,6 +87,7 @@ async fn generate_new_config(
         genesis_commitment: None,
         bootloader_hash: Some(base_system_contracts.bootloader),
         default_aa_hash: Some(base_system_contracts.default_aa),
+        evm_emulator_hash: base_system_contracts.evm_emulator,
         ..genesis_config
     };
 

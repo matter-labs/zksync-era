@@ -5,9 +5,8 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{AccountTreeId, L1BatchNumber, L2BlockNumber, H256};
 use zksync_protobuf::{required, ProtoFmt};
-use zksync_utils::u256_to_h256;
 
-use crate::{utils, web3::Bytes, ProtocolVersionId, StorageKey, StorageValue, U256};
+use crate::{u256_to_h256, utils, web3::Bytes, ProtocolVersionId, StorageKey, StorageValue, U256};
 
 /// Information about all snapshots persisted by the node.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -270,11 +269,11 @@ where
 pub struct SnapshotRecoveryStatus {
     pub l1_batch_number: L1BatchNumber,
     pub l1_batch_root_hash: H256,
-    #[debug("{} (raw: {})", utils::display_timestamp(**l1_batch_timestamp), l1_batch_timestamp)]
+    #[debug("{} (raw: {})", utils::display_timestamp(*l1_batch_timestamp), l1_batch_timestamp)]
     pub l1_batch_timestamp: u64,
     pub l2_block_number: L2BlockNumber,
     pub l2_block_hash: H256,
-    #[debug("{} (raw: {})", utils::display_timestamp(**l2_block_timestamp), l2_block_timestamp)]
+    #[debug("{} (raw: {})", utils::display_timestamp(*l2_block_timestamp), l2_block_timestamp)]
     pub l2_block_timestamp: u64,
     pub protocol_version: ProtocolVersionId,
     #[debug(
@@ -331,9 +330,8 @@ pub fn uniform_hashed_keys_chunk(chunk_id: u64, chunk_count: u64) -> ops::RangeI
 
 #[cfg(test)]
 mod tests {
-    use zksync_utils::h256_to_u256;
-
     use super::*;
+    use crate::h256_to_u256;
 
     #[test]
     fn chunking_is_correct() {

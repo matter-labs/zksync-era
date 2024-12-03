@@ -5,17 +5,17 @@ use zksync_db_connection::{
 use zksync_system_constants::EMPTY_UNCLES_HASH;
 use zksync_types::{
     api,
+    debug_flat_call::CallTraceMeta,
     fee_model::BatchFeeInput,
     l2_to_l1_log::L2ToL1Log,
     web3::{BlockHeader, Bytes},
     Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H160, H256, U256, U64,
 };
-use zksync_utils::bigdecimal_to_u256;
 use zksync_vm_interface::Call;
 
 use crate::{
     models::{
-        parse_protocol_version,
+        bigdecimal_to_u256, parse_protocol_version,
         storage_block::{
             ResolvedL1BatchForL2Block, StorageBlockDetails, StorageL1BatchDetails,
             LEGACY_BLOCK_GAS_LIMIT,
@@ -52,9 +52,11 @@ impl BlocksWeb3Dal<'_, '_> {
                 transactions.hash AS "tx_hash?"
             FROM
                 miniblocks
-                LEFT JOIN miniblocks prev_miniblock ON prev_miniblock.number = miniblocks.number - 1
-                LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
-                LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number
+            LEFT JOIN
+                miniblocks prev_miniblock
+                ON prev_miniblock.number = miniblocks.number - 1
+            LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
+            LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number
             WHERE
                 miniblocks.number = $1
             ORDER BY
@@ -184,8 +186,10 @@ impl BlocksWeb3Dal<'_, '_> {
                 transactions.refunded_gas AS "transaction_refunded_gas?"
             FROM
                 miniblocks
-                LEFT JOIN miniblocks prev_miniblock ON prev_miniblock.number = miniblocks.number - 1
-                LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number
+            LEFT JOIN
+                miniblocks prev_miniblock
+                ON prev_miniblock.number = miniblocks.number - 1
+            LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number
             WHERE
                 miniblocks.number > $1
             ORDER BY
@@ -527,11 +531,12 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_traces_for_l2_block(
         &mut self,
         block_number: L2BlockNumber,
-    ) -> DalResult<Vec<Call>> {
-        let protocol_version = sqlx::query!(
+    ) -> DalResult<Vec<(Call, CallTraceMeta)>> {
+        let row = sqlx::query!(
             r#"
             SELECT
-                protocol_version
+                protocol_version,
+                hash
             FROM
                 miniblocks
             WHERE
@@ -539,14 +544,20 @@ impl BlocksWeb3Dal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .try_map(|row| row.protocol_version.map(parse_protocol_version).transpose())
+        .try_map(|row| {
+            row.protocol_version
+                .map(parse_protocol_version)
+                .transpose()
+                .map(|val| (val, H256::from_slice(&row.hash)))
+        })
         .instrument("get_traces_for_l2_block#get_l2_block_protocol_version_id")
         .with_arg("l2_block_number", &block_number)
         .fetch_optional(self.storage)
         .await?;
-        let Some(protocol_version) = protocol_version else {
+        let Some((protocol_version, block_hash)) = row else {
             return Ok(Vec::new());
         };
+
         let protocol_version =
             protocol_version.unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
@@ -554,10 +565,12 @@ impl BlocksWeb3Dal<'_, '_> {
             CallTrace,
             r#"
             SELECT
+                transactions.hash AS tx_hash,
+                transactions.index_in_block AS tx_index_in_block,
                 call_trace
             FROM
                 call_traces
-                INNER JOIN transactions ON tx_hash = transactions.hash
+            INNER JOIN transactions ON tx_hash = transactions.hash
             WHERE
                 transactions.miniblock_number = $1
             ORDER BY
@@ -570,7 +583,17 @@ impl BlocksWeb3Dal<'_, '_> {
         .fetch_all(self.storage)
         .await?
         .into_iter()
-        .map(|call_trace| call_trace.into_call(protocol_version))
+        .map(|call_trace| {
+            let tx_hash = H256::from_slice(&call_trace.tx_hash);
+            let index = call_trace.tx_index_in_block.unwrap_or_default() as usize;
+            let meta = CallTraceMeta {
+                index_in_block: index,
+                tx_hash,
+                block_number: block_number.0,
+                block_hash,
+            };
+            (call_trace.into_call(protocol_version), meta)
+        })
         .collect())
     }
 
@@ -646,6 +669,8 @@ impl BlocksWeb3Dal<'_, '_> {
                             (MAX(number) + 1)
                         FROM
                             l1_batches
+                        WHERE
+                            is_sealed
                     )
                 ) AS "l1_batch_number!",
                 miniblocks.timestamp,
@@ -654,31 +679,53 @@ impl BlocksWeb3Dal<'_, '_> {
                 miniblocks.hash AS "root_hash?",
                 commit_tx.tx_hash AS "commit_tx_hash?",
                 commit_tx.confirmed_at AS "committed_at?",
+                commit_tx_data.chain_id AS "commit_chain_id?",
                 prove_tx.tx_hash AS "prove_tx_hash?",
                 prove_tx.confirmed_at AS "proven_at?",
+                prove_tx_data.chain_id AS "prove_chain_id?",
                 execute_tx.tx_hash AS "execute_tx_hash?",
                 execute_tx.confirmed_at AS "executed_at?",
+                execute_tx_data.chain_id AS "execute_chain_id?",
                 miniblocks.l1_gas_price,
                 miniblocks.l2_fair_gas_price,
                 miniblocks.fair_pubdata_price,
                 miniblocks.bootloader_code_hash,
                 miniblocks.default_aa_code_hash,
+                l1_batches.evm_emulator_code_hash,
                 miniblocks.protocol_version,
                 miniblocks.fee_account_address
             FROM
                 miniblocks
-                LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number
-                LEFT JOIN eth_txs_history AS commit_tx ON (
+            LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number
+            LEFT JOIN eth_txs_history AS commit_tx
+                ON (
                     l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id
                     AND commit_tx.confirmed_at IS NOT NULL
                 )
-                LEFT JOIN eth_txs_history AS prove_tx ON (
+            LEFT JOIN eth_txs_history AS prove_tx
+                ON (
                     l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id
                     AND prove_tx.confirmed_at IS NOT NULL
                 )
-                LEFT JOIN eth_txs_history AS execute_tx ON (
+            LEFT JOIN eth_txs_history AS execute_tx
+                ON (
                     l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
                     AND execute_tx.confirmed_at IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS commit_tx_data
+                ON (
+                    l1_batches.eth_commit_tx_id = commit_tx_data.id
+                    AND commit_tx_data.confirmed_eth_tx_history_id IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS prove_tx_data
+                ON (
+                    l1_batches.eth_prove_tx_id = prove_tx_data.id
+                    AND prove_tx_data.confirmed_eth_tx_history_id IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS execute_tx_data
+                ON (
+                    l1_batches.eth_execute_tx_id = execute_tx_data.id
+                    AND execute_tx_data.confirmed_eth_tx_history_id IS NOT NULL
                 )
             WHERE
                 miniblocks.number = $1
@@ -702,18 +749,19 @@ impl BlocksWeb3Dal<'_, '_> {
             StorageL1BatchDetails,
             r#"
             WITH
-                mb AS (
-                    SELECT
-                        l1_gas_price,
-                        l2_fair_gas_price,
-                        fair_pubdata_price
-                    FROM
-                        miniblocks
-                    WHERE
-                        l1_batch_number = $1
-                    LIMIT
-                        1
-                )
+            mb AS (
+                SELECT
+                    l1_gas_price,
+                    l2_fair_gas_price,
+                    fair_pubdata_price
+                FROM
+                    miniblocks
+                WHERE
+                    l1_batch_number = $1
+                LIMIT
+                    1
+            )
+            
             SELECT
                 l1_batches.number,
                 l1_batches.timestamp,
@@ -722,29 +770,51 @@ impl BlocksWeb3Dal<'_, '_> {
                 l1_batches.hash AS "root_hash?",
                 commit_tx.tx_hash AS "commit_tx_hash?",
                 commit_tx.confirmed_at AS "committed_at?",
+                commit_tx_data.chain_id AS "commit_chain_id?",
                 prove_tx.tx_hash AS "prove_tx_hash?",
                 prove_tx.confirmed_at AS "proven_at?",
+                prove_tx_data.chain_id AS "prove_chain_id?",
                 execute_tx.tx_hash AS "execute_tx_hash?",
                 execute_tx.confirmed_at AS "executed_at?",
+                execute_tx_data.chain_id AS "execute_chain_id?",
                 mb.l1_gas_price,
                 mb.l2_fair_gas_price,
                 mb.fair_pubdata_price,
                 l1_batches.bootloader_code_hash,
-                l1_batches.default_aa_code_hash
+                l1_batches.default_aa_code_hash,
+                l1_batches.evm_emulator_code_hash
             FROM
                 l1_batches
-                INNER JOIN mb ON TRUE
-                LEFT JOIN eth_txs_history AS commit_tx ON (
+            INNER JOIN mb ON TRUE
+            LEFT JOIN eth_txs_history AS commit_tx
+                ON (
                     l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id
                     AND commit_tx.confirmed_at IS NOT NULL
                 )
-                LEFT JOIN eth_txs_history AS prove_tx ON (
+            LEFT JOIN eth_txs_history AS prove_tx
+                ON (
                     l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id
                     AND prove_tx.confirmed_at IS NOT NULL
                 )
-                LEFT JOIN eth_txs_history AS execute_tx ON (
+            LEFT JOIN eth_txs_history AS execute_tx
+                ON (
                     l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
                     AND execute_tx.confirmed_at IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS commit_tx_data
+                ON (
+                    l1_batches.eth_commit_tx_id = commit_tx_data.id
+                    AND commit_tx_data.confirmed_eth_tx_history_id IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS prove_tx_data
+                ON (
+                    l1_batches.eth_prove_tx_id = prove_tx_data.id
+                    AND prove_tx_data.confirmed_eth_tx_history_id IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS execute_tx_data
+                ON (
+                    l1_batches.eth_execute_tx_id = execute_tx_data.id
+                    AND execute_tx_data.confirmed_eth_tx_history_id IS NOT NULL
                 )
             WHERE
                 l1_batches.number = $1
@@ -768,7 +838,7 @@ mod tests {
         block::{L2BlockHasher, L2BlockHeader},
         Address, L2BlockNumber, ProtocolVersion, ProtocolVersionId,
     };
-    use zksync_vm_interface::TransactionExecutionMetrics;
+    use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
 
     use super::*;
     use crate::{
@@ -974,7 +1044,7 @@ mod tests {
                 vec![],
                 AggregatedActionType::Commit,
                 Address::default(),
-                0,
+                None,
                 None,
                 None,
                 false,
@@ -1055,7 +1125,11 @@ mod tests {
         let mut tx_results = vec![];
         for (i, tx) in transactions.into_iter().enumerate() {
             conn.transactions_dal()
-                .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+                .insert_transaction_l2(
+                    &tx,
+                    TransactionExecutionMetrics::default(),
+                    ValidationTraces::default(),
+                )
                 .await
                 .unwrap();
             let mut tx_result = mock_execution_result(tx);
@@ -1084,8 +1158,9 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(traces.len(), 2);
-        for (trace, tx_result) in traces.iter().zip(&tx_results) {
+        for ((trace, meta), tx_result) in traces.iter().zip(&tx_results) {
             let expected_trace = tx_result.call_trace().unwrap();
+            assert_eq!(tx_result.hash, meta.tx_hash);
             assert_eq!(*trace, expected_trace);
         }
     }

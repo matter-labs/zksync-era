@@ -84,9 +84,9 @@ export async function getExternalNodeHealth(url: string) {
     }
 }
 
-export async function dropNodeData(env: { [key: string]: string }, useZkSupervisor?: boolean, chain?: string) {
-    if (useZkSupervisor) {
-        let cmd = 'zk_inception external-node init';
+export async function dropNodeData(env: { [key: string]: string }, useZkStack?: boolean, chain?: string) {
+    if (useZkStack) {
+        let cmd = 'zkstack external-node init';
         cmd += chain ? ` --chain ${chain}` : '';
         await executeNodeCommand(env, cmd);
     } else {
@@ -176,7 +176,7 @@ export class NodeProcess {
         logsFile: FileHandle | string,
         pathToHome: string,
         components: NodeComponents = NodeComponents.STANDARD,
-        useZkInception?: boolean,
+        useZkStack?: boolean,
         chain?: string
     ) {
         const logs = typeof logsFile === 'string' ? await fs.open(logsFile, 'a') : logsFile;
@@ -186,7 +186,7 @@ export class NodeProcess {
             stdio: ['ignore', logs.fd, logs.fd],
             cwd: pathToHome,
             env,
-            useZkInception,
+            useZkStack,
             chain
         });
 
@@ -271,7 +271,7 @@ export class FundedWallet {
         await depositTx.waitFinalize();
     }
 
-    /** Generates at least one L1 batch by transfering funds to itself. */
+    /** Generates at least one L1 batch by transferring funds to itself. */
     async generateL1Batch(): Promise<number> {
         const transactionResponse = await this.wallet.transfer({
             to: this.wallet.address,
@@ -279,15 +279,15 @@ export class FundedWallet {
             token: zksync.utils.ETH_ADDRESS
         });
         console.log('Generated a transaction from funded wallet', transactionResponse);
-        const receipt = await transactionResponse.wait();
-        console.log('Got finalized transaction receipt', receipt);
 
-        // Wait until an L1 batch with the transaction is sealed.
-        const pastL1BatchNumber = await this.wallet.provider.getL1BatchNumber();
-        let newL1BatchNumber: number;
-        while ((newL1BatchNumber = await this.wallet.provider.getL1BatchNumber()) <= pastL1BatchNumber) {
+        let receipt: zksync.types.TransactionReceipt;
+        while (!(receipt = await transactionResponse.wait()).l1BatchNumber) {
+            console.log('Transaction is not included in L1 batch; sleeping');
             await sleep(1000);
         }
+
+        console.log('Got finalized transaction receipt', receipt);
+        const newL1BatchNumber = receipt.l1BatchNumber;
         console.log(`Sealed L1 batch #${newL1BatchNumber}`);
         return newL1BatchNumber;
     }

@@ -1,8 +1,12 @@
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use zksync_utils::ZeroPrefixHexSerde;
+use zksync_basic_types::bytecode::BytecodeHash;
+use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 
-use crate::{ethabi, Address, EIP712TypedStructure, StructBuilder, H256, U256};
+use crate::{
+    ethabi, serde_wrappers::ZeroPrefixHexSerde, Address, EIP712TypedStructure, StructBuilder, H256,
+    U256,
+};
 
 /// This struct is the `serde` schema for the `Execute` struct.
 /// It allows us to modify `Execute` struct without worrying
@@ -15,7 +19,7 @@ use crate::{ethabi, Address, EIP712TypedStructure, StructBuilder, H256, U256};
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ExecuteSerde {
-    contract_address: Address,
+    contract_address: Option<Address>,
     #[serde(with = "ZeroPrefixHexSerde")]
     calldata: Vec<u8>,
     value: U256,
@@ -25,7 +29,7 @@ struct ExecuteSerde {
 /// `Execute` transaction executes a previously deployed smart contract in the L2 rollup.
 #[derive(Clone, Default, PartialEq)]
 pub struct Execute {
-    pub contract_address: Address,
+    pub contract_address: Option<Address>,
     pub calldata: Vec<u8>,
     pub value: U256,
     /// Factory dependencies: list of contract bytecodes associated with the deploy transaction.
@@ -72,7 +76,9 @@ impl EIP712TypedStructure for Execute {
     const TYPE_NAME: &'static str = "Transaction";
 
     fn build_structure<BUILDER: StructBuilder>(&self, builder: &mut BUILDER) {
-        builder.add_member("to", &U256::from(self.contract_address.as_bytes()));
+        if let Some(contract_address) = self.contract_address {
+            builder.add_member("to", &contract_address);
+        }
         builder.add_member("value", &self.value);
         builder.add_member("data", &self.calldata.as_slice());
         // Factory deps are not included into the transaction signature, since they are parsed from the
@@ -87,8 +93,7 @@ impl Execute {
         &self.calldata
     }
 
-    /// Prepares calldata to invoke deployer contract.
-    /// This method encodes parameters for the `create` method.
+    /// Prepares calldata to invoke deployer contract. This method encodes parameters for the `create` method.
     pub fn encode_deploy_params_create(
         salt: H256,
         contract_hash: H256,
@@ -113,5 +118,35 @@ impl Execute {
         ]);
 
         FUNCTION_SIGNATURE.iter().copied().chain(params).collect()
+    }
+
+    /// Creates an instance for deploying the specified bytecode without additional dependencies. If necessary,
+    /// additional deps can be added to `Self.factory_deps` after this call.
+    pub fn for_deploy(
+        salt: H256,
+        contract_bytecode: Vec<u8>,
+        constructor_input: &[ethabi::Token],
+    ) -> Self {
+        let bytecode_hash = BytecodeHash::for_bytecode(&contract_bytecode).value();
+        Self {
+            contract_address: Some(CONTRACT_DEPLOYER_ADDRESS),
+            calldata: Self::encode_deploy_params_create(
+                salt,
+                bytecode_hash,
+                ethabi::encode(constructor_input),
+            ),
+            value: 0.into(),
+            factory_deps: vec![contract_bytecode],
+        }
+    }
+
+    /// Creates an instance for transferring base token to the specified recipient.
+    pub fn transfer(to: Address, value: U256) -> Self {
+        Self {
+            contract_address: Some(to),
+            calldata: vec![],
+            value,
+            factory_deps: vec![],
+        }
     }
 }

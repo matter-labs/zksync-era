@@ -5,6 +5,8 @@ use std::time::Duration;
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 use zksync_multivm::interface::VmExecutionResultAndLogs;
 
+use crate::shared::InteractionType;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "command", rename_all = "snake_case")]
 pub(super) enum ExecutorCommand {
@@ -19,18 +21,15 @@ const GAS_PER_NANOSECOND_BUCKETS: Buckets = Buckets::values(&[
     0.01, 0.03, 0.1, 0.3, 0.5, 0.75, 1., 1.5, 3., 5., 10., 20., 50.,
 ]);
 
+const GAS_USED_BUCKETS: Buckets = Buckets::values(&[
+    10000., 25000., 45000., 70000., 100000., 150000., 225000., 350000., 500000.,
+]);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
 pub(super) enum TxExecutionStage {
     Execution,
     TxRollback,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
-#[metrics(label = "interaction", rename_all = "snake_case")]
-pub(super) enum InteractionType {
-    GetValue,
-    SetValue,
 }
 
 /// Executor-related metrics.
@@ -42,8 +41,14 @@ pub(super) struct ExecutorMetrics {
     pub batch_executor_command_response_time: Family<ExecutorCommand, Histogram<Duration>>,
     #[metrics(buckets = GAS_PER_NANOSECOND_BUCKETS)]
     pub computational_gas_per_nanosecond: Histogram<f64>,
+    /// Computational gas used, per transaction.
+    #[metrics(buckets = GAS_USED_BUCKETS)]
+    pub computational_gas_used: Histogram<u64>,
     #[metrics(buckets = GAS_PER_NANOSECOND_BUCKETS)]
     pub failed_tx_gas_limit_per_nanosecond: Histogram<f64>,
+    /// Gas limit, per failed transaction.
+    #[metrics(buckets = GAS_USED_BUCKETS)]
+    pub failed_tx_gas_limit: Histogram<u64>,
     /// Cumulative latency of interacting with the storage when executing a transaction
     /// in the batch executor.
     #[metrics(buckets = Buckets::LATENCIES)]

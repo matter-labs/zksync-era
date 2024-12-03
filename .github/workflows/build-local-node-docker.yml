@@ -16,7 +16,7 @@ on:
 jobs:
   build-images:
     name: Local Node - Build and Push Docker Image
-    runs-on: [matterlabs-ci-runner-high-performance]
+    runs-on: [ matterlabs-ci-runner-high-performance ]
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
@@ -50,9 +50,13 @@ jobs:
 
       - name: start-services
         run: |
-          mkdir -p ./volumes/postgres
           run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
+        
+      - name: Install zkstack
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
+          ci_run zkstackup -g
 
       - name: init
         run: |
@@ -62,8 +66,10 @@ jobs:
 
           ci_run zk
           ci_run cp etc/tokens/{test,localhost}.json
-          ci_run zk compiler all
-          ci_run zk contract build
+
+      - name: build contracts
+        run: |
+          ci_run zkstack dev contracts 
 
       - name: update-image
         run: |

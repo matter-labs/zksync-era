@@ -2,27 +2,27 @@
 //! protocol upgrades etc.
 //! New events are accepted to the ZKsync network once they have the sufficient amount of L1 confirmations.
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
+use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     ethabi::Contract, protocol_version::ProtocolSemanticVersion,
-    web3::BlockNumber as Web3BlockNumber, Address, PriorityOpId,
+    web3::BlockNumber as Web3BlockNumber, L1BatchNumber, L2ChainId, PriorityOpId,
 };
 
-pub use self::client::EthHttpQueryClient;
+pub use self::client::{EthClient, EthHttpQueryClient, L2EthClient};
 use self::{
-    client::{EthClient, RETRY_LIMIT},
-    event_processors::{
-        EventProcessor, EventProcessorError, GovernanceUpgradesEventProcessor,
-        PriorityOpsEventProcessor,
-    },
-    metrics::{PollStage, METRICS},
+    client::{L2EthClientW, RETRY_LIMIT},
+    event_processors::{EventProcessor, EventProcessorError, PriorityOpsEventProcessor},
+    metrics::METRICS,
 };
-use crate::event_processors::DecentralizedUpgradesEventProcessor;
+use crate::event_processors::{
+    BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventsSource,
+};
 
 mod client;
 mod event_processors;
@@ -34,69 +34,76 @@ mod tests;
 struct EthWatchState {
     last_seen_protocol_version: ProtocolSemanticVersion,
     next_expected_priority_id: PriorityOpId,
-    last_processed_ethereum_block: u64,
+    chain_batch_root_number_lower_bound: L1BatchNumber,
+    batch_merkle_tree: MiniMerkleTree<[u8; 96]>,
 }
 
 /// Ethereum watcher component.
 #[derive(Debug)]
 pub struct EthWatch {
-    client: Box<dyn EthClient>,
+    l1_client: Arc<dyn EthClient>,
+    sl_client: Arc<dyn EthClient>,
     poll_interval: Duration,
     event_processors: Vec<Box<dyn EventProcessor>>,
-    last_processed_ethereum_block: u64,
     pool: ConnectionPool<Core>,
 }
 
 impl EthWatch {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
-        diamond_proxy_addr: Address,
-        governance_contract: &Contract,
         chain_admin_contract: &Contract,
-        mut client: Box<dyn EthClient>,
+        l1_client: Box<dyn EthClient>,
+        sl_l2_client: Option<Box<dyn L2EthClient>>,
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
+        chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         let mut storage = pool.connection_tagged("eth_watch").await?;
-        let state = Self::initialize_state(&*client, &mut storage).await?;
+        let l1_client: Arc<dyn EthClient> = l1_client.into();
+        let sl_l2_client: Option<Arc<dyn L2EthClient>> = sl_l2_client.map(Into::into);
+        let sl_client: Arc<dyn EthClient> = if let Some(sl_l2_client) = sl_l2_client.clone() {
+            Arc::new(L2EthClientW(sl_l2_client))
+        } else {
+            l1_client.clone()
+        };
+
+        let state = Self::initialize_state(&mut storage, sl_client.as_ref()).await?;
         tracing::info!("initialized state: {state:?}");
         drop(storage);
 
         let priority_ops_processor =
-            PriorityOpsEventProcessor::new(state.next_expected_priority_id)?;
-        let governance_upgrades_processor = GovernanceUpgradesEventProcessor::new(
-            diamond_proxy_addr,
-            state.last_seen_protocol_version,
-            governance_contract,
-        );
+            PriorityOpsEventProcessor::new(state.next_expected_priority_id, sl_client.clone())?;
         let decentralized_upgrades_processor = DecentralizedUpgradesEventProcessor::new(
             state.last_seen_protocol_version,
             chain_admin_contract,
+            sl_client.clone(),
         );
-        let event_processors: Vec<Box<dyn EventProcessor>> = vec![
+        let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
-            Box::new(governance_upgrades_processor),
             Box::new(decentralized_upgrades_processor),
         ];
-
-        let topics = event_processors
-            .iter()
-            .map(|processor| processor.relevant_topic())
-            .collect();
-        client.set_topics(topics);
-
+        if let Some(sl_l2_client) = sl_l2_client {
+            let batch_root_processor = BatchRootProcessor::new(
+                state.chain_batch_root_number_lower_bound,
+                state.batch_merkle_tree,
+                chain_id,
+                sl_l2_client,
+            );
+            event_processors.push(Box::new(batch_root_processor));
+        }
         Ok(Self {
-            client,
+            l1_client,
+            sl_client,
             poll_interval,
             event_processors,
-            last_processed_ethereum_block: state.last_processed_ethereum_block,
             pool,
         })
     }
 
     #[tracing::instrument(name = "EthWatch::initialize_state", skip_all)]
     async fn initialize_state(
-        client: &dyn EthClient,
         storage: &mut Connection<'_, Core>,
+        sl_client: &dyn EthClient,
     ) -> anyhow::Result<EthWatchState> {
         let next_expected_priority_id: PriorityOpId = storage
             .transactions_dal()
@@ -110,26 +117,26 @@ impl EthWatch {
             .await?
             .context("expected at least one (genesis) version to be present in DB")?;
 
-        let last_processed_ethereum_block = match storage
-            .transactions_dal()
-            .get_last_processed_l1_block()
-            .await?
-        {
-            // There are some priority ops processed - start from the last processed eth block
-            // but subtract 1 in case the server stopped mid-block.
-            Some(block) => block.0.saturating_sub(1).into(),
-            // There are no priority ops processed - to be safe, scan the last 50k blocks.
-            None => client
-                .finalized_block_number()
-                .await
-                .context("cannot get current Ethereum block")?
-                .saturating_sub(PRIORITY_EXPIRATION),
-        };
+        let sl_chain_id = sl_client.chain_id().await?;
+        let batch_hashes = storage
+            .blocks_dal()
+            .get_executed_batch_roots_on_sl(sl_chain_id)
+            .await?;
+
+        let chain_batch_root_number_lower_bound = batch_hashes
+            .last()
+            .map(|(n, _)| *n + 1)
+            .unwrap_or(L1BatchNumber(0));
+        let tree_leaves = batch_hashes.into_iter().map(|(batch_number, batch_root)| {
+            BatchRootProcessor::batch_leaf_preimage(batch_root, batch_number)
+        });
+        let batch_merkle_tree = MiniMerkleTree::new(tree_leaves, None);
 
         Ok(EthWatchState {
             next_expected_priority_id,
             last_seen_protocol_version,
-            last_processed_ethereum_block,
+            chain_batch_root_number_lower_bound,
+            batch_merkle_tree,
         })
     }
 
@@ -155,10 +162,6 @@ impl EthWatch {
                     // This is an error because otherwise we could potentially miss a priority operation
                     // thus entering priority mode, which is not desired.
                     tracing::error!("Failed to process new blocks: {err}");
-                    self.last_processed_ethereum_block =
-                        Self::initialize_state(&*self.client, &mut storage)
-                            .await?
-                            .last_processed_ethereum_block;
                 }
             }
         }
@@ -172,34 +175,69 @@ impl EthWatch {
         &mut self,
         storage: &mut Connection<'_, Core>,
     ) -> Result<(), EventProcessorError> {
-        let stage_latency = METRICS.poll_eth_node[&PollStage::Request].start();
-        let to_block = self.client.finalized_block_number().await?;
-        if to_block <= self.last_processed_ethereum_block {
-            return Ok(());
-        }
-
-        let events = self
-            .client
-            .get_events(
-                Web3BlockNumber::Number(self.last_processed_ethereum_block.into()),
-                Web3BlockNumber::Number(to_block.into()),
-                RETRY_LIMIT,
-            )
-            .await?;
-        stage_latency.observe();
-
         for processor in &mut self.event_processors {
-            let relevant_topic = processor.relevant_topic();
-            let processor_events = events
-                .iter()
-                .filter(|event| event.topics.first() == Some(&relevant_topic))
-                .cloned()
-                .collect();
-            processor
-                .process_events(storage, &*self.client, processor_events)
+            let client = match processor.event_source() {
+                EventsSource::L1 => self.l1_client.as_ref(),
+                EventsSource::SL => self.sl_client.as_ref(),
+            };
+            let chain_id = client.chain_id().await?;
+            let to_block = if processor.only_finalized_block() {
+                client.finalized_block_number().await?
+            } else {
+                client.confirmed_block_number().await?
+            };
+
+            let from_block = storage
+                .eth_watcher_dal()
+                .get_or_set_next_block_to_process(
+                    processor.event_type(),
+                    chain_id,
+                    to_block.saturating_sub(PRIORITY_EXPIRATION),
+                )
+                .await
+                .map_err(DalError::generalize)?;
+
+            // There are no new blocks so there is nothing to be done
+            if from_block > to_block {
+                continue;
+            }
+
+            let processor_events = client
+                .get_events(
+                    Web3BlockNumber::Number(from_block.into()),
+                    Web3BlockNumber::Number(to_block.into()),
+                    processor.topic1(),
+                    processor.topic2(),
+                    RETRY_LIMIT,
+                )
                 .await?;
+            let processed_events_count = processor
+                .process_events(storage, processor_events.clone())
+                .await?;
+
+            let next_block_to_process = if processed_events_count == processor_events.len() {
+                to_block + 1
+            } else if processed_events_count == 0 {
+                //nothing was processed
+                from_block
+            } else {
+                processor_events[processed_events_count - 1]
+                    .block_number
+                    .expect("Event block number is missing")
+                    .try_into()
+                    .unwrap()
+            };
+
+            storage
+                .eth_watcher_dal()
+                .update_next_block_to_process(
+                    processor.event_type(),
+                    chain_id,
+                    next_block_to_process,
+                )
+                .await
+                .map_err(DalError::generalize)?;
         }
-        self.last_processed_ethereum_block = to_block;
         Ok(())
     }
 }

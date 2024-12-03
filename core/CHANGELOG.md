@@ -1,5 +1,252 @@
 # Changelog
 
+## [25.2.0](https://github.com/matter-labs/zksync-era/compare/core-v25.1.0...core-v25.2.0) (2024-11-19)
+
+
+### Features
+
+* add more metrics for the tee_prover ([#3276](https://github.com/matter-labs/zksync-era/issues/3276)) ([8b62434](https://github.com/matter-labs/zksync-era/commit/8b62434a3b48aea2e66b5dd833f52c58e26969cb))
+* **api-server:** add `yParity` for non-legacy txs ([#3246](https://github.com/matter-labs/zksync-era/issues/3246)) ([6ea36d1](https://github.com/matter-labs/zksync-era/commit/6ea36d14940a19f638512556ccc4c5127150b5c9))
+* **consensus:** fallback json rpc syncing for consensus ([#3211](https://github.com/matter-labs/zksync-era/issues/3211)) ([726203b](https://github.com/matter-labs/zksync-era/commit/726203bab540e3d6ada10b6bc12bd3c09220d895))
+* **contract-verifier:** Adapt contract verifier API for EVM bytecodes ([#3234](https://github.com/matter-labs/zksync-era/issues/3234)) ([4509179](https://github.com/matter-labs/zksync-era/commit/4509179f62ead4b837dfb67760f52de76fac2e37))
+* **contract-verifier:** Support Solidity contracts with EVM bytecode in contract verifier ([#3225](https://github.com/matter-labs/zksync-era/issues/3225)) ([8a3a82c](https://github.com/matter-labs/zksync-era/commit/8a3a82ca16479183e96505bc91011fc07bfc6889))
+* **contract-verifier:** Support Vyper toolchain for EVM bytecodes ([#3251](https://github.com/matter-labs/zksync-era/issues/3251)) ([75f7db9](https://github.com/matter-labs/zksync-era/commit/75f7db9b535b4dee4c6662be609aec996555383c))
+* **en:** Support Merkle tree recovery with pruning enabled ([#3172](https://github.com/matter-labs/zksync-era/issues/3172)) ([7b8640a](https://github.com/matter-labs/zksync-era/commit/7b8640a89fa8666e14934481317c94f07280e591))
+* ProverJobProcessor & circuit prover ([#3287](https://github.com/matter-labs/zksync-era/issues/3287)) ([98823f9](https://github.com/matter-labs/zksync-era/commit/98823f95c0b95feeb37eb9086cc88d4ac5220904))
+* **prover:** Move prover_autoscaler config into crate ([#3222](https://github.com/matter-labs/zksync-era/issues/3222)) ([1b33b5e](https://github.com/matter-labs/zksync-era/commit/1b33b5e9ec04bea0010350798332a90413c482d3))
+* **vm_executor:** Add new histogram metric for gas per tx in vm_executor ([#3215](https://github.com/matter-labs/zksync-era/issues/3215)) ([3606fc1](https://github.com/matter-labs/zksync-era/commit/3606fc1d8f103b4f7174301f9a985ace2b89038d))
+* **vm:** add gateway changes to fast vm ([#3236](https://github.com/matter-labs/zksync-era/issues/3236)) ([f3a2517](https://github.com/matter-labs/zksync-era/commit/f3a2517a132b036ca70bc18aa8ac9f6da1cbc049))
+
+
+### Bug Fixes
+
+* **merkle-tree:** Repair stale keys for tree in background ([#3200](https://github.com/matter-labs/zksync-era/issues/3200)) ([363b4f0](https://github.com/matter-labs/zksync-era/commit/363b4f09937496fadeb38857f5c0c73146995ce5))
+* **tracer:** Add error to flat tracer ([#3306](https://github.com/matter-labs/zksync-era/issues/3306)) ([7c93c47](https://github.com/matter-labs/zksync-era/commit/7c93c47916845a90fc5a092e1465567aae611307))
+* use_dummy_inclusion_data condition ([#3244](https://github.com/matter-labs/zksync-era/issues/3244)) ([6e3c36e](https://github.com/matter-labs/zksync-era/commit/6e3c36e6426621bee82399db7814ca6756b613cb))
+* **vm:** Do not require experimental VM config ([#3270](https://github.com/matter-labs/zksync-era/issues/3270)) ([54e4b00](https://github.com/matter-labs/zksync-era/commit/54e4b007b2d32d86b2701b01cd3bef3b3bc97087))
+
+## [25.1.0](https://github.com/matter-labs/zksync-era/compare/core-v25.0.0...core-v25.1.0) (2024-11-04)
+
+
+### Features
+
+* add `block.timestamp` asserter for AA ([#3031](https://github.com/matter-labs/zksync-era/issues/3031)) ([069d38d](https://github.com/matter-labs/zksync-era/commit/069d38d6c9ddd8b6c404596c479f94b9fc86db40))
+* allow vm2 tracers to stop execution ([#3183](https://github.com/matter-labs/zksync-era/issues/3183)) ([9dae839](https://github.com/matter-labs/zksync-era/commit/9dae839935d82a1e73be220d17567f3382131039))
+* **api:** get rid of tx receipt root ([#3187](https://github.com/matter-labs/zksync-era/issues/3187)) ([6c034f6](https://github.com/matter-labs/zksync-era/commit/6c034f6e180cc92e99766f14c8840c90efa56cec))
+* **api:** Integrate new VM into API server (no tracers) ([#3033](https://github.com/matter-labs/zksync-era/issues/3033)) ([8e75d4b](https://github.com/matter-labs/zksync-era/commit/8e75d4b812b21bc26e2c38ceeb711a8a530d7bc2))
+* base token integration tests ([#2509](https://github.com/matter-labs/zksync-era/issues/2509)) ([8db7e93](https://github.com/matter-labs/zksync-era/commit/8db7e9306e5fa23f066be106363e6455531bbc09))
+* **consensus:** enabled syncing pregenesis blocks over p2p ([#3192](https://github.com/matter-labs/zksync-era/issues/3192)) ([6adb224](https://github.com/matter-labs/zksync-era/commit/6adb2249ff0946ec6d02f25437c9f71b1079ad79))
+* **da-clients:** add Celestia client ([#2983](https://github.com/matter-labs/zksync-era/issues/2983)) ([d88b875](https://github.com/matter-labs/zksync-era/commit/d88b875464ec5ac7e54aba0cc7c0a68c01969782))
+* **da-clients:** add EigenDA client ([#3155](https://github.com/matter-labs/zksync-era/issues/3155)) ([5161eed](https://github.com/matter-labs/zksync-era/commit/5161eeda5905d33f4d038a2a04ced3e06f39d593))
+* gateway preparation ([#3006](https://github.com/matter-labs/zksync-era/issues/3006)) ([16f2757](https://github.com/matter-labs/zksync-era/commit/16f275756cd28024a6b11ac1ac327eb5b8b446e1))
+* Implement gas relay mode and inclusion data for data attestation ([#3070](https://github.com/matter-labs/zksync-era/issues/3070)) ([561fc1b](https://github.com/matter-labs/zksync-era/commit/561fc1bddfc79061dab9d8d150baa06acfa90692))
+* **metadata-calculator:** Add debug endpoints for tree API ([#3167](https://github.com/matter-labs/zksync-era/issues/3167)) ([3815252](https://github.com/matter-labs/zksync-era/commit/3815252790fd0e9094f308b58dfde3a8b1a82277))
+* **proof-data-handler:** add first processed batch option ([#3112](https://github.com/matter-labs/zksync-era/issues/3112)) ([1eb69d4](https://github.com/matter-labs/zksync-era/commit/1eb69d467802d07f3fc6502de97ff04a69f952fc))
+* **proof-data-handler:** add tee_proof_generation_timeout_in_secs param ([#3128](https://github.com/matter-labs/zksync-era/issues/3128)) ([f3724a7](https://github.com/matter-labs/zksync-era/commit/f3724a71c7466451d380981b05d68d8afd70cdca))
+* **prover:** Add queue metric to report autoscaler view of the queue. ([#3206](https://github.com/matter-labs/zksync-era/issues/3206)) ([2721396](https://github.com/matter-labs/zksync-era/commit/272139690e028d3bdebdb6bcb1824fec23cefd0f))
+* **prover:** Add sending scale requests for Scaler targets ([#3194](https://github.com/matter-labs/zksync-era/issues/3194)) ([767c5bc](https://github.com/matter-labs/zksync-era/commit/767c5bc6a62c402c099abe93b7dbecbb59e4acb7))
+* **prover:** Add support for scaling WGs and compressor ([#3179](https://github.com/matter-labs/zksync-era/issues/3179)) ([c41db9e](https://github.com/matter-labs/zksync-era/commit/c41db9ecec1c21b80969604f703ac6990f6f3434))
+* **vm:** Support EVM emulation in fast VM ([#3163](https://github.com/matter-labs/zksync-era/issues/3163)) ([9ad1f0d](https://github.com/matter-labs/zksync-era/commit/9ad1f0d77e5a5b411f7866ef6a1819373c07f91b))
+
+
+### Bug Fixes
+
+* **consensus:** better logging of errors ([#3170](https://github.com/matter-labs/zksync-era/issues/3170)) ([a5028da](https://github.com/matter-labs/zksync-era/commit/a5028da65608898ad41c6a4fd5c6ec4c28a45703))
+* **consensus:** made attestation controller non-critical ([#3180](https://github.com/matter-labs/zksync-era/issues/3180)) ([6ee9f1f](https://github.com/matter-labs/zksync-era/commit/6ee9f1f431f95514d58db87a4562e09df9d09f86))
+* **consensus:** payload encoding protected by protocol_version ([#3168](https://github.com/matter-labs/zksync-era/issues/3168)) ([8089b78](https://github.com/matter-labs/zksync-era/commit/8089b78b3f2cdbe8d0a23e9b8412a8022d78ada2))
+* **da-clients:** add padding to the data within EigenDA blob ([#3203](https://github.com/matter-labs/zksync-era/issues/3203)) ([8ae06b2](https://github.com/matter-labs/zksync-era/commit/8ae06b237647715937fb3656d881c0fd460f2a07))
+* **da-clients:** enable tls-roots feature for tonic ([#3201](https://github.com/matter-labs/zksync-era/issues/3201)) ([42f177a](https://github.com/matter-labs/zksync-era/commit/42f177ac43b86cd24321ad9222121fc8a91c49e0))
+* extend allowed storage slots for validation as per EIP-7562 ([#3166](https://github.com/matter-labs/zksync-era/issues/3166)) ([c76da16](https://github.com/matter-labs/zksync-era/commit/c76da16efc769243a02c6e859376182d95ab941d))
+* **merkle-tree:** Fix tree truncation ([#3178](https://github.com/matter-labs/zksync-era/issues/3178)) ([9654097](https://github.com/matter-labs/zksync-era/commit/96540975d917761d8e464ebbdf52704955bcd898))
+* **tee_prover:** add prometheus pull listener ([#3169](https://github.com/matter-labs/zksync-era/issues/3169)) ([1ffd22f](https://github.com/matter-labs/zksync-era/commit/1ffd22ffbe710469de0e7f27c6aae29453ec6d3e))
+* update logging in cbt l1 behaviour ([#3149](https://github.com/matter-labs/zksync-era/issues/3149)) ([d0f61b0](https://github.com/matter-labs/zksync-era/commit/d0f61b0552dcacc2e8e33fdbcae6f1e5fbb43820))
+
+## [25.0.0](https://github.com/matter-labs/zksync-era/compare/core-v24.29.0...core-v25.0.0) (2024-10-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* **contracts:** integrate protocol defense changes ([#2737](https://github.com/matter-labs/zksync-era/issues/2737))
+
+### Features
+
+* Add CoinMarketCap external API ([#2971](https://github.com/matter-labs/zksync-era/issues/2971)) ([c1cb30e](https://github.com/matter-labs/zksync-era/commit/c1cb30e59ca1d0b5fea5fe0980082aea0eb04aa2))
+* **api:** Implement eth_maxPriorityFeePerGas ([#3135](https://github.com/matter-labs/zksync-era/issues/3135)) ([35e84cc](https://github.com/matter-labs/zksync-era/commit/35e84cc03a7fdd315932fb3020fe41c95a6e4bca))
+* **api:** Make acceptable values cache lag configurable ([#3028](https://github.com/matter-labs/zksync-era/issues/3028)) ([6747529](https://github.com/matter-labs/zksync-era/commit/67475292ff770d2edd6884be27f976a4144778ae))
+* **contracts:** integrate protocol defense changes ([#2737](https://github.com/matter-labs/zksync-era/issues/2737)) ([c60a348](https://github.com/matter-labs/zksync-era/commit/c60a3482ee09b3e371163e62f49e83bc6d6f4548))
+* **external-node:** save protocol version before opening a batch ([#3136](https://github.com/matter-labs/zksync-era/issues/3136)) ([d6de4f4](https://github.com/matter-labs/zksync-era/commit/d6de4f40ddce339c760c95e2bf4b8aceb571af7f))
+* Prover e2e test ([#2975](https://github.com/matter-labs/zksync-era/issues/2975)) ([0edd796](https://github.com/matter-labs/zksync-era/commit/0edd7962429b3530ae751bd7cc947c97193dd0ca))
+* **prover:** Add min_provers and dry_run features. Improve metrics and test. ([#3129](https://github.com/matter-labs/zksync-era/issues/3129)) ([7c28964](https://github.com/matter-labs/zksync-era/commit/7c289649b7b3c418c7193a35b51c264cf4970f3c))
+* **tee_verifier:** speedup SQL query for new jobs ([#3133](https://github.com/matter-labs/zksync-era/issues/3133)) ([30ceee8](https://github.com/matter-labs/zksync-era/commit/30ceee8a48046e349ff0234ebb24d468a0e0876c))
+* vm2 tracers can access storage ([#3114](https://github.com/matter-labs/zksync-era/issues/3114)) ([e466b52](https://github.com/matter-labs/zksync-era/commit/e466b52948e3c4ed1cb5af4fd999a52028e4d216))
+* **vm:** Return compressed bytecodes from `push_transaction()` ([#3126](https://github.com/matter-labs/zksync-era/issues/3126)) ([37f209f](https://github.com/matter-labs/zksync-era/commit/37f209fec8e7cb65c0e60003d46b9ea69c43caf1))
+
+
+### Bug Fixes
+
+* **call_tracer:** Flat call tracer fixes for blocks ([#3095](https://github.com/matter-labs/zksync-era/issues/3095)) ([30ddb29](https://github.com/matter-labs/zksync-era/commit/30ddb292977340beab37a81f75c35480cbdd59d3))
+* **consensus:** preventing config update reverts ([#3148](https://github.com/matter-labs/zksync-era/issues/3148)) ([caee55f](https://github.com/matter-labs/zksync-era/commit/caee55fef4eed0ec58cceaeba277bbdedf5c6f51))
+* **en:** Return `SyncState` health check ([#3142](https://github.com/matter-labs/zksync-era/issues/3142)) ([abeee81](https://github.com/matter-labs/zksync-era/commit/abeee8190d3c3a5e577d71024bdfb30ff516ad03))
+* **external-node:** delete empty unsealed batch on EN initialization ([#3125](https://github.com/matter-labs/zksync-era/issues/3125)) ([5d5214b](https://github.com/matter-labs/zksync-era/commit/5d5214ba983823b306495d34fdd1d46abacce07a))
+* Fix counter metric type to be Counter. ([#3153](https://github.com/matter-labs/zksync-era/issues/3153)) ([08a3fe7](https://github.com/matter-labs/zksync-era/commit/08a3fe7ffd0410c51334193068649905337d5e84))
+* **mempool:** minor mempool improvements ([#3113](https://github.com/matter-labs/zksync-era/issues/3113)) ([cd16083](https://github.com/matter-labs/zksync-era/commit/cd160830a0b7ebe5af4ecbd944da1cd51af3528a))
+* **prover:** Run for zero queue to allow scaling down to 0 ([#3115](https://github.com/matter-labs/zksync-era/issues/3115)) ([bbe1919](https://github.com/matter-labs/zksync-era/commit/bbe191937fa5c5711a7164fd4f0c2ae65cda0833))
+* restore instruction count functionality ([#3081](https://github.com/matter-labs/zksync-era/issues/3081)) ([6159f75](https://github.com/matter-labs/zksync-era/commit/6159f7531a0340a69c4926c4e0325811ed7cabb8))
+* **state-keeper:** save call trace for upgrade txs ([#3132](https://github.com/matter-labs/zksync-era/issues/3132)) ([e1c363f](https://github.com/matter-labs/zksync-era/commit/e1c363f8f5e03c8d62bba1523f17b87d6a0e25ad))
+* **tee_prover:** add zstd compression ([#3144](https://github.com/matter-labs/zksync-era/issues/3144)) ([7241ae1](https://github.com/matter-labs/zksync-era/commit/7241ae139b2b6bf9a9966eaa2f22203583a3786f))
+* **tee_verifier:** correctly initialize storage for re-execution ([#3017](https://github.com/matter-labs/zksync-era/issues/3017)) ([9d88373](https://github.com/matter-labs/zksync-era/commit/9d88373f1b745c489e98e5ef542644a70e815498))
+
+## [24.29.0](https://github.com/matter-labs/zksync-era/compare/core-v24.28.0...core-v24.29.0) (2024-10-14)
+
+
+### Features
+
+* Add  initial version prover_autoscaler ([#2993](https://github.com/matter-labs/zksync-era/issues/2993)) ([ebf9604](https://github.com/matter-labs/zksync-era/commit/ebf9604c5ab2a1cae1ffd2f9c922f35a1d0ad876))
+* add metric to track current cbt ratio ([#3020](https://github.com/matter-labs/zksync-era/issues/3020)) ([3fd2fb1](https://github.com/matter-labs/zksync-era/commit/3fd2fb14e7283c6858731e162522e70051a8e162))
+* **configs:** Add port parameter to ConsensusConfig ([#2986](https://github.com/matter-labs/zksync-era/issues/2986)) ([25112df](https://github.com/matter-labs/zksync-era/commit/25112df39d052f083bc45964f0298b3af5842cac))
+* **configs:** Add port parameter to ConsensusConfig ([#3051](https://github.com/matter-labs/zksync-era/issues/3051)) ([038c397](https://github.com/matter-labs/zksync-era/commit/038c397ce842601da5109c460b09dbf9d51cf2fc))
+* **consensus:** smooth transition to p2p syncing (BFT-515) ([#3075](https://github.com/matter-labs/zksync-era/issues/3075)) ([5d339b4](https://github.com/matter-labs/zksync-era/commit/5d339b46fee66bc3a45493586626d318380680dd))
+* **consensus:** Support for syncing blocks before consensus genesis over p2p network ([#3040](https://github.com/matter-labs/zksync-era/issues/3040)) ([d3edc3d](https://github.com/matter-labs/zksync-era/commit/d3edc3d817c151ed00d4fa822fdae0a746e33356))
+* **en:** periodically fetch bridge addresses ([#2949](https://github.com/matter-labs/zksync-era/issues/2949)) ([e984bfb](https://github.com/matter-labs/zksync-era/commit/e984bfb8a243bc746549ab9347dc0a367fe02790))
+* **eth-sender:** add time_in_mempool_cap config ([#3018](https://github.com/matter-labs/zksync-era/issues/3018)) ([f6d86bd](https://github.com/matter-labs/zksync-era/commit/f6d86bd7935a1cdbb528b13437424031fda3cb8e))
+* **eth-watch:** catch another reth error ([#3026](https://github.com/matter-labs/zksync-era/issues/3026)) ([4640c42](https://github.com/matter-labs/zksync-era/commit/4640c4233af46c97f207d2dbce5fedd1bcb66c43))
+* Handle new yul compilation flow ([#3038](https://github.com/matter-labs/zksync-era/issues/3038)) ([4035361](https://github.com/matter-labs/zksync-era/commit/40353616f278800dc80fcbe5f2a6483019033b20))
+* **state-keeper:** pre-insert unsealed L1 batches ([#2846](https://github.com/matter-labs/zksync-era/issues/2846)) ([e5b5a3b](https://github.com/matter-labs/zksync-era/commit/e5b5a3b7b62e8d4035fe89c2a287bf3606d17bc5))
+* **vm:** EVM emulator support – base ([#2979](https://github.com/matter-labs/zksync-era/issues/2979)) ([deafa46](https://github.com/matter-labs/zksync-era/commit/deafa460715334a77edf9fe8aa76fa90029342c4))
+* **zk_toolbox:** added support for setting attester committee defined in a separate file ([#2992](https://github.com/matter-labs/zksync-era/issues/2992)) ([6105514](https://github.com/matter-labs/zksync-era/commit/610551427d5ab129f91e69b5efb318da917457d7))
+* **zk_toolbox:** Redesign zk_toolbox commands ([#3003](https://github.com/matter-labs/zksync-era/issues/3003)) ([114834f](https://github.com/matter-labs/zksync-era/commit/114834f357421c62d596a1954fac8ce615cfde49))
+* **zktoolbox:** added checking the contract owner in set-attester-committee command ([#3061](https://github.com/matter-labs/zksync-era/issues/3061)) ([9b0a606](https://github.com/matter-labs/zksync-era/commit/9b0a6067923c5276f560f3abccedc4e6a5167dda))
+
+
+### Bug Fixes
+
+* **api:** Accept integer block count in `eth_feeHistory` ([#3077](https://github.com/matter-labs/zksync-era/issues/3077)) ([4d527d4](https://github.com/matter-labs/zksync-era/commit/4d527d4b44b6b083e2a813d48c79d8021ea6f843))
+* **api:** Adapt `eth_getCode` to EVM emulator ([#3073](https://github.com/matter-labs/zksync-era/issues/3073)) ([15fe5a6](https://github.com/matter-labs/zksync-era/commit/15fe5a62f03cd103afd7fa5eb03e27db25686ba9))
+* bincode deserialization for VM run data ([#3044](https://github.com/matter-labs/zksync-era/issues/3044)) ([b0ec79f](https://github.com/matter-labs/zksync-era/commit/b0ec79fcb7fa120f095d987f53c67fdab92e2c79))
+* bincode deserialize for WitnessInputData ([#3055](https://github.com/matter-labs/zksync-era/issues/3055)) ([91d0595](https://github.com/matter-labs/zksync-era/commit/91d0595631cc5f5bffc42a4b04d5015d2be659b1))
+* **external-node:** make fetcher rely on unsealed batches  ([#3088](https://github.com/matter-labs/zksync-era/issues/3088)) ([bb5d147](https://github.com/matter-labs/zksync-era/commit/bb5d1470d5e1e8e69d9b79c60284ea8adaee4038))
+* **state-keeper:** ensure unsealed batch is present during IO init ([#3071](https://github.com/matter-labs/zksync-era/issues/3071)) ([bdeb411](https://github.com/matter-labs/zksync-era/commit/bdeb411c593ac3d5e16158e64c4210bb00edcb0c))
+* **vm:** Check protocol version for fast VM ([#3080](https://github.com/matter-labs/zksync-era/issues/3080)) ([a089f3f](https://github.com/matter-labs/zksync-era/commit/a089f3feb916ccc9007d9c32ec909db694b7d9f4))
+* **vm:** Prepare new VM for use in API server and fix divergences ([#2994](https://github.com/matter-labs/zksync-era/issues/2994)) ([741b77e](https://github.com/matter-labs/zksync-era/commit/741b77e080f75c6a93d3ee779b1c9ce4297618f9))
+
+
+### Reverts
+
+* **configs:** Add port parameter to ConsensusConfig ([#2986](https://github.com/matter-labs/zksync-era/issues/2986)) ([#3046](https://github.com/matter-labs/zksync-era/issues/3046)) ([abe35bf](https://github.com/matter-labs/zksync-era/commit/abe35bf7aea1120b77fdbd413d927e45da48d26c))
+
+## [24.28.0](https://github.com/matter-labs/zksync-era/compare/core-v24.27.0...core-v24.28.0) (2024-10-02)
+
+
+### Features
+
+* **da-clients:** add secrets ([#2954](https://github.com/matter-labs/zksync-era/issues/2954)) ([f4631e4](https://github.com/matter-labs/zksync-era/commit/f4631e4466de620cc1401b326d864cdb8b48a05d))
+* **eth-sender:** add a cap to time_in_mempool ([#2978](https://github.com/matter-labs/zksync-era/issues/2978)) ([650d42f](https://github.com/matter-labs/zksync-era/commit/650d42fea6124d80b60a8270a303d72ad6ac741e))
+* **eth-watch:** redesign to support multiple chains ([#2867](https://github.com/matter-labs/zksync-era/issues/2867)) ([aa72d84](https://github.com/matter-labs/zksync-era/commit/aa72d849c24a664acd083eba73795ddc5d31d55f))
+* Expose http debug page ([#2952](https://github.com/matter-labs/zksync-era/issues/2952)) ([e0b6488](https://github.com/matter-labs/zksync-era/commit/e0b64888aae7324aec2d40fa0cd51ea7e1450cd9))
+* **zk_toolbox:** add fees integration test to toolbox ([#2898](https://github.com/matter-labs/zksync-era/issues/2898)) ([e7ead76](https://github.com/matter-labs/zksync-era/commit/e7ead760ce0417dd36af3839ac557f7e9ab238a4))
+* **zk_toolbox:** Add SQL format for zk supervisor ([#2950](https://github.com/matter-labs/zksync-era/issues/2950)) ([540e5d7](https://github.com/matter-labs/zksync-era/commit/540e5d7554f54e80d52f1bfae37e03ca8f787baf))
+
+
+### Bug Fixes
+
+* **api:** Fix batch fee input for `debug` namespace ([#2948](https://github.com/matter-labs/zksync-era/issues/2948)) ([79b6fcf](https://github.com/matter-labs/zksync-era/commit/79b6fcf8b5d10a0ccdceb846370dd6870b6a32b5))
+* chainstack block limit exceeded ([#2974](https://github.com/matter-labs/zksync-era/issues/2974)) ([4ffbf42](https://github.com/matter-labs/zksync-era/commit/4ffbf426de166c11aaf5d7b5ed7d199644fba229))
+* **eth-watch:** add missing check that from_block is not larger than finalized_block ([#2969](https://github.com/matter-labs/zksync-era/issues/2969)) ([3f406c7](https://github.com/matter-labs/zksync-era/commit/3f406c7d0c0e76d798c2d838abde57ca692822c0))
+* ignore unknown fields in rpc json response ([#2962](https://github.com/matter-labs/zksync-era/issues/2962)) ([692ea73](https://github.com/matter-labs/zksync-era/commit/692ea73f75a5fb9db2b4ac33ad24d20568638742))
+
+
+### Performance Improvements
+
+* **api:** More efficient gas estimation ([#2937](https://github.com/matter-labs/zksync-era/issues/2937)) ([3b69e37](https://github.com/matter-labs/zksync-era/commit/3b69e37e470dab859a55787f6cc971e7083de2fd))
+
+## [24.27.0](https://github.com/matter-labs/zksync-era/compare/core-v24.26.0...core-v24.27.0) (2024-09-25)
+
+
+### Features
+
+* **vm:** Split old and new VM implementations ([#2915](https://github.com/matter-labs/zksync-era/issues/2915)) ([93bc66f](https://github.com/matter-labs/zksync-era/commit/93bc66f21f9f67a440f06f1c4402e0d687698741))
+
+
+### Bug Fixes
+
+* **api:** Return correct flat call tracer ([#2917](https://github.com/matter-labs/zksync-era/issues/2917)) ([218646a](https://github.com/matter-labs/zksync-era/commit/218646aa1c56200f4ffee99b7f83366e2689354f))
+
+## [24.26.0](https://github.com/matter-labs/zksync-era/compare/core-v24.25.0...core-v24.26.0) (2024-09-23)
+
+
+### Features
+
+* added seed_peers to consensus global config ([#2920](https://github.com/matter-labs/zksync-era/issues/2920)) ([e9d1d90](https://github.com/matter-labs/zksync-era/commit/e9d1d905f1ce86f9de2cf39d79be4b5aada4a81d))
+* **circuit_prover:** Add circuit prover ([#2908](https://github.com/matter-labs/zksync-era/issues/2908)) ([48317e6](https://github.com/matter-labs/zksync-era/commit/48317e640a00b016bf7bf782cc94fccaf077ed6d))
+* **prover:** Add endpoint to PJM to get queue reports ([#2918](https://github.com/matter-labs/zksync-era/issues/2918)) ([2cec83f](https://github.com/matter-labs/zksync-era/commit/2cec83f26e0b9309387135ca43718af4fcd6f6b1))
+* **vm:** Do not panic on VM divergence ([#2705](https://github.com/matter-labs/zksync-era/issues/2705)) ([7aa5721](https://github.com/matter-labs/zksync-era/commit/7aa5721d22e253d05d369a60d5bcacbf52021c48))
+* **vm:** Extract oneshot VM executor – environment types ([#2885](https://github.com/matter-labs/zksync-era/issues/2885)) ([a2d4126](https://github.com/matter-labs/zksync-era/commit/a2d4126f9e0c9dc46f49a861549d076fdbcf66d3))
+
+
+### Bug Fixes
+
+* **api_server:** fix blob_gas length ([#2673](https://github.com/matter-labs/zksync-era/issues/2673)) ([44a8f79](https://github.com/matter-labs/zksync-era/commit/44a8f79739704e1216a7b34a0580ad7ba1cce3bd))
+* **eth-sender:** print better error message in case of missing blob prices ([#2927](https://github.com/matter-labs/zksync-era/issues/2927)) ([38fc824](https://github.com/matter-labs/zksync-era/commit/38fc824f75e8b0e84f10348d1502fc8a26d12015))
+
+## [24.25.0](https://github.com/matter-labs/zksync-era/compare/core-v24.24.0...core-v24.25.0) (2024-09-19)
+
+
+### Features
+
+* (DB migration) Rename recursion_scheduler_level_vk_hash to snark_wrapper_vk_hash ([#2809](https://github.com/matter-labs/zksync-era/issues/2809)) ([64f9551](https://github.com/matter-labs/zksync-era/commit/64f95514c99f95da2a19a97ff064c29a97efc22f))
+* add da clients ([#2743](https://github.com/matter-labs/zksync-era/issues/2743)) ([9218612](https://github.com/matter-labs/zksync-era/commit/9218612fdb2b63c20841e2e2e5a45bbd23c01fbc))
+* attester committees data extractor (BFT-434) ([#2684](https://github.com/matter-labs/zksync-era/issues/2684)) ([92dde03](https://github.com/matter-labs/zksync-era/commit/92dde039ee8a0bc08e2019b7fa6f243a34d9816f))
+* emit errors in prover API metrics ([#2890](https://github.com/matter-labs/zksync-era/issues/2890)) ([2ac7cc5](https://github.com/matter-labs/zksync-era/commit/2ac7cc5836e69fc82c98df2005fedee01c1084e1))
+* **en:** Resume incomplete snapshot in snapshot creator in more cases ([#2886](https://github.com/matter-labs/zksync-era/issues/2886)) ([f095b4a](https://github.com/matter-labs/zksync-era/commit/f095b4a3223222ac712de53592fe1e68f766600f))
+* make `to` address optional for transaction data ([#2852](https://github.com/matter-labs/zksync-era/issues/2852)) ([8363c1d](https://github.com/matter-labs/zksync-era/commit/8363c1d8697ad9bd2fe5d326218476bc3dad38af))
+* **prover:** Optimize setup keys loading ([#2847](https://github.com/matter-labs/zksync-era/issues/2847)) ([19887ef](https://github.com/matter-labs/zksync-era/commit/19887ef21a8bbd26977353f8ee277b711850dfd2))
+* Selector generator tool ([#2844](https://github.com/matter-labs/zksync-era/issues/2844)) ([b359b08](https://github.com/matter-labs/zksync-era/commit/b359b085895da6582f1d28722107bc5b25f1232c))
+* **tee:** use hex serialization for RPC responses ([#2887](https://github.com/matter-labs/zksync-era/issues/2887)) ([abe0440](https://github.com/matter-labs/zksync-era/commit/abe0440811ae4daf4a0f307922a282e9664308e0))
+* **utils:** Rework locate_workspace, introduce Workspace type ([#2830](https://github.com/matter-labs/zksync-era/issues/2830)) ([d256092](https://github.com/matter-labs/zksync-era/commit/d2560928cc67b40a97a5497ac8542915bf6f91a9))
+* **zk_toolbox:** Add external_node consensus support ([#2821](https://github.com/matter-labs/zksync-era/issues/2821)) ([4a10d7d](https://github.com/matter-labs/zksync-era/commit/4a10d7d9554d6c1aa2f4fc46557d40baaad8ff2f))
+
+
+### Bug Fixes
+
+* count SECP256 precompile to account validation gas limit as well ([#2859](https://github.com/matter-labs/zksync-era/issues/2859)) ([fee0c2a](https://github.com/matter-labs/zksync-era/commit/fee0c2ad08a5ab4a04252765b367eb9fbb1f3db7))
+* **en:** Fix connection starvation during snapshot recovery ([#2836](https://github.com/matter-labs/zksync-era/issues/2836)) ([52f4f76](https://github.com/matter-labs/zksync-era/commit/52f4f763674d25f8a5e7f3a111354a559f798d52))
+* **eth_watch:** fix `get_events_inner` ([#2882](https://github.com/matter-labs/zksync-era/issues/2882)) ([c957dd8](https://github.com/matter-labs/zksync-era/commit/c957dd8011213e0e95fa5962e2310321b29a0d16))
+* handling of HTTP 403 thrown by proxyd ([#2835](https://github.com/matter-labs/zksync-era/issues/2835)) ([2d71c74](https://github.com/matter-labs/zksync-era/commit/2d71c7408a0eed3662fc51f70fa9f525d66e4c6f))
+* **state-keeper:** Restore processed tx metrics in state keeper ([#2815](https://github.com/matter-labs/zksync-era/issues/2815)) ([4d8862b](https://github.com/matter-labs/zksync-era/commit/4d8862b76a55ac78edd481694fefd2107736ffd9))
+* **tee-prover:** fix deserialization of `std::time::Duration` in `envy` config ([#2817](https://github.com/matter-labs/zksync-era/issues/2817)) ([df8641a](https://github.com/matter-labs/zksync-era/commit/df8641a912a8d480ceecff58b0bfaef05e04f0c8))
+
+## [24.24.0](https://github.com/matter-labs/zksync-era/compare/core-v24.23.0...core-v24.24.0) (2024-09-05)
+
+
+### Features
+
+* conditional cbt l1 updates ([#2748](https://github.com/matter-labs/zksync-era/issues/2748)) ([6d18061](https://github.com/matter-labs/zksync-era/commit/6d18061df4a18803d3c6377305ef711ce60317e1))
+* **eth-watch:** do not query events from earliest block ([#2810](https://github.com/matter-labs/zksync-era/issues/2810)) ([1da3f7e](https://github.com/matter-labs/zksync-era/commit/1da3f7ea1df94312e7c6818c17bf4109f888e547))
+* **genesis:** Validate genesis config against L1 ([#2786](https://github.com/matter-labs/zksync-era/issues/2786)) ([b2dd9a5](https://github.com/matter-labs/zksync-era/commit/b2dd9a5c08fecf0a878632b33a32a78aac11c065))
+* Integrate tracers and implement circuits tracer in vm2 ([#2653](https://github.com/matter-labs/zksync-era/issues/2653)) ([87b02e3](https://github.com/matter-labs/zksync-era/commit/87b02e3ab5c1f61d59dd0f0eefa9ec33a7b55488))
+* Move prover data to /home/popzxc/workspace/current/zksync-era/prover/data ([#2778](https://github.com/matter-labs/zksync-era/issues/2778)) ([62e4d46](https://github.com/matter-labs/zksync-era/commit/62e4d4619dde9d6bd9102f1410eea75b0e2051c5))
+* Remove prover db from house keeper ([#2795](https://github.com/matter-labs/zksync-era/issues/2795)) ([85b7346](https://github.com/matter-labs/zksync-era/commit/85b734664b4306e988da07005860a7ea0fb7d22d))
+* **vm-runner:** Implement batch data prefetching ([#2724](https://github.com/matter-labs/zksync-era/issues/2724)) ([d01840d](https://github.com/matter-labs/zksync-era/commit/d01840d5de2cb0f4bead8f1c384b24ba713e6a66))
+* **vm:** Extract batch executor to separate crate ([#2702](https://github.com/matter-labs/zksync-era/issues/2702)) ([b82dfa4](https://github.com/matter-labs/zksync-era/commit/b82dfa4d29fce107223c3638fe490b5cb0f28d8c))
+* **vm:** Simplify VM interface ([#2760](https://github.com/matter-labs/zksync-era/issues/2760)) ([c3bde47](https://github.com/matter-labs/zksync-era/commit/c3bde47c1e7d16bc00f9b089516ed3691e4f3eb1))
+* **zk_toolbox:** add multi-chain CI integration test ([#2594](https://github.com/matter-labs/zksync-era/issues/2594)) ([05c940e](https://github.com/matter-labs/zksync-era/commit/05c940efbd93023c315e5e13c98faee2153cc1cd))
+
+
+### Bug Fixes
+
+* **config:** Do not panic for observability config ([#2639](https://github.com/matter-labs/zksync-era/issues/2639)) ([1e768d4](https://github.com/matter-labs/zksync-era/commit/1e768d402012f6c7ce83fdd46c55f830ec31416a))
+* **core:** Batched event processing support for Reth ([#2623](https://github.com/matter-labs/zksync-era/issues/2623)) ([958dfdc](https://github.com/matter-labs/zksync-era/commit/958dfdcac358897bfd4d2a2ddc1633a23dbfcdc9))
+* return correct witness inputs ([#2770](https://github.com/matter-labs/zksync-era/issues/2770)) ([2516e2e](https://github.com/matter-labs/zksync-era/commit/2516e2e5c83673687d61d143daa70e98ccecce53))
+* **tee-prover:** increase retries to reduce spurious alerts ([#2776](https://github.com/matter-labs/zksync-era/issues/2776)) ([4fdc806](https://github.com/matter-labs/zksync-era/commit/4fdc80636437090f6ebcfa4e2f1eb50edf53631a))
+* **tee-prover:** mitigate panic on redeployments ([#2764](https://github.com/matter-labs/zksync-era/issues/2764)) ([178b386](https://github.com/matter-labs/zksync-era/commit/178b38644f507c5f6d12ba862d0c699e87985dd7))
+* **tee:** lowercase enum TEE types ([#2798](https://github.com/matter-labs/zksync-era/issues/2798)) ([0f2f9bd](https://github.com/matter-labs/zksync-era/commit/0f2f9bd9ef4c2c7ba98a1fdbfca15d1de2b29997))
+* **vm-runner:** Fix statement timeouts in VM playground ([#2772](https://github.com/matter-labs/zksync-era/issues/2772)) ([d3cd553](https://github.com/matter-labs/zksync-era/commit/d3cd553888a5c903c6eae13a88e92c11602e93de))
+
+
+### Performance Improvements
+
+* **vm:** Fix VM performance regression on CI loadtest ([#2782](https://github.com/matter-labs/zksync-era/issues/2782)) ([bc0d7d5](https://github.com/matter-labs/zksync-era/commit/bc0d7d5935c8f5409a8e53f1c04c5141409aef31))
+
 ## [24.23.0](https://github.com/matter-labs/zksync-era/compare/core-v24.22.0...core-v24.23.0) (2024-08-28)
 
 

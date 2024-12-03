@@ -1,13 +1,15 @@
+use std::sync::Arc;
+
 use anyhow::Context as _;
-use zksync_dal::{Connection, Core, CoreDal, DalError};
+use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_types::{
-    ethabi::Contract, protocol_version::ProtocolSemanticVersion, web3::Log, ProtocolUpgrade, H256,
+    api::Log, ethabi::Contract, protocol_version::ProtocolSemanticVersion, ProtocolUpgrade, H256,
     U256,
 };
 
 use crate::{
     client::EthClient,
-    event_processors::{EventProcessor, EventProcessorError},
+    event_processors::{EventProcessor, EventProcessorError, EventsSource},
     metrics::{PollStage, METRICS},
 };
 
@@ -17,12 +19,14 @@ pub struct DecentralizedUpgradesEventProcessor {
     /// Last protocol version seen. Used to skip events for already known upgrade proposals.
     last_seen_protocol_version: ProtocolSemanticVersion,
     update_upgrade_timestamp_signature: H256,
+    sl_client: Arc<dyn EthClient>,
 }
 
 impl DecentralizedUpgradesEventProcessor {
     pub fn new(
         last_seen_protocol_version: ProtocolSemanticVersion,
         chain_admin_contract: &Contract,
+        sl_client: Arc<dyn EthClient>,
     ) -> Self {
         Self {
             last_seen_protocol_version,
@@ -31,6 +35,7 @@ impl DecentralizedUpgradesEventProcessor {
                 .context("UpdateUpgradeTimestamp event is missing in ABI")
                 .unwrap()
                 .signature(),
+            sl_client,
         }
     }
 }
@@ -40,18 +45,18 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
     async fn process_events(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        client: &dyn EthClient,
         events: Vec<Log>,
-    ) -> Result<(), EventProcessorError> {
+    ) -> Result<usize, EventProcessorError> {
         let mut upgrades = Vec::new();
-        for event in events {
+        for event in &events {
             let version = event.topics.get(1).copied().context("missing topic 1")?;
             let timestamp: u64 = U256::from_big_endian(&event.data.0)
                 .try_into()
                 .ok()
                 .context("upgrade timestamp is too big")?;
 
-            let diamond_cut = client
+            let diamond_cut = self
+                .sl_client
                 .diamond_cut_by_version(version)
                 .await?
                 .context("missing upgrade data on STM")?;
@@ -62,7 +67,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
             };
             // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
             let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
-                Some(client.scheduler_vk_hash(address).await?)
+                Some(self.sl_client.scheduler_vk_hash(address).await?)
             } else {
                 None
             };
@@ -75,7 +80,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
             .collect();
 
         let Some((last_upgrade, _)) = new_upgrades.last() else {
-            return Ok(());
+            return Ok(events.len());
         };
         let versions: Vec<_> = new_upgrades
             .iter()
@@ -125,10 +130,18 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
         stage_latency.observe();
 
         self.last_seen_protocol_version = last_version;
-        Ok(())
+        Ok(events.len())
     }
 
-    fn relevant_topic(&self) -> H256 {
+    fn topic1(&self) -> H256 {
         self.update_upgrade_timestamp_signature
+    }
+
+    fn event_source(&self) -> EventsSource {
+        EventsSource::SL
+    }
+
+    fn event_type(&self) -> EventType {
+        EventType::ProtocolUpgrades
     }
 }

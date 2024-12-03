@@ -1,28 +1,25 @@
 use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
-use zksync_test_account::TxType;
+use zksync_test_contracts::{TestContract, TxType};
 use zksync_types::{utils::deployed_address_create, Execute, U256};
 
+use super::TestedLatestVm;
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
+    interface::{InspectExecutionMode, TxExecutionMode, VmInterface, VmInterfaceExt},
     tracers::PrestateTracer,
-    vm_latest::{
-        constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
-        tests::{tester::VmTesterBuilder, utils::read_simple_transfer_contract},
-        HistoryEnabled, ToTracerPointer,
-    },
+    versions::testonly::VmTesterBuilder,
+    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, ToTracerPointer},
 };
 
 #[test]
 fn test_prestate_tracer() {
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
-        .with_random_rich_accounts(1)
-        .with_deployer()
+        .with_rich_accounts(1)
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .build();
+        .build::<TestedLatestVm>();
 
     vm.deploy_test_contract();
     let account = &mut vm.rich_accounts[0];
@@ -40,7 +37,8 @@ fn test_prestate_tracer() {
     let prestate_tracer_result = Arc::new(OnceCell::default());
     let prestate_tracer = PrestateTracer::new(false, prestate_tracer_result.clone());
     let tracer_ptr = prestate_tracer.into_tracer_pointer();
-    vm.vm.inspect(tracer_ptr.into(), VmExecutionMode::Batch);
+    vm.vm
+        .inspect(&mut tracer_ptr.into(), InspectExecutionMode::OneTx);
 
     let prestate_result = Arc::try_unwrap(prestate_tracer_result)
         .unwrap()
@@ -52,43 +50,33 @@ fn test_prestate_tracer() {
 
 #[test]
 fn test_prestate_tracer_diff_mode() {
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
-        .with_random_rich_accounts(1)
-        .with_deployer()
+        .with_rich_accounts(1)
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .build();
-    let contract = read_simple_transfer_contract();
-    let tx = vm
-        .deployer
-        .as_mut()
-        .expect("You have to initialize builder with deployer")
-        .get_deploy_tx(&contract, None, TxType::L2)
-        .tx;
+        .build::<TestedLatestVm>();
+    let contract = TestContract::simple_transfer().bytecode;
+    let account = &mut vm.rich_accounts[0];
+    let tx = account.get_deploy_tx(contract, None, TxType::L2).tx;
     let nonce = tx.nonce().unwrap().0.into();
     vm.vm.push_transaction(tx);
-    vm.vm.execute(VmExecutionMode::OneTx);
-    let deployed_address = deployed_address_create(vm.deployer.as_ref().unwrap().address, nonce);
+    vm.vm.execute(InspectExecutionMode::OneTx);
+    let deployed_address = deployed_address_create(account.address, nonce);
     vm.test_contract = Some(deployed_address);
 
     // Deploy a second copy of the contract to see its appearance in the pre-state
-    let tx2 = vm
-        .deployer
-        .as_mut()
-        .expect("You have to initialize builder with deployer")
-        .get_deploy_tx(&contract, None, TxType::L2)
-        .tx;
+    let tx2 = account.get_deploy_tx(contract, None, TxType::L2).tx;
     let nonce2 = tx2.nonce().unwrap().0.into();
     vm.vm.push_transaction(tx2);
-    vm.vm.execute(VmExecutionMode::OneTx);
-    let deployed_address2 = deployed_address_create(vm.deployer.as_ref().unwrap().address, nonce2);
+    vm.vm.execute(InspectExecutionMode::OneTx);
+    let deployed_address2 = deployed_address_create(account.address, nonce2);
 
     let account = &mut vm.rich_accounts[0];
 
     //enter ether to contract to see difference in the balance post execution
     let tx0 = Execute {
-        contract_address: vm.test_contract.unwrap(),
+        contract_address: Some(vm.test_contract.unwrap()),
         calldata: Default::default(),
         value: U256::from(100000),
         factory_deps: vec![],
@@ -98,7 +86,7 @@ fn test_prestate_tracer_diff_mode() {
         .push_transaction(account.get_l2_tx_for_execute(tx0.clone(), None));
 
     let tx1 = Execute {
-        contract_address: deployed_address2,
+        contract_address: Some(deployed_address2),
         calldata: Default::default(),
         value: U256::from(200000),
         factory_deps: vec![],
@@ -110,7 +98,7 @@ fn test_prestate_tracer_diff_mode() {
     let prestate_tracer = PrestateTracer::new(true, prestate_tracer_result.clone());
     let tracer_ptr = prestate_tracer.into_tracer_pointer();
     vm.vm
-        .inspect(tracer_ptr.into(), VmExecutionMode::Bootloader);
+        .inspect(&mut tracer_ptr.into(), InspectExecutionMode::Bootloader);
 
     let prestate_result = Arc::try_unwrap(prestate_tracer_result)
         .unwrap()

@@ -68,11 +68,12 @@ impl FromEnv for GenesisConfig {
             genesis_commitment: contracts_config.genesis_batch_commitment,
             bootloader_hash: state_keeper.bootloader_hash,
             default_aa_hash: state_keeper.default_aa_hash,
+            evm_emulator_hash: state_keeper.evm_emulator_hash,
             // TODO(EVM-676): for now, the settlement layer is always the same as the L1 network
             l1_chain_id: L1ChainId(network_config.network.chain_id().0),
             sl_chain_id: Some(network_config.network.chain_id()),
             l2_chain_id: network_config.zksync_network_id,
-            recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
+            snark_wrapper_vk_hash: contracts_config.snark_wrapper_vk_hash,
             fee_account: state_keeper
                 .fee_account_addr
                 .context("Fee account required for genesis")?,

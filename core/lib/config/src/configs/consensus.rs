@@ -1,7 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use secrecy::{ExposeSecret as _, Secret};
-use zksync_basic_types::L2ChainId;
+use secrecy::ExposeSecret as _;
+pub use secrecy::Secret;
+use zksync_basic_types::{ethabi, L2ChainId};
 use zksync_concurrency::{limiter, time};
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::validator::PublicKey`.
@@ -89,6 +90,10 @@ pub struct GenesisSpec {
     /// Leader of the committee. Represents
     /// `zksync_consensus_roles::validator::LeaderSelectionMode::Sticky`.
     pub leader: ValidatorPublicKey,
+    /// Address of the registry contract.
+    pub registry_address: Option<ethabi::Address>,
+    /// Recommended list of peers to connect to.
+    pub seed_peers: BTreeMap<NodePublicKey, Host>,
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -110,6 +115,7 @@ impl RpcConfig {
 /// Config (shared between main node and external node).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConsensusConfig {
+    pub port: Option<u16>,
     /// Local socket address to listen for the incoming connections.
     pub server_addr: std::net::SocketAddr,
     /// Public address of this node (should forward to `server_addr`)
@@ -143,6 +149,9 @@ pub struct ConsensusConfig {
 
     /// Rate limiting configuration for the p2p RPCs.
     pub rpc: Option<RpcConfig>,
+
+    /// Local socket address to expose the node debug page.
+    pub debug_page_addr: Option<std::net::SocketAddr>,
 }
 
 impl ConsensusConfig {

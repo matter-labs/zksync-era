@@ -1,4 +1,4 @@
-# Loadnext: loadtest for ZKsync
+# Loadnext: load test for ZKsync
 
 Loadnext is a utility for random stress-testing the ZKsync server. It is capable of simulating the behavior of many
 independent users of ZKsync network, who are sending quasi-random requests to the server.
@@ -27,21 +27,21 @@ It:
 
 ## Transactions Parameters
 
-The smart contract that is used for every l2 transaction can be found here:
-`etc/contracts-test-data/contracts/loadnext/loadnext_contract.sol`.
+The smart contract that is used for every l2 transaction can be found in the [`zksync_test_contracts`] crate.
 
 The `execute` function of the contract has the following parameters:
 
-```
-    function execute(uint reads, uint writes, uint hashes, uint events, uint max_recursion, uint deploys) external returns(uint) {
+```solidity
+function execute(uint reads, uint initialWrites, uint repeatedWrites, uint hashes, uint events, uint maxRecursion, uint deploys) external returns(uint) {
 ```
 
 which correspond to the following configuration options:
 
-```
+```rust
 pub struct LoadnextContractExecutionParams {
     pub reads: usize,
-    pub writes: usize,
+    pub initial_writes: usize,
+    pub repeated_writes: usize,
     pub events: usize,
     pub hashes: usize,
     pub recursive_calls: usize,
@@ -51,8 +51,9 @@ pub struct LoadnextContractExecutionParams {
 
 For example, to simulate an average transaction on mainnet, one could do:
 
-```
-CONTRACT_EXECUTION_PARAMS_WRITES=2
+```env
+CONTRACT_EXECUTION_PARAMS_INITIAL_WRITES=2
+CONTRACT_EXECUTION_PARAMS_REPEATED_WRITES=2
 CONTRACT_EXECUTION_PARAMS_READS=6
 CONTRACT_EXECUTION_PARAMS_EVENTS=2
 CONTRACT_EXECUTION_PARAMS_HASHES=10
@@ -62,8 +63,9 @@ CONTRACT_EXECUTION_PARAMS_DEPLOYS=0
 
 Similarly, to simulate a lightweight transaction:
 
-```
-CONTRACT_EXECUTION_PARAMS_WRITES=0
+```env
+CONTRACT_EXECUTION_PARAMS_INITIAL_WRITES=0
+CONTRACT_EXECUTION_PARAMS_REPEATED_WRITES=0
 CONTRACT_EXECUTION_PARAMS_READS=0
 CONTRACT_EXECUTION_PARAMS_EVENTS=0
 CONTRACT_EXECUTION_PARAMS_HASHES=0
@@ -86,10 +88,11 @@ Example invocation:
 - `MASTER_WALLET_PK` needs to be set to the private key of the master account.
 - `MAIN_TOKEN` needs to be set to the address of the token to be used for the loadtest.
 
-```
+```shell
 cargo build
 
-CONTRACT_EXECUTION_PARAMS_WRITES=2 \
+CONTRACT_EXECUTION_PARAMS_INITIAL_WRITES=2 \
+CONTRACT_EXECUTION_PARAMS_REPEATED_WRITES=2 \
 CONTRACT_EXECUTION_PARAMS_READS=6 \
 CONTRACT_EXECUTION_PARAMS_EVENTS=2 \
 CONTRACT_EXECUTION_PARAMS_HASHES=10 \
@@ -110,3 +113,5 @@ MASTER_WALLET_PK="..." \
 MAIN_TOKEN="..." \
 cargo run --bin loadnext
 ```
+
+[`zksync_test_contracts`]: ../../lib/test_contracts

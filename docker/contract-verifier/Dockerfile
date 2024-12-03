@@ -1,14 +1,27 @@
 # syntax=docker/dockerfile:experimental
-FROM matterlabs/zksync-build-base:latest as builder
+FROM ghcr.io/matter-labs/zksync-build-base:latest AS builder
+
+ARG CUDA_ARCH=89
+ENV CUDAARCHS=${CUDA_ARCH}
+# set of args for use of sccache
+ARG SCCACHE_GCS_BUCKET=""
+ARG SCCACHE_GCS_SERVICE_ACCOUNT=""
+ARG SCCACHE_GCS_RW_MODE=""
+ARG RUSTC_WRAPPER=""
+
+ENV SCCACHE_GCS_BUCKET=${SCCACHE_GCS_BUCKET}
+ENV SCCACHE_GCS_SERVICE_ACCOUNT=${SCCACHE_GCS_SERVICE_ACCOUNT}
+ENV SCCACHE_GCS_RW_MODE=${SCCACHE_GCS_RW_MODE}
+ENV RUSTC_WRAPPER=${RUSTC_WRAPPER}
 
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN cargo build --release
+RUN cargo build --release --bin zksync_contract_verifier
 
-FROM debian:bookworm-slim
+FROM ghcr.io/matter-labs/zksync-runtime-base:latest
 
-RUN apt-get update && apt-get install -y curl libpq5 ca-certificates wget python3 jq && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y wget python3 jq && rm -rf /var/lib/apt/lists/*
 
 # install zksolc 1.3.x
 RUN skip_versions="v1.3.12 v1.3.15 v1.3.20" && \
@@ -34,7 +47,7 @@ RUN mkdir -p /etc/zksolc-bin/vm-1.5.0-a167aa3 && \
     chmod +x /etc/zksolc-bin/vm-1.5.0-a167aa3/zksolc
 
 # install zksolc 1.5.x
-RUN for VERSION in $(seq -f "v1.5.%g" 0 3); do \
+RUN for VERSION in $(seq -f "v1.5.%g" 0 7); do \
     mkdir -p /etc/zksolc-bin/$VERSION && \
     wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-$VERSION -O /etc/zksolc-bin/$VERSION/zksolc && \
     chmod +x /etc/zksolc-bin/$VERSION/zksolc; \
@@ -55,7 +68,7 @@ RUN for VERSION in $(seq -f "v1.4.%g" 0 1); do \
     done
 
 # install zkvyper 1.5.x
-RUN for VERSION in $(seq -f "v1.5.%g" 0 4); do \
+RUN for VERSION in $(seq -f "v1.5.%g" 0 7); do \
     mkdir -p /etc/zkvyper-bin/$VERSION && \
     wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-$VERSION -O /etc/zkvyper-bin/$VERSION/zkvyper && \
     chmod +x /etc/zkvyper-bin/$VERSION/zkvyper; \
@@ -78,10 +91,13 @@ RUN mkdir -p /etc/vyper-bin/0.3.10 \
     && wget -O vyper0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10%2Bcommit.91361694.linux \
     && mv vyper0.3.10 /etc/vyper-bin/0.3.10/vyper \
     && chmod +x /etc/vyper-bin/0.3.10/vyper
+RUN mkdir -p /etc/vyper-bin/0.4.0 \
+    && wget -O vyper0.4.0 https://github.com/vyperlang/vyper/releases/download/v0.4.0/vyper.0.4.0+commit.e9db8d9f.linux \
+    && mv vyper0.4.0 /etc/vyper-bin/0.4.0/vyper \
+    && chmod +x /etc/vyper-bin/0.4.0/vyper
 
 COPY --from=builder /usr/src/zksync/target/release/zksync_contract_verifier /usr/bin/
-COPY contracts/system-contracts/bootloader/build/artifacts/ /contracts/system-contracts/bootloader/build/artifacts/
-COPY contracts/system-contracts/artifacts-zk /contracts/system-contracts/artifacts-zk
+COPY contracts/system-contracts/zkout/ /contracts/system-contracts/zkout/
 
 # CMD tail -f /dev/null
 ENTRYPOINT ["zksync_contract_verifier"]

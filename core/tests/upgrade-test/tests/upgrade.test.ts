@@ -64,9 +64,21 @@ describe('Upgrade test', function () {
         complexUpgraderAddress = '0x000000000000000000000000000000000000800f';
 
         if (fileConfig.loadFromFile) {
-            const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
-            const contractsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'contracts.yaml' });
-            const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
+            const generalConfig = loadConfig({
+                pathToHome,
+                chain: fileConfig.chain,
+                config: 'general.yaml'
+            });
+            const contractsConfig = loadConfig({
+                pathToHome,
+                chain: fileConfig.chain,
+                config: 'contracts.yaml'
+            });
+            const secretsConfig = loadConfig({
+                pathToHome,
+                chain: fileConfig.chain,
+                config: 'secrets.yaml'
+            });
 
             ethProviderAddress = secretsConfig.l1.l1_rpc_url;
             web3JsonRpc = generalConfig.api.web3_json_rpc.http_url;
@@ -89,25 +101,33 @@ describe('Upgrade test', function () {
         alice = tester.emptyWallet();
 
         if (fileConfig.loadFromFile) {
-            let walletConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
+            const chainWalletConfig = loadConfig({
+                pathToHome,
+                chain: fileConfig.chain,
+                config: 'wallets.yaml'
+            });
 
-            adminGovWallet = new ethers.Wallet(walletConfig.governor.private_key, alice._providerL1());
+            adminGovWallet = new ethers.Wallet(chainWalletConfig.governor.private_key, alice._providerL1());
 
-            walletConfig = loadConfig({
+            const ecosystemWalletConfig = loadConfig({
                 pathToHome,
                 chain: fileConfig.chain,
                 configsFolder: '../../configs/',
                 config: 'wallets.yaml'
             });
 
-            ecosystemGovWallet = new ethers.Wallet(walletConfig.governor.private_key, alice._providerL1());
+            if (ecosystemWalletConfig.governor.private_key == chainWalletConfig.governor.private_key) {
+                ecosystemGovWallet = adminGovWallet;
+            } else {
+                ecosystemGovWallet = new ethers.Wallet(ecosystemWalletConfig.governor.private_key, alice._providerL1());
+            }
         } else {
             let govMnemonic = ethers.Mnemonic.fromPhrase(
                 require('../../../../etc/test_config/constant/eth.json').mnemonic
             );
             let govWalletHD = ethers.HDNodeWallet.fromMnemonic(govMnemonic, "m/44'/60'/0'/0/1");
             adminGovWallet = new ethers.Wallet(govWalletHD.privateKey, alice._providerL1());
-            ecosystemGovWallet = new ethers.Wallet(govWalletHD.privateKey, alice._providerL1());
+            ecosystemGovWallet = adminGovWallet;
         }
 
         logs = fs.createWriteStream('upgrade.log', { flags: 'a' });
@@ -140,7 +160,7 @@ describe('Upgrade test', function () {
             components: serverComponents,
             stdio: ['ignore', logs, logs],
             cwd: pathToHome,
-            useZkInception: fileConfig.loadFromFile,
+            useZkStack: fileConfig.loadFromFile,
             chain: fileConfig.chain
         });
         // Server may need some time to recompile if it's a cold run, so wait for it.
@@ -216,8 +236,15 @@ describe('Upgrade test', function () {
     });
 
     step('Send l1 tx for saving new bootloader', async () => {
-        const path = `${pathToHome}/contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin`;
-        const bootloaderCode = ethers.hexlify(fs.readFileSync(path));
+        const path = `${pathToHome}/contracts/system-contracts/zkout/playground_batch.yul/contracts-preprocessed/bootloader/playground_batch.yul.json`;
+        let bootloaderCode;
+        if (fs.existsSync(path)) {
+            bootloaderCode = '0x'.concat(require(path).bytecode.object);
+        } else {
+            const legacyPath = `${pathToHome}/contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin`;
+            bootloaderCode = ethers.hexlify(fs.readFileSync(legacyPath));
+        }
+
         bootloaderHash = ethers.hexlify(zksync.utils.hashBytecode(bootloaderCode));
         const txHandle = await tester.syncWallet.requestExecute({
             contractAddress: ethers.ZeroAddress,
@@ -280,9 +307,11 @@ describe('Upgrade test', function () {
         );
         executeOperation = chainUpgradeCalldata;
 
+        console.log('Sending scheduleTransparentOperation');
         await sendGovernanceOperation(stmUpgradeData.scheduleTransparentOperation);
+        console.log('Sending executeOperation');
         await sendGovernanceOperation(stmUpgradeData.executeOperation);
-
+        console.log('Sending chain admin operation');
         await sendChainAdminOperation(setTimestampCalldata);
 
         // Wait for server to process L1 event.
@@ -348,7 +377,7 @@ describe('Upgrade test', function () {
             components: serverComponents,
             stdio: ['ignore', logs, logs],
             cwd: pathToHome,
-            useZkInception: fileConfig.loadFromFile,
+            useZkStack: fileConfig.loadFromFile,
             chain: fileConfig.chain
         });
         await utils.sleep(10);
@@ -371,23 +400,25 @@ describe('Upgrade test', function () {
     });
 
     async function sendGovernanceOperation(data: string) {
-        await (
-            await ecosystemGovWallet.sendTransaction({
-                to: await governanceContract.getAddress(),
-                data: data,
-                type: 0
-            })
-        ).wait();
+        const transaction = await ecosystemGovWallet.sendTransaction({
+            to: await governanceContract.getAddress(),
+            data: data,
+            type: 0
+        });
+        console.log(`Sent governance operation, tx_hash=${transaction.hash}, nonce=${transaction.nonce}`);
+        await transaction.wait();
+        console.log(`Governance operation succeeded, tx_hash=${transaction.hash}`);
     }
 
     async function sendChainAdminOperation(data: string) {
-        await (
-            await adminGovWallet.sendTransaction({
-                to: await chainAdminContract.getAddress(),
-                data: data,
-                type: 0
-            })
-        ).wait();
+        const transaction = await adminGovWallet.sendTransaction({
+            to: await chainAdminContract.getAddress(),
+            data: data,
+            type: 0
+        });
+        console.log(`Sent chain admin operation, tx_hash=${transaction.hash}, nonce=${transaction.nonce}`);
+        await transaction.wait();
+        console.log(`Chain admin operation succeeded, tx_hash=${transaction.hash}`);
     }
 });
 

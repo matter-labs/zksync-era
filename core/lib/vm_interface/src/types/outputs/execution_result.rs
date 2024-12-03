@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use zksync_system_constants::{
     BOOTLOADER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
@@ -11,16 +13,13 @@ use zksync_types::{
 };
 
 use crate::{
-    CompressedBytecodeInfo, Halt, VmExecutionMetrics, VmExecutionStatistics, VmRevertReason,
+    BytecodeCompressionError, CompressedBytecodeInfo, Halt, VmExecutionMetrics,
+    VmExecutionStatistics, VmRevertReason,
 };
 
 const L1_MESSAGE_EVENT_SIGNATURE: H256 = H256([
     58, 54, 228, 114, 145, 244, 32, 31, 175, 19, 127, 171, 8, 29, 146, 41, 91, 206, 45, 83, 190,
     44, 108, 166, 139, 168, 44, 127, 170, 156, 226, 65,
-]);
-const PUBLISHED_BYTECODE_SIGNATURE: H256 = H256([
-    201, 71, 34, 255, 19, 234, 207, 83, 84, 124, 71, 65, 218, 181, 34, 131, 83, 160, 89, 56, 255,
-    205, 213, 212, 162, 213, 51, 174, 14, 97, 130, 135,
 ]);
 
 pub fn bytecode_len_in_bytes(bytecodehash: H256) -> usize {
@@ -46,6 +45,11 @@ impl VmEvent {
     pub const L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE: H256 = H256([
         72, 13, 60, 159, 114, 123, 94, 92, 18, 3, 212, 198, 31, 177, 133, 211, 127, 8, 230, 178,
         220, 94, 155, 191, 152, 89, 27, 26, 122, 221, 245, 124,
+    ]);
+    /// Long signature of the known bytecodes storage bytecode publication event (`MarkedAsKnown`).
+    pub const PUBLISHED_BYTECODE_SIGNATURE: H256 = H256([
+        201, 71, 34, 255, 19, 234, 207, 83, 84, 124, 71, 65, 218, 181, 34, 131, 83, 160, 89, 56,
+        255, 205, 213, 212, 162, 213, 51, 174, 14, 97, 130, 135,
     ]);
 
     /// Extracts all the "long" L2->L1 messages that were submitted by the L1Messenger contract.
@@ -76,11 +80,24 @@ impl VmEvent {
                 // Filter events from the deployer contract that match the expected signature.
                 event.address == KNOWN_CODES_STORAGE_ADDRESS
                     && event.indexed_topics.len() == 3
-                    && event.indexed_topics[0] == PUBLISHED_BYTECODE_SIGNATURE
+                    && event.indexed_topics[0] == Self::PUBLISHED_BYTECODE_SIGNATURE
                     && event.indexed_topics[2] != H256::zero()
             })
             .map(|event| event.indexed_topics[1])
             .collect()
+    }
+
+    /// Extracts all bytecodes marked as known on the system contracts.
+    pub fn extract_bytecodes_marked_as_known(events: &[Self]) -> impl Iterator<Item = H256> + '_ {
+        events
+            .iter()
+            .filter(|event| {
+                // Filter events from the deployer contract that match the expected signature.
+                event.address == KNOWN_CODES_STORAGE_ADDRESS
+                    && event.indexed_topics.len() == 3
+                    && event.indexed_topics[0] == Self::PUBLISHED_BYTECODE_SIGNATURE
+            })
+            .map(|event| event.indexed_topics[1])
     }
 }
 
@@ -117,6 +134,10 @@ pub struct VmExecutionResultAndLogs {
     pub logs: VmExecutionLogs,
     pub statistics: VmExecutionStatistics,
     pub refunds: Refunds,
+    /// Dynamic bytecodes decommitted during VM execution (i.e., not present in the storage at the start of VM execution
+    /// or in `factory_deps` fields of executed transactions). Currently, the only kind of such codes are EVM bytecodes.
+    /// Correspondingly, they may only be present if supported by the VM version, and if the VM is initialized with the EVM emulator base system contract.
+    pub dynamic_factory_deps: HashMap<H256, Vec<u8>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -137,6 +158,22 @@ impl ExecutionResult {
 }
 
 impl VmExecutionResultAndLogs {
+    /// Creates a mock full result based on the provided base result.
+    pub fn mock(result: ExecutionResult) -> Self {
+        Self {
+            result,
+            logs: VmExecutionLogs::default(),
+            statistics: VmExecutionStatistics::default(),
+            refunds: Refunds::default(),
+            dynamic_factory_deps: HashMap::new(),
+        }
+    }
+
+    /// Creates a mock successful result with no payload.
+    pub fn mock_success() -> Self {
+        Self::mock(ExecutionResult::Success { output: vec![] })
+    }
+
     pub fn get_execution_metrics(&self, tx: Option<&Transaction>) -> VmExecutionMetrics {
         let contracts_deployed = tx
             .map(|tx| tx.execute.factory_deps.len() as u16)
@@ -163,6 +200,7 @@ impl VmExecutionResultAndLogs {
             published_bytecode_bytes,
             l2_l1_long_messages,
             l2_to_l1_logs: self.logs.total_l2_to_l1_logs_count(),
+            user_l2_to_l1_logs: self.logs.user_l2_to_l1_logs.len(),
             contracts_used: self.statistics.contracts_used,
             contracts_deployed,
             vm_events: self.logs.events.len(),
@@ -297,18 +335,32 @@ impl Call {
     }
 }
 
-/// Mid-level transaction execution output returned by a batch executor.
+/// Mid-level transaction execution output returned by a [batch executor](crate::executor::BatchExecutor).
 #[derive(Debug, Clone)]
-pub struct BatchTransactionExecutionResult {
+pub struct BatchTransactionExecutionResult<C = Vec<CompressedBytecodeInfo>> {
+    /// VM result.
     pub tx_result: Box<VmExecutionResultAndLogs>,
-    pub compressed_bytecodes: Vec<CompressedBytecodeInfo>,
+    /// Compressed bytecodes used by the transaction.
+    pub compressed_bytecodes: C,
+    /// Call traces (if requested; otherwise, empty).
     pub call_traces: Vec<Call>,
 }
 
-impl BatchTransactionExecutionResult {
+impl<C> BatchTransactionExecutionResult<C> {
     pub fn was_halted(&self) -> bool {
         matches!(self.tx_result.result, ExecutionResult::Halt { .. })
     }
+}
+
+/// Mid-level transaction execution output returned by a [oneshot executor](crate::executor::OneshotExecutor).
+#[derive(Debug)]
+pub struct OneshotTransactionExecutionResult {
+    /// VM result.
+    pub tx_result: Box<VmExecutionResultAndLogs>,
+    /// Result of compressing bytecodes used by the transaction.
+    pub compression_result: Result<(), BytecodeCompressionError>,
+    /// Call traces (if requested; otherwise, empty).
+    pub call_traces: Vec<Call>,
 }
 
 /// High-level transaction execution result used by the API server sandbox etc.
@@ -393,6 +445,6 @@ mod tests {
             "MarkedAsKnown",
             &[ethabi::ParamType::FixedBytes(32), ethabi::ParamType::Bool],
         );
-        assert_eq!(PUBLISHED_BYTECODE_SIGNATURE, expected_signature);
+        assert_eq!(VmEvent::PUBLISHED_BYTECODE_SIGNATURE, expected_signature);
     }
 }

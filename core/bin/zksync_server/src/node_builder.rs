@@ -1,33 +1,36 @@
 //! This module provides a "builder" for the main node,
 //! as well as an interface to run the node with the specified components.
 
-use anyhow::Context;
+use std::time::Duration;
+
+use anyhow::{bail, Context};
 use zksync_config::{
-    configs::{eth_sender::PubdataSendingMode, wallets::Wallets, GeneralConfig, Secrets},
+    configs::{
+        da_client::DAClientConfig, secrets::DataAvailabilitySecrets, wallets::Wallets,
+        GeneralConfig, Secrets,
+    },
     ContractsConfig, GenesisConfig,
 };
 use zksync_core_leftovers::Component;
-use zksync_default_da_clients::{
-    no_da::wiring_layer::NoDAClientWiringLayer,
-    object_store::{config::DAObjectStoreConfig, wiring_layer::ObjectStorageClientWiringLayer},
-};
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
-    tx_sender::{ApiContracts, TxSenderConfig},
+    tx_sender::{TimestampAsserterParams, TxSenderConfig},
     web3::{state::InternalApiConfig, Namespace},
 };
 use zksync_node_framework::{
     implementations::layers::{
         base_token::{
             base_token_ratio_persister::BaseTokenRatioPersisterLayer,
-            base_token_ratio_provider::BaseTokenRatioProviderLayer,
-            coingecko_client::CoingeckoClientLayer, forced_price_client::ForcedPriceClientLayer,
-            no_op_external_price_api_client::NoOpExternalPriceApiClientLayer,
+            base_token_ratio_provider::BaseTokenRatioProviderLayer, ExternalPriceApiLayer,
         },
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
         consensus::MainNodeConsensusLayer,
         contract_verification_api::ContractVerificationApiLayer,
+        da_clients::{
+            avail::AvailWiringLayer, celestia::CelestiaWiringLayer, eigen::EigenWiringLayer,
+            no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
+        },
         da_dispatcher::DataAvailabilityDispatcherLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
         eth_watch::EthWatchLayer,
@@ -45,7 +48,7 @@ use zksync_node_framework::{
         object_store::ObjectStoreLayer,
         pk_signing_eth_client::PKSigningEthClientLayer,
         pools_layer::PoolsLayerBuilder,
-        postgres_metrics::PostgresMetricsLayer,
+        postgres::PostgresLayer,
         prometheus_exporter::PrometheusExporterLayer,
         proof_data_handler::ProofDataHandlerLayer,
         query_eth_client::QueryEthClientLayer,
@@ -54,7 +57,6 @@ use zksync_node_framework::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
             output_handler::OutputHandlerLayer, RocksdbStorageOptions, StateKeeperLayer,
         },
-        tee_verifier_input_producer::TeeVerifierInputProducerLayer,
         vm_runner::{
             bwip::BasicWitnessInputProducerLayer, playground::VmPlaygroundLayer,
             protective_reads::ProtectiveReadsWriterLayer,
@@ -69,7 +71,9 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
-use zksync_types::{settlement::SettlementMode, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS};
+use zksync_types::{
+    pubdata_da::PubdataSendingMode, settlement::SettlementMode, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+};
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 /// Macro that looks into a path to fetch an optional config,
@@ -134,8 +138,8 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_postgres_metrics_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(PostgresMetricsLayer);
+    fn add_postgres_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(PostgresLayer);
         Ok(self)
     }
 
@@ -157,11 +161,7 @@ impl MainNodeBuilder {
         let query_eth_client_layer = QueryEthClientLayer::new(
             genesis.settlement_layer_id(),
             eth_config.l1_rpc_url,
-            self.configs
-                .eth
-                .as_ref()
-                .and_then(|x| Some(x.gas_adjuster?.settlement_mode))
-                .unwrap_or(SettlementMode::SettlesToL1),
+            eth_config.gateway_rpc_url,
         );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
@@ -189,7 +189,7 @@ impl MainNodeBuilder {
                 .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
         }
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
-        let l1_gas_layer = L1GasLayer::new(state_keeper_config);
+        let l1_gas_layer = L1GasLayer::new(&state_keeper_config);
         self.node.add_layer(l1_gas_layer);
         Ok(self)
     }
@@ -236,9 +236,7 @@ impl MainNodeBuilder {
         let wallets = self.wallets.clone();
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let persistence_layer = OutputHandlerLayer::new(
-            self.contracts_config
-                .l2_shared_bridge_addr
-                .context("L2 shared bridge address")?,
+            self.contracts_config.l2_legacy_shared_bridge_addr,
             sk_config.l2_block_seal_queue_capacity,
         )
         .with_protective_reads_persistence_enabled(sk_config.protective_reads_persistence_enabled);
@@ -247,6 +245,8 @@ impl MainNodeBuilder {
             sk_config.clone(),
             try_load_config!(self.configs.mempool_config),
             try_load_config!(wallets.state_keeper),
+            self.contracts_config.l2_da_validator_addr,
+            self.genesis_config.l1_batch_commit_data_generator_mode,
         );
         let db_config = try_load_config!(self.configs.db_config);
         let experimental_vm_config = self
@@ -279,6 +279,7 @@ impl MainNodeBuilder {
         self.node.add_layer(EthWatchLayer::new(
             try_load_config!(eth_config.watcher),
             self.contracts_config.clone(),
+            self.genesis_config.l2_chain_id,
         ));
         Ok(self)
     }
@@ -287,6 +288,7 @@ impl MainNodeBuilder {
         self.node.add_layer(ProofDataHandlerLayer::new(
             try_load_config!(self.configs.proof_data_handler_config),
             self.genesis_config.l1_batch_commit_data_generator_mode,
+            self.genesis_config.l2_chain_id,
         ));
         Ok(self)
     }
@@ -300,15 +302,36 @@ impl MainNodeBuilder {
     fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
+
+        let timestamp_asserter_params = match self.contracts_config.l2_timestamp_asserter_addr {
+            Some(address) => {
+                let timestamp_asserter_config =
+                    try_load_config!(self.configs.timestamp_asserter_config);
+                Some(TimestampAsserterParams {
+                    address,
+                    min_time_till_end: Duration::from_secs(
+                        timestamp_asserter_config.min_time_till_end_sec.into(),
+                    ),
+                })
+            }
+            None => None,
+        };
         let postgres_storage_caches_config = PostgresStorageCachesConfig {
             factory_deps_cache_size: rpc_config.factory_deps_cache_size() as u64,
             initial_writes_cache_size: rpc_config.initial_writes_cache_size() as u64,
             latest_values_cache_size: rpc_config.latest_values_cache_size() as u64,
+            latest_values_max_block_lag: rpc_config.latest_values_max_block_lag(),
         };
+        let vm_config = self
+            .configs
+            .experimental_vm_config
+            .clone()
+            .unwrap_or_default();
 
         // On main node we always use master pool sink.
         self.node.add_layer(MasterPoolSinkLayer);
-        self.node.add_layer(TxSenderLayer::new(
+
+        let layer = TxSenderLayer::new(
             TxSenderConfig::new(
                 &sk_config,
                 &rpc_config,
@@ -316,11 +339,13 @@ impl MainNodeBuilder {
                     .fee_account
                     .address(),
                 self.genesis_config.l2_chain_id,
+                timestamp_asserter_params,
             ),
             postgres_storage_caches_config,
             rpc_config.vm_concurrency_limit(),
-            ApiContracts::load_from_disk_blocking(), // TODO (BFT-138): Allow to dynamically reload API contracts
-        ));
+        );
+        let layer = layer.with_vm_mode(vm_config.api_fast_vm_mode);
+        self.node.add_layer(layer);
         Ok(self)
     }
 
@@ -364,6 +389,7 @@ impl MainNodeBuilder {
             subscriptions_limit: Some(rpc_config.subscriptions_limit()),
             batch_request_size_limit: Some(rpc_config.max_batch_request_size()),
             response_body_size_limit: Some(rpc_config.max_response_body_size()),
+            with_extended_tracing: rpc_config.extended_api_tracing,
             ..Default::default()
         };
         self.node.add_layer(Web3ServerLayer::http(
@@ -491,24 +517,35 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_tee_verifier_input_producer_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(TeeVerifierInputProducerLayer::new(
-            self.genesis_config.l2_chain_id,
-        ));
+    fn add_da_client_layer(mut self) -> anyhow::Result<Self> {
+        let Some(da_client_config) = self.configs.da_client_config.clone() else {
+            tracing::warn!("No config for DA client, using the NoDA client");
+            self.node.add_layer(NoDAClientWiringLayer);
+            return Ok(self);
+        };
 
-        Ok(self)
-    }
+        let secrets = try_load_config!(self.secrets.data_availability);
+        match (da_client_config, secrets) {
+            (DAClientConfig::Avail(config), DataAvailabilitySecrets::Avail(secret)) => {
+                self.node.add_layer(AvailWiringLayer::new(config, secret));
+            }
 
-    fn add_no_da_client_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(NoDAClientWiringLayer);
-        Ok(self)
-    }
+            (DAClientConfig::Celestia(config), DataAvailabilitySecrets::Celestia(secret)) => {
+                self.node
+                    .add_layer(CelestiaWiringLayer::new(config, secret));
+            }
 
-    #[allow(dead_code)]
-    fn add_object_storage_da_client_layer(mut self) -> anyhow::Result<Self> {
-        let object_store_config = DAObjectStoreConfig::from_env()?;
-        self.node
-            .add_layer(ObjectStorageClientWiringLayer::new(object_store_config.0));
+            (DAClientConfig::Eigen(config), DataAvailabilitySecrets::Eigen(secret)) => {
+                self.node.add_layer(EigenWiringLayer::new(config, secret));
+            }
+
+            (DAClientConfig::ObjectStore(config), _) => {
+                self.node
+                    .add_layer(ObjectStorageClientWiringLayer::new(config));
+            }
+            _ => bail!("invalid pair of da_client and da_secrets"),
+        }
+
         Ok(self)
     }
 
@@ -544,24 +581,8 @@ impl MainNodeBuilder {
 
     fn add_external_api_client_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.external_price_api_client_config);
-        match config.source.as_str() {
-            CoingeckoClientLayer::CLIENT_NAME => {
-                self.node.add_layer(CoingeckoClientLayer::new(config));
-            }
-            NoOpExternalPriceApiClientLayer::CLIENT_NAME => {
-                self.node.add_layer(NoOpExternalPriceApiClientLayer);
-            }
-            ForcedPriceClientLayer::CLIENT_NAME => {
-                self.node.add_layer(ForcedPriceClientLayer::new(config));
-            }
-            _ => {
-                anyhow::bail!(
-                    "Unknown external price API client source: {}",
-                    config.source
-                );
-            }
-        }
-
+        self.node
+            .add_layer(ExternalPriceApiLayer::try_from(config)?);
         Ok(self)
     }
 
@@ -577,7 +598,11 @@ impl MainNodeBuilder {
     }
 
     fn add_vm_playground_layer(mut self) -> anyhow::Result<Self> {
-        let vm_config = try_load_config!(self.configs.experimental_vm_config);
+        let vm_config = self
+            .configs
+            .experimental_vm_config
+            .clone()
+            .unwrap_or_default();
         self.node.add_layer(VmPlaygroundLayer::new(
             vm_config.playground,
             self.genesis_config.l2_chain_id,
@@ -731,13 +756,8 @@ impl MainNodeBuilder {
                 Component::EthTxManager => {
                     self = self.add_eth_tx_manager_layer()?;
                 }
-                Component::TeeVerifierInputProducer => {
-                    self = self.add_tee_verifier_input_producer_layer()?;
-                }
                 Component::Housekeeper => {
-                    self = self
-                        .add_house_keeper_layer()?
-                        .add_postgres_metrics_layer()?;
+                    self = self.add_house_keeper_layer()?.add_postgres_layer()?;
                 }
                 Component::ProofDataHandler => {
                     self = self.add_proof_data_handler_layer()?;
@@ -749,7 +769,7 @@ impl MainNodeBuilder {
                     self = self.add_commitment_generator_layer()?;
                 }
                 Component::DADispatcher => {
-                    self = self.add_no_da_client_layer()?.add_da_dispatcher_layer()?;
+                    self = self.add_da_client_layer()?.add_da_dispatcher_layer()?;
                 }
                 Component::VmRunnerProtectiveReads => {
                     self = self.add_vm_runner_protective_reads_layer()?;

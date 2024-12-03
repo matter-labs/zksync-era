@@ -7,18 +7,12 @@ decentralization. Since it's EVM compatible (Solidity/Vyper), 99% of Ethereum pr
 or re-auditing a single line of code. ZKsync Era also uses an LLVM-based compiler that will eventually let developers
 write smart contracts in C++, Rust and other popular languages.
 
-## Knowledge Index
+## Documentation
 
-The following questions will be answered by the following resources:
+The most recent documentation can be found here:
 
-| Question                                                | Resource                                       |
-| ------------------------------------------------------- | ---------------------------------------------- |
-| What do I need to develop the project locally?          | [development.md](docs/guides/development.md)   |
-| How can I set up my dev environment?                    | [setup-dev.md](docs/guides/setup-dev.md)       |
-| How can I run the project?                              | [launch.md](docs/guides/launch.md)             |
-| What is the logical project structure and architecture? | [architecture.md](docs/guides/architecture.md) |
-| Where can I find protocol specs?                        | [specs.md](docs/specs/README.md)               |
-| Where can I find developer docs?                        | [docs](https://docs.zksync.io)                 |
+- [Core documentation](https://matter-labs.github.io/zksync-era/core/latest/)
+- [Prover documentation](https://matter-labs.github.io/zksync-era/prover/latest/)
 
 ## Policies
 

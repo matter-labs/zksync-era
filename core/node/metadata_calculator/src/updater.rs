@@ -152,10 +152,6 @@ impl TreeUpdater {
             // right away without having to implement dedicated code.
 
             if let Some(object_key) = &object_key {
-                storage
-                    .tee_verifier_input_producer_dal()
-                    .create_tee_verifier_input_producer_job(l1_batch_number)
-                    .await?;
                 // Save the proof generation details to Postgres
                 storage
                     .proof_generation_dal()
@@ -190,7 +186,7 @@ impl TreeUpdater {
     ) -> anyhow::Result<()> {
         let pruning_info = storage.pruning_dal().get_pruning_info().await?;
         anyhow::ensure!(
-            Some(l1_batch_number) > pruning_info.last_soft_pruned_l1_batch,
+            pruning_info.last_soft_pruned.map_or(true, |info| info.l1_batch < l1_batch_number),
             "L1 batch #{l1_batch_number}, next to be processed by the tree, is pruned; the tree cannot continue operating"
         );
         Ok(())

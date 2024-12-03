@@ -13,7 +13,9 @@ use zksync_state::{
     AsyncCatchupTask, BatchDiff, OwnedStorage, RocksdbCell, RocksdbStorage, RocksdbStorageBuilder,
     RocksdbWithMemory,
 };
-use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2ChainId};
+use zksync_types::{
+    block::L2BlockExecutionData, commitment::PubdataParams, L1BatchNumber, L2ChainId,
+};
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 use zksync_vm_interface::{L1BatchEnv, SystemEnv};
 
@@ -48,9 +50,8 @@ pub(crate) struct PostgresLoader {
 
 impl PostgresLoader {
     pub async fn new(pool: ConnectionPool<Core>, chain_id: L2ChainId) -> anyhow::Result<Self> {
-        let mut l1_batch_params_provider = L1BatchParamsProvider::new();
-        let mut conn = pool.connection().await?;
-        l1_batch_params_provider.initialize(&mut conn).await?;
+        let mut conn = pool.connection_tagged("vm_runner").await?;
+        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut conn).await?;
         Ok(Self {
             pool,
             l1_batch_params_provider,
@@ -72,7 +73,7 @@ impl StorageLoader for PostgresLoader {
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<(BatchExecuteData, OwnedStorage)>> {
-        let mut conn = self.pool.connection().await?;
+        let mut conn = self.pool.connection_tagged("vm_runner").await?;
         let Some(data) = load_batch_execute_data(
             &mut conn,
             l1_batch_number,
@@ -86,7 +87,7 @@ impl StorageLoader for PostgresLoader {
 
         if let Some(snapshot) = OwnedStorage::snapshot(&mut conn, l1_batch_number).await? {
             let postgres = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
-            let storage = snapshot.with_fallback(postgres, self.shadow_snapshots);
+            let storage = snapshot.with_fallback(postgres.into(), self.shadow_snapshots);
             let storage = OwnedStorage::from(storage);
             return Ok(Some((data, storage)));
         }
@@ -94,7 +95,7 @@ impl StorageLoader for PostgresLoader {
         tracing::info!(
             "Incomplete data to create storage snapshot for batch; will use sequential storage"
         );
-        let conn = self.pool.connection().await?;
+        let conn = self.pool.connection_tagged("vm_runner").await?;
         let storage = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
         Ok(Some((data, storage.into())))
     }
@@ -107,6 +108,8 @@ pub struct BatchExecuteData {
     pub l1_batch_env: L1BatchEnv,
     /// Execution process parameters.
     pub system_env: SystemEnv,
+    /// Pubdata building parameters.
+    pub pubdata_params: PubdataParams,
     /// List of L2 blocks and corresponding transactions that were executed within batch.
     pub l2_blocks: Vec<L2BlockExecutionData>,
 }
@@ -151,12 +154,11 @@ impl<Io: VmRunnerIo + Clone> VmRunnerStorage<Io> {
         chain_id: L2ChainId,
     ) -> anyhow::Result<(Self, StorageSyncTask<Io>)> {
         let mut conn = pool.connection_tagged(io.name()).await?;
-        let mut l1_batch_params_provider = L1BatchParamsProvider::new();
-        l1_batch_params_provider
-            .initialize(&mut conn)
+        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut conn)
             .await
             .context("Failed initializing L1 batch params provider")?;
         drop(conn);
+
         let state = Arc::new(RwLock::new(State {
             rocksdb: None,
             l1_batch_number: L1BatchNumber(0),
@@ -263,9 +265,7 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
         state: Arc<RwLock<State>>,
     ) -> anyhow::Result<Self> {
         let mut conn = pool.connection_tagged(io.name()).await?;
-        let mut l1_batch_params_provider = L1BatchParamsProvider::new();
-        l1_batch_params_provider
-            .initialize(&mut conn)
+        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut conn)
             .await
             .context("Failed initializing L1 batch params provider")?;
         let target_l1_batch_number = io.latest_processed_batch(&mut conn).await?;
@@ -398,29 +398,20 @@ pub(crate) async fn load_batch_execute_data(
     l1_batch_params_provider: &L1BatchParamsProvider,
     chain_id: L2ChainId,
 ) -> anyhow::Result<Option<BatchExecuteData>> {
-    let first_l2_block_in_batch = l1_batch_params_provider
-        .load_first_l2_block_in_batch(conn, l1_batch_number)
-        .await
-        .with_context(|| {
-            format!(
-                "Failed loading first L2 block for L1 batch #{}",
-                l1_batch_number
-            )
-        })?;
-    let Some(first_l2_block_in_batch) = first_l2_block_in_batch else {
-        return Ok(None);
-    };
-    let (system_env, l1_batch_env) = l1_batch_params_provider
-        .load_l1_batch_params(
+    let Some((system_env, l1_batch_env, pubdata_params)) = l1_batch_params_provider
+        .load_l1_batch_env(
             conn,
-            &first_l2_block_in_batch,
+            l1_batch_number,
             // `validation_computational_gas_limit` is only relevant when rejecting txs, but we
             // are re-executing so none of them should be rejected
             u32::MAX,
             chain_id,
         )
-        .await
-        .with_context(|| format!("Failed loading params for L1 batch #{}", l1_batch_number))?;
+        .await?
+    else {
+        return Ok(None);
+    };
+
     let l2_blocks = conn
         .transactions_dal()
         .get_l2_blocks_to_execute_for_l1_batch(l1_batch_number)
@@ -428,6 +419,7 @@ pub(crate) async fn load_batch_execute_data(
     Ok(Some(BatchExecuteData {
         l1_batch_env,
         system_env,
+        pubdata_params,
         l2_blocks,
     }))
 }

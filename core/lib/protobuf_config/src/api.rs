@@ -1,4 +1,4 @@
-use std::num::NonZeroUsize;
+use std::num::{NonZeroU32, NonZeroUsize};
 
 use anyhow::Context as _;
 use zksync_config::configs::{api, ApiConfig};
@@ -84,6 +84,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 &self.estimate_gas_acceptable_overestimation,
             )
             .context("acceptable_overestimation")?,
+            estimate_gas_optimize_search: self.estimate_gas_optimize_search.unwrap_or(false),
             max_tx_size: required(&self.max_tx_size)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("max_tx_size")?,
@@ -112,6 +113,11 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .map(|x| x.try_into())
                 .transpose()
                 .context("latest_values_cache_size_mb")?,
+            latest_values_max_block_lag: self
+                .latest_values_max_block_lag
+                .map(|x| x.try_into())
+                .transpose()
+                .context("latest_values_max_block_lag")?,
             fee_history_limit: self.fee_history_limit,
             max_batch_request_size: self
                 .max_batch_request_size
@@ -167,6 +173,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
             estimate_gas_acceptable_overestimation: Some(
                 this.estimate_gas_acceptable_overestimation,
             ),
+            estimate_gas_optimize_search: Some(this.estimate_gas_optimize_search),
             max_tx_size: Some(this.max_tx_size.try_into().unwrap()),
             vm_execution_cache_misses_limit: this
                 .vm_execution_cache_misses_limit
@@ -181,6 +188,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
             latest_values_cache_size_mb: this
                 .latest_values_cache_size_mb
                 .map(|x| x.try_into().unwrap()),
+            latest_values_max_block_lag: this.latest_values_max_block_lag.map(NonZeroU32::get),
             fee_history_limit: this.fee_history_limit,
             max_batch_request_size: this.max_batch_request_size.map(|x| x.try_into().unwrap()),
             max_response_body_size_mb: this

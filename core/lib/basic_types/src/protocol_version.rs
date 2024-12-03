@@ -68,15 +68,17 @@ pub enum ProtocolVersionId {
     Version23,
     Version24,
     Version25,
+    Version26,
+    Version27,
 }
 
 impl ProtocolVersionId {
     pub const fn latest() -> Self {
-        Self::Version24
+        Self::Version25
     }
 
     pub const fn next() -> Self {
-        Self::Version25
+        Self::Version26
     }
 
     pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
@@ -120,6 +122,8 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version23 => VmVersion::Vm1_5_0SmallBootloaderMemory,
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            ProtocolVersionId::Version26 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            ProtocolVersionId::Version27 => VmVersion::VmGateway,
         }
     }
 
@@ -135,6 +139,10 @@ impl ProtocolVersionId {
 
     pub fn is_pre_shared_bridge(&self) -> bool {
         self <= &Self::Version22
+    }
+
+    pub fn is_pre_gateway(&self) -> bool {
+        self <= &Self::Version26
     }
 
     pub fn is_1_4_0(&self) -> bool {
@@ -238,7 +246,12 @@ impl Detokenize for VerifierParams {
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct L1VerifierConfig {
-    pub recursion_scheduler_level_vk_hash: H256,
+    // Rename is required to not introduce breaking changes in the API for existing clients.
+    #[serde(
+        alias = "recursion_scheduler_level_vk_hash",
+        rename(serialize = "recursion_scheduler_level_vk_hash")
+    )]
+    pub snark_wrapper_vk_hash: H256,
 }
 
 impl From<ProtocolVersionId> for VmVersion {
@@ -270,6 +283,8 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version23 => VmVersion::Vm1_5_0SmallBootloaderMemory,
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            ProtocolVersionId::Version26 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            ProtocolVersionId::Version27 => VmVersion::VmGateway,
         }
     }
 }
@@ -393,5 +408,23 @@ mod tests {
         let unpacked = ProtocolSemanticVersion::try_from_packed(packed).unwrap();
 
         assert_eq!(version, unpacked);
+    }
+
+    #[test]
+    fn test_verifier_config_serde() {
+        let de = [
+            r#"{"recursion_scheduler_level_vk_hash": "0x1111111111111111111111111111111111111111111111111111111111111111"}"#,
+            r#"{"snark_wrapper_vk_hash": "0x1111111111111111111111111111111111111111111111111111111111111111"}"#,
+        ];
+        for de in de.iter() {
+            let _: L1VerifierConfig = serde_json::from_str(de)
+                .unwrap_or_else(|err| panic!("Failed deserialization. String: {de}, error {err}"));
+        }
+        let ser = L1VerifierConfig {
+            snark_wrapper_vk_hash: H256::repeat_byte(0x11),
+        };
+        let ser_str = serde_json::to_string(&ser).unwrap();
+        let expected_str = r#"{"recursion_scheduler_level_vk_hash":"0x1111111111111111111111111111111111111111111111111111111111111111"}"#;
+        assert_eq!(ser_str, expected_str);
     }
 }

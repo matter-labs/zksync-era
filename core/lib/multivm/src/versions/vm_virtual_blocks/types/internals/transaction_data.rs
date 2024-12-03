@@ -1,19 +1,24 @@
 use std::convert::TryInto;
 
 use zksync_types::{
+    address_to_h256,
+    bytecode::BytecodeHash,
     ethabi::{encode, Address, Token},
     fee::{encoding_len, Fee},
+    h256_to_u256,
     l1::is_l1_tx_type,
     l2::{L2Tx, TransactionType},
     transaction_request::{PaymasterParams, TransactionRequest},
     web3::Bytes,
     Execute, ExecuteTransactionCommon, L2ChainId, L2TxCommonData, Nonce, Transaction, H256, U256,
 };
-use zksync_utils::{address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
 
-use crate::vm_virtual_blocks::{
-    constants::MAX_GAS_PER_PUBDATA_BYTE,
-    utils::overhead::{get_amortized_overhead, OverheadCoefficients},
+use crate::{
+    utils::bytecode::bytes_to_be_words,
+    vm_virtual_blocks::{
+        constants::MAX_GAS_PER_PUBDATA_BYTE,
+        utils::overhead::{get_amortized_overhead, OverheadCoefficients},
+    },
 };
 
 /// This structure represents the data that is used by
@@ -22,7 +27,7 @@ use crate::vm_virtual_blocks::{
 pub(crate) struct TransactionData {
     pub(crate) tx_type: u8,
     pub(crate) from: Address,
-    pub(crate) to: Address,
+    pub(crate) to: Option<Address>,
     pub(crate) gas_limit: U256,
     pub(crate) pubdata_price_limit: U256,
     pub(crate) max_fee_per_gas: U256,
@@ -169,7 +174,7 @@ impl TransactionData {
         encode(&[Token::Tuple(vec![
             Token::Uint(U256::from_big_endian(&self.tx_type.to_be_bytes())),
             Token::Address(self.from),
-            Token::Address(self.to),
+            Token::Address(self.to.unwrap_or_default()),
             Token::Uint(self.gas_limit),
             Token::Uint(self.pubdata_price_limit),
             Token::Uint(self.max_fee_per_gas),
@@ -190,16 +195,13 @@ impl TransactionData {
         let factory_deps_hashes = self
             .factory_deps
             .iter()
-            .map(|dep| h256_to_u256(hash_bytecode(dep)))
+            .map(|dep| BytecodeHash::for_bytecode(dep).value_u256())
             .collect();
         self.abi_encode_with_custom_factory_deps(factory_deps_hashes)
     }
 
     pub(crate) fn into_tokens(self) -> Vec<U256> {
-        let bytes = self.abi_encode();
-        assert!(bytes.len() % 32 == 0);
-
-        bytes_to_be_words(bytes)
+        bytes_to_be_words(&self.abi_encode())
     }
 
     pub(crate) fn effective_gas_price_per_pubdata(&self, block_gas_price_per_pubdata: u32) -> u32 {
@@ -325,7 +327,7 @@ mod tests {
         let transaction = TransactionData {
             tx_type: 113,
             from: Address::random(),
-            to: Address::random(),
+            to: Some(Address::random()),
             gas_limit: U256::from(1u32),
             pubdata_price_limit: U256::from(1u32),
             max_fee_per_gas: U256::from(1u32),

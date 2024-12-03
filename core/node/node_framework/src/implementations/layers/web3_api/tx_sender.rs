@@ -3,10 +3,10 @@ use std::{sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 use zksync_node_api_server::{
     execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
-    tx_sender::{ApiContracts, TxSenderBuilder, TxSenderConfig},
+    tx_sender::{SandboxExecutorOptions, TxSenderBuilder, TxSenderConfig},
 };
 use zksync_state::{PostgresStorageCaches, PostgresStorageCachesTask};
-use zksync_types::Address;
+use zksync_types::{vm::FastVmMode, AccountTreeId, Address};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     jsonrpsee,
@@ -32,6 +32,7 @@ pub struct PostgresStorageCachesConfig {
     pub factory_deps_cache_size: u64,
     pub initial_writes_cache_size: u64,
     pub latest_values_cache_size: u64,
+    pub latest_values_max_block_lag: u32,
 }
 
 /// Wiring layer for the `TxSender`.
@@ -58,8 +59,8 @@ pub struct TxSenderLayer {
     tx_sender_config: TxSenderConfig,
     postgres_storage_caches_config: PostgresStorageCachesConfig,
     max_vm_concurrency: usize,
-    api_contracts: ApiContracts,
     whitelisted_tokens_for_aa_cache: bool,
+    vm_mode: FastVmMode,
 }
 
 #[derive(Debug, FromContext)]
@@ -89,14 +90,13 @@ impl TxSenderLayer {
         tx_sender_config: TxSenderConfig,
         postgres_storage_caches_config: PostgresStorageCachesConfig,
         max_vm_concurrency: usize,
-        api_contracts: ApiContracts,
     ) -> Self {
         Self {
             tx_sender_config,
             postgres_storage_caches_config,
             max_vm_concurrency,
-            api_contracts,
             whitelisted_tokens_for_aa_cache: false,
+            vm_mode: FastVmMode::Old,
         }
     }
 
@@ -106,6 +106,12 @@ impl TxSenderLayer {
     /// Requires `MainNodeClientResource` to be present.
     pub fn with_whitelisted_tokens_for_aa_cache(mut self, value: bool) -> Self {
         self.whitelisted_tokens_for_aa_cache = value;
+        self
+    }
+
+    /// Sets the fast VM modes used for all supported operations.
+    pub fn with_vm_mode(mut self, mode: FastVmMode) -> Self {
+        self.vm_mode = mode;
         self
     }
 }
@@ -136,10 +142,13 @@ impl WiringLayer for TxSenderLayer {
             PostgresStorageCaches::new(factory_deps_capacity, initial_writes_capacity);
 
         let postgres_storage_caches_task = if values_capacity > 0 {
-            Some(
-                storage_caches
-                    .configure_storage_values_cache(values_capacity, replica_pool.clone()),
-            )
+            let update_task = storage_caches.configure_storage_values_cache(
+                values_capacity,
+                self.postgres_storage_caches_config
+                    .latest_values_max_block_lag,
+                replica_pool.clone(),
+            );
+            Some(update_task)
         } else {
             None
         };
@@ -148,8 +157,18 @@ impl WiringLayer for TxSenderLayer {
         let (vm_concurrency_limiter, vm_concurrency_barrier) =
             VmConcurrencyLimiter::new(self.max_vm_concurrency);
 
+        // TODO (BFT-138): Allow to dynamically reload API contracts
+        let config = self.tx_sender_config;
+        let mut executor_options = SandboxExecutorOptions::new(
+            config.chain_id,
+            AccountTreeId::new(config.fee_account_addr),
+            config.validation_computational_gas_limit,
+        )
+        .await?;
+        executor_options.set_fast_vm_mode(self.vm_mode);
+
         // Build `TxSender`.
-        let mut tx_sender = TxSenderBuilder::new(self.tx_sender_config, replica_pool, tx_sink);
+        let mut tx_sender = TxSenderBuilder::new(config, replica_pool, tx_sink);
         if let Some(sealer) = sealer {
             tx_sender = tx_sender.with_sealer(sealer);
         }
@@ -176,7 +195,7 @@ impl WiringLayer for TxSenderLayer {
         let tx_sender = tx_sender.build(
             fee_input,
             Arc::new(vm_concurrency_limiter),
-            self.api_contracts,
+            executor_options,
             storage_caches,
         );
 

@@ -24,22 +24,25 @@ pub use crate::{
             VmRevertReason, VmRevertReasonParsingError,
         },
         inputs::{
-            L1BatchEnv, L2BlockEnv, OneshotEnv, StoredL2BlockEnv, SystemEnv, TxExecutionMode,
-            VmExecutionMode,
+            InspectExecutionMode, L1BatchEnv, L2BlockEnv, OneshotEnv, OneshotTracingParams,
+            StoredL2BlockEnv, SystemEnv, TxExecutionArgs, TxExecutionMode, VmExecutionMode,
         },
         outputs::{
             BatchTransactionExecutionResult, BootloaderMemory, Call, CallType, CircuitStatistic,
             CompressedBytecodeInfo, CurrentExecutionState, DeduplicatedWritesMetrics,
-            ExecutionResult, FinishedL1Batch, L2Block, Refunds, TransactionExecutionMetrics,
+            ExecutionResult, FinishedL1Batch, L2Block, OneshotTransactionExecutionResult,
+            PushTransactionResult, Refunds, TransactionExecutionMetrics,
             TransactionExecutionResult, TxExecutionStatus, VmEvent, VmExecutionLogs,
             VmExecutionMetrics, VmExecutionResultAndLogs, VmExecutionStatistics, VmMemoryMetrics,
         },
         tracer,
     },
-    vm::{VmFactory, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled},
+    vm::{VmFactory, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled, VmTrackingContracts},
 };
 
 pub mod executor;
+pub mod pubdata;
 pub mod storage;
 mod types;
+pub mod utils;
 mod vm;

@@ -6,21 +6,21 @@ use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use zksync_types::{
     api::{self, TransactionDetails, TransactionReceipt, TransactionStatus},
     fee::Fee,
+    h256_to_address,
     l1::{OpProcessingType, PriorityQueueType},
     l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTxCommonData,
     transaction_request::PaymasterParams,
     web3::Bytes,
     Address, Execute, ExecuteTransactionCommon, L1TxCommonData, L2ChainId, L2TxCommonData, Nonce,
-    PackedEthSignature, PriorityOpId, ProtocolVersionId, Transaction, EIP_1559_TX_TYPE,
-    EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160, H256, PRIORITY_OPERATION_L2_TX_TYPE,
-    PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
+    PackedEthSignature, PriorityOpId, ProtocolVersionId, Transaction,
+    TransactionTimeRangeConstraint, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160,
+    H256, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
 };
-use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 use zksync_vm_interface::Call;
 
 use super::call::{LegacyCall, LegacyMixedCall};
-use crate::BigDecimal;
+use crate::{models::bigdecimal_to_u256, BigDecimal};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 #[cfg_attr(test, derive(Default))]
@@ -67,6 +67,9 @@ pub struct StorageTransaction {
 
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+
+    pub timestamp_asserter_range_start: Option<NaiveDateTime>,
+    pub timestamp_asserter_range_end: Option<NaiveDateTime>,
 
     // DEPRECATED.
     pub l1_block_number: Option<i32>,
@@ -321,6 +324,18 @@ impl From<StorageTransaction> for Transaction {
     }
 }
 
+impl From<&StorageTransaction> for TransactionTimeRangeConstraint {
+    fn from(tx: &StorageTransaction) -> Self {
+        Self {
+            timestamp_asserter_range: tx.timestamp_asserter_range_start.and_then(|start| {
+                tx.timestamp_asserter_range_end.map(|end| {
+                    (start.and_utc().timestamp() as u64)..(end.and_utc().timestamp() as u64)
+                })
+            }),
+        }
+    }
+}
+
 #[derive(sqlx::FromRow)]
 pub(crate) struct StorageTransactionReceipt {
     pub error: Option<String>,
@@ -352,6 +367,16 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
             .index_in_block
             .map_or_else(Default::default, U64::from);
 
+        // For better compatibility with various clients, we never return `None` recipient address.
+        let to = storage_receipt
+            .transfer_to
+            .or(storage_receipt.execute_contract_address)
+            .and_then(|addr| {
+                serde_json::from_value::<Option<Address>>(addr)
+                    .expect("invalid address value in the database")
+            })
+            .unwrap_or_else(Address::zero);
+
         let block_hash = H256::from_slice(&storage_receipt.block_hash);
         TransactionReceipt {
             transaction_hash: H256::from_slice(&storage_receipt.tx_hash),
@@ -361,15 +386,7 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
             l1_batch_tx_index: storage_receipt.l1_batch_tx_index.map(U64::from),
             l1_batch_number: storage_receipt.l1_batch_number.map(U64::from),
             from: H160::from_slice(&storage_receipt.initiator_address),
-            to: storage_receipt
-                .transfer_to
-                .or(storage_receipt.execute_contract_address)
-                .map(|addr| {
-                    serde_json::from_value::<Address>(addr)
-                        .expect("invalid address value in the database")
-                })
-                // For better compatibility with various clients, we never return null.
-                .or_else(|| Some(Address::default())),
+            to: Some(to),
             cumulative_gas_used: Default::default(), // TODO: Should be actually calculated (SMA-1183).
             gas_used: {
                 let refunded_gas: U256 = storage_receipt.refunded_gas.into();
@@ -386,11 +403,10 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
             ),
             contract_address: storage_receipt
                 .contract_address
-                .map(|addr| h256_to_account_address(&H256::from_slice(&addr))),
+                .map(|addr| h256_to_address(&H256::from_slice(&addr))),
             logs: vec![],
             l2_to_l1_logs: vec![],
             status,
-            root: block_hash,
             logs_bloom: Default::default(),
             // Even though the Rust SDK recommends us to supply "None" for legacy transactions
             // we always supply some number anyway to have the same behavior as most popular RPCs
@@ -508,6 +524,10 @@ impl StorageApiTransaction {
             .signature
             .and_then(|signature| PackedEthSignature::deserialize_packed(&signature).ok());
 
+        let to = serde_json::from_value(self.execute_contract_address)
+            .ok()
+            .unwrap_or_default();
+
         // For legacy and EIP-2930 transactions it is gas price willing to be paid by the sender in wei.
         // For other transactions it should be the effective gas price if transaction is included in block,
         // otherwise this value should be set equal to the max fee per gas.
@@ -521,6 +541,13 @@ impl StorageApiTransaction {
                 .or_else(|| self.max_fee_per_gas.clone())
                 .unwrap_or_else(BigDecimal::zero),
         };
+        // Legacy transactions are not supposed to have `yParity` and are reliant on `v` instead.
+        // Other transactions are required to have `yParity` which replaces the deprecated `v` value
+        // (still included for backwards compatibility).
+        let y_parity = match self.tx_format {
+            None | Some(0) => None,
+            _ => signature.as_ref().map(|s| U64::from(s.v())),
+        };
         let mut tx = api::Transaction {
             hash: H256::from_slice(&self.tx_hash),
             nonce: U256::from(self.nonce.unwrap_or(0) as u64),
@@ -528,11 +555,12 @@ impl StorageApiTransaction {
             block_number: self.block_number.map(|number| U64::from(number as u64)),
             transaction_index: self.index_in_block.map(|idx| U64::from(idx as u64)),
             from: Some(Address::from_slice(&self.initiator_address)),
-            to: Some(serde_json::from_value(self.execute_contract_address).unwrap()),
+            to,
             value: bigdecimal_to_u256(self.value),
             gas_price: Some(bigdecimal_to_u256(gas_price)),
             gas: bigdecimal_to_u256(self.gas_limit.unwrap_or_else(BigDecimal::zero)),
             input: serde_json::from_value(self.calldata).expect("incorrect calldata in Postgres"),
+            y_parity,
             v: signature.as_ref().map(|s| U64::from(s.v())),
             r: signature.as_ref().map(|s| U256::from(s.r())),
             s: signature.as_ref().map(|s| U256::from(s.s())),
@@ -561,32 +589,38 @@ impl StorageApiTransaction {
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub(crate) struct CallTrace {
     pub call_trace: Vec<u8>,
+    pub tx_hash: Vec<u8>,
+    pub tx_index_in_block: Option<i32>,
 }
 
 impl CallTrace {
     pub(crate) fn into_call(self, protocol_version: ProtocolVersionId) -> Call {
-        if protocol_version.is_pre_1_5_0() {
-            if let Ok(legacy_call_trace) = bincode::deserialize::<LegacyCall>(&self.call_trace) {
-                legacy_call_trace.into()
-            } else {
-                let legacy_mixed_call_trace =
-                    bincode::deserialize::<LegacyMixedCall>(&self.call_trace)
-                        .expect("Failed to deserialize call trace");
-                legacy_mixed_call_trace.into()
-            }
-        } else {
-            bincode::deserialize(&self.call_trace).unwrap()
-        }
+        parse_call_trace(&self.call_trace, protocol_version)
     }
+}
 
-    pub(crate) fn from_call(call: Call, protocol_version: ProtocolVersionId) -> Self {
-        let call_trace = if protocol_version.is_pre_1_5_0() {
-            bincode::serialize(&LegacyCall::try_from(call).unwrap())
+pub(crate) fn parse_call_trace(call_trace: &[u8], protocol_version: ProtocolVersionId) -> Call {
+    if protocol_version.is_pre_1_5_0() {
+        if let Ok(legacy_call_trace) = bincode::deserialize::<LegacyCall>(call_trace) {
+            legacy_call_trace.into()
         } else {
-            bincode::serialize(&call)
+            let legacy_mixed_call_trace = bincode::deserialize::<LegacyMixedCall>(call_trace)
+                .expect("Failed to deserialize call trace");
+            legacy_mixed_call_trace.into()
         }
-        .unwrap();
-
-        Self { call_trace }
+    } else {
+        bincode::deserialize(call_trace).unwrap()
     }
+}
+
+pub(crate) fn serialize_call_into_bytes(
+    call: Call,
+    protocol_version: ProtocolVersionId,
+) -> Vec<u8> {
+    if protocol_version.is_pre_1_5_0() {
+        bincode::serialize(&LegacyCall::try_from(call).unwrap())
+    } else {
+        bincode::serialize(&call)
+    }
+    .unwrap()
 }

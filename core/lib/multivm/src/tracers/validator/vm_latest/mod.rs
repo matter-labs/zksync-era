@@ -3,19 +3,21 @@ use zk_evm_1_5_0::{
     zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode},
 };
 use zksync_system_constants::KECCAK256_PRECOMPILE_ADDRESS;
-use zksync_types::{get_code_key, AccountTreeId, StorageKey, H256};
-use zksync_utils::{h256_to_account_address, u256_to_account_address, u256_to_h256};
+use zksync_types::{
+    get_code_key, h256_to_address, u256_to_address, u256_to_h256, AccountTreeId, StorageKey, H256,
+    U256,
+};
 
 use crate::{
     interface::{
         storage::{StoragePtr, WriteStorage},
-        tracer::{TracerExecutionStatus, TracerExecutionStopReason},
+        tracer::{TracerExecutionStatus, TracerExecutionStopReason, ViolatedValidationRule},
         Halt,
     },
     tracers::{
         dynamic::vm_1_5_0::DynTracer,
         validator::{
-            types::{NewTrustedValidationItems, ValidationTracerMode, ViolatedValidationRule},
+            types::{NewTrustedValidationItems, ValidationTracerMode},
             ValidationRoundResult, ValidationTracer,
         },
     },
@@ -25,6 +27,8 @@ use crate::{
     },
     HistoryMode,
 };
+
+pub const TIMESTAMP_ASSERTER_FUNCTION_SELECTOR: [u8; 4] = [0x5b, 0x1a, 0x0c, 0x91];
 
 impl<H: HistoryMode> ValidationTracer<H> {
     fn check_user_restrictions_vm_latest<S: WriteStorage>(
@@ -46,7 +50,7 @@ impl<H: HistoryMode> ValidationTracer<H> {
                 let packed_abi = data.src0_value.value;
                 let call_destination_value = data.src1_value.value;
 
-                let called_address = u256_to_account_address(&call_destination_value);
+                let called_address = u256_to_address(&call_destination_value);
                 let far_call_abi = FarCallABI::from_u256(packed_abi);
 
                 if called_address == KECCAK256_PRECOMPILE_ADDRESS
@@ -81,12 +85,58 @@ impl<H: HistoryMode> ValidationTracer<H> {
                             called_address,
                         ));
                     }
+                    // If this is a call to the timestamp asserter, extract the function arguments and store them in ValidationTraces.
+                    // These arguments are used by the mempool for transaction filtering. The call data length should be 68 bytes:
+                    // a 4-byte function selector followed by two U256 values.
+                    if let Some(params) = &self.timestamp_asserter_params {
+                        if called_address == params.address
+                            && far_call_abi.memory_quasi_fat_pointer.length == 68
+                        {
+                            let calldata_page = get_calldata_page_via_abi(
+                                &far_call_abi,
+                                state.vm_local_state.callstack.current.base_memory_page,
+                            );
+                            let calldata = memory.read_unaligned_bytes(
+                                calldata_page as usize,
+                                far_call_abi.memory_quasi_fat_pointer.start as usize,
+                                68,
+                            );
+
+                            if calldata[..4] == TIMESTAMP_ASSERTER_FUNCTION_SELECTOR {
+                                // start and end need to be capped to u64::MAX to avoid overflow
+                                let start = U256::from_big_endian(
+                                    &calldata[calldata.len() - 64..calldata.len() - 32],
+                                )
+                                .try_into()
+                                .unwrap_or(u64::MAX);
+                                let end = U256::from_big_endian(&calldata[calldata.len() - 32..])
+                                    .try_into()
+                                    .unwrap_or(u64::MAX);
+
+                                // using self.l1_batch_env.timestamp is ok here because the tracer is always
+                                // used in a oneshot execution mode
+                                if end
+                                    < self.l1_batch_env.timestamp
+                                        + params.min_time_till_end.as_secs()
+                                {
+                                    return Err(
+                                        ViolatedValidationRule::TimestampAssertionCloseToRangeEnd,
+                                    );
+                                }
+
+                                self.traces
+                                    .lock()
+                                    .unwrap()
+                                    .apply_timestamp_asserter_range(start..end);
+                            }
+                        }
+                    }
                 }
             }
             Opcode::Context(context) => {
                 match context {
                     ContextOpcode::Meta => {
-                        return Err(ViolatedValidationRule::TouchedUnallowedContext);
+                        return Err(ViolatedValidationRule::TouchedDisallowedContext);
                     }
                     ContextOpcode::ErgsLeft => {
                         // TODO (SMA-1168): implement the correct restrictions for the gas left opcode.
@@ -100,7 +150,7 @@ impl<H: HistoryMode> ValidationTracer<H> {
                 let msg_sender = state.vm_local_state.callstack.current.msg_sender;
 
                 if !self.is_allowed_storage_read(storage.clone(), this_address, key, msg_sender) {
-                    return Err(ViolatedValidationRule::TouchedUnallowedStorageSlots(
+                    return Err(ViolatedValidationRule::TouchedDisallowedStorageSlots(
                         this_address,
                         key,
                     ));
@@ -113,7 +163,7 @@ impl<H: HistoryMode> ValidationTracer<H> {
                     let value = storage.borrow_mut().read_value(&storage_key);
 
                     return Ok(NewTrustedValidationItems {
-                        new_trusted_addresses: vec![h256_to_account_address(&value)],
+                        new_trusted_addresses: vec![h256_to_address(&value)],
                         ..Default::default()
                     });
                 }

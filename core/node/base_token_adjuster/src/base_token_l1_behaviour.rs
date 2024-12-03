@@ -6,7 +6,7 @@ use std::{
 };
 
 use anyhow::Context;
-use bigdecimal::{num_bigint::ToBigInt, BigDecimal, Zero};
+use bigdecimal::{BigDecimal, Zero};
 use zksync_config::BaseTokenAdjusterConfig;
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, Options};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
@@ -57,7 +57,7 @@ impl BaseTokenL1Behaviour {
             self.update_last_persisted_l1_ratio(prev_ratio.clone());
             tracing::info!(
                 "Fetched current base token ratio from the L1: {}",
-                prev_ratio.to_bigint().unwrap()
+                prev_ratio
             );
             prev_ratio
         };
@@ -71,7 +71,7 @@ impl BaseTokenL1Behaviour {
                 "Skipping L1 update. current_ratio {}, previous_ratio {}, deviation {}",
                 current_ratio,
                 prev_ratio,
-                deviation.to_bigint().unwrap()
+                deviation
             );
             return Ok(());
         }
@@ -98,7 +98,7 @@ impl BaseTokenL1Behaviour {
                         new_ratio.denominator.get(),
                         base_fee_per_gas,
                         priority_fee_per_gas,
-                        deviation.to_bigint().unwrap()
+                        deviation
                     );
                     METRICS
                         .l1_gas_used
@@ -220,10 +220,16 @@ impl BaseTokenL1Behaviour {
                 if receipt.status == Some(1.into()) {
                     return Ok(receipt.gas_used);
                 }
+                let reason = (*l1_params.eth_client)
+                    .as_ref()
+                    .failure_reason(hash)
+                    .await
+                    .context("failed getting failure reason of `setTokenMultiplier` transaction")?;
                 return Err(anyhow::Error::msg(format!(
-                    "`setTokenMultiplier` transaction {:?} failed with status {:?}",
+                    "`setTokenMultiplier` transaction {:?} failed with status {:?}, reason: {:?}",
                     hex::encode(hash),
-                    receipt.status
+                    receipt.status,
+                    reason
                 )));
             } else {
                 tokio::time::sleep(sleep_duration).await;

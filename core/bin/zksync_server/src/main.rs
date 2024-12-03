@@ -7,22 +7,22 @@ use zksync_config::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
         chain::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
-            StateKeeperConfig,
+            StateKeeperConfig, TimestampAsserterConfig,
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        BasicWitnessInputProducerConfig, ContractsConfig, DatabaseSecrets, ExperimentalVmConfig,
-        ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
-        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
-        L1Secrets, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
-        ProtectiveReadsWriterConfig, Secrets,
+        BasicWitnessInputProducerConfig, ContractsConfig, DataAvailabilitySecrets, DatabaseSecrets,
+        ExperimentalVmConfig, ExternalPriceApiClientConfig, FriProofCompressorConfig,
+        FriProverConfig, FriProverGatewayConfig, FriWitnessGeneratorConfig,
+        FriWitnessVectorGeneratorConfig, L1Secrets, ObservabilityConfig, PrometheusConfig,
+        ProofDataHandlerConfig, ProtectiveReadsWriterConfig, Secrets,
     },
-    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig,
-    EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig, GenesisConfig,
-    ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
+    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DAClientConfig, DADispatcherConfig,
+    DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
+    GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
-    temp_config_store::{decode_yaml_repr, TempConfigStore},
+    temp_config_store::{read_yaml_repr, TempConfigStore},
     Component, Components,
 };
 use zksync_env_config::FromEnv;
@@ -44,7 +44,7 @@ struct Cli {
     /// Comma-separated list of components to launch.
     #[arg(
         long,
-        default_value = "api,tree,eth,state_keeper,housekeeper,tee_verifier_input_producer,commitment_generator,da_dispatcher,vm_runner_protective_reads"
+        default_value = "api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,vm_runner_protective_reads"
     )]
     components: ComponentsToRun,
     /// Path to the yaml config. If set, it will be used instead of env vars.
@@ -98,55 +98,38 @@ fn main() -> anyhow::Result<()> {
             configs
         }
         Some(path) => {
-            let yaml =
-                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
+            read_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&path)
                 .context("failed decoding general YAML config")?
         }
     };
 
     let wallets = match opt.wallets_path {
         None => tmp_config.wallets(),
-        Some(path) => {
-            let yaml =
-                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            decode_yaml_repr::<zksync_protobuf_config::proto::wallets::Wallets>(&yaml)
-                .context("failed decoding wallets YAML config")?
-        }
+        Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::wallets::Wallets>(&path)
+            .context("failed decoding wallets YAML config")?,
     };
 
     let secrets: Secrets = match opt.secrets_path {
-        Some(path) => {
-            let yaml =
-                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            decode_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&yaml)
-                .context("failed decoding secrets YAML config")?
-        }
+        Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&path)
+            .context("failed decoding secrets YAML config")?,
         None => Secrets {
             consensus: config::read_consensus_secrets().context("read_consensus_secrets()")?,
             database: DatabaseSecrets::from_env().ok(),
             l1: L1Secrets::from_env().ok(),
+            data_availability: DataAvailabilitySecrets::from_env().ok(),
         },
     };
 
     let contracts_config = match opt.contracts_config_path {
         None => ContractsConfig::from_env().context("contracts_config")?,
-        Some(path) => {
-            let yaml =
-                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            decode_yaml_repr::<zksync_protobuf_config::proto::contracts::Contracts>(&yaml)
-                .context("failed decoding contracts YAML config")?
-        }
+        Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::contracts::Contracts>(&path)
+            .context("failed decoding contracts YAML config")?,
     };
 
     let genesis = match opt.genesis_path {
         None => GenesisConfig::from_env().context("Genesis config")?,
-        Some(path) => {
-            let yaml =
-                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            decode_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&yaml)
-                .context("failed decoding genesis YAML config")?
-        }
+        Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&path)
+            .context("failed decoding genesis YAML config")?,
     };
     let observability_config = configs
         .observability
@@ -199,6 +182,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
         observability: ObservabilityConfig::from_env().ok(),
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
+        da_client_config: DAClientConfig::from_env().ok(),
         da_dispatcher_config: DADispatcherConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
         basic_witness_input_producer_config: BasicWitnessInputProducerConfig::from_env().ok(),
@@ -211,5 +195,6 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         external_proof_integration_api_config: ExternalProofIntegrationApiConfig::from_env().ok(),
         experimental_vm_config: ExperimentalVmConfig::from_env().ok(),
         prover_job_monitor_config: None,
+        timestamp_asserter_config: TimestampAsserterConfig::from_env().ok(),
     })
 }

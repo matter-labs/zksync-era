@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use zk_evm_1_4_1::aux_structures::Timestamp;
 
 use crate::{
@@ -96,6 +98,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             logs,
             statistics,
             refunds,
+            dynamic_factory_deps: HashMap::new(), // dynamic bytecode deployment is not supported
         };
 
         (stop_reason, result)

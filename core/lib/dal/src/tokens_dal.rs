@@ -98,7 +98,7 @@ impl TokensDal<'_, '_> {
             .filter_map(|address| {
                 if address.is_zero() {
                     None
-                } else if let Some(deployed_at) = token_deployment_data.get(&address) {
+                } else if let Some((deployed_at, _)) = token_deployment_data.get(&address) {
                     (deployed_at > &block_number).then_some(address.0)
                 } else {
                     // Token belongs to a "pending" L2 block that's not yet fully inserted to the database.
@@ -110,7 +110,7 @@ impl TokensDal<'_, '_> {
             r#"
             DELETE FROM tokens
             WHERE
-                l2_address = ANY ($1)
+                l2_address = ANY($1)
             "#,
             &token_addresses_to_be_removed as &[_]
         )

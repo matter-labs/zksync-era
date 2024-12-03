@@ -1,17 +1,17 @@
 use std::fmt;
 
-use zksync_dal::{Connection, Core};
+use zksync_dal::{eth_watcher_dal::EventType, Connection, Core};
 use zksync_eth_client::{ContractCallError, EnrichedClientError};
-use zksync_types::{web3::Log, H256};
+use zksync_types::{api::Log, H256};
 
 pub(crate) use self::{
+    appended_chain_batch_root::BatchRootProcessor,
     decentralized_upgrades::DecentralizedUpgradesEventProcessor,
-    governance_upgrades::GovernanceUpgradesEventProcessor, priority_ops::PriorityOpsEventProcessor,
+    priority_ops::PriorityOpsEventProcessor,
 };
-use crate::client::EthClient;
 
+mod appended_chain_batch_root;
 mod decentralized_upgrades;
-mod governance_upgrades;
 mod priority_ops;
 
 /// Errors issued by an [`EventProcessor`].
@@ -32,6 +32,12 @@ pub(super) enum EventProcessorError {
     Internal(#[from] anyhow::Error),
 }
 
+#[derive(Debug)]
+pub(super) enum EventsSource {
+    L1,
+    SL,
+}
+
 impl EventProcessorError {
     pub fn log_parse(source: impl Into<anyhow::Error>, log_kind: &'static str) -> Self {
         Self::LogParse {
@@ -45,14 +51,28 @@ impl EventProcessorError {
 /// feeds events to all processors one-by-one.
 #[async_trait::async_trait]
 pub(super) trait EventProcessor: 'static + fmt::Debug + Send + Sync {
-    /// Processes given events. All events are guaranteed to match [`Self::relevant_topic()`].
+    /// Processes given events. All events are guaranteed to match [`Self::topic1()`] and [`Self::topic2()`].
+    /// Returns number of processed events, this result is used to update last processed block.
     async fn process_events(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        client: &dyn EthClient,
         events: Vec<Log>,
-    ) -> Result<(), EventProcessorError>;
+    ) -> Result<usize, EventProcessorError>;
 
-    /// Relevant topic which defines what events to be processed
-    fn relevant_topic(&self) -> H256;
+    /// Relevant topic1 which defines what events to be processed
+    fn topic1(&self) -> H256;
+
+    /// Relevant topic2 which defines what events to be processed
+    fn topic2(&self) -> Option<H256> {
+        None
+    }
+
+    fn event_source(&self) -> EventsSource;
+
+    fn event_type(&self) -> EventType;
+
+    /// Whether processor expect events only from finalized blocks.
+    fn only_finalized_block(&self) -> bool {
+        false
+    }
 }

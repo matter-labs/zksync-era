@@ -34,6 +34,6 @@ mod test {
 
     #[test]
     fn test_read_and_update_contract_toml() {
-        read_and_update_contract_toml(&Keystore::default(), true).unwrap();
+        read_and_update_contract_toml(&Keystore::locate(), true).unwrap();
     }
 }

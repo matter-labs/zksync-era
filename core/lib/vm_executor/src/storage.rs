@@ -7,8 +7,9 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use zksync_types::{
-    block::L2BlockHeader, fee_model::BatchFeeInput, snapshots::SnapshotRecoveryStatus, Address,
-    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
+    block::L2BlockHeader, commitment::PubdataParams, fee_model::BatchFeeInput,
+    snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
+    ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
 };
 
 const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 = u32::MAX;
@@ -89,7 +90,15 @@ pub struct L1BatchParamsProvider {
 }
 
 impl L1BatchParamsProvider {
-    pub fn new() -> Self {
+    /// Creates a new provider.
+    pub async fn new(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
+        let mut this = Self::uninitialized();
+        this.initialize(storage).await?;
+        Ok(this)
+    }
+
+    /// Creates an uninitialized provider. Before use, it must be [`initialize`](Self::initialize())d.
+    pub fn uninitialized() -> Self {
         Self { snapshot: None }
     }
 
@@ -255,7 +264,7 @@ impl L1BatchParamsProvider {
         first_l2_block_in_batch: &FirstL2BlockInBatch,
         validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
-    ) -> anyhow::Result<(SystemEnv, L1BatchEnv)> {
+    ) -> anyhow::Result<(SystemEnv, L1BatchEnv, PubdataParams)> {
         anyhow::ensure!(
             first_l2_block_in_batch.l1_batch_number > L1BatchNumber(0),
             "Loading params for genesis L1 batch not supported"
@@ -301,11 +310,15 @@ impl L1BatchParamsProvider {
         let contract_hashes = first_l2_block_in_batch.header.base_system_contracts_hashes;
         let base_system_contracts = storage
             .factory_deps_dal()
-            .get_base_system_contracts(contract_hashes.bootloader, contract_hashes.default_aa)
+            .get_base_system_contracts(
+                contract_hashes.bootloader,
+                contract_hashes.default_aa,
+                contract_hashes.evm_emulator,
+            )
             .await
             .context("failed getting base system contracts")?;
 
-        Ok(l1_batch_params(
+        let (system_env, l1_batch_env) = l1_batch_params(
             first_l2_block_in_batch.l1_batch_number,
             first_l2_block_in_batch.header.fee_account_address,
             l1_batch_timestamp,
@@ -321,6 +334,42 @@ impl L1BatchParamsProvider {
                 .context("`protocol_version` must be set for L2 block")?,
             first_l2_block_in_batch.header.virtual_blocks,
             chain_id,
+        );
+
+        Ok((
+            system_env,
+            l1_batch_env,
+            first_l2_block_in_batch.header.pubdata_params,
         ))
+    }
+
+    /// Combines [`Self::load_first_l2_block_in_batch()`] and [Self::load_l1_batch_params()`]. Returns `Ok(None)`
+    /// iff the requested batch doesn't have any persisted blocks.
+    ///
+    /// Prefer using this method unless you need to manipulate / inspect the first block in the batch.
+    pub async fn load_l1_batch_env(
+        &self,
+        storage: &mut Connection<'_, Core>,
+        number: L1BatchNumber,
+        validation_computational_gas_limit: u32,
+        chain_id: L2ChainId,
+    ) -> anyhow::Result<Option<(SystemEnv, L1BatchEnv, PubdataParams)>> {
+        let first_l2_block = self
+            .load_first_l2_block_in_batch(storage, number)
+            .await
+            .with_context(|| format!("failed loading first L2 block for L1 batch #{number}"))?;
+        let Some(first_l2_block) = first_l2_block else {
+            return Ok(None);
+        };
+
+        self.load_l1_batch_params(
+            storage,
+            &first_l2_block,
+            validation_computational_gas_limit,
+            chain_id,
+        )
+        .await
+        .with_context(|| format!("failed loading params for L1 batch #{number}"))
+        .map(Some)
     }
 }

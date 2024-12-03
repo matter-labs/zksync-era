@@ -1,5 +1,4 @@
-use zksync_types::U256;
-use zksync_utils::{bytes_to_be_words, h256_to_u256};
+use zksync_types::{h256_to_u256, U256};
 
 use super::tx::BootloaderTx;
 use crate::{
@@ -23,8 +22,7 @@ pub(super) fn get_memory_for_compressed_bytecodes(
         .iter()
         .flat_map(bytecode::encode_call)
         .collect();
-
-    bytes_to_be_words(memory_addition)
+    bytecode::bytes_to_be_words(&memory_addition)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -133,8 +131,8 @@ pub(super) fn assemble_tx_meta(execution_mode: TxExecutionMode, execute_tx: bool
     // Set 0 byte (execution mode)
     output[0] = match execution_mode {
         TxExecutionMode::VerifyExecute => 0x00,
-        TxExecutionMode::EstimateFee { .. } => 0x00,
-        TxExecutionMode::EthCall { .. } => 0x02,
+        TxExecutionMode::EstimateFee => 0x00,
+        TxExecutionMode::EthCall => 0x02,
     };
 
     // Set 31 byte (marker for tx execution)

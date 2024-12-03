@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use zksync_config::{configs::EcosystemContracts, GenesisConfig};
+use zksync_consensus_roles::validator;
 use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
     api::en, protocol_version::ProtocolSemanticVersion, tokens::TokenInfo, Address, L1BatchNumber,
@@ -21,18 +22,39 @@ impl EnNamespace {
         Self { state }
     }
 
+    pub async fn consensus_global_config_impl(
+        &self,
+    ) -> Result<Option<en::ConsensusGlobalConfig>, Web3Error> {
+        let mut conn = self.state.acquire_connection().await?;
+        let Some(cfg) = conn
+            .consensus_dal()
+            .global_config()
+            .await
+            .context("global_config()")?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(en::ConsensusGlobalConfig(
+            zksync_protobuf::serde::Serialize
+                .proto_fmt(&cfg, serde_json::value::Serializer)
+                .unwrap(),
+        )))
+    }
+
     pub async fn consensus_genesis_impl(&self) -> Result<Option<en::ConsensusGenesis>, Web3Error> {
         let mut conn = self.state.acquire_connection().await?;
-        let Some(genesis) = conn
+        let Some(cfg) = conn
             .consensus_dal()
-            .genesis()
+            .global_config()
             .await
-            .map_err(DalError::generalize)?
+            .context("global_config()")?
         else {
             return Ok(None);
         };
         Ok(Some(en::ConsensusGenesis(
-            zksync_protobuf::serde::serialize(&genesis, serde_json::value::Serializer).unwrap(),
+            zksync_protobuf::serde::Serialize
+                .proto_fmt(&cfg.genesis, serde_json::value::Serializer)
+                .unwrap(),
         )))
     }
 
@@ -40,7 +62,7 @@ impl EnNamespace {
     pub async fn attestation_status_impl(
         &self,
     ) -> Result<Option<en::AttestationStatus>, Web3Error> {
-        let status = self
+        let Some(status) = self
             .state
             .acquire_connection()
             .await?
@@ -54,13 +76,45 @@ impl EnNamespace {
             .context("TransactionBuilder::build()")?
             .consensus_dal()
             .attestation_status()
-            .await?;
+            .await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(en::AttestationStatus(
+            zksync_protobuf::serde::Serialize
+                .proto_fmt(&status, serde_json::value::Serializer)
+                .unwrap(),
+        )))
+    }
 
-        Ok(status.map(|s| {
-            en::AttestationStatus(
-                zksync_protobuf::serde::serialize(&s, serde_json::value::Serializer).unwrap(),
-            )
-        }))
+    #[tracing::instrument(skip(self))]
+    pub async fn block_metadata_impl(
+        &self,
+        block_number: L2BlockNumber,
+    ) -> Result<Option<en::BlockMetadata>, Web3Error> {
+        let Some(meta) = self
+            .state
+            .acquire_connection()
+            .await?
+            // unwrap is ok, because we start outermost transaction.
+            .transaction_builder()
+            .unwrap()
+            // run readonly transaction to perform consistent reads.
+            .set_readonly()
+            .build()
+            .await
+            .context("TransactionBuilder::build()")?
+            .consensus_dal()
+            .block_metadata(validator::BlockNumber(block_number.0.into()))
+            .await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(en::BlockMetadata(
+            zksync_protobuf::serde::Serialize
+                .proto_fmt(&meta, serde_json::value::Serializer)
+                .unwrap(),
+        )))
     }
 
     pub(crate) fn current_method(&self) -> &MethodTracer {
@@ -97,18 +151,18 @@ impl EnNamespace {
         Ok(self
             .state
             .api_config
-            .bridgehub_proxy_addr
+            .l1_bridgehub_proxy_addr
             .map(|bridgehub_proxy_addr| EcosystemContracts {
                 bridgehub_proxy_addr,
                 state_transition_proxy_addr: self
                     .state
                     .api_config
-                    .state_transition_proxy_addr
+                    .l1_state_transition_proxy_addr
                     .unwrap(),
                 transparent_proxy_admin_addr: self
                     .state
                     .api_config
-                    .transparent_proxy_admin_addr
+                    .l1_transparent_proxy_admin_addr
                     .unwrap(),
             })
             .context("Shared bridge doesn't supported")?)
@@ -154,10 +208,14 @@ impl EnNamespace {
             genesis_commitment: Some(genesis_batch.metadata.commitment),
             bootloader_hash: Some(genesis_batch.header.base_system_contracts_hashes.bootloader),
             default_aa_hash: Some(genesis_batch.header.base_system_contracts_hashes.default_aa),
+            evm_emulator_hash: genesis_batch
+                .header
+                .base_system_contracts_hashes
+                .evm_emulator,
             l1_chain_id: self.state.api_config.l1_chain_id,
             sl_chain_id: Some(self.state.api_config.l1_chain_id.into()),
             l2_chain_id: self.state.api_config.l2_chain_id,
-            recursion_scheduler_level_vk_hash: verifier_config.recursion_scheduler_level_vk_hash,
+            snark_wrapper_vk_hash: verifier_config.snark_wrapper_vk_hash,
             fee_account,
             dummy_verifier: self.state.api_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: self

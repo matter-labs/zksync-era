@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use zksync_config::{
-    configs::eth_sender::{ProofSendingMode, PubdataSendingMode, SenderConfig},
+    configs::eth_sender::{ProofSendingMode, SenderConfig},
     ContractsConfig, EthConfig, GasAdjusterConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -12,7 +12,7 @@ use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_ar
 use zksync_object_store::MockObjectStore;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, block::L1BatchHeader,
-    commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataDA,
+    commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataSendingMode,
     settlement::SettlementMode, Address, L1BatchNumber, ProtocolVersion, H256,
 };
 
@@ -22,6 +22,8 @@ use crate::{
     tests::{default_l1_batch_metadata, l1_batch_with_metadata},
     Aggregator, EthTxAggregator, EthTxManager,
 };
+
+pub(super) const STATE_TRANSITION_CONTRACT_ADDRESS: Address = Address::repeat_byte(0xa0);
 
 // Alias to conveniently call static methods of `ETHSender`.
 type MockEthTxManager = EthTxManager;
@@ -144,7 +146,6 @@ impl EthSenderTester {
                 PubdataSendingMode::Calldata
             };
         let aggregator_config = SenderConfig {
-            aggregated_proof_sizes: vec![1],
             pubdata_sending_mode,
             ..eth_sender_config.clone().sender.unwrap()
         };
@@ -153,7 +154,7 @@ impl EthSenderTester {
             .into_iter()
             .map(|base_fee_per_gas| BaseFees {
                 base_fee_per_gas,
-                base_fee_per_blob_gas: 0.into(),
+                base_fee_per_blob_gas: 1.into(),
                 l2_pubdata_price: 0.into(),
             })
             .collect();
@@ -161,8 +162,8 @@ impl EthSenderTester {
         let gateway = MockSettlementLayer::builder()
             .with_fee_history(
                 std::iter::repeat_with(|| BaseFees {
-                    base_fee_per_gas: 0,
-                    base_fee_per_blob_gas: 0.into(),
+                    base_fee_per_gas: 1,
+                    base_fee_per_blob_gas: 1.into(),
                     l2_pubdata_price: 0.into(),
                 })
                 .take(Self::WAIT_CONFIRMATIONS as usize)
@@ -172,7 +173,7 @@ impl EthSenderTester {
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
                 assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
-                crate::tests::mock_multicall_response()
+                crate::tests::mock_multicall_response(call)
             })
             .build();
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
@@ -181,8 +182,8 @@ impl EthSenderTester {
         let l2_gateway: MockSettlementLayer = MockSettlementLayer::builder()
             .with_fee_history(
                 std::iter::repeat_with(|| BaseFees {
-                    base_fee_per_gas: 0,
-                    base_fee_per_blob_gas: 0.into(),
+                    base_fee_per_gas: 1,
+                    base_fee_per_blob_gas: 1.into(),
                     l2_pubdata_price: 0.into(),
                 })
                 .take(Self::WAIT_CONFIRMATIONS as usize)
@@ -192,7 +193,7 @@ impl EthSenderTester {
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
                 assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
-                crate::tests::mock_multicall_response()
+                crate::tests::mock_multicall_response(call)
             })
             .build();
         l2_gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
@@ -201,8 +202,8 @@ impl EthSenderTester {
         let gateway_blobs = MockSettlementLayer::builder()
             .with_fee_history(
                 std::iter::repeat_with(|| BaseFees {
-                    base_fee_per_gas: 0,
-                    base_fee_per_blob_gas: 0.into(),
+                    base_fee_per_gas: 1,
+                    base_fee_per_blob_gas: 1.into(),
                     l2_pubdata_price: 0.into(),
                 })
                 .take(Self::WAIT_CONFIRMATIONS as usize)
@@ -212,7 +213,7 @@ impl EthSenderTester {
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
                 assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
-                crate::tests::mock_multicall_response()
+                crate::tests::mock_multicall_response(call)
             })
             .build();
         gateway_blobs.advance_block_number(Self::WAIT_CONFIRMATIONS);
@@ -254,14 +255,15 @@ impl EthSenderTester {
             Aggregator::new(
                 aggregator_config.clone(),
                 MockObjectStore::arc(),
-                aggregator_operate_4844_mode,
+                custom_commit_sender_addr,
                 commitment_mode,
+                SettlementMode::SettlesToL1,
             ),
             gateway.clone(),
             // ZKsync contract address
             Address::random(),
             contracts_config.l1_multicall3_addr,
-            Address::random(),
+            STATE_TRANSITION_CONTRACT_ADDRESS,
             Default::default(),
             custom_commit_sender_addr,
             SettlementMode::SettlesToL1,
@@ -412,6 +414,7 @@ impl EthSenderTester {
             .into_iter()
             .map(l1_batch_with_metadata)
             .collect(),
+            priority_ops_proofs: Vec::new(),
         });
         self.next_l1_batch_number_to_execute += 1;
         self.save_operation(operation).await
@@ -483,9 +486,9 @@ impl EthSenderTester {
     pub async fn save_commit_tx(&mut self, l1_batch_number: L1BatchNumber) -> EthTx {
         assert_eq!(l1_batch_number, self.next_l1_batch_number_to_commit);
         let pubdata_mode = if self.pubdata_sending_mode == PubdataSendingMode::Blobs {
-            PubdataDA::Blobs
+            PubdataSendingMode::Blobs
         } else {
-            PubdataDA::Calldata
+            PubdataSendingMode::Calldata
         };
         let operation = AggregatedOperation::Commit(
             l1_batch_with_metadata(
@@ -512,7 +515,6 @@ impl EthSenderTester {
             .save_eth_tx(
                 &mut self.conn.connection().await.unwrap(),
                 &aggregated_operation,
-                false,
                 self.is_l2,
             )
             .await

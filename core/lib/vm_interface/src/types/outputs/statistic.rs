@@ -109,7 +109,8 @@ pub struct VmExecutionStatistics {
     pub circuit_statistic: CircuitStatistic,
 }
 
-/// Oracle metrics of the VM.
+/// Oracle metrics reported by legacy VMs.
+#[derive(Debug, Default)]
 pub struct VmMemoryMetrics {
     pub event_sink_inner: usize,
     pub event_sink_history: usize,
@@ -176,6 +177,7 @@ pub struct TransactionExecutionMetrics {
     pub published_bytecode_bytes: usize,
     pub l2_l1_long_messages: usize,
     pub l2_l1_logs: usize,
+    pub user_l2_l1_logs: usize,
     pub contracts_used: usize,
     pub contracts_deployed: u16,
     pub vm_events: usize,
@@ -200,6 +202,7 @@ impl Default for TransactionExecutionMetrics {
             published_bytecode_bytes: 0,
             l2_l1_long_messages: 0,
             l2_l1_logs: 0,
+            user_l2_l1_logs: 0,
             contracts_used: 0,
             contracts_deployed: 0,
             vm_events: 0,
@@ -220,6 +223,7 @@ pub struct VmExecutionMetrics {
     pub published_bytecode_bytes: usize,
     pub l2_l1_long_messages: usize,
     pub l2_to_l1_logs: usize,
+    pub user_l2_to_l1_logs: usize,
     pub contracts_used: usize,
     pub contracts_deployed: u16,
     pub vm_events: usize,
@@ -237,6 +241,7 @@ impl VmExecutionMetrics {
             published_bytecode_bytes: tx_metrics.published_bytecode_bytes,
             l2_l1_long_messages: tx_metrics.l2_l1_long_messages,
             l2_to_l1_logs: tx_metrics.l2_l1_logs,
+            user_l2_to_l1_logs: tx_metrics.user_l2_l1_logs,
             contracts_deployed: tx_metrics.contracts_deployed,
             contracts_used: tx_metrics.contracts_used,
             gas_used: tx_metrics.gas_used,
@@ -273,6 +278,7 @@ impl ops::Add for VmExecutionMetrics {
             contracts_used: self.contracts_used + other.contracts_used,
             l2_l1_long_messages: self.l2_l1_long_messages + other.l2_l1_long_messages,
             l2_to_l1_logs: self.l2_to_l1_logs + other.l2_to_l1_logs,
+            user_l2_to_l1_logs: self.user_l2_to_l1_logs + other.user_l2_to_l1_logs,
             gas_used: self.gas_used + other.gas_used,
             vm_events: self.vm_events + other.vm_events,
             storage_logs: self.storage_logs + other.storage_logs,

@@ -6,9 +6,12 @@ use std::{
 };
 
 use tokio::sync::watch;
-use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
+use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::EthFeeInterface;
-use zksync_types::{commitment::L1BatchCommitmentMode, L1_GAS_PER_PUBDATA_BYTE, U256};
+use zksync_types::{
+    commitment::L1BatchCommitmentMode, pubdata_da::PubdataSendingMode, L1_GAS_PER_PUBDATA_BYTE,
+    U256,
+};
 use zksync_web3_decl::client::{DynClient, L1, L2};
 
 use self::metrics::METRICS;
@@ -85,8 +88,8 @@ impl GasAdjuster {
             anyhow::ensure!(client.gateway_mode, "Must be L2 client in L2 mode");
 
             anyhow::ensure!(
-                matches!(pubdata_sending_mode, PubdataSendingMode::RelayedL2Calldata),
-                "Only relayed L2 calldata is available for L2 mode, got: {pubdata_sending_mode:?}"
+                matches!(pubdata_sending_mode, PubdataSendingMode::RelayedL2Calldata | PubdataSendingMode::Custom),
+                "Only relayed L2 calldata or Custom is available for L2 mode, got: {pubdata_sending_mode:?}"
             );
         } else {
             anyhow::ensure!(!client.gateway_mode, "Must be L1 client in L1 mode");
@@ -317,14 +320,14 @@ impl TxParamsProvider for GasAdjuster {
     // smooth out base_fee increases in general.
     // In other words, in order to pay less fees, we are ready to wait longer.
     // But the longer we wait, the more we are ready to pay.
-    fn get_base_fee(&self, time_in_mempool: u32) -> u64 {
+    fn get_base_fee(&self, time_in_mempool_in_l1_blocks: u32) -> u64 {
         let a = self.config.pricing_formula_parameter_a;
         let b = self.config.pricing_formula_parameter_b;
 
         // Currently we use an exponential formula.
         // The alternative is a linear one:
-        // `let scale_factor = a + b * time_in_mempool as f64;`
-        let scale_factor = a * b.powf(time_in_mempool as f64);
+        // `let scale_factor = a + b * time_in_mempool_in_l1_blocks as f64;`
+        let scale_factor = a * b.powf(time_in_mempool_in_l1_blocks as f64);
         let median = self.base_fee_statistics.median();
         METRICS.median_base_fee_per_gas.set(median);
         let new_fee = median as f64 * scale_factor;

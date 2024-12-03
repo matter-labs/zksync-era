@@ -1,4 +1,7 @@
+use std::mem;
+
 use zk_evm_1_5_0::aux_structures::Timestamp;
+use zksync_vm_interface::VmEvent;
 
 use crate::{
     interface::{
@@ -20,7 +23,7 @@ use crate::{
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     pub(crate) fn inspect_inner(
         &mut self,
-        dispatcher: TracerDispatcher<S, H::Vm1_5_0>,
+        dispatcher: &mut TracerDispatcher<S, H::Vm1_5_0>,
         execution_mode: VmExecutionMode,
         custom_pubdata_tracer: Option<PubdataTracer<S>>,
     ) -> VmExecutionResultAndLogs {
@@ -44,7 +47,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Collect the result from the default tracers.
     fn inspect_and_collect_results(
         &mut self,
-        dispatcher: TracerDispatcher<S, H::Vm1_5_0>,
+        dispatcher: &mut TracerDispatcher<S, H::Vm1_5_0>,
         execution_mode: VmExecutionMode,
         with_refund_tracer: bool,
         custom_pubdata_tracer: Option<PubdataTracer<S>>,
@@ -53,8 +56,12 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             .then_some(RefundsTracer::new(self.batch_env.clone(), self.subversion));
         let mut tx_tracer: DefaultExecutionTracer<S, H::Vm1_5_0> = DefaultExecutionTracer::new(
             self.system_env.default_validation_computational_gas_limit,
+            self.system_env
+                .base_system_smart_contracts
+                .evm_emulator
+                .is_some(),
             execution_mode,
-            dispatcher,
+            mem::take(dispatcher),
             self.storage.clone(),
             refund_tracers,
             custom_pubdata_tracer.or_else(|| {
@@ -62,6 +69,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
                     self.batch_env.clone(),
                     execution_mode,
                     self.subversion,
+                    None,
                 ))
             }),
             self.subversion,
@@ -93,12 +101,16 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             circuit_statistic_from_cycles(tx_tracer.circuits_tracer.statistics),
         );
         let result = tx_tracer.result_tracer.into_result();
+        let factory_deps_marked_as_known = VmEvent::extract_bytecodes_marked_as_known(&logs.events);
+        let dynamic_factory_deps = self.decommit_dynamic_bytecodes(factory_deps_marked_as_known);
+        *dispatcher = tx_tracer.dispatcher;
 
         let result = VmExecutionResultAndLogs {
             result,
             logs,
             statistics,
             refunds,
+            dynamic_factory_deps,
         };
 
         (stop_reason, result)

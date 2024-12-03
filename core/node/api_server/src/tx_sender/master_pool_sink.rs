@@ -2,7 +2,7 @@ use std::collections::hash_map::{Entry, HashMap};
 
 use tokio::sync::Mutex;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Core, CoreDal};
-use zksync_multivm::interface::TransactionExecutionMetrics;
+use zksync_multivm::interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_types::{l2::L2Tx, Address, Nonce, H256};
 
@@ -31,6 +31,7 @@ impl TxSink for MasterPoolSink {
         &self,
         tx: &L2Tx,
         execution_metrics: TransactionExecutionMetrics,
+        validation_traces: ValidationTraces,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let address_and_nonce = (tx.initiator_account(), tx.nonce());
 
@@ -55,7 +56,7 @@ impl TxSink for MasterPoolSink {
         let result = match self.master_pool.connection_tagged("api").await {
             Ok(mut connection) => connection
                 .transactions_dal()
-                .insert_transaction_l2(tx, execution_metrics)
+                .insert_transaction_l2(tx, execution_metrics, validation_traces)
                 .await
                 .inspect(|submission_res_handle| {
                     APP_METRICS.processed_txs[&TxStage::Mempool(*submission_res_handle)].inc();

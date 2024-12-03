@@ -5,13 +5,9 @@ use std::{
 
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_mempool::{L2TxFilter, MempoolInfo, MempoolStore};
-use zksync_multivm::interface::{VmExecutionMetrics, VmExecutionResultAndLogs};
-use zksync_types::{block::BlockGasCount, Address, Nonce, PriorityOpId, Transaction};
+use zksync_types::{Address, Nonce, PriorityOpId, Transaction, TransactionTimeRangeConstraint};
 
-use super::{
-    metrics::StateKeeperGauges,
-    utils::{gas_count_from_metrics, gas_count_from_tx_and_metrics},
-};
+use super::metrics::StateKeeperGauges;
 
 #[derive(Debug, Clone)]
 pub struct MempoolGuard(Arc<Mutex<MempoolStore>>);
@@ -30,11 +26,30 @@ impl MempoolGuard {
         Self(Arc::new(Mutex::new(store)))
     }
 
-    pub fn insert(&mut self, transactions: Vec<Transaction>, nonces: HashMap<Address, Nonce>) {
+    pub fn insert(
+        &mut self,
+        transactions: Vec<(Transaction, TransactionTimeRangeConstraint)>,
+        nonces: HashMap<Address, Nonce>,
+    ) {
         self.0
             .lock()
             .expect("failed to acquire mempool lock")
             .insert(transactions, nonces);
+    }
+
+    #[cfg(test)]
+    pub fn insert_without_constraint(
+        &mut self,
+        transactions: Vec<Transaction>,
+        nonces: HashMap<Address, Nonce>,
+    ) {
+        self.insert(
+            transactions
+                .into_iter()
+                .map(|x| (x, TransactionTimeRangeConstraint::default()))
+                .collect(),
+            nonces,
+        );
     }
 
     pub fn has_next(&self, filter: &L2TxFilter) -> bool {
@@ -44,18 +59,21 @@ impl MempoolGuard {
             .has_next(filter)
     }
 
-    pub fn next_transaction(&mut self, filter: &L2TxFilter) -> Option<Transaction> {
+    pub fn next_transaction(
+        &mut self,
+        filter: &L2TxFilter,
+    ) -> Option<(Transaction, TransactionTimeRangeConstraint)> {
         self.0
             .lock()
             .expect("failed to acquire mempool lock")
             .next_transaction(filter)
     }
 
-    pub fn rollback(&mut self, rejected: &Transaction) {
+    pub fn rollback(&mut self, rejected: &Transaction) -> TransactionTimeRangeConstraint {
         self.0
             .lock()
             .expect("failed to acquire mempool lock")
-            .rollback(rejected);
+            .rollback(rejected)
     }
 
     pub fn get_mempool_info(&mut self) -> MempoolInfo {
@@ -75,29 +93,5 @@ impl MempoolGuard {
 
     pub fn register_metrics(&self) {
         StateKeeperGauges::register(Arc::downgrade(&self.0));
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ExecutionMetricsForCriteria {
-    pub l1_gas: BlockGasCount,
-    pub execution_metrics: VmExecutionMetrics,
-}
-
-impl ExecutionMetricsForCriteria {
-    pub fn new(
-        tx: Option<&Transaction>,
-        execution_result: &VmExecutionResultAndLogs,
-    ) -> ExecutionMetricsForCriteria {
-        let execution_metrics = execution_result.get_execution_metrics(tx);
-        let l1_gas = match tx {
-            Some(tx) => gas_count_from_tx_and_metrics(tx, &execution_metrics),
-            None => gas_count_from_metrics(&execution_metrics),
-        };
-
-        ExecutionMetricsForCriteria {
-            l1_gas,
-            execution_metrics,
-        }
     }
 }

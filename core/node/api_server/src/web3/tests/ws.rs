@@ -147,7 +147,7 @@ async fn notifiers_start_after_snapshot_recovery() {
 trait WsTest: Send + Sync {
     /// Prepares the storage before the server is started. The default implementation performs genesis.
     fn storage_initialization(&self) -> StorageInitialization {
-        StorageInitialization::Genesis
+        StorageInitialization::genesis()
     }
 
     async fn test(
@@ -177,13 +177,9 @@ async fn test_ws_server(test: impl WsTest) {
     drop(storage);
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let (mut server_handles, pub_sub_events) = spawn_ws_server(
-        api_config,
-        pool.clone(),
-        stop_receiver,
-        test.websocket_requests_per_minute_limit(),
-    )
-    .await;
+    let (mut server_handles, pub_sub_events) = TestServerBuilder::new(pool.clone(), api_config)
+        .build_ws(test.websocket_requests_per_minute_limit(), stop_receiver)
+        .await;
 
     let local_addr = server_handles.wait_until_ready().await;
     let client = Client::ws(format!("ws://{local_addr}").parse().unwrap())
@@ -238,7 +234,7 @@ impl WsTest for BasicSubscriptionsTest {
         if self.snapshot_recovery {
             StorageInitialization::empty_recovery()
         } else {
-            StorageInitialization::Genesis
+            StorageInitialization::genesis()
         }
     }
 
@@ -407,7 +403,7 @@ impl WsTest for LogSubscriptionsTest {
         if self.snapshot_recovery {
             StorageInitialization::empty_recovery()
         } else {
-            StorageInitialization::Genesis
+            StorageInitialization::genesis()
         }
     }
 

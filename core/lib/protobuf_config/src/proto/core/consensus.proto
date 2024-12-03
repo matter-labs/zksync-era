@@ -31,10 +31,10 @@ package zksync.core.consensus;
 
 import "zksync/std.proto";
 
-// (public key, ip address) of a gossip network node.
+// (public key, host address) of a gossip network node.
 message NodeAddr {
   optional string key = 1; // required; NodePublicKey
-  optional string addr = 2; // required; IpAddr
+  optional string addr = 2; // required; Host
 }
 
 // Weighted member of a validator committee. 
@@ -56,6 +56,9 @@ message GenesisSpec {
   repeated WeightedValidator validators = 3; // must be non-empty; validator committee.
   optional string leader = 4; // required; ValidatorPublicKey
   repeated WeightedAttester attesters = 5; // can be empty; attester committee.
+  // Currently not in consensus genesis, but still a part of the global configuration.
+  optional string registry_address = 6; // optional; H160
+  repeated NodeAddr seed_peers = 7;
 }
 
 // Per peer connection RPC rate limits.
@@ -66,6 +69,9 @@ message RpcConfig {
 message Config {
   reserved 3;
   reserved "validators";
+
+  // Port to listen on, for incoming TCP connections.
+  optional uint32 port = 12;
 
   // IP:port to listen on, for incoming TCP connections.
   // Use `0.0.0.0:<port>` to listen on all network interfaces (i.e. on all IPs exposed by this VM).
@@ -100,5 +106,9 @@ message Config {
   // RPC rate limits configuration.
   // If missing, defaults are used.
   optional RpcConfig rpc_config = 9; // optional
+
+  // IP:port to expose the debug page.
+  // Use `127.0.0.1:<port>` to only allow local access to the page.
+  optional string debug_page_addr = 11; // required; IpAddr
 }
 

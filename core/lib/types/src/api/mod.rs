@@ -1,18 +1,23 @@
 use chrono::{DateTime, Utc};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
+use serde_with::{hex::Hex, serde_as};
 use strum::Display;
 use zksync_basic_types::{
-    tee_types::TeeType,
     web3::{AccessList, Bytes, Index},
-    Bloom, L1BatchNumber, H160, H256, H64, U256, U64,
+    Bloom, L1BatchNumber, SLChainId, H160, H256, H64, U256, U64,
 };
 use zksync_contracts::BaseSystemContractsHashes;
 
 pub use crate::transaction_request::{
     Eip712Meta, SerializationTransactionError, TransactionRequest,
 };
-use crate::{protocol_version::L1VerifierConfig, Address, L2BlockNumber, ProtocolVersionId};
+use crate::{
+    debug_flat_call::{DebugCallFlat, ResultDebugCallFlat},
+    protocol_version::L1VerifierConfig,
+    tee_types::TeeType,
+    Address, L2BlockNumber, ProtocolVersionId,
+};
 
 pub mod en;
 pub mod state_override;
@@ -191,6 +196,13 @@ pub struct L2ToL1LogProof {
     pub root: H256,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ChainAggProof {
+    pub chain_id_leaf_proof: Vec<H256>,
+    pub chain_id_leaf_proof_mask: u64,
+}
+
 /// A struct with the two default bridge contracts.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -201,6 +213,7 @@ pub struct BridgeAddresses {
     pub l2_erc20_default_bridge: Option<Address>,
     pub l1_weth_bridge: Option<Address>,
     pub l2_weth_bridge: Option<Address>,
+    pub l2_legacy_shared_bridge: Option<Address>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
@@ -251,8 +264,6 @@ pub struct TransactionReceipt {
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
     /// Status: either 1 (success) or 0 (failure).
     pub status: U64,
-    /// State root.
-    pub root: H256,
     /// Logs bloom
     #[serde(rename = "logsBloom")]
     pub logs_bloom: Bloom,
@@ -462,6 +473,45 @@ impl Log {
     }
 }
 
+impl From<Log> for zksync_basic_types::web3::Log {
+    fn from(log: Log) -> Self {
+        zksync_basic_types::web3::Log {
+            address: log.address,
+            topics: log.topics,
+            data: log.data,
+            block_hash: log.block_hash,
+            block_number: log.block_number,
+            transaction_hash: log.transaction_hash,
+            transaction_index: log.transaction_index,
+            log_index: log.log_index,
+            transaction_log_index: log.transaction_log_index,
+            log_type: log.log_type,
+            removed: log.removed,
+            block_timestamp: log.block_timestamp,
+        }
+    }
+}
+
+impl From<zksync_basic_types::web3::Log> for Log {
+    fn from(log: zksync_basic_types::web3::Log) -> Self {
+        Log {
+            address: log.address,
+            topics: log.topics,
+            data: log.data,
+            block_hash: log.block_hash,
+            block_number: log.block_number,
+            transaction_hash: log.transaction_hash,
+            transaction_index: log.transaction_index,
+            log_index: log.log_index,
+            transaction_log_index: log.transaction_log_index,
+            log_type: log.log_type,
+            removed: log.removed,
+            block_timestamp: log.block_timestamp,
+            l1_batch_number: None,
+        }
+    }
+}
+
 /// A log produced by a transaction.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -511,6 +561,9 @@ pub struct Transaction {
     pub gas: U256,
     /// Input data
     pub input: Bytes,
+    /// The parity (0 for even, 1 for odd) of the y-value of the secp256k1 signature
+    #[serde(rename = "yParity", default, skip_serializing_if = "Option::is_none")]
+    pub y_parity: Option<U64>,
     /// ECDSA recovery id
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub v: Option<U64>,
@@ -601,6 +654,7 @@ pub struct ResultDebugCall {
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub enum DebugCallType {
     #[default]
     Call,
@@ -638,7 +692,7 @@ pub struct ProtocolVersion {
     /// Verifier configuration
     #[deprecated]
     pub verification_keys_hashes: Option<L1VerifierConfig>,
-    /// Hashes of base system contracts (bootloader and default account)
+    /// Hashes of base system contracts (bootloader, default account and evm emulator)
     #[deprecated]
     pub base_system_contracts: Option<BaseSystemContractsHashes>,
     /// Bootloader code hash
@@ -647,6 +701,9 @@ pub struct ProtocolVersion {
     /// Default account code hash
     #[serde(rename = "defaultAccountCodeHash")]
     pub default_account_code_hash: Option<H256>,
+    /// EVM emulator code hash
+    #[serde(rename = "evmSimulatorCodeHash")]
+    pub evm_emulator_code_hash: Option<H256>,
     /// L2 Upgrade transaction hash
     #[deprecated]
     pub l2_system_upgrade_tx_hash: Option<H256>,
@@ -662,6 +719,7 @@ impl ProtocolVersion {
         timestamp: u64,
         bootloader_code_hash: H256,
         default_account_code_hash: H256,
+        evm_emulator_code_hash: Option<H256>,
         l2_system_upgrade_tx_hash: Option<H256>,
     ) -> Self {
         Self {
@@ -672,9 +730,11 @@ impl ProtocolVersion {
             base_system_contracts: Some(BaseSystemContractsHashes {
                 bootloader: bootloader_code_hash,
                 default_aa: default_account_code_hash,
+                evm_emulator: evm_emulator_code_hash,
             }),
             bootloader_code_hash: Some(bootloader_code_hash),
             default_account_code_hash: Some(default_account_code_hash),
+            evm_emulator_code_hash,
             l2_system_upgrade_tx_hash,
             l2_system_upgrade_tx_hash_new: l2_system_upgrade_tx_hash,
         }
@@ -690,6 +750,13 @@ impl ProtocolVersion {
             .or_else(|| self.base_system_contracts.map(|hashes| hashes.default_aa))
     }
 
+    pub fn evm_emulator_code_hash(&self) -> Option<H256> {
+        self.evm_emulator_code_hash.or_else(|| {
+            self.base_system_contracts
+                .and_then(|hashes| hashes.evm_emulator)
+        })
+    }
+
     pub fn minor_version(&self) -> Option<u16> {
         self.minor_version.or(self.version_id)
     }
@@ -700,19 +767,20 @@ impl ProtocolVersion {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub enum SupportedTracers {
     CallTracer,
+    FlatCallTracer,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, Copy)]
 #[serde(rename_all = "camelCase")]
 pub struct CallTracerConfig {
     pub only_top_call: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub struct TracerConfig {
     pub tracer: SupportedTracers,
@@ -720,11 +788,70 @@ pub struct TracerConfig {
     pub tracer_config: CallTracerConfig,
 }
 
+impl Default for TracerConfig {
+    fn default() -> Self {
+        TracerConfig {
+            tracer: SupportedTracers::CallTracer,
+            tracer_config: CallTracerConfig {
+                only_top_call: false,
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum BlockStatus {
     Sealed,
     Verified,
+}
+
+/// Result tracers need to have a nested result field for compatibility. So we have two different
+/// structs 1 for blocks tracing and one for txs and call tracing
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum CallTracerBlockResult {
+    CallTrace(Vec<ResultDebugCall>),
+    FlatCallTrace(Vec<ResultDebugCallFlat>),
+}
+
+impl CallTracerBlockResult {
+    pub fn unwrap_flat(self) -> Vec<ResultDebugCallFlat> {
+        match self {
+            Self::CallTrace(_) => panic!("Result is a FlatCallTrace"),
+            Self::FlatCallTrace(trace) => trace,
+        }
+    }
+
+    pub fn unwrap_default(self) -> Vec<ResultDebugCall> {
+        match self {
+            Self::CallTrace(trace) => trace,
+            Self::FlatCallTrace(_) => panic!("Result is a CallTrace"),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum CallTracerResult {
+    CallTrace(DebugCall),
+    FlatCallTrace(Vec<DebugCallFlat>),
+}
+
+impl CallTracerResult {
+    pub fn unwrap_flat(self) -> Vec<DebugCallFlat> {
+        match self {
+            Self::CallTrace(_) => panic!("Result is a FlatCallTrace"),
+            Self::FlatCallTrace(trace) => trace,
+        }
+    }
+
+    pub fn unwrap_default(self) -> DebugCall {
+        match self {
+            Self::CallTrace(trace) => trace,
+            Self::FlatCallTrace(_) => panic!("Result is a CallTrace"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -738,10 +865,13 @@ pub struct BlockDetailsBase {
     pub status: BlockStatus,
     pub commit_tx_hash: Option<H256>,
     pub committed_at: Option<DateTime<Utc>>,
+    pub commit_chain_id: Option<SLChainId>,
     pub prove_tx_hash: Option<H256>,
     pub proven_at: Option<DateTime<Utc>>,
+    pub prove_chain_id: Option<SLChainId>,
     pub execute_tx_hash: Option<H256>,
     pub executed_at: Option<DateTime<Utc>>,
+    pub execute_chain_id: Option<SLChainId>,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
     // Cost of publishing one byte (in wei).
@@ -784,15 +914,21 @@ pub struct Proof {
     pub storage_proof: Vec<StorageProof>,
 }
 
+#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TeeProof {
     pub l1_batch_number: L1BatchNumber,
     pub tee_type: Option<TeeType>,
+    #[serde_as(as = "Option<Hex>")]
     pub pubkey: Option<Vec<u8>>,
+    #[serde_as(as = "Option<Hex>")]
     pub signature: Option<Vec<u8>>,
+    #[serde_as(as = "Option<Hex>")]
     pub proof: Option<Vec<u8>>,
     pub proved_at: DateTime<Utc>,
+    pub status: String,
+    #[serde_as(as = "Option<Hex>")]
     pub attestation: Option<Vec<u8>>,
 }
 
@@ -847,6 +983,7 @@ mod tests {
             base_system_contracts: Some(Default::default()),
             bootloader_code_hash: Some(Default::default()),
             default_account_code_hash: Some(Default::default()),
+            evm_emulator_code_hash: Some(Default::default()),
             l2_system_upgrade_tx_hash: Default::default(),
             l2_system_upgrade_tx_hash_new: Default::default(),
         };

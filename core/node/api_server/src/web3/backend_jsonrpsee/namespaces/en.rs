@@ -19,6 +19,12 @@ impl EnNamespaceServer for EnNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
+    async fn consensus_global_config(&self) -> RpcResult<Option<en::ConsensusGlobalConfig>> {
+        self.consensus_global_config_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
     async fn consensus_genesis(&self) -> RpcResult<Option<en::ConsensusGenesis>> {
         self.consensus_genesis_impl()
             .await
@@ -27,6 +33,15 @@ impl EnNamespaceServer for EnNamespace {
 
     async fn attestation_status(&self) -> RpcResult<Option<en::AttestationStatus>> {
         self.attestation_status_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn block_metadata(
+        &self,
+        block_number: L2BlockNumber,
+    ) -> RpcResult<Option<en::BlockMetadata>> {
+        self.block_metadata_impl(block_number)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-use zksync_basic_types::{web3::Bytes, H256, U256};
-use zksync_utils::bytecode::{hash_bytecode, validate_bytecode, InvalidBytecodeError};
+use zksync_basic_types::{bytecode::BytecodeHash, web3::Bytes, H256, U256};
 
-use crate::Address;
+use crate::{
+    bytecode::{validate_bytecode, InvalidBytecodeError},
+    Address,
+};
 
 /// Collection of overridden accounts.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -19,6 +21,11 @@ impl StateOverride {
     /// Gets overrides for the specified account.
     pub fn get(&self, address: &Address) -> Option<&OverrideAccount> {
         self.0.get(address)
+    }
+
+    /// Gets mutable overrides for the specified account.
+    pub fn get_mut(&mut self, address: &Address) -> Option<&mut OverrideAccount> {
+        self.0.get_mut(address)
     }
 
     /// Iterates over all account overrides.
@@ -39,12 +46,18 @@ impl Bytecode {
 
     /// Returns the canonical hash of this bytecode.
     pub fn hash(&self) -> H256 {
-        hash_bytecode(&self.0 .0)
+        BytecodeHash::for_bytecode(&self.0 .0).value()
     }
 
     /// Converts this bytecode into bytes.
     pub fn into_bytes(self) -> Vec<u8> {
         self.0 .0
+    }
+}
+
+impl AsRef<[u8]> for Bytecode {
+    fn as_ref(&self) -> &[u8] {
+        &self.0 .0
     }
 }
 

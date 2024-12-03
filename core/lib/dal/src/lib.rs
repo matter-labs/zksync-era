@@ -15,15 +15,15 @@ use crate::{
     base_token_dal::BaseTokenDal, blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal,
     consensus_dal::ConsensusDal, contract_verification_dal::ContractVerificationDal,
     data_availability_dal::DataAvailabilityDal, eth_sender_dal::EthSenderDal,
-    events_dal::EventsDal, events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
-    proof_generation_dal::ProofGenerationDal, protocol_versions_dal::ProtocolVersionsDal,
+    eth_watcher_dal::EthWatcherDal, events_dal::EventsDal, events_web3_dal::EventsWeb3Dal,
+    factory_deps_dal::FactoryDepsDal, proof_generation_dal::ProofGenerationDal,
+    protocol_versions_dal::ProtocolVersionsDal,
     protocol_versions_web3_dal::ProtocolVersionsWeb3Dal, pruning_dal::PruningDal,
     snapshot_recovery_dal::SnapshotRecoveryDal, snapshots_creator_dal::SnapshotsCreatorDal,
     snapshots_dal::SnapshotsDal, storage_logs_dal::StorageLogsDal,
     storage_logs_dedup_dal::StorageLogsDedupDal, storage_web3_dal::StorageWeb3Dal,
     sync_dal::SyncDal, system_dal::SystemDal, tee_proof_generation_dal::TeeProofGenerationDal,
-    tee_verifier_input_producer_dal::TeeVerifierInputProducerDal, tokens_dal::TokensDal,
-    tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
+    tokens_dal::TokensDal, tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
     transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
 };
 
@@ -35,6 +35,7 @@ pub mod consensus_dal;
 pub mod contract_verification_dal;
 mod data_availability_dal;
 pub mod eth_sender_dal;
+pub mod eth_watcher_dal;
 pub mod events_dal;
 pub mod events_web3_dal;
 pub mod factory_deps_dal;
@@ -54,7 +55,6 @@ pub mod storage_web3_dal;
 pub mod sync_dal;
 pub mod system_dal;
 pub mod tee_proof_generation_dal;
-pub mod tee_verifier_input_producer_dal;
 pub mod tokens_dal;
 pub mod tokens_web3_dal;
 pub mod transactions_dal;
@@ -78,8 +78,6 @@ where
     fn transactions_dal(&mut self) -> TransactionsDal<'_, 'a>;
 
     fn transactions_web3_dal(&mut self) -> TransactionsWeb3Dal<'_, 'a>;
-
-    fn tee_verifier_input_producer_dal(&mut self) -> TeeVerifierInputProducerDal<'_, 'a>;
 
     fn blocks_dal(&mut self) -> BlocksDal<'_, 'a>;
 
@@ -132,6 +130,8 @@ where
     fn vm_runner_dal(&mut self) -> VmRunnerDal<'_, 'a>;
 
     fn base_token_dal(&mut self) -> BaseTokenDal<'_, 'a>;
+
+    fn eth_watcher_dal(&mut self) -> EthWatcherDal<'_, 'a>;
 }
 
 #[derive(Clone, Debug)]
@@ -149,10 +149,6 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn transactions_web3_dal(&mut self) -> TransactionsWeb3Dal<'_, 'a> {
         TransactionsWeb3Dal { storage: self }
-    }
-
-    fn tee_verifier_input_producer_dal(&mut self) -> TeeVerifierInputProducerDal<'_, 'a> {
-        TeeVerifierInputProducerDal { storage: self }
     }
 
     fn blocks_dal(&mut self) -> BlocksDal<'_, 'a> {
@@ -257,5 +253,9 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn base_token_dal(&mut self) -> BaseTokenDal<'_, 'a> {
         BaseTokenDal { storage: self }
+    }
+
+    fn eth_watcher_dal(&mut self) -> EthWatcherDal<'_, 'a> {
+        EthWatcherDal { storage: self }
     }
 }

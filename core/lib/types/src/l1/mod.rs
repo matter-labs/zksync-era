@@ -1,22 +1,21 @@
 //! Definition of ZKsync network priority operations: operations initiated from the L1.
 
-use std::convert::TryFrom;
-
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{web3::Log, Address, L1BlockNumber, PriorityOpId, H256, U256};
-use zksync_utils::{
-    address_to_u256, bytecode::hash_bytecode, h256_to_u256, u256_to_account_address,
-};
 
 use super::Transaction;
 use crate::{
-    abi, ethabi,
+    abi, address_to_u256,
+    bytecode::BytecodeHash,
+    ethabi,
     helpers::unix_timestamp_ms,
     l1::error::L1TxParseError,
     l2::TransactionType,
     priority_op_onchain_data::{PriorityOpOnchainData, PriorityOpOnchainMetadata},
     tx::Execute,
-    ExecuteTransactionCommon, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE,
+    u256_to_address,
+    web3::Log,
+    Address, ExecuteTransactionCommon, L1BlockNumber, PriorityOpId, H256,
+    PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 
 pub mod error;
@@ -274,7 +273,9 @@ impl From<L1Tx> for abi::NewPriorityRequest {
             transaction: abi::L2CanonicalTransaction {
                 tx_type: PRIORITY_OPERATION_L2_TX_TYPE.into(),
                 from: address_to_u256(&t.common_data.sender),
-                to: address_to_u256(&t.execute.contract_address),
+                // Unwrap used here because the contract address should always be present for L1 transactions.
+                // TODO: Consider restricting the contract address to not be optional in L1Tx.
+                to: address_to_u256(&t.execute.contract_address.unwrap()),
                 gas_limit: t.common_data.gas_limit,
                 gas_per_pubdata_byte_limit: t.common_data.gas_per_pubdata_limit,
                 max_fee_per_gas: t.common_data.max_fee_per_gas,
@@ -292,7 +293,7 @@ impl From<L1Tx> for abi::NewPriorityRequest {
                 signature: vec![],
                 factory_deps: factory_deps
                     .iter()
-                    .map(|b| h256_to_u256(hash_bytecode(b)))
+                    .map(|b| BytecodeHash::for_bytecode(b).value_u256())
                     .collect(),
                 paymaster_input: vec![],
                 reserved_dynamic: vec![],
@@ -317,7 +318,7 @@ impl TryFrom<abi::NewPriorityRequest> for L1Tx {
         let factory_deps_hashes: Vec<_> = req
             .factory_deps
             .iter()
-            .map(|b| h256_to_u256(hash_bytecode(b)))
+            .map(|b| BytecodeHash::for_bytecode(b).value_u256())
             .collect();
         anyhow::ensure!(req.transaction.factory_deps == factory_deps_hashes);
         for item in &req.transaction.reserved[2..] {
@@ -330,10 +331,10 @@ impl TryFrom<abi::NewPriorityRequest> for L1Tx {
         let common_data = L1TxCommonData {
             serial_id: PriorityOpId(req.transaction.nonce.try_into().unwrap()),
             canonical_tx_hash: H256::from_slice(&req.tx_hash),
-            sender: u256_to_account_address(&req.transaction.from),
+            sender: u256_to_address(&req.transaction.from),
             layer_2_tip_fee: U256::zero(),
             to_mint: req.transaction.reserved[0],
-            refund_recipient: u256_to_account_address(&req.transaction.reserved[1]),
+            refund_recipient: u256_to_address(&req.transaction.reserved[1]),
             full_fee: U256::zero(),
             gas_limit: req.transaction.gas_limit,
             max_fee_per_gas: req.transaction.max_fee_per_gas,
@@ -345,7 +346,7 @@ impl TryFrom<abi::NewPriorityRequest> for L1Tx {
         };
 
         let execute = Execute {
-            contract_address: u256_to_account_address(&req.transaction.to),
+            contract_address: Some(u256_to_address(&req.transaction.to)),
             calldata: req.transaction.data,
             factory_deps: req.factory_deps,
             value: req.transaction.value,

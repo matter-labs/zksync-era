@@ -6,4 +6,8 @@
 pub use zksync_multivm::interface::executor as interface;
 
 pub mod batch;
+pub mod oneshot;
+mod shared;
 pub mod storage;
+#[cfg(test)]
+mod testonly;

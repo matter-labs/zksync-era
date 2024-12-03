@@ -1,4 +1,7 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
 
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
@@ -6,10 +9,10 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     encode_blob_tx_with_sidecar, BoundEthInterface, ExecutedTxStatus, RawTransactionBytes,
 };
+use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{eth_sender::EthTx, Address, L1BlockNumber, H256, U256};
-use zksync_utils::time::seconds_since_epoch;
 
 use super::{metrics::METRICS, EthSenderError};
 use crate::{
@@ -17,6 +20,7 @@ use crate::{
         AbstractL1Interface, L1BlockNumbers, OperatorNonce, OperatorType, RealL1Interface,
     },
     eth_fees_oracle::{EthFees, EthFeesOracle, GasAdjusterFeesOracle},
+    health::{EthTxDetails, EthTxManagerHealthDetails},
     metrics::TransactionType,
 };
 
@@ -31,6 +35,7 @@ pub struct EthTxManager {
     config: SenderConfig,
     fees_oracle: Box<dyn EthFeesOracle>,
     pool: ConnectionPool<Core>,
+    health_updater: HealthUpdater,
 }
 
 impl EthTxManager {
@@ -48,6 +53,7 @@ impl EthTxManager {
         let fees_oracle = GasAdjusterFeesOracle {
             gas_adjuster,
             max_acceptable_priority_fee_in_gwei: config.max_acceptable_priority_fee_in_gwei,
+            time_in_mempool_in_l1_blocks_cap: config.time_in_mempool_in_l1_blocks_cap,
         };
         let l1_interface = Box::new(RealL1Interface {
             ethereum_gateway,
@@ -64,6 +70,7 @@ impl EthTxManager {
             config,
             fees_oracle: Box::new(fees_oracle),
             pool,
+            health_updater: ReactiveHealthCheck::new("eth_tx_manager").1,
         }
     }
 
@@ -111,7 +118,7 @@ impl EthTxManager {
         &mut self,
         storage: &mut Connection<'_, Core>,
         tx: &EthTx,
-        time_in_mempool: u32,
+        time_in_mempool_in_l1_blocks: u32,
         current_block: L1BlockNumber,
     ) -> Result<H256, EthSenderError> {
         let previous_sent_tx = storage
@@ -127,7 +134,7 @@ impl EthTxManager {
             pubdata_price: _,
         } = self.fees_oracle.calculate_fees(
             &previous_sent_tx,
-            time_in_mempool,
+            time_in_mempool_in_l1_blocks,
             self.operator_type(tx),
         )?;
 
@@ -414,6 +421,14 @@ impl EthTxManager {
     ) {
         let receipt_block_number = tx_status.receipt.block_number.unwrap().as_u32();
         if receipt_block_number <= finalized_block.0 {
+            self.health_updater.update(
+                EthTxManagerHealthDetails {
+                    last_mined_tx: EthTxDetails::new(tx, Some((&tx_status).into())),
+                    finalized_block,
+                }
+                .into(),
+            );
+
             if tx_status.success {
                 self.confirm_tx(storage, tx, tx_status).await;
             } else {
@@ -485,13 +500,14 @@ impl EthTxManager {
             .track_eth_tx_metrics(storage, BlockL1Stage::Mined, tx)
             .await;
 
-        if gas_used > U256::from(tx.predicted_gas_cost) {
-            tracing::error!(
-                "Predicted gas {} lower than used gas {gas_used} for tx {:?} {}",
-                tx.predicted_gas_cost,
-                tx.tx_type,
-                tx.id
-            );
+        if let Some(predicted_gas_cost) = tx.predicted_gas_cost {
+            if gas_used > U256::from(predicted_gas_cost) {
+                tracing::error!(
+                    "Predicted gas {predicted_gas_cost} lower than used gas {gas_used} for tx {:?} {}",
+                    tx.tx_type,
+                    tx.id
+                );
+            }
         }
         tracing::info!(
             "eth_tx {} with hash {tx_hash:?} for {} is confirmed. Gas spent: {gas_used:?}",
@@ -500,9 +516,13 @@ impl EthTxManager {
         );
         let tx_type_label = tx.tx_type.into();
         METRICS.l1_gas_used[&tx_type_label].observe(gas_used.low_u128() as f64);
-        METRICS.l1_tx_mined_latency[&tx_type_label].observe(Duration::from_secs(
-            seconds_since_epoch() - tx.created_at_timestamp,
-        ));
+
+        let duration_since_epoch = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("incorrect system time");
+        let tx_latency =
+            duration_since_epoch.saturating_sub(Duration::from_secs(tx.created_at_timestamp));
+        METRICS.l1_tx_mined_latency[&tx_type_label].observe(tx_latency);
 
         let sent_at_block = storage
             .eth_sender_dal()
@@ -515,6 +535,9 @@ impl EthTxManager {
     }
 
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        self.health_updater
+            .update(Health::from(HealthStatus::Ready));
+
         let pool = self.pool.clone();
 
         loop {
@@ -601,13 +624,18 @@ impl EthTxManager {
             .await?
         {
             // New gas price depends on the time this tx spent in mempool.
-            let time_in_mempool = l1_block_numbers.latest.0 - sent_at_block;
+            let time_in_mempool_in_l1_blocks = l1_block_numbers.latest.0 - sent_at_block;
 
             // We don't want to return early in case resend does not succeed -
             // the error is logged anyway, but early returns will prevent
             // sending new operations.
             let _ = self
-                .send_eth_tx(storage, &tx, time_in_mempool, l1_block_numbers.latest)
+                .send_eth_tx(
+                    storage,
+                    &tx,
+                    time_in_mempool_in_l1_blocks,
+                    l1_block_numbers.latest,
+                )
                 .await?;
         }
         Ok(())
@@ -669,5 +697,10 @@ impl EthTxManager {
                 }
             }
         }
+    }
+
+    /// Returns the health check for eth tx manager.
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.health_updater.subscribe()
     }
 }

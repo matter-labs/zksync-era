@@ -2,15 +2,22 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use secrecy::ExposeSecret;
-use zksync_basic_types::url::SensitiveUrl;
+use zksync_basic_types::{
+    secrets::{APIKey, PrivateKey, SeedPhrase},
+    url::SensitiveUrl,
+};
 use zksync_config::configs::{
     consensus::{AttesterSecretKey, ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
-    secrets::Secrets,
+    da_client::{avail::AvailSecrets, celestia::CelestiaSecrets, eigen::EigenSecrets},
+    secrets::{DataAvailabilitySecrets, Secrets},
     DatabaseSecrets, L1Secrets,
 };
 use zksync_protobuf::{required, ProtoRepr};
 
-use crate::{proto::secrets as proto, read_optional_repr};
+use crate::{
+    proto::{secrets as proto, secrets::data_availability_secrets::DaSecrets},
+    read_optional_repr,
+};
 
 impl ProtoRepr for proto::Secrets {
     type Type = Secrets;
@@ -20,6 +27,7 @@ impl ProtoRepr for proto::Secrets {
             consensus: read_optional_repr(&self.consensus),
             database: read_optional_repr(&self.database),
             l1: read_optional_repr(&self.l1),
+            data_availability: read_optional_repr(&self.da),
         })
     }
 
@@ -28,6 +36,7 @@ impl ProtoRepr for proto::Secrets {
             database: this.database.as_ref().map(ProtoRepr::build),
             l1: this.l1.as_ref().map(ProtoRepr::build),
             consensus: this.consensus.as_ref().map(ProtoRepr::build),
+            da: this.data_availability.as_ref().map(ProtoRepr::build),
         }
     }
 }
@@ -77,12 +86,121 @@ impl ProtoRepr for proto::L1Secrets {
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             l1_rpc_url: SensitiveUrl::from_str(required(&self.l1_rpc_url).context("l1_rpc_url")?)?,
+            gateway_rpc_url: self
+                .gateway_rpc_url
+                .clone()
+                .map(|url| SensitiveUrl::from_str(&url))
+                .transpose()
+                .context("gateway_rpc_url")?,
         })
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
             l1_rpc_url: Some(this.l1_rpc_url.expose_str().to_string()),
+            gateway_rpc_url: this
+                .gateway_rpc_url
+                .as_ref()
+                .map(|url| url.expose_url().to_string()),
+        }
+    }
+}
+
+impl ProtoRepr for proto::DataAvailabilitySecrets {
+    type Type = DataAvailabilitySecrets;
+
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        let secrets = required(&self.da_secrets).context("config")?;
+
+        let client = match secrets {
+            DaSecrets::Avail(avail_secret) => {
+                let seed_phrase = match avail_secret.seed_phrase.as_ref() {
+                    Some(seed) => match SeedPhrase::from_str(seed) {
+                        Ok(seed) => Some(seed),
+                        Err(_) => None,
+                    },
+                    None => None,
+                };
+                let gas_relay_api_key = match avail_secret.gas_relay_api_key.as_ref() {
+                    Some(api_key) => match APIKey::from_str(api_key) {
+                        Ok(api_key) => Some(api_key),
+                        Err(_) => None,
+                    },
+                    None => None,
+                };
+                if seed_phrase.is_none() && gas_relay_api_key.is_none() {
+                    return Err(anyhow::anyhow!(
+                        "At least one of seed_phrase or gas_relay_api_key must be provided"
+                    ));
+                }
+                DataAvailabilitySecrets::Avail(AvailSecrets {
+                    seed_phrase,
+                    gas_relay_api_key,
+                })
+            }
+            DaSecrets::Celestia(celestia) => DataAvailabilitySecrets::Celestia(CelestiaSecrets {
+                private_key: PrivateKey::from_str(
+                    required(&celestia.private_key).context("private_key")?,
+                )?,
+            }),
+            DaSecrets::Eigen(eigen) => DataAvailabilitySecrets::Eigen(EigenSecrets {
+                private_key: PrivateKey::from_str(
+                    required(&eigen.private_key).context("private_key")?,
+                )?,
+            }),
+        };
+
+        Ok(client)
+    }
+
+    fn build(this: &Self::Type) -> Self {
+        let secrets = match &this {
+            DataAvailabilitySecrets::Avail(config) => {
+                let seed_phrase = if config.seed_phrase.is_some() {
+                    Some(
+                        config
+                            .clone()
+                            .seed_phrase
+                            .unwrap()
+                            .0
+                            .expose_secret()
+                            .to_string(),
+                    )
+                } else {
+                    None
+                };
+
+                let gas_relay_api_key = if config.gas_relay_api_key.is_some() {
+                    Some(
+                        config
+                            .clone()
+                            .gas_relay_api_key
+                            .unwrap()
+                            .0
+                            .expose_secret()
+                            .to_string(),
+                    )
+                } else {
+                    None
+                };
+
+                Some(DaSecrets::Avail(proto::AvailSecret {
+                    seed_phrase,
+                    gas_relay_api_key,
+                }))
+            }
+            DataAvailabilitySecrets::Celestia(config) => {
+                Some(DaSecrets::Celestia(proto::CelestiaSecret {
+                    private_key: Some(config.private_key.0.expose_secret().to_string()),
+                }))
+            }
+            DataAvailabilitySecrets::Eigen(config) => Some(DaSecrets::Eigen(proto::EigenSecret {
+                private_key: Some(config.private_key.0.expose_secret().to_string()),
+            })),
+        };
+
+        Self {
+            da_secrets: secrets,
         }
     }
 }
