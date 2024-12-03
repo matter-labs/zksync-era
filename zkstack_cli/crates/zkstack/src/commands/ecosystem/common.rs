@@ -39,6 +39,7 @@ pub async fn deploy_l1(
         initial_deployment_config,
         config.era_chain_id,
         config.prover_version == ProverMode::NoProofs,
+        config.l1_network,
     );
     deploy_config.save(shell, deploy_config_path)?;
 
