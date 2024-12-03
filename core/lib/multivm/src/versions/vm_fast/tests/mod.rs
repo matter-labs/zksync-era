@@ -5,7 +5,9 @@ use zksync_types::{
 };
 use zksync_vm2::interface::{Event, HeapId, StateInterface, Tracer};
 use zksync_vm_interface::{
-    pubdata::PubdataBuilder, storage::ReadStorage, tracer::ViolatedValidationRule,
+    pubdata::{PubdataBuilder, PubdataInput},
+    storage::ReadStorage,
+    tracer::ViolatedValidationRule,
     CurrentExecutionState, InspectExecutionMode, L2BlockEnv, VmExecutionMode,
     VmExecutionResultAndLogs, VmInterface,
 };
@@ -27,6 +29,7 @@ mod evm_emulator;
 mod gas_limit;
 mod get_used_contracts;
 mod is_write_initial;
+mod l1_messenger;
 mod l1_tx_execution;
 mod l2_blocks;
 mod nonce_holder;
@@ -168,6 +171,10 @@ where
 
     fn push_transaction_with_refund(&mut self, tx: Transaction, refund: u64) {
         self.push_transaction_inner(tx, refund, true);
+    }
+
+    fn pubdata_input(&self) -> PubdataInput {
+        self.bootloader_state.get_pubdata_information().clone()
     }
 }
 

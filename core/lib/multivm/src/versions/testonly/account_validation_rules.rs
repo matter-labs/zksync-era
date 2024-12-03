@@ -1,15 +1,16 @@
 use assert_matches::assert_matches;
+use zksync_test_contracts::TestContract;
 use zksync_types::{u256_to_h256, AccountTreeId, Address, StorageKey};
 use zksync_vm_interface::tracer::ViolatedValidationRule;
 
 use super::{
-    get_empty_storage, read_validation_test_contract, require_eip712::make_aa_transaction,
-    tester::VmTesterBuilder, ContractToDeploy, TestedVm, TestedVmForValidation,
+    get_empty_storage, require_eip712::make_aa_transaction, tester::VmTesterBuilder,
+    ContractToDeploy, TestedVm, TestedVmForValidation,
 };
 use crate::interface::TxExecutionMode;
 
 /// Checks that every limitation imposed on account validation results in an appropriate error.
-/// The actual misbehaviours are found in "validation-rule-breaker.sol".
+/// The actual misbehavior cases are found in "validation-rule-breaker.sol".
 pub(crate) fn test_account_validation_rules<VM: TestedVm + TestedVmForValidation>() {
     assert_matches!(test_rule::<VM>(0), None);
     assert_matches!(
@@ -38,7 +39,7 @@ fn test_rule<VM: TestedVm + TestedVmForValidation>(rule: u32) -> Option<Violated
         u256_to_h256(rule.into()),
     );
 
-    let bytecode = read_validation_test_contract();
+    let bytecode = TestContract::validation_test().bytecode.to_vec();
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_custom_contracts(vec![

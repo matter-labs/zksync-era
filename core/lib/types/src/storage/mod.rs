@@ -91,6 +91,11 @@ pub fn get_system_context_key(key: H256) -> StorageKey {
     StorageKey::new(system_context, key)
 }
 
+pub fn get_message_root_log_key(key: H256) -> StorageKey {
+    let message_root = AccountTreeId::new(L2_MESSAGE_ROOT_ADDRESS);
+    StorageKey::new(message_root, key)
+}
+
 pub fn get_deployer_key(key: H256) -> StorageKey {
     let deployer_contract = AccountTreeId::new(CONTRACT_DEPLOYER_ADDRESS);
     StorageKey::new(deployer_contract, key)
