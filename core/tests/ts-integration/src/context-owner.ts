@@ -399,7 +399,7 @@ export class TestContextOwner {
                 .then((tx) => {
                     const amount = ethers.formatEther(l2ETHAmountToDeposit);
                     this.reporter.debug(`Sent ETH deposit. Nonce ${tx.nonce}, amount: ${amount}, hash: ${tx.hash}`);
-                    tx.wait();
+                    return tx.wait();
                 });
             nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1);
             this.reporter.debug(
