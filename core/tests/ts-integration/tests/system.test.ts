@@ -11,9 +11,8 @@ import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
+import { SYSTEM_CONTEXT_ADDRESS, getTestContract, waitForL2ToL1LogProof } from '../src/helpers';
 import { DataAvailabityMode } from '../src/types';
-import { isNetworkLocalL2 } from 'utils';
 import { BigNumberish } from 'ethers';
 
 const contracts = {
@@ -33,10 +32,6 @@ describe('System behavior checks', () => {
     });
 
     test('Network should be supporting Cancun+Deneb', async () => {
-        if (isNetworkLocalL2(process.env.CHAIN_ETH_NETWORK!)) {
-            // Skipping for L2 networks
-            return;
-        }
         const address_a = '0x000000000000000000000000000000000000000A';
         const address_b = '0x000000000000000000000000000000000000000b';
 
@@ -211,7 +206,7 @@ describe('System behavior checks', () => {
         expect(proposedEIP712Hashes.signedTxHash).toEqual(expectedEIP712SignedHash);
     });
 
-    test.skip('Should execute withdrawals with different parameters in one block', async () => {
+    test('Should execute withdrawals with different parameters in one block', async () => {
         // This test checks the SDK/system contracts (not even the server) behavior, and it's very time-consuming,
         // so it doesn't make sense to run it outside the localhost environment.
         if (testMaster.isFastMode()) {
@@ -256,13 +251,16 @@ describe('System behavior checks', () => {
         testMaster.reporter.debug(
             `Obtained withdrawal receipt for Bob: blockNumber=${bobReceipt.blockNumber}, l1BatchNumber=${bobReceipt.l1BatchNumber}, status=${bobReceipt.status}`
         );
+
+        await waitForL2ToL1LogProof(alice, aliceReceipt.blockNumber, aliceReceipt.hash);
+        await waitForL2ToL1LogProof(bob, bobReceipt.blockNumber, bobReceipt.hash);
         await expect(alice.finalizeWithdrawal(aliceReceipt.hash)).toBeAccepted([aliceChange]);
         testMaster.reporter.debug('Finalized withdrawal for Alice');
         await expect(alice.finalizeWithdrawal(bobReceipt.hash)).toBeAccepted([bobChange]);
         testMaster.reporter.debug('Finalized withdrawal for Bob');
     });
 
-    test.skip('Should execute a withdrawal with same parameters twice', async () => {
+    test('Should execute a withdrawal with same parameters twice', async () => {
         // This test is a logical copy of the previous one, but in this one we send two withdrawals from the same account
         // It's skipped outside the localhost environment for the same reason.
         if (testMaster.isFastMode()) {
@@ -300,6 +298,9 @@ describe('System behavior checks', () => {
         testMaster.reporter.debug(
             `Obtained withdrawal receipt #2: blockNumber=${receipt2.blockNumber}, l1BatchNumber=${receipt2.l1BatchNumber}, status=${receipt2.status}`
         );
+
+        await waitForL2ToL1LogProof(alice, receipt1.blockNumber, receipt1.hash);
+        await waitForL2ToL1LogProof(alice, receipt2.blockNumber, receipt2.hash);
         await expect(alice.finalizeWithdrawal(receipt1.hash)).toBeAccepted([change1]);
         testMaster.reporter.debug('Finalized withdrawal #1');
         await expect(alice.finalizeWithdrawal(receipt2.hash)).toBeAccepted([change2]);
