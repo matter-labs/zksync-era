@@ -118,7 +118,7 @@ impl ValidiumType {
     }
 }
 
-fn url_validator(val: &String) -> Result<(), String> {
+fn url_validator(val: &str) -> Result<(), String> {
     Url::parse(val)
         .map(|_| ())
         .map_err(|_| MSG_INVALID_URL_ERR.to_string())
