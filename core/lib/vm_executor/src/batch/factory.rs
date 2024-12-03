@@ -247,7 +247,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         let mut file = File::create(format!("{}.txt", hex::encode(&hash.0))).unwrap();
 
         // Write the struct to the file
-        writeln!(file, "{:#?}", call_traces).unwrap();
+        // writeln!(file, "{:#?}", call_traces).unwrap();
 
         BatchTransactionExecutionResult {
             tx_result: Box::new(tx_result),

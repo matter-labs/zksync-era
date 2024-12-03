@@ -167,6 +167,7 @@ async fn adapt_config(shell: &Shell, chain_config: ChainConfig) -> anyhow::Resul
         genesis_config.l1_chain_id.0.into(),
         contracts_config.l1.base_token_addr,
     ));
+    // contracts_config.l2.
 
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 

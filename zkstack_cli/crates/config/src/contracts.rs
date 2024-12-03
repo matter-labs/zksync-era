@@ -260,4 +260,7 @@ pub struct L2Contracts {
     pub consensus_registry: Option<Address>,
     pub multicall3: Option<Address>,
     pub timestamp_asserter_addr: Option<Address>,
+    // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub predeployed_l2_wrapped_base_token_address: Option<Address>
 }
