@@ -64,8 +64,6 @@ describe('L2 native ERC20 contract checks', () => {
         };
         const mintTx = await aliceErc20.mint(alice.address, 1000n);
         await mintTx.wait();
-        // const mintTx2 = await aliceErc20.mint('0x36615Cf349d7F6344891B1e7CA7C72883F5dc049', 1000n);
-        // await mintTx2.wait();
         const registerZKTx = await l2NativeTokenVault.registerToken(tokenDetails.l2Address);
         await registerZKTx.wait();
         zkTokenAssetId = await l2NativeTokenVault.assetId(l2TokenAddress);
@@ -99,7 +97,6 @@ describe('L2 native ERC20 contract checks', () => {
         await withdrawalTx.waitFinalize();
         await waitForL2ToL1LogProof(alice, withdrawalTx.hash);
 
-        await alice.finalizeWithdrawalParams(withdrawalTx.hash); // kl todo finalize the Withdrawals with the params here. Alternatively do in the SDK.
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();
 
         tokenDetails.l1Address = await l1NativeTokenVault.tokenAddress(zkTokenAssetId);
