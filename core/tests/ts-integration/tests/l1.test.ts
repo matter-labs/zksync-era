@@ -142,7 +142,7 @@ describe('Tests for L1 behavior', () => {
         const l2ToL1LogIndex = receipt.l2ToL1Logs.findIndex(
             (log: zksync.types.L2ToL1Log) => log.sender == L1_MESSENGER_ADDRESS
         );
-        await waitForL2ToL1LogProof(alice, tx.hash);
+        await waitForL2ToL1LogProof(alice, receipt.blockNumber, tx.hash);
         const msgProof = await alice.provider.getLogProof(tx.hash, l2ToL1LogIndex);
         expect(msgProof).toBeTruthy();
 

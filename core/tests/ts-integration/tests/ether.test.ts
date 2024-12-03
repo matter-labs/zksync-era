@@ -260,7 +260,8 @@ describe('ETH token checks', () => {
         });
         await expect(withdrawalPromise).toBeAccepted([l2ethBalanceChange]);
         const withdrawalTx = await withdrawalPromise;
-        await waitForL2ToL1LogProof(alice, withdrawalTx.hash);
+        const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
+        await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, withdrawalTx.hash);
 
         // TODO (SMA-1374): Enable L1 ETH checks as soon as they're supported.
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();

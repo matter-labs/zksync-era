@@ -174,7 +174,8 @@ describe('L1 ERC20 contract checks', () => {
         });
         await expect(withdrawalPromise).toBeAccepted([l2BalanceChange, feeCheck]);
         const withdrawalTx = await withdrawalPromise;
-        await waitForL2ToL1LogProof(alice, withdrawalTx.hash);
+        const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
+        await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, withdrawalTx.hash);
 
         // Note: For L1 we should use L1 token address.
         const l1BalanceChange = await shouldChangeTokenBalances(
@@ -214,7 +215,8 @@ describe('L1 ERC20 contract checks', () => {
         // `waitFinalize` is not used because it doesn't work as expected for failed transactions.
         // It throws once it gets status == 0 in the receipt and doesn't wait for the finalization.
         const l2Hash = zksync.utils.getL2HashFromPriorityOp(l1Receipt, await alice.provider.getMainContractAddress());
-        await waitForL2ToL1LogProof(alice, l2Hash);
+        const l2TxReceipt = await alice.provider.getTransactionReceipt(l2Hash);
+        await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, l2Hash);
         // Claim failed deposit.
         await expect(alice.claimFailedDeposit(l2Hash)).toBeAccepted();
         await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.toEqual(initialBalance);

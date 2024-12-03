@@ -167,8 +167,8 @@ describe('base ERC20 contract checks', () => {
         const withdrawalPromise = alice.withdraw({ token: baseTokenDetails.l2Address, amount });
         await expect(withdrawalPromise).toBeAccepted([]);
         const withdrawalTx = await withdrawalPromise;
-        await withdrawalTx.wait();
-        await waitForL2ToL1LogProof(alice, withdrawalTx.hash);
+        const l2Receipt = await withdrawalTx.wait();
+        await waitForL2ToL1LogProof(alice, l2Receipt!.blockNumber, withdrawalTx.hash);
 
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([]);
         const receipt = await alice._providerL2().getTransactionReceipt(withdrawalTx.hash);
