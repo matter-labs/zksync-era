@@ -112,36 +112,13 @@ describe('Upgrade test', function () {
             chain: fileConfig.chain,
             config: 'secrets.yaml'
         });
-        const genesisConfig = loadConfig({
-            pathToHome,
-            chain: fileConfig.chain,
-            config: 'genesis.yaml'
-        });
-
         ethProviderAddress = secretsConfig.l1.l1_rpc_url;
         web3JsonRpc = generalConfig.api.web3_json_rpc.http_url;
         contractsL2DefaultUpgradeAddr = contractsConfig.l2.default_l2_upgrader;
         bytecodeSupplier = contractsConfig.ecosystem_contracts.l1_bytecodes_supplier_addr;
         contractsPriorityTxMaxGasLimit = '72000000';
 
-        const slChainId = genesisConfig.sl_chain_id;
-        const l1ChainId = genesisConfig.l1_chain_id;
-
-        if (slChainId && l1ChainId != slChainId) {
-            const gatewayChainConfig = loadConfig({
-                pathToHome,
-                chain: fileConfig.chain,
-                config: 'gateway_chain.yaml'
-            });
-
-            gatewayInfo = {
-                gatewayChainId: slChainId,
-                gatewayProvider: new zksync.Provider(secretsConfig.l1.gateway_url),
-                gatewayCTM: gatewayChainConfig.state_transition_proxy_addr,
-                l2ChainAdmin: gatewayChainConfig.chain_admin_addr,
-                l2DiamondProxyAddress: gatewayChainConfig.diamond_proxy_addr
-            };
-        }
+        gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain);
 
         mainNodeSpawner = new utils.NodeSpawner(pathToHome, logs, fileConfig, {
             enableConsensus: false,
@@ -817,4 +794,38 @@ export function packSemver(major: number, minor: number, patch: number) {
 export function addToProtocolVersion(packedProtocolVersion: number, minor: number, patch: number) {
     const [major, minorVersion, patchVersion] = unpackNumberSemVer(packedProtocolVersion);
     return packSemver(major, minorVersion + minor, patchVersion + patch);
+}
+
+export function getGatewayInfo(pathToHome: string, chain: string): GatewayInfo | null {
+    const genesisConfig = loadConfig({
+        pathToHome,
+        chain: chain,
+        config: 'genesis.yaml'
+    });
+
+    const slChainId = genesisConfig.sl_chain_id;
+    const l1ChainId = genesisConfig.l1_chain_id;
+
+    if (slChainId && l1ChainId != slChainId) {
+        const gatewayChainConfig = loadConfig({
+            pathToHome,
+            chain: chain,
+            config: 'gateway_chain.yaml'
+        });
+        const secretsConfig = loadConfig({
+            pathToHome,
+            chain: chain,
+            config: 'secrets.yaml'
+        });
+
+        return {
+            gatewayChainId: slChainId,
+            gatewayProvider: new zksync.Provider(secretsConfig.l1.gateway_rpc_url),
+            gatewayCTM: gatewayChainConfig.state_transition_proxy_addr,
+            l2ChainAdmin: gatewayChainConfig.chain_admin_addr,
+            l2DiamondProxyAddress: gatewayChainConfig.diamond_proxy_addr
+        };
+    }
+
+    return null;
 }

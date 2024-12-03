@@ -23,7 +23,7 @@ impl FromEnv for L1Secrets {
                 .context("ETH_CLIENT_WEB3_URL")?
                 .parse()
                 .context("ETH_CLIENT_WEB3_URL")?,
-            gateway_url: std::env::var("ETH_CLIENT_GATEWAY_WEB3_URL")
+            gateway_rpc_url: std::env::var("ETH_CLIENT_GATEWAY_WEB3_URL")
                 .ok()
                 .map(|url| url.parse().expect("ETH_CLIENT_GATEWAY_WEB3_URL")),
         })
@@ -56,7 +56,6 @@ mod tests {
         (
             EthConfig {
                 sender: Some(SenderConfig {
-                    aggregated_proof_sizes: vec![1, 5],
                     aggregated_block_commit_deadline: 30,
                     aggregated_block_prove_deadline: 3_000,
                     aggregated_block_execute_deadline: 4_000,
@@ -101,7 +100,7 @@ mod tests {
             },
             L1Secrets {
                 l1_rpc_url: "http://127.0.0.1:8545".to_string().parse().unwrap(),
-                gateway_url: Some("http://127.0.0.1:8547".to_string().parse().unwrap()),
+                gateway_rpc_url: Some("http://127.0.0.1:8547".to_string().parse().unwrap()),
             },
         )
     }
@@ -129,7 +128,6 @@ mod tests {
             ETH_SENDER_GAS_ADJUSTER_MAX_BLOB_BASE_FEE_SAMPLES="10"
             ETH_SENDER_GAS_ADJUSTER_INTERNAL_PUBDATA_PRICING_MULTIPLIER="1.0"
             ETH_SENDER_WAIT_FOR_PROOFS="false"
-            ETH_SENDER_SENDER_AGGREGATED_PROOF_SIZES="1,5"
             ETH_SENDER_SENDER_MAX_AGGREGATED_BLOCKS_TO_COMMIT="3"
             ETH_SENDER_SENDER_MAX_AGGREGATED_BLOCKS_TO_EXECUTE="4"
             ETH_SENDER_SENDER_AGGREGATED_BLOCK_COMMIT_DEADLINE="30"

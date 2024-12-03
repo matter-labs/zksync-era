@@ -503,7 +503,7 @@ fn batch_root_to_log(sl_block_number: u64, l2_batch_number: u64, batch_root: H25
             ethabi::ParamType::FixedBytes(32),
         ],
     );
-    let topic2 = u256_to_h256(L2ChainId::default().0.into());
+    let topic2 = u256_to_h256(L2ChainId::default().as_u64().into());
     let topic3 = u256_to_h256(l2_batch_number.into());
     let data = ethabi::encode(&[batch_root.into_token()]);
 

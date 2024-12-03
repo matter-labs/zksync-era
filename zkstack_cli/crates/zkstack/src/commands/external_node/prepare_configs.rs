@@ -103,7 +103,7 @@ fn prepare_configs(
         node_key: Some(NodeSecretKey(Secret::new(node_key))),
     };
 
-    let gateway_url = if let Some(url) = args.gateway_rpc_url {
+    let gateway_rpc_url = if let Some(url) = args.gateway_rpc_url {
         Some(SensitiveUrl::from_str(&url).context("gateway_url")?)
     } else {
         None
@@ -117,7 +117,7 @@ fn prepare_configs(
         }),
         l1: Some(L1Secrets {
             l1_rpc_url: SensitiveUrl::from_str(&args.l1_rpc_url).context("l1_rpc_url")?,
-            gateway_url,
+            gateway_rpc_url,
         }),
         data_availability: None,
     };

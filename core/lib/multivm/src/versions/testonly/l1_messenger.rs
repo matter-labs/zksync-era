@@ -51,9 +51,11 @@ fn compose_header_for_l1_commit_rollup(input: PubdataInput) -> Vec<u8> {
     // Now, we need to calculate the linear hashes of the blobs.
     // Firstly, let's pad the pubdata to the size of the blob.
     if full_pubdata.len() % ZK_SYNC_BYTES_PER_BLOB != 0 {
-        let padding =
-            vec![0u8; ZK_SYNC_BYTES_PER_BLOB - full_pubdata.len() % ZK_SYNC_BYTES_PER_BLOB];
-        full_pubdata.extend(padding);
+        full_pubdata.resize(
+            full_pubdata.len() + ZK_SYNC_BYTES_PER_BLOB
+                - full_pubdata.len() % ZK_SYNC_BYTES_PER_BLOB,
+            0,
+        );
     }
     full_header.push((full_pubdata.len() / ZK_SYNC_BYTES_PER_BLOB) as u8);
 
@@ -85,13 +87,13 @@ pub(crate) fn test_rollup_da_output_hash_match<VM: TestedVm>() {
     let account = &mut vm.rich_accounts[0];
 
     // Firstly, deploy tx. It should publish the bytecode of the "test contract"
-    let counter = TestContract::counter().bytecode;
+    let counter_bytecode = TestContract::counter().bytecode;
 
-    let tx = account.get_deploy_tx(counter, None, TxType::L2).tx;
+    let tx = account.get_deploy_tx(counter_bytecode, None, TxType::L2).tx;
     // We do not use compression here, to have the bytecode published in full.
-    vm.vm
-        .push_transaction_with_refund_and_compression(tx, 0, false);
-    let result = vm.vm.execute(InspectExecutionMode::OneTx);
+    let (_, result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(tx, false);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
     // Then, we call the l1 messenger to also send an L2->L1 message.

@@ -9,12 +9,12 @@ use core::convert::{TryFrom, TryInto};
 
 use rlp::Rlp;
 use serde::{Deserialize, Serialize};
-use zksync_types::web3::ValueOrArray;
 pub use zksync_types::{
     api::{Block, BlockNumber, Log, TransactionReceipt, TransactionRequest},
     ethabi,
     web3::{
-        BlockHeader, Bytes, CallRequest, FeeHistory, Index, SyncState, TraceFilter, U64Number, Work,
+        BlockHeader, Bytes, CallRequest, FeeHistory, Index, SyncState, TraceFilter, U64Number,
+        ValueOrArray, Work,
     },
     Address, Transaction, H160, H256, H64, U256, U64,
 };

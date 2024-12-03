@@ -21,6 +21,7 @@ impl Resource for GatewayEthInterfaceResource {
         "common/gateway_eth_interface".into()
     }
 }
+
 /// A resource that provides L2 interface object to the service.
 /// It is expected to have the same URL as the `EthInterfaceResource`, but have different capabilities.
 ///

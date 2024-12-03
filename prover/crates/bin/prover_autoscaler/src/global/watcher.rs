@@ -8,16 +8,13 @@ use reqwest::{
 };
 use tokio::sync::Mutex;
 use url::Url;
-use zksync_utils::http_with_retries::send_request_with_retries;
 
 use crate::{
     agent::{ScaleRequest, ScaleResponse},
     cluster_types::{Cluster, Clusters},
-    metrics::{AUTOSCALER_METRICS, DEFAULT_ERROR_CODE},
+    http_client::HttpClient,
     task_wiring::Task,
 };
-
-const MAX_RETRIES: usize = 5;
 
 #[derive(Default)]
 pub struct WatchedData {
@@ -36,6 +33,7 @@ pub fn check_is_ready(v: &Vec<bool>) -> Result<()> {
 
 #[derive(Default, Clone)]
 pub struct Watcher {
+    http_client: HttpClient,
     /// List of base URLs of all agents.
     pub cluster_agents: Vec<Arc<Url>>,
     pub dry_run: bool,
@@ -43,9 +41,10 @@ pub struct Watcher {
 }
 
 impl Watcher {
-    pub fn new(agent_urls: Vec<String>, dry_run: bool) -> Self {
+    pub fn new(http_client: HttpClient, agent_urls: Vec<String>, dry_run: bool) -> Self {
         let size = agent_urls.len();
         Self {
+            http_client,
             cluster_agents: agent_urls
                 .into_iter()
                 .map(|u| {
@@ -92,6 +91,7 @@ impl Watcher {
                     .unwrap()
                     .to_string();
                 tracing::debug!("Sending scale request to {}, data: {:?}.", url, sr);
+                let http_client = self.http_client.clone();
                 tokio::spawn(async move {
                     let mut headers = HeaderMap::new();
                     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
@@ -99,19 +99,17 @@ impl Watcher {
                         tracing::info!("Dry-run mode, not sending the request.");
                         return Ok((id, Ok(ScaleResponse::default())));
                     }
-                    let response = send_request_with_retries(
-                        &url,
-                        MAX_RETRIES,
-                        Method::POST,
-                        Some(headers),
-                        Some(serde_json::to_vec(&sr)?),
-                    )
-                    .await;
+                    let response = http_client
+                        .send_request_with_retries(
+                            &url,
+                            Method::POST,
+                            Some(headers),
+                            Some(serde_json::to_vec(&sr)?),
+                        )
+                        .await;
                     let response = response.map_err(|err| {
-                        AUTOSCALER_METRICS.calls[&(url.clone(), DEFAULT_ERROR_CODE)].inc();
                         anyhow::anyhow!("Failed fetching cluster from url: {url}: {err:?}")
                     })?;
-                    AUTOSCALER_METRICS.calls[&(url, response.status().as_u16())].inc();
                     let response = response
                         .json::<ScaleResponse>()
                         .await
@@ -164,21 +162,20 @@ impl Task for Watcher {
             .enumerate()
             .map(|(i, a)| {
                 tracing::debug!("Getting cluster data from agent {}.", a);
+                let http_client = self.http_client.clone();
                 tokio::spawn(async move {
                     let url: String = a
                         .clone()
                         .join("/cluster")
                         .context("Failed to join URL with /cluster")?
                         .to_string();
-                    let response =
-                        send_request_with_retries(&url, MAX_RETRIES, Method::GET, None, None).await;
+                    let response = http_client
+                        .send_request_with_retries(&url, Method::GET, None, None)
+                        .await;
 
                     let response = response.map_err(|err| {
-                        // TODO: refactor send_request_with_retries to return status.
-                        AUTOSCALER_METRICS.calls[&(url.clone(), DEFAULT_ERROR_CODE)].inc();
                         anyhow::anyhow!("Failed fetching cluster from url: {url}: {err:?}")
                     })?;
-                    AUTOSCALER_METRICS.calls[&(url, response.status().as_u16())].inc();
                     let response = response
                         .json::<Cluster>()
                         .await

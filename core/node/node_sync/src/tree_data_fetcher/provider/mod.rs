@@ -98,7 +98,7 @@ struct PastL1BatchInfo {
 }
 
 #[derive(Debug)]
-struct SLChainData {
+struct SLChainAccess {
     client: Box<DynClient<L1>>,
     chain_id: SLChainId,
     diamond_proxy_addr: Address,
@@ -116,8 +116,8 @@ struct SLChainData {
 /// (provided it's not too far behind the seal timestamp of the batch).
 #[derive(Debug)]
 pub(super) struct L1DataProvider {
-    l1_chain_data: SLChainData,
-    gateway_chain_data: Option<SLChainData>,
+    l1_chain_data: SLChainAccess,
+    gateway_chain_data: Option<SLChainAccess>,
     block_commit_signature: H256,
     past_l1_batch: Option<PastL1BatchInfo>,
     pool: ConnectionPool<Core>,
@@ -138,7 +138,7 @@ impl L1DataProvider {
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         let l1_chain_id = l1_client.fetch_chain_id().await?;
-        let l1_chain_data = SLChainData {
+        let l1_chain_data = SLChainAccess {
             client: l1_client,
             chain_id: l1_chain_id,
             diamond_proxy_addr: l1_diamond_proxy_addr,
@@ -152,7 +152,7 @@ impl L1DataProvider {
             .call(&client)
             .await?;
             let chain_id = client.fetch_chain_id().await?;
-            Some(SLChainData {
+            Some(SLChainAccess {
                 client,
                 chain_id,
                 diamond_proxy_addr: gateway_diamond_proxy,
@@ -228,7 +228,7 @@ impl L1DataProvider {
         Ok((number, block.timestamp))
     }
 
-    fn chain_data_by_id(&self, searched_chain_id: SLChainId) -> Option<&SLChainData> {
+    fn chain_data_by_id(&self, searched_chain_id: SLChainId) -> Option<&SLChainAccess> {
         if searched_chain_id == self.l1_chain_data.chain_id {
             Some(&self.l1_chain_data)
         } else if Some(searched_chain_id) == self.gateway_chain_data.as_ref().map(|d| d.chain_id) {

@@ -401,7 +401,7 @@ where
         block_number: U64,
         l2_chain_id: L2ChainId,
     ) -> Result<H256, ContractCallError> {
-        CallFunctionArgs::new("getChainRoot", U256::from(l2_chain_id.0))
+        CallFunctionArgs::new("getChainRoot", U256::from(l2_chain_id.as_u64()))
             .with_block(BlockId::Number(block_number.into()))
             .for_contract(L2_MESSAGE_ROOT_ADDRESS, &self.message_root_abi)
             .call(&self.client)

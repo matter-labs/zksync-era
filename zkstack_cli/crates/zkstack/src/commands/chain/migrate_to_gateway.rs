@@ -367,7 +367,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .clone();
 
     let mut chain_secrets_config = chain_config.get_secrets_config().unwrap();
-    chain_secrets_config.l1.as_mut().unwrap().gateway_url =
+    chain_secrets_config.l1.as_mut().unwrap().gateway_rpc_url =
         Some(url::Url::parse(&gateway_url).unwrap().into());
     chain_secrets_config.save_with_base_path(shell, chain_config.configs.clone())?;
 

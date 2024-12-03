@@ -98,7 +98,7 @@ pub(crate) async fn create_mock_checker(
     let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
     let client = client.into_client();
     let chain_id = client.fetch_chain_id().await.unwrap();
-    let l1_chain_data = SLChainData {
+    let l1_chain_data = SLChainAccess {
         client: Box::new(client),
         chain_id,
         diamond_proxy_addr: Some(L1_DIAMOND_PROXY_ADDR),
@@ -192,7 +192,11 @@ fn build_commit_tx_input_data_is_correct(commitment_mode: L1BatchCommitmentMode)
             &commit_tx_input_data,
             commit_function,
             batch.header.number,
-            false,
+            batch
+                .header
+                .protocol_version
+                .map(|v| v.is_pre_gateway())
+                .unwrap_or(true),
         )
         .unwrap();
         assert_eq!(
@@ -564,7 +568,7 @@ async fn checker_works_with_different_settlement_layers() {
         100,
         pool.clone(),
         commitment_mode,
-        L2ChainId(ERA_CHAIN_ID),
+        L2ChainId::new(ERA_CHAIN_ID).unwrap(),
     )
     .await
     .unwrap();

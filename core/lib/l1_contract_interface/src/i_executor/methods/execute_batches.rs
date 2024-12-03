@@ -47,13 +47,7 @@ impl Tokenize for &ExecuteBatches {
 
             vec![
                 Token::Uint(self.l1_batches[0].header.number.0.into()),
-                Token::Uint(
-                    self.l1_batches[self.l1_batches.len() - 1]
-                        .header
-                        .number
-                        .0
-                        .into(),
-                ),
+                Token::Uint(self.l1_batches.last().unwrap().header.number.0.into()),
                 Token::Bytes(execute_data),
             ]
         }
