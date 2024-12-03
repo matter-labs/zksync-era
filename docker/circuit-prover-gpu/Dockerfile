@@ -43,7 +43,9 @@ RUN curl -Lo sccache-v0.8.1-x86_64-unknown-linux-musl.tar.gz https://github.com/
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN cd prover && cargo build --release --bin zksync_circuit_prover && cuobjdump /usr/src/zksync/prover/target/release/zksync_circuit_prover
+RUN cd prover && cargo build --release --bin zksync_circuit_prover
+
+RUN cuobjdump /usr/src/zksync/prover/target/release/zksync_circuit_prover
 
 FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04
 
