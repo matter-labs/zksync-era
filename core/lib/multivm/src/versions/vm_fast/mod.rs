@@ -2,9 +2,7 @@ pub use zksync_vm2::interface;
 
 pub(crate) use self::version::FastVmVersion;
 pub use self::{
-    builtin_tracers::{
-        ApiTracers, DefaultTracers, SequencerTracers, ValidationTracers, WithBuiltinTracers,
-    },
+    validation_tracer::{FullValidationTracer, ValidationTracer},
     vm::Vm,
 };
 
@@ -15,8 +13,6 @@ mod circuits_tracer;
 mod events;
 mod evm_deploy_tracer;
 mod glue;
-#[macro_use]
-mod hlist;
 mod hook;
 mod initial_bootloader_memory;
 mod refund;

@@ -23,10 +23,7 @@ pub trait ValidationTracer: Tracer + Default {
     fn validation_exited(&mut self);
 }
 
-#[derive(Debug, Default)]
-pub struct ValidationGasLimitOnly;
-impl Tracer for ValidationGasLimitOnly {}
-impl ValidationTracer for ValidationGasLimitOnly {
+impl ValidationTracer for () {
     const STOP_AFTER_VALIDATION: bool = false;
     fn account_validation_entered(&mut self) {}
     fn validation_exited(&mut self) {}

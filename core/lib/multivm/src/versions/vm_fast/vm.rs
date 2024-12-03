@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, rc::Rc};
+use std::{collections::HashMap, fmt, mem, rc::Rc};
 
 use zk_evm_1_5_0::{
     aux_structures::LogQuery, zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION,
@@ -26,13 +26,13 @@ use zksync_vm2::{
 
 use super::{
     bootloader_state::{BootloaderState, BootloaderStateSnapshot},
+    builtin_tracers::WithBuiltinTracers,
     bytecode::compress_bytecodes,
     evm_deploy_tracer::DynamicBytecodes,
     hook::Hook,
     initial_bootloader_memory::bootloader_initial_memory,
     transaction_data::TransactionData,
     validation_tracer::ValidationTracer,
-    DefaultTracers, WithBuiltinTracers,
 };
 use crate::{
     glue::GlueInto,
@@ -84,24 +84,27 @@ impl VmRunResult {
     }
 }
 
+type InnerVm<S, Tr, Val> =
+    VirtualMachine<WithBuiltinTracers<Tr, Val>, World<S, WithBuiltinTracers<Tr, Val>>>;
+
 /// Fast VM wrapper.
 ///
 /// The wrapper is parametric by the storage and tracer types. Besides the [`Tracer`] trait and implement [`Default`]
 /// (the latter is necessary to complete batches). [`CircuitsTracer`] is currently always enabled;
 /// you don't need to specify it explicitly.
-pub struct Vm<S, Tr = DefaultTracers> {
-    pub(crate) world: World<S, Tr>,
-    pub(crate) inner: VirtualMachine<Tr, World<S, Tr>>,
-    pub(crate) bootloader_state: BootloaderState,
-    pub(crate) batch_env: L1BatchEnv,
-    pub(crate) system_env: SystemEnv,
+pub struct Vm<S, Tr = (), Val = ()> {
+    pub(super) world: World<S, WithBuiltinTracers<Tr, Val>>,
+    pub(super) inner: InnerVm<S, Tr, Val>,
+    pub(super) bootloader_state: BootloaderState,
+    pub(super) batch_env: L1BatchEnv,
+    pub(super) system_env: SystemEnv,
     snapshot: Option<VmSnapshot>,
     vm_version: FastVmVersion,
     #[cfg(test)]
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
 }
 
-impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
+impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
     pub fn custom(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
         let vm_version: FastVmVersion = VmVersion::from(system_env.version)
             .try_into()
@@ -371,14 +374,16 @@ struct AccountValidationGasSplit {
     gas_hidden: u32,
 }
 
-impl<S: ReadStorage, E, V: ValidationTracer> Vm<S, WithBuiltinTracers<E, V>>
+impl<S, Tr, Val> Vm<S, Tr, Val>
 where
-    WithBuiltinTracers<E, V>: Tracer,
+    S: ReadStorage,
+    Tr: Tracer + Default,
+    Val: ValidationTracer,
 {
     fn run(
         &mut self,
         execution_mode: VmExecutionMode,
-        tracer: &mut WithBuiltinTracers<E, V>,
+        tracer: &mut WithBuiltinTracers<Tr, Val>,
         track_refunds: bool,
         pubdata_builder: Option<&dyn PubdataBuilder>,
     ) -> VmRunResult {
@@ -434,7 +439,7 @@ where
                         account_validation_gas_split.is_none(),
                         "Account validation can't be nested"
                     );
-                    tracer.validation().account_validation_entered();
+                    tracer.validation.account_validation_entered();
 
                     let gas = self.gas_remaining();
                     let gas_given = gas.min(gas_left_for_account_validation);
@@ -449,7 +454,7 @@ where
                 }
 
                 Hook::ValidationExited => {
-                    tracer.validation().validation_exited();
+                    tracer.validation.validation_exited();
 
                     if let Some(AccountValidationGasSplit {
                         gas_given,
@@ -463,7 +468,7 @@ where
                 }
 
                 Hook::ValidationStepEnded => {
-                    if V::STOP_AFTER_VALIDATION {
+                    if Val::STOP_AFTER_VALIDATION {
                         break (ExecutionResult::Success { output: vec![] }, true);
                     }
                 }
@@ -631,7 +636,7 @@ where
 
     pub(crate) fn inspect_inner(
         &mut self,
-        tracer: &mut WithBuiltinTracers<E, V>,
+        tracer: &mut (Tr, Val),
         execution_mode: VmExecutionMode,
         pubdata_builder: Option<&dyn PubdataBuilder>,
     ) -> VmExecutionResultAndLogs {
@@ -644,10 +649,17 @@ where
 
         let start = self.inner.world_diff().snapshot();
         let gas_before = self.gas_remaining();
+        let (external, validation) = mem::take(tracer);
+        let mut full_tracer =
+            WithBuiltinTracers::new(external, validation, self.world.dynamic_bytecodes.clone());
 
-        tracer.insert_dynamic_bytecodes_handle(self.world.dynamic_bytecodes.clone());
-
-        let result = self.run(execution_mode, tracer, track_refunds, pubdata_builder);
+        let result = self.run(
+            execution_mode,
+            &mut full_tracer,
+            track_refunds,
+            pubdata_builder,
+        );
+        *tracer = (full_tracer.external, full_tracer.validation);
 
         let ignore_world_diff =
             matches!(execution_mode, VmExecutionMode::OneTx) && result.should_ignore_vm_logs();
@@ -720,7 +732,7 @@ where
                 gas_remaining,
                 computational_gas_used: gas_used, // since 1.5.0, this always has the same value as `gas_used`
                 pubdata_published: result.pubdata_published,
-                circuit_statistic: tracer.circuit().circuit_statistic(),
+                circuit_statistic: full_tracer.circuits.circuit_statistic(),
                 contracts_used: 0,
                 cycles_used: 0,
                 total_log_queries: 0,
@@ -731,9 +743,11 @@ where
     }
 }
 
-impl<S, Tr: Tracer> VmFactory<StorageView<S>> for Vm<ImmutableStorageView<S>, Tr>
+impl<S, Tr, Val> VmFactory<StorageView<S>> for Vm<ImmutableStorageView<S>, Tr, Val>
 where
     S: ReadStorage,
+    Tr: Tracer + Default,
+    Val: ValidationTracer,
 {
     fn new(
         batch_env: L1BatchEnv,
@@ -745,10 +759,13 @@ where
     }
 }
 
-impl<S: ReadStorage, E: Tracer + Default, V: ValidationTracer> VmInterface
-    for Vm<S, WithBuiltinTracers<E, V>>
+impl<S, Tr, Val> VmInterface for Vm<S, Tr, Val>
+where
+    S: ReadStorage,
+    Tr: Tracer + Default,
+    Val: ValidationTracer,
 {
-    type TracerDispatcher = WithBuiltinTracers<E, V>;
+    type TracerDispatcher = (Tr, Val);
 
     fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
         self.push_transaction_inner(tx, 0, true);
@@ -771,7 +788,7 @@ impl<S: ReadStorage, E: Tracer + Default, V: ValidationTracer> VmInterface
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
         tracer: &mut Self::TracerDispatcher,
-        tx: zksync_types::Transaction,
+        tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         self.push_transaction_inner(tx, 0, with_compression);
@@ -825,9 +842,11 @@ struct VmSnapshot {
     bootloader_snapshot: BootloaderStateSnapshot,
 }
 
-impl<S: ReadStorage, Tr: Tracer> VmInterfaceHistoryEnabled for Vm<S, Tr>
+impl<S, Tr, Val> VmInterfaceHistoryEnabled for Vm<S, Tr, Val>
 where
-    Self: VmInterface,
+    S: ReadStorage,
+    Tr: Tracer + Default,
+    Val: ValidationTracer,
 {
     fn make_snapshot(&mut self) {
         assert!(
@@ -865,7 +884,7 @@ where
     }
 }
 
-impl<S: fmt::Debug, Tr: fmt::Debug> fmt::Debug for Vm<S, Tr> {
+impl<S: fmt::Debug, Tr: fmt::Debug, Val: fmt::Debug> fmt::Debug for Vm<S, Tr, Val> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Vm")
             .field("bootloader_state", &self.bootloader_state)

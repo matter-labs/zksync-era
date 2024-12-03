@@ -32,22 +32,19 @@ impl DynamicBytecodes {
 #[derive(Debug)]
 pub(super) struct EvmDeployTracer {
     tracked_signature: [u8; 4],
-    bytecodes: Option<DynamicBytecodes>,
-}
-
-impl Default for EvmDeployTracer {
-    fn default() -> Self {
-        Self {
-            tracked_signature: ethabi::short_signature(
-                "publishEVMBytecode",
-                &[ethabi::ParamType::Bytes],
-            ),
-            bytecodes: None,
-        }
-    }
+    bytecodes: DynamicBytecodes,
 }
 
 impl EvmDeployTracer {
+    pub(super) fn new(bytecodes: DynamicBytecodes) -> Self {
+        let tracked_signature =
+            ethabi::short_signature("publishEVMBytecode", &[ethabi::ParamType::Bytes]);
+        Self {
+            tracked_signature,
+            bytecodes,
+        }
+    }
+
     fn handle_far_call(&self, state: &mut impl GlobalStateInterface) {
         let from = state.current_frame().caller();
         let to = state.current_frame().code_address();
@@ -70,17 +67,10 @@ impl EvmDeployTracer {
                 let published_bytecode = decoded.into_iter().next().unwrap().into_bytes().unwrap();
                 let bytecode_hash =
                     BytecodeHash::for_evm_bytecode(&published_bytecode).value_u256();
-                self.bytecodes
-                    .as_ref()
-                    .expect("not initialized")
-                    .insert(bytecode_hash, published_bytecode);
+                self.bytecodes.insert(bytecode_hash, published_bytecode);
             }
             Err(err) => tracing::error!("Unable to decode `publishEVMBytecode` call: {err}"),
         }
-    }
-
-    pub(super) fn insert_dynamic_bytecodes_handle(&mut self, bytecodes: DynamicBytecodes) {
-        self.bytecodes = Some(bytecodes);
     }
 }
 

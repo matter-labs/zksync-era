@@ -13,7 +13,7 @@ use crate::{
         VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
-    vm_fast::{self, DefaultTracers, FastVmVersion},
+    vm_fast::{self, interface::Tracer, FastVmVersion},
     vm_latest::{self, HistoryEnabled},
 };
 
@@ -226,19 +226,19 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
 }
 
 /// Fast VM shadowed by the latest legacy VM.
-pub type ShadowedFastVm<S, Tr = DefaultTracers> = ShadowVm<
+pub type ShadowedFastVm<S, Tr, Val> = ShadowVm<
     S,
     vm_latest::Vm<StorageView<S>, HistoryEnabled>,
-    vm_fast::Vm<ImmutableStorageView<S>, Tr>,
+    vm_fast::Vm<ImmutableStorageView<S>, Tr, Val>,
 >;
 
 /// Fast VM variants.
 #[derive(Debug)]
-pub enum FastVmInstance<S: ReadStorage, Tr> {
+pub enum FastVmInstance<S: ReadStorage, Tr = (), Val = ()> {
     /// Fast VM running in isolation.
-    Fast(vm_fast::Vm<ImmutableStorageView<S>, Tr>),
+    Fast(vm_fast::Vm<ImmutableStorageView<S>, Tr, Val>),
     /// Fast VM shadowed by the latest legacy VM.
-    Shadowed(ShadowedFastVm<S, Tr>),
+    Shadowed(ShadowedFastVm<S, Tr, Val>),
 }
 
 macro_rules! dispatch_fast_vm {
@@ -250,13 +250,15 @@ macro_rules! dispatch_fast_vm {
     };
 }
 
-impl<S: ReadStorage, Tr: Default> VmInterface for FastVmInstance<S, Tr>
+impl<S, Tr, Val> VmInterface for FastVmInstance<S, Tr, Val>
 where
-    vm_fast::Vm<ImmutableStorageView<S>, Tr>: VmInterface<TracerDispatcher = Tr>,
+    S: ReadStorage,
+    Tr: Tracer + Default,
+    Val: vm_fast::ValidationTracer,
 {
     type TracerDispatcher = (
         vm_latest::TracerDispatcher<StorageView<S>, HistoryEnabled>,
-        Tr,
+        (Tr, Val),
     );
 
     fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
@@ -301,11 +303,11 @@ where
     }
 }
 
-impl<S: ReadStorage, Tr: zksync_vm2::interface::Tracer + Default> VmInterfaceHistoryEnabled
-    for FastVmInstance<S, Tr>
+impl<S, Tr, Val> VmInterfaceHistoryEnabled for FastVmInstance<S, Tr, Val>
 where
-    vm_fast::Vm<ImmutableStorageView<S>, Tr>:
-        VmInterface<TracerDispatcher = Tr> + VmInterfaceHistoryEnabled,
+    S: ReadStorage,
+    Tr: Tracer + Default,
+    Val: vm_fast::ValidationTracer,
 {
     fn make_snapshot(&mut self) {
         dispatch_fast_vm!(self.make_snapshot());
@@ -320,7 +322,12 @@ where
     }
 }
 
-impl<S: ReadStorage, Tr: vm_fast::interface::Tracer> FastVmInstance<S, Tr> {
+impl<S, Tr, Val> FastVmInstance<S, Tr, Val>
+where
+    S: ReadStorage,
+    Tr: Tracer + Default,
+    Val: vm_fast::ValidationTracer,
+{
     /// Creates an isolated fast VM.
     pub fn fast(
         l1_batch_env: L1BatchEnv,

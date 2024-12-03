@@ -12,10 +12,11 @@ use zksync_vm_interface::{
     VmExecutionResultAndLogs, VmInterface,
 };
 
-use super::{validation_tracer::ValidationTracer, ValidationTracers, Vm, WithBuiltinTracers};
+use super::{validation_tracer::ValidationTracer, Vm};
 use crate::{
     interface::storage::{ImmutableStorageView, InMemoryStorage},
     versions::testonly::{validation_params, TestedVm, TestedVmForValidation},
+    vm_fast::{builtin_tracers::WithBuiltinTracers, validation_tracer::FullValidationTracer},
 };
 
 mod account_validation_rules;
@@ -82,11 +83,12 @@ impl PartialEq for VmStateDump {
     }
 }
 
-pub(crate) type TestedFastVm<Tr> = Vm<ImmutableStorageView<InMemoryStorage>, Tr>;
+pub(crate) type TestedFastVm<Tr, Val> = Vm<ImmutableStorageView<InMemoryStorage>, Tr, Val>;
 
-impl<E: Tracer + Default, V: ValidationTracer> TestedVm for TestedFastVm<WithBuiltinTracers<E, V>>
+impl<Tr, Val> TestedVm for TestedFastVm<Tr, Val>
 where
-    WithBuiltinTracers<E, V>: std::fmt::Debug + 'static,
+    Tr: 'static + Tracer + Default + fmt::Debug,
+    Val: 'static + ValidationTracer + fmt::Debug,
 {
     type StateDump = VmStateDump;
 
@@ -135,7 +137,7 @@ where
     fn manually_decommit(&mut self, code_hash: H256) -> bool {
         let (_, is_fresh) = self.inner.world_diff_mut().decommit_opcode(
             &mut self.world,
-            &mut Default::default(),
+            &mut WithBuiltinTracers::mock(),
             h256_to_u256(code_hash),
         );
         is_fresh
@@ -178,14 +180,12 @@ where
     }
 }
 
-impl TestedVmForValidation for Vm<ImmutableStorageView<InMemoryStorage>, ValidationTracers<()>> {
+impl TestedVmForValidation for Vm<ImmutableStorageView<InMemoryStorage>, (), FullValidationTracer> {
     fn run_validation(&mut self, tx: L2Tx, timestamp: u64) -> Option<ViolatedValidationRule> {
         let validation_params = validation_params(&tx, &self.system_env);
         self.push_transaction(tx.into());
-
-        let mut tracer = WithBuiltinTracers::for_validation((), validation_params, timestamp);
+        let mut tracer = ((), FullValidationTracer::new(validation_params, timestamp));
         self.inspect(&mut tracer, InspectExecutionMode::OneTx);
-
-        tracer.validation().validation_error()
+        tracer.1.validation_error()
     }
 }

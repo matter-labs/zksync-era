@@ -16,7 +16,7 @@ use zksync_multivm::{
     is_supported_by_fast_vm,
     pubdata_builders::pubdata_params_to_builder,
     tracers::CallTracer,
-    vm_fast::{self, SequencerTracers},
+    vm_fast,
     vm_latest::HistoryEnabled,
     FastVmInstance, LegacyVmInstance, MultiVmTracer,
 };
@@ -150,7 +150,7 @@ type BytecodeResult = Result<Vec<CompressedBytecodeInfo>, BytecodeCompressionErr
 #[derive(Debug)]
 enum BatchVm<S: ReadStorage, Tr: BatchTracer> {
     Legacy(LegacyVmInstance<S, HistoryEnabled>),
-    Fast(FastVmInstance<S, SequencerTracers<Tr::Fast>>),
+    Fast(FastVmInstance<S, Tr::Fast>),
 }
 
 macro_rules! dispatch_batch_vm {

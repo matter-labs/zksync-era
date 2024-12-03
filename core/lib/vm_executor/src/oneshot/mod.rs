@@ -27,7 +27,7 @@ use zksync_multivm::{
     is_supported_by_fast_vm,
     tracers::{CallTracer, StorageInvocations, TracerDispatcher, ValidationTracer},
     utils::adjust_pubdata_price_for_tx,
-    vm_fast::{self, ApiTracers, WithBuiltinTracers},
+    vm_fast,
     vm_latest::{HistoryDisabled, HistoryEnabled},
     zk_evm_latest::ethereum_types::U256,
     FastVmInstance, HistoryMode, LegacyVmInstance, MultiVmTracer,
@@ -196,7 +196,7 @@ where
         tokio::task::spawn_blocking(move || {
             let version = sandbox.env.system.version.into();
 
-            sandbox.execute_in_vm_with_tracer(|vm, transaction| match vm {
+            sandbox.execute_in_vm(|vm, transaction| match vm {
                 Vm::Legacy(vm) => {
                     let validation_tracer = ValidationTracer::<HistoryDisabled>::new(
                         validation_params,
@@ -227,21 +227,22 @@ where
 
                 Vm::Fast(FastVmInstance::Fast(vm)) => {
                     vm.push_transaction(transaction);
-                    let mut tracer = WithBuiltinTracers::for_validation(
-                        (),
+                    let validation = vm_fast::FullValidationTracer::new(
                         validation_params,
                         l1_batch_env.timestamp,
                     );
+                    let mut tracer = ((), validation);
                     let result_and_logs = vm.inspect(&mut tracer, InspectExecutionMode::OneTx);
-                    if let Some(violation) = tracer.validation().validation_error() {
+                    if let Some(violation) = tracer.1.validation_error() {
                         return Err(ValidationError::ViolatedRule(violation));
                     }
+
                     match result_and_logs.result {
                         ExecutionResult::Halt { reason } => Err(ValidationError::FailedTx(reason)),
                         ExecutionResult::Revert { .. } => {
                             unreachable!("Revert can only happen at the end of a transaction")
                         }
-                        ExecutionResult::Success { .. } => Ok(tracer.validation().traces()),
+                        ExecutionResult::Success { .. } => Ok(tracer.1.traces()),
                     }
                 }
 
@@ -280,14 +281,14 @@ where
                             }
                         }
                         ShadowMut::Shadow(vm) => {
-                            let mut tracer = WithBuiltinTracers::for_validation(
-                                (),
+                            let validation = vm_fast::FullValidationTracer::new(
                                 validation_params.clone(),
                                 l1_batch_env.timestamp,
                             );
+                            let mut tracer = ((), validation);
                             let result_and_logs =
                                 vm.inspect(&mut tracer, InspectExecutionMode::OneTx);
-                            if let Some(violation) = tracer.validation().validation_error() {
+                            if let Some(violation) = tracer.1.validation_error() {
                                 return Err(ValidationError::ViolatedRule(violation));
                             }
                             match result_and_logs.result {
@@ -299,7 +300,7 @@ where
                                         "Revert can only happen at the end of a transaction"
                                     )
                                 }
-                                ExecutionResult::Success { .. } => Ok(tracer.validation().traces()),
+                                ExecutionResult::Success { .. } => Ok(tracer.1.traces()),
                             }
                         }
                     })
@@ -312,12 +313,12 @@ where
 }
 
 #[derive(Debug)]
-enum Vm<S: ReadStorage, Tr = vm_fast::DefaultTracers> {
+enum Vm<S: ReadStorage, Tr, Val> {
     Legacy(LegacyVmInstance<S, HistoryDisabled>),
-    Fast(FastVmInstance<S, Tr>),
+    Fast(FastVmInstance<S, Tr, Val>),
 }
 
-impl<S: ReadStorage> Vm<S, ApiTracers<()>> {
+impl<S: ReadStorage> Vm<S, (), ()> {
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
         missed_storage_invocation_limit: usize,
@@ -343,7 +344,7 @@ impl<S: ReadStorage> Vm<S, ApiTracers<()>> {
                     missed_storage_invocation_limit,
                     None,
                 );
-                let mut full_tracer = (legacy_tracers.into(), WithBuiltinTracers::for_api(()));
+                let mut full_tracer = (legacy_tracers.into(), ((), ()));
                 vm.inspect_transaction_with_bytecode_compression(
                     &mut full_tracer,
                     tx,
@@ -433,18 +434,14 @@ impl<S: ReadStorage> VmSandbox<S> {
         }
     }
 
-    /// This method is blocking.
-    fn execute_in_vm<T>(
-        self,
-        action: impl FnOnce(&mut Vm<StorageWithOverrides<S>>, Transaction) -> T,
-    ) -> T {
-        self.execute_in_vm_with_tracer(action)
-    }
-
-    fn execute_in_vm_with_tracer<T, Tr: vm_fast::interface::Tracer>(
+    fn execute_in_vm<T, Tr, Val>(
         mut self,
-        action: impl FnOnce(&mut Vm<StorageWithOverrides<S>, Tr>, Transaction) -> T,
-    ) -> T {
+        action: impl FnOnce(&mut Vm<StorageWithOverrides<S>, Tr, Val>, Transaction) -> T,
+    ) -> T
+    where
+        Tr: vm_fast::interface::Tracer + Default,
+        Val: vm_fast::ValidationTracer,
+    {
         Self::setup_storage(
             &mut self.storage,
             &self.execution_args,
