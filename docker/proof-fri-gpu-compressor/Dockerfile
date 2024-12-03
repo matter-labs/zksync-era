@@ -48,7 +48,7 @@ RUN cd prover && \
     cmake -Bbellman-cuda/build -Sbellman-cuda/ -DCMAKE_BUILD_TYPE=Release && \
     cmake --build bellman-cuda/build/
 
-RUN cd prover && BELLMAN_CUDA_DIR=$PWD/bellman-cuda cargo build --features "gpu" --release --bin zksync_proof_fri_compressor
+RUN cd prover && BELLMAN_CUDA_DIR=$PWD/bellman-cuda cargo build --features "gpu" --release --bin zksync_proof_fri_compressor && cuobjdump /usr/src/zksync/prover/target/release/zksync_proof_fri_compressor
 
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 
