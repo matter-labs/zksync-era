@@ -67,7 +67,7 @@ impl TeeProofGenerationDal<'_, '_> {
         let mut transaction = self.storage.start_transaction().await?;
 
         // Lock rows in the proof_generation_details table to prevent race conditions. The
-        // tee_proof_generation_details table may not have corresponding entries yet if this is the
+        // tee_proof_generation_details table does not have corresponding entries yet if this is the
         // first time the query is invoked for a batch. Locking rows in proof_generation_details
         // ensures that two different TEE prover instances will not try to prove the same batch.
         let batch_number = sqlx::query!(
