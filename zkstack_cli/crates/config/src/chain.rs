@@ -7,7 +7,10 @@ use serde::{Deserialize, Serialize, Serializer};
 use types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
 use zksync_basic_types::L2ChainId;
-use zksync_config::configs::{gateway::GatewayChainConfig, GatewayConfig};
+use zksync_config::configs::{
+    gateway::GatewayChainConfig, GatewayConfig,
+    da_client::NO_DA_CLIENT_CONFIG_NAME,
+};
 
 use crate::{
     consts::{
@@ -109,7 +112,7 @@ impl ChainConfig {
             general.da_client_config,
         ) {
             (L1BatchCommitmentMode::Validium, Some(conf)) => Some(conf.to_string()),
-            (L1BatchCommitmentMode::Validium, None) => Some("NoDA".to_string()),
+            (L1BatchCommitmentMode::Validium, None) => Some(NO_DA_CLIENT_CONFIG_NAME.to_string()),
             _ => None,
         }
     }

@@ -11624,6 +11624,7 @@ dependencies = [
  "tokio-stream",
  "tonic 0.11.0",
  "tracing",
+ "url",
  "zksync_basic_types",
  "zksync_config",
  "zksync_da_client",

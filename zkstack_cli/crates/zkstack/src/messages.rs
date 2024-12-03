@@ -589,4 +589,6 @@ pub(super) const MSG_AVAIL_APP_ID_PROMPT: &str = "Avail app id";
 pub(super) const MSG_AVAIL_GAS_RELAY_API_URL_PROMPT: &str = "Gas relay API URL";
 pub(super) const MSG_AVAIL_GAS_RELAY_MAX_RETRIES_PROMPT: &str = "Gas relay max retries";
 pub(super) const MSG_AVAIL_BRIDGE_API_URL_PROMPT: &str = "Attestation bridge API URL";
+pub(super) const MSG_AVAIL_SEED_PHRASE_PROMPT: &str = "Seed phrase";
+pub(super) const MSG_AVAIL_GAS_RELAY_API_KEY_PROMPT: &str = "Gas relay API key";
 pub(super) const MSG_INVALID_URL_ERR: &str = "Invalid URL format";

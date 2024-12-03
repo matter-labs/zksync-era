@@ -91,13 +91,5 @@ impl PubdataBuilder for ValidiumPubdataBuilder {
         extend_from_pubdata_input(&mut pubdata, input);
 
         pubdata
-
-        // let state_diffs_packed = input
-        //     .state_diffs
-        //     .iter()
-        //     .flat_map(|diff| diff.encode_padded())
-        //     .collect::<Vec<_>>();
-        //
-        // keccak256(&state_diffs_packed).to_vec()
     }
 }

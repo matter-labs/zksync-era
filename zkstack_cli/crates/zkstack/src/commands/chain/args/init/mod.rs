@@ -36,8 +36,6 @@ pub struct InitArgs {
     pub dont_drop: bool,
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub deploy_paymaster: Option<bool>,
-    // #[clap(long, default_missing_value = "NoDA")]
-    // pub validium_config: Option<ValidiumType>,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub l1_rpc_url: Option<String>,
     #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP)]
@@ -106,21 +104,19 @@ impl InitArgs {
             deploy_paymaster,
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
-            dev: self.dev,
             skip_submodules_checkout: self.skip_submodules_checkout,
             validium_config,
         }
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone)]
 pub struct InitArgsFinal {
     pub forge_args: ForgeScriptArgs,
     pub genesis_args: GenesisArgsFinal,
     pub deploy_paymaster: bool,
     pub l1_rpc_url: String,
     pub no_port_reallocation: bool,
-    pub dev: bool,
     pub skip_submodules_checkout: bool,
     pub validium_config: Option<ValidiumType>,
 }
