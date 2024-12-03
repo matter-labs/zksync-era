@@ -103,9 +103,7 @@ export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber
 
 export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: number, txHash: string) {
     // First, we wait for block to be finalized.
-    while ((await wallet.provider.getBlock('finalized')).number < blockNumber) {
-        await zksync.utils.sleep(wallet.provider.pollingInterval);
-    }
+    await waitUntilBlockFinalized(wallet, blockNumber);
 
     // Second, we wait for the log proof.
     while ((await wallet.provider.getLogProof(txHash)) == null) {

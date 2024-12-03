@@ -252,8 +252,8 @@ describe('System behavior checks', () => {
             `Obtained withdrawal receipt for Bob: blockNumber=${bobReceipt.blockNumber}, l1BatchNumber=${bobReceipt.l1BatchNumber}, status=${bobReceipt.status}`
         );
 
-        await waitForL2ToL1LogProof(alice, aliceReceipt.hash);
-        await waitForL2ToL1LogProof(bob, bobReceipt.hash);
+        await waitForL2ToL1LogProof(alice, aliceReceipt.blockNumber, aliceReceipt.hash);
+        await waitForL2ToL1LogProof(bob, bobReceipt.blockNumber, bobReceipt.hash);
         await expect(alice.finalizeWithdrawal(aliceReceipt.hash)).toBeAccepted([aliceChange]);
         testMaster.reporter.debug('Finalized withdrawal for Alice');
         await expect(alice.finalizeWithdrawal(bobReceipt.hash)).toBeAccepted([bobChange]);
@@ -299,8 +299,8 @@ describe('System behavior checks', () => {
             `Obtained withdrawal receipt #2: blockNumber=${receipt2.blockNumber}, l1BatchNumber=${receipt2.l1BatchNumber}, status=${receipt2.status}`
         );
 
-        await waitForL2ToL1LogProof(alice, receipt1.hash);
-        await waitForL2ToL1LogProof(alice, receipt2.hash);
+        await waitForL2ToL1LogProof(alice, receipt1.blockNumber, receipt1.hash);
+        await waitForL2ToL1LogProof(alice, receipt2.blockNumber, receipt2.hash);
         await expect(alice.finalizeWithdrawal(receipt1.hash)).toBeAccepted([change1]);
         testMaster.reporter.debug('Finalized withdrawal #1');
         await expect(alice.finalizeWithdrawal(receipt2.hash)).toBeAccepted([change2]);
