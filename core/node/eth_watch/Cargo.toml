@@ -29,6 +29,7 @@ async-trait.workspace = true
 tracing.workspace = true
 async-recursion.workspace = true
 itertools.workspace = true
+hex.workspace = true
 
 [dev-dependencies]
 zksync_concurrency.workspace = true

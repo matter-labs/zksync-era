@@ -1,9 +1,12 @@
-use std::{borrow::Cow, fmt, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
+use std::{
+    borrow::Cow, fmt, fs::File, io::Write, marker::PhantomData, rc::Rc, sync::Arc, time::Duration,
+};
 
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use tokio::sync::mpsc;
 use zksync_multivm::{
+    circuit_sequencer_api_latest::boojum::pairing::hex,
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
         pubdata::PubdataBuilder,
@@ -213,8 +216,9 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         tx: Transaction,
         with_compression: bool,
     ) -> BatchTransactionExecutionResult<BytecodeResult> {
+        let hash = tx.hash();
         let call_tracer_result = Arc::new(OnceCell::default());
-        let legacy_tracer = if Tr::TRACE_CALLS {
+        let legacy_tracer = if true {
             vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
         } else {
             vec![]
@@ -238,6 +242,12 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
             .expect("failed extracting call traces")
             .take()
             .unwrap_or_default();
+
+        // Open a file for writing
+        let mut file = File::create(format!("{}.txt", hex::encode(&hash.0))).unwrap();
+
+        // Write the struct to the file
+        writeln!(file, "{:#?}", call_traces).unwrap();
 
         BatchTransactionExecutionResult {
             tx_result: Box::new(tx_result),

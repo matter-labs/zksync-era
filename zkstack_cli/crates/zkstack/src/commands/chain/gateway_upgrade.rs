@@ -299,6 +299,8 @@ async fn prepare_stage1(
     Ok(())
 }
 
+const NEW_PROTOCOL_VERSION: u64 = 0x1b00000000;
+
 async fn schedule_stage1(
     shell: &Shell,
     args: GatewayUpgradeArgs,
@@ -313,7 +315,7 @@ async fn schedule_stage1(
         &ecosystem_config,
         &chain_config.get_contracts_config()?,
         // For now it is hardcoded both in scripts and here
-        U256::from(0x1900000000_u64),
+        U256::from(NEW_PROTOCOL_VERSION),
         // We only do instant upgrades for now
         U256::zero(),
         &chain_config.get_wallets_config()?.governor,

@@ -188,7 +188,7 @@ impl ProtocolVersionId {
     }
 
     pub const fn gateway_upgrade() -> Self {
-        ProtocolVersionId::Version26
+        ProtocolVersionId::Version27
     }
 }
 
