@@ -33,11 +33,9 @@ Use upgrade scripts as in the example below.
 ## Full flow
 
 ```
-use-old-era.sh
+cd .. && use-old-era.sh && cd ./zksync-era
 
-zkt && zks clean all
-
-zki up
+zkstackup --local && zkstack dev clean all && zkstack up --observability false
 
 zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
     --deploy-ecosystem --l1-rpc-url=http://127.0.0.1:8545 \
@@ -46,41 +44,43 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
     --ignore-prerequisites --verbose \
     --observability=false
 
-use-new-era.sh
+cd .. && use-new-era.sh && cd ./zksync-era
 
+zkstackup --local
 zkstack dev contracts
-zks database migrate
-zki chain gateway-upgrade -- adapt-config
-# remove nulls from the config
+zkstack dev database migrate
 
-zk_inception server --ignore-prerequisites --chain era
+zkstack chain gateway-upgrade -- adapt-config
 
-zki e gateway-upgrade --ecosystem-upgrade-stage no-governance-prepare
-zki e gateway-upgrade --ecosystem-upgrade-stage governance-stage1
+# Server should be started in a different window for consistency
+zkstack server --ignore-prerequisites --chain era
 
-zki chain gateway-upgrade -- prepare-stage1
+zkstack e gateway-upgrade --ecosystem-upgrade-stage no-governance-prepare
+zkstack e gateway-upgrade --ecosystem-upgrade-stage governance-stage1
 
-# restart the server. wait for all txs to exeucte!!!!
+zkstack chain gateway-upgrade -- prepare-stage1
 
-zki chain gateway-upgrade -- schedule-stage1
+# restart the server. wait for all L1 txs to exeucte!!!!
+
+zkstack chain gateway-upgrade -- schedule-stage1
 
 # turn off the server => we need it because we need to somehow update validator timelock
 # also getPriorityTreeStartIndex needs to be updated.
 
-zki chain gateway-upgrade -- finalize-stage1
+zkstack chain gateway-upgrade -- finalize-stage1
 
 # restart the server
 
-zk_supervisor test integration --no-deps --ignore-prerequisites --chain era
+zkstack test integration --no-deps --ignore-prerequisites --chain era
 
-zki e gateway-upgrade --ecosystem-upgrade-stage governance-stage2
-zki e gateway-upgrade --ecosystem-upgrade-stage no-governance-stage2
+zkstack ecosystem gateway-upgrade --ecosystem-upgrade-stage governance-stage2
+zkstack ecosystem gateway-upgrade --ecosystem-upgrade-stage no-governance-stage2
 
 # turn off the server
 
-zki chain gateway-upgrade -- finalize-stage2
+zkstack chain gateway-upgrade -- finalize-stage2
 
 # turn on the server
 
-zk_supervisor test integration --no-deps --ignore-prerequisites --chain era
+zkstack test integration --no-deps --ignore-prerequisites --chain era
 ```
