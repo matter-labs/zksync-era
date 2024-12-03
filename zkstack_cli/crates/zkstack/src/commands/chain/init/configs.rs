@@ -7,6 +7,7 @@ use config::{
 use ethers::types::Address;
 use xshell::Shell;
 use zksync_config::configs::DataAvailabilitySecrets;
+
 use crate::{
     commands::{
         chain::{

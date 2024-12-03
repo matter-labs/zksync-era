@@ -8,8 +8,7 @@ use types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreat
 use xshell::Shell;
 use zksync_basic_types::L2ChainId;
 use zksync_config::configs::{
-    gateway::GatewayChainConfig, GatewayConfig,
-    da_client::NO_DA_CLIENT_CONFIG_NAME,
+    da_client::NO_DA_CLIENT_CONFIG_NAME, gateway::GatewayChainConfig, GatewayConfig,
 };
 
 use crate::{

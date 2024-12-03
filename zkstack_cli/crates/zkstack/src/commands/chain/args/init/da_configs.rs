@@ -4,20 +4,22 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter, IntoEnumIterator};
 use url::Url;
 use zksync_config::{
-    configs::da_client::avail::{AvailClientConfig, AvailDefaultConfig, AvailGasRelayConfig},
+    configs::da_client::avail::{
+        AvailClientConfig, AvailDefaultConfig, AvailGasRelayConfig, AvailSecrets,
+    },
     AvailConfig,
 };
-use zksync_config::configs::da_client::avail::AvailSecrets;
+
 use crate::{
     defaults::{AVAIL_BRIDGE_API_URL, AVAIL_RPC_URL},
     messages::{
         MSG_AVAIL_API_NODE_URL_PROMPT, MSG_AVAIL_API_TIMEOUT_MS, MSG_AVAIL_APP_ID_PROMPT,
         MSG_AVAIL_BRIDGE_API_URL_PROMPT, MSG_AVAIL_CLIENT_TYPE_PROMPT,
-        MSG_AVAIL_GAS_RELAY_API_URL_PROMPT, MSG_AVAIL_GAS_RELAY_MAX_RETRIES_PROMPT,
-        MSG_INVALID_URL_ERR, MSG_VALIDIUM_TYPE_PROMPT,
+        MSG_AVAIL_GAS_RELAY_API_KEY_PROMPT, MSG_AVAIL_GAS_RELAY_API_URL_PROMPT,
+        MSG_AVAIL_GAS_RELAY_MAX_RETRIES_PROMPT, MSG_AVAIL_SEED_PHRASE_PROMPT, MSG_INVALID_URL_ERR,
+        MSG_VALIDIUM_TYPE_PROMPT,
     },
 };
-use crate::messages::{MSG_AVAIL_GAS_RELAY_API_KEY_PROMPT, MSG_AVAIL_SEED_PHRASE_PROMPT};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, EnumIter, Display, ValueEnum)]
 pub enum ValidiumTypeInternal {
@@ -45,39 +47,41 @@ impl ValidiumType {
                 let avail_client_type = PromptSelect::new(
                     MSG_AVAIL_CLIENT_TYPE_PROMPT,
                     AvailClientTypeInternal::iter(),
-                ).ask();
+                )
+                .ask();
 
-                let client_config = match avail_client_type {
-                    AvailClientTypeInternal::FullClient => {
-                        AvailClientConfig::FullClient(AvailDefaultConfig {
-                            api_node_url: Prompt::new(MSG_AVAIL_API_NODE_URL_PROMPT)
-                                .default(AVAIL_RPC_URL.as_str())
-                                .validate_with(url_validator)
-                                .ask(),
-                            app_id: Prompt::new(MSG_AVAIL_APP_ID_PROMPT)
-                                .validate_with(|input: &String| -> Result<(), String> {
-                                    input.parse::<u32>().map(|_| ()).map_err(|_| {
-                                        "Please enter a positive number".to_string()
+                let client_config =
+                    match avail_client_type {
+                        AvailClientTypeInternal::FullClient => {
+                            AvailClientConfig::FullClient(AvailDefaultConfig {
+                                api_node_url: Prompt::new(MSG_AVAIL_API_NODE_URL_PROMPT)
+                                    .default(AVAIL_RPC_URL.as_str())
+                                    .validate_with(url_validator)
+                                    .ask(),
+                                app_id: Prompt::new(MSG_AVAIL_APP_ID_PROMPT)
+                                    .validate_with(|input: &String| -> Result<(), String> {
+                                        input.parse::<u32>().map(|_| ()).map_err(|_| {
+                                            "Please enter a positive number".to_string()
+                                        })
                                     })
-                                })
-                                .ask(),
-                        })
-                    }
-                    AvailClientTypeInternal::GasRelay => {
-                        AvailClientConfig::GasRelay(AvailGasRelayConfig {
-                            gas_relay_api_url: Prompt::new(MSG_AVAIL_GAS_RELAY_API_URL_PROMPT)
-                                .validate_with(url_validator)
-                                .ask(),
-                            max_retries: Prompt::new(MSG_AVAIL_GAS_RELAY_MAX_RETRIES_PROMPT)
-                                .validate_with(|input: &String| -> Result<(), String> {
-                                    input.parse::<usize>().map(|_| ()).map_err(|_| {
-                                        "Please enter a positive number".to_string()
+                                    .ask(),
+                            })
+                        }
+                        AvailClientTypeInternal::GasRelay => {
+                            AvailClientConfig::GasRelay(AvailGasRelayConfig {
+                                gas_relay_api_url: Prompt::new(MSG_AVAIL_GAS_RELAY_API_URL_PROMPT)
+                                    .validate_with(url_validator)
+                                    .ask(),
+                                max_retries: Prompt::new(MSG_AVAIL_GAS_RELAY_MAX_RETRIES_PROMPT)
+                                    .validate_with(|input: &String| -> Result<(), String> {
+                                        input.parse::<usize>().map(|_| ()).map_err(|_| {
+                                            "Please enter a positive number".to_string()
+                                        })
                                     })
-                                })
-                                .ask(),
-                        })
-                    }
-                };
+                                    .ask(),
+                            })
+                        }
+                    };
 
                 let avail_config = AvailConfig {
                     bridge_api_url: Prompt::new(MSG_AVAIL_BRIDGE_API_URL_PROMPT)
@@ -96,18 +100,16 @@ impl ValidiumType {
                 };
 
                 let avail_secrets = match avail_client_type {
-                    AvailClientTypeInternal::FullClient => {
-                        AvailSecrets {
-                            seed_phrase: Some(Prompt::new(MSG_AVAIL_SEED_PHRASE_PROMPT).ask()),
-                            gas_relay_api_key: None,
-                        }
-                    }
-                    AvailClientTypeInternal::GasRelay => {
-                        AvailSecrets {
-                            seed_phrase: None,
-                            gas_relay_api_key: Some(Prompt::new(MSG_AVAIL_GAS_RELAY_API_KEY_PROMPT).ask()),
-                        }
-                    }
+                    AvailClientTypeInternal::FullClient => AvailSecrets {
+                        seed_phrase: Some(Prompt::new(MSG_AVAIL_SEED_PHRASE_PROMPT).ask()),
+                        gas_relay_api_key: None,
+                    },
+                    AvailClientTypeInternal::GasRelay => AvailSecrets {
+                        seed_phrase: None,
+                        gas_relay_api_key: Some(
+                            Prompt::new(MSG_AVAIL_GAS_RELAY_API_KEY_PROMPT).ask(),
+                        ),
+                    },
                 };
 
                 ValidiumType::Avail((avail_config, avail_secrets))
