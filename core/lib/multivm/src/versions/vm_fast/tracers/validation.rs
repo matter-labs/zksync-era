@@ -14,8 +14,7 @@ use zksync_vm_interface::tracer::{
     TimestampAsserterParams, ValidationParams, ValidationTraces, ViolatedValidationRule,
 };
 
-use super::utils::read_fat_pointer;
-use crate::tracers::TIMESTAMP_ASSERTER_FUNCTION_SELECTOR;
+use crate::{tracers::TIMESTAMP_ASSERTER_FUNCTION_SELECTOR, vm_fast::utils::read_fat_pointer};
 
 pub trait ValidationTracer: Tracer + Default {
     const STOP_AFTER_VALIDATION: bool;

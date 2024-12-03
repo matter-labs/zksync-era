@@ -26,13 +26,11 @@ use zksync_vm2::{
 
 use super::{
     bootloader_state::{BootloaderState, BootloaderStateSnapshot},
-    builtin_tracers::WithBuiltinTracers,
     bytecode::compress_bytecodes,
-    evm_deploy_tracer::DynamicBytecodes,
     hook::Hook,
     initial_bootloader_memory::bootloader_initial_memory,
+    tracers::{DynamicBytecodes, ValidationTracer, WithBuiltinTracers},
     transaction_data::TransactionData,
-    validation_tracer::ValidationTracer,
 };
 use crate::{
     glue::GlueInto,
@@ -89,9 +87,10 @@ type InnerVm<S, Tr, Val> =
 
 /// Fast VM wrapper.
 ///
-/// The wrapper is parametric by the storage and tracer types. Besides the [`Tracer`] trait and implement [`Default`]
-/// (the latter is necessary to complete batches). [`CircuitsTracer`] is currently always enabled;
-/// you don't need to specify it explicitly.
+/// The wrapper is parametric by the storage and tracer types. Besides the [`Tracer`] trait, the tracer must implement [`Default`]
+/// (the latter is necessary to complete batches). Validation is encapsulated in a separate type param. It should be set to `()`
+/// for "standard" validation (not stopping after validation; no validation-specific checks), or [`FullValidationTracer`](super::FullValidationTracer)
+/// for full validation (stopping after validation; validation-specific checks).
 pub struct Vm<S, Tr = (), Val = ()> {
     pub(super) world: World<S, WithBuiltinTracers<Tr, Val>>,
     pub(super) inner: InnerVm<S, Tr, Val>,
@@ -659,6 +658,7 @@ where
             track_refunds,
             pubdata_builder,
         );
+        let circuit_statistic = full_tracer.circuit_statistic();
         *tracer = (full_tracer.external, full_tracer.validation);
 
         let ignore_world_diff =
@@ -732,7 +732,7 @@ where
                 gas_remaining,
                 computational_gas_used: gas_used, // since 1.5.0, this always has the same value as `gas_used`
                 pubdata_published: result.pubdata_published,
-                circuit_statistic: full_tracer.circuits.circuit_statistic(),
+                circuit_statistic,
                 contracts_used: 0,
                 cycles_used: 0,
                 total_log_queries: 0,

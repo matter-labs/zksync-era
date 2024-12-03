@@ -1,17 +1,22 @@
+//! Tracers for the fast VM.
+
 use zksync_vm2::interface::{CycleStats, GlobalStateInterface, OpcodeType, ShouldStop, Tracer};
 
-use super::{
-    circuits_tracer::CircuitsTracer,
-    evm_deploy_tracer::{DynamicBytecodes, EvmDeployTracer},
-    validation_tracer::ValidationTracer,
-};
+pub(super) use self::evm_deploy::DynamicBytecodes;
+pub use self::validation::{FullValidationTracer, ValidationTracer};
+use self::{circuits::CircuitsTracer, evm_deploy::EvmDeployTracer};
+use crate::interface::CircuitStatistic;
+
+mod circuits;
+mod evm_deploy;
+mod validation;
 
 #[derive(Debug)]
 pub(super) struct WithBuiltinTracers<Ext, Val> {
     pub external: Ext,
     pub validation: Val,
-    pub circuits: CircuitsTracer,
-    pub evm_deploy_tracer: EvmDeployTracer,
+    circuits: CircuitsTracer,
+    evm_deploy_tracer: EvmDeployTracer,
 }
 
 impl<Tr: Tracer, Val: ValidationTracer> WithBuiltinTracers<Tr, Val> {
@@ -22,6 +27,10 @@ impl<Tr: Tracer, Val: ValidationTracer> WithBuiltinTracers<Tr, Val> {
             circuits: CircuitsTracer::default(),
             evm_deploy_tracer: EvmDeployTracer::new(dynamic_bytecodes),
         }
+    }
+
+    pub(super) fn circuit_statistic(&self) -> CircuitStatistic {
+        self.circuits.circuit_statistic()
     }
 }
 

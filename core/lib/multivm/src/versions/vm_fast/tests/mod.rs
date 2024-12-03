@@ -12,11 +12,11 @@ use zksync_vm_interface::{
     VmExecutionResultAndLogs, VmInterface,
 };
 
-use super::{validation_tracer::ValidationTracer, Vm};
+use super::{FullValidationTracer, ValidationTracer, Vm};
 use crate::{
     interface::storage::{ImmutableStorageView, InMemoryStorage},
     versions::testonly::{validation_params, TestedVm, TestedVmForValidation},
-    vm_fast::{builtin_tracers::WithBuiltinTracers, validation_tracer::FullValidationTracer},
+    vm_fast::tracers::WithBuiltinTracers,
 };
 
 mod account_validation_rules;
