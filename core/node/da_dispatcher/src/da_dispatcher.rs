@@ -223,11 +223,18 @@ impl DataAvailabilityDispatcher {
     }
 
     async fn inclusion_poller(&self, stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
+        let next_expected_batch = Arc::new(Mutex::new(None));
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
         let mut pending_inclusions = HashSet::new();
         let mut inclusion_tasks: JoinSet<anyhow::Result<()>> = JoinSet::new();
+        let notifier = Arc::new(Notify::new());
 
         loop {
             if *stop_receiver.borrow() {
+                break;
+            }
+            if *shutdown_rx.borrow() {
+                tracing::error!("A blob dispatch failed, da_dispatcher is shutting down");
                 break;
             }
 
@@ -242,12 +249,25 @@ impl DataAvailabilityDispatcher {
                 if pending_inclusions.contains(&blob_info.blob_id) {
                     continue;
                 }
+                // This should only happen once.
+                // We can't assume that the first batch is always 1 because the dispatcher can be restarted
+                // and resume from a different batch.
+                let mut next_expected_batch_lock = next_expected_batch.lock().await;
+                if next_expected_batch_lock.is_none() {
+                    next_expected_batch_lock.replace(blob_info.l1_batch_number);
+                }
+                drop(next_expected_batch_lock);
+
                 pending_inclusions.insert(blob_info.blob_id.clone());
 
                 let client = self.client.clone();
                 let config = self.config.clone();
                 let pool = self.pool.clone();
                 let request_semaphore = self.request_semaphore.clone();
+                let next_expected_batch = next_expected_batch.clone();
+                let shutdown_rx = shutdown_rx.clone();
+                let shutdown_tx = shutdown_tx.clone();
+                let notifier = notifier.clone();
                 inclusion_tasks.spawn(async move {
                     let inclusion_data = if config.use_dummy_inclusion_data() {
                         // if the inclusion verification is disabled, we don't need to wait for the inclusion
@@ -255,7 +275,7 @@ impl DataAvailabilityDispatcher {
                         Some(InclusionData { data: vec![] })
                         } else {
                             let _permit = request_semaphore.acquire_owned().await?;
-                            client
+                            let inclusion_data = client
                                 .get_inclusion_data(blob_info.blob_id.as_str())
                                 .await
                                 .with_context(|| {
@@ -263,12 +283,33 @@ impl DataAvailabilityDispatcher {
                                         "failed to get inclusion data for blob_id: {}, batch_number: {}",
                                         blob_info.blob_id, blob_info.l1_batch_number
                                     )
-                                })?
+                                });
+                            if inclusion_data.is_err() {
+                                    shutdown_tx.clone().send(true)?;
+                                    notifier.notify_waiters();
+                            };
+                            inclusion_data?
                         };
 
                     let Some(inclusion_data) = inclusion_data else {
                         return Ok(());
                     };
+
+                    while next_expected_batch
+                        .lock()
+                        .await
+                        .map_or(true, |next_expected_batch| {
+                            blob_info.l1_batch_number > next_expected_batch
+                        })
+                    {
+                        if *shutdown_rx.clone().borrow() {
+                            return Err(anyhow::anyhow!(
+                                "Batch {} failed to disperse: Shutdown signal received",
+                                blob_info.l1_batch_number
+                            ));
+                        }
+                        notifier.clone().notified().await;
+                    }
 
                     let mut conn = pool.connection_tagged("da_dispatcher").await?;
                     conn.data_availability_dal()
@@ -278,6 +319,13 @@ impl DataAvailabilityDispatcher {
                         )
                     .await?;
                     drop(conn);
+
+                    // Update the next expected batch number
+                    next_expected_batch
+                    .lock()
+                    .await
+                    .replace(blob_info.l1_batch_number + 1);
+                    notifier.notify_waiters();
 
                     let inclusion_latency = Utc::now().signed_duration_since(blob_info.sent_at);
                     if let Ok(latency) = inclusion_latency.to_std() {
