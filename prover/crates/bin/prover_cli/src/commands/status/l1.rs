@@ -8,7 +8,7 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_eth_client::{
     clients::{Client, L1},
-    CallFunctionArgs,
+    CallFunctionArgs, ContractCallError,
 };
 use zksync_prover_dal::{Prover, ProverDal};
 
@@ -79,10 +79,15 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         .call(&query_client)
         .await?;
 
+    let function = helper::verifier_contract()
+        .functions_by_name("verificationKeyHash")
+        .map_err(|x| ContractCallError::Function(x))?[1]
+        .clone();
+
     let fflonk_verification_key_hash: H256 =
         CallFunctionArgs::new("verificationKeyHash", U256::from(FFLONK_VERIFIER_TYPE))
             .for_contract(contracts_config.verifier_addr, &helper::verifier_contract())
-            .call(&query_client)
+            .call(&query_client, function)
             .await?;
 
     let node_l1_verifier_config = L1VerifierConfig {

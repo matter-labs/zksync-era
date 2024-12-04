@@ -2,7 +2,7 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
+use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, ContractCallError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::{
@@ -382,10 +382,16 @@ impl EthTxAggregator {
         verifier_address: Address,
     ) -> Result<H256, EthSenderError> {
         let get_vk_hash = &self.functions.verification_key_hash;
+        let function = self
+            .functions
+            .verifier_contract
+            .functions_by_name(&get_vk_hash.name)
+            .map_err(|x| EthSenderError::ContractCall(ContractCallError::Function(x)))?[1]
+            .clone();
         let vk_hash: H256 =
             CallFunctionArgs::new(&get_vk_hash.name, U256::from(FFLONK_VERIFIER_TYPE))
                 .for_contract(verifier_address, &self.functions.verifier_contract)
-                .call((*self.eth_client).as_ref())
+                .call_with_function((*self.eth_client).as_ref(), function)
                 .await?;
         Ok(vk_hash)
     }

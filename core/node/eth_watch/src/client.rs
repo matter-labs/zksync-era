@@ -321,9 +321,14 @@ where
         verifier_address: Address,
     ) -> Result<H256, ContractCallError> {
         // New verifier returns the hash of the verification key.
+        let function = self
+            .verifier_contract_abi
+            .functions_by_name("verificationKeyHash")
+            .map_err(|x| ContractCallError::Function(x))?[1]
+            .clone();
         CallFunctionArgs::new("verificationKeyHash", U256::from(FFLONK_VERIFIER_TYPE))
             .for_contract(verifier_address, &self.verifier_contract_abi)
-            .call(&self.client)
+            .call_with_function(&self.client, function)
             .await
     }
 
