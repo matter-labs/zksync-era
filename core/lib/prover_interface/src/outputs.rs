@@ -4,7 +4,7 @@ use circuit_definitions::{
     boojum::pairing::bn256::Bn256,
     circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuitNoLookupCustomGate,
 };
-use circuit_sequencer_api_1_5_0::proof::FinalProof;
+use circuit_sequencer_api::proof::FinalProof;
 use fflonk::FflonkProof;
 use serde::{Deserialize, Serialize};
 use serde_with::{hex::Hex, serde_as};

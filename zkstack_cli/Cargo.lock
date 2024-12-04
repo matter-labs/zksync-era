@@ -7000,6 +7000,7 @@ dependencies = [
  "once_cell",
  "reqwest 0.12.9",
  "serde_json",
+ "sha2",
  "tokio",
  "tracing",
  "zksync_vlog",

@@ -1,5 +1,6 @@
 //! Integration tests for object store serialization of job objects.
 
+use circuit_sequencer_api::proof::FinalProof;
 use fflonk::FflonkProof;
 use tokio::fs;
 use zksync_object_store::{Bucket, MockObjectStore};

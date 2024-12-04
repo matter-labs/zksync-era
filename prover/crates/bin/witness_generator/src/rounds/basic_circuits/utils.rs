@@ -52,7 +52,7 @@ pub(super) async fn generate_witness(
         input.merkle_paths,
         input.previous_batch_metadata.root_hash.0,
     );
-    let geometry_config = ProtocolGeometry::config(ProtocolGeometry::V1_5_0);
+    let geometry_config = ProtocolGeometry::V1_5_0.config();
     let mut hasher = DefaultHasher::new();
     geometry_config.hash(&mut hasher);
     tracing::info!(
