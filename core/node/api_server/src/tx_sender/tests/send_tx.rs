@@ -22,8 +22,8 @@ async fn submitting_tx_requires_one_connection() {
         .unwrap();
 
     let l2_chain_id = L2ChainId::default();
-    let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
-        Arc::new(MockBatchFeeParamsProvider::default());
+    let fee_params_provider: &dyn BatchFeeModelInputProvider =
+        &MockBatchFeeParamsProvider::default();
     let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
@@ -129,8 +129,8 @@ async fn fee_validation_errors() {
     let l2_chain_id = L2ChainId::default();
     let tx_executor = SandboxExecutor::mock(MockOneshotExecutor::default()).await;
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
-    let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
-        Arc::new(MockBatchFeeParamsProvider::default());
+    let fee_params_provider: &dyn BatchFeeModelInputProvider =
+        &MockBatchFeeParamsProvider::default();
     let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
@@ -320,8 +320,8 @@ async fn submit_tx_with_validation_traces(actual_range: Range<u64>, expected_ran
         .unwrap();
 
     let l2_chain_id = L2ChainId::default();
-    let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
-        Arc::new(MockBatchFeeParamsProvider::default());
+    let fee_params_provider: &dyn BatchFeeModelInputProvider =
+        &MockBatchFeeParamsProvider::default();
     let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
