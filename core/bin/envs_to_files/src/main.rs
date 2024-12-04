@@ -10,11 +10,12 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        BasicWitnessInputProducerConfig, DatabaseSecrets, ExperimentalVmConfig,
-        ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
-        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
-        L1Secrets, ObjectStoreConfig, ObservabilityConfig, PrometheusConfig,
-        ProofDataHandlerConfig, ProtectiveReadsWriterConfig, ProverJobMonitorConfig,
+        BasicWitnessInputProducerConfig, DataAvailabilitySecrets, DatabaseSecrets,
+        ExperimentalVmConfig, ExternalPriceApiClientConfig, FriProofCompressorConfig,
+        FriProverConfig, FriProverGatewayConfig, FriWitnessGeneratorConfig,
+        FriWitnessVectorGeneratorConfig, L1Secrets, ObjectStoreConfig, ObservabilityConfig,
+        PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
+        ProverJobMonitorConfig,
     },
     ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, ContractsConfig, DAClientConfig,
     DADispatcherConfig, DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig,
@@ -88,7 +89,7 @@ fn main() {
         consensus: None,
         database: DatabaseSecrets::from_env().ok(),
         l1: L1Secrets::from_env().ok(),
-        data_availability: None,
+        data_availability: DataAvailabilitySecrets::from_env().ok(),
     };
 
     let data = encode_yaml(&ProtoGeneral::build(&general)).unwrap();
