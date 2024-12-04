@@ -230,21 +230,21 @@ tokio-stream = "0.1.16"
 # We *always* pin the latest version of protocol to disallow accidental changes in the execution logic.
 # However, for the historical version of protocol crates, we have lax requirements. Otherwise,
 # Bumping a crypto dependency like `boojum` would require us to republish all the historical packages.
-circuit_encodings = { package = "circuit_encodings", version = "=0.150.16" }
-circuit_sequencer_api = { package = "circuit_sequencer_api", version = "=0.150.16" }
+circuit_encodings = { package = "circuit_encodings", version = "=0.150.17" }
+circuit_sequencer_api = { package = "circuit_sequencer_api", version = "=0.150.17" }
 crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.30.10" }
-kzg = { package = "zksync_kzg", version = "=0.150.16" }
+kzg = { package = "zksync_kzg", version = "=0.150.17" }
 zk_evm = { version = "=0.133.0" }
 zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
 zk_evm_1_3_3 = { package = "zk_evm", version = "0.133" }
 zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
 zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
-zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.16"  }
+zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.17"  }
 
-zk_os_forward_system = {package = "forward_system",  path="../zk_ee/forward_system" }
-zk_ee = { package = "zk_ee", path="../zk_ee/zk_ee" }
-zk_os_basic_system = { package = "basic_system", path="../zk_ee/basic_system" }
-zk_os_system_hooks = { package = "system_hooks", path="../zk_ee/system_hooks" }
+zk_os_forward_system = {package = "forward_system",  git="https://github.com/matter-labs/zk_ee", branch = "rb-zk-os-integration-n" }
+zk_ee = { package = "zk_ee",  git="https://github.com/matter-labs/zk_ee", branch = "rb-zk-os-integration-n"  }
+zk_os_basic_system = { package = "basic_system",  git="https://github.com/matter-labs/zk_ee", branch = "rb-zk-os-integration-n"  }
+zk_os_system_hooks = { package = "system_hooks",  git="https://github.com/matter-labs/zk_ee", branch = "rb-zk-os-integration-n"  }
 # New VM; pinned to a specific commit because of instability
 zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "457d8a7eea9093af9440662e33e598c13ba41633" }
 
@@ -336,7 +336,3 @@ ark-ec = { git = "https://github.com/arkworks-rs/algebra.git" }
 ark-serialize = { git = "https://github.com/arkworks-rs/algebra.git" }
 ark-bn254 = { git = "https://github.com/arkworks-rs/algebra.git" }
 ark-std = { git = "https://github.com/arkworks-rs/std/" }
-zkevm_circuits = {path = "../zksync-protocol/crates/zkevm_circuits"}
-zksync_kzg = {path = "../zksync-protocol/crates/kzg"}
-circuit_sequencer_api = {path = "../zksync-protocol/crates/circuit_sequencer_api"}
-zk_evm = {path = "../zksync-protocol/crates/zk_evm"}
