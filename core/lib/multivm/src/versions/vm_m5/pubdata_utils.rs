@@ -1,14 +1,13 @@
 use std::collections::HashMap;
 
-use circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries;
-use itertools::Itertools;
+use circuit_sequencer_api::sort_storage_access::sort_storage_access_queries;
 use zk_evm_1_3_1::aux_structures::{LogQuery, Timestamp};
 use zksync_types::{StorageKey, PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS};
 
 use crate::{
     glue::GlueInto,
     interface::VmEvent,
-    utils::bytecode::bytecode_len_in_bytes,
+    utils::{bytecode::bytecode_len_in_bytes, glue_log_query},
     vm_m5::{
         oracles::storage::storage_key_of_log, storage::Storage,
         utils::collect_storage_log_queries_after_timestamp, vm_instance::VmInstance,
@@ -86,16 +85,11 @@ impl<S: Storage> VmInstance<S> {
         // To allow calling the `vm-1.3.3`s. method, the `v1.3.1`'s `LogQuery` has to be converted
         // to the `vm-1.3.3`'s `LogQuery`. Then, we need to convert it back.
         let deduplicated_logs: Vec<LogQuery> = sort_storage_access_queries(
-            &storage_logs
-                .iter()
-                .map(|log| {
-                    GlueInto::<zk_evm_1_3_3::aux_structures::LogQuery>::glue_into(log.log_query)
-                })
-                .collect_vec(),
+            storage_logs.iter().map(|log| glue_log_query(log.log_query)),
         )
         .1
         .into_iter()
-        .map(GlueInto::<zk_evm_1_3_1::aux_structures::LogQuery>::glue_into)
+        .map(glue_log_query)
         .collect();
 
         deduplicated_logs
