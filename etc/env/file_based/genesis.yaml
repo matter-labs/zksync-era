@@ -11,6 +11,7 @@ prover:
   recursion_scheduler_level_vk_hash: 0x3eb90315bdf49798288980905013d18c3cc73c0a2be4595b568530907f54035b
   fflonk_snark_wrapper_vk_hash: 0xd1eabb1a1cb6368fe958f284c2cc14b70ad78b8c9ae181b52e2c4dc203c923fd
   dummy_verifier: true
+  snark_wrapper_vk_hash: 0x3eb90315bdf49798288980905013d18c3cc73c0a2be4595b568530907f54035b
 genesis_protocol_semantic_version: 0.25.0
 l1_batch_commit_data_generator_mode: Rollup
 # TODO: uncomment once EVM emulator is present in the `contracts` submodule

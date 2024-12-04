@@ -45,6 +45,9 @@ COPY . .
 
 RUN cd prover && cargo build --release --features "gpu" --bin zksync_prover_fri
 
+# Output build in CUDA architectures for debugging purposes.
+RUN cuobjdump /usr/src/zksync/prover/target/release/zksync_prover_fri
+
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
