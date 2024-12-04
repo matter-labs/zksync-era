@@ -1,7 +1,6 @@
-This is a modified version of ZKsync ERA node with experimental support of Zk OS.
+**This is a modified version of ZKsync ERA node with experimental support of Zk OS.**
 
-Running the system:
-Please use the same instructions as for the original ZKsync ERA node:
+To run the node, use the same instructions as for the original ZKsync ERA node:
 ```
 zkstack containers
 zkstack ecosystem init
@@ -12,15 +11,15 @@ On the first server run, the following wallets are funded:
 * 0x27FBEc0B5D2A2B89f77e4D3648bBBBCF11784bdE
 * 0x2eF0972bd8AFc29d63b2412508ce5e20219b9A8c
 
-You can add more keys [here](https://github.com/matter-labs/zksync-era/blob/zkos-dev/core/node/zkos_state_keeper/src/keeper.rs#L188) and restart the server - they will be funded on the startup.
+You can add more wallets [here](https://github.com/matter-labs/zksync-era/blob/zkos-dev/core/node/zkos_state_keeper/src/keeper.rs#L188) and restart the server - they will be funded on server startup (no regenesis required).
 
 
-Notes:
-* The chain id is hardcoded as `37`, as this value is hardcoded on the Zk OS side.
+Notes: The chain id is hardcoded as `37`, as this value is hardcoded on the Zk OS side.
 
-Missing features:
+**Missing features**:
 
 TODOs and missing features
+
 **XL**:
 * Gas and pubdata price are hardcoded and/or ignored (zksync-era and zk_ee)
     * `estimate_gas` returns `u32::MAX` instead of running the transaction
