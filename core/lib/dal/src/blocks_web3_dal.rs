@@ -339,10 +339,13 @@ impl BlocksWeb3Dal<'_, '_> {
     ///
     /// The correctness of the current implementation depends on the timestamp of an L1 batch always
     /// being equal to the timestamp of the first L2 block in the batch.
+
+    //todo: strange changes here - need to check
     pub async fn get_expected_l1_batch_timestamp(
         &mut self,
         l1_batch_number: &ResolvedL1BatchForL2Block,
     ) -> DalResult<Option<u64>> {
+        tracing::info!("get_expected_l1_batch_timestamp: {:?}", l1_batch_number);
         if let Some(l1_batch) = l1_batch_number.block_l1_batch {
             Ok(sqlx::query!(
                 r#"
@@ -385,11 +388,11 @@ impl BlocksWeb3Dal<'_, '_> {
                     number = COALESCE(
                         (
                             SELECT
-                                MAX(number) + 1
+                                MAX(number)
                             FROM
                                 miniblocks
                             WHERE
-                                l1_batch_number = $1
+                                l1_batch_number <= $1
                         ),
                         (
                             SELECT

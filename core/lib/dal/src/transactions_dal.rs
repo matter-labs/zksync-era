@@ -508,6 +508,32 @@ impl TransactionsDal<'_, '_> {
         Ok(l2_tx_insertion_result)
     }
 
+    pub async fn zkos_mark_tx_as_executed(
+        &mut self,
+        tx_hash: H256,
+        block_number: L2BlockNumber,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE transactions
+            SET
+                l1_batch_number = $2,
+                l1_batch_tx_index = 0,
+                miniblock_number = $2,
+                updated_at = NOW()
+            WHERE
+                transactions.hash = $1
+            "#,
+            &tx_hash.as_bytes(),
+            i64::from(block_number.0)
+        )
+            .instrument("zkos_mark_tx_as_executed")
+            .with_arg("miniblock_number", &block_number)
+            .execute(self.storage)
+            .await?;
+        Ok(())
+    }
+
     pub async fn mark_txs_as_executed_in_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,

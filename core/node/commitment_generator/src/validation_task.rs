@@ -93,13 +93,8 @@ impl L1BatchCommitmentModeValidationTask {
         diamond_proxy_address: Address,
         eth_client: &dyn EthInterface,
     ) -> Result<L1BatchCommitmentMode, ContractCallError> {
-        CallFunctionArgs::new("getPubdataPricingMode", ())
-            .for_contract(
-                diamond_proxy_address,
-                &zksync_contracts::hyperchain_contract(),
-            )
-            .call(eth_client)
-            .await
+        //todo: pubdata pricing/gas
+        Ok(L1BatchCommitmentMode::Rollup)
     }
 
     /// Runs this task. The task will exit on error (and on success if `exit_on_success` is set),

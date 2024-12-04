@@ -1,0 +1,20 @@
+[package]
+name = "zksync_zkos_vm_runner"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_utils.workspace = true
+zksync_types.workspace = true
+
+zk_os_forward_system.workspace = true
+zk_ee.workspace = true
+zk_os_basic_system.workspace = true
+
+ruint.workspace = true

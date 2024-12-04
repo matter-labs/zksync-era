@@ -37,3 +37,4 @@ pub mod tree_data_fetcher;
 pub mod validate_chain_ids;
 pub mod vm_runner;
 pub mod web3_api;
+pub mod zkos_state_keeper;

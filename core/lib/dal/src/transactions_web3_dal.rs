@@ -425,6 +425,29 @@ impl TransactionsWeb3Dal<'_, '_> {
         Ok(U256::from(pending_nonce))
     }
 
+    pub async fn zkos_max_nonce_by_initiator_account(
+        &mut self,
+        initiator_address: Address,
+    ) -> DalResult<Option<U256>> {
+        let nonce: Option<i64> = sqlx::query!(
+            r#"
+            SELECT
+                MAX(nonce) AS "nonce"
+            FROM
+                transactions
+            WHERE
+                initiator_address = $1
+            "#,
+            initiator_address.as_bytes(),
+        )
+            .instrument("zkos_max_nonce_by_initiator_account")
+            .fetch_one(self.storage)
+            .await?
+            .nonce;
+
+        Ok(nonce.map(|n| U256::from(n)))
+    }
+
     /// Returns the server transactions (not API ones) from a L2 block range.
     pub async fn get_raw_l2_blocks_transactions(
         &mut self,

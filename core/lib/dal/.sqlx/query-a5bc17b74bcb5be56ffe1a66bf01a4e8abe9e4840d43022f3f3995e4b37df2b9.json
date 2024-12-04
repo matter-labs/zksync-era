@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                MAX(nonce) AS \"nonce\"\n            FROM\n                transactions\n            WHERE\n                initiator_address = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "nonce",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a5bc17b74bcb5be56ffe1a66bf01a4e8abe9e4840d43022f3f3995e4b37df2b9"
+}

@@ -7,6 +7,7 @@ use std::{
 
 use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
+use serde_json::Value;
 use sqlx::types::chrono::{DateTime, Utc};
 use zksync_db_connection::{
     connection::Connection,
@@ -679,6 +680,112 @@ impl BlocksDal<'_, '_> {
 
         transaction.commit().await?;
         Ok(())
+    }
+    pub async fn zkos_insert_sealed_l1_batch(
+        &mut self,
+        header: &L1BatchHeader,
+    ) -> DalResult<()> {
+
+        let instrumentation = Instrumented::new("zkos_insert_sealed_l1_batch")
+            .with_arg("number", &header.number);
+
+        //todo: do we need to store this at all for zk os?
+        let initial_bootloader_contents = Value::Null;
+
+        let used_contract_hashes = serde_json::to_value(&header.used_contract_hashes).unwrap();
+
+        let query = sqlx::query!(
+            r#"
+            INSERT INTO
+            l1_batches (
+                number,
+                l1_tx_count,
+                l2_tx_count,
+                timestamp,
+                l2_to_l1_messages,
+                bloom,
+                priority_ops_onchain_data,
+                predicted_commit_gas_cost,
+                predicted_prove_gas_cost,
+                predicted_execute_gas_cost,
+                initial_bootloader_heap_content,
+                used_contract_hashes,
+                bootloader_code_hash,
+                default_aa_code_hash,
+                evm_emulator_code_hash,
+                protocol_version,
+                system_logs,
+                storage_refunds,
+                pubdata_costs,
+                pubdata_input,
+                predicted_circuits_by_type,
+                created_at,
+                updated_at
+            )
+            VALUES
+            (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8,
+                $9,
+                $10,
+                $11,
+                $12,
+                $13,
+                $14,
+                $15,
+                $16,
+                $17,
+                $18,
+                $19,
+                $20,
+                NULL,
+                NOW(),
+                NOW()
+            )
+            "#,
+            i64::from(header.number.0),
+            i32::from(header.l1_tx_count),
+            i32::from(header.l2_tx_count),
+            header.timestamp as i64,
+            &header.l2_to_l1_messages,
+            header.bloom.as_bytes(),
+            //todo: l1 transactions
+            &vec![], // priority_onchain_data
+            //todo: predict l1 gas cost
+            0,  // i64::from(predicted_block_gas.commit),
+            0,  // i64::from(predicted_block_gas.prove),
+            0,  // i64::from(predicted_block_gas.execute),
+            initial_bootloader_contents,
+            used_contract_hashes,
+            header.base_system_contracts_hashes.bootloader.as_bytes(),
+            header.base_system_contracts_hashes.default_aa.as_bytes(),
+            header
+                .base_system_contracts_hashes
+                .evm_emulator
+                .as_ref()
+                .map(H256::as_bytes),
+            header.protocol_version.map(|v| v as i32),
+            //todo: system logs
+            &vec![], // system_logs,
+            //todo: refunds
+            &vec![], //storage_refunds,
+            //todo: pubdata costs
+            &vec![], //pubdata_costs
+            header.pubdata_input,
+        );
+
+        let mut transaction = self.storage.start_transaction().await?;
+        instrumentation
+            .with(query)
+            .execute(&mut transaction)
+            .await?;
+        transaction.commit().await
     }
 
     /// Marks provided L1 batch as sealed and populates it with all the runtime information.

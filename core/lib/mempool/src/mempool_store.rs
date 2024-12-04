@@ -154,16 +154,8 @@ impl MempoolStore {
     pub fn next_transaction(
         &mut self,
         filter: &L2TxFilter,
-    ) -> Option<(Transaction, TransactionTimeRangeConstraint)> {
-        if let Some(transaction) = self.l1_transactions.remove(&self.next_priority_id) {
-            self.next_priority_id += 1;
-            // L1 transactions can't use block.timestamp in AA and hence do not need to have a constraint
-            return Some((
-                transaction.into(),
-                TransactionTimeRangeConstraint::default(),
-            ));
-        }
-
+    ) -> Option<(Transaction, TransactionTimeRangeConstraint)> {        // todo: ignore prio txs for now
+        // todo: priority transactions
         let mut removed = 0;
         // We want to fetch the next transaction that would match the fee requirements.
         let tx_pointer = self

@@ -1,24 +1,22 @@
 //! Implementation of "executing" methods, e.g. `eth_call`.
 
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use ruint::aliases::U256;
 use tokio::runtime::Handle;
+use tokio::task::spawn_blocking;
+use zk_ee::system::system_trait::errors::InternalError;
+use zk_os_forward_system::run::{BatchContext, StorageCommitment, TxOutput, ExecutionOutput, ExecutionResult};
 use zksync_dal::{Connection, Core};
-use zksync_multivm::interface::{
-    executor::{OneshotExecutor, TransactionValidator},
-    storage::{ReadStorage, StorageWithOverrides},
-    tracer::{TimestampAsserterParams, ValidationError, ValidationParams, ValidationTraces},
-    Call, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
-    TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs,
-};
-use zksync_state::{PostgresStorage, PostgresStorageCaches};
+use zksync_multivm::interface::{executor::{OneshotExecutor, TransactionValidator}, storage::{ReadStorage, StorageWithOverrides}, tracer::{TimestampAsserterParams, ValidationError, ValidationParams, ValidationTraces}, Call, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult, TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs};
+use zksync_state::{PostgresStorage, PostgresStorageCaches, PostgresStorageForZkOs};
 use zksync_types::{
     api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, Transaction,
 };
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
-
+use zksync_zkos_vm_runner::zkos_conversions::tx_abi_encode;
 use super::{
     vm_metrics::{self, SandboxStage},
     BlockArgs, VmPermit, SANDBOX_METRICS,
@@ -139,6 +137,76 @@ impl SandboxExecutor {
         }
     }
 
+    pub async fn execute_in_sandbox_zkos(
+        &self,
+        vm_permit: VmPermit,
+        connection: Connection<'static, Core>,
+        action: SandboxAction,
+        block_args: &BlockArgs,
+        state_override: Option<StateOverride>,
+    ) -> anyhow::Result<Vec<u8>> {
+        let (env, storage) = self
+            .prepare_env_and_storage(connection, block_args, &action)
+            .await?;
+
+        let (execution_args, tracing_params) = action.into_parts();
+
+        // todo: gas
+        let context = BatchContext {
+            eip1559_basefee: U256::from(1),
+            ergs_price: U256::from(1),
+            block_number: (env.l1_batch.number.0 + 1) as u64,
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Incorrect system time")
+                .as_secs(),
+        };
+
+        // todo: storage commitment shouldn't be needed here
+        let storage_commitment = StorageCommitment {
+            root: Default::default(),
+            next_free_slot: 0,
+        };
+
+        let abi = tx_abi_encode(execution_args.transaction);
+
+        let result =
+            spawn_blocking(move || {
+                let zkos_storage = PostgresStorageForZkOs::new(storage);
+                zk_os_forward_system::run::simulate_tx(
+                    abi,
+                    storage_commitment,
+                    context,
+                    // we pass the storage source and preimage source separately,
+                    // but then need to backed by the same connection
+                    zkos_storage.clone(),
+                    zkos_storage,
+                )
+            }
+            ).await
+                .expect("");
+
+        tracing::info!("execute_in_sandbox Result: {:?}", result);
+        drop(vm_permit);
+
+        //todo: eth_call error format - should be compatible with era/ethereum
+        match result {
+            Ok(Ok(tx_output)) => {
+                match tx_output.execution_result {
+                    ExecutionResult::Success(ExecutionOutput::Call(data)) => Ok(data),
+                    ExecutionResult::Success(ExecutionOutput::Create(data, _)) => Ok(data),
+                    ExecutionResult::Revert(res) => anyhow::bail!("revert: {:?}", res)
+                }
+            }
+            Ok(Err(invalid)) => {
+                anyhow::bail!("invalid transaction: {:?}", invalid)
+            }
+            Err(err) => {
+                anyhow::bail!("Execution failed: {:?}", err)
+            }
+        }
+    }
+
     /// This method assumes that (block with number `resolved_block_number` is present in DB)
     /// or (`block_id` is `pending` and block with number `resolved_block_number - 1` is present in DB)
     #[allow(clippy::too_many_arguments)]
@@ -240,8 +308,8 @@ impl SandboxExecutor {
             resolved_block_info.state_l2_block_number(),
             false,
         )
-        .await
-        .context("cannot create `PostgresStorage`")?;
+            .await
+            .context("cannot create `PostgresStorage`")?;
 
         if let Some(caches) = &self.storage_caches {
             storage = storage.with_caches(caches.clone());
