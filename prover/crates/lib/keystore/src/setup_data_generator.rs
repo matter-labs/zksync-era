@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use anyhow::Context as _;
 #[cfg(feature = "gpu")]
 use boojum_cuda::poseidon2::GLHasher;
+#[cfg(feature = "gpu")]
 use circuit_definitions::circuit_definitions::aux_layer::{
     wrapper::ZkSyncCompressionWrapper, CompressionProofsTreeHasherForWrapper,
 };
@@ -16,11 +17,14 @@ use fflonk_gpu::{
 };
 #[cfg(feature = "gpu")]
 use shivini::cs::gpu_setup_and_vk_from_base_setup_vk_params_and_hints;
+#[cfg(feature = "gpu")]
 use zkevm_test_harness::{
-    compute_setups::{
-        generate_circuit_setup_data, light::generate_light_circuit_setup_data, CircuitSetupData,
-    },
-    data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource},
+    compute_setups::light::generate_light_circuit_setup_data,
+    data_source::in_memory_data_source::InMemoryDataSource,
+};
+use zkevm_test_harness::{
+    compute_setups::{generate_circuit_setup_data, CircuitSetupData},
+    data_source::SetupDataSource,
 };
 use zksync_prover_fri_types::{ProverServiceDataKey, ProvingStage};
 #[cfg(feature = "gpu")]
@@ -104,16 +108,23 @@ pub trait SetupDataGenerator {
         }
 
         if circuit == ProverServiceDataKey::snark() {
-            let mut data_source = self.keystore().load_keys_to_data_source()?;
-            let (setup, _) = get_fflonk_snark_verifier_setup_and_vk(&mut data_source);
-            if !dry_run {
-                self.keystore()
-                    .save_fflonk_snark_setup_data(setup)
-                    .context("save_setup_data()")?;
+            #[cfg(not(feature = "gpu"))]
+            {
+                anyhow::bail!("Must compile with --gpu feature to use this option.");
             }
-            return Ok(String::from(
-                "FFLONK is serialized differently, skipping hashing.",
-            ));
+            #[cfg(feature = "gpu")]
+            {
+                let mut data_source = self.keystore().load_keys_to_data_source()?;
+                let (setup, _) = get_fflonk_snark_verifier_setup_and_vk(&mut data_source);
+                if !dry_run {
+                    self.keystore()
+                        .save_fflonk_snark_setup_data(setup)
+                        .context("save_setup_data()")?;
+                }
+                return Ok(String::from(
+                    "FFLONK is serialized differently, skipping hashing.",
+                ));
+            }
         }
 
         let serialized = self.generate_setup_data(circuit)?;
@@ -274,6 +285,7 @@ impl SetupDataGenerator for GPUSetupDataGenerator {
     }
 }
 
+#[cfg(feature = "gpu")]
 fn get_vk_by_circuit(keystore: Keystore, circuit: ProverServiceDataKey) -> anyhow::Result<Vec<u8>> {
     let data_source = keystore.load_keys_to_data_source()?;
 
@@ -309,6 +321,7 @@ fn get_vk_by_circuit(keystore: Keystore, circuit: ProverServiceDataKey) -> anyho
     }
 }
 
+#[cfg(feature = "gpu")]
 pub fn get_fflonk_snark_verifier_setup_and_vk(
     data_source: &mut InMemoryDataSource,
 ) -> (

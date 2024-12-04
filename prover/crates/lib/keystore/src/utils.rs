@@ -13,7 +13,9 @@ use zkevm_test_harness::{
     franklin_crypto::bellman::{CurveAffine, PrimeField, PrimeFieldRepr},
     witness::recursive_aggregation::compute_leaf_params,
 };
-use zksync_basic_types::{H256, U256};
+use zksync_basic_types::H256;
+#[cfg(feature = "gpu")]
+use zksync_basic_types::U256;
 use zksync_prover_fri_types::circuit_definitions::{
     boojum::field::goldilocks::GoldilocksField,
     circuit_definitions::recursion_layer::base_circuit_type_into_recursive_leaf_circuit_type,
@@ -114,6 +116,7 @@ pub fn calculate_snark_vk_hash(verification_key: String) -> anyhow::Result<H256>
     Ok(H256::from_slice(&computed_vk_hash))
 }
 
+#[cfg(feature = "gpu")]
 pub fn calculate_fflonk_snark_vk_hash(verification_key: String) -> anyhow::Result<H256> {
     use byteorder::{BigEndian, WriteBytesExt};
 

@@ -7,11 +7,14 @@ use std::{
 };
 
 use anyhow::Context as _;
+#[cfg(feature = "gpu")]
+use circuit_definitions::circuit_definitions::aux_layer::{
+    CompressionProofsTreeHasher, CompressionProofsTreeHasherForWrapper,
+};
 use circuit_definitions::{
     boojum::cs::implementations::setup::FinalizationHintsForProver,
     circuit_definitions::{
         aux_layer::{
-            CompressionProofsTreeHasher, CompressionProofsTreeHasherForWrapper,
             ZkSyncCompressionForWrapperVerificationKey, ZkSyncCompressionLayerVerificationKey,
             ZkSyncSnarkWrapperVK,
         },
@@ -20,16 +23,18 @@ use circuit_definitions::{
     },
     zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
 };
+#[cfg(feature = "gpu")]
 use fflonk_gpu::{FflonkSnarkVerifierCircuitDeviceSetup, FflonkSnarkVerifierCircuitVK};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+#[cfg(feature = "gpu")]
 use shivini::boojum::field::goldilocks::GoldilocksField;
 use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
 use zksync_prover_fri_types::{ProverServiceDataKey, ProvingStage};
 use zksync_utils::env::Workspace;
 
 #[cfg(feature = "gpu")]
-use crate::GoldilocksGpuProverSetupData;
-use crate::{GoldilocksProverSetupData, GpuProverSetupData, VkCommitments};
+use crate::{GoldilocksGpuProverSetupData, GpuProverSetupData};
+use crate::{GoldilocksProverSetupData, VkCommitments};
 
 #[derive(Debug, Clone, Copy)]
 pub enum ProverServiceDataType {
@@ -331,6 +336,7 @@ impl Keystore {
         Self::save_json_pretty(filepath, &vk.into_inner())
     }
 
+    #[cfg(feature = "gpu")]
     pub fn save_fflonk_snark_verification_key(
         &self,
         vk: FflonkSnarkVerifierCircuitVK,
@@ -384,6 +390,7 @@ impl Keystore {
         })
     }
 
+    #[cfg(feature = "gpu")]
     pub fn load_compression_setup_data(
         &self,
         circuit: u8,
@@ -411,6 +418,7 @@ impl Keystore {
         })
     }
 
+    #[cfg(feature = "gpu")]
     pub fn load_compression_wrapper_setup_data(
         &self,
         circuit: u8,
@@ -439,6 +447,7 @@ impl Keystore {
         })
     }
 
+    #[cfg(feature = "gpu")]
     pub fn load_fflonk_snark_verifier_setup_data(
         &self,
     ) -> anyhow::Result<FflonkSnarkVerifierCircuitDeviceSetup> {
@@ -468,6 +477,7 @@ impl Keystore {
             .with_context(|| format!("Failed saving setup-data at path: {filepath:?}"))
     }
 
+    #[cfg(feature = "gpu")]
     pub fn save_fflonk_snark_setup_data(
         &self,
         setup_data: FflonkSnarkVerifierCircuitDeviceSetup,
