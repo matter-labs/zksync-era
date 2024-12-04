@@ -16,9 +16,16 @@ use zksync_vm_interface::tracer::{
 
 use crate::{tracers::TIMESTAMP_ASSERTER_FUNCTION_SELECTOR, vm_fast::utils::read_fat_pointer};
 
+/// [`Tracer`] used for account validation per [EIP-4337] and [EIP-7562].
+///
+/// [EIP-4337]: https://eips.ethereum.org/EIPS/eip-4337
+/// [EIP-7562]: https://eips.ethereum.org/EIPS/eip-7562
 pub trait ValidationTracer: Tracer + Default {
+    /// Should the execution stop after validation is complete?
     const STOP_AFTER_VALIDATION: bool;
+    /// Hook called when account validation is entered.
     fn account_validation_entered(&mut self);
+    /// Hook called when account validation is exited.
     fn validation_exited(&mut self);
 }
 
@@ -29,7 +36,7 @@ impl ValidationTracer for () {
 }
 
 /// Account abstraction exposes a chain to denial of service attacks because someone who fails to
-/// authenticate does not pay for the failed transaction. Otherwise people could empty other's
+/// authenticate does not pay for the failed transaction. Otherwise, people could empty other's
 /// wallets for free!
 ///
 /// If some address repeatedly posts transactions that validate during preliminary checks but fail
@@ -46,12 +53,14 @@ impl ValidationTracer for () {
 /// that, we make sure that the storage slots accessed by different accounts are disjoint by only
 /// allowing access to storage in the account itself and slots derived from the account's address.
 ///
-/// Our rules are an extension of the rules are outlined in EIP-7562.
+/// Our rules are an extension of the rules are outlined in [EIP-7562].
 ///
 /// This tracer enforces the rules by checking what the code does at runtime, even though the
 /// properties checked are supposed to always hold for a well-written custom account. Proving
 /// that a contract adheres to the rules ahead of time would be challenging or even impossible,
 /// considering that contracts that the code depends on may get upgraded.
+///
+/// [EIP-7562]: https://eips.ethereum.org/EIPS/eip-7562
 #[derive(Debug, Default)]
 pub struct FullValidationTracer {
     in_validation: bool,

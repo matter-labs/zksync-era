@@ -66,7 +66,7 @@ impl VmDump {
     /// Plays back this dump on the specified VM.
     pub fn play_back<Vm>(self) -> Vm
     where
-        Vm: VmFactory<StorageView<StorageSnapshot>> + VmInterface,
+        Vm: VmFactory<StorageView<StorageSnapshot>>,
     {
         self.play_back_custom(Vm::new)
     }
