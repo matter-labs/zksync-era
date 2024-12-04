@@ -6,7 +6,7 @@ use zksync_config::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
         chain::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
-            StateKeeperConfig,
+            StateKeeperConfig, TimestampAsserterConfig,
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
@@ -16,7 +16,7 @@ use zksync_config::{
         L1Secrets, ObjectStoreConfig, ObservabilityConfig, PrometheusConfig,
         ProofDataHandlerConfig, ProtectiveReadsWriterConfig, ProverJobMonitorConfig,
     },
-    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, ContractsConfig,
+    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, ContractsConfig, DAClientConfig,
     DADispatcherConfig, DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig,
     GasAdjusterConfig, GenesisConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
@@ -60,6 +60,7 @@ fn load_env_config() -> TempConfigStore {
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
         observability: ObservabilityConfig::from_env().ok(),
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
+        da_client_config: DAClientConfig::from_env().ok(),
         da_dispatcher_config: DADispatcherConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
         basic_witness_input_producer_config: BasicWitnessInputProducerConfig::from_env().ok(),
@@ -72,6 +73,7 @@ fn load_env_config() -> TempConfigStore {
         external_proof_integration_api_config: ExternalProofIntegrationApiConfig::from_env().ok(),
         experimental_vm_config: ExperimentalVmConfig::from_env().ok(),
         prover_job_monitor_config: ProverJobMonitorConfig::from_env().ok(),
+        timestamp_asserter_config: TimestampAsserterConfig::from_env().ok(),
     }
 }
 
@@ -86,6 +88,7 @@ fn main() {
         consensus: None,
         database: DatabaseSecrets::from_env().ok(),
         l1: L1Secrets::from_env().ok(),
+        data_availability: None,
     };
 
     let data = encode_yaml(&ProtoGeneral::build(&general)).unwrap();

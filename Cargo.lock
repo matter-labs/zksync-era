@@ -2864,8 +2864,8 @@ name = "envs_to_files"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 4.4.6",
- "futures 0.3.28",
+ "clap 4.5.20",
+ "futures 0.3.31",
  "serde_json",
  "serde_yaml",
  "tokio",
