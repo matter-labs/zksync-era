@@ -34,9 +34,7 @@
     "ts-node": "^10.1.0",
     "typescript": "^4.3.5",
     "yaml": "^2.4.2",
+    "zksync-ethers": "https://github.com/zksync-sdk/zksync-ethers#sb-use-new-encoding-in-sdk",
     "zksync-ethers-gw": "https://github.com/zksync-sdk/zksync-ethers#kl/gateway-support"
-  },
-  "dependencies": {
-    "zksync-ethers": "../zksync-ethers"
   }
 }
