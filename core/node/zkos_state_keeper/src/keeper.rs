@@ -19,7 +19,7 @@ use zk_os_basic_system::basic_io_implementer::address_into_special_storage_key;
 use zk_os_basic_system::basic_system::simple_growable_storage::TestingTree;
 use zk_os_forward_system::run::test_impl::{InMemoryPreimageSource, InMemoryTree, TxListSource};
 use zk_os_system_hooks::addresses_constants::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_state::ReadStorageFactory;
 use zksync_state_keeper::io::IoCursor;
@@ -85,35 +85,7 @@ impl ZkosStateKeeper {
 
         let mut pending_block_number = cursor.next_l2_block;
 
-        if pending_block_number.0 == 1 {
-            tracing::info!("Setting initial balances for testing");
-            for address in &[
-                "0x27FBEc0B5D2A2B89f77e4D3648bBBBCF11784bdE",
-                "0x2eF0972bd8AFc29d63b2412508ce5e20219b9A8c"
-            ] {
-                tracing::info!("setting balance for {}", address);
-
-                let address = B160::from_str(address)?;
-                let key = address_into_special_storage_key(&address);
-                let balance = bytes32_to_h256(Bytes32::from_u256_be(U256::from(170000000)));
-                let flat_key = bytes32_to_h256(derive_flat_storage_key(&NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, &key));
-
-                let logs = [SnapshotStorageLog {
-                    key: flat_key,
-                    value: balance,
-                    l1_batch_number_of_initial_write: Default::default(),
-                    enumeration_index: 0,
-                }];
-
-                connection
-                    .storage_logs_dal()
-                    .insert_storage_logs_from_snapshot(
-                        L2BlockNumber(0),
-                        &logs
-                    )
-                    .await?;
-            }
-        }
+        Self::fund_dev_wallets_if_needed(&mut connection, &mut pending_block_number).await;
 
         self.initialize_in_memory_storages().await?;
 
@@ -208,6 +180,50 @@ impl ZkosStateKeeper {
         Ok(())
     }
 
+    // Funds dev wallets with some ETH for testing
+    // only funds wallets that were not funded before
+    // wallets can be added to this list without regenesis
+    async fn fund_dev_wallets_if_needed(connection: &mut Connection<'_, Core>, pending_block_number: &mut L2BlockNumber) {
+        for address in &[
+            "0x27FBEc0B5D2A2B89f77e4D3648bBBBCF11784bdE",
+            "0x2eF0972bd8AFc29d63b2412508ce5e20219b9A8c"
+        ] {
+            let address = B160::from_str(address).unwrap();
+            let key = address_into_special_storage_key(&address);
+            let balance = bytes32_to_h256(Bytes32::from_u256_be(U256::from(170000000)));
+            let flat_key = bytes32_to_h256(derive_flat_storage_key(&NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, &key));
+
+            let r = connection
+                .storage_logs_dal()
+                .get_storage_values(
+                    &[flat_key],
+                    *pending_block_number,
+                ).await.expect("Failed to get storage values for initial balances");
+            if r.get(&flat_key).cloned().unwrap_or_default().is_some() {
+                tracing::info!("Wallet {:?} already funded", address);
+                continue;
+            }
+            tracing::info!("Funding wallet {:?}", address);
+
+
+            let logs = [SnapshotStorageLog {
+                key: flat_key,
+                value: balance,
+                l1_batch_number_of_initial_write: Default::default(),
+                enumeration_index: 0,
+            }];
+
+            connection
+                .storage_logs_dal()
+                .insert_storage_logs_from_snapshot(
+                    L2BlockNumber(0),
+                    &logs,
+                )
+                .await
+                .expect("Failed to insert storage logs for initial balances");
+        }
+    }
+
     async fn initialize_in_memory_storages(&mut self) -> anyhow::Result<()> {
         let mut conn = self
             .pool
@@ -277,6 +293,7 @@ impl ZkosStateKeeper {
         }
         None
     }
+
 
     fn is_canceled(&self) -> bool {
         *self.stop_receiver.borrow()

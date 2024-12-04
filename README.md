@@ -1,3 +1,19 @@
+This is a modified version of ZKsync ERA node with experimental support of Zk OS.
+
+Running the system:
+Please use the same instructions as for the original ZKsync ERA node:
+```
+
+```
+
+Notes:
+The chain id is hardcoded as `37`, as this value is hardcoded on the Zk OS side. 
+
+
+TODO:
+___
+
+
 # ZKsync Era: A ZK Rollup For Scaling Ethereum
 
 [![Logo](eraLogo.png)](https://zksync.io/)
