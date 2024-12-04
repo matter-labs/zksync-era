@@ -12,9 +12,7 @@ This list can be modified - added wallets are funded on server restart (no regen
 
 Note: The chain id is hardcoded as `37`, as this value is hardcoded on the Zk OS side.
 
-**Missing features**:
-
-TODOs and missing features
+**TODOs and missing features:**
 
 **XL**:
 * Gas and pubdata price are hardcoded and/or ignored (zksync-era and zk_ee)
