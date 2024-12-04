@@ -12,6 +12,7 @@ use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{
     commitment::L1BatchWithMetadata,
     ethabi::{encode, Token},
+    U256,
 };
 
 use crate::{

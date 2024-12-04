@@ -264,33 +264,6 @@ where
             .await
     }
 
-    async fn diamond_cut_by_version(
-        &self,
-        packed_version: H256,
-    ) -> EnrichedClientResult<Option<Vec<u8>>> {
-        const LOOK_BACK_BLOCK_RANGE: u64 = 1_000_000;
-
-        let Some(state_transition_manager_address) = self.state_transition_manager_address else {
-            return Ok(None);
-        };
-
-        let to_block = self.client.block_number().await?;
-        let from_block = to_block.saturating_sub((LOOK_BACK_BLOCK_RANGE - 1).into());
-
-        let logs = self
-            .get_events_inner(
-                from_block.into(),
-                to_block.into(),
-                Some(vec![self.new_upgrade_cut_data_signature]),
-                Some(vec![packed_version]),
-                Some(vec![state_transition_manager_address]),
-                RETRY_LIMIT,
-            )
-            .await?;
-
-        Ok(logs.into_iter().next().map(|log| log.data.0))
-    }
-
     async fn get_events(
         &self,
         from: BlockNumber,
@@ -341,17 +314,6 @@ where
             .call(&self.client)
             .await
             .map(|x: U256| x.try_into().unwrap())
-    }
-
-    async fn scheduler_vk_hash(
-        &self,
-        verifier_address: Address,
-    ) -> Result<H256, ContractCallError> {
-        // New verifier returns the hash of the verification key.
-        CallFunctionArgs::new("verificationKeyHash", ())
-            .for_contract(verifier_address, &self.verifier_contract_abi)
-            .call(&self.client)
-            .await
     }
 
     async fn fflonk_scheduler_vk_hash(
@@ -522,6 +484,13 @@ impl EthClient for L2EthClientW {
     }
 
     async fn scheduler_vk_hash(
+        &self,
+        verifier_address: Address,
+    ) -> Result<H256, ContractCallError> {
+        self.0.scheduler_vk_hash(verifier_address).await
+    }
+
+    async fn fflonk_scheduler_vk_hash(
         &self,
         verifier_address: Address,
     ) -> Result<H256, ContractCallError> {
