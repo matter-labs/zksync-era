@@ -7,14 +7,10 @@ zkstack ecosystem init
 zkstack server
 ```
 
-On the first server run, the following wallets are funded:
-* 0x27FBEc0B5D2A2B89f77e4D3648bBBBCF11784bdE
-* 0x2eF0972bd8AFc29d63b2412508ce5e20219b9A8c
+On server start, the wallets listed [here](https://github.com/matter-labs/zksync-era/blob/zkos-dev/core/node/zkos_state_keeper/src/keeper.rs#L188) are funded.
+This list can be modified - added wallets are funded on server restart (no regenesis is needed)
 
-You can add more wallets [here](https://github.com/matter-labs/zksync-era/blob/zkos-dev/core/node/zkos_state_keeper/src/keeper.rs#L188) and restart the server - they will be funded on server startup (no regenesis required).
-
-
-Notes: The chain id is hardcoded as `37`, as this value is hardcoded on the Zk OS side.
+Note: The chain id is hardcoded as `37`, as this value is hardcoded on the Zk OS side.
 
 **Missing features**:
 
