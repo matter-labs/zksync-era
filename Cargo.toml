@@ -241,10 +241,10 @@ zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
 zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
 zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.17"  }
 
-zk_os_forward_system = {package = "forward_system",  git="https://github.com/matter-labs/zk_ee", branch = "rb-zk-os-integration-n" }
-zk_ee = { package = "zk_ee",  git="https://github.com/matter-labs/zk_ee", branch = "rb-zk-os-integration-n"  }
-zk_os_basic_system = { package = "basic_system",  git="https://github.com/matter-labs/zk_ee", branch = "rb-zk-os-integration-n"  }
-zk_os_system_hooks = { package = "system_hooks",  git="https://github.com/matter-labs/zk_ee", branch = "rb-zk-os-integration-n"  }
+zk_os_forward_system = {package = "forward_system",  git="https://github.com/matter-labs/zk_ee", branch = "rb-zk-os-integration" }
+zk_ee = { package = "zk_ee",  git="https://github.com/matter-labs/zk_ee", branch = "rb-zk-os-integration"  }
+zk_os_basic_system = { package = "basic_system",  git="https://github.com/matter-labs/zk_ee", branch = "rb-zk-os-integration"  }
+zk_os_system_hooks = { package = "system_hooks",  git="https://github.com/matter-labs/zk_ee", branch = "rb-zk-os-integration"  }
 # New VM; pinned to a specific commit because of instability
 zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "457d8a7eea9093af9440662e33e598c13ba41633" }
 

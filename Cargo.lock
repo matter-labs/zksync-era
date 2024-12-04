@@ -1033,15 +1033,15 @@ dependencies = [
 [[package]]
 name = "basic_bootloader"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration-n#f13cf53e7051e93e7245b3665f813873f5e78114"
+source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration#3417f30dc4e6249a450eed47c12df052c249ecec"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
  "either",
  "evm_interpreter",
  "hex",
+ "iwasm",
  "iwasm_ee",
- "iwasm_interpreter",
  "ruint",
  "seq-macro",
  "system_hooks",
@@ -1051,23 +1051,21 @@ dependencies = [
 [[package]]
 name = "basic_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration-n#f13cf53e7051e93e7245b3665f813873f5e78114"
+source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration#3417f30dc4e6249a450eed47c12df052c249ecec"
 dependencies = [
  "ark-bn254",
  "ark-ec",
  "ark-ff 0.4.2",
  "ark-serialize 0.4.2",
  "arrayvec 0.7.6",
- "cfg-if",
- "const_for",
  "crypto",
  "either",
  "evm_interpreter",
+ "hex",
+ "iwasm",
  "iwasm_ee",
- "iwasm_interpreter",
  "miniz_nostd_compression",
  "ruint",
- "secp256k1 0.1.0",
  "storage_models",
  "system_hooks",
  "zk_ee",
@@ -1993,12 +1991,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
 
 [[package]]
-name = "const_for"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9c50fcfdf972929aff202c16b80086aa3cfc6a3a820af714096c58c7c1d0582"
-
-[[package]]
 name = "const_format"
 version = "0.2.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2204,7 +2196,7 @@ checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 [[package]]
 name = "crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration-n#f13cf53e7051e93e7245b3665f813873f5e78114"
+source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration#3417f30dc4e6249a450eed47c12df052c249ecec"
 dependencies = [
  "blake2 0.10.6",
  "k256 0.13.4",
@@ -3047,7 +3039,7 @@ dependencies = [
 [[package]]
 name = "evm_interpreter"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration-n#f13cf53e7051e93e7245b3665f813873f5e78114"
+source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration#3417f30dc4e6249a450eed47c12df052c249ecec"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
@@ -3215,7 +3207,7 @@ dependencies = [
 [[package]]
 name = "forward_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration-n#f13cf53e7051e93e7245b3665f813873f5e78114"
+source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration#3417f30dc4e6249a450eed47c12df052c249ecec"
 dependencies = [
  "arrayvec 0.7.6",
  "basic_bootloader",
@@ -4061,6 +4053,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "host_specification"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/iwasm.git#848d9dd5fd1bacba66e0f04a27cfd9736dc4164a"
+dependencies = [
+ "num-derive 0.4.2",
+ "num-traits",
+]
+
+[[package]]
 name = "hostname"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4556,33 +4557,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 
 [[package]]
+name = "iwasm"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/iwasm.git#848d9dd5fd1bacba66e0f04a27cfd9736dc4164a"
+dependencies = [
+ "arrayvec 0.7.6",
+]
+
+[[package]]
 name = "iwasm_ee"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration-n#f13cf53e7051e93e7245b3665f813873f5e78114"
+source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration#3417f30dc4e6249a450eed47c12df052c249ecec"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
- "iwasm_interpreter",
- "iwasm_specification",
+ "host_specification",
+ "iwasm",
  "ruint",
  "zk_ee",
-]
-
-[[package]]
-name = "iwasm_interpreter"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration-n#f13cf53e7051e93e7245b3665f813873f5e78114"
-dependencies = [
- "arrayvec 0.7.6",
-]
-
-[[package]]
-name = "iwasm_specification"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration-n#f13cf53e7051e93e7245b3665f813873f5e78114"
-dependencies = [
- "num-derive 0.4.2",
- "num-traits",
 ]
 
 [[package]]
@@ -5471,7 +5463,7 @@ checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
 [[package]]
 name = "miniz_nostd_compression"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration-n#f13cf53e7051e93e7245b3665f813873f5e78114"
+source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration#3417f30dc4e6249a450eed47c12df052c249ecec"
 dependencies = [
  "adler",
 ]
@@ -7947,16 +7939,6 @@ dependencies = [
 
 [[package]]
 name = "secp256k1"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration-n#f13cf53e7051e93e7245b3665f813873f5e78114"
-dependencies = [
- "cfg-if",
- "const_for",
- "crypto",
-]
-
-[[package]]
-name = "secp256k1"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25996b82292a7a57ed3508f052cfff8640d38d32018784acd714758b43da9c8f"
@@ -9050,7 +9032,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "storage_models"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration-n#f13cf53e7051e93e7245b3665f813873f5e78114"
+source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration#3417f30dc4e6249a450eed47c12df052c249ecec"
 dependencies = [
  "arrayvec 0.7.6",
  "either",
@@ -9442,7 +9424,7 @@ dependencies = [
 [[package]]
 name = "system_hooks"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration-n#f13cf53e7051e93e7245b3665f813873f5e78114"
+source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration#3417f30dc4e6249a450eed47c12df052c249ecec"
 dependencies = [
  "crypto",
  "ruint",
@@ -11019,7 +11001,7 @@ dependencies = [
 [[package]]
 name = "zk_ee"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration-n#f13cf53e7051e93e7245b3665f813873f5e78114"
+source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration#3417f30dc4e6249a450eed47c12df052c249ecec"
 dependencies = [
  "arrayvec 0.7.6",
  "bitflags 2.6.0",
@@ -11683,7 +11665,7 @@ dependencies = [
  "blake2 0.10.6",
  "hex",
  "rand 0.8.5",
- "secp256k1 0.27.0",
+ "secp256k1",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -11737,7 +11719,7 @@ dependencies = [
  "reqwest 0.12.9",
  "ripemd",
  "scale-encode",
- "secp256k1 0.27.0",
+ "secp256k1",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -12880,7 +12862,7 @@ dependencies = [
  "async-trait",
  "envy",
  "reqwest 0.12.9",
- "secp256k1 0.27.0",
+ "secp256k1",
  "serde",
  "thiserror",
  "tokio",
