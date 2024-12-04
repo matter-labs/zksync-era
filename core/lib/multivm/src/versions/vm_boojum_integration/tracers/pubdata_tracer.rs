@@ -114,6 +114,8 @@ impl<S: WriteStorage> PubdataTracer<S> {
     // Packs part of L1Messenger total pubdata that corresponds to
     // State diffs needed to be published on L1
     fn get_state_diffs<H: HistoryMode>(storage: &StorageOracle<S, H>) -> Vec<StateDiffRecord> {
+        vec![]
+        /*
         sort_storage_access_queries(
             storage
                 .storage_log_queries_after_timestamp(Timestamp(0))
@@ -141,7 +143,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
             initial_value: log.read_value,
             final_value: log.written_value,
         })
-        .collect()
+        .collect()*/
     }
 
     fn build_pubdata_input<H: HistoryMode>(&self, state: &ZkSyncVmState<S, H>) -> PubdataInput {

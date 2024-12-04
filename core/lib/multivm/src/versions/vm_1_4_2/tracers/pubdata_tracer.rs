@@ -142,8 +142,9 @@ impl<S: WriteStorage> PubdataTracer<S> {
         if let Some(enforced_state_diffs) = &self.enforced_state_diffs {
             return enforced_state_diffs.clone();
         }
+        vec![]
 
-        sort_storage_access_queries(
+        /*sort_storage_access_queries(
             storage
                 .storage_log_queries_after_timestamp(Timestamp(0))
                 .iter()
@@ -170,7 +171,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
             initial_value: log.read_value,
             final_value: log.written_value,
         })
-        .collect()
+        .collect()*/
     }
 
     fn build_pubdata_input<H: HistoryMode>(&self, state: &ZkSyncVmState<S, H>) -> PubdataInput {

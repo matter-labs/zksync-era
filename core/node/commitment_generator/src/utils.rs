@@ -57,14 +57,18 @@ impl CommitmentComputer for RealCommitmentComputer {
         protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<H256> {
         match VmVersion::from(protocol_version) {
-            VmVersion::VmBoojumIntegration => Ok(H256(
+            VmVersion::VmBoojumIntegration =>
+            /*Ok(H256(
                 circuit_sequencer_api_1_4_0::commitments::events_queue_commitment_fixed(
                     &events_queue
                         .iter()
                         .map(|x| to_log_query_1_3_3(*x))
                         .collect(),
                 ),
-            )),
+            ))*/
+            {
+                todo!()
+            }
             VmVersion::Vm1_4_1 | VmVersion::Vm1_4_2 => Ok(H256(
                 circuit_sequencer_api_1_4_1::commitments::events_queue_commitment_fixed(
                     &events_queue

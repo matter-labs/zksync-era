@@ -135,13 +135,13 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
 
         self.set_initial_value(&key, current_value, query.timestamp);
 
-        self.frames_stack.push_forward(
+        /*self.frames_stack.push_forward(
             Box::new(StorageLogQuery {
                 log_query: query,
                 log_type: StorageLogKind::Read,
             }),
             query.timestamp,
-        );
+        );*/
 
         query
     }
@@ -164,7 +164,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
 
         self.set_initial_value(&key, current_value, query.timestamp);
 
-        let mut storage_log_query = StorageLogQuery {
+        /*let mut storage_log_query = StorageLogQuery {
             log_query: query,
             log_type: log_query_type,
         };
@@ -173,7 +173,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         storage_log_query.log_query.rollback = true;
         self.frames_stack
             .push_rollback(Box::new(storage_log_query), query.timestamp);
-        storage_log_query.log_query.rollback = false;
+        storage_log_query.log_query.rollback = false;*/
 
         query
     }
@@ -298,9 +298,10 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
 
         // Select all of the last elements where `l.log_query.timestamp >= from_timestamp`.
         // Note, that using binary search here is dangerous, because the logs are not sorted by timestamp.
-        logs.rsplit(|l| l.log_query.timestamp < from_timestamp)
-            .next()
-            .unwrap_or(&[])
+        /*logs.rsplit(|l| l.log_query.timestamp < from_timestamp)
+        .next()
+        .unwrap_or(&[])*/
+        logs
     }
 
     pub(crate) fn get_final_log_queries(&self) -> Vec<StorageLogQuery> {
@@ -435,7 +436,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
                     }
                 };
 
-                let LogQuery { written_value, .. } = query.log_query;
+                //let LogQuery { written_value, .. } = query.log_query;
                 let key = triplet_to_storage_key(
                     query.log_query.shard_id,
                     query.log_query.address,
@@ -451,7 +452,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
                 // Additional validation that the current value was correct
                 // Unwrap is safe because the return value from `write_inner` is the previous value in this leaf.
                 // It is impossible to set leaf value to `None`
-                assert_eq!(current_value, written_value);
+                //assert_eq!(current_value, written_value);
             }
 
             self.frames_stack

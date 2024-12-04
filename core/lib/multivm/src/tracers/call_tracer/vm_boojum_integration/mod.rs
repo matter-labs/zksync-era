@@ -42,7 +42,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
                     .map(|call| call.ergs_remaining + current_ergs)
                     .unwrap_or(current_ergs) as u64;
 
-                let mut current_call = Call {
+                /*let mut current_call = Call {
                     r#type: CallType::Call(far_call.glue_into()),
                     gas: 0,
                     parent_gas,
@@ -53,8 +53,8 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
                     state,
                     memory,
                     &mut current_call,
-                );
-                self.push_call_and_update_stats(current_call, 0);
+                );*/
+                //self.push_call_and_update_stats(current_call, 0);
             }
             Opcode::Ret(ret_code) => {
                 self.handle_ret_op_code_vm_boojum_integration(state, memory, ret_code);
