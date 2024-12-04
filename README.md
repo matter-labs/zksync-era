@@ -3,15 +3,43 @@ This is a modified version of ZKsync ERA node with experimental support of Zk OS
 Running the system:
 Please use the same instructions as for the original ZKsync ERA node:
 ```
-
+zkstack containers
+zkstack ecosystem init
+zkstack server
 ```
 
+On the first server run, the following wallets are funded:
+* 0x27FBEc0B5D2A2B89f77e4D3648bBBBCF11784bdE
+* 0x2eF0972bd8AFc29d63b2412508ce5e20219b9A8c
+
+You can add more keys [here](https://github.com/matter-labs/zksync-era/blob/zkos-dev/core/node/zkos_state_keeper/src/keeper.rs#L188) and restart the server - they will be funded on the startup.
+
+
 Notes:
-The chain id is hardcoded as `37`, as this value is hardcoded on the Zk OS side. 
+* The chain id is hardcoded as `37`, as this value is hardcoded on the Zk OS side.
 
+Missing features:
 
-TODO:
-___
+TODOs and missing features
+**XL**:
+* Gas and pubdata price are hardcoded and/or ignored (zksync-era and zk_ee)
+    * `estimate_gas` returns `u32::MAX` instead of running the transaction
+    * mempool transactions are not filtered
+* Tracing is not implemented (zksync-era and zk_ee)
+* Tree is not persisted and is rebuilt on every start. We need a persistent implementation (zksync-era)
+
+**L**:
+* Current binary is not compatible with the original ZKsync ERA node - we need to support both systems, passing the target mode as binary parameter (zksync-era)
+* L1 Batch and Miniblock header are missing multiple fields. Need to go through them and decide what meaning they have (L, zksync-era and zk_ee)
+* 
+**M**:
+* Genesis is commented out - we need to figure out what's expected there (zksync-era)
+* `zk_ee` [requires](https://github.com/matter-labs/zk_ee/blob/main/forward_system/src/run/tree.rs#L9) `'static` for storage provide - currently `RefCell` is used to satisfy it (zksync-era and zk_ee)
+* Make the error format and conditinos in `eth_call` compatible with Ethereum (zksync-era and zk_ee)
+* Transaction replacement is not supported (M, zksync-era)
+
+**S**:
+* we clone the whole tree in state keeper - at least use RefCell instead (zksync-era)
 
 
 # ZKsync Era: A ZK Rollup For Scaling Ethereum
