@@ -2,9 +2,9 @@ use zksync_types::Transaction;
 
 pub use crate::{
     transaction::{
-        get_deploy_tx, get_deploy_tx_with_gas_limit, get_heavy_load_test_tx,
-        get_load_test_deploy_tx, get_load_test_tx, get_realistic_load_test_tx, get_transfer_tx,
-        LoadTestParams,
+        get_deploy_tx, get_deploy_tx_with_gas_limit, get_erc20_deploy_tx, get_erc20_transfer_tx,
+        get_heavy_load_test_tx, get_load_test_deploy_tx, get_load_test_tx,
+        get_realistic_load_test_tx, get_transfer_tx, LoadTestParams,
     },
     vm::{BenchmarkingVm, BenchmarkingVmFactory, CountInstructions, Fast, Legacy, VmLabel},
 };
