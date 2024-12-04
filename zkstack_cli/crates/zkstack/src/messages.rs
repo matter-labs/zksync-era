@@ -7,6 +7,8 @@ use ethers::{
 use url::Url;
 use zksync_consensus_roles::attester;
 
+use crate::utils::forge::WalletOwner;
+
 pub(super) const MSG_SETUP_KEYS_DOWNLOAD_SELECTION_PROMPT: &str =
     "Do you want to download the setup keys or generate them?";
 pub(super) const MSG_SETUP_KEYS_REGION_PROMPT: &str =
@@ -334,7 +336,15 @@ pub(super) fn msg_explorer_chain_not_initialized(chain: &str) -> String {
 }
 
 /// Forge utils related messages
-pub(super) const MSG_DEPLOYER_PK_NOT_SET_ERR: &str = "Deployer private key is not set";
+pub(super) fn msg_wallet_private_key_not_set(wallet_owner: WalletOwner) -> String {
+    format!(
+        "{} private key is not set",
+        match wallet_owner {
+            WalletOwner::Governor => "Governor",
+            WalletOwner::Deployer => "Deployer",
+        }
+    )
+}
 
 pub(super) fn msg_address_doesnt_have_enough_money_prompt(
     address: &H160,
