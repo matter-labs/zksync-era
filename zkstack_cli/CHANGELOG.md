@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.2.0](https://github.com/matter-labs/zksync-era/compare/zkstack_cli-v0.1.2...zkstack_cli-v0.2.0) (2024-12-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **contracts:** integrate protocol defense changes ([#2737](https://github.com/matter-labs/zksync-era/issues/2737))
+
+### Features
+
+* add `block.timestamp` asserter for AA ([#3031](https://github.com/matter-labs/zksync-era/issues/3031)) ([069d38d](https://github.com/matter-labs/zksync-era/commit/069d38d6c9ddd8b6c404596c479f94b9fc86db40))
+* Add option to run prover images from tag ([#3120](https://github.com/matter-labs/zksync-era/issues/3120)) ([3b532f5](https://github.com/matter-labs/zksync-era/commit/3b532f5e363e0cb093221e6d064ce1a7d7428b52))
+* base token integration tests ([#2509](https://github.com/matter-labs/zksync-era/issues/2509)) ([8db7e93](https://github.com/matter-labs/zksync-era/commit/8db7e9306e5fa23f066be106363e6455531bbc09))
+* **consensus:** Update consensus dependencies ([#3339](https://github.com/matter-labs/zksync-era/issues/3339)) ([aa9575f](https://github.com/matter-labs/zksync-era/commit/aa9575fccbbc941f416d597256442afa974efd0a))
+* **contract-verifier:** Adapt contract verifier API for EVM bytecodes ([#3234](https://github.com/matter-labs/zksync-era/issues/3234)) ([4509179](https://github.com/matter-labs/zksync-era/commit/4509179f62ead4b837dfb67760f52de76fac2e37))
+* **contract-verifier:** Download compilers from GH automatically ([#3291](https://github.com/matter-labs/zksync-era/issues/3291)) ([a10c4ba](https://github.com/matter-labs/zksync-era/commit/a10c4baa312f26ebac2a10115fb7bd314d18b9c1))
+* **contract-verifier:** Support Solidity contracts with EVM bytecode in contract verifier ([#3225](https://github.com/matter-labs/zksync-era/issues/3225)) ([8a3a82c](https://github.com/matter-labs/zksync-era/commit/8a3a82ca16479183e96505bc91011fc07bfc6889))
+* **contracts:** integrate protocol defense changes ([#2737](https://github.com/matter-labs/zksync-era/issues/2737)) ([c60a348](https://github.com/matter-labs/zksync-era/commit/c60a3482ee09b3e371163e62f49e83bc6d6f4548))
+* gateway preparation ([#3006](https://github.com/matter-labs/zksync-era/issues/3006)) ([16f2757](https://github.com/matter-labs/zksync-era/commit/16f275756cd28024a6b11ac1ac327eb5b8b446e1))
+* integrate gateway changes for some components ([#3274](https://github.com/matter-labs/zksync-era/issues/3274)) ([cbc91e3](https://github.com/matter-labs/zksync-era/commit/cbc91e35f84d04f2e4c8e81028596db009e478d1))
+* Prover e2e test ([#2975](https://github.com/matter-labs/zksync-era/issues/2975)) ([0edd796](https://github.com/matter-labs/zksync-era/commit/0edd7962429b3530ae751bd7cc947c97193dd0ca))
+* ProverJobProcessor & circuit prover ([#3287](https://github.com/matter-labs/zksync-era/issues/3287)) ([98823f9](https://github.com/matter-labs/zksync-era/commit/98823f95c0b95feeb37eb9086cc88d4ac5220904))
+* **zk_toolbox:** Add EVM emulator option to `zkstack` CLI ([#3139](https://github.com/matter-labs/zksync-era/issues/3139)) ([ffa18e1](https://github.com/matter-labs/zksync-era/commit/ffa18e1d84a4bb1ca9b897fbc0a55b9e3ef0964c))
+* **zk_toolbox:** Redesign zk_toolbox commands ([#3003](https://github.com/matter-labs/zksync-era/issues/3003)) ([114834f](https://github.com/matter-labs/zksync-era/commit/114834f357421c62d596a1954fac8ce615cfde49))
+* **zkstack_cli:** Add --dev flag to chain init and genesis ([#3152](https://github.com/matter-labs/zksync-era/issues/3152)) ([0aecae1](https://github.com/matter-labs/zksync-era/commit/0aecae1e02d31d34d1ccc0ddf54617174d134e55))
+* **zkstack_cli:** Add status page ([#3036](https://github.com/matter-labs/zksync-era/issues/3036)) ([dd4b7cc](https://github.com/matter-labs/zksync-era/commit/dd4b7cc94e324dfa5a86df09f0cf15642ea2f5c2))
+* **zkstack_cli:** Autocompletion support ([#3097](https://github.com/matter-labs/zksync-era/issues/3097)) ([b29be7d](https://github.com/matter-labs/zksync-era/commit/b29be7d9a8c664beac5d8384548db54de0ba882f))
+* **zkstack_cli:** Build dependencies at zkstack build time ([#3157](https://github.com/matter-labs/zksync-era/issues/3157)) ([724d9a9](https://github.com/matter-labs/zksync-era/commit/724d9a9c7f2127263845b640c843e751fd3c21ae))
+* **zkstack_cli:** use docker-managed volumes ([#3140](https://github.com/matter-labs/zksync-era/issues/3140)) ([ee73a39](https://github.com/matter-labs/zksync-era/commit/ee73a3973b0c65b1d4acef12e4b64db8f813e77d))
+* **zkstack_cli:** Use the same rust toolchain as main repo ([#3230](https://github.com/matter-labs/zksync-era/issues/3230)) ([e69d15b](https://github.com/matter-labs/zksync-era/commit/e69d15b6a80c36a19648a8dd90f567d1e5e108e9))
+* **zkstack:** Introduce `build` and `wait` subcommands for components ([#3240](https://github.com/matter-labs/zksync-era/issues/3240)) ([e92b806](https://github.com/matter-labs/zksync-era/commit/e92b8068d71fec032e498793ff97e329c3d073e0))
+
+
+### Bug Fixes
+
+* add deploy timestamp asserter command ([#3252](https://github.com/matter-labs/zksync-era/issues/3252)) ([88a8940](https://github.com/matter-labs/zksync-era/commit/88a89405898653bf9e1a35a1374e000a8d67cf51))
+* **consensus:** payload encoding protected by protocol_version ([#3168](https://github.com/matter-labs/zksync-era/issues/3168)) ([8089b78](https://github.com/matter-labs/zksync-era/commit/8089b78b3f2cdbe8d0a23e9b8412a8022d78ada2))
+* Run `zkstack dev lint -t autocompletion` to make CI happy. ([#3196](https://github.com/matter-labs/zksync-era/issues/3196)) ([1f8ad26](https://github.com/matter-labs/zksync-era/commit/1f8ad26c7c9757ffa13de1a2fd045fa9e16de5f6))
+* **zkstack_cli:** make progress bar optional in non-terminal envs ([#3146](https://github.com/matter-labs/zksync-era/issues/3146)) ([5092031](https://github.com/matter-labs/zksync-era/commit/5092031050b30c39107df788317a15eaa921b136))
+* **zkstack:** Fix loading genesis before cloning zksync-era repo ([#3271](https://github.com/matter-labs/zksync-era/issues/3271)) ([271033f](https://github.com/matter-labs/zksync-era/commit/271033fe58184252243b2ce7fe3a5a9be919b140))
+* **zkstack:** Fix wrong missing private key message ([#3334](https://github.com/matter-labs/zksync-era/issues/3334)) ([aaca32b](https://github.com/matter-labs/zksync-era/commit/aaca32b6ab411d5cdc1234c20af8b5c1092195d7))
+* **zkstack:** Move installation always to .local/bin ([#3108](https://github.com/matter-labs/zksync-era/issues/3108)) ([223e4dd](https://github.com/matter-labs/zksync-era/commit/223e4dd59414904f2b26afffc4b72bb78266b783))
+
 ## [0.1.2](https://github.com/matter-labs/zksync-era/compare/zk_toolbox-v0.1.1...zk_toolbox-v0.1.2) (2024-08-20)
 
 
