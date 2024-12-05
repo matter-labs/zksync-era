@@ -9,7 +9,7 @@ use zksync_config::{
         da_client::DAClientConfig, gateway::GatewayChainConfig, secrets::DataAvailabilitySecrets,
         wallets::Wallets, GeneralConfig, Secrets,
     },
-    ContractsConfig, GenesisConfig,
+    AvailConfig, ContractsConfig, GenesisConfig,
 };
 use zksync_core_leftovers::Component;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
@@ -72,7 +72,10 @@ use zksync_node_framework::{
     service::{ZkStackService, ZkStackServiceBuilder},
 };
 use zksync_types::{
-    pubdata_da::PubdataSendingMode, settlement::SettlementMode, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+    commitment::{DAClientType, L1BatchCommitmentMode},
+    pubdata_da::PubdataSendingMode,
+    settlement::SettlementMode,
+    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
 };
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
@@ -116,6 +119,19 @@ impl MainNodeBuilder {
 
     pub fn runtime_handle(&self) -> tokio::runtime::Handle {
         self.node.runtime_handle()
+    }
+
+    pub fn get_da_client_type(&self) -> Option<DAClientType> {
+        if self.genesis_config.l1_batch_commit_data_generator_mode {
+            return None;
+        }
+
+        Some(match self.configs.da_client_config.clone() {
+            DAClientConfig::Avail(_) => DAClientType::Avail,
+            DAClientConfig::Celestia(_) => DAClientType::Celestia,
+            DAClientConfig::Eigen(_) => DAClientType::Eigen,
+            DAClientConfig::ObjectStore(_) => DAClientType::ObjectStore,
+        })
     }
 
     fn add_sigint_handler_layer(mut self) -> anyhow::Result<Self> {
@@ -250,7 +266,7 @@ impl MainNodeBuilder {
             try_load_config!(self.configs.mempool_config),
             try_load_config!(wallets.state_keeper),
             self.contracts_config.l2_da_validator_addr,
-            self.genesis_config.l1_batch_commit_data_generator_mode,
+            self.get_da_client_type(),
         );
         let db_config = try_load_config!(self.configs.db_config);
         let experimental_vm_config = self

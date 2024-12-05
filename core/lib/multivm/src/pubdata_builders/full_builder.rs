@@ -12,17 +12,17 @@ use super::utils::{
 use crate::interface::pubdata::{PubdataBuilder, PubdataInput};
 
 #[derive(Debug, Clone, Copy)]
-pub struct RollupPubdataBuilder {
+pub struct FullPubdataBuilder {
     pub l2_da_validator: Address,
 }
 
-impl RollupPubdataBuilder {
+impl FullPubdataBuilder {
     pub fn new(l2_da_validator: Address) -> Self {
         Self { l2_da_validator }
     }
 }
 
-impl PubdataBuilder for RollupPubdataBuilder {
+impl PubdataBuilder for FullPubdataBuilder {
     fn l2_da_validator(&self) -> Address {
         self.l2_da_validator
     }

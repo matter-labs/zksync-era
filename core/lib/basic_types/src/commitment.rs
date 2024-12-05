@@ -59,7 +59,32 @@ impl FromStr for L1BatchCommitmentMode {
 }
 
 #[derive(Default, Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum DAClientType {
+    #[default]
+    NoDA,
+    Avail,
+    Celestia,
+    Eigen,
+    ObjectStore,
+}
+
+impl FromStr for DAClientType {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "NoDA" => Ok(Self::NoDA),
+            "Avail" => Ok(Self::Avail),
+            "Celestia" => Ok(Self::Celestia),
+            "Eigen" => Ok(Self::Eigen),
+            "ObjectStore" => Ok(Self::ObjectStore),
+            _ => Err("Incorrect DA client type; expected one of `NoDA`, `Avail`, `Celestia`, `Eigen`, `ObjectStore`"),
+        }
+    }
+}
+
+#[derive(Default, Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PubdataParams {
     pub l2_da_validator_address: Address,
-    pub pubdata_type: L1BatchCommitmentMode,
+    pub da_client_type: Option<DAClientType>,
 }

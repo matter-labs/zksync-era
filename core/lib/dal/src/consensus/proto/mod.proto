@@ -31,7 +31,7 @@ message Payload {
 
 message PubdataParams {
   optional bytes l2_da_validator_address = 1; // required; H160
-  optional L1BatchCommitDataGeneratorMode pubdata_type = 2; // required
+  optional DAClientType da_client_type = 2; // optional, if not set - the chain is a Rollup
 }
 
 message L1Transaction {
@@ -149,7 +149,10 @@ message AttestationStatus {
   optional uint64 next_batch_to_attest = 2; // required
 }
 
-enum L1BatchCommitDataGeneratorMode {
-  Rollup = 0;
-  Validium = 1;
+enum DAClientType {
+    NoDA = 0;
+    Avail = 1;
+    Celestia = 2;
+    Eigen = 3;
+    ObjectStore = 4;
 }

@@ -2,27 +2,28 @@ use zksync_types::{
     ethabi,
     ethabi::{ParamType, Token},
     l2_to_l1_log::l2_to_l1_logs_tree_size,
+    web3::keccak256,
     Address, ProtocolVersionId,
 };
 
 use super::utils::{
     build_chained_bytecode_hash, build_chained_log_hash, build_chained_message_hash,
-    build_logs_root, extend_from_pubdata_input,
+    build_logs_root, encode_user_logs,
 };
 use crate::interface::pubdata::{PubdataBuilder, PubdataInput};
 
 #[derive(Debug, Clone, Copy)]
-pub struct ValidiumPubdataBuilder {
+pub struct HashedPubdataBuilder {
     pub l2_da_validator: Address,
 }
 
-impl ValidiumPubdataBuilder {
+impl HashedPubdataBuilder {
     pub fn new(l2_da_validator: Address) -> Self {
         Self { l2_da_validator }
     }
 }
 
-impl PubdataBuilder for ValidiumPubdataBuilder {
+impl PubdataBuilder for HashedPubdataBuilder {
     fn l2_da_validator(&self) -> Address {
         self.l2_da_validator
     }
@@ -34,17 +35,11 @@ impl PubdataBuilder for ValidiumPubdataBuilder {
     ) -> Vec<u8> {
         assert!(
             !protocol_version.is_pre_gateway(),
-            "ValidiumPubdataBuilder must not be called for pre gateway"
+            "HashedPubdataBuilder must not be called for pre gateway"
         );
 
         let mut pubdata = vec![];
-        extend_from_pubdata_input(&mut pubdata, input);
-
-        // Extend with uncompressed state diffs.
-        pubdata.extend((input.state_diffs.len() as u32).to_be_bytes());
-        for state_diff in &input.state_diffs {
-            pubdata.extend(state_diff.encode_padded());
-        }
+        pubdata.extend(encode_user_logs(&input.user_logs));
 
         let chained_log_hash = build_chained_log_hash(&input.user_logs);
         let log_root_hash =
@@ -84,12 +79,15 @@ impl PubdataBuilder for ValidiumPubdataBuilder {
     ) -> Vec<u8> {
         assert!(
             !protocol_version.is_pre_gateway(),
-            "ValidiumPubdataBuilder must not be called for pre gateway"
+            "HashedPubdataBuilder must not be called for pre gateway"
         );
 
-        let mut pubdata = vec![];
-        extend_from_pubdata_input(&mut pubdata, input);
+        let state_diffs_packed = input
+            .state_diffs
+            .iter()
+            .flat_map(|diff| diff.encode_padded())
+            .collect::<Vec<_>>();
 
-        pubdata
+        keccak256(&state_diffs_packed).to_vec()
     }
 }
