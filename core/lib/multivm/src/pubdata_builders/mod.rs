@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 pub use full_builder::FullPubdataBuilder;
 pub use hashed_builder::HashedPubdataBuilder;
-use zksync_types::commitment::{DAClientType, L1BatchCommitmentMode, PubdataParams};
+use zksync_types::commitment::{DAClientType, PubdataParams};
 
 use crate::interface::pubdata::PubdataBuilder;
 

@@ -9,7 +9,7 @@ use zksync_config::{
         da_client::DAClientConfig, gateway::GatewayChainConfig, secrets::DataAvailabilitySecrets,
         wallets::Wallets, GeneralConfig, Secrets,
     },
-    AvailConfig, ContractsConfig, GenesisConfig,
+    ContractsConfig, GenesisConfig,
 };
 use zksync_core_leftovers::Component;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
@@ -122,11 +122,16 @@ impl MainNodeBuilder {
     }
 
     pub fn get_da_client_type(&self) -> Option<DAClientType> {
-        if self.genesis_config.l1_batch_commit_data_generator_mode {
+        if self.genesis_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup
+        {
             return None;
         }
 
-        Some(match self.configs.da_client_config.clone() {
+        let Some(da_client_config) = self.configs.da_client_config.clone() else {
+            return Some(DAClientType::NoDA);
+        };
+
+        Some(match da_client_config {
             DAClientConfig::Avail(_) => DAClientType::Avail,
             DAClientConfig::Celestia(_) => DAClientType::Celestia,
             DAClientConfig::Eigen(_) => DAClientType::Eigen,

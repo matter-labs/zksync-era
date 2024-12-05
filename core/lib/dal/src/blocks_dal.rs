@@ -843,7 +843,7 @@ impl BlocksDal<'_, '_> {
                 gas_limit,
                 logs_bloom,
                 l2_da_validator_address,
-                pubdata_type,
+                da_client_type,
                 created_at,
                 updated_at
             )
@@ -905,7 +905,10 @@ impl BlocksDal<'_, '_> {
                 .pubdata_params
                 .l2_da_validator_address
                 .as_bytes(),
-            l2_block_header.pubdata_params.pubdata_type.to_string(),
+            l2_block_header
+                .pubdata_params
+                .da_client_type
+                .map(|t| t.to_string()),
         );
 
         instrumentation.with(query).execute(self.storage).await?;
@@ -936,7 +939,7 @@ impl BlocksDal<'_, '_> {
                 gas_limit,
                 logs_bloom,
                 l2_da_validator_address,
-                pubdata_type
+                da_client_type
             FROM
                 miniblocks
             ORDER BY
@@ -979,7 +982,7 @@ impl BlocksDal<'_, '_> {
                 gas_limit,
                 logs_bloom,
                 l2_da_validator_address,
-                pubdata_type
+                da_client_type
             FROM
                 miniblocks
             WHERE

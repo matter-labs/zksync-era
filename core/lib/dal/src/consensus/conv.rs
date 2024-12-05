@@ -5,7 +5,7 @@ use zksync_consensus_roles::{attester, node};
 use zksync_protobuf::{read_optional_repr, read_required, required, ProtoFmt, ProtoRepr};
 use zksync_types::{
     abi,
-    commitment::{DAClientType, L1BatchCommitmentMode, PubdataParams},
+    commitment::{DAClientType, PubdataParams},
     ethabi,
     fee::Fee,
     h256_to_u256,
@@ -114,7 +114,7 @@ impl ProtoRepr for proto::PubdataParams {
                 .context("l2_da_validator_address")?,
             da_client_type: self
                 .da_client_type
-                .and_then(|x| proto::DaClientType::try_from(*x).ok().map(|t| t.parse())),
+                .and_then(|x| proto::DaClientType::try_from(x).ok().map(|t| t.parse())),
         })
     }
 
@@ -570,16 +570,6 @@ impl ProtoRepr for proto::AttesterCommittee {
 }
 
 impl proto::DaClientType {
-    pub(crate) fn new(n: &DAClientType) -> Self {
-        match n {
-            DAClientType::NoDA => Self::NoDa,
-            DAClientType::Avail => Self::Avail,
-            DAClientType::Celestia => Self::Celestia,
-            DAClientType::Eigen => Self::Eigen,
-            DAClientType::ObjectStore => Self::ObjectStore,
-        }
-    }
-
     pub(crate) fn parse(&self) -> DAClientType {
         match self {
             Self::NoDa => DAClientType::NoDA,

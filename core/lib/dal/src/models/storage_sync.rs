@@ -4,7 +4,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::error::SqlxContext;
 use zksync_types::{
     api::en,
-    commitment::{DAClientType, L1BatchCommitmentMode, PubdataParams},
+    commitment::{DAClientType, PubdataParams},
     parse_h160, parse_h256, parse_h256_opt, Address, L1BatchNumber, L2BlockNumber,
     ProtocolVersionId, Transaction, H256,
 };

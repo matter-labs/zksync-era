@@ -58,7 +58,7 @@ impl FromStr for L1BatchCommitmentMode {
     }
 }
 
-#[derive(Default, Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Copy, Debug, Clone, PartialEq, Serialize, Deserialize, Display)]
 pub enum DAClientType {
     #[default]
     NoDA,

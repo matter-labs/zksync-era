@@ -15,7 +15,7 @@ use zksync_multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     block::UnsealedL1BatchHeader,
-    commitment::{DAClientType, L1BatchCommitmentMode, PubdataParams},
+    commitment::{DAClientType, PubdataParams},
     protocol_upgrade::ProtocolUpgradeTx,
     utils::display_timestamp,
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
