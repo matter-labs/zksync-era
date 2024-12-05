@@ -2304,11 +2304,15 @@ dependencies = [
 name = "custom_genesis_export"
 version = "0.1.0"
 dependencies = [
- "bincode",
+ "anyhow",
  "clap 4.5.20",
  "futures 0.3.31",
  "sqlx",
  "tokio",
+ "zksync_contracts",
+ "zksync_core_leftovers",
+ "zksync_node_genesis",
+ "zksync_protobuf_config",
  "zksync_types",
 ]
 
