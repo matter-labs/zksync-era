@@ -8235,6 +8235,7 @@ dependencies = [
  "secrecy 0.8.0",
  "serde",
  "tracing",
+ "url",
  "zksync_basic_types",
  "zksync_concurrency",
  "zksync_consensus_utils",

@@ -1,6 +1,6 @@
 use std::{fmt, future::Future, time::Duration};
 
-use anyhow::Context as _;
+use anyhow::Context;
 use clap::Parser;
 use common::logger;
 use reqwest::StatusCode;

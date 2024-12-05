@@ -363,6 +363,8 @@ async fn init_chains(
 
         let chain_init_args = chain::args::init::InitArgs {
             forge_args: final_init_args.forge_args.clone(),
+            mode: genesis_args.mode.clone(),
+            tag: genesis_args.tag.clone(),
             server_db_url: genesis_args.server_db_url.clone(),
             server_db_name: genesis_args.server_db_name.clone(),
             dont_drop: genesis_args.dont_drop,
@@ -371,7 +373,7 @@ async fn init_chains(
             no_port_reallocation: final_init_args.no_port_reallocation,
             dev: final_init_args.dev,
         };
-        let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
+        let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config).await;
 
         chain::init::init(
             &final_chain_init_args,
