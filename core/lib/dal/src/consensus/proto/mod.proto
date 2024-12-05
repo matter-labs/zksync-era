@@ -31,7 +31,8 @@ message Payload {
 
 message PubdataParams {
   optional bytes l2_da_validator_address = 1; // required; H160
-  optional DAClientType da_client_type = 2; // optional, if not set - the chain is a Rollup
+  optional DAClientType da_client_type = 3; // optional, if not set - the chain is a Rollup
+  reserved 2; reserved "pubdata_type";
 }
 
 message L1Transaction {
