@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            tee_proof_generation_details (\n                l1_batch_number, tee_type, status, created_at, updated_at, prover_taken_at\n            )\n            VALUES\n            (\n                $1,\n                $2,\n                $3,\n                NOW(),\n                NOW(),\n                NOW()\n            )\n            ON CONFLICT (l1_batch_number, tee_type) DO\n            UPDATE\n            SET\n            status = $3,\n            updated_at = NOW(),\n            prover_taken_at = NOW()\n            RETURNING\n            l1_batch_number,\n            created_at\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "4777de5d3f313f1eb8c3b6a4c1782b0fa233913582fe9091cc1e8954dfd0eb1b"
+}

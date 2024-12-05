@@ -132,7 +132,7 @@ impl InitParameters {
 
         let (l1_batch, l2_block);
         let mut expected_root_hash = None;
-        match (recovery_status, pruning_info.last_hard_pruned_l2_block) {
+        match (recovery_status, pruning_info.last_hard_pruned) {
             (Some(recovery), None) => {
                 tracing::warn!(
                     "Snapshot recovery {recovery:?} is present on the node, but pruning info is empty; assuming no pruning happened"
@@ -141,21 +141,20 @@ impl InitParameters {
                 l2_block = recovery.l2_block_number;
                 expected_root_hash = Some(recovery.l1_batch_root_hash);
             }
-            (Some(recovery), Some(pruned_l2_block)) => {
+            (Some(recovery), Some(pruned)) => {
                 // We have both recovery and some pruning on top of it.
-                l2_block = pruned_l2_block.max(recovery.l2_block_number);
-                l1_batch = pruning_info
-                    .last_hard_pruned_l1_batch
-                    .with_context(|| format!("malformed pruning info: {pruning_info:?}"))?;
-                if l1_batch == recovery.l1_batch_number {
+                l2_block = pruned.l2_block.max(recovery.l2_block_number);
+                l1_batch = pruned.l1_batch;
+                if let Some(root_hash) = pruned.l1_batch_root_hash {
+                    expected_root_hash = Some(root_hash);
+                } else if l1_batch == recovery.l1_batch_number {
                     expected_root_hash = Some(recovery.l1_batch_root_hash);
                 }
             }
-            (None, Some(pruned_l2_block)) => {
-                l2_block = pruned_l2_block;
-                l1_batch = pruning_info
-                    .last_hard_pruned_l1_batch
-                    .with_context(|| format!("malformed pruning info: {pruning_info:?}"))?;
+            (None, Some(pruned)) => {
+                l2_block = pruned.l2_block;
+                l1_batch = pruned.l1_batch;
+                expected_root_hash = pruned.l1_batch_root_hash;
             }
             (None, None) => return Ok(None),
         };
@@ -384,9 +383,9 @@ impl AsyncTreeRecovery {
         snapshot_l2_block: L2BlockNumber,
     ) -> anyhow::Result<()> {
         let pruning_info = storage.pruning_dal().get_pruning_info().await?;
-        if let Some(last_hard_pruned_l2_block) = pruning_info.last_hard_pruned_l2_block {
+        if let Some(pruned) = pruning_info.last_hard_pruned {
             anyhow::ensure!(
-                last_hard_pruned_l2_block == snapshot_l2_block,
+                pruned.l2_block == snapshot_l2_block,
                 "Additional data was pruned compared to tree recovery L2 block #{snapshot_l2_block}: {pruning_info:?}. \
                  Continuing recovery is impossible; to recover the tree, drop its RocksDB directory, stop pruning and restart recovery"
             );

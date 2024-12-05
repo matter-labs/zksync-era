@@ -11,6 +11,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+serde.workspace = true
 vise.workspace = true
 tracing.workspace = true
 zksync_types.workspace = true

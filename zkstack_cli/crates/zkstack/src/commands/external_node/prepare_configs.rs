@@ -74,7 +74,6 @@ fn prepare_configs(
                 .http_url,
         )?,
         main_node_rate_limit_rps: None,
-        gateway_url: None,
         bridge_addresses_refresh_interval_sec: None,
     };
     let mut general_en = general.clone();
@@ -112,6 +111,7 @@ fn prepare_configs(
         }),
         l1: Some(L1Secrets {
             l1_rpc_url: SensitiveUrl::from_str(&args.l1_rpc_url).context("l1_rpc_url")?,
+            gateway_rpc_url: None,
         }),
         data_availability: None,
     };

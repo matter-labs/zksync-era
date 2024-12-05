@@ -5,15 +5,9 @@ use std::{
 
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_mempool::{L2TxFilter, MempoolInfo, MempoolStore};
-use zksync_multivm::interface::{VmExecutionMetrics, VmExecutionResultAndLogs};
-use zksync_types::{
-    block::BlockGasCount, Address, Nonce, PriorityOpId, Transaction, TransactionTimeRangeConstraint,
-};
+use zksync_types::{Address, Nonce, PriorityOpId, Transaction, TransactionTimeRangeConstraint};
 
-use super::{
-    metrics::StateKeeperGauges,
-    utils::{gas_count_from_metrics, gas_count_from_tx_and_metrics},
-};
+use super::metrics::StateKeeperGauges;
 
 #[derive(Debug, Clone)]
 pub struct MempoolGuard(Arc<Mutex<MempoolStore>>);
@@ -99,29 +93,5 @@ impl MempoolGuard {
 
     pub fn register_metrics(&self) {
         StateKeeperGauges::register(Arc::downgrade(&self.0));
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ExecutionMetricsForCriteria {
-    pub l1_gas: BlockGasCount,
-    pub execution_metrics: VmExecutionMetrics,
-}
-
-impl ExecutionMetricsForCriteria {
-    pub fn new(
-        tx: Option<&Transaction>,
-        execution_result: &VmExecutionResultAndLogs,
-    ) -> ExecutionMetricsForCriteria {
-        let execution_metrics = execution_result.get_execution_metrics(tx);
-        let l1_gas = match tx {
-            Some(tx) => gas_count_from_tx_and_metrics(tx, &execution_metrics),
-            None => gas_count_from_metrics(&execution_metrics),
-        };
-
-        ExecutionMetricsForCriteria {
-            l1_gas,
-            execution_metrics,
-        }
     }
 }
