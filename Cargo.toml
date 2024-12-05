@@ -79,7 +79,6 @@ members = [
   # Test infrastructure
   "core/tests/loadnext",
   "core/tests/vm-benchmark",
-  "core/lib/bin_metadata",
 ]
 resolver = "2"
 

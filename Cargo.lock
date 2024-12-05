@@ -11158,16 +11158,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_bin_metadata"
-version = "0.1.0"
-dependencies = [
- "rustc_version 0.4.1",
- "serde",
- "tracing",
- "vise",
-]
-
-[[package]]
 name = "zksync_block_reverter"
 version = "0.1.0"
 dependencies = [
@@ -11848,7 +11838,6 @@ dependencies = [
  "zksync_object_store",
  "zksync_protobuf_config",
  "zksync_reorg_detector",
- "zksync_shared_metrics",
  "zksync_snapshots_applier",
  "zksync_state",
  "zksync_state_keeper",
@@ -11938,7 +11927,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_bin_metadata",
 ]
 
 [[package]]
@@ -12275,7 +12263,6 @@ dependencies = [
  "tracing",
  "trybuild",
  "zksync_base_token_adjuster",
- "zksync_bin_metadata",
  "zksync_block_reverter",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",
@@ -12622,10 +12609,10 @@ dependencies = [
 name = "zksync_shared_metrics"
 version = "0.1.0"
 dependencies = [
+ "rustc_version 0.4.1",
  "serde",
  "tracing",
  "vise",
- "zksync_bin_metadata",
  "zksync_dal",
  "zksync_types",
 ]
