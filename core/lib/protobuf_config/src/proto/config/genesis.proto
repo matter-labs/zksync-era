@@ -29,5 +29,6 @@ message Genesis {
   optional L1BatchCommitDataGeneratorMode l1_batch_commit_data_generator_mode = 29; // optional, default to rollup
   optional string genesis_protocol_semantic_version = 12; // optional;
   optional string evm_emulator_hash = 13; // optional; h256
+  optional string custom_genesis_state_path = 14; // optional;
   reserved 11; reserved "shared_bridge";
 }

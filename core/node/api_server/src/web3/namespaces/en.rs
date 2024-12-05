@@ -222,6 +222,8 @@ impl EnNamespace {
                 .state
                 .api_config
                 .l1_batch_commit_data_generator_mode,
+            // external node should initialise itself from a snapshot
+            custom_genesis_state_path: None,
         };
         Ok(config)
     }

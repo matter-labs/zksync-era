@@ -2,7 +2,7 @@
 //! It initializes the Merkle tree with the basic setup (such as fields of special service accounts),
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
-use std::{collections::HashMap, fmt::Formatter, fs::File};
+use std::{collections::HashMap, fmt::Formatter};
 
 use anyhow::Context as _;
 use export::GenesisExportReader;
@@ -81,7 +81,6 @@ pub enum GenesisError {
 pub struct GenesisParams {
     base_system_contracts: BaseSystemContracts,
     system_contracts: Vec<DeployedContract>,
-    genesis_export_reader: Option<GenesisExportReader>,
     config: GenesisConfig,
 }
 
@@ -94,41 +93,6 @@ impl GenesisParams {
     }
     pub fn config(&self) -> &GenesisConfig {
         &self.config
-    }
-
-    pub fn storage_logs(&self) -> Vec<StorageLog> {
-        // TODO: Do we want to combine the custom genesis with system contracts or replace them (as is the current strategy)?
-        if let Some(ref e) = self.genesis_export_reader {
-            // TODO: This loads all of the exported storage logs into memory at
-            // once. Since the intended use-case of this feature is for
-            // exceptionally large states, this might not actually work.
-
-            e.storage_logs().map(Into::into).collect()
-        } else {
-            get_storage_logs(&self.system_contracts)
-        }
-    }
-
-    pub fn factory_deps(&self) -> HashMap<H256, Vec<u8>> {
-        if let Some(ref e) = self.genesis_export_reader {
-            e.factory_deps()
-                .map(|f| (f.bytecode_hash, f.bytecode))
-                .collect()
-        } else {
-            // TODO: Optimize. The call to `get_storage_logs` in the
-            // `storage_logs` implementation calls `hash_bytecode` on all of
-            // the system contracts already; there should be some way to avoid
-            // duplicating all of that work.
-            self.system_contracts
-                .iter()
-                .map(|c| {
-                    (
-                        BytecodeHash::for_bytecode(&c.bytecode).value(),
-                        c.bytecode.clone(),
-                    )
-                })
-                .collect()
-        }
     }
 
     pub fn from_genesis_config(
@@ -156,16 +120,9 @@ impl GenesisParams {
         if config.protocol_version.is_none() {
             return Err(GenesisError::MalformedConfig("protocol_version"));
         }
-        eprintln!("About to load custom genesis...");
-        let path =
-            "/Users/jacob/Projects/zksync-era/core/bin/custom_genesis_export/usermanager.bin";
-        let genesis_export_reader = Some(GenesisExportReader::new(
-            File::open(path).expect("custom genesis file could not be opened"),
-        ));
         Ok(GenesisParams {
             base_system_contracts,
             system_contracts,
-            genesis_export_reader,
             config,
         })
     }
@@ -183,7 +140,6 @@ impl GenesisParams {
         Self {
             base_system_contracts: BaseSystemContracts::load_from_disk(),
             system_contracts: get_system_smart_contracts(false),
-            genesis_export_reader: None,
             config: mock_genesis_config(),
         }
     }
@@ -231,6 +187,7 @@ pub fn mock_genesis_config() -> GenesisConfig {
         fee_account: Default::default(),
         dummy_verifier: false,
         l1_batch_commit_data_generator_mode: Default::default(),
+        custom_genesis_state_path: None,
     }
 }
 
@@ -276,22 +233,45 @@ pub fn make_genesis_batch_params(
     )
 }
 
-// Insert genesis batch into the database
-pub async fn insert_genesis_batch(
+pub async fn insert_genesis_batch_with_custom_state(
     storage: &mut Connection<'_, Core>,
     genesis_params: &GenesisParams,
+    custom_genesis_state: Option<GenesisExportReader>,
 ) -> Result<GenesisBatchParams, GenesisError> {
     let mut transaction = storage.start_transaction().await?;
     let verifier_config = L1VerifierConfig {
         snark_wrapper_vk_hash: genesis_params.config.snark_wrapper_vk_hash,
     };
 
+    let (storage_logs, factory_deps): (Vec<StorageLog>, HashMap<H256, Vec<u8>>) =
+        match custom_genesis_state {
+            Some(r) => (
+                r.storage_logs().map(Into::into).collect(),
+                r.factory_deps()
+                    .map(|f| (f.bytecode_hash, f.bytecode))
+                    .collect(),
+            ),
+            None => (
+                get_storage_logs(&genesis_params.system_contracts),
+                genesis_params
+                    .system_contracts
+                    .iter()
+                    .map(|c| {
+                        (
+                            BytecodeHash::for_bytecode(&c.bytecode).value(),
+                            c.bytecode.clone(),
+                        )
+                    })
+                    .collect(),
+            ),
+        };
+
     create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         &mut transaction,
         genesis_params.protocol_version(),
         genesis_params.base_system_contracts(),
-        &genesis_params.storage_logs(),
-        genesis_params.factory_deps(),
+        storage_logs.as_slice(),
+        factory_deps,
         verifier_config,
     )
     .await?;
@@ -310,7 +290,7 @@ pub async fn insert_genesis_batch(
     };
 
     let (genesis_batch_params, block_commitment) = make_genesis_batch_params(
-        &genesis_params.storage_logs(),
+        storage_logs.as_slice(),
         base_system_contract_hashes,
         genesis_params.minor_protocol_version(),
     );
@@ -325,6 +305,14 @@ pub async fn insert_genesis_batch(
     transaction.commit().await?;
 
     Ok(genesis_batch_params)
+}
+
+// Insert genesis batch into the database
+pub async fn insert_genesis_batch(
+    storage: &mut Connection<'_, Core>,
+    genesis_params: &GenesisParams,
+) -> Result<GenesisBatchParams, GenesisError> {
+    insert_genesis_batch_with_custom_state(storage, genesis_params, None).await
 }
 
 pub async fn is_genesis_needed(storage: &mut Connection<'_, Core>) -> Result<bool, GenesisError> {
@@ -377,6 +365,7 @@ pub async fn validate_genesis_params(
 pub async fn ensure_genesis_state(
     storage: &mut Connection<'_, Core>,
     genesis_params: &GenesisParams,
+    custom_genesis_state: Option<GenesisExportReader>,
 ) -> Result<H256, GenesisError> {
     let mut transaction = storage.start_transaction().await?;
 
@@ -394,7 +383,12 @@ pub async fn ensure_genesis_state(
         root_hash,
         commitment,
         rollup_last_leaf_index,
-    } = insert_genesis_batch(&mut transaction, genesis_params).await?;
+    } = insert_genesis_batch_with_custom_state(
+        &mut transaction,
+        genesis_params,
+        custom_genesis_state,
+    )
+    .await?;
 
     let expected_root_hash = genesis_params
         .config

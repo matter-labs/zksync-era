@@ -99,6 +99,7 @@ impl ProtoRepr for proto::Genesis {
             .and_then(|x| Ok(proto::L1BatchCommitDataGeneratorMode::try_from(*x)?))
             .context("l1_batch_commit_data_generator_mode")?
             .parse(),
+            custom_genesis_state_path: self.custom_genesis_state_path.clone(),
         })
     }
 
@@ -126,6 +127,7 @@ impl ProtoRepr for proto::Genesis {
                 )
                 .into(),
             ),
+            custom_genesis_state_path: this.custom_genesis_state_path.clone(),
         }
     }
 }

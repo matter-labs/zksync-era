@@ -1,8 +1,10 @@
+use std::fs::File;
+
 use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_config::{ContractsConfig, GenesisConfig};
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
-use zksync_node_genesis::GenesisParams;
+use zksync_node_genesis::{export::GenesisExportReader, GenesisParams};
 use zksync_web3_decl::client::{DynClient, L1};
 
 use crate::traits::InitializeStorage;
@@ -36,7 +38,21 @@ impl InitializeStorage for MainNodeGenesis {
             self.contracts.diamond_proxy_addr,
         )
         .await?;
-        zksync_node_genesis::ensure_genesis_state(&mut storage, &params).await?;
+
+        let custom_genesis_state_reader = match &self.genesis.custom_genesis_state_path {
+            Some(path) => {
+                let file = File::open(path)?;
+                Some(GenesisExportReader::new(file))
+            }
+            None => None,
+        };
+
+        zksync_node_genesis::ensure_genesis_state(
+            &mut storage,
+            &params,
+            custom_genesis_state_reader,
+        )
+        .await?;
 
         if let Some(ecosystem_contracts) = &self.contracts.ecosystem_contracts {
             zksync_node_genesis::save_set_chain_id_tx(

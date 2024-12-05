@@ -26,6 +26,7 @@ impl InitializeStorage for ExternalNodeGenesis {
             &mut storage,
             self.l2_chain_id,
             &self.client.clone().for_component("genesis"),
+            None,
         )
         .await
         .context("performing genesis failed")

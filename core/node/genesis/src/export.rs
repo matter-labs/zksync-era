@@ -5,11 +5,7 @@ use std::{
     os::unix::fs::FileExt,
 };
 
-use zksync_config::GenesisConfig;
-use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{AccountTreeId, Address, StorageKey, StorageLog, H160, H256};
-
-use crate::{make_genesis_batch_params, GenesisBatchParams};
 
 #[derive(Debug, Clone)]
 pub struct InitialWriteExport {
@@ -59,27 +55,6 @@ fn randreadn<const N: usize>(file: &File, at: usize) -> [u8; N] {
 impl GenesisExportReader {
     const INITIAL_WRITE_EXPORT_SIZE: usize = 32 + 8;
     const STORAGE_LOG_EXPORT_SIZE: usize = 20 + 32 + 32;
-
-    pub fn genesis_batch_params(&self, genesis_config: &GenesisConfig) -> GenesisBatchParams {
-        let base_system_contract_hashes = BaseSystemContractsHashes {
-            bootloader: genesis_config
-                .bootloader_hash
-                .expect("Missing bootloader hash"),
-            default_aa: genesis_config
-                .default_aa_hash
-                .expect("Missing default AA hash"),
-            evm_emulator: genesis_config.evm_emulator_hash,
-        };
-        make_genesis_batch_params(
-            self.storage_logs()
-                .map(Into::into)
-                .collect::<Vec<_>>()
-                .as_slice(),
-            base_system_contract_hashes,
-            genesis_config.protocol_version.unwrap().minor,
-        )
-        .0
-    }
 
     pub fn new(file: File) -> Self {
         let initial_writes_count = usize::from_le_bytes(randreadn(&file, 0));
@@ -219,7 +194,9 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore]
     fn test_genesis_reader() {
+        // TODO: include a sample file into the project
         let path = "/Users/jacob/Projects/zksync-era/core/bin/custom_genesis_export/g2.bin";
         let reader = GenesisExportReader::new(File::open(path).unwrap());
 

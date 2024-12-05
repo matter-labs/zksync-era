@@ -1,14 +1,11 @@
-use std::path::{Path, PathBuf};
-
 use anyhow::Context;
 use common::logger;
 use config::{
     copy_configs, set_l1_rpc_url, traits::SaveConfigWithBasePath, update_from_chain_config,
-    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig,
+    ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use ethers::types::Address;
 use xshell::Shell;
-use zksync_node_genesis::export::GenesisExportReader;
 
 use crate::{
     commands::{
@@ -38,20 +35,6 @@ pub async fn run(args: InitConfigsArgs, shell: &Shell) -> anyhow::Result<()> {
     init_configs(&args, shell, &ecosystem_config, &chain_config).await?;
     logger::outro(MSG_CHAIN_CONFIGS_INITIALIZED);
 
-    Ok(())
-}
-
-pub fn update_from_state_override(
-    genesis: &mut config::GenesisConfig,
-    state_override_path: &Path,
-) -> anyhow::Result<()> {
-    let state_override_file = std::fs::File::open(state_override_path)
-        .expect("State override file does not exist or could not be accessed");
-    let reader = GenesisExportReader::new(state_override_file);
-    let genesis_batch_params = reader.genesis_batch_params(genesis);
-    genesis.genesis_root_hash = Some(genesis_batch_params.root_hash);
-    genesis.genesis_commitment = Some(genesis_batch_params.commitment);
-    genesis.rollup_last_leaf_index = Some(genesis_batch_params.rollup_last_leaf_index);
     Ok(())
 }
 
@@ -98,14 +81,6 @@ pub async fn init_configs(
 
     // Initialize genesis config
     let mut genesis_config = chain_config.get_genesis_config()?;
-    // TODO: Update from state override
-    // if let Some(ref state_override) = init_args.genesis_args.state_override {
-    let state_override: PathBuf =
-        "/Users/jacob/Projects/zksync-era/core/bin/custom_genesis_export/usermanager.bin"
-            .parse()
-            .unwrap();
-    update_from_state_override(&mut genesis_config, &state_override)?;
-    // }
     update_from_chain_config(&mut genesis_config, chain_config)?;
     genesis_config.save_with_base_path(shell, &chain_config.configs)?;
 
