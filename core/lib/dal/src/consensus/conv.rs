@@ -112,7 +112,7 @@ impl ProtoRepr for proto::PubdataParams {
             l2_da_validator_address: required(&self.l2_da_validator_address)
                 .and_then(|a| parse_h160(a))
                 .context("l2_da_validator_address")?,
-            pubdata_type: self
+            da_client_type: self
                 .da_client_type
                 .and_then(|x| proto::DaClientType::try_from(*x).ok().map(|t| t.parse())),
         })
