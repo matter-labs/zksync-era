@@ -9,6 +9,7 @@ impl ZkStackConfig for ConsensusRegistryOutput {}
 impl ZkStackConfig for Multicall3Output {}
 
 impl ZkStackConfig for TimestampAsserterOutput {}
+impl ZkStackConfig for WETHOutput {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InitializeBridgeOutput {
@@ -35,4 +36,9 @@ pub struct Multicall3Output {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimestampAsserterOutput {
     pub timestamp_asserter: Address,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WETHOutput {
+    pub weth: Address,
 }

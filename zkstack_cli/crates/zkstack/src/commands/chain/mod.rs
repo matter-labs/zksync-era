@@ -59,6 +59,9 @@ pub enum ChainCommands {
     /// Deploy L2 TimestampAsserter
     #[command(alias = "timestamp-asserter")]
     DeployTimestampAsserter(ForgeScriptArgs),
+    /// Deploy WETH
+    #[command(alias = "weth")]
+    DeployWETH(ForgeScriptArgs),
     /// Deploy Default Upgrader
     #[command(alias = "upgrader")]
     DeployUpgrader(ForgeScriptArgs),
@@ -88,6 +91,9 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         }
         ChainCommands::DeployTimestampAsserter(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::TimestampAsserter).await
+        }
+        ChainCommands::DeployWETH(args) => {
+            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::WETH).await
         }
         ChainCommands::DeployUpgrader(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Upgrader).await

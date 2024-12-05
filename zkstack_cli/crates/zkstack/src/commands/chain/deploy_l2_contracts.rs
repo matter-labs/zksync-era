@@ -21,7 +21,7 @@ use config::{
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use xshell::Shell;
-
+use config::forge_interface::deploy_l2_contracts::output::WETHOutput;
 use crate::{
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_L2_CONTRACT_SPINNER,
@@ -37,6 +37,7 @@ pub enum Deploy2ContractsOption {
     ConsensusRegistry,
     Multicall3,
     TimestampAsserter,
+    WETH,
 }
 
 pub async fn run(
@@ -113,6 +114,16 @@ pub async fn run(
                 args,
             )
             .await?
+        }
+        Deploy2ContractsOption::WETH => {
+            deploy_weth(
+                shell,
+                &chain_config,
+                &ecosystem_config,
+                &mut contracts,
+                args,
+            )
+            .await?;
         }
     }
 
@@ -245,6 +256,27 @@ pub async fn deploy_timestamp_asserter(
     .await
 }
 
+pub async fn deploy_weth(
+    shell: &Shell,
+    chain_config: &ChainConfig,
+    ecosystem_config: &EcosystemConfig,
+    contracts_config: &mut ContractsConfig,
+    forge_args: ForgeScriptArgs,
+) -> anyhow::Result<()> {
+    build_and_deploy(
+        shell,
+        chain_config,
+        ecosystem_config,
+        forge_args,
+        Some("runDeployWETH"),
+        |shell, out| {
+            contracts_config
+                .set_weth(&WETHOutput::read(shell, out)?)
+        },
+    )
+        .await
+}
+
 pub async fn deploy_l2_contracts(
     shell: &Shell,
     chain_config: &ChainConfig,
@@ -270,6 +302,8 @@ pub async fn deploy_l2_contracts(
             contracts_config.set_multicall3(&Multicall3Output::read(shell, out)?)?;
             contracts_config
                 .set_timestamp_asserter_addr(&TimestampAsserterOutput::read(shell, out)?)?;
+            contracts_config
+                .set_weth(&WETHOutput::read(shell, out)?)?;
             Ok(())
         },
     )

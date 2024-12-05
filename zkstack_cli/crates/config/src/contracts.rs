@@ -13,6 +13,7 @@ use crate::{
     },
     traits::{FileConfigWithDefaultName, ZkStackConfig},
 };
+use crate::forge_interface::deploy_l2_contracts::output::WETHOutput;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct ContractsConfig {
@@ -117,6 +118,14 @@ impl ContractsConfig {
         self.l2.timestamp_asserter_addr = Some(timestamp_asserter_output.timestamp_asserter);
         Ok(())
     }
+
+    pub fn set_weth(
+        &mut self,
+        weth_output: &WETHOutput,
+    ) -> anyhow::Result<()> {
+        self.l2.predeployed_l2_wrapped_base_token_address = Some(weth_output.weth);
+        Ok(())
+    }
 }
 
 impl FileConfigWithDefaultName for ContractsConfig {
@@ -170,4 +179,6 @@ pub struct L2Contracts {
     pub multicall3: Option<Address>,
     pub legacy_shared_bridge_addr: Option<Address>,
     pub timestamp_asserter_addr: Option<Address>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub predeployed_l2_wrapped_base_token_address: Option<Address>,
 }
