@@ -93,13 +93,11 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
             complexUpgraderAbi: new ethers.Interface(
                 require(`${CONTRACTS_FOLDER}/system-contracts/zkout/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
             ),
-            counterBytecode: require(
-                `${pathToHome}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`
-            ).deployedBytecode,
+            counterBytecode:
+                require(`${pathToHome}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`)
+                    .deployedBytecode,
             stateTransitonManager: new ethers.Interface(
-                require(
-                    `${CONTRACTS_FOLDER}/l1-contracts/out/StateTransitionManager.sol/StateTransitionManager.json`
-                ).abi
+                require(`${CONTRACTS_FOLDER}/l1-contracts/out/StateTransitionManager.sol/StateTransitionManager.json`).abi
             )
         };
     } else {
@@ -118,22 +116,16 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
                 require(`${L1_CONTRACTS_FOLDER}/governance/ChainAdmin.sol/ChainAdmin.json`).abi
             ),
             l2ForceDeployUpgraderAbi: new ethers.Interface(
-                require(
-                    `${pathToHome}/contracts/l2-contracts/artifacts-zk/contracts/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`
-                ).abi
+                require(`${pathToHome}/contracts/l2-contracts/artifacts-zk/contracts/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
             ),
             complexUpgraderAbi: new ethers.Interface(
-                require(
-                    `${pathToHome}/contracts/system-contracts/artifacts-zk/contracts-preprocessed/ComplexUpgrader.sol/ComplexUpgrader.json`
-                ).abi
+                require(`${pathToHome}/contracts/system-contracts/artifacts-zk/contracts-preprocessed/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
             ),
-            counterBytecode: require(
-                `${pathToHome}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`
-            ).deployedBytecode,
+            counterBytecode:
+                require(`${pathToHome}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`)
+                    .deployedBytecode,
             stateTransitonManager: new ethers.Interface(
-                require(
-                    `${L1_CONTRACTS_FOLDER}/state-transition/StateTransitionManager.sol/StateTransitionManager.json`
-                ).abi
+                require(`${L1_CONTRACTS_FOLDER}/state-transition/StateTransitionManager.sol/StateTransitionManager.json`).abi
             )
         };
     }
