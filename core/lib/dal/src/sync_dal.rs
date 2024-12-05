@@ -58,7 +58,7 @@ impl SyncDal<'_, '_> {
                 miniblocks.protocol_version AS "protocol_version!",
                 miniblocks.fee_account_address AS "fee_account_address!",
                 miniblocks.l2_da_validator_address AS "l2_da_validator_address!",
-                miniblocks.da_client_type AS "da_client_type!"
+                miniblocks.da_client_type AS "da_client_type"
             FROM
                 miniblocks
             WHERE
