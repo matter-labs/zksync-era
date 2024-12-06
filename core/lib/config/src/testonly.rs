@@ -399,7 +399,6 @@ impl Distribution<configs::eth_sender::ProofLoadingMode> for EncodeDist {
 impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::eth_sender::SenderConfig {
         configs::eth_sender::SenderConfig {
-            aggregated_proof_sizes: self.sample_collect(rng),
             wait_confirmations: self.sample(rng),
             tx_poll_period: self.sample(rng),
             aggregate_tx_poll_period: self.sample(rng),
@@ -852,6 +851,7 @@ impl Distribution<configs::secrets::L1Secrets> for EncodeDist {
         use configs::secrets::L1Secrets;
         L1Secrets {
             l1_rpc_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
+            gateway_rpc_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
         }
     }
 }
@@ -938,8 +938,6 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
                 _ => L1BatchCommitmentMode::Validium,
             },
             main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
-            gateway_url: self
-                .sample_opt(|| format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
             bridge_addresses_refresh_interval_sec: self.sample_opt(|| rng.gen()),
         }
     }

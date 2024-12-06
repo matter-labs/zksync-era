@@ -671,7 +671,7 @@ impl TxSender {
         // but the API assumes we are post boojum. In this situation we will determine a tx as being executable but the StateKeeper will
         // still reject them as it's not.
         let protocol_version = ProtocolVersionId::latest();
-        let seal_data = SealData::for_transaction(transaction, tx_metrics, protocol_version);
+        let seal_data = SealData::for_transaction(transaction, tx_metrics);
         if let Some(reason) = self
             .0
             .sealer
