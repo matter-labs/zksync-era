@@ -45,22 +45,22 @@ impl Tokenize for &ProveBatches {
             assert_eq!(self.proofs.len(), 1);
             assert_eq!(self.l1_batches.len(), 1);
 
-            let proof = match self.proofs.first().unwrap() {
+            let (verifier_type, proof) = match self.proofs.first().unwrap() {
                 L1BatchProofForL1::Fflonk(proof) => {
                     let scheduler_proof = proof.scheduler_proof.clone();
 
                     let (_, serialized_proof) = serialize_fflonk_proof(&scheduler_proof);
-                    serialized_proof
+                    (U256::from(0), serialized_proof)
                 }
                 L1BatchProofForL1::Plonk(proof) => {
                     let (_, serialized_proof) = serialize_proof(&proof.scheduler_proof);
-                    serialized_proof
+                    (U256::from(1), serialized_proof)
                 }
             };
 
             if protocol_version.is_pre_gateway() {
                 let proof_input = Token::Tuple(vec![
-                    Token::Array(Vec::new()),
+                    Token::Array(vec![verifier_type.into_token()]),
                     Token::Array(proof.into_iter().map(Token::Uint).collect()),
                 ]);
 
@@ -143,15 +143,21 @@ fn serialize_fflonk_proof(
 
     let mut serialized_proof = vec![];
 
+    assert_eq!(proof.commitments.len(), 4);
+
     for c in proof.commitments.iter() {
         let (x, y) = serialize_g1_for_ethereum(c);
         serialized_proof.push(x);
         serialized_proof.push(y);
     }
 
+    assert_eq!(proof.evaluations.len(), 15);
+
     for el in proof.evaluations.iter() {
         serialized_proof.push(serialize_fe_for_ethereum(el));
     }
+
+    assert_eq!(proof.lagrange_basis_inverses.len(), 18);
 
     for el in proof.lagrange_basis_inverses.iter() {
         serialized_proof.push(serialize_fe_for_ethereum(el));
