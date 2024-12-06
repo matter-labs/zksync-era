@@ -455,7 +455,7 @@ jobs:
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --external-node --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
       - name: Run custom genesis test
-      - run: |
+        run: |
           ci_run cargo build --release -p custom_genesis_export
           ci_run ./target/release/custom_genesis_export --database-url=postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_validium --genesis-config-path=etc/env/file_based/genesis.yaml --output=custom-genesis-export.bin
           
