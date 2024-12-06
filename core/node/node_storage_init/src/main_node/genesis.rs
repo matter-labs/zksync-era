@@ -1,8 +1,10 @@
+use std::fs::File;
+
 use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_config::{ContractsConfig, GenesisConfig};
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
-use zksync_node_genesis::GenesisParams;
+use zksync_node_genesis::{custom_genesis_export::GenesisExportReader, GenesisParams};
 use zksync_web3_decl::client::{DynClient, L1};
 
 use crate::traits::InitializeStorage;
@@ -36,7 +38,25 @@ impl InitializeStorage for MainNodeGenesis {
             self.contracts.diamond_proxy_addr,
         )
         .await?;
-        zksync_node_genesis::ensure_genesis_state(&mut storage, &params).await?;
+
+        let custom_genesis_state_reader = match &self.genesis.custom_genesis_state_path {
+            Some(path) => match File::open(path) {
+                Ok(file) => Some(GenesisExportReader::new(file)),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    tracing::info!("Custom genesis state not found at path {:?}. This is expected during normal server operation; however, it shouldn't be the case if the server is running in Genesis mode.", path);
+                    None
+                }
+                Err(e) => return Err(e.into()), // Propagate other errors
+            },
+            None => None,
+        };
+
+        zksync_node_genesis::ensure_genesis_state(
+            &mut storage,
+            &params,
+            custom_genesis_state_reader,
+        )
+        .await?;
 
         if let Some(ecosystem_contracts) = &self.contracts.ecosystem_contracts {
             zksync_node_genesis::save_set_chain_id_tx(

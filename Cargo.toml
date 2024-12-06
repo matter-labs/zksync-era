@@ -3,6 +3,7 @@ members = [
   # Binaries
   "core/bin/block_reverter",
   "core/bin/contract-verifier",
+  "core/bin/custom_genesis_export",
   "core/bin/external_node",
   "core/bin/merkle_tree_consistency_checker",
   "core/bin/snapshots_creator",

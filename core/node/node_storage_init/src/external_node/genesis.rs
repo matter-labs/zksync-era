@@ -22,10 +22,14 @@ impl InitializeStorage for ExternalNodeGenesis {
         _stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         let mut storage = self.pool.connection_tagged("en").await?;
+
+        // Custom genesis state for external nodes is not supported. If the main node has a custom genesis,
+        // its external nodes should be started from a snapshot instead.
         zksync_node_sync::genesis::perform_genesis_if_needed(
             &mut storage,
             self.l2_chain_id,
             &self.client.clone().for_component("genesis"),
+            None,
         )
         .await
         .context("performing genesis failed")
