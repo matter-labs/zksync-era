@@ -4,7 +4,7 @@ use fflonk::{
     bellman::{
         bn256,
         bn256::{Bn256, Fr},
-        CurveAffine, Engine, PrimeField, PrimeFieldRepr,
+        CurveAffine, Engine, Field, PrimeField, PrimeFieldRepr,
     },
     FflonkProof,
 };
@@ -159,9 +159,13 @@ fn serialize_fflonk_proof(
 
     assert_eq!(proof.lagrange_basis_inverses.len(), 18);
 
-    for el in proof.lagrange_basis_inverses.iter() {
-        serialized_proof.push(serialize_fe_for_ethereum(el));
+    let mut product = proof.lagrange_basis_inverses[0];
+
+    for i in 1..proof.lagrange_basis_inverses.len() {
+        product.mul_assign(&proof.lagrange_basis_inverses[i]);
     }
+
+    serialized_proof.push(serialize_fe_for_ethereum(&product));
 
     (serialized_inputs, serialized_proof)
 }
