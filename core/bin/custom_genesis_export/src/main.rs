@@ -52,7 +52,7 @@ struct FactoryDepRow {
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
-    let mut out = BufWriter::new(File::create_new(&args.output)?);
+    let mut out = BufWriter::new(File::create(&args.output)?);
 
     println!("Export file: {}", args.output.canonicalize()?.display(),);
 
@@ -198,7 +198,11 @@ async fn main() -> anyhow::Result<()> {
     genesis_config.genesis_root_hash = Some(genesis_batch_params.root_hash);
     genesis_config.rollup_last_leaf_index = Some(genesis_batch_params.rollup_last_leaf_index);
     genesis_config.genesis_commitment = Some(genesis_batch_params.commitment);
-    genesis_config.custom_genesis_state_path = args.output.to_str().map(|x| x.into());
+    genesis_config.custom_genesis_state_path = args
+        .output
+        .canonicalize()
+        .ok()
+        .and_then(|p| p.to_str().map(|s| s.to_string()));
 
     let bytes =
         encode_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&genesis_config)?;
