@@ -11,12 +11,9 @@ pub use async_trait::async_trait;
 use futures::future;
 use serde::Serialize;
 use tokio::sync::watch;
-use zksync_bin_metadata::BIN_METADATA;
 
-use self::metrics::{CheckResult, METRICS};
-use crate::metrics::AppHealthCheckConfig;
+use crate::metrics::{AppHealthCheckConfig, CheckResult, METRICS};
 
-mod binary;
 mod metrics;
 
 #[cfg(test)]
@@ -114,6 +111,8 @@ pub struct AppHealthCheck {
 
 #[derive(Debug, Clone)]
 struct AppHealthCheckInner {
+    /// Application-level health details.
+    app_details: Option<serde_json::Value>,
     components: Vec<Arc<dyn CheckHealth>>,
     slow_time_limit: Duration,
     hard_time_limit: Duration,
@@ -136,6 +135,7 @@ impl AppHealthCheck {
 
         let inner = AppHealthCheckInner {
             components: Vec::default(),
+            app_details: None,
             slow_time_limit,
             hard_time_limit,
         };
@@ -181,6 +181,13 @@ impl AppHealthCheck {
         }
     }
 
+    /// Sets app-level health details. They can include build info etc.
+    pub fn set_details(&self, details: impl Serialize) {
+        let details = serde_json::to_value(details).expect("failed serializing app details");
+        let mut inner = self.inner.lock().expect("`AppHealthCheck` is poisoned");
+        inner.app_details = Some(details);
+    }
+
     /// Inserts health check for a component.
     ///
     /// # Errors
@@ -220,6 +227,7 @@ impl AppHealthCheck {
         // Clone `inner` so that we don't hold a lock for them across a wait point.
         let AppHealthCheckInner {
             components,
+            app_details,
             slow_time_limit,
             hard_time_limit,
         } = self
@@ -238,7 +246,8 @@ impl AppHealthCheck {
             .map(|health| health.status)
             .max_by_key(|status| status.priority_for_aggregation())
             .unwrap_or(HealthStatus::Ready);
-        let inner = Health::with_details(aggregated_status.into(), BIN_METADATA);
+        let mut inner = Health::from(aggregated_status);
+        inner.details = app_details.clone();
 
         let health = AppHealth { inner, components };
         if !health.inner.status.is_healthy() {

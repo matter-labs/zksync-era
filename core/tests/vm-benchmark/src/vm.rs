@@ -240,7 +240,9 @@ mod tests {
     use super::*;
     use crate::{
         get_deploy_tx, get_heavy_load_test_tx, get_load_test_deploy_tx, get_load_test_tx,
-        get_realistic_load_test_tx, get_transfer_tx, LoadTestParams, BYTECODES,
+        get_realistic_load_test_tx, get_transfer_tx,
+        transaction::{get_erc20_deploy_tx, get_erc20_transfer_tx},
+        LoadTestParams, BYTECODES,
     };
 
     #[test]
@@ -257,6 +259,18 @@ mod tests {
         let mut vm = BenchmarkingVm::new();
         let res = vm.run_transaction(&get_transfer_tx(0));
         assert_matches!(res.result, ExecutionResult::Success { .. });
+    }
+
+    #[test]
+    fn can_erc20_transfer() {
+        let mut vm = BenchmarkingVm::new();
+        let res = vm.run_transaction(&get_erc20_deploy_tx());
+        assert_matches!(res.result, ExecutionResult::Success { .. });
+
+        for nonce in 1..=5 {
+            let res = vm.run_transaction(&get_erc20_transfer_tx(nonce));
+            assert_matches!(res.result, ExecutionResult::Success { .. });
+        }
     }
 
     #[test]
