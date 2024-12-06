@@ -101,14 +101,11 @@ pub struct EcosystemInitArgs {
     pub observability: Option<bool>,
     #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP)]
     pub no_port_reallocation: bool,
-    #[clap(long, help = "Run genesis with custom state")]
-    pub state_override: Option<PathBuf>,
 }
 
 impl EcosystemInitArgs {
     pub fn get_genesis_args(&self) -> GenesisArgs {
         GenesisArgs {
-            state_override: self.state_override.clone(),
             server_db_url: self.server_db_url.clone(),
             server_db_name: self.server_db_name.clone(),
             dev: self.dev,

@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use clap::Parser;
 use common::{forge::ForgeScriptArgs, Prompt};
 use config::ChainConfig;
@@ -39,14 +37,11 @@ pub struct InitArgs {
     pub no_port_reallocation: bool,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
-    #[clap(long, help = "Run genesis with custom state")]
-    pub state_override: Option<PathBuf>,
 }
 
 impl InitArgs {
     pub fn get_genesis_args(&self) -> GenesisArgs {
         GenesisArgs {
-            state_override: self.state_override.clone(),
             server_db_url: self.server_db_url.clone(),
             server_db_name: self.server_db_name.clone(),
             dev: self.dev,

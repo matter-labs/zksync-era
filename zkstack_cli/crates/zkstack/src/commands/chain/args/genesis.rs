@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use anyhow::Context;
 use clap::Parser;
 use common::{db::DatabaseConfig, Prompt};
@@ -22,8 +20,6 @@ pub struct GenesisArgs {
     pub server_db_url: Option<Url>,
     #[clap(long, help = MSG_SERVER_DB_NAME_HELP)]
     pub server_db_name: Option<String>,
-    #[clap(long, help = "Run genesis with custom state")]
-    pub state_override: Option<std::path::PathBuf>,
     #[clap(long, short, help = MSG_USE_DEFAULT_DATABASES_HELP)]
     pub dev: bool,
     #[clap(long, short, action)]
@@ -38,7 +34,6 @@ impl GenesisArgs {
             GenesisArgsFinal {
                 server_db: DatabaseConfig::new(DATABASE_SERVER_URL.clone(), server_name),
                 dont_drop: self.dont_drop,
-                state_override: self.state_override,
             }
         } else {
             let server_db_url = self.server_db_url.unwrap_or_else(|| {
@@ -57,7 +52,6 @@ impl GenesisArgs {
             GenesisArgsFinal {
                 server_db: DatabaseConfig::new(server_db_url, server_db_name),
                 dont_drop: self.dont_drop,
-                state_override: self.state_override,
             }
         }
     }
@@ -95,5 +89,4 @@ impl GenesisArgs {
 pub struct GenesisArgsFinal {
     pub server_db: DatabaseConfig,
     pub dont_drop: bool,
-    pub state_override: Option<PathBuf>,
 }
