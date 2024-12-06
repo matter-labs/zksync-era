@@ -1,0 +1,3 @@
+/Users/franklin/repos/zksync-era/devenv.lock
+/Users/franklin/repos/zksync-era/devenv.nix
+/Users/franklin/repos/zksync-era/devenv.yaml
