@@ -42,6 +42,8 @@ pub enum ObjectStoreMode {
         region: String,
     },
     S3WithCredentials {
+        access_key: String,
+        secret_key: String,
         bucket: String,
         region: String,
     },

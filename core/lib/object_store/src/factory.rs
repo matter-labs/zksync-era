@@ -10,6 +10,7 @@ use crate::{
     mirror::MirroringObjectStore,
     raw::{ObjectStore, ObjectStoreError},
     retries::StoreWithRetries,
+    S3Store,
 };
 
 /// Factory of [`ObjectStore`]s that caches the store instance once it's created. Used mainly for legacy reasons.
@@ -110,6 +111,30 @@ impl ObjectStoreFactory {
                     tracing::warn!("Mirroring doesn't make sense with file-backed object store; ignoring mirror path `{mirror_path}`");
                 }
                 Ok(Arc::new(store))
+            }
+            ObjectStoreMode::S3FromEnv { bucket, region } => {
+                let store = StoreWithRetries::try_new(config.max_retries, || {
+                    S3Store::from_env(bucket.to_owned().into(), region.to_owned())
+                })
+                .await?;
+                Self::wrap_mirroring(store, config.local_mirror_path.as_ref()).await
+            }
+            ObjectStoreMode::S3WithCredentials {
+                access_key,
+                secret_key,
+                bucket,
+                region,
+            } => {
+                let store = StoreWithRetries::try_new(config.max_retries, || {
+                    S3Store::from_keys(
+                        bucket.to_owned().into(),
+                        region.to_owned(),
+                        &access_key,
+                        &secret_key,
+                    )
+                })
+                .await?;
+                Self::wrap_mirroring(store, config.local_mirror_path.as_ref()).await
             }
         }
     }
