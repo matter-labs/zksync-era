@@ -33,6 +33,7 @@ mod vm_runner;
 mod wallets;
 
 mod da_client;
+mod gcloud_encrypted_seed;
 mod timestamp_asserter;
 
 pub trait FromEnv: Sized {

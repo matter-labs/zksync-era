@@ -35,4 +35,5 @@ pub struct AvailGasRelayConfig {
 pub struct AvailSecrets {
     pub seed_phrase: Option<SeedPhrase>,
     pub gas_relay_api_key: Option<APIKey>,
+    pub private_key: Option<String>,
 }

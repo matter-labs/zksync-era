@@ -2,6 +2,7 @@ use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use hex::FromHex;
 use jsonrpsee::ws_client::WsClientBuilder;
 use serde::{Deserialize, Serialize};
 use subxt_signer::ExposeSecret;
@@ -117,12 +118,25 @@ impl AvailClient {
                 })
             }
             AvailClientConfig::FullClient(conf) => {
-                let seed_phrase = secrets
-                    .seed_phrase
-                    .ok_or_else(|| anyhow::anyhow!("Seed phrase is missing"))?;
-                // these unwraps are safe because we validate in protobuf config
-                let sdk_client =
-                    RawAvailClient::new(conf.app_id, seed_phrase.0.expose_secret()).await?;
+                let sdk_client = if let Some(_pk) = &secrets.private_key {
+                    let bytes = Vec::from_hex(_pk).map_err(|e| {
+                        anyhow::anyhow!("hex string convert failed: {}", e.to_string())
+                    })?;
+                    if bytes.len() != 32 {
+                        return Err(anyhow::anyhow!(
+                            "Hex string must represent exactly 32 bytes."
+                        ));
+                    }
+                    let mut array = [0u8; 32];
+                    array.copy_from_slice(&bytes);
+
+                    RawAvailClient::new_with_gcs_seed(conf.app_id, array).await?
+                } else {
+                    let seed_phrase = secrets
+                        .seed_phrase
+                        .ok_or_else(|| anyhow::anyhow!("seed phrase is missing"))?;
+                    RawAvailClient::new(conf.app_id, seed_phrase.0.expose_secret()).await?
+                };
 
                 Ok(Self {
                     config,
