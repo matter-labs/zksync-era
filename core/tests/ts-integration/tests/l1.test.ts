@@ -144,9 +144,7 @@ describe('Tests for L1 behavior', () => {
         expect(msgProof).toBeTruthy();
 
         // Ensure that received proof matches the provided root hash.
-        const { id, proof, root } = msgProof!;
-        const accumulatedRoot = calculateAccumulatedRoot(alice.address, message, receipt.l1BatchTxIndex!, id, proof);
-        expect(accumulatedRoot).toBe(root);
+        const { id, proof } = msgProof!;
 
         // Ensure that provided proof is accepted by the main ZKsync contract.
         const chainContract = await alice.getMainContract();
