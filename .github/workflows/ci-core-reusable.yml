@@ -400,6 +400,47 @@ jobs:
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
+      - name: Run custom genesis test
+        run: |
+          ci_run cargo build --release -p custom_genesis_export
+          ci_run ./target/release/custom_genesis_export --database-url=postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_validium --genesis-config-path=etc/env/file_based/genesis.yaml --output-path=custom-genesis-export.bin
+          
+          if grep -q "custom_genesis_state_path" etc/env/file_based/genesis.yaml; then
+            :
+          else
+            echo "'custom_genesis_state_path' not found in etc/env/file_based/genesis.yaml"
+            exit 1
+          fi
+          
+          if [ ! -s custom-genesis-export.bin ]; then
+            echo "custom-genesis-export.bin does not exist or is empty."
+            exit 1
+          fi
+          
+          ci_run zkstack chain create \
+          --chain-name validium_custom_genesis \
+          --chain-id sequential \
+          --prover-mode no-proofs \
+          --wallet-creation localhost \
+          --l1-batch-commit-data-generator-mode validium \
+          --base-token-address 0x0000000000000000000000000000000000000001 \
+          --base-token-price-nominator 1 \
+          --base-token-price-denominator 1 \
+          --set-as-default false \
+          --ignore-prerequisites \
+          --evm-emulator false
+
+          ci_run zkstack chain init \
+          --deploy-paymaster \
+          --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_validium_custom_genesis \
+          --chain validium_custom_genesis
+
+          ci_run zkstack server --ignore-prerequisites --chain validium_custom_genesis &> ${{ env.SERVER_LOGS_DIR }}/validium_custom_genesis.log &
+          ci_run zkstack server wait --ignore-prerequisites --verbose --chain validium_custom_genesis
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites" "validium_custom_genesis" ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+
       - name: Init external nodes
         run: |
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
@@ -453,48 +494,6 @@ jobs:
           ci_run killall -INT zksync_external_node || true
 
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --external-node --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
-
-      - name: Run custom genesis test
-        run: |
-          ci_run cargo build --release -p custom_genesis_export
-          ci_run ./target/release/custom_genesis_export --database-url=postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_validium --genesis-config-path=etc/env/file_based/genesis.yaml --output-path=custom-genesis-export.bin
-          
-          if grep -q "custom_genesis_state_path" etc/env/file_based/genesis.yaml; then
-            :
-          else
-            echo "'custom_genesis_state_path' not found in etc/env/file_based/genesis.yaml"
-            exit 1
-          fi
-          
-          if [ ! -s custom-genesis-export.bin ]; then
-            echo "custom-genesis-export.bin does not exist or is empty."
-            exit 1
-          fi
-          
-          ci_run zkstack chain create \
-          --chain-name validium_custom_genesis \
-          --chain-id sequential \
-          --prover-mode no-proofs \
-          --wallet-creation localhost \
-          --l1-batch-commit-data-generator-mode validium \
-          --base-token-address 0x0000000000000000000000000000000000000001 \
-          --base-token-price-nominator 1 \
-          --base-token-price-denominator 1 \
-          --set-as-default false \
-          --ignore-prerequisites \
-          --evm-emulator false
-
-          ci_run zkstack chain init \
-          --deploy-paymaster \
-          --l1-rpc-url=http://localhost:8545 \
-          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --server-db-name=zksync_server_localhost_validium_custom_genesis \
-          --chain validium_custom_genesis
-
-          ci_run zkstack server --ignore-prerequisites --chain validium_custom_genesis &> ${{ env.SERVER_LOGS_DIR }}/validium_custom_genesis.log &
-          ci_run zkstack server wait --ignore-prerequisites --verbose --chain validium_custom_genesis
-          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites" "validium_custom_genesis" ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
-
 
       # Upgrade tests should run last, because as soon as they
       # finish the bootloader will be different
