@@ -120,7 +120,7 @@ pub async fn fetch_next_circuit(
 
     let setup_data_key = ProverServiceDataKey {
         circuit_id: prover_job.circuit_id,
-        round: prover_job.aggregation_round,
+        stage: prover_job.aggregation_round.into(),
     };
     Some(ProverJob::new(
         prover_job.block_number,

@@ -5,6 +5,10 @@ on:
 jobs:
   e2e-test:
     runs-on: [ matterlabs-ci-gpu-l4-runner-prover-tests ]
+    strategy:
+        fail-fast: false
+        matrix:
+          compressor-mode: ["fflonk", "plonk"]
     env:
       RUNNER_COMPOSE_FILE: "docker-compose-gpu-runner-cuda-12-0.yml"
 
@@ -17,6 +21,7 @@ jobs:
       - name: Setup environment
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo BELLMAN_CUDA_DIR=$(pwd)/era-bellman-cuda >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
           echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
@@ -59,6 +64,7 @@ jobs:
           echo "URL=$(grep "http_url" ./chains/proving_chain/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
       - name: Build prover binaries
         run: |
+          PASSED_ENV_VARS="BELLMAN_CUDA_DIR" \
           ci_run cargo build --release --workspace --manifest-path=prover/Cargo.toml
       - name: Prepare prover subsystem
         run: |
@@ -101,8 +107,8 @@ jobs:
       - name: Kill prover & start compressor
         run: |
           sudo ./bin/prover_checkers/kill_prover
+          ci_run zkstack prover run --component=compressor --docker=false --compressor-mode=${{matrix.compressor-mode}} &>prover_logs/compressor.log &
 
-          ci_run zkstack prover run --component=compressor --docker=false &>prover_logs/compressor.log &
       - name: Wait for batch to be executed on L1
         env:
             DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain

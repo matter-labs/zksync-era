@@ -2,7 +2,7 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
+use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, ContractCallError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::{
@@ -74,6 +74,8 @@ struct TxData {
     calldata: Vec<u8>,
     sidecar: Option<EthTxBlobSidecar>,
 }
+
+const FFLONK_VERIFIER_TYPE: i32 = 1;
 
 impl EthTxAggregator {
     #[allow(clippy::too_many_arguments)]
@@ -367,10 +369,30 @@ impl EthTxAggregator {
         verifier_address: Address,
     ) -> Result<H256, EthSenderError> {
         let get_vk_hash = &self.functions.verification_key_hash;
+
         let vk_hash: H256 = CallFunctionArgs::new(&get_vk_hash.name, ())
             .for_contract(verifier_address, &self.functions.verifier_contract)
             .call((*self.eth_client).as_ref())
             .await?;
+        Ok(vk_hash)
+    }
+
+    async fn get_fflonk_snark_wrapper_vk_hash(
+        &mut self,
+        verifier_address: Address,
+    ) -> Result<H256, EthSenderError> {
+        let get_vk_hash = &self.functions.verification_key_hash;
+        let function = self
+            .functions
+            .verifier_contract
+            .functions_by_name(&get_vk_hash.name)
+            .map_err(|x| EthSenderError::ContractCall(ContractCallError::Function(x)))?[1]
+            .clone();
+        let vk_hash: H256 =
+            CallFunctionArgs::new(&get_vk_hash.name, U256::from(FFLONK_VERIFIER_TYPE))
+                .for_contract(verifier_address, &self.functions.verifier_contract)
+                .call_with_function((*self.eth_client).as_ref(), function)
+                .await?;
         Ok(vk_hash)
     }
 
@@ -395,8 +417,17 @@ impl EthTxAggregator {
                 tracing::error!("Failed to get VK hash from the Verifier {err:?}");
                 err
             })?;
+        let fflonk_snark_wrapper_vk_hash = self
+            .get_fflonk_snark_wrapper_vk_hash(verifier_address)
+            .await
+            .map_err(|err| {
+                tracing::error!("Failed to get FFLONK VK hash from the Verifier {err:?}");
+                err
+            })?;
+
         let l1_verifier_config = L1VerifierConfig {
             snark_wrapper_vk_hash,
+            fflonk_snark_wrapper_vk_hash: Some(fflonk_snark_wrapper_vk_hash),
         };
         if let Some(agg_op) = self
             .aggregator

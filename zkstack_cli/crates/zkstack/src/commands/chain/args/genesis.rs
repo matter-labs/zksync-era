@@ -68,7 +68,7 @@ impl GenesisArgs {
         let (server_db_url, server_db_name) = if let Some(db_full_url) = database.server_url {
             let db_config = DatabaseConfig::from_url(db_full_url.expose_url())
                 .context("Invalid server database URL")?;
-            (Some(db_config.url), Some(db_config.name))
+            s(Some(db_config.url), Some(db_config.name))
         } else {
             (None, None)
         };

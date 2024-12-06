@@ -27,6 +27,12 @@ zksync_vlog.workspace = true
 circuit_sequencer_api.workspace = true
 zkevm_test_harness.workspace = true
 
+proof-compression-gpu.workspace = true
+fflonk-gpu.workspace = true
+franklin-crypto.workspace = true
+
+wrapper_prover.workspace = true
+
 anyhow.workspace = true
 tracing.workspace = true
 structopt.workspace = true
@@ -39,9 +45,3 @@ bincode.workspace = true
 reqwest = { workspace = true, features = ["blocking"] }
 serde_json.workspace = true
 serde = { workspace = true, features = ["derive"] }
-wrapper_prover = { workspace = true, optional = true }
-
-[features]
-default = []
-gpu = ["wrapper_prover"]
-

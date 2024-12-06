@@ -6,6 +6,7 @@ use std::{env, time::Duration};
 use anyhow::Context as _;
 use clap::Parser;
 use tokio::sync::{oneshot, watch};
+use zksync_config::configs::FriProofCompressorConfig;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
@@ -24,6 +25,10 @@ mod compressor;
 mod initial_setup_keys;
 mod metrics;
 
+pub const PLONK_CRS_KEY: &str = "setup_2^24.key";
+pub const FFLONK_CRS_KEY: &str = "setup_fflonk.key";
+pub const FFLONK_COMPACT_CRS_KEY: &str = "setup_fflonk_compact.key";
+
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
 struct Cli {
@@ -31,6 +36,8 @@ struct Cli {
     #[arg(long = "n_iterations")]
     #[arg(short)]
     number_of_iterations: Option<usize>,
+    #[arg(long)]
+    pub(crate) fflonk: Option<bool>,
     #[arg(long)]
     pub(crate) config_path: Option<std::path::PathBuf>,
     #[arg(long)]
@@ -40,6 +47,8 @@ struct Cli {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
+
+    let is_fflonk = opt.fflonk.unwrap_or(false);
 
     let general_config = load_general_config(opt.config_path).context("general config")?;
     let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
@@ -83,6 +92,7 @@ async fn main() -> anyhow::Result<()> {
         config.max_attempts,
         protocol_version,
         keystore,
+        is_fflonk,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -96,11 +106,7 @@ async fn main() -> anyhow::Result<()> {
     })
     .expect("Error setting Ctrl+C handler"); // Setting handler should always succeed.
 
-    download_initial_setup_keys_if_not_present(
-        &config.universal_setup_path,
-        &config.universal_setup_download_url,
-    );
-    env::set_var("CRS_FILE", config.universal_setup_path.clone());
+    setup_crs_keys(&config, is_fflonk);
 
     tracing::info!("Starting proof compressor");
 
@@ -123,4 +129,47 @@ async fn main() -> anyhow::Result<()> {
     stop_sender.send_replace(true);
     tasks.complete(Duration::from_secs(5)).await;
     Ok(())
+}
+
+fn setup_crs_keys(config: &FriProofCompressorConfig, is_fflonk: bool) {
+    if is_fflonk {
+        let crs_path = format!("{}{}", config.universal_setup_path.clone(), FFLONK_CRS_KEY);
+
+        let crs_download_url = format!(
+            "{}{}",
+            config.universal_setup_download_url.clone(),
+            FFLONK_CRS_KEY
+        );
+        download_initial_setup_keys_if_not_present(&crs_path, &crs_download_url);
+
+        download_initial_setup_keys_if_not_present(
+            &format!("{}{}", config.universal_setup_path, FFLONK_COMPACT_CRS_KEY),
+            &format!(
+                "{}{}",
+                config.universal_setup_download_url, FFLONK_COMPACT_CRS_KEY
+            ),
+        );
+
+        env::set_var(
+            "COMPACT_CRS_FILE",
+            format!(
+                "{}{}",
+                config.universal_setup_path.clone(),
+                FFLONK_COMPACT_CRS_KEY
+            ),
+        );
+
+        env::set_var("CRS_FILE", crs_path);
+    } else {
+        let crs_path = format!("{}{}", config.universal_setup_path.clone(), PLONK_CRS_KEY);
+
+        let crs_download_url = format!(
+            "{}{}",
+            config.universal_setup_download_url.clone(),
+            PLONK_CRS_KEY
+        );
+
+        download_initial_setup_keys_if_not_present(&crs_path, &crs_download_url);
+        env::set_var("CRS_FILE", crs_path);
+    }
 }
