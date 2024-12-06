@@ -5,7 +5,7 @@
 use std::{collections::HashMap, fmt::Formatter};
 
 use anyhow::Context as _;
-use export::GenesisExportReader;
+use custom_genesis_export::GenesisExportReader;
 use zksync_config::GenesisConfig;
 use zksync_contracts::{
     hyperchain_contract, verifier_contract, BaseSystemContracts, BaseSystemContractsHashes,
@@ -36,7 +36,7 @@ use crate::utils::{
     save_genesis_l1_batch_metadata,
 };
 
-pub mod export;
+pub mod custom_genesis_export;
 #[cfg(test)]
 mod tests;
 mod utils;
@@ -77,7 +77,7 @@ pub enum GenesisError {
     MalformedConfig(&'static str),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GenesisParams {
     base_system_contracts: BaseSystemContracts,
     system_contracts: Vec<DeployedContract>,
@@ -197,7 +197,7 @@ pub fn make_genesis_batch_params(
     protocol_version: ProtocolVersionId,
 ) -> (GenesisBatchParams, L1BatchCommitment) {
     let storage_logs = get_deduped_log_queries(storage_logs)
-        .iter()
+        .into_iter()
         .filter(|log_query| log_query.rw_flag) // only writes
         .enumerate()
         .map(|(index, log)| {
@@ -243,6 +243,7 @@ pub async fn insert_genesis_batch_with_custom_state(
         snark_wrapper_vk_hash: genesis_params.config.snark_wrapper_vk_hash,
     };
 
+    // if a custom genesis state was provided, read storage logs and factory dependencies from there
     let (storage_logs, factory_deps): (Vec<StorageLog>, HashMap<H256, Vec<u8>>) =
         match custom_genesis_state {
             Some(r) => (
