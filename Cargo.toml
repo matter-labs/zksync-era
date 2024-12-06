@@ -80,7 +80,6 @@ members = [
   "core/tests/loadnext",
   "core/tests/vm-benchmark",
   "get_all_blobs",
-  "core/lib/bin_metadata",
 ]
 resolver = "2"
 

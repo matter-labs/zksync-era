@@ -57,7 +57,11 @@ export enum NodeType {
 }
 
 export class Node<TYPE extends NodeType> {
-    constructor(public proc: ChildProcessWithoutNullStreams, public l2NodeUrl: string, private readonly type: TYPE) {}
+    constructor(
+        public proc: ChildProcessWithoutNullStreams,
+        public l2NodeUrl: string,
+        private readonly type: TYPE
+    ) {}
 
     public async terminate() {
         try {

@@ -55,7 +55,6 @@ pbjson-types.workspace = true
 
 # Eigen dependencies
 tokio-stream.workspace = true
-rlp.workspace = true
 rand.workspace = true
 sha3.workspace = true
 tiny-keccak.workspace = true
@@ -66,3 +65,4 @@ num-bigint.workspace = true
 serial_test.workspace = true
 zksync_web3_decl.workspace = true
 zksync_eth_client.workspace = true
+url.workspace = true
