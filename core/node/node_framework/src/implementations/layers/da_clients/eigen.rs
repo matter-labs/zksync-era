@@ -1,9 +1,14 @@
 use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
 use zksync_da_client::DataAvailabilityClient;
-use zksync_da_clients::eigen::EigenClient;
+use zksync_da_clients::eigen::{EigenClient, GetBlobData};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_node_framework_derive::FromContext;
 
 use crate::{
-    implementations::resources::da_client::DAClientResource,
+    implementations::resources::{
+        da_client::DAClientResource,
+        pools::{MasterPool, PoolResource},
+    },
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
 };
@@ -20,6 +25,12 @@ impl EigenWiringLayer {
     }
 }
 
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub master_pool: PoolResource<MasterPool>,
+}
+
 #[derive(Debug, IntoContext)]
 #[context(crate = crate)]
 pub struct Output {
@@ -28,19 +39,42 @@ pub struct Output {
 
 #[async_trait::async_trait]
 impl WiringLayer for EigenWiringLayer {
-    type Input = ();
+    type Input = Input;
     type Output = Output;
 
     fn layer_name(&self) -> &'static str {
         "eigen_client_layer"
     }
 
-    async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
-        let client: Box<dyn DataAvailabilityClient> =
-            Box::new(EigenClient::new(self.config, self.secrets).await?);
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let master_pool = input.master_pool.get_custom(2).await?;
+        let get_blob_from_db = GetBlobFromDB { pool: master_pool };
+        let client: Box<dyn DataAvailabilityClient> = Box::new(
+            EigenClient::new(self.config, self.secrets, Box::new(get_blob_from_db)).await?,
+        );
 
         Ok(Self::Output {
             client: DAClientResource(client),
         })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct GetBlobFromDB {
+    pool: ConnectionPool<Core>,
+}
+
+#[async_trait::async_trait]
+impl GetBlobData for GetBlobFromDB {
+    async fn call(&self, input: &'_ str) -> anyhow::Result<Option<Vec<u8>>> {
+        let pool = self.pool.clone();
+        let input = input.to_string();
+        let mut conn = pool.connection_tagged("da_dispatcher").await?;
+        let batch = conn
+            .data_availability_dal()
+            .get_blob_data_by_blob_id(&input)
+            .await?;
+        drop(conn);
+        Ok(batch.map(|b| b.pubdata))
     }
 }

@@ -10,7 +10,10 @@ use zksync_config::configs::{
 };
 use zksync_protobuf::{required, ProtoRepr};
 
-use crate::proto::{da_client as proto, object_store as object_store_proto};
+use crate::proto::{
+    da_client::{self as proto},
+    object_store as object_store_proto,
+};
 
 impl ProtoRepr for proto::DataAvailabilityClient {
     type Type = configs::DAClientConfig;
@@ -53,11 +56,25 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 timeout_ms: *required(&conf.timeout_ms).context("timeout_ms")?,
             }),
             proto::data_availability_client::Config::Eigen(conf) => Eigen(EigenConfig {
-                rpc_node_url: required(&conf.rpc_node_url)
-                    .context("rpc_node_url")?
+                disperser_rpc: required(&conf.disperser_rpc)
+                    .context("disperser_rpc")?
                     .clone(),
-                inclusion_polling_interval_ms: *required(&conf.inclusion_polling_interval_ms)
-                    .context("inclusion_polling_interval_ms")?,
+                settlement_layer_confirmation_depth: *required(
+                    &conf.settlement_layer_confirmation_depth,
+                )
+                .context("settlement_layer_confirmation_depth")?,
+                eigenda_eth_rpc: required(&conf.eigenda_eth_rpc)
+                    .context("eigenda_eth_rpc")?
+                    .clone(),
+                eigenda_svc_manager_address: required(&conf.eigenda_svc_manager_address)
+                    .context("eigenda_svc_manager_address")?
+                    .clone(),
+                wait_for_finalization: *required(&conf.wait_for_finalization)
+                    .context("wait_for_finalization")?,
+                authenticated: *required(&conf.authenticated).context("authenticated")?,
+                g1_url: required(&conf.g1_url).context("g1_url")?.clone(),
+                g2_url: required(&conf.g2_url).context("g2_url")?.clone(),
+                chain_id: *required(&conf.chain_id).context("chain_id")?,
             }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
@@ -96,8 +113,17 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 })
             }
             Eigen(config) => proto::data_availability_client::Config::Eigen(proto::EigenConfig {
-                rpc_node_url: Some(config.rpc_node_url.clone()),
-                inclusion_polling_interval_ms: Some(config.inclusion_polling_interval_ms),
+                disperser_rpc: Some(config.disperser_rpc.clone()),
+                settlement_layer_confirmation_depth: Some(
+                    config.settlement_layer_confirmation_depth,
+                ),
+                eigenda_eth_rpc: Some(config.eigenda_eth_rpc.clone()),
+                eigenda_svc_manager_address: Some(config.eigenda_svc_manager_address.clone()),
+                wait_for_finalization: Some(config.wait_for_finalization),
+                authenticated: Some(config.authenticated),
+                g1_url: Some(config.g1_url.clone()),
+                g2_url: Some(config.g2_url.clone()),
+                chain_id: Some(config.chain_id),
             }),
             ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
                 object_store_proto::ObjectStore::build(config),
