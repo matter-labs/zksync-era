@@ -1,7 +1,3 @@
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-
 use async_trait::async_trait;
 use s3::creds::Credentials;
 use s3::error::S3Error;
@@ -11,14 +7,13 @@ use crate::{Bucket, ObjectStore, ObjectStoreError};
 
 #[derive(Debug)]
 pub struct S3Store {
-    creds: Credentials,
-    region: Region,
-    buckets: Arc<RwLock<HashMap<String, Arc<Box<S3Bucket>>>>>,
+    bucket: Box<S3Bucket>,
 }
 
 impl S3Store {
     /// Initialize and S3-backed [`ObjectStore`] from the provided credentials.
     pub async fn from_keys(
+        bucket: String,
         region: String,
         access_key: &str,
         secret_key: &str,
@@ -28,59 +23,47 @@ impl S3Store {
                 source: Box::new(e),
                 is_retriable: false,
             })?;
-        let region = region
+        let region: Region = region
             .parse()
             .map_err(|e| ObjectStoreError::Initialization {
                 source: Box::new(e),
                 is_retriable: false,
             })?;
+        let bucket =
+            S3Bucket::new(bucket.as_str(), region.clone(), creds.clone()).map_err(|e| {
+                ObjectStoreError::Other {
+                    source: Box::new(e),
+                    is_retriable: false,
+                }
+            })?;
 
-        Ok(Self {
-            creds,
-            region,
-            buckets: Default::default(),
-        })
+        Ok(Self { bucket })
     }
 
     /// Initialize an S3-backed [`ObjectStore`] from the credentials stored in
     /// `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
-    pub async fn from_env(region: String) -> Result<Self, ObjectStoreError> {
+    pub async fn from_env(bucket: String, region: String) -> Result<Self, ObjectStoreError> {
         let creds = Credentials::new(None, None, None, None, None).map_err(|e| {
             ObjectStoreError::Initialization {
                 source: Box::new(e),
                 is_retriable: false,
             }
         })?;
-        let region = region
+        let region: Region = region
             .parse()
             .map_err(|e| ObjectStoreError::Initialization {
                 source: Box::new(e),
                 is_retriable: false,
             })?;
+        let bucket =
+            S3Bucket::new(bucket.as_str(), region.clone(), creds.clone()).map_err(|e| {
+                ObjectStoreError::Other {
+                    source: Box::new(e),
+                    is_retriable: false,
+                }
+            })?;
 
-        Ok(Self {
-            creds,
-            region,
-            buckets: Default::default(),
-        })
-    }
-
-    fn get_or_init_bucket(&self, bucket: Bucket) -> Result<Arc<Box<S3Bucket>>, ObjectStoreError> {
-        let mut buckets = self.buckets.write().unwrap();
-
-        Ok(match buckets.entry(bucket.to_string()) {
-            Entry::Occupied(e) => e.into_mut().to_owned(),
-            Entry::Vacant(e) => e
-                .insert(
-                    S3Bucket::new(bucket.as_str(), self.region.clone(), self.creds.clone())
-                        .map_err(|e| ObjectStoreError::Other {
-                            source: Box::new(e),
-                            is_retriable: false,
-                        })?
-                        .into(),
-                )
-                .to_owned(),
-        })
+        Ok(Self { bucket })
     }
 }
 
@@ -122,11 +105,15 @@ impl From<S3Error> for ObjectStoreError {
     }
 }
 
+fn qualifed_key(bucket: &Bucket, key: &str) -> String {
+    format!("{bucket}/{key}")
+}
+
 #[async_trait]
 impl ObjectStore for S3Store {
     async fn get_raw(&self, bucket: Bucket, key: &str) -> Result<Vec<u8>, ObjectStoreError> {
-        self.get_or_init_bucket(bucket)?
-            .get_object(key)
+        self.bucket
+            .get_object(qualifed_key(&bucket, key))
             .await
             .map(|r| r.to_vec())
             .map_err(ObjectStoreError::from)
@@ -139,22 +126,22 @@ impl ObjectStore for S3Store {
         value: Vec<u8>,
     ) -> Result<(), ObjectStoreError> {
         tracing::trace!("Storing data to S3 for key {key} from bucket {bucket}");
-        self.get_or_init_bucket(bucket)?
-            .put_object(key, &value)
+        self.bucket
+            .put_object(qualifed_key(&bucket, key), &value)
             .await
             .map(|_| ())
             .map_err(ObjectStoreError::from)
     }
 
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
-        self.get_or_init_bucket(bucket)?
-            .delete_object(key)
+        self.bucket
+            .delete_object(qualifed_key(&bucket, key))
             .await
             .map(|_| ())
             .map_err(ObjectStoreError::from)
     }
 
-    fn storage_prefix_raw(&self, bucket: Bucket) -> String {
-        self.get_or_init_bucket(bucket).unwrap().url()
+    fn storage_prefix_raw(&self, _bucket: Bucket) -> String {
+        self.bucket.url()
     }
 }
