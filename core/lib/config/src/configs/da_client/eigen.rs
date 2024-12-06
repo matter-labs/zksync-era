@@ -1,17 +1,5 @@
 use serde::Deserialize;
 use zksync_basic_types::secrets::PrivateKey;
-
-#[derive(Clone, Debug, PartialEq, Deserialize)]
-pub enum PointsSource {
-    Path(String),
-    Link(String),
-}
-
-impl Default for PointsSource {
-    fn default() -> Self {
-        PointsSource::Path("".to_string())
-    }
-}
 /// Configuration for the EigenDA remote disperser client.
 #[derive(Clone, Debug, PartialEq, Deserialize, Default)]
 pub struct EigenConfig {
@@ -24,18 +12,14 @@ pub struct EigenConfig {
     pub eigenda_eth_rpc: String,
     /// Address of the service manager contract
     pub eigenda_svc_manager_address: String,
-    /// Maximun amount of time in milliseconds to wait for a status query response
-    pub status_query_timeout: u64,
-    /// Interval in milliseconds to query the status of a blob
-    pub status_query_interval: u64,
     /// Wait for the blob to be finalized before returning the response
     pub wait_for_finalization: bool,
     /// Authenticated dispersal
     pub authenticated: bool,
-    /// Verify the certificate of dispatched blobs
-    pub verify_cert: bool,
-    /// Path or link to the file containing the points used for KZG
-    pub points_source: PointsSource,
+    /// Url to the file containing the G1 point used for KZG
+    pub g1_url: String,
+    /// Url to the file containing the G2 point used for KZG
+    pub g2_url: String,
     /// Chain ID of the Ethereum network
     pub chain_id: u64,
 }

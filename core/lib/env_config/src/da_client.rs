@@ -39,28 +39,18 @@ impl FromEnv for DAClientConfig {
             }),
             CELESTIA_CLIENT_CONFIG_NAME => Self::Celestia(envy_load("da_celestia_config", "DA_")?),
             EIGEN_CLIENT_CONFIG_NAME => Self::Eigen(EigenConfig {
-                disperser_rpc: env::var("DA_DISPERSER_RPC")?,
+                disperser_rpc: env::var("EIGENDA_DISPERSER_RPC")?,
                 settlement_layer_confirmation_depth: env::var(
-                    "DA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH",
+                    "EIGENDA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH",
                 )?
                 .parse()?,
-                eigenda_eth_rpc: env::var("DA_EIGENDA_ETH_RPC")?,
-                eigenda_svc_manager_address: env::var("DA_EIGENDA_SVC_MANAGER_ADDRESS")?,
-                status_query_timeout: env::var("DA_STATUS_QUERY_TIMEOUT")?.parse()?,
-                status_query_interval: env::var("DA_STATUS_QUERY_INTERVAL")?.parse()?,
-                wait_for_finalization: env::var("DA_WAIT_FOR_FINALIZATION")?.parse()?,
-                authenticated: env::var("DA_AUTHENTICATED")?.parse()?,
-                verify_cert: env::var("DA_VERIFY_CERT")?.parse()?,
-                points_source: match env::var("DA_POINTS_SOURCE")?.as_str() {
-                    "Path" => zksync_config::configs::da_client::eigen::PointsSource::Path(
-                        env::var("DA_POINTS_PATH")?,
-                    ),
-                    "Link" => zksync_config::configs::da_client::eigen::PointsSource::Link(
-                        env::var("DA_POINTS_LINK")?,
-                    ),
-                    _ => anyhow::bail!("Unknown Eigen points type"),
-                },
-                chain_id: env::var("DA_CHAIN_ID")?.parse()?,
+                eigenda_eth_rpc: env::var("EIGENDA_EIGENDA_ETH_RPC")?,
+                eigenda_svc_manager_address: env::var("EIGENDA_EIGENDA_SVC_MANAGER_ADDRESS")?,
+                wait_for_finalization: env::var("EIGENDA_WAIT_FOR_FINALIZATION")?.parse()?,
+                authenticated: env::var("EIGENDA_AUTHENTICATED")?.parse()?,
+                g1_url: env::var("EIGENDA_G1_URL")?.parse()?,
+                g2_url: env::var("EIGENDA_G2_URL")?.parse()?,
+                chain_id: env::var("EIGENDA_CHAIN_ID")?.parse()?,
             }),
             OBJECT_STORE_CLIENT_CONFIG_NAME => {
                 Self::ObjectStore(envy_load("da_object_store", "DA_")?)
@@ -121,7 +111,6 @@ mod tests {
         configs::{
             da_client::{
                 avail::{AvailClientConfig, AvailDefaultConfig},
-                eigen::PointsSource,
                 DAClientConfig::{self, ObjectStore},
             },
             object_store::ObjectStoreMode::GCS,
@@ -276,19 +265,15 @@ mod tests {
         let mut lock = MUTEX.lock();
         let config = r#"
             DA_CLIENT="Eigen"
-            DA_EIGEN_CLIENT_TYPE="Disperser"
-            DA_DISPERSER_RPC="http://localhost:8080"
-            DA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
-            DA_EIGENDA_ETH_RPC="http://localhost:8545"
-            DA_EIGENDA_SVC_MANAGER_ADDRESS="0x123"
-            DA_STATUS_QUERY_TIMEOUT=2
-            DA_STATUS_QUERY_INTERVAL=3
-            DA_WAIT_FOR_FINALIZATION=true
-            DA_AUTHENTICATED=false
-            DA_VERIFY_CERT=false
-            DA_POINTS_SOURCE="Path"
-            DA_POINTS_PATH="resources"
-            DA_CHAIN_ID=1
+            EIGENDA_DISPERSER_RPC="http://localhost:8080"
+            EIGENDA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
+            EIGENDA_EIGENDA_ETH_RPC="http://localhost:8545"
+            EIGENDA_EIGENDA_SVC_MANAGER_ADDRESS="0x123"
+            EIGENDA_WAIT_FOR_FINALIZATION=true
+            EIGENDA_AUTHENTICATED=false
+            EIGENDA_G1_URL="resources1"
+            EIGENDA_G2_URL="resources2"
+            EIGENDA_CHAIN_ID=1
         "#;
         lock.set_env(config);
 
@@ -300,12 +285,10 @@ mod tests {
                 settlement_layer_confirmation_depth: 0,
                 eigenda_eth_rpc: "http://localhost:8545".to_string(),
                 eigenda_svc_manager_address: "0x123".to_string(),
-                status_query_timeout: 2,
-                status_query_interval: 3,
                 wait_for_finalization: true,
                 authenticated: false,
-                verify_cert: false,
-                points_source: PointsSource::Path("resources".to_string()),
+                g1_url: "resources1".to_string(),
+                g2_url: "resources2".to_string(),
                 chain_id: 1
             })
         );
