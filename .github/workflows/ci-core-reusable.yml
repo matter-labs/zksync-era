@@ -457,7 +457,7 @@ jobs:
       - name: Run custom genesis test
         run: |
           ci_run cargo build --release -p custom_genesis_export
-          ci_run ./target/release/custom_genesis_export --database-url=postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_validium --genesis-config-path=etc/env/file_based/genesis.yaml --output=custom-genesis-export.bin
+          ci_run ./target/release/custom_genesis_export --database-url=postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_validium --genesis-config-path=etc/env/file_based/genesis.yaml --output-path=custom-genesis-export.bin
           
           if grep -q "custom_genesis_state_path" etc/env/file_based/genesis.yaml; then
             :
