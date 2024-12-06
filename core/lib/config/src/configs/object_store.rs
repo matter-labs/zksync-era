@@ -37,6 +37,9 @@ pub enum ObjectStoreMode {
         bucket_base_url: String,
         gcs_credential_file_path: String,
     },
+    S3 {
+        bucket_base_url: String,
+    },
     FileBacked {
         file_backed_base_path: String,
     },
