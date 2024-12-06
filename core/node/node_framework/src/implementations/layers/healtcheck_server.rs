@@ -3,6 +3,8 @@ use std::sync::Arc;
 use zksync_config::configs::api::HealthCheckConfig;
 use zksync_health_check::AppHealthCheck;
 use zksync_node_api_server::healthcheck::HealthCheckHandle;
+use zksync_shared_metrics::metadata::{GitMetadata, RustMetadata, GIT_METRICS, RUST_METRICS};
+use zksync_web3_decl::jsonrpsee::core::Serialize;
 
 use crate::{
     implementations::resources::healthcheck::AppHealthCheckResource,
@@ -11,6 +13,13 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+
+/// Full metadata of the compiled binary.
+#[derive(Debug, Serialize)]
+pub struct BinMetadata {
+    pub rust: &'static RustMetadata,
+    pub git: &'static GitMetadata,
+}
 
 /// Wiring layer for health check server
 ///
@@ -73,8 +82,12 @@ impl Task for HealthCheckTask {
     }
 
     async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.app_health_check.set_details(BinMetadata {
+            rust: RUST_METRICS.initialize(),
+            git: GIT_METRICS.initialize(),
+        });
         let handle =
-            HealthCheckHandle::spawn_server(self.config.bind_addr(), self.app_health_check.clone());
+            HealthCheckHandle::spawn_server(self.config.bind_addr(), self.app_health_check);
         stop_receiver.0.changed().await?;
         handle.stop().await;
 

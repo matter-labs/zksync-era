@@ -243,7 +243,7 @@ impl Web3JsonRpcConfig {
             pubsub_polling_interval: Some(200),
             max_nonce_ahead: 50,
             gas_price_scale_factor: 1.2,
-            estimate_gas_scale_factor: 1.2,
+            estimate_gas_scale_factor: 1.5,
             estimate_gas_acceptable_overestimation: 1000,
             estimate_gas_optimize_search: false,
             max_tx_size: 1000000,
