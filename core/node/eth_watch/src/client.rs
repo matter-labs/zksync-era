@@ -22,7 +22,7 @@ use zksync_web3_decl::{
     namespaces::{EthNamespaceClient, UnstableNamespaceClient, ZksNamespaceClient},
 };
 
-const FFLONK_VERIFIER_TYPE: i32 = 1;
+const FFLONK_VERIFIER_TYPE: i32 = 0;
 
 /// Common L1 and L2 client functionality used by [`EthWatch`](crate::EthWatch) and constituent event processors.
 #[async_trait::async_trait]

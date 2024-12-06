@@ -14,7 +14,7 @@ use zksync_prover_dal::{Prover, ProverDal};
 
 use crate::helper;
 
-const FFLONK_VERIFIER_TYPE: i32 = 1;
+const FFLONK_VERIFIER_TYPE: i32 = 0;
 
 pub(crate) async fn run() -> anyhow::Result<()> {
     println!(" ====== L1 Status ====== ");

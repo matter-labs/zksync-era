@@ -118,19 +118,14 @@ pub fn calculate_snark_vk_hash(verification_key: String) -> anyhow::Result<H256>
 
 #[cfg(feature = "gpu")]
 pub fn calculate_fflonk_snark_vk_hash(verification_key: String) -> anyhow::Result<H256> {
-    use byteorder::{BigEndian, WriteBytesExt};
-
     let verification_key: FflonkSnarkVerifierCircuitVK = serde_json::from_str(&verification_key)?;
 
-    let mut res = vec![];
+    let mut res = vec![0u8; 32];
 
     // NUM INPUTS
     // Writing as u256 to comply with the contract
     let num_inputs = U256::from(verification_key.num_inputs);
-
-    for digit in num_inputs.0.iter().rev() {
-        res.write_u64::<BigEndian>(*digit).unwrap();
-    }
+    num_inputs.to_big_endian(&mut res[0..32]);
 
     // C0 G1
     let c0_g1 = verification_key.c0;
@@ -148,16 +143,7 @@ pub fn calculate_fflonk_snark_vk_hash(verification_key: String) -> anyhow::Resul
     // G2 ELEMENTS
     let g2_elements = verification_key.g2_elements;
     for g2_element in g2_elements {
-        let (e1, e2) = g2_element.as_xy();
-        let Fq2 { c0: x, c1: y } = e1;
-
-        x.into_repr().write_be(&mut res)?;
-        y.into_repr().write_be(&mut res)?;
-
-        let Fq2 { c0: x, c1: y } = e2;
-
-        x.into_repr().write_be(&mut res)?;
-        y.into_repr().write_be(&mut res)?;
+        res.extend(g2_element.into_uncompressed().as_ref());
     }
 
     let mut hasher = sha3::Keccak256::new();
