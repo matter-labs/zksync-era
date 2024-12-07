@@ -44,6 +44,15 @@ impl Detokenize for L1BatchCommitmentMode {
     }
 }
 
+impl From<L1BatchCommitmentMode> for u8 {
+    fn from(val: L1BatchCommitmentMode) -> Self {
+        match val {
+            L1BatchCommitmentMode::Rollup => 0,
+            L1BatchCommitmentMode::Validium => 1,
+        }
+    }
+}
+
 impl FromStr for L1BatchCommitmentMode {
     type Err = &'static str;
 

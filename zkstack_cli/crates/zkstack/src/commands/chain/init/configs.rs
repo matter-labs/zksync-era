@@ -12,6 +12,7 @@ use crate::{
         chain::{
             args::init::configs::{InitConfigsArgs, InitConfigsArgsFinal},
             genesis,
+            init::fill_contracts_config_from_l1,
         },
         portal::update_portal_config,
     },
@@ -32,9 +33,11 @@ pub async fn run(args: InitConfigsArgs, shell: &Shell) -> anyhow::Result<()> {
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let args = args.fill_values_with_prompt(&chain_config);
 
-    init_configs(&args, shell, &ecosystem_config, &chain_config).await?;
+    let mut contracts = init_configs(&args, shell, &ecosystem_config, &chain_config).await?;
+    contracts =
+        fill_contracts_config_from_l1(contracts, chain_config.chain_id, args.l1_rpc_url).await?;
+    contracts.save_with_base_path(shell, &chain_config.configs)?;
     logger::outro(MSG_CHAIN_CONFIGS_INITIALIZED);
-
     Ok(())
 }
 

@@ -111,6 +111,7 @@ pub struct DeployL1Config {
     pub era_chain_id: L2ChainId,
     pub owner_address: Address,
     pub testnet_verifier: bool,
+    pub l2_deployer: Address,
     pub contracts: ContractsDeployL1Config,
     pub tokens: TokensDeployL1Config,
 }
@@ -166,6 +167,7 @@ impl DeployL1Config {
             tokens: TokensDeployL1Config {
                 token_weth_address: initial_deployment_config.token_weth_address,
             },
+            l2_deployer: wallets_config.governor.address,
         }
     }
 }
