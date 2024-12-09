@@ -1,6 +1,6 @@
 use anyhow::Context;
-use common::{git, logger, spinner::Spinner};
-use config::{traits::SaveConfigWithBasePath, EcosystemConfig};
+use zkstack_common::{git, logger, spinner::Spinner};
+use zkstack_config::{traits::SaveConfigWithBasePath, EcosystemConfig};
 use xshell::Shell;
 
 use super::{

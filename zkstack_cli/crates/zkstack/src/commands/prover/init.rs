@@ -1,14 +1,14 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::{
+use zkstack_common::{
     cmd::Cmd,
     config::global_config,
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     logger,
     spinner::Spinner,
 };
-use config::{
+use zkstack_config::{
     copy_configs, get_link_to_prover, set_prover_database, traits::SaveConfigWithBasePath,
     EcosystemConfig,
 };

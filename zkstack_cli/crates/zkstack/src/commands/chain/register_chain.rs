@@ -1,10 +1,10 @@
 use anyhow::Context;
-use common::{
+use zkstack_common::{
     forge::{Forge, ForgeScriptArgs},
     logger,
     spinner::Spinner,
 };
-use config::{
+use zkstack_config::{
     forge_interface::{
         register_chain::{input::RegisterChainL1Config, output::RegisterChainOutput},
         script_params::REGISTER_CHAIN_SCRIPT_PARAMS,

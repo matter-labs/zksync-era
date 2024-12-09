@@ -1,7 +1,7 @@
 use anyhow::Context;
 use clap::Subcommand;
-use common::{docker, logger};
-use config::{EcosystemConfig, DOCKER_COMPOSE_FILE};
+use zkstack_common::{docker, logger};
+use zkstack_config::{EcosystemConfig, DOCKER_COMPOSE_FILE};
 use xshell::Shell;
 
 use crate::commands::dev::messages::{

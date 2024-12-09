@@ -1234,7 +1234,7 @@ checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
 
 [[package]]
 name = "block_reverter"
-version = "0.1.0"
+version = "25.2.0"
 dependencies = [
  "anyhow",
  "clap 4.5.20",
@@ -3518,29 +3518,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "genesis_generator"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap 4.5.20",
- "futures 0.3.31",
- "serde",
- "serde_json",
- "serde_yaml",
- "tokio",
- "tracing",
- "zksync_config",
- "zksync_contracts",
- "zksync_core_leftovers",
- "zksync_dal",
- "zksync_env_config",
- "zksync_node_genesis",
- "zksync_protobuf",
- "zksync_protobuf_config",
- "zksync_types",
-]
-
-[[package]]
 name = "getrandom"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5238,21 +5215,6 @@ name = "memchr"
 version = "2.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
-
-[[package]]
-name = "merkle_tree_consistency_checker"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap 4.5.20",
- "tracing",
- "zksync_config",
- "zksync_env_config",
- "zksync_merkle_tree",
- "zksync_storage",
- "zksync_types",
- "zksync_vlog",
-]
 
 [[package]]
 name = "merlin"
@@ -7869,20 +7831,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "selector_generator"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap 4.5.20",
- "ethabi",
- "glob",
- "hex",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
 name = "semver"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8526,27 +8474,6 @@ dependencies = [
  "proc-macro2 1.0.89",
  "quote 1.0.37",
  "syn 2.0.85",
-]
-
-[[package]]
-name = "snapshots_creator"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "futures 0.3.31",
- "rand 0.8.5",
- "structopt",
- "test-casing",
- "tokio",
- "tracing",
- "vise",
- "zksync_config",
- "zksync_core_leftovers",
- "zksync_dal",
- "zksync_env_config",
- "zksync_object_store",
- "zksync_types",
- "zksync_vlog",
 ]
 
 [[package]]
@@ -9264,20 +9191,6 @@ checksum = "8e1d1b10ced5ca923a1fcb8d03e96b8d3268065d724548c0211415ff6ac6bac4"
 dependencies = [
  "core-foundation-sys",
  "libc",
-]
-
-[[package]]
-name = "system-constants-generator"
-version = "0.1.0"
-dependencies = [
- "codegen",
- "once_cell",
- "serde",
- "serde_json",
- "zksync_contracts",
- "zksync_multivm",
- "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -10204,19 +10117,6 @@ name = "vec_map"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
-
-[[package]]
-name = "verified_sources_fetcher"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "serde_json",
- "tokio",
- "zksync_config",
- "zksync_dal",
- "zksync_env_config",
- "zksync_types",
-]
 
 [[package]]
 name = "version_check"
@@ -11466,7 +11366,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_contract_verifier"
-version = "0.1.0"
+version = "25.2.0"
 dependencies = [
  "anyhow",
  "clap 4.5.20",
@@ -11915,6 +11815,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_genesis_generator"
+version = "25.2.0"
+dependencies = [
+ "anyhow",
+ "clap 4.5.20",
+ "futures 0.3.31",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tokio",
+ "tracing",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_core_leftovers",
+ "zksync_dal",
+ "zksync_env_config",
+ "zksync_node_genesis",
+ "zksync_protobuf",
+ "zksync_protobuf_config",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_health_check"
 version = "0.1.0"
 dependencies = [
@@ -12027,6 +11950,21 @@ dependencies = [
  "zksync_storage",
  "zksync_system_constants",
  "zksync_types",
+]
+
+[[package]]
+name = "zksync_merkle_tree_consistency_checker"
+version = "25.2.0"
+dependencies = [
+ "anyhow",
+ "clap 4.5.20",
+ "tracing",
+ "zksync_config",
+ "zksync_env_config",
+ "zksync_merkle_tree",
+ "zksync_storage",
+ "zksync_types",
+ "zksync_vlog",
 ]
 
 [[package]]
@@ -12576,8 +12514,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_selector_generator"
+version = "25.2.0"
+dependencies = [
+ "anyhow",
+ "clap 4.5.20",
+ "ethabi",
+ "glob",
+ "hex",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "zksync_server"
-version = "0.1.0"
+version = "25.2.0"
 dependencies = [
  "anyhow",
  "clap 4.5.20",
@@ -12637,6 +12589,27 @@ dependencies = [
  "zksync_object_store",
  "zksync_types",
  "zksync_web3_decl",
+]
+
+[[package]]
+name = "zksync_snapshots_creator"
+version = "25.2.0"
+dependencies = [
+ "anyhow",
+ "futures 0.3.31",
+ "rand 0.8.5",
+ "structopt",
+ "test-casing",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_core_leftovers",
+ "zksync_dal",
+ "zksync_env_config",
+ "zksync_object_store",
+ "zksync_types",
+ "zksync_vlog",
 ]
 
 [[package]]
@@ -12743,8 +12716,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_system_constants_generator"
+version = "25.2.0"
+dependencies = [
+ "codegen",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "zksync_contracts",
+ "zksync_multivm",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "zksync_tee_prover"
-version = "0.1.0"
+version = "25.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12848,6 +12835,19 @@ dependencies = [
  "tokio",
  "tracing",
  "zksync_vlog",
+]
+
+[[package]]
+name = "zksync_verified_sources_fetcher"
+version = "25.2.0"
+dependencies = [
+ "anyhow",
+ "serde_json",
+ "tokio",
+ "zksync_config",
+ "zksync_dal",
+ "zksync_env_config",
+ "zksync_types",
 ]
 
 [[package]]

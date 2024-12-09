@@ -1,6 +1,6 @@
 use anyhow::Context;
 use clap::Parser;
-use common::PromptSelect;
+use zkstack_common::PromptSelect;
 use xshell::Shell;
 
 use super::releases::{get_releases_with_arch, Arch, Version};

@@ -1,5 +1,5 @@
 use clap::Parser;
-use common::{Prompt, PromptSelect};
+use zkstack_common::{Prompt, PromptSelect};
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
 

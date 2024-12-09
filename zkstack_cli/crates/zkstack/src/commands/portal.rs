@@ -1,14 +1,14 @@
 use std::path::Path;
 
 use anyhow::Context;
-use common::{config::global_config, docker, ethereum, logger};
-use config::{
+use zkstack_common::{config::global_config, docker, ethereum, logger};
+use zkstack_config::{
     portal::*,
     traits::{ConfigWithL2RpcUrl, SaveConfig},
     AppsEcosystemConfig, ChainConfig, EcosystemConfig,
 };
 use ethers::types::Address;
-use types::{BaseToken, TokenInfo};
+use zkstack_types::{BaseToken, TokenInfo};
 use xshell::Shell;
 
 use crate::{

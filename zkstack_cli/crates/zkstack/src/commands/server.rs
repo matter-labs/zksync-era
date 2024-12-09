@@ -1,11 +1,11 @@
 use anyhow::Context;
-use common::{
+use zkstack_common::{
     cmd::Cmd,
     config::global_config,
     logger,
     server::{Server, ServerMode},
 };
-use config::{
+use zkstack_config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
     GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };

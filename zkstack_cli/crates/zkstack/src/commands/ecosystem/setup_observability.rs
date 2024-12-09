@@ -1,5 +1,5 @@
-use common::{git, logger, spinner::Spinner};
-use config::{ERA_OBSERBAVILITY_DIR, ERA_OBSERBAVILITY_GIT_REPO};
+use zkstack_common::{git, logger, spinner::Spinner};
+use zkstack_config::{ERA_OBSERBAVILITY_DIR, ERA_OBSERBAVILITY_GIT_REPO};
 use xshell::Shell;
 
 use crate::messages::{

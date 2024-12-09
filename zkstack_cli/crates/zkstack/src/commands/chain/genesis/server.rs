@@ -1,10 +1,10 @@
 use anyhow::Context;
-use common::{
+use zkstack_common::{
     logger,
     server::{Server, ServerMode},
     spinner::Spinner,
 };
-use config::{
+use zkstack_config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
     GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };

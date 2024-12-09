@@ -1,4 +1,4 @@
-use ::common::forge::ForgeScriptArgs;
+use ::zkstack_common::forge::ForgeScriptArgs;
 use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::{command, Subcommand};

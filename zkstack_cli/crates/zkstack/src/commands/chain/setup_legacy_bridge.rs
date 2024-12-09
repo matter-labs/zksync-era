@@ -1,9 +1,9 @@
 use anyhow::Context;
-use common::{
+use zkstack_common::{
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
 };
-use config::{
+use zkstack_config::{
     forge_interface::{
         script_params::SETUP_LEGACY_BRIDGE, setup_legacy_bridge::SetupLegacyBridgeInput,
     },

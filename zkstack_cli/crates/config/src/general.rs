@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use common::yaml::merge_yaml;
+use zkstack_common::yaml::merge_yaml;
 use url::Url;
 use xshell::Shell;
 use zksync_config::configs::object_store::ObjectStoreMode;

@@ -1,5 +1,5 @@
 use clap::Parser;
-use common::Prompt;
+use zkstack_common::Prompt;
 
 use crate::messages::MSG_SETUP_COMPRESSOR_KEY_PATH_PROMPT;
 

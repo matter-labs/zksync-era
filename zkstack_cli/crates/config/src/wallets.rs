@@ -1,4 +1,4 @@
-use common::wallets::Wallet;
+use zkstack_common::wallets::Wallet;
 use rand::{CryptoRng, Rng};
 use serde::{Deserialize, Serialize};
 

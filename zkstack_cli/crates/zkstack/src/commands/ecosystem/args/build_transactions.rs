@@ -1,7 +1,7 @@
 use std::{path::PathBuf, str::FromStr};
 
 use clap::Parser;
-use common::{forge::ForgeScriptArgs, Prompt};
+use zkstack_common::{forge::ForgeScriptArgs, Prompt};
 use serde::{Deserialize, Serialize};
 use url::Url;
 use zksync_basic_types::H160;

@@ -1,6 +1,6 @@
 use anyhow::Context;
-use common::forge::{Forge, ForgeScriptArgs};
-use config::{
+use zkstack_common::forge::{Forge, ForgeScriptArgs};
+use zkstack_config::{
     forge_interface::{
         paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
         script_params::DEPLOY_PAYMASTER_SCRIPT_PARAMS,

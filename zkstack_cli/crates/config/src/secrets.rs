@@ -1,7 +1,7 @@
 use std::{path::Path, str::FromStr};
 
 use anyhow::Context;
-use common::db::DatabaseConfig;
+use zkstack_common::db::DatabaseConfig;
 use xshell::Shell;
 use zksync_basic_types::url::SensitiveUrl;
 pub use zksync_config::configs::Secrets as SecretsConfig;

@@ -1,6 +1,6 @@
 use anyhow::Context;
-use common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
-use config::EcosystemConfig;
+use zkstack_common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
+use zkstack_config::EcosystemConfig;
 use xshell::Shell;
 
 use crate::{

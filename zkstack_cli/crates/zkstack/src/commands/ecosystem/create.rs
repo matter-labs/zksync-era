@@ -1,6 +1,6 @@
 use anyhow::{bail, Context};
-use common::{logger, spinner::Spinner};
-use config::{
+use zkstack_common::{logger, spinner::Spinner};
+use zkstack_config::{
     create_local_configs_dir, create_wallets, get_default_era_chain_id,
     traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError,
 };

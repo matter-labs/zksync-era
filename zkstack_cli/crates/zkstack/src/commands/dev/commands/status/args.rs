@@ -1,6 +1,6 @@
 use anyhow::Context;
 use clap::Parser;
-use config::EcosystemConfig;
+use zkstack_config::EcosystemConfig;
 use xshell::Shell;
 
 use crate::{

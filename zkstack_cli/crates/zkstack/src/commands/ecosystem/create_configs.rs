@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use config::{
+use zkstack_config::{
     forge_interface::deploy_ecosystem::input::{Erc20DeploymentConfig, InitialDeploymentConfig},
     traits::{SaveConfigWithBasePath, SaveConfigWithCommentAndBasePath},
     AppsEcosystemConfig,

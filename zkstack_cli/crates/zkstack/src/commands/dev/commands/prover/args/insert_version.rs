@@ -30,13 +30,13 @@ impl InsertVersionArgs {
         }
 
         let version = self.version.unwrap_or_else(|| {
-            common::Prompt::new("Enter the version of the protocol to insert")
+            zkstack_common::Prompt::new("Enter the version of the protocol to insert")
                 .default(&era_version)
                 .ask()
         });
 
         let snark_wrapper = self.snark_wrapper.unwrap_or_else(|| {
-            common::Prompt::new("Enter the snark wrapper of the protocol to insert")
+            zkstack_common::Prompt::new("Enter the snark wrapper of the protocol to insert")
                 .default(&snark_wrapper)
                 .ask()
         });

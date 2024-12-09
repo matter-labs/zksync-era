@@ -1,7 +1,7 @@
 [package]
-name = "snapshots_creator"
+name = "zksync_snapshots_creator"
 description = "Tool to create ZKsync state snapshots"
-version = "0.1.0"
+version = "25.2.0"
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true

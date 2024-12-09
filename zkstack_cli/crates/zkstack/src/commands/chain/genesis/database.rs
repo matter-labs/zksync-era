@@ -1,16 +1,16 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::{
+use zkstack_common::{
     config::global_config,
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     logger,
 };
-use config::{
+use zkstack_config::{
     override_config, set_file_artifacts, set_rocks_db_config, set_server_database,
     traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig, FileArtifacts,
 };
-use types::ProverMode;
+use zkstack_types::ProverMode;
 use xshell::Shell;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
 
