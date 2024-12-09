@@ -22,7 +22,6 @@ use crate::{
 };
 
 pub trait VmInterface {
-    /// Lifetime is used to be able to define `Option<&mut _>` as a dispatcher.
     type TracerDispatcher: Default;
 
     /// Pushes a transaction to bootloader memory for future execution with bytecode compression (if it's supported by the VM).

@@ -8,14 +8,14 @@ use zksync_vm2::interface::{
     CallframeInterface, CallingMode, GlobalStateInterface, Opcode, OpcodeType, ShouldStop, Tracer,
 };
 
-use super::utils::read_fat_pointer;
+use crate::vm_fast::utils::read_fat_pointer;
 
 /// Container for dynamic bytecodes added by [`EvmDeployTracer`].
 #[derive(Debug, Clone, Default)]
-pub(super) struct DynamicBytecodes(Rc<RefCell<HashMap<U256, Vec<u8>>>>);
+pub(crate) struct DynamicBytecodes(Rc<RefCell<HashMap<U256, Vec<u8>>>>);
 
 impl DynamicBytecodes {
-    pub(super) fn map<R>(&self, hash: U256, f: impl FnOnce(&[u8]) -> R) -> Option<R> {
+    pub(crate) fn map<R>(&self, hash: U256, f: impl FnOnce(&[u8]) -> R) -> Option<R> {
         self.0.borrow().get(&hash).map(|code| f(code))
     }
 
