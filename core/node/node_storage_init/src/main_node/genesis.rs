@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_config::{ContractsConfig, GenesisConfig};
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
-use zksync_node_genesis::{custom_genesis_export::GenesisExportReader, GenesisParams};
+use zksync_node_genesis::{custom_genesis::GenesisExportReader, GenesisParams};
 use zksync_web3_decl::client::{DynClient, L1};
 
 use crate::traits::InitializeStorage;

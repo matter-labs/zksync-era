@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_node_genesis::{
-    custom_genesis_export::GenesisExportReader, ensure_genesis_state, GenesisParams,
+    custom_genesis::GenesisExportReader, ensure_genesis_state, GenesisParams,
 };
 use zksync_types::{
     block::DeployedContract, system_contracts::get_system_smart_contracts, AccountTreeId, L2ChainId,

@@ -194,31 +194,26 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore]
     fn test_genesis_reader() {
-        // TODO: include a sample file into the project
-        let path = "/Users/jacob/Projects/zksync-era/core/bin/custom_genesis_export/g2.bin";
+        let path = "tests/data/genesis_export.bin";
         let reader = GenesisExportReader::new(File::open(path).unwrap());
 
         let mut count_iw = 0;
         for _ in reader.initial_writes() {
             count_iw += 1;
         }
-        println!("Initial writes: {count_iw}");
-        assert_eq!(count_iw, 53);
+        assert_eq!(count_iw, 8934);
 
         let mut count_sl = 0;
         for _ in reader.storage_logs() {
             count_sl += 1;
         }
-        println!("Storage logs: {count_sl}");
-        assert_eq!(count_sl, 53);
+        assert_eq!(count_sl, 8810);
 
         let mut count_fd = 0;
         for _ in reader.factory_deps() {
             count_fd += 1;
         }
-        println!("Factory dependencies: {count_fd}");
-        assert_eq!(count_fd, 26);
+        assert_eq!(count_fd, 57);
     }
 }

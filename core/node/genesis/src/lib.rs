@@ -5,7 +5,7 @@
 use std::{collections::HashMap, fmt::Formatter};
 
 use anyhow::Context as _;
-use custom_genesis_export::GenesisExportReader;
+use custom_genesis::GenesisExportReader;
 use zksync_config::GenesisConfig;
 use zksync_contracts::{
     hyperchain_contract, verifier_contract, BaseSystemContracts, BaseSystemContractsHashes,
@@ -36,7 +36,7 @@ use crate::utils::{
     save_genesis_l1_batch_metadata,
 };
 
-pub mod custom_genesis_export;
+pub mod custom_genesis;
 #[cfg(test)]
 mod tests;
 mod utils;
