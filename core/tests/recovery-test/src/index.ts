@@ -193,7 +193,10 @@ export class NodeProcess {
         return new NodeProcess(childProcess, logs);
     }
 
-    private constructor(private childProcess: ChildProcess, readonly logs: FileHandle) {}
+    private constructor(
+        private childProcess: ChildProcess,
+        readonly logs: FileHandle
+    ) {}
 
     exitCode() {
         return this.childProcess.exitCode;

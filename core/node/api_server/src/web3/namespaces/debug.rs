@@ -244,12 +244,7 @@ impl DebugNamespace {
             // It is important to drop a DB connection before calling the provider, since it acquires a connection internally
             // on the main node.
             drop(connection);
-            let scale_factor = self.state.api_config.estimate_gas_scale_factor;
-            let fee_input_provider = &self.state.tx_sender.0.batch_fee_input_provider;
-            // For now, the same scaling is used for both the L1 gas price and the pubdata price
-            fee_input_provider
-                .get_batch_fee_input_scaled(scale_factor, scale_factor)
-                .await?
+            self.state.tx_sender.scaled_batch_fee_input().await?
         } else {
             let fee_input = block_args.historical_fee_input(&mut connection).await?;
             drop(connection);
