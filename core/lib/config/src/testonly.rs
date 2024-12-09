@@ -746,6 +746,7 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
                 0 => L1BatchCommitmentMode::Rollup,
                 _ => L1BatchCommitmentMode::Validium,
             },
+            custom_genesis_state_path: None,
         }
     }
 }
