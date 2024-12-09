@@ -59,3 +59,4 @@ automatically recognized by the server during the execution of `zkstack ecosyste
   larger states, ensure the VM has sufficient RAM capacity.
 - After the import, block numbers for all VM logs will be reset to zero - if the imported data has been indexed based on
   block number, such indexes will break.
+- External Nodes will have to be bootstrapped from data snapshot (i.e. genesis can't be generated locally).

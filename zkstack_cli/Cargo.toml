@@ -36,7 +36,6 @@ zksync_consensus_crypto = "=0.6.0"
 zksync_consensus_utils = "=0.6.0"
 zksync_protobuf = "=0.6.0"
 zksync_protobuf_build = "=0.6.0"
-zksync_node_genesis = { path = "../core/node/genesis" }
 
 # External dependencies
 anyhow = "1.0.82"
