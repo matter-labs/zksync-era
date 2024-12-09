@@ -5,9 +5,7 @@ use zksync_basic_types::{
     commitment::L1BatchCommitmentMode,
     network::Network,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
-    pubdata_da::PubdataSendingMode,
     secrets::{APIKey, SeedPhrase},
-    vm::FastVmMode,
     L1BatchNumber, L1ChainId, L2ChainId,
 };
 use zksync_consensus_utils::EncodeDist;
@@ -20,7 +18,6 @@ use crate::{
             avail::{AvailClientConfig, AvailDefaultConfig},
             DAClientConfig::Avail,
         },
-        external_price_api_client::ForcedPriceClientConfig,
     },
     AvailConfig,
 };
@@ -106,124 +103,6 @@ impl Distribution<configs::database::MerkleTreeMode> for EncodeDist {
         match rng.gen_range(0..2) {
             0 => T::Full,
             _ => T::Lightweight,
-        }
-    }
-}
-
-impl Distribution<configs::ExperimentalVmPlaygroundConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ExperimentalVmPlaygroundConfig {
-        configs::ExperimentalVmPlaygroundConfig {
-            fast_vm_mode: gen_fast_vm_mode(rng),
-            db_path: self.sample(rng),
-            first_processed_batch: L1BatchNumber(rng.gen()),
-            window_size: rng.gen(),
-            reset: self.sample(rng),
-        }
-    }
-}
-
-fn gen_fast_vm_mode<R: Rng + ?Sized>(rng: &mut R) -> FastVmMode {
-    match rng.gen_range(0..3) {
-        0 => FastVmMode::Old,
-        1 => FastVmMode::New,
-        _ => FastVmMode::Shadow,
-    }
-}
-
-impl Distribution<configs::ExperimentalVmConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ExperimentalVmConfig {
-        configs::ExperimentalVmConfig {
-            playground: self.sample(rng),
-            state_keeper_fast_vm_mode: gen_fast_vm_mode(rng),
-            api_fast_vm_mode: gen_fast_vm_mode(rng),
-        }
-    }
-}
-
-impl Distribution<configs::EthConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::EthConfig {
-        configs::EthConfig {
-            sender: self.sample(rng),
-            gas_adjuster: self.sample(rng),
-            watcher: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::eth_sender::ProofSendingMode> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::eth_sender::ProofSendingMode {
-        type T = configs::eth_sender::ProofSendingMode;
-        match rng.gen_range(0..3) {
-            0 => T::OnlyRealProofs,
-            1 => T::OnlySampledProofs,
-            _ => T::SkipEveryProof,
-        }
-    }
-}
-
-impl Distribution<configs::eth_sender::ProofLoadingMode> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::eth_sender::ProofLoadingMode {
-        type T = configs::eth_sender::ProofLoadingMode;
-        match rng.gen_range(0..2) {
-            0 => T::OldProofFromDb,
-            _ => T::FriProofFromGcs,
-        }
-    }
-}
-
-impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::eth_sender::SenderConfig {
-        configs::eth_sender::SenderConfig {
-            aggregated_proof_sizes: self.sample_collect(rng),
-            wait_confirmations: self.sample(rng),
-            tx_poll_period: self.sample(rng),
-            aggregate_tx_poll_period: self.sample(rng),
-            max_txs_in_flight: self.sample(rng),
-            proof_sending_mode: self.sample(rng),
-            max_aggregated_tx_gas: self.sample(rng),
-            max_eth_tx_data_size: self.sample(rng),
-            max_aggregated_blocks_to_commit: self.sample(rng),
-            max_aggregated_blocks_to_execute: self.sample(rng),
-            aggregated_block_commit_deadline: self.sample(rng),
-            aggregated_block_prove_deadline: self.sample(rng),
-            aggregated_block_execute_deadline: self.sample(rng),
-            timestamp_criteria_max_allowed_lag: self.sample(rng),
-            l1_batch_min_age_before_execute_seconds: self.sample(rng),
-            max_acceptable_priority_fee_in_gwei: self.sample(rng),
-            pubdata_sending_mode: PubdataSendingMode::Calldata,
-            tx_aggregation_paused: false,
-            tx_aggregation_only_prove_and_execute: false,
-            time_in_mempool_in_l1_blocks_cap: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::eth_sender::GasAdjusterConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::eth_sender::GasAdjusterConfig {
-        configs::eth_sender::GasAdjusterConfig {
-            default_priority_fee_per_gas: self.sample(rng),
-            max_base_fee_samples: self.sample(rng),
-            pricing_formula_parameter_a: self.sample(rng),
-            pricing_formula_parameter_b: self.sample(rng),
-            internal_l1_pricing_multiplier: self.sample(rng),
-            internal_enforced_l1_gas_price: self.sample(rng),
-            internal_enforced_pubdata_price: self.sample(rng),
-            poll_period: self.sample(rng),
-            max_l1_gas_price: self.sample(rng),
-            num_samples_for_blob_base_fee_estimate: self.sample(rng),
-            internal_pubdata_pricing_multiplier: self.sample(rng),
-            max_blob_base_fee: self.sample(rng),
-            // TODO(EVM-676): generate it randomly once this value is used
-            settlement_mode: Default::default(),
-        }
-    }
-}
-
-impl Distribution<configs::EthWatchConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::EthWatchConfig {
-        configs::EthWatchConfig {
-            confirmations_for_eth_event: self.sample(rng),
-            eth_node_poll_interval: self.sample(rng),
         }
     }
 }
@@ -419,28 +298,6 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
                 tee_proof_generation_timeout_in_secs: self.sample(rng),
                 tee_batch_permanently_ignored_timeout_in_hours: self.sample(rng),
             },
-        }
-    }
-}
-
-impl Distribution<configs::ObservabilityConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ObservabilityConfig {
-        configs::ObservabilityConfig {
-            sentry_url: self.sample(rng),
-            sentry_environment: self.sample(rng),
-            log_format: self.sample(rng),
-            opentelemetry: self.sample(rng),
-            log_directives: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::OpentelemetryConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::OpentelemetryConfig {
-        configs::OpentelemetryConfig {
-            level: self.sample(rng),
-            endpoint: self.sample(rng),
-            logs_endpoint: self.sample(rng),
         }
     }
 }
@@ -691,60 +548,6 @@ impl Distribution<configs::secrets::DataAvailabilitySecrets> for EncodeDist {
     }
 }
 
-impl Distribution<configs::vm_runner::ProtectiveReadsWriterConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(
-        &self,
-        rng: &mut R,
-    ) -> configs::vm_runner::ProtectiveReadsWriterConfig {
-        configs::vm_runner::ProtectiveReadsWriterConfig {
-            db_path: self.sample(rng),
-            window_size: self.sample(rng),
-            first_processed_batch: L1BatchNumber(rng.gen()),
-        }
-    }
-}
-
-impl Distribution<configs::vm_runner::BasicWitnessInputProducerConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(
-        &self,
-        rng: &mut R,
-    ) -> configs::vm_runner::BasicWitnessInputProducerConfig {
-        configs::vm_runner::BasicWitnessInputProducerConfig {
-            db_path: self.sample(rng),
-            window_size: self.sample(rng),
-            first_processed_batch: L1BatchNumber(rng.gen()),
-        }
-    }
-}
-
-impl Distribution<configs::CommitmentGeneratorConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::CommitmentGeneratorConfig {
-        configs::CommitmentGeneratorConfig {
-            max_parallelism: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::external_price_api_client::ExternalPriceApiClientConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(
-        &self,
-        rng: &mut R,
-    ) -> configs::external_price_api_client::ExternalPriceApiClientConfig {
-        configs::external_price_api_client::ExternalPriceApiClientConfig {
-            source: self.sample(rng),
-            base_url: self.sample(rng),
-            api_key: self.sample(rng),
-            client_timeout_ms: self.sample(rng),
-            forced: Some(ForcedPriceClientConfig {
-                numerator: self.sample(rng),
-                denominator: self.sample(rng),
-                fluctuation: self.sample(rng),
-                next_value_fluctuation: self.sample(rng),
-            }),
-        }
-    }
-}
-
 impl Distribution<configs::prover_job_monitor::ProverJobMonitorConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(
         &self,
@@ -790,22 +593,22 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             prometheus_config: None,
             proof_data_handler_config: self.sample(rng),
             db_config: None,
-            eth: self.sample(rng),
+            eth: None,
             snapshot_creator: None,
-            observability: self.sample(rng),
+            observability: None,
             da_client_config: self.sample(rng),
             da_dispatcher_config: None,
-            protective_reads_writer_config: self.sample(rng),
-            basic_witness_input_producer_config: self.sample(rng),
-            commitment_generator: self.sample(rng),
+            protective_reads_writer_config: None,
+            basic_witness_input_producer_config: None,
+            commitment_generator: None,
             snapshot_recovery: None,
             pruning: None,
             core_object_store: None,
             base_token_adjuster: None,
-            external_price_api_client_config: self.sample(rng),
+            external_price_api_client_config: None,
             consensus_config: self.sample(rng),
             external_proof_integration_api_config: None,
-            experimental_vm_config: self.sample(rng),
+            experimental_vm_config: None,
             prover_job_monitor_config: self.sample(rng),
             timestamp_asserter_config: None,
         }

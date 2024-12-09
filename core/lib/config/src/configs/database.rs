@@ -26,8 +26,8 @@ pub enum MerkleTreeMode {
 }
 
 impl WellKnown for MerkleTreeMode {
-    type Deserializer = Serde![int];
-    const DE: Self::Deserializer = Serde![int];
+    type Deserializer = Serde![str];
+    const DE: Self::Deserializer = Serde![str];
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]

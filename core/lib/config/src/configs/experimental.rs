@@ -1,9 +1,9 @@
 //! Experimental part of configuration.
 
-use std::{num::NonZeroU32, time::Duration};
+use std::{num::NonZeroU32, path::PathBuf, time::Duration};
 
-use serde::Deserialize;
 use smart_config::{
+    de::Serde,
     metadata::{SizeUnit, TimeUnit},
     ByteSize, DescribeConfig, DeserializeConfig,
 };
@@ -40,56 +40,39 @@ pub struct ExperimentalDBConfig {
 }
 
 /// Configuration for the VM playground (an experimental component that's unlikely to ever be stabilized).
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
 pub struct ExperimentalVmPlaygroundConfig {
     /// Mode in which to run the fast VM implementation. Note that for it to actually be used, L1 batches should have a recent version.
-    #[serde(default)]
+    #[config(default, with = Serde![str])]
     pub fast_vm_mode: FastVmMode,
     /// Path to the RocksDB cache directory.
-    pub db_path: Option<String>,
+    pub db_path: Option<PathBuf>,
     /// First L1 batch to consider processed. Will not be used if the processing cursor is persisted, unless the `reset` flag is set.
-    #[serde(default)]
+    #[config(default, with = Serde![int])]
     pub first_processed_batch: L1BatchNumber,
     /// Maximum number of L1 batches to process in parallel.
-    #[serde(default = "ExperimentalVmPlaygroundConfig::default_window_size")]
+    #[config(default_t = NonZeroU32::new(1).unwrap())]
     pub window_size: NonZeroU32,
     /// If set to true, processing cursor will reset `first_processed_batch` regardless of the current progress. Beware that this will likely
     /// require to drop the RocksDB cache.
-    #[serde(default)]
+    #[config(default)]
     pub reset: bool,
 }
 
-impl Default for ExperimentalVmPlaygroundConfig {
-    fn default() -> Self {
-        Self {
-            fast_vm_mode: FastVmMode::default(),
-            db_path: None,
-            first_processed_batch: L1BatchNumber(0),
-            window_size: Self::default_window_size(),
-            reset: false,
-        }
-    }
-}
-
-impl ExperimentalVmPlaygroundConfig {
-    pub fn default_window_size() -> NonZeroU32 {
-        NonZeroU32::new(1).unwrap()
-    }
-}
-
 /// Experimental VM configuration options.
-#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct ExperimentalVmConfig {
-    #[serde(skip)] // Isn't properly deserialized by `envy`
+    #[config(nest, default)]
     pub playground: ExperimentalVmPlaygroundConfig,
 
     /// Mode in which to run the fast VM implementation in the state keeper. Should not be set in production;
     /// the new VM doesn't produce call traces and can diverge from the old VM!
-    #[serde(default)]
+    #[config(default, with = Serde![str])]
     pub state_keeper_fast_vm_mode: FastVmMode,
 
     /// Fast VM mode to use in the API server. Currently, some operations are not supported by the fast VM (e.g., `debug_traceCall`
     /// or transaction validation), so the legacy VM will always be used for them.
-    #[serde(default)]
+    #[config(default, with = Serde![str])]
     pub api_fast_vm_mode: FastVmMode,
 }
