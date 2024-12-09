@@ -21,7 +21,6 @@ jobs:
       - name: Setup environment
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo BELLMAN_CUDA_DIR=$(pwd)/era-bellman-cuda >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
           echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
@@ -60,7 +59,9 @@ jobs:
 
           ci_run zkstack ecosystem init --dev --verbose
           ci_run zkstack prover init --dev --verbose
-          
+                    
+          echo $(ci_run ls)
+          echo "BELLMAN_CUDA_DIR=./era-bellman-cuda" >> $GITHUB_ENV
           echo "URL=$(grep "http_url" ./chains/proving_chain/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
       - name: Build prover binaries
         run: |
