@@ -275,7 +275,7 @@ impl EthClient for MockEthClient {
 
     async fn fflonk_scheduler_vk_hash(
         &self,
-        verifier_address: Address,
+        _verifier_address: Address,
     ) -> Result<H256, ContractCallError> {
         Ok(H256::zero())
     }

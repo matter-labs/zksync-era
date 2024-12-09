@@ -324,7 +324,7 @@ where
         let function = self
             .verifier_contract_abi
             .functions_by_name("verificationKeyHash")
-            .map_err(|x| ContractCallError::Function(x))?[1]
+            .map_err(ContractCallError::Function)?[1]
             .clone();
         CallFunctionArgs::new("verificationKeyHash", U256::from(FFLONK_VERIFIER_TYPE))
             .for_contract(verifier_address, &self.verifier_contract_abi)
