@@ -1,4 +1,6 @@
 #![feature(allocator_api)]
+#![allow(dead_code)] // todo: remove after setup is generated
+#![allow(unused_imports)] // todo: remove after setup is generated
 
 //! Tool to generate different types of keys used by the proving system.
 //!
