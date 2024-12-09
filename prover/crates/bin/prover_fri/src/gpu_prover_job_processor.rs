@@ -1,6 +1,6 @@
 #[cfg(feature = "gpu")]
 pub mod gpu_prover {
-    use std::{collections::HashMap, sync::Arc, time::Instant};
+    use std::{alloc::Global, collections::HashMap, sync::Arc, time::Instant};
 
     use anyhow::Context as _;
     use shivini::{
@@ -174,7 +174,7 @@ pub mod gpu_prover {
                 DefaultTranscript,
                 DefaultTreeHasher,
                 NoPow,
-                _,
+                Global,
             >(
                 &gpu_proof_config,
                 &witness_vector,

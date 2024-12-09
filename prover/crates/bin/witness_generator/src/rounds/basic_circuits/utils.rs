@@ -11,11 +11,11 @@ use circuit_definitions::{
 };
 use tokio::sync::Semaphore;
 use tracing::Instrument;
-use zkevm_test_harness::witness::oracle::WitnessGenerationArtifact;
+use zkevm_test_harness::{
+    boojum::field::goldilocks::GoldilocksField, witness::oracle::WitnessGenerationArtifact,
+};
 use zksync_multivm::{
-    circuit_sequencer_api_latest::{
-        boojum::field::goldilocks::GoldilocksField, geometry_config::get_geometry_config,
-    },
+    circuit_sequencer_api_latest::geometry_config::ProtocolGeometry,
     interface::storage::StorageView,
     vm_latest::{constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle},
     zk_evm_latest::ethereum_types::Address,
@@ -52,7 +52,7 @@ pub(super) async fn generate_witness(
         input.merkle_paths,
         input.previous_batch_metadata.root_hash.0,
     );
-    let geometry_config = get_geometry_config();
+    let geometry_config = ProtocolGeometry::V1_5_0.config();
     let mut hasher = DefaultHasher::new();
     geometry_config.hash(&mut hasher);
     tracing::info!(
@@ -130,7 +130,7 @@ pub(super) async fn generate_witness(
             geometry_config,
             storage_oracle,
             tree,
-            path.to_owned(),
+            path.to_string(),
             input.eip_4844_blobs.blobs(),
             artifacts_sender,
         );
