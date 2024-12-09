@@ -16,7 +16,7 @@ mod generated;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct BlobData {
-    pub commitment: String,
+    pub blob_id: String,
     pub blob: String,
 }
 
@@ -27,10 +27,16 @@ const COMMIT_BATCHES_SELECTOR: &str = "6edd4f12";
 
 async fn get_blob(commitment: &str) -> anyhow::Result<Vec<u8>> {
     let client = EigenClientRetriever::new(EIGENDA_API_URL).await?;
-    let data = client
-        .get_blob_data(commitment)
+    let blob_id = commitment;
+    let blob_info = client
+        .get_blob_status(blob_id)
         .await?
         .ok_or_else(|| anyhow::anyhow!("Blob not found"))?;
+    let data = client
+        .get_blob_data(blob_info)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Blob not found"))?;
+
     Ok(data)
 }
 
@@ -128,11 +134,11 @@ async fn get_blob_from_pubdata_commitment(
         ));
     }
     let pubdata_commitments_bytes = pubdata_commitments_bytes.unwrap();
-    let commitment = hex::decode(&pubdata_commitments_bytes[1..])?;
-    let commitment = hex::encode(&commitment);
-    let blob = get_blob(&commitment).await?;
+    let blob_id = hex::decode(&pubdata_commitments_bytes[1..])?;
+    let blob_id = hex::encode(&blob_id);
+    let blob = get_blob(&blob_id).await?;
     Ok(BlobData {
-        commitment,
+        blob_id,
         blob: hex::encode(blob),
     })
 }
