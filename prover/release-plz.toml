@@ -1,0 +1,163 @@
+## General settings for prover workspace
+[workspace]
+dependencies_update = true               # Run `cargo update` in the release PR.
+pr_labels = ["release", "crates.io"]     # PR labels.
+changelog_update = false                 # Disable the changelog for all packages.
+git_tag_enable = false                   # Disable individual tags for all packages.
+git_release_enable = false               # Disable individual releases for all packages.
+semver_check = false                     # Disable API breaking changes checks with cargo-semver-checks.
+pr_name = "chore(main): release prover"  # PR title template.
+pr_branch_prefix = "prover-"             # PR branch prefix.
+
+
+## Changelog configuration
+[changelog]
+header = """# Changelog
+
+## [Unreleased]
+"""
+
+body = """
+
+{% macro print_commit(commit) -%}
+    - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
+      {% if commit.breaking %}[**breaking**] {% endif %}\
+      {{ commit.message | upper_first }} - \
+      ([{{ commit.id | truncate(length=7, end="") }}]({{ remote.link }}/commit/{{ commit.id }}))\
+{% endmacro -%}
+
+{% if version %}\
+    {% if previous.version %}\
+        ## [{{ version | trim_start_matches(pat="v") }}]({{ release_link }})
+    {% else %}\
+        ## [{{ version | trim_start_matches(pat="v") }}]
+    {% endif %}\
+{% endif %}\
+
+{% for group, commits in commits
+| filter(attribute="merge_commit", value=false)
+| unique(attribute="message")
+| group_by(attribute="group") %}
+    ### {{ group | striptags | trim | upper_first }}
+    {% for commit in commits
+    | filter(attribute="scope")
+    | sort(attribute="scope") %}
+        {{ self::print_commit(commit=commit) }}
+    {%- endfor -%}
+    {% raw %}\n{% endraw %}\
+    {%- for commit in commits %}
+        {%- if not commit.scope -%}
+            {{ self::print_commit(commit=commit) }}
+        {% endif -%}
+    {% endfor -%}
+{% endfor %}\n
+"""
+
+commit_parsers = [
+    { message = "^feat", group = "<!-- 0 -->⛰️ Features" },
+    { message = "^fix", group = "<!-- 1 -->🐛 Bug Fixes" },
+    { message = "^doc", group = "<!-- 3 -->📚 Documentation" },
+    { message = "^perf", group = "<!-- 4 -->⚡ Performance" },
+    { message = "^refactor", group = "<!-- 2 -->🚜 Refactor" },
+    { message = "^style", group = "<!-- 5 -->🎨 Styling" },
+    { message = "^test", group = "<!-- 6 -->🧪 Testing" },
+    { message = "^chore\\(release\\):", skip = true },
+    { message = "^chore: release", skip = true },
+    { message = "^chore\\(deps.*\\)", skip = true },
+    { message = "^chore\\(pr\\)", skip = true },
+    { message = "^chore\\(pull\\)", skip = true },
+    { message = "^chore\\(npm\\).*yarn\\.lock", skip = true },
+    { message = "^chore|^ci", group = "<!-- 7 -->⚙️ Miscellaneous Tasks" },
+    { body = ".*security", group = "<!-- 8 -->🛡️ Security" },
+    { message = "^revert", group = "<!-- 9 -->◀️ Revert" },
+]
+
+## Core libraries section
+[[package]]
+name = "zksync_prover_dal"
+git_release_enable = true
+git_tag_enable = true
+git_tag_name = "prover-libs-v{{version}}"     # Special tag for prover libs
+git_release_name = "prover-libs-v{{version}}" # GitHub release name for prover libs
+changelog_update = true
+changelog_path = "./crates/lib/CHANGELOG.md"  # Changelog path for prover libs.
+changelog_include = [
+    "zksync_prover_fri_types", "zksync_prover_job_processor",
+    "zksync_prover_keystore", "zksync_circuit_prover_service",
+    "zksync_prover_fri_utils"
+]
+version_group = "prover-libs"
+
+[[package]]
+name = "zksync_prover_fri_types"
+version_group = "prover-libs"
+
+[[package]]
+name = "zksync_prover_job_processor"
+version_group = "prover-libs"
+
+[[package]]
+name = "zksync_prover_keystore"
+version_group = "prover-libs"
+
+[[package]]
+name = "zksync_circuit_prover_service"
+version_group = "prover-libs"
+
+[[package]]
+name = "zksync_prover_fri_utils"
+version_group = "prover-libs"
+
+
+## Core binaries section
+[[package]]
+name = "prover_cli"
+git_release_enable = true
+git_tag_enable = true
+git_tag_name = "prover-bins-v{{version}}"     # Special tag for prover binaries
+git_release_name = "prover-bins-v{{version}}" # GitHub release name for prover binaries
+changelog_update = true
+changelog_path = "./crates/bin/CHANGELOG.md"  # Changelog path for prover binaries.
+changelog_include = [
+    "zksync_proof_fri_compressor", "zksync_prover_job_monitor", "zksync_prover_autoscaler",
+    "zksync_prover_fri", "zksync_prover_fri_gateway",
+    "prover_version", "zksync_vk_setup_data_generator_server_fri",
+    "zksync_witness_generator", "zksync_witness_vector_generator"
+]
+version_group = "prover-bins"
+
+[[package]]
+name = "zksync_proof_fri_compressor"
+version_group = "prover-bins"
+
+[[package]]
+name = "zksync_prover_job_monitor"
+version_group = "prover-bins"
+
+[[package]]
+name = "zksync_prover_autoscaler"
+version_group = "prover-bins"
+
+[[package]]
+name = "zksync_prover_fri"
+version_group = "prover-bins"
+
+[[package]]
+name = "zksync_prover_fri_gateway"
+version_group = "prover-bins"
+
+[[package]]
+name = "prover_version"
+version_group = "prover-bins"
+
+[[package]]
+name = "zksync_vk_setup_data_generator_server_fri"
+version_group = "prover-bins"
+
+[[package]]
+name = "zksync_witness_generator"
+version_group = "prover-bins"
+
+[[package]]
+name = "zksync_witness_vector_generator"
+version_group = "prover-bins"

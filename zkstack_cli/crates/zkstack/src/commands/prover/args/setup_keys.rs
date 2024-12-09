@@ -1,5 +1,5 @@
 use clap::{Parser, ValueEnum};
-use common::PromptSelect;
+use zkstack_common::PromptSelect;
 use strum::{EnumIter, IntoEnumIterator};
 
 use crate::messages::{MSG_SETUP_KEYS_DOWNLOAD_SELECTION_PROMPT, MSG_SETUP_KEYS_REGION_PROMPT};

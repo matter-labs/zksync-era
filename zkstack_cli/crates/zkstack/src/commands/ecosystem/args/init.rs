@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use common::{forge::ForgeScriptArgs, Prompt, PromptConfirm};
+use zkstack_common::{forge::ForgeScriptArgs, Prompt, PromptConfirm};
 use serde::{Deserialize, Serialize};
-use types::L1Network;
+use zkstack_types::L1Network;
 use url::Url;
 
 use crate::{

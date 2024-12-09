@@ -1,4 +1,4 @@
-use config::EcosystemConfig;
+use zkstack_config::EcosystemConfig;
 use xshell::Shell;
 
 use super::utils::{build_contracts, install_and_build_dependencies};

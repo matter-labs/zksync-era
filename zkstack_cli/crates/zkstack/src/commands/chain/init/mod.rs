@@ -1,8 +1,8 @@
 use anyhow::Context;
 use clap::{command, Parser, Subcommand};
-use common::{git, logger, spinner::Spinner};
-use config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
-use types::BaseToken;
+use zkstack_common::{git, logger, spinner::Spinner};
+use zkstack_config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
+use zkstack_types::BaseToken;
 use xshell::Shell;
 
 use crate::{

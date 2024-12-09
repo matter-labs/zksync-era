@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::logger;
-use config::EcosystemConfig;
+use zkstack_common::logger;
+use zkstack_config::EcosystemConfig;
 use xshell::Shell;
 
 use super::utils::{TestWallets, TEST_WALLETS_PATH};

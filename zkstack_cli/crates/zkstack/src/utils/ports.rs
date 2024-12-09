@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt, net::SocketAddr, ops::Range, path::Path};
 
 use anyhow::{bail, Context, Result};
-use config::{
+use zkstack_config::{
     explorer_compose::ExplorerBackendPorts, EcosystemConfig, DEFAULT_EXPLORER_API_PORT,
     DEFAULT_EXPLORER_DATA_FETCHER_PORT, DEFAULT_EXPLORER_WORKER_PORT,
 };

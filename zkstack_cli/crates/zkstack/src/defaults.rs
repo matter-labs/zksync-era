@@ -1,4 +1,4 @@
-use config::ChainConfig;
+use zkstack_config::ChainConfig;
 use lazy_static::lazy_static;
 use url::Url;
 

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use common::{config::global_config, forge::ForgeScriptArgs, Prompt};
+use zkstack_common::{config::global_config, forge::ForgeScriptArgs, Prompt};
 use serde::{Deserialize, Serialize};
 use url::Url;
 

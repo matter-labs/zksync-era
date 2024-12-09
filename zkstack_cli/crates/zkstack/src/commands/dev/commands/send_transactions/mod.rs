@@ -9,8 +9,8 @@ use std::{
 use anyhow::Context;
 use args::SendTransactionsArgs;
 use chrono::Local;
-use common::{ethereum::create_ethers_client, logger};
-use config::EcosystemConfig;
+use zkstack_common::{ethereum::create_ethers_client, logger};
+use zkstack_config::EcosystemConfig;
 use ethers::{abi::Bytes, providers::Middleware, types::TransactionRequest, utils::hex};
 use serde::Deserialize;
 use tokio::time::sleep;

@@ -1,4 +1,4 @@
-use common::{check_prerequisites, cmd::Cmd, logger, spinner::Spinner, GCLOUD_PREREQUISITE};
+use zkstack_common::{check_prerequisites, cmd::Cmd, logger, spinner::Spinner, GCLOUD_PREREQUISITE};
 use xshell::{cmd, Shell};
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 

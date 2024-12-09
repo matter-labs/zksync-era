@@ -1,7 +1,7 @@
 use std::mem::take;
 
 use anyhow::{bail, Result};
-use common::spinner::Spinner;
+use zkstack_common::spinner::Spinner;
 use sqruff_lib::{api::simple::get_simple_config, core::linter::core::Linter};
 use xshell::Shell;
 

@@ -1,6 +1,6 @@
 use clap::Parser;
-use common::{db::DatabaseConfig, Prompt};
-use config::ChainConfig;
+use zkstack_common::{db::DatabaseConfig, Prompt};
+use zkstack_config::ChainConfig;
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use url::Url;

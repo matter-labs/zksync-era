@@ -4,7 +4,7 @@ use std::{
 };
 
 use anyhow::Context;
-use common::{db, docker::adjust_localhost_for_docker};
+use zkstack_common::{db, docker::adjust_localhost_for_docker};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
