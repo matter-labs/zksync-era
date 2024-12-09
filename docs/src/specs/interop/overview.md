@@ -112,14 +112,14 @@ The step-by-step process and exact details will be covered in the next section.
 
 ## Technical Details
 
-### How is Interop Different from a Bridge
+### How does native bridging differ from a third party bridging
 
 Bridges generally fall into two categories: Native and Third-Party.
 
 #### 1. Native Bridges
 
-Native bridges enable asset transfers “up and down” (from L2 to L1 and vice versa). In contrast, interop allows direct
-transfers between different L2s.
+Native bridges enable asset transfers “up and down” (from L2 to L1 and vice versa), but interop (which is also a form of
+native bridging) allows you to move them between different L2s.
 
 Instead of doing a "round trip" (L2 → L1 → another L2), interop lets you move assets directly between two L2s, saving
 both time and cost.
@@ -129,8 +129,8 @@ both time and cost.
 Third-party bridges enable transfers between two L2s, but they rely on their own liquidity. While you, as the user,
 receive assets on the destination chain instantly, these assets come from the bridge’s liquidity pool.
 
-Bridge operators then rebalance using native bridging, which requires maintaining token reserves on both sides. This
-adds costs for the bridge operators, often resulting in higher fees for users.
+Bridge operators then rebalance using native bridging, which requires maintaining token reserves on both sides. Without
+interop this adds costs for the bridge operators, often resulting in higher fees for users.
 
 The good news is that third-party bridges can use interop to improve their token transfers by utilizing the
 **InteropMessage** layer.

@@ -56,8 +56,9 @@ This `interopHash` serves as a globally unique identifier that can be used on an
 #### How do I get the proof
 
 You’ll notice that **verifyInteropMessage** has a second argument — a proof that you need to provide. This proof is a
-Merkle tree proof (more details below). You can obtain it by querying the Settlement Layer (Gateway) or generating it
-off-chain by examining the Gateway state on L1.
+Merkle tree proof (more details below). You can obtain it by querying the
+[chain](https://docs.zksync.io/build/api-reference/zks-rpc#zks_getl2tol1msgproof) , or generate it off-chain - by
+looking at the chain's state on L1
 
 #### How does the interop message differ from other layers (InteropTransactions, InteropCalls)
 
@@ -129,49 +130,43 @@ from them at the end of the batch, and sends this tree to the SettlementLayer (G
 
 ![sendtol1.png](../img/sendtol1.png)
 
-The Gateway will verify the hashes of the messages to ensure it has received the correct preimages. Once the proof for
-the batch is submitted (or more accurately, during the "execute" step), it will add the root of the Merkle tree to its
-`globalRoot`.
+The settlement layer receives the messages and once the proof for the batch is submitted (or more accurately, during the
+"execute" step), it will add the root of the Merkle tree to its `messageRoot` (sometimes called `globalRoot`).
 
 ![globalroot.png](../img/globalroot.png)
 
-The `globalRoot` is the root of the Merkle tree that includes all messages from all chains. Each chain regularly reads
-the globalRoot value from the Gateway to stay synchronized.
+The `messageRoot` is the root of the Merkle tree that includes all messages from all chains. Each chain regularly reads
+the messageRoot value from the Gateway to stay synchronized.
 
 ![gateway.png](../img/gateway.png)
 
 If a user wants to call `verifyInteropMessage` on a chain, they first need to query the Gateway for the Merkle path from
-the batch they are interested in up to the `globalRoot`. Once they have this path, they can provide it as an argument
+the batch they are interested in up to the `messageRoot`. Once they have this path, they can provide it as an argument
 when calling a method on the destination chain (such as the `openSignup` method in our example).
 
 ![proofmerklepath.png](../img/proofmerklepath.png)
 
-#### What if the Gateway doesn’t respond
+#### What if Chain doesn’t provide the proof
 
-If the Gateway doesn’t respond, users can manually re-create the Merkle proof using data available on L1. Every
+If the chain doesn’t respond, users can manually re-create the Merkle proof using data available on L1. Every
 interopMessage is also sent to L1.
 
-#### Global roots change frequently
+#### Message roots change frequently
 
-Yes, global roots update continuously as new chains prove their blocks. However, chains retain historical global roots
+Yes, message roots update continuously as new chains prove their blocks. However, chains retain historical message roots
 for a reasonable period (around 24 hours) to ensure that recently generated Merkle paths remain valid.
 
-#### Is this secure? Could a chain operator, like Chain D, use a different global root
+#### Is this secure? Could a chain operator, like Chain D, use a different message root
 
-Yes, it’s secure. If a malicious operator on Chain D attempted to use a different global root, they wouldn’t be able to
+Yes, it’s secure. If a malicious operator on Chain D attempted to use a different message root, they wouldn’t be able to
 submit the proof for their new batch to the Gateway. This is because the proof’s public inputs must include the valid
-global root.
-
-#### What if the Gateway is malicious
-
-If the Gateway behaves maliciously, it wouldn’t be able to submit its batches to L1, as the proof would fail
-verification. A separate section will cover interop transaction security in more detail.
+message root.
 
 ### Other Features
 
 #### Dependency Set
 
-- In ElasticChain, this is implicitly handled by the Gateway. Any chain that is part of the global root can exchange
+- In ElasticChain, this is implicitly handled by the Gateway. Any chain that is part of the message root can exchange
   messages with any other chain, effectively forming an undirected graph.
 
 #### Timestamps and Expiration
