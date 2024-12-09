@@ -146,7 +146,7 @@ when calling a method on the destination chain (such as the `openSignup` method 
 
 ![proofmerklepath.png](../img/proofmerklepath.png)
 
-#### What if Chain doesn’t provide the proof?
+#### What if Chain doesn’t provide the proof
 
 If the chain doesn’t respond, users can manually re-create the Merkle proof using data available on L1. Every
 interopMessage is also sent to L1.

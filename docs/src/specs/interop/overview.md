@@ -112,7 +112,7 @@ The step-by-step process and exact details will be covered in the next section.
 
 ## Technical Details
 
-### How does native bridging differ from a third party bridging?
+### How does native bridging differ from a third party bridging
 
 Bridges generally fall into two categories: Native and Third-Party.
 
