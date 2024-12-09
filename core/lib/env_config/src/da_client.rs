@@ -1,17 +1,21 @@
 use std::env;
 
-use zksync_config::configs::{
-    da_client::{
-        avail::{
-            AvailClientConfig, AvailSecrets, AVAIL_FULL_CLIENT_NAME, AVAIL_GAS_RELAY_CLIENT_NAME,
+use zksync_config::{
+    configs::{
+        da_client::{
+            avail::{
+                AvailClientConfig, AvailSecrets, AVAIL_FULL_CLIENT_NAME,
+                AVAIL_GAS_RELAY_CLIENT_NAME,
+            },
+            celestia::CelestiaSecrets,
+            eigen::EigenSecrets,
+            DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, CELESTIA_CLIENT_CONFIG_NAME,
+            EIGEN_CLIENT_CONFIG_NAME, OBJECT_STORE_CLIENT_CONFIG_NAME,
         },
-        celestia::CelestiaSecrets,
-        eigen::EigenSecrets,
-        DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, CELESTIA_CLIENT_CONFIG_NAME,
-        EIGEN_CLIENT_CONFIG_NAME, OBJECT_STORE_CLIENT_CONFIG_NAME,
+        secrets::DataAvailabilitySecrets,
+        AvailConfig,
     },
-    secrets::DataAvailabilitySecrets,
-    AvailConfig,
+    EigenConfig,
 };
 
 use crate::{envy_load, FromEnv};
@@ -34,7 +38,20 @@ impl FromEnv for DAClientConfig {
                 },
             }),
             CELESTIA_CLIENT_CONFIG_NAME => Self::Celestia(envy_load("da_celestia_config", "DA_")?),
-            EIGEN_CLIENT_CONFIG_NAME => Self::Eigen(envy_load("da_eigen_config", "DA_")?),
+            EIGEN_CLIENT_CONFIG_NAME => Self::Eigen(EigenConfig {
+                disperser_rpc: env::var("EIGENDA_DISPERSER_RPC")?,
+                settlement_layer_confirmation_depth: env::var(
+                    "EIGENDA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH",
+                )?
+                .parse()?,
+                eigenda_eth_rpc: env::var("EIGENDA_EIGENDA_ETH_RPC")?,
+                eigenda_svc_manager_address: env::var("EIGENDA_EIGENDA_SVC_MANAGER_ADDRESS")?,
+                wait_for_finalization: env::var("EIGENDA_WAIT_FOR_FINALIZATION")?.parse()?,
+                authenticated: env::var("EIGENDA_AUTHENTICATED")?.parse()?,
+                g1_url: env::var("EIGENDA_G1_URL")?.parse()?,
+                g2_url: env::var("EIGENDA_G2_URL")?.parse()?,
+                chain_id: env::var("EIGENDA_CHAIN_ID")?.parse()?,
+            }),
             OBJECT_STORE_CLIENT_CONFIG_NAME => {
                 Self::ObjectStore(envy_load("da_object_store", "DA_")?)
             }
@@ -248,8 +265,15 @@ mod tests {
         let mut lock = MUTEX.lock();
         let config = r#"
             DA_CLIENT="Eigen"
-            DA_RPC_NODE_URL="localhost:12345"
-            DA_INCLUSION_POLLING_INTERVAL_MS="1000"
+            EIGENDA_DISPERSER_RPC="http://localhost:8080"
+            EIGENDA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
+            EIGENDA_EIGENDA_ETH_RPC="http://localhost:8545"
+            EIGENDA_EIGENDA_SVC_MANAGER_ADDRESS="0x123"
+            EIGENDA_WAIT_FOR_FINALIZATION=true
+            EIGENDA_AUTHENTICATED=false
+            EIGENDA_G1_URL="resources1"
+            EIGENDA_G2_URL="resources2"
+            EIGENDA_CHAIN_ID=1
         "#;
         lock.set_env(config);
 
@@ -257,8 +281,15 @@ mod tests {
         assert_eq!(
             actual,
             DAClientConfig::Eigen(EigenConfig {
-                rpc_node_url: "localhost:12345".to_string(),
-                inclusion_polling_interval_ms: 1000,
+                disperser_rpc: "http://localhost:8080".to_string(),
+                settlement_layer_confirmation_depth: 0,
+                eigenda_eth_rpc: "http://localhost:8545".to_string(),
+                eigenda_svc_manager_address: "0x123".to_string(),
+                wait_for_finalization: true,
+                authenticated: false,
+                g1_url: "resources1".to_string(),
+                g2_url: "resources2".to_string(),
+                chain_id: 1
             })
         );
     }
