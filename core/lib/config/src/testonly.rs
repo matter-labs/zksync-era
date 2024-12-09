@@ -1,12 +1,11 @@
 use rand::{distributions::Distribution, Rng};
 use secrecy::Secret;
 use zksync_basic_types::{
-    basic_fri_types::CircuitIdRoundTuple,
     commitment::L1BatchCommitmentMode,
     network::Network,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     secrets::{APIKey, SeedPhrase},
-    L1BatchNumber, L1ChainId, L2ChainId,
+    L1ChainId, L2ChainId,
 };
 use zksync_consensus_utils::EncodeDist;
 use zksync_crypto_primitives::K256PrivateKey;
@@ -52,25 +51,6 @@ impl Distribution<configs::chain::FeeModelVersion> for EncodeDist {
     }
 }
 
-impl Distribution<configs::api::ContractVerificationApiConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::api::ContractVerificationApiConfig {
-        configs::api::ContractVerificationApiConfig {
-            port: self.sample(rng),
-            url: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::chain::NetworkConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::chain::NetworkConfig {
-        configs::chain::NetworkConfig {
-            network: Sample::sample(rng),
-            zksync_network: self.sample(rng),
-            zksync_network_id: L2ChainId::max(),
-        }
-    }
-}
-
 impl Distribution<configs::ContractsConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ContractsConfig {
         configs::ContractsConfig {
@@ -93,211 +73,6 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             base_token_addr: self.sample_opt(|| rng.gen()),
             chain_admin_addr: self.sample_opt(|| rng.gen()),
             l2_da_validator_addr: self.sample_opt(|| rng.gen()),
-        }
-    }
-}
-
-impl Distribution<configs::database::MerkleTreeMode> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::database::MerkleTreeMode {
-        type T = configs::database::MerkleTreeMode;
-        match rng.gen_range(0..2) {
-            0 => T::Full,
-            _ => T::Lightweight,
-        }
-    }
-}
-
-impl Distribution<configs::FriProofCompressorConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::FriProofCompressorConfig {
-        configs::FriProofCompressorConfig {
-            compression_mode: self.sample(rng),
-            prometheus_listener_port: self.sample(rng),
-            prometheus_pushgateway_url: self.sample(rng),
-            prometheus_push_interval_ms: self.sample(rng),
-            generation_timeout_in_secs: self.sample(rng),
-            max_attempts: self.sample(rng),
-            universal_setup_path: self.sample(rng),
-            universal_setup_download_url: self.sample(rng),
-            verify_wrapper_proof: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::fri_prover::SetupLoadMode> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::fri_prover::SetupLoadMode {
-        type T = configs::fri_prover::SetupLoadMode;
-        match rng.gen_range(0..2) {
-            0 => T::FromDisk,
-            _ => T::FromMemory,
-        }
-    }
-}
-
-impl Distribution<configs::fri_prover::CloudConnectionMode> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::fri_prover::CloudConnectionMode {
-        type T = configs::fri_prover::CloudConnectionMode;
-        match rng.gen_range(0..1) {
-            0 => T::GCP,
-            _ => T::Local,
-        }
-    }
-}
-
-impl Distribution<configs::FriProverConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::FriProverConfig {
-        configs::FriProverConfig {
-            setup_data_path: self.sample(rng),
-            prometheus_port: self.sample(rng),
-            max_attempts: self.sample(rng),
-            generation_timeout_in_secs: self.sample(rng),
-            setup_load_mode: self.sample(rng),
-            specialized_group_id: self.sample(rng),
-            queue_capacity: self.sample(rng),
-            witness_vector_receiver_port: self.sample(rng),
-            zone_read_url: self.sample(rng),
-            shall_save_to_public_bucket: self.sample(rng),
-            availability_check_interval_in_secs: self.sample(rng),
-            prover_object_store: None,
-            public_object_store: None,
-            cloud_type: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::FriProverGatewayConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::FriProverGatewayConfig {
-        configs::FriProverGatewayConfig {
-            api_url: self.sample(rng),
-            api_poll_duration_secs: self.sample(rng),
-            prometheus_listener_port: self.sample(rng),
-            prometheus_pushgateway_url: self.sample(rng),
-            prometheus_push_interval_ms: self.sample(rng),
-        }
-    }
-}
-
-impl Sample for CircuitIdRoundTuple {
-    fn sample(rng: &mut (impl Rng + ?Sized)) -> CircuitIdRoundTuple {
-        CircuitIdRoundTuple {
-            circuit_id: rng.gen(),
-            aggregation_round: rng.gen(),
-        }
-    }
-}
-
-impl Distribution<configs::fri_prover_group::FriProverGroupConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(
-        &self,
-        rng: &mut R,
-    ) -> configs::fri_prover_group::FriProverGroupConfig {
-        configs::fri_prover_group::FriProverGroupConfig {
-            group_0: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_1: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_2: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_3: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_4: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_5: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_6: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_7: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_8: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_9: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_10: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_11: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_12: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_13: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_14: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-        }
-    }
-}
-
-impl Distribution<configs::FriWitnessGeneratorConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::FriWitnessGeneratorConfig {
-        configs::FriWitnessGeneratorConfig {
-            generation_timeout_in_secs: self.sample(rng),
-            basic_generation_timeout_in_secs: self.sample(rng),
-            leaf_generation_timeout_in_secs: self.sample(rng),
-            node_generation_timeout_in_secs: self.sample(rng),
-            recursion_tip_generation_timeout_in_secs: self.sample(rng),
-            scheduler_generation_timeout_in_secs: self.sample(rng),
-            max_attempts: self.sample(rng),
-            last_l1_batch_to_process: self.sample(rng),
-            shall_save_to_public_bucket: self.sample(rng),
-            prometheus_listener_port: self.sample(rng),
-            max_circuits_in_flight: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::FriWitnessVectorGeneratorConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::FriWitnessVectorGeneratorConfig {
-        configs::FriWitnessVectorGeneratorConfig {
-            max_prover_reservation_duration_in_secs: self.sample(rng),
-            prover_instance_wait_timeout_in_secs: self.sample(rng),
-            prover_instance_poll_time_in_milli_secs: self.sample(rng),
-            prometheus_listener_port: self.sample(rng),
-            prometheus_pushgateway_url: self.sample(rng),
-            prometheus_push_interval_ms: self.sample(rng),
-            specialized_group_id: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ProofDataHandlerConfig {
-        configs::ProofDataHandlerConfig {
-            http_port: self.sample(rng),
-            proof_generation_timeout_in_secs: self.sample(rng),
-            tee_config: configs::TeeConfig {
-                tee_support: self.sample(rng),
-                first_tee_processed_batch: L1BatchNumber(rng.gen()),
-                tee_proof_generation_timeout_in_secs: self.sample(rng),
-                tee_batch_permanently_ignored_timeout_in_hours: self.sample(rng),
-            },
         }
     }
 }
@@ -548,31 +323,6 @@ impl Distribution<configs::secrets::DataAvailabilitySecrets> for EncodeDist {
     }
 }
 
-impl Distribution<configs::prover_job_monitor::ProverJobMonitorConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(
-        &self,
-        rng: &mut R,
-    ) -> configs::prover_job_monitor::ProverJobMonitorConfig {
-        configs::prover_job_monitor::ProverJobMonitorConfig {
-            prometheus_port: self.sample(rng),
-            max_db_connections: self.sample(rng),
-            graceful_shutdown_timeout_ms: self.sample(rng),
-            gpu_prover_archiver_run_interval_ms: self.sample(rng),
-            gpu_prover_archiver_archive_prover_after_ms: self.sample(rng),
-            prover_jobs_archiver_run_interval_ms: self.sample(rng),
-            prover_jobs_archiver_archive_jobs_after_ms: self.sample(rng),
-            proof_compressor_job_requeuer_run_interval_ms: self.sample(rng),
-            prover_job_requeuer_run_interval_ms: self.sample(rng),
-            witness_generator_job_requeuer_run_interval_ms: self.sample(rng),
-            proof_compressor_queue_reporter_run_interval_ms: self.sample(rng),
-            prover_queue_reporter_run_interval_ms: self.sample(rng),
-            witness_generator_queue_reporter_run_interval_ms: self.sample(rng),
-            witness_job_queuer_run_interval_ms: self.sample(rng),
-            http_port: self.sample(rng),
-        }
-    }
-}
-
 impl Distribution<configs::GeneralConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::GeneralConfig {
         configs::GeneralConfig {
@@ -584,14 +334,14 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             operations_manager_config: None,
             state_keeper_config: None,
             house_keeper_config: None,
-            proof_compressor_config: self.sample(rng),
-            prover_config: self.sample(rng),
-            prover_gateway: self.sample(rng),
-            witness_vector_generator: self.sample(rng),
-            prover_group_config: self.sample(rng),
-            witness_generator_config: self.sample(rng),
+            proof_compressor_config: None,
+            prover_config: None,
+            prover_gateway: None,
+            witness_vector_generator: None,
+            prover_group_config: None,
+            witness_generator_config: None,
             prometheus_config: None,
-            proof_data_handler_config: self.sample(rng),
+            proof_data_handler_config: None,
             db_config: None,
             eth: None,
             snapshot_creator: None,
@@ -609,7 +359,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             consensus_config: self.sample(rng),
             external_proof_integration_api_config: None,
             experimental_vm_config: None,
-            prover_job_monitor_config: self.sample(rng),
+            prover_job_monitor_config: None,
             timestamp_asserter_config: None,
         }
     }

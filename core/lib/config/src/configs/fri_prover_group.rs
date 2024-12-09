@@ -1,25 +1,43 @@
 use std::collections::HashSet;
 
-use serde::Deserialize;
+use smart_config::{
+    de::{Repeated, Serde},
+    DescribeConfig, DeserializeConfig,
+};
 use zksync_basic_types::basic_fri_types::{AggregationRound, CircuitIdRoundTuple};
 
 /// Configuration for the grouping of specialized provers.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct FriProverGroupConfig {
+    #[config(with = Repeated(Serde![object]))]
     pub group_0: HashSet<CircuitIdRoundTuple>,
+    #[config(with = Repeated(Serde![object]))]
     pub group_1: HashSet<CircuitIdRoundTuple>,
+    #[config(with = Repeated(Serde![object]))]
     pub group_2: HashSet<CircuitIdRoundTuple>,
+    #[config(with = Repeated(Serde![object]))]
     pub group_3: HashSet<CircuitIdRoundTuple>,
+    #[config(with = Repeated(Serde![object]))]
     pub group_4: HashSet<CircuitIdRoundTuple>,
+    #[config(with = Repeated(Serde![object]))]
     pub group_5: HashSet<CircuitIdRoundTuple>,
+    #[config(with = Repeated(Serde![object]))]
     pub group_6: HashSet<CircuitIdRoundTuple>,
+    #[config(with = Repeated(Serde![object]))]
     pub group_7: HashSet<CircuitIdRoundTuple>,
+    #[config(with = Repeated(Serde![object]))]
     pub group_8: HashSet<CircuitIdRoundTuple>,
+    #[config(with = Repeated(Serde![object]))]
     pub group_9: HashSet<CircuitIdRoundTuple>,
+    #[config(with = Repeated(Serde![object]))]
     pub group_10: HashSet<CircuitIdRoundTuple>,
+    #[config(with = Repeated(Serde![object]))]
     pub group_11: HashSet<CircuitIdRoundTuple>,
+    #[config(with = Repeated(Serde![object]))]
     pub group_12: HashSet<CircuitIdRoundTuple>,
+    #[config(with = Repeated(Serde![object]))]
     pub group_13: HashSet<CircuitIdRoundTuple>,
+    #[config(with = Repeated(Serde![object]))]
     pub group_14: HashSet<CircuitIdRoundTuple>,
 }
 impl FriProverGroupConfig {
