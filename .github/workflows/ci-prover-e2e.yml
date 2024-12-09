@@ -60,8 +60,9 @@ jobs:
           ci_run zkstack ecosystem init --dev --verbose
           ci_run zkstack prover init --dev --verbose
                     
-          echo $(ci_run ls)
-          echo "BELLMAN_CUDA_DIR=./era-bellman-cuda" >> $GITHUB_ENV
+          echo BELLMAN_CUDA_DIR=$(ci_run find -type d -name 'era-bellman-cuda' 2>/dev/null)   
+          echo $BELLMAN_CUDA_DIR
+          echo BELLMAN_CUDA_DIR=$BELLMAN_CUDA_DIR >> $GITHUB_ENV
           echo "URL=$(grep "http_url" ./chains/proving_chain/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
       - name: Build prover binaries
         run: |
