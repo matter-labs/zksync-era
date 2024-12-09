@@ -48,4 +48,4 @@ tracing-subscriber.workspace = true
 
 [features]
 default = []
-gpu = ["shivini", "zksync_prover_keystore/gpu"]
+gpu = ["shivini", "zksync_prover_keystore/gpu-light"]

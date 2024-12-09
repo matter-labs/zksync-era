@@ -5,7 +5,7 @@
 
 #[allow(incomplete_features)]
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "gpu")]
+#[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use shivini::cs::GpuSetup;
 use zkevm_test_harness::compute_setups::CircuitSetupData;
 use zksync_prover_fri_types::circuit_definitions::boojum::{
@@ -85,7 +85,7 @@ impl From<CircuitSetupData> for GoldilocksProverSetupData {
     }
 }
 
-#[cfg(feature = "gpu")]
+#[cfg(any(feature = "gpu", feature = "gpu-light"))]
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "F: serde::Serialize + serde::de::DeserializeOwned")]
 pub struct GpuProverSetupData<F: PrimeField + SmallField, H: shivini::GpuTreeHasher + TreeHasher<F>>
@@ -99,7 +99,7 @@ pub struct GpuProverSetupData<F: PrimeField + SmallField, H: shivini::GpuTreeHas
     pub finalization_hint: FinalizationHintsForProver,
 }
 
-#[cfg(feature = "gpu")]
+#[cfg(any(feature = "gpu", feature = "gpu-light"))]
 pub type GoldilocksGpuProverSetupData = GpuProverSetupData<
     GoldilocksField,
     GenericAlgebraicSponge<

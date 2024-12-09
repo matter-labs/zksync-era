@@ -32,7 +32,7 @@ use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource,
 use zksync_prover_fri_types::{ProverServiceDataKey, ProvingStage};
 use zksync_utils::env::Workspace;
 
-#[cfg(feature = "gpu")]
+#[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use crate::{GoldilocksGpuProverSetupData, GpuProverSetupData};
 use crate::{GoldilocksProverSetupData, VkCommitments};
 
@@ -696,7 +696,7 @@ impl Keystore {
     }
 
     /// Async loads mapping of all circuits to setup key, if successful
-    #[cfg(feature = "gpu")]
+    #[cfg(any(feature = "gpu", feature = "gpu-light"))]
     pub async fn load_all_setup_key_mapping(
         &self,
     ) -> anyhow::Result<HashMap<ProverServiceDataKey, Arc<GoldilocksGpuProverSetupData>>> {
