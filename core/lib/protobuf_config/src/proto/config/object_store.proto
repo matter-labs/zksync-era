@@ -20,12 +20,30 @@ message ObjectStore {
     optional string file_backed_base_path = 3; // required; fs path
   }
 
+  message S3Env {
+    optional string endpoint = 1;
+    optional string region = 2;
+    optional string bucket = 3;
+  }
+
+  message S3Credentials {
+    optional string endpoint = 1;
+    optional string region = 2;
+    optional string bucket = 3;
+    optional string access_key = 4;
+    optional string secret_key = 5;
+  }
+
   oneof mode {
     Gcs gcs = 1;
     GcsWithCredentialFile gcs_with_credential_file = 2;
     GcsAnonymousReadOnly gcs_anonymous_read_only = 3;
     FileBacked file_backed = 4;
+    S3Env s3_env = 7;
+    S3Credentials s3_credentials = 8;
   }
+
   optional uint32 max_retries = 5; // required
   optional string local_mirror_path = 6; // optional; fs path
+  optional uint32 prepared_links_expiration_mins = 9; // required
 }

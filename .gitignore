@@ -123,3 +123,7 @@ transactions/
 
 # foundry-zksync
 install
+
+# Devenv.sh
+.devenv*
+devenv.local.nix

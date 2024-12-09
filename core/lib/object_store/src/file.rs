@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use tokio::{fs, io};
 
-use crate::raw::{Bucket, ObjectStore, ObjectStoreError};
+use crate::raw::{Bucket, ObjectStore, ObjectStoreError, PreparedLink};
 
 impl From<io::Error> for ObjectStoreError {
     fn from(err: io::Error) -> Self {
@@ -79,6 +79,22 @@ impl ObjectStore for FileBackedObjectStore {
 
     fn storage_prefix_raw(&self, bucket: Bucket) -> String {
         format!("{}/{}", self.base_dir, bucket)
+    }
+
+    async fn prepare_download(
+        &self,
+        bucket: Bucket,
+        key: &str,
+    ) -> Result<PreparedLink, ObjectStoreError> {
+        Ok(PreparedLink::Local(self.filename(bucket, key)))
+    }
+
+    async fn prepare_upload(
+        &self,
+        bucket: Bucket,
+        key: &str,
+    ) -> Result<PreparedLink, ObjectStoreError> {
+        Ok(PreparedLink::Local(self.filename(bucket, key)))
     }
 }
 

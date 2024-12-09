@@ -37,6 +37,18 @@ impl ProtoRepr for proto::ObjectStore {
                     .context("file_backed_base_path")?
                     .clone(),
             },
+            proto::object_store::Mode::S3Env(mode) => ObjectStoreMode::S3FromEnv {
+                endpoint: mode.endpoint.clone(),
+                region: required(&mode.region).context("region")?.clone(),
+                bucket: required(&mode.bucket).context("bucket")?.clone(),
+            },
+            proto::object_store::Mode::S3Credentials(mode) => ObjectStoreMode::S3WithCredentials {
+                endpoint: mode.endpoint.clone(),
+                region: required(&mode.region).context("region")?.clone(),
+                bucket: required(&mode.bucket).context("bucket")?.clone(),
+                access_key: required(&mode.access_key).context("access_key")?.clone(),
+                secret_key: required(&mode.secret_key).context("secret_key")?.clone(),
+            },
         };
 
         Ok(Self::Type {
@@ -45,6 +57,7 @@ impl ProtoRepr for proto::ObjectStore {
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("max_retries")?,
             local_mirror_path: self.local_mirror_path.clone(),
+            prepared_links_expiration_mins: self.prepared_links_expiration_mins,
         })
     }
 
@@ -76,12 +89,35 @@ impl ProtoRepr for proto::ObjectStore {
             } => proto::object_store::Mode::FileBacked(proto::object_store::FileBacked {
                 file_backed_base_path: Some(file_backed_base_path.clone()),
             }),
+            ObjectStoreMode::S3FromEnv {
+                endpoint,
+                region,
+                bucket,
+            } => proto::object_store::Mode::S3Env(proto::object_store::S3Env {
+                endpoint: endpoint.clone(),
+                bucket: Some(bucket.clone()),
+                region: Some(region.clone()),
+            }),
+            ObjectStoreMode::S3WithCredentials {
+                endpoint,
+                region,
+                bucket,
+                access_key,
+                secret_key,
+            } => proto::object_store::Mode::S3Credentials(proto::object_store::S3Credentials {
+                endpoint: endpoint.clone(),
+                region: Some(region.clone()),
+                bucket: Some(bucket.clone()),
+                access_key: Some(access_key.clone()),
+                secret_key: Some(secret_key.clone()),
+            }),
         };
 
         Self {
             mode: Some(mode),
             max_retries: Some(this.max_retries.into()),
             local_mirror_path: this.local_mirror_path.clone(),
+            prepared_links_expiration_mins: this.prepared_links_expiration_mins,
         }
     }
 }

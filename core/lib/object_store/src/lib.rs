@@ -32,6 +32,7 @@ mod mock;
 mod objects;
 mod raw;
 mod retries;
+mod s3;
 
 // Re-export `bincode` crate so that client binaries can conveniently use it.
 pub use bincode;
@@ -47,5 +48,6 @@ pub use self::{
     gcs::{GoogleCloudStore, GoogleCloudStoreAuthMode},
     mock::MockObjectStore,
     objects::StoredObject,
-    raw::{Bucket, ObjectStore, ObjectStoreError},
+    raw::{Bucket, ObjectStore, ObjectStoreError, PreparedLink},
+    s3::S3Store,
 };

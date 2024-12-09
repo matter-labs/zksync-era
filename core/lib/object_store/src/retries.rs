@@ -5,7 +5,7 @@ use rand::Rng;
 
 use crate::{
     metrics::OBJECT_STORE_METRICS,
-    raw::{Bucket, ObjectStore, ObjectStoreError},
+    raw::{Bucket, ObjectStore, ObjectStoreError, PreparedLink},
 };
 
 /// Information about request added to logs.
@@ -128,6 +128,22 @@ impl<S: ObjectStore> ObjectStore for StoreWithRetries<S> {
 
     fn storage_prefix_raw(&self, bucket: Bucket) -> String {
         self.inner.storage_prefix_raw(bucket)
+    }
+
+    async fn prepare_download(
+        &self,
+        bucket: Bucket,
+        key: &str,
+    ) -> Result<PreparedLink, ObjectStoreError> {
+        self.inner.prepare_download(bucket, key).await
+    }
+
+    async fn prepare_upload(
+        &self,
+        bucket: Bucket,
+        key: &str,
+    ) -> Result<PreparedLink, ObjectStoreError> {
+        self.inner.prepare_upload(bucket, key).await
     }
 }
 

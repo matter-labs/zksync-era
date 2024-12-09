@@ -143,6 +143,7 @@ mini-moka = "0.10.0"
 num = "0.4.0"
 num_cpus = "1.13"
 num_enum = "0.7.2"
+object_store = { version = "0.11", features = [ "aws" ] }
 octocrab = "0.41"
 once_cell = "1"
 opentelemetry = "0.24.0"

@@ -2,7 +2,11 @@
 
 use async_trait::async_trait;
 
-use crate::{file::FileBackedObjectStore, raw::ObjectStore, Bucket, ObjectStoreError};
+use crate::{
+    file::FileBackedObjectStore,
+    raw::{ObjectStore, PreparedLink},
+    Bucket, ObjectStoreError,
+};
 
 #[derive(Debug)]
 pub(crate) struct MirroringObjectStore<S> {
@@ -87,6 +91,22 @@ impl<S: ObjectStore> ObjectStore for MirroringObjectStore<S> {
 
     fn storage_prefix_raw(&self, bucket: Bucket) -> String {
         self.inner.storage_prefix_raw(bucket)
+    }
+
+    async fn prepare_download(
+        &self,
+        bucket: Bucket,
+        key: &str,
+    ) -> Result<PreparedLink, ObjectStoreError> {
+        self.inner.prepare_upload(bucket, key).await
+    }
+
+    async fn prepare_upload(
+        &self,
+        bucket: Bucket,
+        key: &str,
+    ) -> Result<PreparedLink, ObjectStoreError> {
+        self.inner.prepare_upload(bucket, key).await
     }
 }
 

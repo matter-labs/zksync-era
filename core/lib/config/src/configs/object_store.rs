@@ -16,6 +16,10 @@ pub struct ObjectStoreConfig {
     /// **Important.** Mirroring logic assumes that objects in the underlying store are immutable. If this is not the case,
     /// the mirrored objects may become stale.
     pub local_mirror_path: Option<String>,
+
+    /// How long, in minutes, should the prepared links generated for upload or
+    /// download into a specific key remain valid.
+    pub prepared_links_expiration_mins: Option<u32>,
 }
 
 impl ObjectStoreConfig {
@@ -36,6 +40,18 @@ pub enum ObjectStoreMode {
     GCSWithCredentialFile {
         bucket_base_url: String,
         gcs_credential_file_path: String,
+    },
+    S3FromEnv {
+        endpoint: Option<String>,
+        region: String,
+        bucket: String,
+    },
+    S3WithCredentials {
+        endpoint: Option<String>,
+        region: String,
+        bucket: String,
+        access_key: String,
+        secret_key: String,
     },
     FileBacked {
         file_backed_base_path: String,

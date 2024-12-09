@@ -667,6 +667,7 @@ impl Distribution<configs::ObjectStoreConfig> for EncodeDist {
             mode: self.sample(rng),
             max_retries: self.sample(rng),
             local_mirror_path: self.sample(rng),
+            prepared_links_expiration_mins: None,
         }
     }
 }

@@ -5,7 +5,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use tokio::sync::Mutex;
 
-use crate::raw::{Bucket, ObjectStore, ObjectStoreError};
+use crate::raw::{Bucket, ObjectStore, ObjectStoreError, PreparedLink};
 
 type BucketMap = HashMap<String, Vec<u8>>;
 
@@ -56,5 +56,21 @@ impl ObjectStore for MockObjectStore {
 
     fn storage_prefix_raw(&self, bucket: Bucket) -> String {
         bucket.to_string()
+    }
+
+    async fn prepare_download(
+        &self,
+        _bucket: Bucket,
+        _key: &str,
+    ) -> Result<PreparedLink, ObjectStoreError> {
+        unimplemented!()
+    }
+
+    async fn prepare_upload(
+        &self,
+        _bucket: Bucket,
+        _key: &str,
+    ) -> Result<PreparedLink, ObjectStoreError> {
+        unimplemented!()
     }
 }

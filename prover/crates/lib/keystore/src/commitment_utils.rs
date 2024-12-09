@@ -44,11 +44,12 @@ impl Keystore {
 
         let hex_concatenator = |hex_array: [GoldilocksField; 4]| {
             "0x".to_owned()
-                + &hex_array
+                + hex_array
                     .iter()
                     .map(|x| format!("{:016x}", x.0))
                     .collect::<Vec<_>>()
                     .join("")
+                    .as_str()
         };
 
         let leaf_aggregation_commitment_hex = hex_concatenator(leaf_vk_commitment);
