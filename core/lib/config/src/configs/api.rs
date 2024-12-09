@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    fmt,
     net::SocketAddr,
     num::{NonZeroU32, NonZeroUsize},
     str::FromStr,
@@ -8,10 +7,10 @@ use std::{
 };
 
 use anyhow::Context as _;
-use serde::{de, Deserialize, Deserializer};
+use serde::Deserialize;
 use smart_config::{
-    de::Optional,
-    metadata::{BasicType, SizeUnit, TimeUnit},
+    de::{Optional, OrString, Serde, WellKnown},
+    metadata::{SizeUnit, TimeUnit},
     ByteSize, DescribeConfig, DeserializeConfig,
 };
 use zksync_basic_types::Address;
@@ -39,7 +38,8 @@ pub struct ApiConfig {
 ///
 /// The unit of measurement for contained limits depends on the context. In [`MaxResponseSize`],
 /// limits are measured in bytes, but in configs, limits are specified in MiBs.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(transparent)]
 pub struct MaxResponseSizeOverrides(HashMap<String, NonZeroUsize>);
 
 impl<S: Into<String>> FromIterator<(S, NonZeroUsize)> for MaxResponseSizeOverrides {
@@ -109,27 +109,9 @@ impl MaxResponseSizeOverrides {
     }
 }
 
-impl<'de> Deserialize<'de> for MaxResponseSizeOverrides {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct ParseVisitor;
-
-        impl<'v> de::Visitor<'v> for ParseVisitor {
-            type Value = MaxResponseSizeOverrides;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("comma-separated list of <method_name>=<size>|None tuples, such as: eth_call=2,zks_getProof=None")
-            }
-
-            fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
-                value.parse().map_err(E::custom)
-            }
-        }
-
-        deserializer.deserialize_str(ParseVisitor)
-    }
+impl WellKnown for MaxResponseSizeOverrides {
+    type Deserializer = OrString<Serde![object]>;
+    const DE: Self::Deserializer = OrString(Serde![object]);
 }
 
 /// Response size limits for JSON-RPC servers.
@@ -225,7 +207,7 @@ pub struct Web3JsonRpcConfig {
     #[config(with = SizeUnit::MiB, default_t = ByteSize::new(10, SizeUnit::MiB))]
     pub max_response_body_size_mb: ByteSize,
     /// Method-specific overrides in MiBs for the maximum response body size.
-    #[config(default = MaxResponseSizeOverrides::empty, with = BasicType::String)]
+    #[config(default = MaxResponseSizeOverrides::empty)]
     pub max_response_body_size_overrides_mb: MaxResponseSizeOverrides,
     /// Maximum number of requests per minute for the WebSocket server.
     /// The value is per active connection.
@@ -243,7 +225,7 @@ pub struct Web3JsonRpcConfig {
     pub mempool_cache_size: usize,
     /// List of L2 token addresses that are white-listed to use by paymasters
     /// (additionally to natively bridged tokens).
-    #[config(default, with = BasicType::Array)]
+    #[config(default)]
     pub whitelisted_tokens_for_aa: Vec<Address>,
     /// Enabled JSON RPC API namespaces. If not set, all namespaces will be available
     pub api_namespaces: Option<Vec<String>>,
@@ -455,7 +437,9 @@ mod tests {
             API_HEALTHCHECK_HARD_TIME_LIMIT_MS=2000
             API_MERKLE_TREE_PORT=8082
         "#;
-        let env = Environment::from_dotenv(env).unwrap().strip_prefix("API_");
+        let env = Environment::from_dotenv("test.env", env)
+            .unwrap()
+            .strip_prefix("API_");
         let config = test_complete::<ApiConfig>(env).unwrap();
         assert_eq!(config, expected_config());
     }

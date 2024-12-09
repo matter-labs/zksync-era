@@ -4,8 +4,8 @@ use std::{str::FromStr, time::Duration};
 
 use serde::Deserialize;
 use smart_config::{
-    de::Optional,
-    metadata::{BasicType, SizeUnit, TimeUnit},
+    de::{Optional, Serde},
+    metadata::{SizeUnit, TimeUnit},
     ByteSize, DescribeConfig, DeserializeConfig,
 };
 use zksync_basic_types::{
@@ -16,7 +16,7 @@ use zksync_basic_types::{
 #[config(derive(Default))]
 pub struct NetworkConfig {
     /// Name of the used Ethereum network, e.g. `localhost` or `rinkeby`.
-    #[config(with = BasicType::String, default_t = Network::Localhost)]
+    #[config(with = Serde![str], default_t = Network::Localhost)]
     pub network: Network,
     /// Name of current ZKsync network
     /// Used for Sentry environment
@@ -24,7 +24,7 @@ pub struct NetworkConfig {
     pub zksync_network: String,
     /// ID of current ZKsync network treated as ETH network ID.
     /// Used to distinguish ZKsync from other Web3-capable networks.
-    #[config(default, with = BasicType::Integer)]
+    #[config(default, with = Serde![int])]
     pub zksync_network_id: L2ChainId,
 }
 
@@ -104,7 +104,6 @@ pub struct StateKeeperConfig {
     pub close_block_at_gas_percentage: f64,
     /// Fee account address. Value is deprecated and it's used only for generating wallets struct
     #[deprecated(note = "Use Wallets::fee_account::address instead")]
-    #[config(with = Optional(BasicType::String))]
     pub fee_account_addr: Option<Address>,
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
     /// as potentially premium for congestion.
@@ -136,7 +135,7 @@ pub struct StateKeeperConfig {
     pub max_pubdata_per_batch: ByteSize,
 
     /// The version of the fee model to use.
-    #[config(default_t = FeeModelVersion::V2, with = BasicType::String)]
+    #[config(default_t = FeeModelVersion::V2, with = Serde![str])]
     pub fee_model_version: FeeModelVersion,
 
     /// Max number of computational gas that validation step is allowed to take.
@@ -161,16 +160,13 @@ pub struct StateKeeperConfig {
     // Base system contract hashes, required only for generating genesis config.
     // #PLA-811
     #[deprecated(note = "Use GenesisConfig::bootloader_hash instead")]
-    #[config(with = Optional(BasicType::String))]
     pub bootloader_hash: Option<H256>,
     #[deprecated(note = "Use GenesisConfig::default_aa_hash instead")]
-    #[config(with = Optional(BasicType::String))]
     pub default_aa_hash: Option<H256>,
     #[deprecated(note = "Use GenesisConfig::evm_emulator_hash instead")]
-    #[config(with = Optional(BasicType::String))]
     pub evm_emulator_hash: Option<H256>,
     #[deprecated(note = "Use GenesisConfig::l1_batch_commit_data_generator_mode instead")]
-    #[config(default, with = BasicType::String)]
+    #[config(default, with = Serde![str])]
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
 }
 

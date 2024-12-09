@@ -1,6 +1,6 @@
 use std::{num::NonZeroU32, path::PathBuf};
 
-use smart_config::{metadata::BasicType, DescribeConfig, DeserializeConfig};
+use smart_config::{de::Serde, DescribeConfig, DeserializeConfig};
 use zksync_basic_types::L1BatchNumber;
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -13,7 +13,7 @@ pub struct ProtectiveReadsWriterConfig {
     #[config(default_t = NonZeroU32::new(1).unwrap())]
     pub window_size: NonZeroU32,
     /// All batches before this one (inclusive) are always considered to be processed.
-    #[config(default, with = BasicType::Integer)]
+    #[config(default, with = Serde![int])]
     pub first_processed_batch: L1BatchNumber,
 }
 
@@ -27,6 +27,6 @@ pub struct BasicWitnessInputProducerConfig {
     #[config(default_t = NonZeroU32::new(1).unwrap())]
     pub window_size: NonZeroU32,
     /// All batches before this one (inclusive) are always considered to be processed.
-    #[config(default, with = BasicType::Integer)]
+    #[config(default, with = Serde![int])]
     pub first_processed_batch: L1BatchNumber,
 }

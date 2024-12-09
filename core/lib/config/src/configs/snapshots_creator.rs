@@ -1,4 +1,7 @@
-use smart_config::{de::Optional, metadata::BasicType, DescribeConfig, DeserializeConfig};
+use smart_config::{
+    de::{Optional, Serde},
+    DescribeConfig, DeserializeConfig,
+};
 use zksync_basic_types::L1BatchNumber;
 
 use crate::ObjectStoreConfig;
@@ -15,7 +18,7 @@ pub struct SnapshotsCreatorConfig {
     /// - If a snapshot with this L1 batch already exists and is complete, the creator will do nothing.
     /// - If a snapshot with this L1 batch exists and is incomplete, the creator will continue creating it,
     ///   regardless of whether the specified snapshot `version` matches.
-    #[config(with = Optional(BasicType::Integer))]
+    #[config(with = Optional(Serde![int]))]
     pub l1_batch_number: Option<L1BatchNumber>,
     #[config(default_t = 1_000_000)]
     pub storage_logs_chunk_size: u64,

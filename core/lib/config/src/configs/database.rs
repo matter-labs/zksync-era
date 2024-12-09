@@ -3,8 +3,8 @@ use std::{path::PathBuf, time::Duration};
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use smart_config::{
-    de::{DeserializeParam, WellKnown},
-    metadata::{BasicType, SizeUnit, TimeUnit},
+    de::{Serde, WellKnown},
+    metadata::{SizeUnit, TimeUnit},
     ByteSize, DescribeConfig, DeserializeConfig,
 };
 
@@ -26,7 +26,8 @@ pub enum MerkleTreeMode {
 }
 
 impl WellKnown for MerkleTreeMode {
-    const DE: &'static dyn DeserializeParam<Self> = &BasicType::String;
+    type Deserializer = Serde![int];
+    const DE: Self::Deserializer = Serde![int];
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
