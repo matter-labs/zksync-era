@@ -3,7 +3,6 @@
 #![allow(incomplete_features)]
 #![allow(unused_imports)] //todo: remove after setup is generated
 
-#[allow(incomplete_features)]
 use serde::{Deserialize, Serialize};
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use shivini::cs::GpuSetup;
