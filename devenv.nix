@@ -42,6 +42,102 @@ let
       statement_timeout_sec = 300;
     };
 
+    prover_job_monitor = {
+      prometheus_port = 3317;
+      max_db_connections = 5;
+      graceful_shutdown_timeout_ms = 5000;
+      gpu_prover_archiver_run_interval_ms = 86400000;
+      gpu_prover_archiver_archive_prover_after_ms = 172800000;
+      prover_jobs_archiver_run_interval_ms = 1800000;
+      prover_jobs_archiver_archive_jobs_after_ms = 172800000;
+      proof_compressor_job_requeuer_run_interval_ms = 10000;
+      prover_job_requeuer_run_interval_ms = 10000;
+      witness_generator_job_requeuer_run_interval_ms = 10000;
+      proof_compressor_queue_reporter_run_interval_ms = 10000;
+      prover_queue_reporter_run_interval_ms = 10000;
+      witness_generator_queue_reporter_run_interval_ms = 10000;
+      witness_job_queuer_run_interval_ms = 10000;
+      http_port = 3074;
+    };
+
+    proof_compressor = {
+      compression_mode = 1;
+      prometheus_listener_port = 3321;
+      prometheus_pushgateway_url = http://127.0.0.1:9091;
+      prometheus_push_interval_ms = 100;
+      generation_timeout_in_secs = 3600;
+      max_attempts = 5;
+      universal_setup_path = "${config.env.DEVENV_ROOT}/runtime/";
+      universal_setup_download_url = "https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^24.key";
+      verify_wrapper_proof = true;
+    };
+
+    prover_group = {
+      group_0 = [
+        {circuit_id = 1; aggregation_round = 4;}
+        {circuit_id = 2; aggregation_round = 2;}
+        {circuit_id = 255; aggregation_round = 0;}
+      ];
+      group_1 = [
+        {circuit_id = 1; aggregation_round = 0;}
+      ];
+      group_2 = [
+        {circuit_id = 2; aggregation_round = 0;}
+      ];
+      group_3 = [
+        {circuit_id = 3; aggregation_round = 0;}
+      ];
+      group_4 = [
+        {circuit_id = 11; aggregation_round = 0;}
+        {circuit_id = 12; aggregation_round = 0;}
+        {circuit_id = 13; aggregation_round = 0;}
+      ];
+      group_5 = [
+        {circuit_id = 5; aggregation_round = 0;}
+      ];
+      group_6 = [
+        {circuit_id = 3; aggregation_round = 1;}
+      ];
+      group_7 = [
+        {circuit_id = 7; aggregation_round = 0;}
+      ];
+      group_8 = [
+        {circuit_id = 8; aggregation_round = 0;}
+      ];
+      group_9 = [
+        {circuit_id = 12; aggregation_round = 1;}
+        {circuit_id = 13; aggregation_round = 1;}
+        {circuit_id = 14; aggregation_round = 1;}
+        {circuit_id = 15; aggregation_round = 1;}
+      ];
+      group_10 = [
+        {circuit_id = 10; aggregation_round = 0;}
+      ];
+      group_11 = [
+        {circuit_id = 7; aggregation_round = 1;}
+        {circuit_id = 8; aggregation_round = 1;}
+        {circuit_id = 9; aggregation_round = 1;}
+        {circuit_id = 10; aggregation_round = 1;}
+        {circuit_id = 11; aggregation_round = 1;}
+      ];
+      group_12 = [
+        {circuit_id = 4; aggregation_round = 1;}
+        {circuit_id = 5; aggregation_round = 1;}
+        {circuit_id = 6; aggregation_round = 1;}
+        {circuit_id = 9; aggregation_round = 1;}
+      ];
+      group_13 = [
+        {circuit_id = 14; aggregation_round = 0;}
+        {circuit_id = 15; aggregation_round = 0;}
+        {circuit_id = 255; aggregation_round = 0;}
+      ];
+      group_14 = [
+        {circuit_id = 16; aggregation_round = 1;}
+        {circuit_id = 17; aggregation_round = 1;}
+        {circuit_id = 18; aggregation_round = 1;}
+      ];
+    };
+
     witness_generator = {
       generation_timeout_in_secs = 900;
       max_attempts = 10;
@@ -163,8 +259,18 @@ in
   };
 
   processes = {
+    prover-job-monitor = {
+      exec = ''
+      cargo run --release --manifest-path=prover/Cargo.toml --bin=zksync_prover_job_monitor -- \
+      --config-path=${general-config-file} --secrets-path=${secrets-config-file}
+      '';
+    };
+
     witness-generator = {
-      exec = "cargo run --release --manifest-path=prover/Cargo.toml --bin zksync_witness_generator -- --round=basic_circuits --config-path=${general-config-file} --secrets-path=${secrets-config-file}";
+      exec = ''
+      cargo run --release --manifest-path=prover/Cargo.toml --bin=zksync_witness_generator -- \
+      --round=basic_circuits --config-path=${general-config-file} --secrets-path=${secrets-config-file}
+      '';
     };
   };
 }
