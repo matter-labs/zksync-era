@@ -11,6 +11,7 @@ use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
 use indicatif::{ProgressBar, ProgressStyle};
+#[cfg(feature = "gpu")]
 use shivini::ProverContext;
 use tracing::level_filters::LevelFilter;
 use zkevm_test_harness::{
@@ -29,14 +30,14 @@ use zksync_prover_fri_types::{
     circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
     ProverServiceDataKey,
 };
+#[cfg(feature = "gpu")]
+use zksync_prover_keystore::setup_data_generator::get_fflonk_snark_verifier_setup_and_vk;
 use zksync_prover_keystore::{
     keystore::Keystore,
-    setup_data_generator::{
-        get_fflonk_snark_verifier_setup_and_vk, CPUSetupDataGenerator, GPUSetupDataGenerator,
-        SetupDataGenerator,
-    },
+    setup_data_generator::{CPUSetupDataGenerator, GPUSetupDataGenerator, SetupDataGenerator},
 };
 
+#[cfg(feature = "gpu")]
 use crate::utils::{
     generate_compression_for_wrapper_vks, generate_compression_vks,
     get_plonk_wrapper_setup_and_vk_from_scheduler_vk,
@@ -88,22 +89,23 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
     })
     .map_err(|err| anyhow::anyhow!("Failed generating recursive vk's: {err}"))?;
 
-    let config = WrapperConfig::new(5);
+    #[cfg(feature = "gpu")]
+    {
+        let config = WrapperConfig::new(5);
+        let worker = Worker::new();
 
-    let worker = Worker::new();
+        tracing::info!("Creating prover context");
 
-    tracing::info!("Creating prover context");
+        let _context = ProverContext::create().context("failed initializing gpu prover context")?;
+        tracing::info!("Generating verification keys for compression layers.");
+        generate_compression_vks(config, &mut in_memory_source, &worker);
 
-    let _context = ProverContext::create().context("failed initializing gpu prover context")?;
+        tracing::info!("Generating verification keys for compression for wrapper.");
 
-    tracing::info!("Generating verification keys for compression layers.");
-    generate_compression_vks(config, &mut in_memory_source, &worker);
+        generate_compression_for_wrapper_vks(config, &mut in_memory_source, &worker);
 
-    tracing::info!("Generating verification keys for compression for wrapper.");
-
-    generate_compression_for_wrapper_vks(config, &mut in_memory_source, &worker);
-
-    tracing::info!("Saving keys & hints");
+        tracing::info!("Saving keys & hints");
+    }
 
     keystore.save_keys_from_data_source(&in_memory_source)?;
 
@@ -127,19 +129,22 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
 
     tracing::info!("PLONK vk is generated");
 
-    tracing::info!("Generating FFLONK verification keys for snark wrapper.");
+    #[cfg(feature = "gpu")]
+    {
+        tracing::info!("Generating FFLONK verification keys for snark wrapper.");
 
-    let (_, fflonk_vk) = get_fflonk_snark_verifier_setup_and_vk(&mut in_memory_source);
+        let (_, fflonk_vk) = get_fflonk_snark_verifier_setup_and_vk(&mut in_memory_source);
 
-    keystore
-        .save_fflonk_snark_verification_key(fflonk_vk)
-        .context("save_fflonk_snark_vk")?;
+        keystore
+            .save_fflonk_snark_verification_key(fflonk_vk)
+            .context("save_fflonk_snark_vk")?;
 
-    if let Some(p) = pb.lock().unwrap().as_ref() {
-        p.inc(1)
+        if let Some(p) = pb.lock().unwrap().as_ref() {
+            p.inc(1)
+        }
+
+        tracing::info!("FFLONK vk is generated");
     }
-
-    tracing::info!("FFLONK vk is generated");
 
     // Let's also update the commitments file.
     let commitments = keystore.generate_commitments()?;

@@ -117,8 +117,6 @@ fn serialize_g1_for_ethereum(point: &<bn256::Bn256 as Engine>::G1Affine) -> (U25
     if <<bn256::Bn256 as Engine>::G1Affine as CurveAffine>::is_zero(point) {
         return (U256::zero(), U256::zero());
     }
-    let uncompressed = point.into_uncompressed();
-
     let (x, y) = <<bn256::Bn256 as Engine>::G1Affine as CurveAffine>::into_xy_unchecked(*point);
     let _ = <<bn256::Bn256 as Engine>::G1Affine as CurveAffine>::from_xy_checked(x, y).unwrap();
 

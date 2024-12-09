@@ -8,6 +8,7 @@ use circuit_definitions::{
         recursion_layer::{ZkSyncRecursionLayerStorageType, ZkSyncRecursionLayerVerificationKey},
     },
 };
+#[cfg(feature = "gpu")]
 use shivini::cs::gpu_setup_and_vk_from_base_setup_vk_params_and_hints;
 use zkevm_test_harness::{
     data_source::{BlockDataSource, SetupDataSource},
@@ -20,6 +21,7 @@ use zkevm_test_harness::{
     },
 };
 
+#[cfg(feature = "gpu")]
 pub(crate) fn generate_compression_vks<DS: SetupDataSource + BlockDataSource>(
     config: WrapperConfig,
     source: &mut DS,
@@ -69,6 +71,7 @@ pub(crate) fn generate_compression_vks<DS: SetupDataSource + BlockDataSource>(
     }
 }
 
+#[cfg(feature = "gpu")]
 pub(crate) fn generate_compression_for_wrapper_vks<DS: SetupDataSource + BlockDataSource>(
     config: WrapperConfig,
     source: &mut DS,

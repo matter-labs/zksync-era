@@ -66,13 +66,8 @@ jobs:
           ci_run zkstack prover init-bellman-cuda --clone --verbose
           ci_run zkstack prover setup-keys --mode=download --region=us --verbose
 
-          BELLMAN_CUDA_DIR=$(ci_run find -type d -name 'era-bellman-cuda' 2>/dev/null)
-          echo $BELLMAN_CUDA_DIR
-          echo BELLMAN_CUDA_DIR=$BELLMAN_CUDA_DIR >> $GITHUB_ENV
-
       - name: Build prover binaries
         run: |
-          PASSED_ENV_VARS="BELLMAN_CUDA_DIR" \
           ci_run cargo build --release --workspace --manifest-path=prover/Cargo.toml
 
       - name: Run server

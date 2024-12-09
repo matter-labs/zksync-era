@@ -175,7 +175,8 @@ mod tests {
 
                 assert_eq!(
                     expected,
-                    calculate_snark_vk_hash(&keystore).unwrap(),
+                    calculate_snark_vk_hash(keystore.load_snark_verification_key().unwrap())
+                        .unwrap(),
                     "VK computation failed for {:?}",
                     basepath
                 );

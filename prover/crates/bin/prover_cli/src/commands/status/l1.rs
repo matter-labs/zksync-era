@@ -87,7 +87,7 @@ pub(crate) async fn run() -> anyhow::Result<()> {
     let fflonk_verification_key_hash: H256 =
         CallFunctionArgs::new("verificationKeyHash", U256::from(FFLONK_VERIFIER_TYPE))
             .for_contract(contracts_config.verifier_addr, &helper::verifier_contract())
-            .call(&query_client, function)
+            .call_with_function(&query_client, function)
             .await?;
 
     let node_l1_verifier_config = L1VerifierConfig {
