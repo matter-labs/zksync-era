@@ -574,7 +574,7 @@ impl proto::PubdataType {
     pub(crate) fn parse(&self) -> PubdataType {
         match self {
             Self::Rollup => PubdataType::Rollup,
-            Self::Validium => PubdataType::Validium,
+            Self::NoDa => PubdataType::NoDA,
             Self::Avail => PubdataType::Avail,
             Self::Celestia => PubdataType::Celestia,
             Self::Eigen => PubdataType::Eigen,

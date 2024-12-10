@@ -59,7 +59,7 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
             PubdataParams {
                 pubdata_type: match rng.gen_range(0..2) {
                     0 => PubdataType::Rollup,
-                    1 => PubdataType::Validium,
+                    1 => PubdataType::NoDA,
                     2 => PubdataType::Avail,
                     3 => PubdataType::Celestia,
                     4 => PubdataType::Eigen,

@@ -152,7 +152,7 @@ message AttestationStatus {
 
 enum PubdataType {
     Rollup = 0;
-    Validium = 1;
+    NoDA = 1;
     Avail = 2;
     Celestia = 3;
     Eigen = 4;

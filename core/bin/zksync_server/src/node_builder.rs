@@ -128,7 +128,7 @@ impl MainNodeBuilder {
         }
 
         let Some(da_client_config) = self.configs.da_client_config.clone() else {
-            return PubdataType::Validium;
+            return PubdataType::NoDA;
         };
 
         match da_client_config {

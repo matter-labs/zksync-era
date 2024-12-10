@@ -62,7 +62,7 @@ impl FromStr for L1BatchCommitmentMode {
 pub enum PubdataType {
     #[default]
     Rollup,
-    Validium, // no-DA Validium
+    NoDA,
     Avail,
     Celestia,
     Eigen,
@@ -75,12 +75,12 @@ impl FromStr for PubdataType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "Rollup" => Ok(Self::Rollup),
-            "Validium" => Ok(Self::Validium),
+            "NoDA" => Ok(Self::NoDA),
             "Avail" => Ok(Self::Avail),
             "Celestia" => Ok(Self::Celestia),
             "Eigen" => Ok(Self::Eigen),
             "ObjectStore" => Ok(Self::ObjectStore),
-            _ => Err("Incorrect DA client type; expected one of `Rollup`, `Validium`, `Avail`, `Celestia`, `Eigen`, `ObjectStore`"),
+            _ => Err("Incorrect DA client type; expected one of `Rollup`, `NoDA`, `Avail`, `Celestia`, `Eigen`, `ObjectStore`"),
         }
     }
 }
