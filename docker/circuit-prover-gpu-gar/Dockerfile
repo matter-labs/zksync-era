@@ -1,7 +1,7 @@
 ARG PROVER_IMAGE
 FROM us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/circuit-prover-gpu:2.0-$PROVER_IMAGE as prover
 
-FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04 as app
+FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04 as app
 
 # HACK copying to root is the only way to make Docker layer caching work for these files for some reason
 COPY *.bin /
