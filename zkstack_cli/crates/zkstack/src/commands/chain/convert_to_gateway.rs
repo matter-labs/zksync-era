@@ -17,6 +17,7 @@ use config::{
 use ethers::{abi::parse_abi, contract::BaseContract, types::Bytes, utils::hex};
 use lazy_static::lazy_static;
 use xshell::Shell;
+use config::forge_interface::script_params::GATEWAY_GOVERNANCE_TX_PATH1;
 use zksync_basic_types::H256;
 use zksync_config::configs::GatewayConfig;
 
@@ -26,14 +27,15 @@ use crate::{
 };
 
 lazy_static! {
-    static ref GATEWAY_PREPARATION_INTERFACE: BaseContract = BaseContract::from(
+    pub static ref GATEWAY_PREPARATION_INTERFACE: BaseContract = BaseContract::from(
         parse_abi(&[
             "function governanceRegisterGateway() public",
             "function deployAndSetGatewayTransactionFilterer() public",
             "function governanceWhitelistGatewayCTM(address gatewaySTMAddress, bytes32 governanoceOperationSalt) public",
             "function governanceSetCTMAssetHandler(bytes32 governanoceOperationSalt)",
             "function registerAssetIdInBridgehub(address gatewaySTMAddress, bytes32 governanoceOperationSalt)",
-            "function grantWhitelist(address filtererProxy, address[] memory addr) public"
+            "function grantWhitelist(address filtererProxy, address[] memory addr) public",
+            "function executeGovernanceTxs() public"
         ])
         .unwrap(),
     );
@@ -91,6 +93,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         &chain_config,
         gateway_config,
         l1_url.clone(),
+        true
     )
     .await?;
 
@@ -104,6 +107,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         &chain_config,
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
+        true
     )
     .await?;
 
@@ -135,6 +139,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         &chain_config,
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
+        true
     )
     .await?;
 
@@ -154,7 +159,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn calculate_gateway_ctm(
+pub async fn calculate_gateway_ctm(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
@@ -163,7 +168,7 @@ async fn calculate_gateway_ctm(
     initial_deployemnt_config: &InitialDeploymentConfig,
     l1_rpc_url: String,
 ) -> anyhow::Result<GatewayConfig> {
-    let contracts_config = config.get_contracts_config()?;
+    let contracts_config = chain_config.get_contracts_config()?;
     let deploy_config_path = DEPLOY_GATEWAY_CTM.input(&config.link_to_code);
 
     let deploy_config = DeployGatewayCTMInput::new(
@@ -205,7 +210,7 @@ async fn calculate_gateway_ctm(
     Ok(gateway_config)
 }
 
-async fn deploy_gateway_ctm(
+pub async fn deploy_gateway_ctm(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
@@ -214,7 +219,8 @@ async fn deploy_gateway_ctm(
     initial_deployemnt_config: &InitialDeploymentConfig,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
-    let contracts_config = config.get_contracts_config()?;
+    let contracts_config = chain_config.get_contracts_config()?;
+    // let contracts_config = config.get_contracts_config()?;
     let deploy_config_path = DEPLOY_GATEWAY_CTM.input(&config.link_to_code);
 
     let deploy_config = DeployGatewayCTMInput::new(
@@ -249,13 +255,14 @@ async fn deploy_gateway_ctm(
     Ok(())
 }
 
-async fn gateway_governance_whitelisting(
+pub async fn gateway_governance_whitelisting(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
     chain_config: &ChainConfig,
     gateway_config: GatewayConfig,
     l1_rpc_url: String,
+    with_broadcast: bool,
 ) -> anyhow::Result<()> {
     let hash = call_script(
         shell,
@@ -267,9 +274,15 @@ async fn gateway_governance_whitelisting(
         chain_config,
         &config.get_wallets()?.governor,
         l1_rpc_url.clone(),
+        with_broadcast
     )
     .await?
     .governance_l2_tx_hash;
+
+    shell.copy_file(
+        config.link_to_code.join("contracts/l1-contracts/broadcast/GatewayPreparation.s.sol/9/dry-run/932d9a4d-latest.json"),
+        config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
+    )?;
 
     println!(
         "Gateway registered as a settlement layer with L2 hash: {}",
@@ -289,9 +302,15 @@ async fn gateway_governance_whitelisting(
         chain_config,
         &config.get_wallets()?.governor,
         l1_rpc_url.clone(),
+        with_broadcast
     )
     .await?
     .governance_l2_tx_hash;
+
+    shell.copy_file(
+        config.link_to_code.join("contracts/l1-contracts/broadcast/GatewayPreparation.s.sol/9/dry-run/e518d36a-latest.json"),
+        config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
+    )?;
 
     // Just in case, the L2 tx may or may not fail depending on whether it was executed previously,
     println!(
@@ -309,9 +328,15 @@ async fn gateway_governance_whitelisting(
         chain_config,
         &config.get_wallets()?.governor,
         l1_rpc_url.clone(),
+        with_broadcast
     )
     .await?
     .governance_l2_tx_hash;
+
+    shell.copy_file(
+        config.link_to_code.join("contracts/l1-contracts/broadcast/GatewayPreparation.s.sol/9/dry-run/98b2aab7-latest.json"),
+        config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
+    )?;
 
     // Just in case, the L2 tx may or may not fail depending on whether it was executed previously,
     println!(
@@ -332,9 +357,15 @@ async fn gateway_governance_whitelisting(
         chain_config,
         &config.get_wallets()?.governor,
         l1_rpc_url.clone(),
+        with_broadcast
     )
     .await?
     .governance_l2_tx_hash;
+
+    shell.copy_file(
+        config.link_to_code.join("contracts/l1-contracts/broadcast/GatewayPreparation.s.sol/9/dry-run/b620eb4c-latest.json"),
+        config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
+    )?;
 
     // Just in case, the L2 tx may or may not fail depending on whether it was executed previously,
     println!(
@@ -345,7 +376,7 @@ async fn gateway_governance_whitelisting(
     Ok(())
 }
 
-async fn call_script(
+pub async fn call_script(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     data: &Bytes,
@@ -353,13 +384,18 @@ async fn call_script(
     chain_config: &ChainConfig,
     governor: &Wallet,
     l1_rpc_url: String,
+    with_broadcast: bool,
 ) -> anyhow::Result<GatewayPreparationOutput> {
     let mut forge = Forge::new(&config.path_to_l1_foundry())
         .script(&GATEWAY_PREPARATION.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
-        .with_broadcast()
         .with_calldata(data);
+    if with_broadcast {
+        forge = forge.with_broadcast();
+    } else {
+        // forge = forge.with_skip_simulation();
+    }
 
     // Governor private key is required for this script
     forge = fill_forge_private_key(forge, Some(governor), WalletOwner::Governor)?;

@@ -5,6 +5,11 @@ programs.
 
 Here we contain the files/instructions needed to test the gateway upgrade locally.
 
+## Step 0
+
+- pull zksync-era to ~/zksync-era
+- pull zksync-era-private to ~/zksync-era-private
+
 ## Step 1: Preparation
 
 To easiest way to avoid needless is caching. There are two ways to avoid caching:
@@ -33,7 +38,11 @@ Use upgrade scripts as in the example below.
 ## Full flow
 
 ```
-cd .. && use-old-era.sh && cd ./zksync-era
+# make sure that there are 2 folders: zksync-era with old era and zksync-era-private with new era
+# if test was run previously you probably need to move folder
+mv ~/zksync-era-current ~/zksync-era-private
+
+cd ~ && use-old-era.sh && cd ./zksync-era-current
 
 zkstackup --local && zkstack dev clean all && zkstack up --observability false
 
@@ -44,7 +53,7 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
     --ignore-prerequisites --verbose \
     --observability=false
 
-cd .. && use-new-era.sh && cd ./zksync-era
+cd ~ && use-new-era.sh && cd ./zksync-era-current
 
 zkstackup --local
 zkstack dev contracts
@@ -56,6 +65,11 @@ zkstack chain gateway-upgrade -- adapt-config
 zkstack server --ignore-prerequisites --chain era
 
 zkstack e gateway-upgrade --ecosystem-upgrade-stage no-governance-prepare
+
+# only if chain has weth deployed before upgrade.
+# i.e. you must run it iff `predeployed_l2_wrapped_base_token_address` is set in config.
+zkstack chain gateway-upgrade -- set-l2weth-for-chain
+
 zkstack e gateway-upgrade --ecosystem-upgrade-stage governance-stage1
 
 zkstack chain gateway-upgrade -- prepare-stage1
@@ -71,7 +85,9 @@ zkstack chain gateway-upgrade -- finalize-stage1
 
 # restart the server
 
-zkstack test integration --no-deps --ignore-prerequisites --chain era
+cd ~/zksync-era
+zkstack dev test integration --no-deps --ignore-prerequisites --chain era
+cd ~/zksync-era-current
 
 zkstack ecosystem gateway-upgrade --ecosystem-upgrade-stage governance-stage2
 zkstack ecosystem gateway-upgrade --ecosystem-upgrade-stage no-governance-stage2
@@ -82,5 +98,21 @@ zkstack chain gateway-upgrade -- finalize-stage2
 
 # turn on the server
 
-zkstack test integration --no-deps --ignore-prerequisites --chain era
+zkstack dev test integration --no-deps --ignore-prerequisites --chain era
+
+
+
+zkstack ecosystem gateway-upgrade --ecosystem-upgrade-stage governance-stage3
+zkstack ecosystem gateway-upgrade --ecosystem-upgrade-stage no-governance-stage3
+
+# in separate window
+zkstack server --ignore-prerequisites --chain gateway
+
+# wait for era server to finalize all L1 txs
+# stop era server!
+
+zkstack chain migrate-to-gateway --chain era --gateway-chain-name gateway
+
+# restart era server!
+zkstack dev test integration --no-deps --ignore-prerequisites --chain era
 ```

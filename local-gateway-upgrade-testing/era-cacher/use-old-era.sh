@@ -1,16 +1,16 @@
 #!/bin/bash
 
-# Specify the folder path
-FOLDER_PATH=~/zksync-era-old
+OLD_REPO=~/zksync-era
+NEW_REPO=~/zksync-era-private
+
+WORKING_DIRECTORY=~/zksync-era-current
 
 # Check if the folder exists
-if [ ! -d "$FOLDER_PATH" ]; then
-  echo "Error: The folder '$FOLDER_PATH' does not exist."
+if [ ! -d "$OLD_REPO" ]; then
+  echo "Error: The folder '$OLD_REPO' does not exist."
   exit 1
 else
   echo "Updating to use old era."
 fi
 
-
-mv ~/zksync-era ~/zksync-era-new
-mv ~/zksync-era-old ~/zksync-era
+mv $OLD_REPO $WORKING_DIRECTORY

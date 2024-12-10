@@ -12,9 +12,13 @@ use config::{
 };
 use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
 use lazy_static::lazy_static;
-use types::ProverMode;
+use types::{BaseToken, ProverMode, WalletCreation};
 use xshell::Shell;
-use zksync_types::{H160, L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
+use common::db::DatabaseConfig;
+use config::forge_interface::gateway_preparation::input::GatewayPreparationConfig;
+use config::forge_interface::script_params::{GATEWAY_GOVERNANCE_TX_PATH1, GATEWAY_PREPARATION};
+use zksync_basic_types::commitment::L1BatchCommitmentMode;
+use zksync_types::{Address, H160, L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 
 use super::args::gateway_upgrade::{GatewayUpgradeArgs, GatewayUpgradeArgsFinal};
 use crate::{
@@ -23,11 +27,22 @@ use crate::{
     messages::MSG_INTALLING_DEPS_SPINNER,
     utils::forge::{fill_forge_private_key, WalletOwner},
 };
+use crate::accept_ownership::{accept_admin, make_permanent_rollup, set_da_validator_pair};
+use crate::commands::chain;
+use crate::commands::chain::args::genesis::GenesisArgsFinal;
+use crate::commands::chain::args::init::configs::InitConfigsArgsFinal;
+use crate::commands::chain::{deploy_l2_contracts, ChainCreateArgsFinal};
+use crate::commands::chain::convert_to_gateway::{calculate_gateway_ctm, call_script, GATEWAY_PREPARATION_INTERFACE};
+use crate::commands::chain::genesis::genesis;
+use crate::commands::chain::init::configs::init_configs;
+use crate::commands::chain::register_chain::register_chain;
+use crate::defaults::{generate_db_names, DBNames, DATABASE_SERVER_URL};
+use crate::messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_GENESIS_DATABASE_ERR};
 
 pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> {
     println!("Running ecosystem gateway upgrade args");
 
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
     git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
 
     let mut final_ecosystem_args = args.fill_values_with_prompt(ecosystem_config.l1_network, true);
@@ -35,6 +50,7 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
     match final_ecosystem_args.ecosystem_upgrade_stage {
         GatewayUpgradeStage::NoGovernancePrepare => {
             no_governance_prepare(&mut final_ecosystem_args, shell, &ecosystem_config).await?;
+            no_governance_prepare2(&mut final_ecosystem_args, shell, &mut ecosystem_config).await?;
         }
         GatewayUpgradeStage::GovernanceStage1 => {
             governance_stage_1(&mut final_ecosystem_args, shell, &ecosystem_config).await?;
@@ -44,6 +60,12 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
         }
         GatewayUpgradeStage::NoGovernanceStage2 => {
             no_governance_stage_2(&mut final_ecosystem_args, shell, &ecosystem_config).await?;
+        }
+        GatewayUpgradeStage::GovernanceStage3 => {
+            governance_stage_3(&mut final_ecosystem_args, shell, &ecosystem_config).await?;
+        }
+        GatewayUpgradeStage::NoGovernanceStage3 => {
+            no_governance_stage_3(&mut final_ecosystem_args, shell, &ecosystem_config).await?;
         }
     }
 
@@ -119,6 +141,190 @@ async fn no_governance_prepare(
 
     Ok(())
 }
+
+async fn no_governance_prepare2(
+    init_args: &mut GatewayUpgradeArgsFinal,
+    shell: &Shell,
+    ecosystem_config: &mut EcosystemConfig,
+) -> anyhow::Result<()> {
+    let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
+    spinner.finish();
+
+    let forge_args = init_args.forge_args.clone();
+    let l1_rpc_url = init_args.l1_rpc_url.clone();
+
+    let mut contracts_config = ecosystem_config.get_contracts_config()?;
+
+    {
+        let output = GatewayEcosystemUpgradeOutput::read(
+            shell,
+            GATEWAY_UPGRADE_ECOSYSTEM_PARAMS.output(&ecosystem_config.link_to_code),
+        )?;
+
+        let mut s: String = "0x".to_string();
+        s += &hex::encode(output.contracts_config.diamond_cut_data.0);
+        contracts_config.ecosystem_contracts.diamond_cut_data = s;
+
+        s = "0x".to_string();
+        s += &hex::encode(output.contracts_config.force_deployments_data.0);
+        contracts_config.ecosystem_contracts.force_deployments_data = Some(s);
+
+        contracts_config.l1.rollup_l1_da_validator_addr = Some(output.deployed_addresses.rollup_l1_da_validator_addr);
+        contracts_config.l1.validium_l1_da_validator_addr = Some(output.deployed_addresses.validium_l1_da_validator_addr);
+
+        contracts_config
+            .ecosystem_contracts
+            .stm_deployment_tracker_proxy_addr = Some(
+            output
+                .deployed_addresses
+                .bridgehub
+                .ctm_deployment_tracker_proxy_addr,
+        );
+        contracts_config.ecosystem_contracts.native_token_vault_addr = Some(
+            output
+                .deployed_addresses
+                .native_token_vault_addr,
+        );
+        contracts_config
+            .ecosystem_contracts
+            .l1_bytecodes_supplier_addr = Some(
+            output
+                .deployed_addresses
+                .l1_bytecodes_supplier_addr,
+        );
+        contracts_config.bridges.l1_nullifier_addr = Some(contracts_config.bridges.shared.l1_address);
+        contracts_config.ecosystem_contracts.validator_timelock_addr = output.deployed_addresses.validator_timelock_addr;
+        contracts_config.l1.validator_timelock_addr = output.deployed_addresses.validator_timelock_addr;
+        contracts_config.bridges.shared.l1_address = output.deployed_addresses.bridges.shared_bridge_proxy_addr;
+        contracts_config.ecosystem_contracts.expected_rollup_l2_da_validator = Some(output.contracts_config.expected_rollup_l2_da_validator);
+        // contracts_config.ecosystem_contracts.state_transition_proxy_addr = output.deployed_addresses.bridgehub.
+    }
+
+    // if contracts_config.ecosystem_contracts.force_deployments_data.is_none() {
+    //     // TODO: old zksync cli should also save this value.
+    //     contracts_config.ecosystem_contracts.force_deployments_data = Some("0x0000000000000000000000000000000000000000000000000000000000000009000000000000000000000000000000000000000000000000000000000000010e000000000000000000000000c22e290b14a42cad8ee32bf165dd1be905679a34010000fdc4fc03a924d130a36ee26083dd4e1eb13c419b7a6f7438f3941d62730000000000000000000000001c67c036179a891daf9073ae2e396796d9ce0b6e0000000000000000000000000000000000000000000000000000000000000064010009b1de4b4963b67a90614dc2cec9e7a2e65f771093a4f6a15e991bfd41d4010004c322750befd4bcd2262220978349eab84b956309b79206707ea0bac42f010007efe290b35f1c6ca0966cf62c8f29e01356ccd097fb795b77ad1e7b2bb201000303dddd9a9ed78f8ccc477359e66091baba75aafa162eb70db0425f8e5700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000".to_string());
+    // }
+
+    // ci_run zkstack chain create \
+    // --chain-name gateway \
+    // --chain-id 505 \
+    // --prover-mode no-proofs \
+    // --wallet-creation localhost \
+    // --l1-batch-commit-data-generator-mode rollup \
+    // --base-token-address 0x0000000000000000000000000000000000000001 \
+    // --base-token-price-nominator 1 \
+    // --base-token-price-denominator 1 \
+    // --set-as-default false \
+    // --ignore-prerequisites \
+    // --evm-emulator false
+    let chain_create_args = ChainCreateArgsFinal {
+        chain_name: "gateway".to_string(),
+        chain_id: 505,
+        prover_version:ProverMode::NoProofs,
+        wallet_creation: WalletCreation::Localhost,
+        l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
+        wallet_path: None,
+        base_token: BaseToken::eth(),
+        set_as_default: false,
+        legacy_bridge: false,
+        skip_submodules_checkout: false,
+        skip_contract_compilation_override: false,
+        evm_emulator: false,
+        link_to_code: ecosystem_config.link_to_code.clone().display().to_string()
+    };
+    chain::create::create_chain_inner(
+        chain_create_args,
+        ecosystem_config,
+        shell,
+    )?;
+    let chain_config = ecosystem_config
+        .load_chain(Some("gateway".to_string()))
+        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    register_chain(
+        shell,
+        forge_args,
+        ecosystem_config,
+        &chain_config,
+        &mut contracts_config,
+        l1_rpc_url.clone(),
+        None,
+        false,
+    )
+        .await?;
+    shell.copy_file(
+        ecosystem_config.link_to_code.join("contracts/l1-contracts/broadcast/RegisterZKChain.s.sol/9/dry-run/run-latest.json"),
+        ecosystem_config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
+    )?;
+
+    let DBNames { server_name, .. } = generate_db_names(&chain_config);
+    let args = InitConfigsArgsFinal {
+        genesis_args: GenesisArgsFinal {
+            server_db: DatabaseConfig::new(DATABASE_SERVER_URL.clone(), server_name),
+            dont_drop: false,
+        },
+        l1_rpc_url,
+        no_port_reallocation: false,
+    };
+    init_configs(&args, shell, ecosystem_config, &chain_config).await?;
+
+    deploy_l2_contracts::deploy_l2_contracts(
+        shell,
+        &chain_config,
+        ecosystem_config,
+        &mut contracts_config,
+        init_args.forge_args.clone(),
+        false
+    )
+        .await?;
+    shell.copy_file(
+        ecosystem_config.link_to_code.join("contracts/l1-contracts/broadcast/DeployL2Contracts.sol/9/dry-run/run-latest.json"),
+        ecosystem_config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
+    )?;
+
+    contracts_config.l1.base_token_addr = Address::from_low_u64_be(1);
+    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+
+    //==========
+
+    let chain_genesis_config = chain_config.get_genesis_config()?;
+    let chain_contracts_config = chain_config.get_contracts_config()?;
+    let gateway_config = chain::convert_to_gateway::calculate_gateway_ctm(
+        shell,
+        init_args.forge_args.clone(),
+        &ecosystem_config,
+        &chain_config,
+        &chain_genesis_config,
+        &ecosystem_config.get_initial_deployment_config().unwrap(),
+        init_args.l1_rpc_url.clone(),
+    )
+        .await?;
+
+
+    // =========
+
+    let gateway_preparation_config_path = GATEWAY_PREPARATION.input(&chain_config.link_to_code);
+    let preparation_config = GatewayPreparationConfig::new(
+        &chain_config,
+        &chain_contracts_config,
+        &ecosystem_config.get_contracts_config()?,
+        &gateway_config,
+    )?;
+    preparation_config.save(shell, gateway_preparation_config_path)?;
+
+    chain::convert_to_gateway::gateway_governance_whitelisting(
+        shell,
+        init_args.forge_args.clone(),
+        &ecosystem_config,
+        &chain_config,
+        gateway_config,
+        init_args.l1_rpc_url.clone(),
+        false
+    )
+        .await?;
+
+    Ok(())
+}
+
 
 // Governance has approved the proposal, now it will insert the new protocol version into our STM (CTM)
 async fn governance_stage_1(
@@ -266,10 +472,11 @@ async fn no_governance_stage_2(
     let chains: Vec<_> = ecosystem_config
         .list_of_chains()
         .into_iter()
-        .map(|name| {
-            ecosystem_config
+        .filter_map(|name| {
+            let chain = ecosystem_config
                 .load_chain(Some(name))
-                .expect("Invalid chain")
+                .expect("Invalid chain");
+            (chain.name != "gateway").then_some(chain)
         })
         .collect();
 
@@ -344,6 +551,187 @@ async fn no_governance_stage_2(
     forge.run(shell)?;
 
     println!("Done!");
+
+    Ok(())
+}
+
+async fn governance_stage_3(
+    init_args: &mut GatewayUpgradeArgsFinal,
+    shell: &Shell,
+    ecosystem_config: &EcosystemConfig,
+) -> anyhow::Result<()> {
+    let chain_config = ecosystem_config
+        .load_chain(Some("gateway".to_string()))
+        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    call_script(
+        shell,
+        init_args.forge_args.clone(),
+        &GATEWAY_PREPARATION_INTERFACE
+            .encode("executeGovernanceTxs", ())
+            .unwrap(),
+        ecosystem_config,
+        &chain_config,
+        &ecosystem_config.get_wallets()?.governor,
+        init_args.l1_rpc_url.clone(),
+        true
+    )
+        .await?;
+
+    Ok(())
+}
+
+async fn no_governance_stage_3(
+    init_args: &mut GatewayUpgradeArgsFinal,
+    shell: &Shell,
+    ecosystem_config: &EcosystemConfig,
+) -> anyhow::Result<()> {
+    let chain_config = ecosystem_config
+        .load_chain(Some("gateway".to_string()))
+        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+
+    let chain_genesis_config = chain_config.get_genesis_config()?;
+    let mut chain_contracts_config = chain_config.get_contracts_config()?;
+
+    // Fund gateway's governor (chain_config.get_wallets_config()?.governor)
+    chain::common::distribute_eth(ecosystem_config, &chain_config, init_args.l1_rpc_url.clone()).await?;
+
+    // Accept ownership for DiamondProxy (run by L2 Governor)
+    accept_admin(
+        shell,
+        ecosystem_config,
+        chain_contracts_config.l1.chain_admin_addr,
+        &chain_config.get_wallets_config()?.governor,
+        chain_contracts_config.l1.diamond_proxy_addr,
+        &init_args.forge_args.clone(),
+        init_args.l1_rpc_url.clone(),
+    )
+        .await?;
+
+    // prepare script input
+    let gateway_config = calculate_gateway_ctm(
+        shell,
+        init_args.forge_args.clone(),
+        &ecosystem_config,
+        &chain_config,
+        &chain_genesis_config,
+        &ecosystem_config.get_initial_deployment_config().unwrap(),
+        init_args.l1_rpc_url.clone(),
+    )
+        .await?;
+
+    let gateway_preparation_config_path = GATEWAY_PREPARATION.input(&chain_config.link_to_code);
+    let preparation_config = GatewayPreparationConfig::new(
+        &chain_config,
+        &chain_contracts_config,
+        &ecosystem_config.get_contracts_config()?,
+        &gateway_config,
+    )?;
+    preparation_config.save(shell, gateway_preparation_config_path)?;
+
+    // deploy filterer
+    let output = call_script(
+        shell,
+        init_args.forge_args.clone(),
+        &GATEWAY_PREPARATION_INTERFACE
+            .encode("deployAndSetGatewayTransactionFilterer", ())
+            .unwrap(),
+        &ecosystem_config,
+        &chain_config,
+        &chain_config.get_wallets_config()?.governor,
+        init_args.l1_rpc_url.clone(),
+        true
+    )
+        .await?;
+
+    chain_contracts_config.set_transaction_filterer(output.gateway_transaction_filterer_proxy);
+
+    // whitelist deployer
+    call_script(
+        shell,
+        init_args.forge_args.clone(),
+        &GATEWAY_PREPARATION_INTERFACE
+            .encode(
+                "grantWhitelist",
+                (
+                    output.gateway_transaction_filterer_proxy,
+                    vec![
+                        ecosystem_config.get_contracts_config()?.l1.governance_addr,
+                        ecosystem_config
+                            .get_wallets()?
+                            .deployer
+                            .context("no deployer addr")?
+                            .address,
+                    ],
+                ),
+            )
+            .unwrap(),
+        &ecosystem_config,
+        &chain_config,
+        &chain_config.get_wallets_config()?.governor,
+        init_args.l1_rpc_url.clone(),
+        true
+    )
+        .await?;
+
+    // deploy ctm
+    chain::convert_to_gateway::deploy_gateway_ctm(
+        shell,
+        init_args.forge_args.clone(),
+        &ecosystem_config,
+        &chain_config,
+        &chain_genesis_config,
+        &ecosystem_config.get_initial_deployment_config().unwrap(),
+        init_args.l1_rpc_url.clone(),
+    )
+        .await?;
+
+    chain_contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+
+    // Set da validators
+    let validium_mode =
+        chain_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium;
+    let l1_da_validator_addr = if validium_mode {
+        chain_contracts_config.l1.validium_l1_da_validator_addr
+    } else {
+        chain_contracts_config.l1.rollup_l1_da_validator_addr
+    };
+    set_da_validator_pair(
+        shell,
+        ecosystem_config,
+        chain_contracts_config.l1.chain_admin_addr,
+        &chain_config.get_wallets_config()?.governor,
+        chain_contracts_config.l1.diamond_proxy_addr,
+        l1_da_validator_addr.context("l1_da_validator_addr")?,
+        chain_contracts_config
+            .l2
+            .da_validator_addr
+            .context("da_validator_addr")?,
+        &init_args.forge_args.clone(),
+        init_args.l1_rpc_url.clone(),
+    )
+        .await?;
+    if !validium_mode {
+        make_permanent_rollup(
+            shell,
+            ecosystem_config,
+            chain_contracts_config.l1.chain_admin_addr,
+            &chain_config.get_wallets_config()?.governor,
+            chain_contracts_config.l1.diamond_proxy_addr,
+            &init_args.forge_args.clone(),
+            init_args.l1_rpc_url.clone(),
+        )
+            .await?;
+    }
+
+    let DBNames { server_name, .. } = generate_db_names(&chain_config);
+    let args = GenesisArgsFinal {
+        server_db: DatabaseConfig::new(DATABASE_SERVER_URL.clone(), server_name),
+        dont_drop: false,
+    };
+    // Run genesis (create DB and run server with --genesis)
+    genesis(args, shell, &chain_config)
+        .await
+        .context(MSG_GENESIS_DATABASE_ERR)?;
 
     Ok(())
 }

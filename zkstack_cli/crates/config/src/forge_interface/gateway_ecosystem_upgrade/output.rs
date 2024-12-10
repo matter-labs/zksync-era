@@ -26,7 +26,6 @@ impl FileConfigWithDefaultName for GatewayEcosystemUpgradeOutput {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GatewayEcosystemUpgradeContractsOutput {
-    // TODO: do we even need this field?
     pub diamond_cut_data: Bytes,
 
     pub diamond_init_batch_overhead_l1_gas: u64,
@@ -54,6 +53,7 @@ pub struct GatewayEcosystemUpgradeDeployedAddresses {
     pub validator_timelock_addr: Address,
     pub validium_l1_da_validator_addr: Address,
     pub l1_bytecodes_supplier_addr: Address,
+    pub l2_wrapped_base_token_store_addr: Address,
 
     pub bridgehub: GatewayEcosystemUpgradeBridgehub,
     pub bridges: GatewayEcosystemUpgradeBridges,

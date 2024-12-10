@@ -27,6 +27,7 @@ use serde::{Deserialize, Serialize};
 use strum::EnumIter;
 use types::L1BatchCommitmentMode;
 use xshell::Shell;
+use config::forge_interface::script_params::GATEWAY_UPGRADE_ECOSYSTEM_PARAMS;
 use zksync_basic_types::{H256, U256};
 use zksync_eth_client::EthInterface;
 use zksync_types::{
@@ -71,6 +72,9 @@ pub enum GatewayChainUpgradeStage {
     // For tests in case a chain missed the correct window for the upgrade
     // and needs to execute after Stage2
     KeepUpStage2,
+
+    // Set L2 WETH address for chain in store
+    SetL2WETHForChain,
 }
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
@@ -126,6 +130,9 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
         }
         GatewayChainUpgradeStage::KeepUpStage2 => {
             panic!("Not supported");
+        }
+        GatewayChainUpgradeStage::SetL2WETHForChain => {
+            set_weth_for_chain(shell, args, ecosystem_config, chain_config, l1_url).await
         }
     }
 }
@@ -494,6 +501,62 @@ async fn finalize_stage2(
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     println!("done!");
+
+    Ok(())
+}
+
+async fn set_weth_for_chain(
+    shell: &Shell,
+    args: GatewayUpgradeArgs,
+    ecosystem_config: EcosystemConfig,
+    chain_config: ChainConfig,
+    l1_url: String,
+) -> anyhow::Result<()> {
+    println!("Adding l2 weth to store!");
+
+    let forge_args = args.forge_args.clone();
+    let l1_rpc_url = l1_url;
+
+    let previous_output = GatewayEcosystemUpgradeOutput::read(
+        shell,
+        GATEWAY_UPGRADE_ECOSYSTEM_PARAMS.output(&ecosystem_config.link_to_code),
+    )?;
+    let contract: BaseContract = BaseContract::from(
+        parse_abi(&[
+            "function addL2WethToStore(address storeAddress, address chainAdmin, uint256 chainId, address l2WBaseToken) public",
+        ])
+            .unwrap(),
+    );
+    let contracts_config = chain_config.get_contracts_config()?;
+    let calldata = contract
+        .encode("addL2WethToStore",
+            (
+                previous_output.deployed_addresses.l2_wrapped_base_token_store_addr,
+                ecosystem_config.get_contracts_config().expect("get_contracts_config()").l1.chain_admin_addr,
+                chain_config.chain_id.0,
+                contracts_config.l2.predeployed_l2_wrapped_base_token_address.expect("No predeployed_l2_wrapped_base_token_address")
+            )
+        )
+        .unwrap();
+
+    let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
+        .script(
+            &GATEWAY_UPGRADE_ECOSYSTEM_PARAMS.script(),
+            forge_args.clone(),
+        )
+        .with_ffi()
+        .with_rpc_url(l1_rpc_url)
+        .with_slow()
+        .with_gas_limit(1_000_000_000_000)
+        .with_calldata(&calldata)
+        .with_broadcast();
+
+    forge = fill_forge_private_key(
+        forge,
+        Some(&ecosystem_config.get_wallets()?.governor),
+        WalletOwner::Governor,
+    )?;
+    forge.run(shell)?;
 
     Ok(())
 }

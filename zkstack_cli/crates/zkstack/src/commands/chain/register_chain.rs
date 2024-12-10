@@ -76,6 +76,8 @@ pub async fn register_chain(
 
     if broadcast {
         forge = forge.with_broadcast();
+    } else {
+        // forge = forge.with_skip_simulation();
     }
 
     if let Some(address) = sender {

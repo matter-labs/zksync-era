@@ -125,6 +125,11 @@ impl ForgeScript {
         self
     }
 
+    pub fn with_skip_simulation(mut self) -> Self {
+        self.args.add_arg(ForgeScriptArg::SkipSimulation);
+        self
+    }
+
     pub fn with_signature(mut self, signature: &str) -> Self {
         self.args.add_arg(ForgeScriptArg::Sig {
             sig: signature.to_string(),
@@ -242,6 +247,7 @@ const WALLET_ARGS: [&str; 18] = [
 #[strum(serialize_all = "kebab-case", prefix = "--")]
 pub enum ForgeScriptArg {
     Broadcast,
+    SkipSimulation,
     #[strum(to_string = "etherscan-api-key={api_key}")]
     EtherscanApiKey {
         api_key: String,
