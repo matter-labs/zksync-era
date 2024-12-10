@@ -34,5 +34,5 @@ futures = { workspace = true, features = ["compat"] }
 
 [features]
 default = []
-gpu-light = ["dep:shivini"]
+gpu-light = ["dep:shivini", "dep:boojum-cuda"]
 gpu = ["dep:shivini", "dep:fflonk-gpu", "dep:boojum-cuda"]

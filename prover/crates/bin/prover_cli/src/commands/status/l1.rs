@@ -81,7 +81,7 @@ pub(crate) async fn run() -> anyhow::Result<()> {
 
     let function = helper::verifier_contract()
         .functions_by_name("verificationKeyHash")
-        .map_err(|x| ContractCallError::Function(x))?[1]
+        .map_err(ContractCallError::Function)?[1]
         .clone();
 
     let fflonk_verification_key_hash: H256 =

@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use anyhow::Context as _;
-#[cfg(feature = "gpu")]
+#[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use boojum_cuda::poseidon2::GLHasher;
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use circuit_definitions::circuit_definitions::aux_layer::{
