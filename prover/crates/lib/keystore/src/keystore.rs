@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::Context as _;
-#[cfg(feature = "gpu")]
+#[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use circuit_definitions::circuit_definitions::aux_layer::{
     CompressionProofsTreeHasher, CompressionProofsTreeHasherForWrapper,
 };
@@ -26,7 +26,7 @@ use circuit_definitions::{
 #[cfg(feature = "gpu")]
 use fflonk_gpu::{FflonkSnarkVerifierCircuitDeviceSetup, FflonkSnarkVerifierCircuitVK};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-#[cfg(feature = "gpu")]
+#[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use shivini::boojum::field::goldilocks::GoldilocksField;
 use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
 use zksync_prover_fri_types::{ProverServiceDataKey, ProvingStage};
@@ -371,7 +371,7 @@ impl Keystore {
         })
     }
 
-    #[cfg(feature = "gpu")]
+    #[cfg(any(feature = "gpu", feature = "gpu-light"))]
     pub fn load_gpu_setup_data_for_circuit_type(
         &self,
         key: ProverServiceDataKey,
@@ -390,7 +390,7 @@ impl Keystore {
         })
     }
 
-    #[cfg(feature = "gpu")]
+    #[cfg(any(feature = "gpu", feature = "gpu-light"))]
     pub fn load_compression_setup_data(
         &self,
         circuit: u8,
@@ -418,7 +418,7 @@ impl Keystore {
         })
     }
 
-    #[cfg(feature = "gpu")]
+    #[cfg(any(feature = "gpu", feature = "gpu-light"))]
     pub fn load_compression_wrapper_setup_data(
         &self,
         circuit: u8,

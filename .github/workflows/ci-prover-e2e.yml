@@ -66,13 +66,6 @@ jobs:
           ci_run zkstack prover init-bellman-cuda --clone --verbose
           ci_run zkstack prover setup-keys --mode=download --region=us --verbose
 
-      - name: Build prover binaries
-        env:
-          ZKSYNC_USE_CUDA_STUBS: true
-        run: |
-          PASSED_ENV_VARS="ZKSYNC_USE_CUDA_STUBS" \
-          ci_run cargo build --release --workspace --manifest-path=prover/Cargo.toml
-
       - name: Run server
         run: |
           ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs/server.log &
@@ -82,6 +75,7 @@ jobs:
       - name: Run Prover Job Monitor
         run: |
           ci_run zkstack prover run --component=prover-job-monitor --docker=false &>prover_logs/prover-job-monitor.log &
+          ci_run sleep 150
       - name: Wait for batch to be passed through gateway
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
@@ -102,7 +96,7 @@ jobs:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
           BATCH_NUMBER: 1
           INTERVAL: 30
-          TIMEOUT: 1200
+          TIMEOUT: 1800
         run: |
           PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \
           ci_run ./bin/prover_checkers/prover_jobs_status_checker
@@ -117,7 +111,7 @@ jobs:
             DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
             BATCH_NUMBER: 1
             INTERVAL: 30
-            TIMEOUT: 600
+            TIMEOUT: 1200
         run: |
           PASSED_ENV_VARS="BATCH_NUMBER,DATABASE_URL,URL,INTERVAL,TIMEOUT" \
           ci_run ./bin/prover_checkers/batch_l1_status_checker

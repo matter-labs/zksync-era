@@ -205,7 +205,7 @@ impl SetupDataGenerator for GPUSetupDataGenerator {
 
             let worker = Worker::new();
 
-            return match circuit.stage {
+            match circuit.stage {
                 ProvingStage::CompressionWrapper => {
                     let (gpu_setup_data, verification_key) =
                         gpu_setup_and_vk_from_base_setup_vk_params_and_hints::<
