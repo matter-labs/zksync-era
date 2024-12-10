@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use anyhow::Context as _;
 #[cfg(feature = "gpu")]
 use boojum_cuda::poseidon2::GLHasher;
-#[cfg(feature = "gpu")]
+#[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use circuit_definitions::circuit_definitions::aux_layer::{
     wrapper::ZkSyncCompressionWrapper, CompressionProofsTreeHasherForWrapper,
 };
@@ -15,9 +15,9 @@ use fflonk_gpu::{
     FflonkDeviceSetup, FflonkSnarkVerifierCircuit, FflonkSnarkVerifierCircuitDeviceSetup,
     FflonkSnarkVerifierCircuitVK,
 };
-#[cfg(feature = "gpu")]
+#[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use shivini::cs::gpu_setup_and_vk_from_base_setup_vk_params_and_hints;
-#[cfg(feature = "gpu")]
+#[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use zkevm_test_harness::{
     compute_setups::light::generate_light_circuit_setup_data,
     data_source::in_memory_data_source::InMemoryDataSource,
@@ -27,7 +27,7 @@ use zkevm_test_harness::{
     data_source::SetupDataSource,
 };
 use zksync_prover_fri_types::{ProverServiceDataKey, ProvingStage};
-#[cfg(feature = "gpu")]
+#[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use {
     crate::GpuProverSetupData, shivini::ProverContext,
     zksync_prover_fri_types::circuit_definitions::boojum::worker::Worker,
@@ -184,12 +184,12 @@ pub struct GPUSetupDataGenerator {
 
 impl SetupDataGenerator for GPUSetupDataGenerator {
     fn generate_setup_data(&self, circuit: ProverServiceDataKey) -> anyhow::Result<Vec<u8>> {
-        #[cfg(not(feature = "gpu"))]
+        #[cfg(not(any(feature = "gpu", feature = "gpu-light")))]
         {
             let _ = circuit;
             anyhow::bail!("Must compile with --gpu feature to use this option.");
         }
-        #[cfg(feature = "gpu")]
+        #[cfg(any(feature = "gpu", feature = "gpu-light"))]
         {
             let _context =
                 ProverContext::create().context("failed initializing gpu prover context")?;
@@ -276,7 +276,7 @@ impl SetupDataGenerator for GPUSetupDataGenerator {
                     Ok(bincode::serialize(&gpu_prover_setup_data)
                         .expect("Failed serializing setup data"))
                 }
-            };
+            }
         }
     }
 
@@ -285,7 +285,7 @@ impl SetupDataGenerator for GPUSetupDataGenerator {
     }
 }
 
-#[cfg(feature = "gpu")]
+#[cfg(any(feature = "gpu", feature = "gpu-light"))]
 fn get_vk_by_circuit(keystore: Keystore, circuit: ProverServiceDataKey) -> anyhow::Result<Vec<u8>> {
     let data_source = keystore.load_keys_to_data_source()?;
 
