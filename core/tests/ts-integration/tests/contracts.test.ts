@@ -114,8 +114,8 @@ describe('Smart contract behavior checks', () => {
         const prevValue = await counterContract.get();
         const gasPrice = await scaledGasPrice(alice);
 
-        // We manually provide a constant, since otherwise the exception would be thrown
-        // while estimating gas
+        // We manually provide a gas limit and gas price, since otherwise the exception would be thrown
+        // while querying zks_estimateFee.
         await expect(counterContract.incrementWithRevert(5, true, { gasLimit: 5000000, gasPrice })).toBeReverted();
 
         // The tx has been reverted, so the value Should not have been changed:

@@ -5,11 +5,7 @@ import deepExtend from 'deep-extend';
 import * as env from './env';
 import path from 'path';
 import dotenv from 'dotenv';
-import { ethers } from 'ethers';
-import { getTestAccounts } from './run';
-import * as utils from 'utils';
 import { unpackStringSemVer } from 'utils';
-import { clean } from './clean';
 
 function loadConfigFile(configPath: string, stack: string[] = []) {
     if (stack.includes(configPath)) {
@@ -146,9 +142,6 @@ export function pushConfig(environment?: string, diff?: string) {
     env.modify('API_CONTRACT_VERIFICATION_PORT', `${3070 + 2 * difference}`, l2InitFile, false);
     env.modify('API_CONTRACT_VERIFICATION_URL', `http://127.0.0.1:${3070 + 2 * difference}`, l2InitFile, false);
 
-    env.modify('CONTRACT_VERIFIER_PORT', `${3070 + 2 * difference}`, l2InitFile, false);
-    env.modify('CONTRACT_VERIFIER_URL', `http://127.0.0.1:${3070 + 2 * difference}`, l2InitFile, false);
-
     env.modify('API_PROMETHEUS_LISTENER_PORT', `${3012 + 2 * difference}`, l2InitFile, false);
     env.modify('API_PROMETHEUS_PUSHGATEWAY_URL', `http://127.0.0.1:${9091 + difference}`, l2InitFile, false);
     env.modify('API_HEALTHCHECK_PORT', `${3071 + 2 * difference}`, l2InitFile, false);
@@ -181,33 +174,9 @@ export function pushConfig(environment?: string, diff?: string) {
             l2InitFile,
             false
         );
-    } else {
-        env.modify('DATABASE_URL', `postgres://postgres:notsecurepassword@localhost/${environment}`, l2InitFile, false);
-        env.modify(
-            'TEST_DATABASE_URL',
-            `postgres://postgres:notsecurepassword@localhost/${environment}_test`,
-            l2InitFile,
-            false
-        );
-
-        env.modify(
-            'DATABASE_PROVER_URL',
-            `postgres://postgres:notsecurepassword@localhost/prover_${environment}`,
-            l2InitFile,
-            false
-        );
-        env.modify(
-            'TEST_DATABASE_PROVER_URL',
-            `postgres://postgres:notsecurepassword@localhost/prover_${environment}_test`,
-            l2InitFile,
-            false
-        );
     }
 
     env.modify('DATABASE_STATE_KEEPER_DB_PATH', `./db/${environment}/state_keeper`, l2InitFile, false);
-    env.modify('VM_RUNNER_PROTECTIVE_READS_DB_PATH', `./db/${environment}/protective_reads`, l2InitFile, false);
-    env.modify('VM_RUNNER_BWIP_DB_PATH', `./db/${environment}/basic_witness_input_producer`, l2InitFile, false);
-
     env.modify('DATABASE_MERKLE_TREE_PATH', `./db/${environment}/tree`, l2InitFile, false);
     env.modify('DATABASE_MERKLE_TREE_BACKUP_PATH', `./db/${environment}/backups`, l2InitFile, false);
 
@@ -248,59 +217,4 @@ command
 
         diff = diff ? diff : '0';
         pushConfig(environment, diff);
-    });
-
-command
-    .command('prepare-l1-hyperchain [envName] [chainId]')
-    .description('prepare the config for the next hyperchain deployment')
-    .option('-n,--env-name', 'envName')
-    .option('-c,--chain-id', 'chainId')
-    .action(async (envName: string, chainId: string) => {
-        if (!utils.isNetworkLocalL1(process.env.CHAIN_ETH_NETWORK!)) {
-            console.error('This command is only for local networks');
-            process.exit(1);
-        }
-        const templatePath = process.env.IN_DOCKER
-            ? 'etc/env/configs/l1-hyperchain-docker.template.toml'
-            : 'etc/env/configs/l1-hyperchain.template.toml';
-        const template = fs
-            .readFileSync(path.join(process.env.ZKSYNC_HOME!, templatePath))
-            .toString()
-            .replace(
-                '"l2-inits/dev2.init.env"',
-                `"l1-inits/${process.env.ZKSYNC_ENV!}.env", "l1-inits/${process.env
-                    .ZKSYNC_ENV!}-sync-layer.env", "l2-inits/${envName}.init.env"`
-            )
-            .replace('CONTRACTS_ERA_CHAIN_ID="270"', 'CONTRACTS_ERA_CHAIN_ID="9"');
-
-        const configFile = `etc/env/configs/${envName}.toml`;
-
-        clean(`etc/env/l2-inits/${envName}.init.env`);
-
-        fs.writeFileSync(configFile, template);
-
-        env.modify('CHAIN_ETH_ZKSYNC_NETWORK_ID', chainId, configFile, false);
-
-        const l1Provider = new ethers.providers.JsonRpcProvider(process.env.ETH_CLIENT_WEB3_URL);
-        console.log('Supplying operators...');
-
-        const operators = [ethers.Wallet.createRandom(), ethers.Wallet.createRandom()];
-
-        const richAccount = (await getTestAccounts())[0];
-        const richWallet = new ethers.Wallet(richAccount.privateKey, l1Provider);
-
-        for (const account of operators) {
-            await (
-                await richWallet.sendTransaction({
-                    to: account.address,
-                    value: ethers.utils.parseEther('1000.0')
-                })
-            ).wait();
-        }
-
-        env.modify('ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY', `"${operators[0].privateKey}"`, configFile, false);
-        env.modify('ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR', `"${operators[0].address}"`, configFile, false);
-        env.modify('ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY', `"${operators[1].privateKey}"`, configFile, false);
-        env.modify('ETH_SENDER_SENDER_OPERATOR_BLOBS_ETH_ADDR', `"${operators[1].address}"`, configFile, false);
-        env.modify('ETH_SENDER_SENDER_OPERATOR_GATEWAY_PRIVATE_KEY', `"${operators[0].privateKey}"`, configFile, false);
     });

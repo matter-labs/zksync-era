@@ -139,7 +139,6 @@ describe('L2 native ERC20 contract checks', () => {
         await withdrawalTx.waitFinalize();
         await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, withdrawalTx.hash);
 
-        await alice.finalizeWithdrawalParams(withdrawalTx.hash); // kl todo finalize the Withdrawals with the params here. Alternatively do in the SDK.
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();
 
         tokenDetails.l1Address = await l1NativeTokenVault.tokenAddress(zkTokenAssetId);
