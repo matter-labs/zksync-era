@@ -5,7 +5,7 @@ use zksync_consensus_roles::{attester, node};
 use zksync_protobuf::{read_optional_repr, read_required, required, ProtoFmt, ProtoRepr};
 use zksync_types::{
     abi,
-    commitment::{L1BatchCommitmentMode, PubdataParams, PubdataType},
+    commitment::{PubdataParams, PubdataType},
     ethabi,
     fee::Fee,
     h256_to_u256,
