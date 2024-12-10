@@ -68,13 +68,13 @@ jobs:
 
       - name: Run server
         run: |
-          ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs/server.log &
+          ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs_${{matrix.compressor-mode}}/server.log &
       - name: Run Gateway
         run: |
-          ci_run zkstack prover run --component=gateway --docker=false &>prover_logs/gateway.log &
+          ci_run zkstack prover run --component=gateway --docker=false &>prover_logs_${{matrix.compressor-mode}}/gateway.log &
       - name: Run Prover Job Monitor
         run: |
-          ci_run zkstack prover run --component=prover-job-monitor --docker=false &>prover_logs/prover-job-monitor.log &
+          ci_run zkstack prover run --component=prover-job-monitor --docker=false &>prover_logs_${{matrix.compressor-mode}}/prover-job-monitor.log &
           ci_run sleep 150
       - name: Wait for batch to be passed through gateway
         env:
@@ -87,10 +87,10 @@ jobs:
           ci_run ./bin/prover_checkers/batch_availability_checker
       - name: Run Witness Generator
         run: |
-          ci_run zkstack prover run --component=witness-generator --round=all-rounds --docker=false &>prover_logs/witness-generator.log &
+          ci_run zkstack prover run --component=witness-generator --round=all-rounds --docker=false &>prover_logs_${{matrix.compressor-mode}}/witness-generator.log &
       - name: Run Circuit Prover
         run: |
-          ci_run zkstack prover run --component=circuit-prover -l=23 -h=3 --docker=false &>prover_logs/circuit_prover.log &
+          ci_run zkstack prover run --component=circuit-prover -l=23 -h=3 --docker=false &>prover_logs_${{matrix.compressor-mode}}/circuit_prover.log &
       - name: Wait for prover jobs to finish
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
@@ -104,7 +104,7 @@ jobs:
       - name: Kill prover & start compressor
         run: |
           sudo ./bin/prover_checkers/kill_prover
-          ci_run zkstack prover run --component=compressor --docker=false --mode=${{matrix.compressor-mode}} &>prover_logs/compressor.log &
+          ci_run zkstack prover run --component=compressor --docker=false --mode=${{matrix.compressor-mode}} &>prover_logs_${{matrix.compressor-mode}}/compressor.log &
 
       - name: Wait for batch to be executed on L1
         env:
