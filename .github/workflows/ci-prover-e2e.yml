@@ -28,7 +28,7 @@ jobs:
           echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
           echo "RUSTC_WRAPPER=sccache" >> .env
           
-          mkdir -p prover_logs
+          mkdir -p prover_logs_${{matrix.compressor-mode}}
 
       - name: Start services
         run: |
