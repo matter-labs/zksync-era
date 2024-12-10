@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                miniblocks.number,\n                COALESCE(\n                    miniblocks.l1_batch_number,\n                    (\n                        SELECT\n                            (MAX(number) + 1)\n                        FROM\n                            l1_batches\n                        WHERE\n                            is_sealed\n                    ),\n                    (\n                        SELECT\n                            MAX(l1_batch_number) + 1\n                        FROM\n                            snapshot_recovery\n                    )\n                ) AS \"l1_batch_number!\",\n                (miniblocks.l1_tx_count + miniblocks.l2_tx_count) AS \"tx_count!\",\n                miniblocks.timestamp,\n                miniblocks.l1_gas_price,\n                miniblocks.l2_fair_gas_price,\n                miniblocks.fair_pubdata_price,\n                miniblocks.bootloader_code_hash,\n                miniblocks.default_aa_code_hash,\n                miniblocks.evm_emulator_code_hash,\n                miniblocks.virtual_blocks,\n                miniblocks.hash,\n                miniblocks.protocol_version AS \"protocol_version!\",\n                miniblocks.fee_account_address AS \"fee_account_address!\",\n                miniblocks.l2_da_validator_address AS \"l2_da_validator_address!\",\n                miniblocks.pubdata_type AS \"pubdata_type!\",\n                miniblocks.da_client_type AS \"da_client_type\"\n            FROM\n                miniblocks\n            WHERE\n                miniblocks.number BETWEEN $1 AND $2\n            ",
+  "query": "\n            SELECT\n                miniblocks.number,\n                COALESCE(\n                    miniblocks.l1_batch_number,\n                    (\n                        SELECT\n                            (MAX(number) + 1)\n                        FROM\n                            l1_batches\n                        WHERE\n                            is_sealed\n                    ),\n                    (\n                        SELECT\n                            MAX(l1_batch_number) + 1\n                        FROM\n                            snapshot_recovery\n                    )\n                ) AS \"l1_batch_number!\",\n                (miniblocks.l1_tx_count + miniblocks.l2_tx_count) AS \"tx_count!\",\n                miniblocks.timestamp,\n                miniblocks.l1_gas_price,\n                miniblocks.l2_fair_gas_price,\n                miniblocks.fair_pubdata_price,\n                miniblocks.bootloader_code_hash,\n                miniblocks.default_aa_code_hash,\n                miniblocks.evm_emulator_code_hash,\n                miniblocks.virtual_blocks,\n                miniblocks.hash,\n                miniblocks.protocol_version AS \"protocol_version!\",\n                miniblocks.fee_account_address AS \"fee_account_address!\",\n                miniblocks.l2_da_validator_address AS \"l2_da_validator_address!\",\n                miniblocks.pubdata_type AS \"pubdata_type!\"\n            FROM\n                miniblocks\n            WHERE\n                miniblocks.number BETWEEN $1 AND $2\n            ",
   "describe": {
     "columns": [
       {
@@ -82,11 +82,6 @@
         "ordinal": 15,
         "name": "pubdata_type!",
         "type_info": "Text"
-      },
-      {
-        "ordinal": 16,
-        "name": "da_client_type",
-        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -111,9 +106,8 @@
       true,
       false,
       false,
-      false,
-      true
+      false
     ]
   },
-  "hash": "d65b3b0fcf15efafa7235677e3b62ab7068ff81c0fd73bc034880baa5e37f09e"
+  "hash": "7553d8013d101af0451830d26b7d7bd02627ebaf2df7c5ad517cb60a243182d2"
 }

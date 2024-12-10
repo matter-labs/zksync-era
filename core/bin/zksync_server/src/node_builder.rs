@@ -72,7 +72,7 @@ use zksync_node_framework::{
     service::{ZkStackService, ZkStackServiceBuilder},
 };
 use zksync_types::{
-    commitment::{DAClientType, L1BatchCommitmentMode},
+    commitment::{L1BatchCommitmentMode, PubdataType},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementMode,
     SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
@@ -121,22 +121,22 @@ impl MainNodeBuilder {
         self.node.runtime_handle()
     }
 
-    pub fn get_da_client_type(&self) -> Option<DAClientType> {
+    pub fn get_pubdata_type(&self) -> PubdataType {
         if self.genesis_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup
         {
-            return None;
+            return PubdataType::Rollup;
         }
 
         let Some(da_client_config) = self.configs.da_client_config.clone() else {
-            return Some(DAClientType::NoDA);
+            return PubdataType::Validium;
         };
 
-        Some(match da_client_config {
-            DAClientConfig::Avail(_) => DAClientType::Avail,
-            DAClientConfig::Celestia(_) => DAClientType::Celestia,
-            DAClientConfig::Eigen(_) => DAClientType::Eigen,
-            DAClientConfig::ObjectStore(_) => DAClientType::ObjectStore,
-        })
+        match da_client_config {
+            DAClientConfig::Avail(_) => PubdataType::Avail,
+            DAClientConfig::Celestia(_) => PubdataType::Celestia,
+            DAClientConfig::Eigen(_) => PubdataType::Eigen,
+            DAClientConfig::ObjectStore(_) => PubdataType::ObjectStore,
+        }
     }
 
     fn add_sigint_handler_layer(mut self) -> anyhow::Result<Self> {
@@ -271,8 +271,7 @@ impl MainNodeBuilder {
             try_load_config!(self.configs.mempool_config),
             try_load_config!(wallets.state_keeper),
             self.contracts_config.l2_da_validator_addr,
-            self.genesis_config.l1_batch_commit_data_generator_mode,
-            self.get_da_client_type(),
+            self.get_pubdata_type(),
         );
         let db_config = try_load_config!(self.configs.db_config);
         let experimental_vm_config = self

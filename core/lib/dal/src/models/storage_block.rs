@@ -7,9 +7,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,
     block::{L1BatchHeader, L2BlockHeader, UnsealedL1BatchHeader},
-    commitment::{
-        DAClientType, L1BatchCommitmentMode, L1BatchMetaParameters, L1BatchMetadata, PubdataParams,
-    },
+    commitment::{L1BatchMetaParameters, L1BatchMetadata, PubdataParams, PubdataType},
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256,
@@ -509,7 +507,6 @@ pub(crate) struct StorageL2BlockHeader {
     pub logs_bloom: Option<Vec<u8>>,
     pub l2_da_validator_address: Vec<u8>,
     pub pubdata_type: String,
-    pub da_client_type: Option<String>,
 }
 
 impl From<StorageL2BlockHeader> for L2BlockHeader {
@@ -559,10 +556,7 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
                 .unwrap_or_default(),
             pubdata_params: PubdataParams {
                 l2_da_validator_address: Address::from_slice(&row.l2_da_validator_address),
-                pubdata_type: L1BatchCommitmentMode::from_str(&row.pubdata_type).unwrap(),
-                da_client_type: row
-                    .da_client_type
-                    .map(|s| DAClientType::from_str(&s).unwrap()),
+                pubdata_type: PubdataType::from_str(&row.pubdata_type).unwrap(),
             },
         }
     }
