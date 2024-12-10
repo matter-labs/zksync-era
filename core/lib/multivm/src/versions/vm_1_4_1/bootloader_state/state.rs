@@ -43,7 +43,7 @@ pub struct BootloaderState {
     execution_mode: TxExecutionMode,
     /// Current offset of the free space in the bootloader memory.
     free_tx_offset: usize,
-    /// Information about the the pubdata that will be needed to supply to the L1Messenger
+    /// Information about the pubdata that will be needed to supply to the L1Messenger
     pubdata_information: OnceCell<PubdataInput>,
 }
 
