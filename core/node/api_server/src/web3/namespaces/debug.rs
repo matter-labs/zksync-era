@@ -96,16 +96,22 @@ impl DebugNamespace {
             CallType::NearCall => unreachable!("We have to filter our near calls before"),
         };
 
-        let (result, error) = if let Some(error) = call.revert_reason {
-            (None, Some(error))
-        } else {
-            (
+        let (result, error) = match (call.revert_reason, call.error) {
+            (Some(revert_reason), _) => {
+                // If revert_reason exists, it takes priority over VM error
+                (None, Some(revert_reason))
+            }
+            (None, Some(vm_error)) => {
+                // If no revert_reason but VM error exists
+                (None, Some(vm_error))
+            }
+            (None, None) => (
                 Some(CallResult {
                     output: web3::Bytes::from(call.output),
                     gas_used: U256::from(call.gas_used),
                 }),
                 None,
-            )
+            ),
         };
 
         calls.push(DebugCallFlat {
