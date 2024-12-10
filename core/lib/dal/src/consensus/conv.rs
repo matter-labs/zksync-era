@@ -5,7 +5,7 @@ use zksync_consensus_roles::{attester, node};
 use zksync_protobuf::{read_optional_repr, read_required, required, ProtoFmt, ProtoRepr};
 use zksync_types::{
     abi,
-    commitment::{DAClientType, PubdataParams},
+    commitment::{DAClientType, L1BatchCommitmentMode, PubdataParams},
     ethabi,
     fee::Fee,
     h256_to_u256,
@@ -112,6 +112,10 @@ impl ProtoRepr for proto::PubdataParams {
             l2_da_validator_address: required(&self.l2_da_validator_address)
                 .and_then(|a| parse_h160(a))
                 .context("l2_da_validator_address")?,
+            pubdata_type: required(&self.pubdata_type)
+                .and_then(|x| Ok(proto::L1BatchCommitDataGeneratorMode::try_from(*x)?))
+                .context("pubdata_type")?
+                .parse(),
             da_client_type: self
                 .da_client_type
                 .and_then(|x| proto::DaClientType::try_from(x).ok().map(|t| t.parse())),
@@ -121,6 +125,9 @@ impl ProtoRepr for proto::PubdataParams {
     fn build(this: &Self::Type) -> Self {
         Self {
             l2_da_validator_address: Some(this.l2_da_validator_address.as_bytes().into()),
+            pubdata_type: Some(
+                proto::L1BatchCommitDataGeneratorMode::new(&this.pubdata_type) as i32,
+            ),
             da_client_type: this.da_client_type.map(|x| x as i32),
         }
     }
@@ -565,6 +572,22 @@ impl ProtoRepr for proto::AttesterCommittee {
     fn build(this: &Self::Type) -> Self {
         Self {
             members: this.iter().map(|x| x.build()).collect(),
+        }
+    }
+}
+
+impl proto::L1BatchCommitDataGeneratorMode {
+    pub(crate) fn new(n: &L1BatchCommitmentMode) -> Self {
+        match n {
+            L1BatchCommitmentMode::Rollup => Self::Rollup,
+            L1BatchCommitmentMode::Validium => Self::Validium,
+        }
+    }
+
+    pub(crate) fn parse(&self) -> L1BatchCommitmentMode {
+        match self {
+            Self::Rollup => L1BatchCommitmentMode::Rollup,
+            Self::Validium => L1BatchCommitmentMode::Validium,
         }
     }
 }

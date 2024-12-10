@@ -1,0 +1,1 @@
+ALTER TABLE miniblocks ADD COLUMN IF NOT EXISTS da_client_type TEXT NULL;

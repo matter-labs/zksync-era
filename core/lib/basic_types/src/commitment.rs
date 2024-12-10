@@ -86,5 +86,6 @@ impl FromStr for DAClientType {
 #[derive(Default, Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PubdataParams {
     pub l2_da_validator_address: Address,
+    pub pubdata_type: L1BatchCommitmentMode,
     pub da_client_type: Option<DAClientType>,
 }

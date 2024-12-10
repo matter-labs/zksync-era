@@ -15,7 +15,7 @@ use zksync_multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     block::UnsealedL1BatchHeader,
-    commitment::{DAClientType, PubdataParams},
+    commitment::{DAClientType, L1BatchCommitmentMode, PubdataParams},
     protocol_upgrade::ProtocolUpgradeTx,
     utils::display_timestamp,
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
@@ -60,6 +60,7 @@ pub struct MempoolIO {
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     chain_id: L2ChainId,
     l2_da_validator_address: Option<Address>,
+    pubdata_type: L1BatchCommitmentMode,
     da_client_type: Option<DAClientType>,
 }
 
@@ -480,6 +481,7 @@ impl MempoolIO {
         delay_interval: Duration,
         chain_id: L2ChainId,
         l2_da_validator_address: Option<Address>,
+        pubdata_type: L1BatchCommitmentMode,
         da_client_type: Option<DAClientType>,
     ) -> anyhow::Result<Self> {
         Ok(Self {
@@ -497,6 +499,7 @@ impl MempoolIO {
             batch_fee_input_provider,
             chain_id,
             l2_da_validator_address,
+            pubdata_type,
             da_client_type,
         })
     }
@@ -509,6 +512,7 @@ impl MempoolIO {
             (true, _) => PubdataParams::default(),
             (false, Some(l2_da_validator_address)) => PubdataParams {
                 l2_da_validator_address,
+                pubdata_type: self.pubdata_type,
                 da_client_type: self.da_client_type,
             },
             (false, None) => anyhow::bail!("L2 DA validator address not found"),

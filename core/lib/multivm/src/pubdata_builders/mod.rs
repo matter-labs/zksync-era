@@ -17,6 +17,12 @@ pub fn pubdata_params_to_builder(params: PubdataParams) -> Rc<dyn PubdataBuilder
         Some(DAClientType::NoDA) => {
             Rc::new(HashedPubdataBuilder::new(params.l2_da_validator_address))
         }
-        _ => Rc::new(FullPubdataBuilder::new(params.l2_da_validator_address)),
+        None
+        | Some(DAClientType::Avail)
+        | Some(DAClientType::Celestia)
+        | Some(DAClientType::Eigen)
+        | Some(DAClientType::ObjectStore) => {
+            Rc::new(FullPubdataBuilder::new(params.l2_da_validator_address))
+        }
     }
 }
