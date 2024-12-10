@@ -31,7 +31,8 @@ message Payload {
 
 message PubdataParams {
   optional bytes l2_da_validator_address = 1; // required; H160
-  optional PubdataType pubdata_type = 2; // required
+  optional PubdataType pubdata_type = 3; // required
+  reserved 2;
 }
 
 message L1Transaction {
