@@ -8,12 +8,13 @@ Install `docker compose` and `Docker`
 
 These commands start ZKsync Node locally inside docker.
 
-For adjusting the Dockerfiles to use them with other chains setup using ZK Stack, see [setup_for_other_chains](11_setup_for_other_chains.md)
+For adjusting the Dockerfiles to use them with other chains setup using ZK Stack, see
+[setup_for_other_chains](11_setup_for_other_chains.md)
 
 > [!NOTE]
 >
-> If you want to run Node for a chain different than ZKsync ERA, you can ask the company hosting the chains for the ready docker-compose files.
-
+> If you want to run Node for a chain different than ZKsync ERA, you can ask the company hosting the chains for the
+> ready docker-compose files.
 
 To start a mainnet instance, run:
 
@@ -72,7 +73,8 @@ The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be ac
 
 > [!NOTE]
 >
-> For chains other than ZKSync Era, the system requirements can be slightly lower (CPU and RAM) or even much lower (storage), depending on the chain.
+> For chains other than ZKSync Era, the system requirements can be slightly lower (CPU and RAM) or even much lower
+> (storage), depending on the chain.
 
 - 32 GB of RAM and a relatively modern CPU
 - 50 GB of storage for testnet nodes

@@ -2,8 +2,8 @@
 
 > [!NOTE]
 >
-> If you want to just run ZKSync node with recommended default setting, please see the [quick start](00_quick_start.md) page.
-> 
+> If you want to just run ZKSync node with recommended default setting, please see the [quick start](00_quick_start.md)
+> page.
 
 This section assumes that you have prepared a configuration file as described on the
 [previous page](02_configuration.md).
@@ -39,9 +39,9 @@ it in Docker. There are many of guides on that,
 [here's one example](https://www.docker.com/blog/how-to-use-the-postgres-docker-official-image/).
 
 Note however that if you run PostgresSQL as a stand-alone Docker image (e.g. not in Docker-compose with a network shared
-between Node and Postgres), Node won't be able to access Postgres via `localhost` or `127.0.0.1` URLs. To
-make it work, you'll have to either run it with a `--network host` (on Linux) or use `host.docker.internal` instead of
-`localhost` in the Node configuration ([official docs][host_docker_internal]).
+between Node and Postgres), Node won't be able to access Postgres via `localhost` or `127.0.0.1` URLs. To make it work,
+you'll have to either run it with a `--network host` (on Linux) or use `host.docker.internal` instead of `localhost` in
+the Node configuration ([official docs][host_docker_internal]).
 
 Besides running Postgres, you are expected to have a DB dump from a corresponding env. You can restore it using
 `pg_restore -O -C <DUMP_PATH> --dbname=<DB_URL>`.
@@ -54,8 +54,8 @@ for advanced DB instance configurations.
 
 ## Running
 
-Assuming you have the Node Docker image, an env file with the prepared configuration, and you have restored your
-DB with the pg dump, that is all you need.
+Assuming you have the Node Docker image, an env file with the prepared configuration, and you have restored your DB with
+the pg dump, that is all you need.
 
 Sample running command:
 

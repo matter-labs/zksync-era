@@ -4,15 +4,15 @@ The Node (sometimes referred to as External Node or EN) is a read-only replica o
 
 ## What is the Node
 
-The Node is a read-replica of the main (centralized) node that can be run by external parties. It functions by
-receiving blocks from the given ZK Stack chain and re-applying transactions locally, starting from the genesis block. The
-Node shares most of its codebase with the main node. Consequently, when it re-applies transactions, it does so
-exactly as the main node did in the past.
+The Node is a read-replica of the main (centralized) node that can be run by external parties. It functions by receiving
+blocks from the given ZK Stack chain and re-applying transactions locally, starting from the genesis block. The Node
+shares most of its codebase with the main node. Consequently, when it re-applies transactions, it does so exactly as the
+main node did in the past.
 
 **It has three modes of initialization:**
 
-- recovery from genesis (Not supported on ZKsync Era), in Ethereum terms this corresponds to archival node, 
-this option is slower than recovery from DB dump, but is the easiest way to spin up new Node.  
+- recovery from genesis (Not supported on ZKsync Era), in Ethereum terms this corresponds to archival node, this option
+  is slower than recovery from DB dump, but is the easiest way to spin up new Node.
 - recovery from a DB dump, in Ethereum terms this corresponds to archival node.
 - recovery from a snapshot, in Ethereum terms this corresponds to light node, such nodes will only have access to
   transactions data from after the node was initialized. The database can be pruned on such nodes.
@@ -22,7 +22,8 @@ this option is slower than recovery from DB dump, but is the easiest way to spin
 At a high level, the Node can be seen as an application that has the following modules:
 
 - API server that provides the publicly available Web3 interface.
-- Consensus layer (ZKsync Era only for now) that interacts with the peer network and retrieves transactions and blocks to re-execute.
+- Consensus layer (ZKsync Era only for now) that interacts with the peer network and retrieves transactions and blocks
+  to re-execute.
 - Sequencer component that actually executes and persists transactions received from the synchronization layer.
 - Several checker modules that ensure the consistency of the Node state.
 
@@ -43,8 +44,8 @@ A more detailed overview of the Node's components is provided in the [components
 
 ## API overview
 
-API exposed by the Node strives to be Web3-compliant. If some method is exposed but behaves differently compared
-to Ethereum, it should be considered a bug. Please [report][contact_us] such cases.
+API exposed by the Node strives to be Web3-compliant. If some method is exposed but behaves differently compared to
+Ethereum, it should be considered a bug. Please [report][contact_us] such cases.
 
 [contact_us]: https://zksync.io/contact
 
@@ -54,42 +55,42 @@ Data getters in this namespace operate in the L2 space: require/return L2 block 
 
 Available methods:
 
-| Method                                    | Notes                                                                              |
-| ----------------------------------------- | ---------------------------------------------------------------------------------- |
-| `eth_blockNumber`                         |                                                                                    |
-| `eth_chainId`                             |                                                                                    |
-| `eth_call`                                |                                                                                    |
-| `eth_estimateGas`                         |                                                                                    |
-| `eth_gasPrice`                            |                                                                                    |
-| `eth_newFilter`                           | Maximum amount of installed filters is configurable                                |
-| `eth_newBlockFilter`                      | Same as above                                                                      |
-| `eth_newPendingTransactionsFilter`        | Same as above                                                                      |
-| `eth_uninstallFilter`                     |                                                                                    |
-| `eth_getLogs`                             | Maximum amount of returned entities can be configured                              |
-| `eth_getFilterLogs`                       | Same as above                                                                      |
-| `eth_getFilterChanges`                    | Same as above                                                                      |
-| `eth_getBalance`                          |                                                                                    |
-| `eth_getBlockByNumber`                    |                                                                                    |
-| `eth_getBlockByHash`                      |                                                                                    |
-| `eth_getBlockTransactionCountByNumber`    |                                                                                    |
-| `eth_getBlockTransactionCountByHash`      |                                                                                    |
-| `eth_getCode`                             |                                                                                    |
-| `eth_getStorageAt`                        |                                                                                    |
-| `eth_getTransactionCount`                 |                                                                                    |
-| `eth_getTransactionByHash`                |                                                                                    |
-| `eth_getTransactionByBlockHashAndIndex`   |                                                                                    |
-| `eth_getTransactionByBlockNumberAndIndex` |                                                                                    |
-| `eth_getTransactionReceipt`               |                                                                                    |
-| `eth_protocolVersion`                     |                                                                                    |
-| `eth_sendRawTransaction`                  |                                                                                    |
+| Method                                    | Notes                                                                       |
+| ----------------------------------------- | --------------------------------------------------------------------------- |
+| `eth_blockNumber`                         |                                                                             |
+| `eth_chainId`                             |                                                                             |
+| `eth_call`                                |                                                                             |
+| `eth_estimateGas`                         |                                                                             |
+| `eth_gasPrice`                            |                                                                             |
+| `eth_newFilter`                           | Maximum amount of installed filters is configurable                         |
+| `eth_newBlockFilter`                      | Same as above                                                               |
+| `eth_newPendingTransactionsFilter`        | Same as above                                                               |
+| `eth_uninstallFilter`                     |                                                                             |
+| `eth_getLogs`                             | Maximum amount of returned entities can be configured                       |
+| `eth_getFilterLogs`                       | Same as above                                                               |
+| `eth_getFilterChanges`                    | Same as above                                                               |
+| `eth_getBalance`                          |                                                                             |
+| `eth_getBlockByNumber`                    |                                                                             |
+| `eth_getBlockByHash`                      |                                                                             |
+| `eth_getBlockTransactionCountByNumber`    |                                                                             |
+| `eth_getBlockTransactionCountByHash`      |                                                                             |
+| `eth_getCode`                             |                                                                             |
+| `eth_getStorageAt`                        |                                                                             |
+| `eth_getTransactionCount`                 |                                                                             |
+| `eth_getTransactionByHash`                |                                                                             |
+| `eth_getTransactionByBlockHashAndIndex`   |                                                                             |
+| `eth_getTransactionByBlockNumberAndIndex` |                                                                             |
+| `eth_getTransactionReceipt`               |                                                                             |
+| `eth_protocolVersion`                     |                                                                             |
+| `eth_sendRawTransaction`                  |                                                                             |
 | `eth_syncing`                             | Node is considered synced if it's less than 11 blocks behind the main node. |
-| `eth_coinbase`                            | Always returns a zero address                                                      |
-| `eth_accounts`                            | Always returns an empty list                                                       |
-| `eth_getCompilers`                        | Always returns an empty list                                                       |
-| `eth_hashrate`                            | Always returns zero                                                                |
-| `eth_getUncleCountByBlockHash`            | Always returns zero                                                                |
-| `eth_getUncleCountByBlockNumber`          | Always returns zero                                                                |
-| `eth_mining`                              | Always returns false                                                               |
+| `eth_coinbase`                            | Always returns a zero address                                               |
+| `eth_accounts`                            | Always returns an empty list                                                |
+| `eth_getCompilers`                        | Always returns an empty list                                                |
+| `eth_hashrate`                            | Always returns zero                                                         |
+| `eth_getUncleCountByBlockHash`            | Always returns zero                                                         |
+| `eth_getUncleCountByBlockNumber`          | Always returns zero                                                         |
+| `eth_mining`                              | Always returns false                                                        |
 
 ### PubSub
 
@@ -149,5 +150,5 @@ Always refer to the documentation linked above to see the list of stabilized met
 
 ### `en` namespace
 
-This namespace contains methods that Nodes call on the main node while syncing. If this namespace is enabled,
-other ENs can sync from this node.
+This namespace contains methods that Nodes call on the main node while syncing. If this namespace is enabled, other ENs
+can sync from this node.

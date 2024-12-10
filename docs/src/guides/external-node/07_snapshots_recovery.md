@@ -41,8 +41,8 @@ the snapshot L1 batch.
 
 ## Configuration (for ZKsync Era)
 
-To enable snapshot recovery on ZKsync mainnet, you need to set environment variables for a node before starting it for the
-first time:
+To enable snapshot recovery on ZKsync mainnet, you need to set environment variables for a node before starting it for
+the first time:
 
 ```yaml
 EN_SNAPSHOTS_RECOVERY_ENABLED: 'true'

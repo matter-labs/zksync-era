@@ -2,8 +2,8 @@
 
 ## Overview
 
-The Attester committee is a subset of Nodes. After each l1 batch execution, participating nodes sign its
-execution result and send back to the network.
+The Attester committee is a subset of Nodes. After each l1 batch execution, participating nodes sign its execution
+result and send back to the network.
 
 The ultimate goal is to make L1 commit operation contingent on such signatures. This will improve the security and
 finality guarantees: having these signatures on L1 shows that additional actors executed the corresponding blocks - and
