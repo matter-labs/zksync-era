@@ -5,7 +5,7 @@ Commands are interactive but can also accept arguments via the command line.
 
 ### Dependencies
 
-Follow [these instructions](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/setup-dev.md) to set up
+Follow [these instructions](https://matter-labs.github.io/zksync-era/core/latest/guides/setup-dev.html) to set up
 dependencies on your machine. Ignore the Environment section for now.
 
 ### Installation
