@@ -1,8 +1,8 @@
 use clap::Parser;
-use common::Prompt;
-use config::ChainConfig;
+use zkstack_common::Prompt;
+use zkstack_config::ChainConfig;
 use serde::{Deserialize, Serialize};
-use types::L1Network;
+use zkstack_types::L1Network;
 use url::Url;
 
 use crate::{

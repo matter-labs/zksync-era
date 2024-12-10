@@ -1,6 +1,6 @@
 use anyhow::Context;
-use common::{config::global_config, db, logger, Prompt};
-use config::{
+use zkstack_common::{config::global_config, db, logger, Prompt};
+use zkstack_config::{
     explorer::{ExplorerChainConfig, ExplorerConfig},
     explorer_compose::{ExplorerBackendComposeConfig, ExplorerBackendConfig, ExplorerBackendPorts},
     traits::{ConfigWithL2RpcUrl, SaveConfig},

@@ -1,5 +1,5 @@
 use clap::{Parser, ValueEnum};
-use common::{Prompt, PromptSelect};
+use zkstack_common::{Prompt, PromptSelect};
 use strum::{Display, EnumIter, IntoEnumIterator};
 
 use crate::commands::dev::messages::{

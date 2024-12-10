@@ -9,7 +9,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.2"
 edition = "2021"
 homepage = "https://zksync.io/"
 license = "MIT OR Apache-2.0"
@@ -22,10 +22,10 @@ keywords = ["zk", "cryptography", "blockchain", "ZKStack", "ZKsync"]
 
 [workspace.dependencies]
 # Local dependencies
-common = { path = "crates/common" }
-config = { path = "crates/config" }
-types = { path = "crates/types" }
-git_version_macro = { path = "crates/git_version_macro" }
+zkstack_common = { path = "crates/common" }
+zkstack_config = { path = "crates/config" }
+zkstack_types = { path = "crates/types" }
+zkstack_git_version_macro = { path = "crates/git_version_macro" }
 
 # ZkSync deps
 zksync_config = { path = "../core/lib/config" }

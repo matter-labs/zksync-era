@@ -2,7 +2,7 @@ use std::{fmt, future::Future, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
-use common::logger;
+use zkstack_common::logger;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use tokio::time::MissedTickBehavior;

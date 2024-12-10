@@ -1,6 +1,6 @@
 use anyhow::Context;
-use common::{cmd::Cmd, spinner::Spinner};
-use config::EcosystemConfig;
+use zkstack_common::{cmd::Cmd, spinner::Spinner};
+use zkstack_config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
 use crate::{

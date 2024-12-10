@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
 use anyhow::Context;
-use common::{cmd::Cmd, logger};
-use config::EcosystemConfig;
+use zkstack_common::{cmd::Cmd, logger};
+use zkstack_config::EcosystemConfig;
 use url::Url;
 use xshell::{cmd, Shell};
 

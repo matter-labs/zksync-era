@@ -1,8 +1,8 @@
 use std::{collections::BTreeMap, path::Path, str::FromStr};
 
 use anyhow::Context;
-use common::logger;
-use config::{
+use zkstack_common::logger;
+use zkstack_config::{
     external_node::ENConfig,
     set_rocks_db_config,
     traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},

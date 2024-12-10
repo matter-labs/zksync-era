@@ -3,8 +3,8 @@ use std::{borrow::Borrow, collections::HashMap, path::PathBuf, sync::Arc};
 /// Consensus registry contract operations.
 /// Includes code duplicated from `zksync_node_consensus::registry::abi`.
 use anyhow::Context as _;
-use common::{config::global_config, logger, wallets::Wallet};
-use config::EcosystemConfig;
+use zkstack_common::{config::global_config, logger, wallets::Wallet};
+use zkstack_config::EcosystemConfig;
 use conv::*;
 use ethers::{
     abi::Detokenize,
@@ -144,10 +144,10 @@ fn print_attesters(committee: &attester::Committee) {
 }
 
 struct Setup {
-    chain: config::ChainConfig,
-    contracts: config::ContractsConfig,
-    general: config::GeneralConfig,
-    genesis: config::GenesisConfig,
+    chain: zkstack_config::ChainConfig,
+    contracts: zkstack_config::ContractsConfig,
+    general: zkstack_config::GeneralConfig,
+    genesis: zkstack_config::GenesisConfig,
 }
 
 impl Setup {

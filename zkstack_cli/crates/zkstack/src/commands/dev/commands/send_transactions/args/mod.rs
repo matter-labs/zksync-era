@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use common::Prompt;
+use zkstack_common::Prompt;
 use url::Url;
 
 use crate::commands::dev::{

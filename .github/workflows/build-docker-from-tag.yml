@@ -14,9 +14,11 @@ on:
         required: true
   push:
     tags:
-      - core-v**
-      - prover-v**
+      - core-bins-v**
+      - core-libs-v**
       - contract_verifier-v**
+      - prover-bins-v**
+      - prover-libs-v**
 
 concurrency: docker-build
 

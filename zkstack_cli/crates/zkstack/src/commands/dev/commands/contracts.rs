@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use common::{
+use zkstack_common::{
     contracts::{build_l1_contracts, build_l2_contracts, build_system_contracts},
     logger,
     spinner::Spinner,
 };
-use config::EcosystemConfig;
+use zkstack_config::EcosystemConfig;
 use xshell::Shell;
 
 use crate::commands::dev::messages::{

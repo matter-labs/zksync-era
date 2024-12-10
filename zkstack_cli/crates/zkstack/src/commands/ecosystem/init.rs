@@ -1,7 +1,7 @@
 use std::{path::PathBuf, str::FromStr};
 
 use anyhow::Context;
-use common::{
+use zkstack_common::{
     config::global_config,
     contracts::build_system_contracts,
     forge::{Forge, ForgeScriptArgs},
@@ -9,7 +9,7 @@ use common::{
     spinner::Spinner,
     Prompt,
 };
-use config::{
+use zkstack_config::{
     forge_interface::{
         deploy_ecosystem::{
             input::{DeployErc20Config, Erc20DeploymentConfig, InitialDeploymentConfig},
@@ -20,7 +20,7 @@ use config::{
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ContractsConfig, EcosystemConfig,
 };
-use types::L1Network;
+use zkstack_types::L1Network;
 use xshell::Shell;
 
 use super::{

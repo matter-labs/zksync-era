@@ -4,7 +4,7 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize, Serializer};
-use types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
+use zkstack_types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
 use zksync_basic_types::L2ChainId;
 

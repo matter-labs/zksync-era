@@ -1,6 +1,6 @@
 use clap::{Parser, ValueEnum};
-use common::{db::DatabaseConfig, logger, Prompt, PromptConfirm, PromptSelect};
-use config::ChainConfig;
+use zkstack_common::{db::DatabaseConfig, logger, Prompt, PromptConfirm, PromptSelect};
+use zkstack_config::ChainConfig;
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use strum::{EnumIter, IntoEnumIterator};

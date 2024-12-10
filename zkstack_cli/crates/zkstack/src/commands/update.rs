@@ -1,13 +1,13 @@
 use std::path::Path;
 
 use anyhow::{Context, Ok};
-use common::{
+use zkstack_common::{
     db::migrate_db,
     git, logger,
     spinner::Spinner,
     yaml::{merge_yaml, ConfigDiff},
 };
-use config::{
+use zkstack_config::{
     ChainConfig, EcosystemConfig, CONTRACTS_FILE, EN_CONFIG_FILE, ERA_OBSERBAVILITY_DIR,
     GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
 };
