@@ -21,11 +21,6 @@ on:
         type: string
         default: non-push
         required: false
-      CUDA_ARCH:
-        description: "CUDA Arch to build"
-        type: string
-        default: "89"
-        required: false
       WITNESS_GENERATOR_RUST_FLAGS:
         description: "Rust flags for witness_generator compilation"
         type: string
@@ -39,7 +34,7 @@ on:
 jobs:
   get-protocol-version:
     name: Get protocol version
-    runs-on: [ matterlabs-ci-runner-high-performance ]
+    runs-on: [matterlabs-ci-runner-high-performance]
     outputs:
       protocol_version: ${{ steps.protocolversion.outputs.protocol_version }}
     steps:
@@ -85,7 +80,7 @@ jobs:
     needs: get-protocol-version
     env:
       PROTOCOL_VERSION: ${{ needs.get-protocol-version.outputs.protocol_version }}
-    runs-on: [ matterlabs-ci-runner-c3d ]
+    runs-on: [matterlabs-ci-runner-c3d]
     strategy:
       matrix:
         components:
@@ -126,7 +121,6 @@ jobs:
           context: .
           push: ${{ inputs.action == 'push' }}
           build-args: |
-            CUDA_ARCH=${{ inputs.CUDA_ARCH }}
             SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage
             SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
             SCCACHE_GCS_RW_MODE=READ_WRITE

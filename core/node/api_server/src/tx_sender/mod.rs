@@ -588,7 +588,7 @@ impl TxSender {
     }
 
     // For now, both L1 gas price and pubdata price are scaled with the same coefficient
-    async fn scaled_batch_fee_input(&self) -> anyhow::Result<BatchFeeInput> {
+    pub(crate) async fn scaled_batch_fee_input(&self) -> anyhow::Result<BatchFeeInput> {
         self.0
             .batch_fee_input_provider
             .get_batch_fee_input_scaled(

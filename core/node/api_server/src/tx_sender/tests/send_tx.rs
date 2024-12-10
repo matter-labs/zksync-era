@@ -6,7 +6,7 @@ use assert_matches::assert_matches;
 use chrono::NaiveDateTime;
 use test_casing::test_casing;
 use zksync_multivm::interface::{tracer::ValidationTraces, ExecutionResult};
-use zksync_node_fee_model::MockBatchFeeParamsProvider;
+use zksync_node_fee_model::{BatchFeeModelInputProvider, MockBatchFeeParamsProvider};
 use zksync_node_test_utils::create_l2_transaction;
 use zksync_types::K256PrivateKey;
 
@@ -22,10 +22,9 @@ async fn submitting_tx_requires_one_connection() {
         .unwrap();
 
     let l2_chain_id = L2ChainId::default();
-    let fee_input = MockBatchFeeParamsProvider::default()
-        .get_batch_fee_input_scaled(1.0, 1.0)
-        .await
-        .unwrap();
+    let fee_params_provider: &dyn BatchFeeModelInputProvider =
+        &MockBatchFeeParamsProvider::default();
+    let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
     let tx = create_l2_transaction(base_fee, gas_per_pubdata);
@@ -130,10 +129,9 @@ async fn fee_validation_errors() {
     let l2_chain_id = L2ChainId::default();
     let tx_executor = SandboxExecutor::mock(MockOneshotExecutor::default()).await;
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
-    let fee_input = MockBatchFeeParamsProvider::default()
-        .get_batch_fee_input_scaled(1.0, 1.0)
-        .await
-        .unwrap();
+    let fee_params_provider: &dyn BatchFeeModelInputProvider =
+        &MockBatchFeeParamsProvider::default();
+    let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
     let tx = create_l2_transaction(base_fee, gas_per_pubdata);
@@ -322,10 +320,9 @@ async fn submit_tx_with_validation_traces(actual_range: Range<u64>, expected_ran
         .unwrap();
 
     let l2_chain_id = L2ChainId::default();
-    let fee_input = MockBatchFeeParamsProvider::default()
-        .get_batch_fee_input_scaled(1.0, 1.0)
-        .await
-        .unwrap();
+    let fee_params_provider: &dyn BatchFeeModelInputProvider =
+        &MockBatchFeeParamsProvider::default();
+    let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
     let tx = create_l2_transaction(base_fee, gas_per_pubdata);
