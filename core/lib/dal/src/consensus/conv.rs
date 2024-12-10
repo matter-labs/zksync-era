@@ -112,7 +112,7 @@ impl ProtoRepr for proto::PubdataParams {
             l2_da_validator_address: required(&self.l2_da_validator_address)
                 .and_then(|a| parse_h160(a))
                 .context("l2_da_validator_address")?,
-            pubdata_type: required(&self.pubdata_type)
+            pubdata_type: required(&self.pubdata_info)
                 .and_then(|x| Ok(proto::PubdataType::try_from(*x)?))
                 .context("pubdata_type")?
                 .parse(),
@@ -122,7 +122,7 @@ impl ProtoRepr for proto::PubdataParams {
     fn build(this: &Self::Type) -> Self {
         Self {
             l2_da_validator_address: Some(this.l2_da_validator_address.as_bytes().into()),
-            pubdata_type: Some(this.pubdata_type as i32),
+            pubdata_info: Some(this.pubdata_type as i32),
         }
     }
 }
