@@ -152,6 +152,7 @@ impl Tester {
             L2ChainId::from(270),
             Some(Default::default()),
             Default::default(),
+            None,
         )
         .unwrap();
 
