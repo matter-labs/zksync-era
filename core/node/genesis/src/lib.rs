@@ -182,6 +182,7 @@ pub fn mock_genesis_config() -> GenesisConfig {
         sl_chain_id: None,
         l2_chain_id: L2ChainId::default(),
         snark_wrapper_vk_hash: first_l1_verifier_config.snark_wrapper_vk_hash,
+        fflonk_snark_wrapper_vk_hash: first_l1_verifier_config.fflonk_snark_wrapper_vk_hash,
         fee_account: Default::default(),
         dummy_verifier: false,
         l1_batch_commit_data_generator_mode: Default::default(),
@@ -196,6 +197,7 @@ pub async fn insert_genesis_batch(
     let mut transaction = storage.start_transaction().await?;
     let verifier_config = L1VerifierConfig {
         snark_wrapper_vk_hash: genesis_params.config.snark_wrapper_vk_hash,
+        fflonk_snark_wrapper_vk_hash: genesis_params.config.fflonk_snark_wrapper_vk_hash,
     };
 
     create_genesis_l1_batch(
@@ -303,10 +305,26 @@ pub async fn validate_genesis_params(
         .call(query_client)
         .await?;
 
+    let fflonk_verification_key_hash: H256 =
+        CallFunctionArgs::new("verificationKeyHash", U256::from(0))
+            .for_contract(verifier_address, &verifier_abi)
+            .call_with_function(
+                query_client,
+                verifier_abi.functions_by_name("verificationKeyHash")?[1].clone(),
+            )
+            .await?;
+
     if verification_key_hash != genesis_params.config().snark_wrapper_vk_hash {
         return Err(anyhow::anyhow!(
             "Verification key hash mismatch: {verification_key_hash:?} on contract, {:?} in config",
             genesis_params.config().snark_wrapper_vk_hash
+        ));
+    }
+
+    if Some(fflonk_verification_key_hash) != genesis_params.config().fflonk_snark_wrapper_vk_hash {
+        return Err(anyhow::anyhow!(
+            "FFLONK Verification key hash mismatch: {fflonk_verification_key_hash:?} on contract, {:?} in config",
+            genesis_params.config().fflonk_snark_wrapper_vk_hash
         ));
     }
 

@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, rc::Rc};
 
-use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
+use circuit_sequencer_api::sort_storage_access::sort_storage_access_queries;
 use zk_evm_1_5_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
@@ -162,7 +162,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
             storage
                 .storage_log_queries_after_timestamp(Timestamp(0))
                 .iter()
-                .map(|log| &log.log_query),
+                .map(|log| log.log_query),
         )
         .1
         .into_iter()

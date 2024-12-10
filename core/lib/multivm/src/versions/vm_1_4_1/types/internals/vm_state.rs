@@ -1,4 +1,4 @@
-use circuit_sequencer_api_1_3_3::INITIAL_MONOTONIC_CYCLE_COUNTER;
+use circuit_sequencer_api::INITIAL_MONOTONIC_CYCLE_COUNTER;
 use zk_evm_1_4_1::{
     aux_structures::{MemoryPage, Timestamp},
     block_properties::BlockProperties,

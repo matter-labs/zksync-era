@@ -85,6 +85,7 @@ pub struct FmtArgs {
 
 pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
     let ecosystem = EcosystemConfig::from_file(&shell)?;
+    shell.set_var("ZKSYNC_USE_CUDA_STUBS", "true");
     match args.formatter {
         None => {
             let mut tasks = vec![];

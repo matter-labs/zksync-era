@@ -8,11 +8,13 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_eth_client::{
     clients::{Client, L1},
-    CallFunctionArgs,
+    CallFunctionArgs, ContractCallError,
 };
 use zksync_prover_dal::{Prover, ProverDal};
 
 use crate::helper;
+
+const FFLONK_VERIFIER_TYPE: i32 = 0;
 
 pub(crate) async fn run() -> anyhow::Result<()> {
     println!(" ====== L1 Status ====== ");
@@ -77,8 +79,20 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         .call(&query_client)
         .await?;
 
+    let function = helper::verifier_contract()
+        .functions_by_name("verificationKeyHash")
+        .map_err(ContractCallError::Function)?[1]
+        .clone();
+
+    let fflonk_verification_key_hash: H256 =
+        CallFunctionArgs::new("verificationKeyHash", U256::from(FFLONK_VERIFIER_TYPE))
+            .for_contract(contracts_config.verifier_addr, &helper::verifier_contract())
+            .call_with_function(&query_client, function)
+            .await?;
+
     let node_l1_verifier_config = L1VerifierConfig {
         snark_wrapper_vk_hash: node_verification_key_hash,
+        fflonk_snark_wrapper_vk_hash: Some(fflonk_verification_key_hash),
     };
 
     let prover_connection_pool = ConnectionPool::<Prover>::builder(

@@ -1,4 +1,4 @@
-use circuit_sequencer_api_1_4_2::{BLOB_CHUNK_SIZE, ELEMENTS_PER_4844_BLOCK};
+use circuit_sequencer_api::{BLOB_CHUNK_SIZE, ELEMENTS_PER_4844_BLOCK};
 use zk_evm_1_4_1::aux_structures::MemoryPage;
 pub use zk_evm_1_4_1::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
