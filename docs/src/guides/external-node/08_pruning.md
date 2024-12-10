@@ -1,6 +1,6 @@
 # Pruning
 
-It is possible to configure a ZKsync node to periodically prune all data from L1 batches older than a configurable
+It is possible to configure a Node to periodically prune all data from L1 batches older than a configurable
 threshold. Data is pruned both from Postgres and from tree (RocksDB). Pruning happens continuously (i.e., does not
 require stopping the node) in the background during normal node operation. It is designed to not significantly impact
 node performance.

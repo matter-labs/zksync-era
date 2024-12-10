@@ -1,6 +1,6 @@
 # Decentralization
 
-In the default setup, the ZKsync node will fetch data from the ZKsync API endpoint maintained by Matter Labs. To reduce
+In the default setup, the Node will fetch data from the ZKsync API endpoint maintained by Matter Labs. To reduce
 the reliance on this centralized endpoint we have developed a decentralized p2p networking stack (aka gossipnet) which
 will eventually be used instead of ZKsync API for synchronizing data.
 
@@ -43,9 +43,9 @@ chmod 600 consensus_secrets.yaml
 ### Preparing configuration file
 
 Copy the template of the consensus configuration file (for
-[mainnet](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/prepared_configs/mainnet_consensus_config.yaml)
+[mainnet](https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/external-node/prepared_configs/mainnet_consensus_config.yaml)
 or
-[testnet](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/prepared_configs/testnet_consensus_config.yaml)
+[testnet](https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/external-node/prepared_configs/testnet_consensus_config.yaml)
 ).
 
 > [!NOTE]

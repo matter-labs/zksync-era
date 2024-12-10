@@ -1,6 +1,6 @@
 # Treeless Operation Mode
 
-Normally, a ZKsync node needs to run the Merkle tree component (aka _metadata calculator_) in order to compute L1 batch
+Normally, a Node needs to run the Merkle tree component (aka _metadata calculator_) in order to compute L1 batch
 state root hashes. A state root hash from the previous batch can be accessed by L2 contracts, so processing transactions
 in an L1 batch cannot start until the state root hash of the previous L1 batch is computed. Merkle tree requires
 non-trivial storage space and RAM (roughly 3 TB and 32 GB respectively for an archival mainnet node as of July 2024).
