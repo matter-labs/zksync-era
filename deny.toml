@@ -9,7 +9,7 @@ feature-depth = 1
 [advisories]
 ignore = [
     "RUSTSEC-2024-0375", # atty dependency being unmaintained, dependency of clap and criterion, we would need to update to newer major of dependencies
-    "RUSTSEC-2020-0168", # mach dependency being unmaintained, dependency in consensus, we should consider moving to mach2 fork
+    "RUSTSEC-2020-0168", # mach dependency being unmaintained, dependency in api server, we should consider moving to mach2 fork
     "RUSTSEC-2024-0370", # `cs_derive` needs to be updated to not rely on `proc-macro-error`
     # all below caused by StructOpt which we still use and we should move to clap v4 instead
     "RUSTSEC-2021-0145",
@@ -24,7 +24,6 @@ allow = [
     "ISC",
     "Unlicense",
     "MPL-2.0",
-    "Unicode-DFS-2016",
     "CC0-1.0",
     "BSD-2-Clause",
     "BSD-3-Clause",
@@ -33,6 +32,7 @@ allow = [
     "Apache-2.0 WITH LLVM-exception",
     "0BSD",
     "BSL-1.0",
+    "Unicode-3.0"
 ]
 confidence-threshold = 0.8
 
