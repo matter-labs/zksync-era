@@ -12,7 +12,7 @@ use config::{
             input::GatewayChainUpgradeInput, output::GatewayChainUpgradeOutput,
         },
         gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput,
-        script_params::GATEWAY_UPGRADE_CHAIN_PARAMS,
+        script_params::{GATEWAY_UPGRADE_CHAIN_PARAMS, GATEWAY_UPGRADE_ECOSYSTEM_PARAMS},
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig,
@@ -27,7 +27,6 @@ use serde::{Deserialize, Serialize};
 use strum::EnumIter;
 use types::L1BatchCommitmentMode;
 use xshell::Shell;
-use config::forge_interface::script_params::GATEWAY_UPGRADE_ECOSYSTEM_PARAMS;
 use zksync_basic_types::{H256, U256};
 use zksync_eth_client::EthInterface;
 use zksync_types::{
@@ -529,13 +528,23 @@ async fn set_weth_for_chain(
     );
     let contracts_config = chain_config.get_contracts_config()?;
     let calldata = contract
-        .encode("addL2WethToStore",
+        .encode(
+            "addL2WethToStore",
             (
-                previous_output.deployed_addresses.l2_wrapped_base_token_store_addr,
-                ecosystem_config.get_contracts_config().expect("get_contracts_config()").l1.chain_admin_addr,
+                previous_output
+                    .deployed_addresses
+                    .l2_wrapped_base_token_store_addr,
+                ecosystem_config
+                    .get_contracts_config()
+                    .expect("get_contracts_config()")
+                    .l1
+                    .chain_admin_addr,
                 chain_config.chain_id.0,
-                contracts_config.l2.predeployed_l2_wrapped_base_token_address.expect("No predeployed_l2_wrapped_base_token_address")
-            )
+                contracts_config
+                    .l2
+                    .predeployed_l2_wrapped_base_token_address
+                    .expect("No predeployed_l2_wrapped_base_token_address"),
+            ),
         )
         .unwrap();
 

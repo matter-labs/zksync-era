@@ -62,7 +62,7 @@ pub async fn run(
                 &ecosystem_config,
                 &mut contracts,
                 args,
-                true
+                true,
             )
             .await?;
         }
@@ -136,7 +136,15 @@ async fn build_and_deploy(
     with_broadcast: bool,
 ) -> anyhow::Result<()> {
     build_l2_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
-    call_forge(shell, chain_config, ecosystem_config, forge_args, signature, with_broadcast).await?;
+    call_forge(
+        shell,
+        chain_config,
+        ecosystem_config,
+        forge_args,
+        signature,
+        with_broadcast,
+    )
+    .await?;
     update_config(
         shell,
         &DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS.output(&chain_config.link_to_code),
@@ -165,7 +173,7 @@ pub async fn initialize_bridges(
         |shell, out| {
             contracts_config.set_l2_shared_bridge(&InitializeBridgeOutput::read(shell, out)?)
         },
-        true
+        true,
     )
     .await
 }
@@ -186,7 +194,7 @@ pub async fn deploy_upgrader(
         |shell, out| {
             contracts_config.set_default_l2_upgrade(&DefaultL2UpgradeOutput::read(shell, out)?)
         },
-        true
+        true,
     )
     .await
 }
@@ -207,7 +215,7 @@ pub async fn deploy_consensus_registry(
         |shell, out| {
             contracts_config.set_consensus_registry(&ConsensusRegistryOutput::read(shell, out)?)
         },
-        true
+        true,
     )
     .await
 }
@@ -226,7 +234,7 @@ pub async fn deploy_multicall3(
         forge_args,
         Some("runDeployMulticall3"),
         |shell, out| contracts_config.set_multicall3(&Multicall3Output::read(shell, out)?),
-        true
+        true,
     )
     .await
 }
@@ -248,7 +256,7 @@ pub async fn deploy_timestamp_asserter(
             contracts_config
                 .set_timestamp_asserter_addr(&TimestampAsserterOutput::read(shell, out)?)
         },
-        true
+        true,
     )
     .await
 }
@@ -259,7 +267,7 @@ pub async fn deploy_l2_contracts(
     ecosystem_config: &EcosystemConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
-    with_broadcast: bool
+    with_broadcast: bool,
 ) -> anyhow::Result<()> {
     let signature = if let Some(true) = chain_config.legacy_bridge {
         Some("runWithLegacyBridge")
@@ -281,7 +289,7 @@ pub async fn deploy_l2_contracts(
                 .set_timestamp_asserter_addr(&TimestampAsserterOutput::read(shell, out)?)?;
             Ok(())
         },
-        with_broadcast
+        with_broadcast,
     )
     .await
 }

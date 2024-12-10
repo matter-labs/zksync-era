@@ -90,7 +90,7 @@ describe('L2 native ERC20 contract checks', () => {
         const addressFromNTV = await l2NativeTokenVault.WETH_TOKEN();
         expect(addressFromNTV.toLowerCase()).toEqual(weth.toLowerCase());
 
-        const wrapTx = await wethContract.deposit({value: 1});
+        const wrapTx = await wethContract.deposit({ value: 1 });
         await expect(wrapTx).toBeAccepted();
 
         const balance = await wethContract.balanceOf(alice.address);
@@ -103,11 +103,10 @@ describe('L2 native ERC20 contract checks', () => {
         let thrown = false;
         try {
             await withdrawTx;
-        }
-        catch (err: any) {
+        } catch (err: any) {
             thrown = true;
             // TokenNotSupported(weth)
-            expect(err.toString()).toContain(ethers.concat(["0x06439c6b", ethers.zeroPadBytes('0x', 12), weth]));
+            expect(err.toString()).toContain(ethers.concat(['0x06439c6b', ethers.zeroPadBytes('0x', 12), weth]));
         }
         expect(thrown).toBeTruthy();
     });

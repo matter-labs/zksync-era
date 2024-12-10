@@ -80,7 +80,8 @@ pub const GATEWAY_PREPARATION: ForgeScriptParams = ForgeScriptParams {
     script_path: "deploy-scripts/GatewayPreparation.s.sol",
 };
 
-pub const GATEWAY_GOVERNANCE_TX_PATH1: &str = "contracts/l1-contracts/script-out/gateway-deploy-governance-txs-1.json";
+pub const GATEWAY_GOVERNANCE_TX_PATH1: &str =
+    "contracts/l1-contracts/script-out/gateway-deploy-governance-txs-1.json";
 
 pub const GATEWAY_UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/gateway-upgrade-ecosystem.toml",

@@ -9,7 +9,7 @@ use config::{
         deploy_ecosystem::input::InitialDeploymentConfig,
         deploy_gateway_ctm::{input::DeployGatewayCTMInput, output::DeployGatewayCTMOutput},
         gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
-        script_params::{DEPLOY_GATEWAY_CTM, GATEWAY_PREPARATION},
+        script_params::{DEPLOY_GATEWAY_CTM, GATEWAY_GOVERNANCE_TX_PATH1, GATEWAY_PREPARATION},
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig, GenesisConfig,
@@ -17,7 +17,6 @@ use config::{
 use ethers::{abi::parse_abi, contract::BaseContract, types::Bytes, utils::hex};
 use lazy_static::lazy_static;
 use xshell::Shell;
-use config::forge_interface::script_params::GATEWAY_GOVERNANCE_TX_PATH1;
 use zksync_basic_types::H256;
 use zksync_config::configs::GatewayConfig;
 
@@ -93,7 +92,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         &chain_config,
         gateway_config,
         l1_url.clone(),
-        true
+        true,
     )
     .await?;
 
@@ -107,7 +106,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         &chain_config,
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
-        true
+        true,
     )
     .await?;
 
@@ -139,7 +138,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         &chain_config,
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
-        true
+        true,
     )
     .await?;
 
@@ -274,7 +273,7 @@ pub async fn gateway_governance_whitelisting(
         chain_config,
         &config.get_wallets()?.governor,
         l1_rpc_url.clone(),
-        with_broadcast
+        with_broadcast,
     )
     .await?
     .governance_l2_tx_hash;
@@ -302,7 +301,7 @@ pub async fn gateway_governance_whitelisting(
         chain_config,
         &config.get_wallets()?.governor,
         l1_rpc_url.clone(),
-        with_broadcast
+        with_broadcast,
     )
     .await?
     .governance_l2_tx_hash;
@@ -328,7 +327,7 @@ pub async fn gateway_governance_whitelisting(
         chain_config,
         &config.get_wallets()?.governor,
         l1_rpc_url.clone(),
-        with_broadcast
+        with_broadcast,
     )
     .await?
     .governance_l2_tx_hash;
@@ -357,7 +356,7 @@ pub async fn gateway_governance_whitelisting(
         chain_config,
         &config.get_wallets()?.governor,
         l1_rpc_url.clone(),
-        with_broadcast
+        with_broadcast,
     )
     .await?
     .governance_l2_tx_hash;
