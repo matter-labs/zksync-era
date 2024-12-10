@@ -282,7 +282,6 @@ where
         &self,
         packed_version: H256,
     ) -> EnrichedClientResult<Option<Vec<u8>>> {
-        println!("\n\nAddr: {:#?}", self.state_transition_manager_address);
         let Some(state_transition_manager_address) = self.state_transition_manager_address else {
             return Ok(None);
         };
@@ -290,14 +289,6 @@ where
         let to_block = self.client.block_number().await?;
         let from_block = to_block.saturating_sub((LOOK_BACK_BLOCK_RANGE - 1).into());
 
-        println!(
-            "Params: {to_block} -- {from_block} -- {}",
-            hex::encode(self.new_upgrade_cut_data_signature.as_bytes())
-        );
-        println!(
-            "packed version -- {}",
-            hex::encode(packed_version.as_bytes())
-        );
         let logs = self
             .get_events_inner(
                 from_block.into(),
@@ -308,8 +299,6 @@ where
                 RETRY_LIMIT,
             )
             .await?;
-
-        println!("ll -- {}", logs.len());
 
         Ok(logs.into_iter().next().map(|log| log.data.0))
     }

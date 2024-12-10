@@ -216,9 +216,8 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         tx: Transaction,
         with_compression: bool,
     ) -> BatchTransactionExecutionResult<BytecodeResult> {
-        let hash = tx.hash();
         let call_tracer_result = Arc::new(OnceCell::default());
-        let legacy_tracer = if true {
+        let legacy_tracer = if Tr::TRACE_CALLS {
             vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
         } else {
             vec![]
@@ -242,12 +241,6 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
             .expect("failed extracting call traces")
             .take()
             .unwrap_or_default();
-
-        // Open a file for writing
-        // let mut file = File::create(format!("{}.txt", hex::encode(&hash.0))).unwrap();
-
-        // Write the struct to the file
-        // writeln!(file, "{:#?}", call_traces).unwrap();
 
         BatchTransactionExecutionResult {
             tx_result: Box::new(tx_result),
