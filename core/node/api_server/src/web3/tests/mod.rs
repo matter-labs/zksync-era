@@ -32,7 +32,7 @@ use zksync_system_constants::{
 };
 use zksync_types::{
     api,
-    block::{pack_block_info, L2BlockHasher, L2BlockHeader},
+    block::{pack_block_info, L2BlockHasher, L2BlockHeader, UnsealedL1BatchHeader},
     bytecode::{
         testonly::{PROCESSED_EVM_BYTECODE, RAW_EVM_BYTECODE},
         BytecodeHash,
@@ -175,7 +175,6 @@ enum StorageInitialization {
     Recovery {
         logs: Vec<StorageLog>,
         factory_deps: HashMap<H256, Vec<u8>>,
-        batch_fee_input: BatchFeeInput,
     },
 }
 
@@ -197,7 +196,6 @@ impl StorageInitialization {
         Self::Recovery {
             logs: vec![],
             factory_deps: HashMap::new(),
-            batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
         }
     }
 
@@ -237,7 +235,6 @@ impl StorageInitialization {
             Self::Recovery {
                 mut logs,
                 factory_deps,
-                batch_fee_input,
             } => {
                 let l2_block_info_key = StorageKey::new(
                     AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
@@ -266,12 +263,7 @@ impl StorageInitialization {
 
                 // Insert the next L1 batch in the storage so that the API server doesn't hang up.
                 store_l2_block(storage, Self::SNAPSHOT_RECOVERY_BLOCK + 1, &[]).await?;
-                seal_l1_batch(
-                    storage,
-                    Self::SNAPSHOT_RECOVERY_BATCH + 1,
-                    Some(batch_fee_input),
-                )
-                .await?;
+                seal_l1_batch(storage, Self::SNAPSHOT_RECOVERY_BATCH + 1).await?;
             }
         }
         Ok(())
@@ -405,15 +397,23 @@ async fn store_custom_l2_block(
     Ok(())
 }
 
+async fn open_l1_batch(
+    storage: &mut Connection<'_, Core>,
+    number: L1BatchNumber,
+    batch_fee_input: BatchFeeInput,
+) -> anyhow::Result<UnsealedL1BatchHeader> {
+    let mut header = create_l1_batch(number.0);
+    header.batch_fee_input = batch_fee_input;
+    let header = header.to_unsealed_header();
+    storage.blocks_dal().insert_l1_batch(header.clone()).await?;
+    Ok(header)
+}
+
 async fn seal_l1_batch(
     storage: &mut Connection<'_, Core>,
     number: L1BatchNumber,
-    batch_fee_input: Option<BatchFeeInput>,
 ) -> anyhow::Result<()> {
-    let mut header = create_l1_batch(number.0);
-    if let Some(batch_fee_input) = batch_fee_input {
-        header.batch_fee_input = batch_fee_input;
-    }
+    let header = create_l1_batch(number.0);
     storage.blocks_dal().insert_mock_l1_batch(&header).await?;
     storage
         .blocks_dal()
@@ -699,11 +699,7 @@ impl HttpTest for StorageAccessWithSnapshotRecovery {
             ),
         ];
         let factory_deps = [(code_hash, b"code".to_vec())].into();
-        StorageInitialization::Recovery {
-            logs,
-            factory_deps,
-            batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
-        }
+        StorageInitialization::Recovery { logs, factory_deps }
     }
 
     async fn test(
@@ -854,7 +850,6 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
         StorageInitialization::Recovery {
             logs: vec![nonce_log],
             factory_deps: HashMap::new(),
-            batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
         }
     }
 

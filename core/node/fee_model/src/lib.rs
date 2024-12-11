@@ -116,26 +116,30 @@ impl BatchFeeModelInputProvider for ApiFeeInputProvider {
             .connection_pool
             .connection_tagged("api_fee_input_provider")
             .await?;
-        let batch_fee_input = conn.blocks_dal().get_latest_l1_batch_fee_input().await?;
-        if let Some(batch_fee_input) = batch_fee_input {
-            Ok(batch_fee_input)
-        } else {
-            // This method is not supposed to be used in components with no batches; API server
-            // always waits until it has at least one L1 batch present.
-            tracing::info!("No batch fee input available, presuming this is the first batch ever");
-            let inner_input = self
-                .inner
-                .get_batch_fee_input_scaled(
-                    l1_gas_price_scale_factor,
-                    l1_pubdata_price_scale_factor,
-                )
-                .await
-                .context("cannot get batch fee input from base provider")?;
-            let last_l2_block_params = conn.blocks_dal().get_last_sealed_l2_block_header().await?;
-            Ok(last_l2_block_params
-                .map(|header| inner_input.stricter(header.batch_fee_input))
-                .unwrap_or(inner_input))
+        let latest_batch_header = conn
+            .blocks_dal()
+            .get_latest_l1_batch_header()
+            .await?
+            .context("no batches were found in the DB")?;
+
+        if !latest_batch_header.is_sealed {
+            tracing::trace!(
+                latest_batch_number = %latest_batch_header.number,
+                "Found an open batch; reporting its fee input"
+            );
+            return Ok(latest_batch_header.fee_input);
         }
+
+        tracing::trace!(
+            latest_batch_number = %latest_batch_header.number,
+            "No open batch found; fetching from base provider"
+        );
+        let inner_input = self
+            .inner
+            .get_batch_fee_input_scaled(l1_gas_price_scale_factor, l1_pubdata_price_scale_factor)
+            .await
+            .context("cannot get batch fee input from base provider")?;
+        Ok(inner_input)
     }
 
     /// Returns the fee model parameters.
@@ -169,12 +173,13 @@ mod tests {
     use l1_gas_price::GasAdjusterClient;
     use zksync_config::GasAdjusterConfig;
     use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_test_utils::create_l1_batch;
     use zksync_types::{
-        block::{L1BatchHeader, UnsealedL1BatchHeader},
         commitment::L1BatchCommitmentMode,
         fee_model::{BaseTokenConversionRatio, FeeModelConfigV2},
         pubdata_da::PubdataSendingMode,
-        L1BatchNumber, U256,
+        U256,
     };
 
     use super::*;
@@ -395,40 +400,25 @@ mod tests {
 
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
-        let l1_batch_header = L1BatchHeader {
-            number: L1BatchNumber(1),
-            timestamp: 1,
-            l1_tx_count: 0,
-            l2_tx_count: 0,
-            priority_ops_onchain_data: vec![],
-            l2_to_l1_logs: vec![],
-            l2_to_l1_messages: vec![],
-            bloom: Default::default(),
-            used_contract_hashes: vec![],
-            base_system_contracts_hashes: Default::default(),
-            system_logs: vec![],
-            protocol_version: None,
-            pubdata_input: None,
-            fee_address: Default::default(),
-            batch_fee_input: sealed_batch_fee_input,
-        };
+        insert_genesis_batch(&mut conn, &GenesisParams::mock())
+            .await
+            .unwrap();
+
+        let mut l1_batch_header = create_l1_batch(1);
+        l1_batch_header.batch_fee_input = sealed_batch_fee_input;
         conn.blocks_dal()
             .insert_mock_l1_batch(&l1_batch_header)
             .await
             .unwrap();
+        let mut l1_batch_header = create_l1_batch(2);
+        l1_batch_header.batch_fee_input = unsealed_batch_fee_input;
         conn.blocks_dal()
-            .insert_l1_batch(UnsealedL1BatchHeader {
-                number: L1BatchNumber(2),
-                timestamp: 2,
-                protocol_version: None,
-                fee_address: Default::default(),
-                fee_input: unsealed_batch_fee_input,
-            })
+            .insert_l1_batch(l1_batch_header.to_unsealed_header())
             .await
             .unwrap();
-        let provider =
-            ApiFeeInputProvider::new(Arc::new(MockBatchFeeParamsProvider::default()), pool);
-        let fee_input = provider.get_batch_fee_input_scaled(1.0, 1.0).await.unwrap();
+        let provider: &dyn BatchFeeModelInputProvider =
+            &ApiFeeInputProvider::new(Arc::new(MockBatchFeeParamsProvider::default()), pool);
+        let fee_input = provider.get_batch_fee_input().await.unwrap();
         assert_eq!(fee_input, unsealed_batch_fee_input);
     }
 }

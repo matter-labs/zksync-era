@@ -6,7 +6,7 @@ use thiserror::Error;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,
-    block::{L1BatchHeader, L2BlockHeader, UnsealedL1BatchHeader},
+    block::{CommonL1BatchHeader, L1BatchHeader, L2BlockHeader, UnsealedL1BatchHeader},
     commitment::{L1BatchCommitmentMode, L1BatchMetaParameters, L1BatchMetadata, PubdataParams},
     fee_model::BatchFeeInput,
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
@@ -320,6 +320,39 @@ impl From<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
             .map(|v| (v as u16).try_into().unwrap());
         Self {
             number: L1BatchNumber(batch.number as u32),
+            timestamp: batch.timestamp as u64,
+            protocol_version,
+            fee_address: Address::from_slice(&batch.fee_address),
+            fee_input: BatchFeeInput::for_protocol_version(
+                protocol_version.unwrap_or_else(ProtocolVersionId::last_potentially_undefined),
+                batch.l2_fair_gas_price as u64,
+                batch.fair_pubdata_price.map(|p| p as u64),
+                batch.l1_gas_price as u64,
+            ),
+        }
+    }
+}
+
+/// Partial projection of the columns common to both [`L1BatchHeader`] and [`UnsealedL1BatchHeader`].
+pub(crate) struct CommonStorageL1BatchHeader {
+    pub number: i64,
+    pub is_sealed: bool,
+    pub timestamp: i64,
+    pub protocol_version: Option<i32>,
+    pub fee_address: Vec<u8>,
+    pub l1_gas_price: i64,
+    pub l2_fair_gas_price: i64,
+    pub fair_pubdata_price: Option<i64>,
+}
+
+impl From<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
+    fn from(batch: CommonStorageL1BatchHeader) -> Self {
+        let protocol_version: Option<ProtocolVersionId> = batch
+            .protocol_version
+            .map(|v| (v as u16).try_into().unwrap());
+        Self {
+            number: L1BatchNumber(batch.number as u32),
+            is_sealed: batch.is_sealed,
             timestamp: batch.timestamp as u64,
             protocol_version,
             fee_address: Address::from_slice(&batch.fee_address),

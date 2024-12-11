@@ -78,9 +78,20 @@ impl L1BatchHeader {
     }
 }
 
+/// Holder for the metadata that is relevant for unsealed batches.
 #[derive(Debug, Clone, PartialEq)]
 pub struct UnsealedL1BatchHeader {
     pub number: L1BatchNumber,
+    pub timestamp: u64,
+    pub protocol_version: Option<ProtocolVersionId>,
+    pub fee_address: Address,
+    pub fee_input: BatchFeeInput,
+}
+
+/// Holder for the metadata that is relevant for both sealed and unsealed batches.
+pub struct CommonL1BatchHeader {
+    pub number: L1BatchNumber,
+    pub is_sealed: bool,
     pub timestamp: u64,
     pub protocol_version: Option<ProtocolVersionId>,
     pub fee_address: Address,
