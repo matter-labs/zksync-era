@@ -43,12 +43,7 @@ impl RunExternalNode {
         })
     }
 
-    pub fn run(
-        &self,
-        shell: &Shell,
-        enable_consensus: bool,
-        mut additional_args: Vec<String>,
-    ) -> anyhow::Result<()> {
+    pub fn run(&self, shell: &Shell, mut additional_args: Vec<String>) -> anyhow::Result<()> {
         let code_path = self.code_path.to_str().unwrap();
         let config_general_config = &self.general_config.to_str().unwrap();
         let en_config = &self.en_config.to_str().unwrap();
@@ -57,11 +52,6 @@ impl RunExternalNode {
         if let Some(components) = self.components() {
             additional_args.push(format!("--components={}", components))
         }
-        let mut consensus_args = vec![];
-        if enable_consensus {
-            consensus_args.push("--enable-consensus".to_string());
-            consensus_args.push(format!("--consensus-path={}", consensus_config))
-        }
 
         common::external_node::run(
             shell,
@@ -69,7 +59,7 @@ impl RunExternalNode {
             config_general_config,
             secrets,
             en_config,
-            consensus_args,
+            consensus_config,
             additional_args,
         )
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)

@@ -352,11 +352,6 @@ export class NodeSpawner {
         const env = this.env ?? process.env;
         const { pathToHome, fileConfig, logs, options } = this;
 
-        let args = []; // FIXME: unused
-        if (options.enableConsensus) {
-            args.push('--enable-consensus');
-        }
-
         // Run server in background.
         let proc = runExternalNodeInBackground({
             stdio: ['ignore', logs, logs],
