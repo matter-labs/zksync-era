@@ -81,8 +81,10 @@ pub struct DBConfig {
 #[config(derive(Default))]
 pub struct PostgresConfig {
     /// Maximum size of the connection pool.
+    #[config(alias = "pool_size")]
     pub max_connections: Option<u32>,
     /// Maximum size of the connection pool to master DB.
+    #[config(alias = "pool_size_master")]
     pub max_connections_master: Option<u32>,
 
     /// Acquire timeout in seconds for a single connection attempt. There are multiple attempts (currently 3)
@@ -105,5 +107,134 @@ impl PostgresConfig {
     /// Returns the maximum size of the connection pool as a `Result` to simplify error propagation.
     pub fn max_connections(&self) -> anyhow::Result<u32> {
         self.max_connections.context("Max connections is absent")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::num::NonZeroU32;
+
+    use smart_config::{testing::test_complete, Environment, Yaml};
+
+    use super::*;
+
+    fn assert_db_config(config: &DBConfig) {
+        assert_eq!(config.state_keeper_db_path.as_os_str(), "/db/state_keeper");
+        assert_eq!(config.merkle_tree.path.as_os_str(), "/db/tree");
+        assert_eq!(config.merkle_tree.mode, MerkleTreeMode::Lightweight);
+        assert_eq!(config.merkle_tree.multi_get_chunk_size, 250);
+        assert_eq!(config.merkle_tree.max_l1_batches_per_iter, 50);
+        assert_eq!(config.merkle_tree.memtable_capacity_mb, ByteSize(512 << 20));
+        assert_eq!(
+            config.merkle_tree.stalled_writes_timeout_sec,
+            Duration::from_secs(60)
+        );
+        assert_eq!(
+            config.experimental.state_keeper_db_block_cache_capacity_mb,
+            ByteSize(64 << 20)
+        );
+        assert_eq!(
+            config.experimental.state_keeper_db_max_open_files,
+            NonZeroU32::new(100)
+        );
+        assert!(config.experimental.merkle_tree_repair_stale_keys);
+        assert!(!config.experimental.protective_reads_persistence_enabled);
+    }
+
+    #[test]
+    fn db_from_env() {
+        let env = r#"
+            DATABASE_STATE_KEEPER_DB_PATH="/db/state_keeper"
+            DATABASE_MERKLE_TREE_PATH="/db/tree"
+            DATABASE_MERKLE_TREE_MODE=lightweight
+            DATABASE_MERKLE_TREE_MULTI_GET_CHUNK_SIZE=250
+            DATABASE_MERKLE_TREE_MEMTABLE_CAPACITY_MB=512
+            DATABASE_MERKLE_TREE_STALLED_WRITES_TIMEOUT_SEC=60
+            DATABASE_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER=50
+            DATABASE_MERKLE_TREE_BLOCK_CACHE_SIZE_MB=128
+            DATABASE_EXPERIMENTAL_STATE_KEEPER_DB_BLOCK_CACHE_CAPACITY_MB=64
+            DATABASE_EXPERIMENTAL_PROCESSING_DELAY_MS=0
+            DATABASE_EXPERIMENTAL_STATE_KEEPER_DB_MAX_OPEN_FILES=100
+            DATABASE_EXPERIMENTAL_MERKLE_TREE_REPAIR_STALE_KEYS=true
+            DATABASE_EXPERIMENTAL_PROTECTIVE_READS_PERSISTENCE_ENABLED=false
+            DATABASE_EXPERIMENTAL_INCLUDE_INDICES_AND_FILTERS_IN_BLOCK_CACHE=false
+        "#;
+        let env = Environment::from_dotenv("test.env", env)
+            .unwrap()
+            .strip_prefix("DATABASE_");
+
+        let config: DBConfig = test_complete(env).unwrap();
+        assert_db_config(&config);
+    }
+
+    // TODO: switch to `mode: LIGHTWEIGHT` once more advanced tester is implemented
+    #[test]
+    fn db_from_yaml() {
+        let yaml = r#"
+          state_keeper_db_path: /db/state_keeper
+          merkle_tree:
+            path: /db/tree
+            mode: lightweight
+            multi_get_chunk_size: 250
+            block_cache_size_mb: 128
+            memtable_capacity_mb: 512
+            stalled_writes_timeout_sec: 60
+            max_l1_batches_per_iter: 50
+          experimental:
+            state_keeper_db_block_cache_capacity_mb: 64
+            reads_persistence_enabled: false
+            processing_delay_ms: 0
+            include_indices_and_filters_in_block_cache: false
+            merkle_tree_repair_stale_keys: true
+            state_keeper_db_max_open_files: 100
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: DBConfig = test_complete(yaml).unwrap();
+
+        assert_db_config(&config);
+    }
+
+    fn assert_postgres_config(config: &PostgresConfig) {
+        assert_eq!(config.max_connections().unwrap(), 50);
+        assert_eq!(config.max_connections_master, Some(20));
+        assert_eq!(config.statement_timeout_sec, Duration::from_secs(300));
+        assert_eq!(config.acquire_timeout_sec, Duration::from_secs(15));
+        assert_eq!(config.long_connection_threshold_ms, Duration::from_secs(3));
+        assert_eq!(config.slow_query_threshold_ms, Duration::from_millis(150));
+    }
+
+    // Migration guide: `database.*` is a deprecated alias to `postgres.*` (?)
+    #[test]
+    fn postgres_from_env() {
+        let env = r#"
+            DATABASE_POOL_SIZE=50
+            DATABASE_POOL_SIZE_MASTER=20
+            DATABASE_ACQUIRE_TIMEOUT_SEC=15
+            DATABASE_STATEMENT_TIMEOUT_SEC=300
+            DATABASE_LONG_CONNECTION_THRESHOLD_MS=3000
+            DATABASE_SLOW_QUERY_THRESHOLD_MS=150
+        "#;
+        let env = Environment::from_dotenv("test.env", env)
+            .unwrap()
+            .strip_prefix("DATABASE_");
+
+        let config: PostgresConfig = test_complete(env).unwrap();
+        assert_postgres_config(&config);
+    }
+
+    #[test]
+    fn postgres_from_yaml() {
+        let yaml = r#"
+          max_connections: 50
+          max_connections_master: 20
+          acquire_timeout_sec: 15
+          statement_timeout_sec: 300
+          long_connection_threshold_ms: 3000
+          slow_query_threshold_ms: 150
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: PostgresConfig = test_complete(yaml).unwrap();
+
+        assert_postgres_config(&config);
     }
 }

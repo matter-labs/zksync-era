@@ -9,3 +9,27 @@ pub struct CommitmentGeneratorConfig {
     // FIXME: remove the corresponding experimental param
     pub max_parallelism: Option<NonZeroU32>,
 }
+
+#[cfg(test)]
+mod tests {
+    use smart_config::{testing::test_complete, Yaml};
+
+    use super::*;
+
+    fn expected_config() -> CommitmentGeneratorConfig {
+        CommitmentGeneratorConfig {
+            max_parallelism: Some(NonZeroU32::new(10).unwrap()),
+        }
+    }
+
+    #[test]
+    fn parsing_from_yaml() {
+        let yaml = r#"
+          max_parallelism: 10
+        "#;
+
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: CommitmentGeneratorConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_config());
+    }
+}

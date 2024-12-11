@@ -22,3 +22,45 @@ impl ContractVerifierConfig {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), self.port)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use smart_config::{testing::test_complete, Environment, Yaml};
+
+    use super::*;
+
+    fn expected_config() -> ContractVerifierConfig {
+        ContractVerifierConfig {
+            compilation_timeout: Duration::from_secs(30),
+            prometheus_port: 3314,
+            port: 3070,
+        }
+    }
+
+    #[test]
+    fn parsing_from_env() {
+        let env = r#"
+            CONTRACT_VERIFIER_COMPILATION_TIMEOUT=30
+            CONTRACT_VERIFIER_PROMETHEUS_PORT=3314
+            CONTRACT_VERIFIER_PORT=3070
+        "#;
+        let env = Environment::from_dotenv("test.env", env)
+            .unwrap()
+            .strip_prefix("CONTRACT_VERIFIER_");
+
+        let config: ContractVerifierConfig = test_complete(env).unwrap();
+        assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn parsing_from_yaml() {
+        let yaml = r#"
+          port: 3070
+          compilation_timeout: 30
+          prometheus_port: 3314
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: ContractVerifierConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_config());
+    }
+}

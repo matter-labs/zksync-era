@@ -9,7 +9,7 @@ use std::{
 use anyhow::Context as _;
 use serde::Deserialize;
 use smart_config::{
-    de::{Optional, OrString, Serde, WellKnown},
+    de::{Delimited, Optional, OrString, Serde, WellKnown},
     metadata::{SizeUnit, TimeUnit},
     ByteSize, DescribeConfig, DeserializeConfig,
 };
@@ -40,10 +40,10 @@ pub struct ApiConfig {
 /// limits are measured in bytes, but in configs, limits are specified in MiBs.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(transparent)]
-pub struct MaxResponseSizeOverrides(HashMap<String, NonZeroUsize>);
+pub struct MaxResponseSizeOverrides(HashMap<String, Option<NonZeroUsize>>);
 
-impl<S: Into<String>> FromIterator<(S, NonZeroUsize)> for MaxResponseSizeOverrides {
-    fn from_iter<I: IntoIterator<Item = (S, NonZeroUsize)>>(iter: I) -> Self {
+impl<S: Into<String>> FromIterator<(S, Option<NonZeroUsize>)> for MaxResponseSizeOverrides {
+    fn from_iter<I: IntoIterator<Item = (S, Option<NonZeroUsize>)>>(iter: I) -> Self {
         Self(
             iter.into_iter()
                 .map(|(method_name, size)| (method_name.into(), size))
@@ -65,16 +65,16 @@ impl FromStr for MaxResponseSizeOverrides {
 
             let size = size.trim();
             let size = if size == "None" {
-                NonZeroUsize::MAX // No limit
+                None
             } else {
-                size.parse().with_context(|| {
+                Some(size.parse().with_context(|| {
                     format!("`{size}` specified for method `{method_name}` is not a valid size")
-                })?
+                })?)
             };
 
             if let Some(prev_size) = overrides.insert(method_name.to_owned(), size) {
                 anyhow::bail!(
-                    "Size override for `{method_name}` is redefined from {prev_size} to {size}"
+                    "Size override for `{method_name}` is redefined from {prev_size:?} to {size:?}"
                 );
             }
         }
@@ -89,22 +89,30 @@ impl MaxResponseSizeOverrides {
 
     /// Gets the override in bytes for the specified method, or `None` if it's not set.
     pub fn get(&self, method_name: &str) -> Option<usize> {
-        self.0.get(method_name).copied().map(NonZeroUsize::get)
+        self.0
+            .get(method_name)
+            .copied()
+            .map(|size| size.map_or(usize::MAX, NonZeroUsize::get))
     }
 
     /// Iterates over all overrides.
     pub fn iter(&self) -> impl ExactSizeIterator<Item = (&str, usize)> + '_ {
-        self.0
-            .iter()
-            .map(|(method_name, size)| (method_name.as_str(), size.get()))
+        self.0.iter().map(|(method_name, size)| {
+            (
+                method_name.as_str(),
+                size.map_or(usize::MAX, NonZeroUsize::get),
+            )
+        })
     }
 
     /// Scales the overrides by the specified scale factor, saturating them if applicable.
     pub fn scale(&self, factor: NonZeroUsize) -> Self {
-        let scaled = self
-            .0
-            .iter()
-            .map(|(method_name, &size)| (method_name.clone(), size.saturating_mul(factor)));
+        let scaled = self.0.iter().map(|(method_name, &size)| {
+            (
+                method_name.clone(),
+                size.map(|size| size.saturating_mul(factor)),
+            )
+        });
         Self(scaled.collect())
     }
 }
@@ -225,9 +233,10 @@ pub struct Web3JsonRpcConfig {
     pub mempool_cache_size: usize,
     /// List of L2 token addresses that are white-listed to use by paymasters
     /// (additionally to natively bridged tokens).
-    #[config(default)]
+    #[config(default, with = Delimited(","))]
     pub whitelisted_tokens_for_aa: Vec<Address>,
     /// Enabled JSON RPC API namespaces. If not set, all namespaces will be available
+    #[config(with = Delimited(","))]
     pub api_namespaces: Option<Vec<String>>,
     /// Enables extended tracing of RPC calls. This may negatively impact performance for nodes under high load
     /// (hundreds or thousands RPS).
@@ -311,7 +320,7 @@ impl MerkleTreeApiConfig {
 
 #[cfg(test)]
 mod tests {
-    use smart_config::{testing::test_complete, Environment};
+    use smart_config::{testing::test_complete, Environment, Yaml};
 
     use super::*;
 
@@ -361,9 +370,9 @@ mod tests {
                 max_batch_request_size: 200,
                 max_response_body_size_mb: ByteSize::new(10, SizeUnit::MiB),
                 max_response_body_size_overrides_mb: [
-                    ("eth_call", NonZeroUsize::new(1).unwrap()),
-                    ("eth_getTransactionReceipt", NonZeroUsize::MAX),
-                    ("zks_getProof", NonZeroUsize::new(32).unwrap()),
+                    ("eth_call", NonZeroUsize::new(1)),
+                    ("eth_getTransactionReceipt", None),
+                    ("zks_getProof", NonZeroUsize::new(32)),
                 ]
                 .into_iter()
                 .collect(),
@@ -441,6 +450,66 @@ mod tests {
             .unwrap()
             .strip_prefix("API_");
         let config = test_complete::<ApiConfig>(env).unwrap();
+        assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn parsing_from_yaml() {
+        let yaml = r#"
+          web3_json_rpc:
+            http_port: 3050
+            http_url: http://127.0.0.1:3050/
+            ws_port: 3051
+            ws_url: ws://127.0.0.1:3051/
+            req_entities_limit: 10000
+            filters_limit: 10000
+            fee_history_limit: 100
+            subscriptions_limit: 10000
+            websocket_requests_per_minute_limit: 10
+            vm_concurrency_limit: 512
+            vm_execution_cache_misses_limit: 1000
+            max_response_body_size_mb: 10
+            # Migration path: add based on `max_response_body_size_overrides`
+            max_response_body_size_overrides_mb:
+              eth_call: 1
+              eth_getTransactionReceipt: null
+              zks_getProof: 32
+            max_batch_request_size: 200
+            initial_writes_cache_size_mb: 32
+            factory_deps_cache_size_mb: 128
+            latest_values_cache_size_mb: 256
+            latest_values_max_block_lag: 50
+            mempool_cache_size: 10000
+            mempool_cache_update_interval: 50
+            pubsub_polling_interval: 200
+            max_nonce_ahead: 5
+            gas_price_scale_factor: 1.2
+            estimate_gas_scale_factor: 1
+            estimate_gas_acceptable_overestimation: 1000
+            max_tx_size: 1000000
+            filters_disabled: false
+            api_namespaces:
+            - debug
+            whitelisted_tokens_for_aa:
+            - "0x0000000000000000000000000000000000000001"
+            - "0x0000000000000000000000000000000000000002"
+            extended_api_tracing: true
+            estimate_gas_optimize_search: true
+            tree_api_url: "http://tree/"
+          prometheus:
+            listener_port: 3312
+            pushgateway_url: http://127.0.0.1:9091
+            push_interval_ms: 100
+          healthcheck:
+            port: 8081
+            slow_time_limit_ms: 250
+            hard_time_limit_ms: 2000
+          merkle_tree:
+            port: 8082
+        "#;
+
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config = test_complete::<ApiConfig>(yaml).unwrap();
         assert_eq!(config, expected_config());
     }
 }

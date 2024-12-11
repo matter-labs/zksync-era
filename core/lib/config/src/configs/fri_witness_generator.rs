@@ -22,7 +22,7 @@ pub struct FriWitnessGeneratorConfig {
     pub scheduler_generation_timeout_in_secs: Option<Duration>,
     #[config(with = Optional(TimeUnit::Seconds))]
     pub node_generation_timeout_in_secs: Option<Duration>,
-    #[config(with = Optional(TimeUnit::Seconds))]
+    #[config(alias = "recursion_tip_timeout_in_secs", with = Optional(TimeUnit::Seconds))]
     pub recursion_tip_generation_timeout_in_secs: Option<Duration>,
     /// Max attempts for generating witness
     #[config(default_t = 5)]
@@ -112,5 +112,71 @@ impl FriWitnessGeneratorConfig {
                 .scheduler_generation_timeout_in_secs
                 .unwrap_or(self.generation_timeout_in_secs),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use smart_config::{testing::test_complete, Environment, Yaml};
+
+    use super::*;
+
+    fn expected_config() -> FriWitnessGeneratorConfig {
+        FriWitnessGeneratorConfig {
+            generation_timeout_in_secs: Duration::from_secs(900),
+            basic_generation_timeout_in_secs: Some(Duration::from_secs(900)),
+            leaf_generation_timeout_in_secs: Some(Duration::from_secs(800)),
+            node_generation_timeout_in_secs: Some(Duration::from_secs(800)),
+            recursion_tip_generation_timeout_in_secs: Some(Duration::from_secs(700)),
+            scheduler_generation_timeout_in_secs: Some(Duration::from_secs(900)),
+            max_attempts: 4,
+            last_l1_batch_to_process: Some(L1BatchNumber(123456)),
+            shall_save_to_public_bucket: true,
+            prometheus_listener_port: Some(3333),
+            max_circuits_in_flight: 500,
+        }
+    }
+
+    #[test]
+    fn parsing_from_env() {
+        let env = r#"
+            FRI_WITNESS_GENERATION_TIMEOUT_IN_SECS=900
+            FRI_WITNESS_BASIC_GENERATION_TIMEOUT_IN_SECS=900
+            FRI_WITNESS_LEAF_GENERATION_TIMEOUT_IN_SECS=800
+            FRI_WITNESS_NODE_GENERATION_TIMEOUT_IN_SECS=800
+            FRI_WITNESS_RECURSION_TIP_GENERATION_TIMEOUT_IN_SECS=700
+            FRI_WITNESS_SCHEDULER_GENERATION_TIMEOUT_IN_SECS=900
+            FRI_WITNESS_MAX_ATTEMPTS=4
+            FRI_WITNESS_LAST_L1_BATCH_TO_PROCESS=123456
+            FRI_WITNESS_SHALL_SAVE_TO_PUBLIC_BUCKET=true
+            FRI_WITNESS_PROMETHEUS_LISTENER_PORT=3333
+            FRI_WITNESS_MAX_CIRCUITS_IN_FLIGHT=500
+        "#;
+        let env = Environment::from_dotenv("test.env", env)
+            .unwrap()
+            .strip_prefix("FRI_WITNESS_");
+
+        let config: FriWitnessGeneratorConfig = test_complete(env).unwrap();
+        assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn parsing_from_yaml() {
+        let yaml = r#"
+          generation_timeout_in_secs: 900
+          basic_generation_timeout_in_secs: 900
+          leaf_generation_timeout_in_secs: 800
+          node_generation_timeout_in_secs: 800
+          scheduler_generation_timeout_in_secs: 900
+          recursion_tip_timeout_in_secs: 700
+          last_l1_batch_to_process: 123456
+          max_attempts: 4
+          shall_save_to_public_bucket: true
+          prometheus_listener_port: 3333
+          max_circuits_in_flight: 500
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: FriWitnessGeneratorConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_config());
     }
 }

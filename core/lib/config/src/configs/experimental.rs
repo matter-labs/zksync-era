@@ -23,7 +23,8 @@ pub struct ExperimentalDBConfig {
     /// (presumably, to participate in L1 batch proving).
     /// By default, set to `false` as it is expected that a separate `vm_runner_protective_reads` component
     /// which is capable of saving protective reads is run.
-    #[config(default)]
+    // FIXME: Is this obsoleted by the state keeper param?
+    #[config(default, alias = "reads_persistence_enabled")]
     pub protective_reads_persistence_enabled: bool,
     // Merkle tree config
     /// Processing delay between processing L1 batches in the Merkle tree.

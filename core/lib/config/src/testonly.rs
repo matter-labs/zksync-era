@@ -2,7 +2,6 @@ use rand::{distributions::Distribution, Rng};
 use secrecy::Secret;
 use zksync_basic_types::{
     commitment::L1BatchCommitmentMode,
-    network::Network,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     secrets::{APIKey, SeedPhrase},
     L1ChainId, L2ChainId,
@@ -20,26 +19,6 @@ use crate::{
     },
     AvailConfig,
 };
-
-trait Sample {
-    fn sample(rng: &mut (impl Rng + ?Sized)) -> Self;
-}
-
-impl Sample for Network {
-    fn sample(rng: &mut (impl Rng + ?Sized)) -> Network {
-        type T = Network;
-        match rng.gen_range(0..8) {
-            0 => T::Mainnet,
-            1 => T::Rinkeby,
-            2 => T::Ropsten,
-            3 => T::Goerli,
-            4 => T::Sepolia,
-            5 => T::Localhost,
-            6 => T::Unknown,
-            _ => T::Test,
-        }
-    }
-}
 
 impl Distribution<configs::chain::FeeModelVersion> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::chain::FeeModelVersion {

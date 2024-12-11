@@ -20,3 +20,48 @@ pub struct DADispatcherConfig {
     #[config(default)]
     pub use_dummy_inclusion_data: bool,
 }
+
+#[cfg(test)]
+mod tests {
+    use smart_config::{testing::test_complete, Environment, Yaml};
+
+    use super::*;
+
+    fn expected_config() -> DADispatcherConfig {
+        DADispatcherConfig {
+            polling_interval_ms: Duration::from_secs(5),
+            max_rows_to_dispatch: 60,
+            max_retries: 7,
+            use_dummy_inclusion_data: true,
+        }
+    }
+
+    #[test]
+    fn parsing_from_env() {
+        let env = r#"
+            DA_DISPATCHER_POLLING_INTERVAL_MS=5000
+            DA_DISPATCHER_MAX_ROWS_TO_DISPATCH=60
+            DA_DISPATCHER_MAX_RETRIES=7
+            DA_DISPATCHER_USE_DUMMY_INCLUSION_DATA="true"
+        "#;
+        let env = Environment::from_dotenv("test.env", env)
+            .unwrap()
+            .strip_prefix("DA_DISPATCHER_");
+
+        let config: DADispatcherConfig = test_complete(env).unwrap();
+        assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn parsing_from_yaml() {
+        let yaml = r#"
+          polling_interval_ms: 5000
+          max_rows_to_dispatch: 60
+          max_retries: 7
+          use_dummy_inclusion_data: true
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: DADispatcherConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_config());
+    }
+}
