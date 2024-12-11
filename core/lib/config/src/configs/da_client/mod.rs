@@ -1,5 +1,3 @@
-use std::{fmt::Display, string::ToString};
-
 use crate::{AvailConfig, CelestiaConfig, EigenConfig, ObjectStoreConfig};
 
 pub mod avail;
