@@ -39,10 +39,10 @@ error mentioning the first locally retained block or L1 batch if queried this mi
 used for [pruning](08_pruning.md) because logically, recovering from a snapshot is equivalent to pruning node storage to
 the snapshot L1 batch.
 
-## Configuration
+## Configuration (for ZKsync Era)
 
-To enable snapshot recovery on mainnet, you need to set environment variables for a node before starting it for the
-first time:
+To enable snapshot recovery on ZKsync mainnet, you need to set environment variables for a node before starting it for
+the first time:
 
 ```yaml
 EN_SNAPSHOTS_RECOVERY_ENABLED: 'true'
@@ -50,7 +50,7 @@ EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL: 'zksync-era-mainnet-external-node-sna
 EN_SNAPSHOTS_OBJECT_STORE_MODE: 'GCSAnonymousReadOnly'
 ```
 
-For the Sepolia testnet, use:
+For the ZKsync Sepolia testnet, use:
 
 ```yaml
 EN_SNAPSHOTS_RECOVERY_ENABLED: 'true'
@@ -58,7 +58,7 @@ EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL: 'zksync-era-boojnet-external-node-sna
 EN_SNAPSHOTS_OBJECT_STORE_MODE: 'GCSAnonymousReadOnly'
 ```
 
-For a working examples of a fully configured Nodes recovering from snapshots, see
+For a working examples of a fully configured ZKsync Nodes recovering from snapshots, see
 [Docker Compose examples](docker-compose-examples) and [_Quick Start_](00_quick_start.md).
 
 If a node is already recovered (does not matter whether from a snapshot or from a Postgres dump), setting these env

@@ -4,7 +4,7 @@ Library responsible for recovering Postgres from a protocol-level snapshot.
 
 ## Recovery workflow
 
-_(See [node docs](../../../docs/guides/external-node/07_snapshots_recovery.md) for a high-level snapshot recovery
+_(See [node docs](../../../docs/src/guides/external-node/07_snapshots_recovery.md) for a high-level snapshot recovery
 overview and [snapshot creator docs](../../bin/snapshots_creator/README.md) for the snapshot format details)_
 
 1. Recovery is started by querying the main node and determining the snapshot parameters. By default, recovery is
