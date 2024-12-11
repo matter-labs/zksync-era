@@ -12,15 +12,19 @@ than ZKsync Era.
 The `EN_L2_CHAIN_ID` environment variable specifies the Layer 2 chain ID of the blockchain.
 
 You can get it using main node rpc call `eth_chainId` or by asking the company hosting the chain. For example:
+
 ```
 curl -X POST https://mainnet.era.zksync.io \
 -H "Content-Type: application/json" \
 -d '{"jsonrpc": "2.0", "method": "eth_chainId", "params": [], "id": 1}'
 ```
+
 returns
+
 ```
 { "jsonrpc": "2.0", "result": "0x144", "id": 1}
 ```
+
 where `0x144` is the chain ID (324 in decimal)
 
 ## 2. Update `EN_MAIN_NODE_URL`
@@ -33,9 +37,8 @@ Snapshots recovery is a feature that allows faster Node startup at the cost of n
 ZKsync Era docker-compose file has this feature enabled, but it's only recommended to use if the Node first startup time
 is too slow. It can be disabled by changing `EN_SNAPSHOTS_RECOVERY_ENABLED` to `false`
 
-If you want to keep this feature enabled for a Node, ask the company hosting the chain for the bucket name where the snapshots
-are stored and update the value of `EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL`
-
+If you want to keep this feature enabled for a Node, ask the company hosting the chain for the bucket name where the
+snapshots are stored and update the value of `EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL`
 
 ## 4. Disable consensus
 
