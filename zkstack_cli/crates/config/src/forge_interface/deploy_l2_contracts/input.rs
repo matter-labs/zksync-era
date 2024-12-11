@@ -16,7 +16,7 @@ pub struct DeployL2ContractsInput {
     pub bridgehub: Address,
     pub governance: Address,
     pub erc20_bridge: Address,
-    pub validium_type: U256,
+    pub da_validator_type: U256,
     pub consensus_registry_owner: Address,
 }
 
@@ -36,7 +36,7 @@ impl DeployL2ContractsInput {
             bridgehub: contracts.ecosystem_contracts.bridgehub_proxy_addr,
             governance: contracts_config.l1.governance_addr,
             erc20_bridge: contracts.bridges.erc20.l1_address,
-            validium_type: U256::from(chain_config.get_da_validator_type()? as u8),
+            da_validator_type: U256::from(chain_config.get_da_validator_type()? as u8),
             consensus_registry_owner: wallets.governor.address,
         })
     }
