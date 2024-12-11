@@ -27,13 +27,17 @@ where `0x144` is the chain ID (324 in decimal)
 
 The `EN_MAIN_NODE_URL` The EN_MAIN_NODE_URL environment variable should point to the main node URL of the target chain
 
-## 3. Set `EN_SNAPSHOTS_RECOVERY_ENABLED` to "false"
+## 3. Update snapshots recovery settings
 
 Snapshots recovery is a feature that allows faster Node startup at the cost of no transaction history. By default the
 ZKsync Era docker-compose file has this feature enabled, but it's only recommended to use if the Node first startup time
-is too slow.
+is too slow. It can be disabled by changing `EN_SNAPSHOTS_RECOVERY_ENABLED` to `false`
 
-## 3. Disable consensus
+If you want to keep this feature enabled for a Node, ask the company hosting the chain for the bucket name where the snapshots
+are stored and update the value of `EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL`
+
+
+## 4. Disable consensus
 
 Chains other than ZKsync Era aren't currently running consensus(as of December 2024). You need to disable it by removing
 `--enable-consensus` flag from `entrypoint.sh` invocation in docker-compose
@@ -41,8 +45,3 @@ Chains other than ZKsync Era aren't currently running consensus(as of December 2
 ## 5. (Validium chains only) Set `EN_L1_BATCH_COMMIT_DATA_GENERATOR_MODE`
 
 For validium chains, you need to set `EN_L1_BATCH_COMMIT_DATA_GENERATOR_MODE: "Validium"`
-
-## 6. (Optional) Keep snapshots recovery enabled
-
-If you want to enable this feature for a Node, ask the company hosting the chain for the bucket name where the snapshots
-are stored and update the value of `EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL`
