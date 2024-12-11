@@ -9,7 +9,7 @@ pub struct EigenConfig {
     /// a value less or equal to 0 means that the disperser will not wait for finalization
     pub settlement_layer_confirmation_depth: i32,
     /// URL of the Ethereum RPC server
-    pub eigenda_eth_rpc: String,
+    pub eigenda_eth_rpc: Option<String>,
     /// Address of the service manager contract
     pub eigenda_svc_manager_address: String,
     /// Wait for the blob to be finalized before returning the response

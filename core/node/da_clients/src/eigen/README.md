@@ -32,3 +32,6 @@ pub fn compile_protos() {
 
 The generated folder is considered a temporary solution until the EigenDA has a library with either a protogen, or
 preferably a full Rust client implementation.
+
+proto files are not included here to not create confusion in case they are not updated in time, so the EigenDA
+[repo](https://github.com/Layr-Labs/eigenda/tree/master/api/proto) has to be a source of truth for the proto files.

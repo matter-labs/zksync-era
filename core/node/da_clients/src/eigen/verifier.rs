@@ -100,6 +100,9 @@ impl Clone for Verifier {
 impl Verifier {
     pub const DEFAULT_PRIORITY_FEE_PER_GAS: u64 = 100;
     pub const SRSORDER: u32 = 268435456; // 2 ^ 28
+    pub const G1POINT: &'static str = "g1.point";
+    pub const G2POINT: &'static str = "g2.point.powerOf2";
+    pub const POINT_SIZE: u32 = 32;
 
     async fn save_point(url: String, point: String) -> Result<(), VerificationError> {
         let url = Url::parse(&url).map_err(|_| VerificationError::LinkError)?;
@@ -120,8 +123,8 @@ impl Verifier {
         Ok(())
     }
     async fn save_points(url_g1: String, url_g2: String) -> Result<String, VerificationError> {
-        Self::save_point(url_g1.clone(), "g1.point".to_string()).await?;
-        Self::save_point(url_g2.clone(), "g2.point.powerOf2".to_string()).await?;
+        Self::save_point(url_g1.clone(), Self::G1POINT.to_string()).await?;
+        Self::save_point(url_g2.clone(), Self::G2POINT.to_string()).await?;
 
         Ok(".".to_string())
     }
@@ -129,12 +132,12 @@ impl Verifier {
         cfg: VerifierConfig,
         signing_client: T,
     ) -> Result<Self, VerificationError> {
-        let srs_points_to_load = cfg.max_blob_size / 32;
+        let srs_points_to_load = cfg.max_blob_size / Self::POINT_SIZE;
         let path = Self::save_points(cfg.clone().g1_url, cfg.clone().g2_url).await?;
         let kzg = Kzg::setup(
-            &format!("{}{}", path, "/g1.point"),
+            &format!("{}/{}", path, Self::G1POINT),
             "",
-            &format!("{}{}", path, "/g2.point.powerOf2"),
+            &format!("{}/{}", path, Self::G2POINT),
             Self::SRSORDER,
             srs_points_to_load,
             "".to_string(),
