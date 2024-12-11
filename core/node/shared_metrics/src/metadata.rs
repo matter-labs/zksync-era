@@ -3,22 +3,10 @@ use vise::{EncodeLabelSet, Info, Metrics};
 
 use self::values::{GIT_METADATA, RUST_METADATA};
 
-pub mod values {
+mod values {
     use super::{GitMetadata, RustMetadata};
 
     include!(concat!(env!("OUT_DIR"), "/metadata_values.rs"));
-}
-
-pub const BIN_METADATA: BinMetadata = BinMetadata {
-    rust: RUST_METADATA,
-    git: GIT_METADATA,
-};
-
-/// Metadata of the compiled binary.
-#[derive(Debug, Serialize)]
-pub struct BinMetadata {
-    pub rust: RustMetadata,
-    pub git: GitMetadata,
 }
 
 /// Rust metadata of the compiled binary.
@@ -47,22 +35,32 @@ pub struct RustMetrics {
 }
 
 impl RustMetrics {
-    pub fn initialize(&self) {
+    pub fn initialize(&self) -> &RustMetadata {
         tracing::info!("Rust metadata for this binary: {RUST_METADATA:?}");
         self.info.set(RUST_METADATA).ok();
+        // `unwrap` is safe due to setting the value above
+        self.info.get().unwrap()
     }
 }
 
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "git_info")]
+#[metrics(prefix = "git")]
 pub struct GitMetrics {
     /// General information about the compiled binary.
     info: Info<GitMetadata>,
 }
 
 impl GitMetrics {
-    pub fn initialize(&self) {
+    pub fn initialize(&self) -> &GitMetadata {
         tracing::info!("Git metadata for this binary: {GIT_METADATA:?}");
         self.info.set(GIT_METADATA).ok();
+        // `unwrap` is safe due to setting the value above
+        self.info.get().unwrap()
     }
 }
+
+#[vise::register]
+pub static RUST_METRICS: vise::Global<RustMetrics> = vise::Global::new();
+
+#[vise::register]
+pub static GIT_METRICS: vise::Global<GitMetrics> = vise::Global::new();
