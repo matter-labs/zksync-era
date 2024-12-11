@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use serde::Deserialize;
-use zksync_basic_types::{settlement::SettlementMode, H256};
+use zksync_basic_types::{pubdata_da::PubdataSendingMode, settlement::SettlementMode, H256};
 use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::EthWatchConfig;
@@ -23,7 +23,6 @@ impl EthConfig {
     pub fn for_tests() -> Self {
         Self {
             sender: Some(SenderConfig {
-                aggregated_proof_sizes: vec![1],
                 wait_confirmations: Some(10),
                 tx_poll_period: 1,
                 aggregate_tx_poll_period: 1,
@@ -80,18 +79,8 @@ pub enum ProofLoadingMode {
     FriProofFromGcs,
 }
 
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Default)]
-pub enum PubdataSendingMode {
-    #[default]
-    Calldata,
-    Blobs,
-    Custom,
-    RelayedL2Calldata,
-}
-
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct SenderConfig {
-    pub aggregated_proof_sizes: Vec<usize>,
     /// Amount of confirmations required to consider L1 transaction committed.
     /// If not specified L1 transaction will be considered finalized once its block is finalized.
     pub wait_confirmations: Option<u64>,

@@ -158,7 +158,7 @@ impl<'a> Connection<'a> {
         &mut self,
         ctx: &ctx::Ctx,
         cert: &attester::BatchQC,
-    ) -> Result<(), super::InsertCertificateError> {
+    ) -> ctx::Result<()> {
         Ok(ctx
             .wait(self.0.consensus_dal().insert_batch_certificate(cert))
             .await??)

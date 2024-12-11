@@ -14,6 +14,8 @@ pub enum Target {
     Ts,
     Rs,
     Contracts,
+    Autocompletion,
+    RustToolchain,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

@@ -58,6 +58,10 @@ impl ZksNamespaceServer for ZksNamespace {
         Ok(self.get_bridge_contracts_impl().await)
     }
 
+    async fn get_timestamp_asserter(&self) -> RpcResult<Option<Address>> {
+        Ok(self.get_timestamp_asserter_impl())
+    }
+
     async fn l1_chain_id(&self) -> RpcResult<U64> {
         Ok(self.l1_chain_id_impl())
     }

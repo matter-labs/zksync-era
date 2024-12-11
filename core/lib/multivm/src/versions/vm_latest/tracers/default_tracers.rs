@@ -32,7 +32,7 @@ use crate::{
             CircuitsTracer, RefundsTracer, ResultTracer,
         },
         types::internals::ZkSyncVmState,
-        vm::MultiVMSubversion,
+        vm::MultiVmSubversion,
         VmTracer,
     },
 };
@@ -65,7 +65,7 @@ pub struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     pub(crate) circuits_tracer: CircuitsTracer<S, H>,
     // This tracer is responsible for handling EVM deployments and providing the data to the code decommitter.
     pub(crate) evm_deploy_tracer: Option<EvmDeployTracer<S>>,
-    subversion: MultiVMSubversion,
+    subversion: MultiVmSubversion,
     storage: StoragePtr<S>,
     _phantom: PhantomData<H>,
 }
@@ -80,7 +80,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         storage: StoragePtr<S>,
         refund_tracer: Option<RefundsTracer<S>>,
         pubdata_tracer: Option<PubdataTracer<S>>,
-        subversion: MultiVMSubversion,
+        subversion: MultiVmSubversion,
     ) -> Self {
         Self {
             tx_has_been_processed: false,
@@ -228,7 +228,10 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
         );
 
         match hook {
-            VmHook::TxHasEnded => self.tx_has_been_processed = true,
+            VmHook::TxHasEnded if matches!(self.execution_mode, VmExecutionMode::OneTx) => {
+                self.result_tracer.tx_finished_in_one_tx_mode = true;
+                self.tx_has_been_processed = true;
+            }
             VmHook::NoValidationEntered => self.in_account_validation = false,
             VmHook::AccountValidationEntered => self.in_account_validation = true,
             VmHook::FinalBatchInfo => self.final_batch_info_requested = true,

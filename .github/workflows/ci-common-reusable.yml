@@ -27,9 +27,8 @@ jobs:
       - name: Start services
         run: |
           run_retried docker-compose -f ${RUNNER_COMPOSE_FILE} pull
-          mkdir -p ./volumes/postgres
           docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d zk postgres
-      
+
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
@@ -39,4 +38,3 @@ jobs:
       # `zk lint prover` = cargo clippy, which does cargo check behind the scenes, which is a lightweight version of cargo build
       - name: Lints
         run: ci_run zkstack dev lint -t rs --check
-

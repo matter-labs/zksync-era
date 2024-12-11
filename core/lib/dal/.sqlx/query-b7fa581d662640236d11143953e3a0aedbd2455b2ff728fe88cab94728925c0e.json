@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                tp.pubkey,\n                tp.signature,\n                tp.proof,\n                tp.updated_at,\n                tp.status,\n                ta.attestation\n            FROM\n                tee_proof_generation_details tp\n            LEFT JOIN\n                tee_attestations ta ON tp.pubkey = ta.pubkey\n            WHERE\n                tp.l1_batch_number = $1\n            AND tp.tee_type = $2ORDER BY tp.l1_batch_number ASC, tp.tee_type ASC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "pubkey",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "signature",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "proof",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 3,
+        "name": "updated_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 4,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "attestation",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "b7fa581d662640236d11143953e3a0aedbd2455b2ff728fe88cab94728925c0e"
+}

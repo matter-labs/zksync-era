@@ -1,9 +1,9 @@
 use std::collections::{hash_map::Entry, BTreeMap, HashMap};
 
 use zksync_types::{
-    block::DeployedContract, get_code_key, get_known_code_key, get_system_context_init_logs,
-    system_contracts::get_system_smart_contracts, L2ChainId, StorageKey, StorageLog, StorageValue,
-    H256,
+    block::DeployedContract, bytecode::BytecodeHash, get_code_key, get_known_code_key,
+    get_system_context_init_logs, system_contracts::get_system_smart_contracts, L2ChainId,
+    StorageKey, StorageLog, StorageValue, H256,
 };
 
 use super::ReadStorage;
@@ -21,29 +21,20 @@ pub struct InMemoryStorage {
 
 impl InMemoryStorage {
     /// Constructs a storage that contains system smart contracts.
-    pub fn with_system_contracts(bytecode_hasher: impl Fn(&[u8]) -> H256) -> Self {
-        Self::with_system_contracts_and_chain_id(
-            L2ChainId::from(IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID),
-            bytecode_hasher,
-        )
+    pub fn with_system_contracts() -> Self {
+        Self::with_system_contracts_and_chain_id(L2ChainId::from(
+            IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID,
+        ))
     }
 
     /// Constructs a storage that contains system smart contracts (with a given chain id).
-    pub fn with_system_contracts_and_chain_id(
-        chain_id: L2ChainId,
-        bytecode_hasher: impl Fn(&[u8]) -> H256,
-    ) -> Self {
-        Self::with_custom_system_contracts_and_chain_id(
-            chain_id,
-            bytecode_hasher,
-            get_system_smart_contracts(false),
-        )
+    pub fn with_system_contracts_and_chain_id(chain_id: L2ChainId) -> Self {
+        Self::with_custom_system_contracts_and_chain_id(chain_id, get_system_smart_contracts(false))
     }
 
     /// Constructs a storage that contains custom system contracts (provided in a vector).
     pub fn with_custom_system_contracts_and_chain_id(
         chain_id: L2ChainId,
-        bytecode_hasher: impl Fn(&[u8]) -> H256,
         contracts: Vec<DeployedContract>,
     ) -> Self {
         let system_context_init_log = get_system_context_init_logs(chain_id);
@@ -51,7 +42,7 @@ impl InMemoryStorage {
         let state_without_indices: BTreeMap<_, _> = contracts
             .iter()
             .flat_map(|contract| {
-                let bytecode_hash = bytecode_hasher(&contract.bytecode);
+                let bytecode_hash = BytecodeHash::for_bytecode(&contract.bytecode).value();
 
                 let deployer_code_key = get_code_key(contract.account_id.address());
                 let is_known_code_key = get_known_code_key(&bytecode_hash);
@@ -72,7 +63,12 @@ impl InMemoryStorage {
 
         let factory_deps = contracts
             .into_iter()
-            .map(|contract| (bytecode_hasher(&contract.bytecode), contract.bytecode))
+            .map(|contract| {
+                (
+                    BytecodeHash::for_bytecode(&contract.bytecode).value(),
+                    contract.bytecode,
+                )
+            })
             .collect();
 
         let last_enum_index_set = state.len() as u64;

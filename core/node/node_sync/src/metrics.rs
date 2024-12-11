@@ -8,10 +8,7 @@ use zksync_types::aggregated_operations::AggregatedActionType;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
 pub(super) enum FetchStage {
-    // uses legacy naming for L2 blocks for compatibility reasons
-    #[metrics(name = "get_miniblock_range")]
-    GetL2BlockRange,
-    GetBlockDetails,
+    GetL1BatchDetails,
 }
 
 #[derive(

@@ -52,8 +52,7 @@ impl AccountLifespan {
                     err => RpcError::Custom(err.to_string()),
                 }),
             ApiRequestType::GetLogs => {
-                let topics =
-                    random_topics(&self.wallet.test_contract.contract, &mut self.wallet.rng);
+                let topics = random_topics(&self.wallet.test_contract.abi, &mut self.wallet.rng);
                 // `run_api_requests_task` checks whether the cell is initialized
                 // at every loop iteration and skips logs action if it's not. Thus,
                 // it's safe to unwrap it.

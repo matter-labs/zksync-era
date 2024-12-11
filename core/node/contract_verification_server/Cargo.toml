@@ -11,7 +11,6 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_config.workspace = true
 zksync_dal.workspace = true
 zksync_types.workspace = true
 vise.workspace = true
@@ -21,5 +20,11 @@ axum.workspace = true
 tokio = { workspace = true, features = ["time"] }
 tower-http = { workspace = true, features = ["cors"] }
 tracing.workspace = true
-serde.workspace = true
+
+[dev-dependencies]
+zksync_node_test_utils.workspace = true
+
+http-body-util.workspace = true
 serde_json.workspace = true
+test-casing.workspace = true
+tower.workspace = true

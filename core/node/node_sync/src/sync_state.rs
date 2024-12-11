@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use serde::Serialize;
 use tokio::sync::watch;
 use zksync_concurrency::{ctx, sync};
+use zksync_consensus_roles::validator;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_shared_metrics::EN_METRICS;
@@ -50,18 +51,20 @@ impl SyncState {
             .unwrap();
     }
 
+    /// Waits until the main node block is greater or equal to the given block number.
+    /// Returns the current main node block number.
     pub async fn wait_for_main_node_block(
         &self,
         ctx: &ctx::Ctx,
-        want: L2BlockNumber,
-    ) -> ctx::OrCanceled<()> {
-        sync::wait_for(
-            ctx,
-            &mut self.0.subscribe(),
-            |inner| matches!(inner.main_node_block, Some(got) if got >= want),
-        )
-        .await?;
-        Ok(())
+        pred: impl Fn(validator::BlockNumber) -> bool,
+    ) -> ctx::OrCanceled<validator::BlockNumber> {
+        sync::wait_for_some(ctx, &mut self.0.subscribe(), |inner| {
+            inner
+                .main_node_block
+                .map(|n| validator::BlockNumber(n.0.into()))
+                .filter(|n| pred(*n))
+        })
+        .await
     }
 
     pub fn set_main_node_block(&self, block: L2BlockNumber) {
@@ -173,6 +176,7 @@ impl CheckHealth for SyncState {
         Health::from(&*self.0.borrow())
     }
 }
+
 impl SyncStateInner {
     fn is_synced(&self) -> (bool, Option<u32>) {
         if let (Some(main_node_block), Some(local_block)) = (self.main_node_block, self.local_block)

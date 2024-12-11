@@ -6,32 +6,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::Context;
 use zksync_dal::{Connection, Core, DalError};
-use zksync_multivm::circuit_sequencer_api_latest::boojum::ethereum_types::U256;
 use zksync_web3_decl::error::Web3Error;
-
-pub(crate) fn prepare_evm_bytecode(raw: &[u8]) -> anyhow::Result<Vec<u8>> {
-    // EVM bytecodes are prefixed with a big-endian `U256` bytecode length.
-    let bytecode_len_bytes = raw.get(..32).context("length < 32")?;
-    let bytecode_len = U256::from_big_endian(bytecode_len_bytes);
-    let bytecode_len: usize = bytecode_len
-        .try_into()
-        .map_err(|_| anyhow::anyhow!("length ({bytecode_len}) overflow"))?;
-    let bytecode = raw.get(32..(32 + bytecode_len)).with_context(|| {
-        format!(
-            "prefixed length ({bytecode_len}) exceeds real length ({})",
-            raw.len() - 32
-        )
-    })?;
-    // Since slicing above succeeded, this one is safe.
-    let padding = &raw[(32 + bytecode_len)..];
-    anyhow::ensure!(
-        padding.iter().all(|&b| b == 0),
-        "bytecode padding contains non-zero bytes"
-    );
-    Ok(bytecode.to_vec())
-}
 
 /// Opens a readonly transaction over the specified connection.
 pub(crate) async fn open_readonly_transaction<'r>(
@@ -89,16 +65,4 @@ macro_rules! report_filter {
         }
         ReportFilter::new($interval, &LAST_TIMESTAMP)
     }};
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::testonly::{PROCESSED_EVM_BYTECODE, RAW_EVM_BYTECODE};
-
-    #[test]
-    fn preparing_evm_bytecode() {
-        let prepared = prepare_evm_bytecode(RAW_EVM_BYTECODE).unwrap();
-        assert_eq!(prepared, PROCESSED_EVM_BYTECODE);
-    }
 }

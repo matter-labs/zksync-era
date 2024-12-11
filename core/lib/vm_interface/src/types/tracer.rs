@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt};
+use std::{collections::HashSet, fmt, ops::Range, time};
 
 use zksync_types::{Address, U256};
 
@@ -57,6 +57,17 @@ pub struct ValidationParams {
     pub trusted_address_slots: HashSet<(Address, U256)>,
     /// Number of computational gas that validation step is allowed to use.
     pub computational_gas_limit: u32,
+    /// Parameters of the timestamp asserter if configured
+    pub timestamp_asserter_params: Option<TimestampAsserterParams>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimestampAsserterParams {
+    /// Address of the timestamp asserter. This contract is allowed to touch block.timestamp regardless
+    /// of the calling context.
+    pub address: Address,
+    /// Minimum time between current block.timestamp and the end of the asserted range
+    pub min_time_till_end: time::Duration,
 }
 
 /// Rules that can be violated when validating a transaction.
@@ -70,6 +81,8 @@ pub enum ViolatedValidationRule {
     TouchedDisallowedContext,
     /// The transaction used too much gas during validation.
     TookTooManyComputationalGas(u32),
+    /// The transaction failed block.timestamp assertion because the block.timestamp is too close to the range end
+    TimestampAssertionCloseToRangeEnd,
 }
 
 impl fmt::Display for ViolatedValidationRule {
@@ -91,6 +104,9 @@ impl fmt::Display for ViolatedValidationRule {
                     "Took too many computational gas, allowed limit: {gas_limit}"
                 )
             }
+            ViolatedValidationRule::TimestampAssertionCloseToRangeEnd => {
+                write!(f, "block.timestamp is too close to the range end")
+            }
         }
     }
 }
@@ -104,6 +120,30 @@ pub enum ValidationError {
     ViolatedRule(ViolatedValidationRule),
 }
 
+/// Traces the validation of a transaction, providing visibility into the aspects the transaction interacts with.
+/// For instance, the `timestamp_asserter_range` represent the range within which the transaction might make
+/// assertions on `block.timestamp`. This information is crucial for the caller, as expired transactions should
+/// be excluded from the mempool.
+#[derive(Debug, Clone, Default)]
+pub struct ValidationTraces {
+    pub timestamp_asserter_range: Option<Range<u64>>,
+}
+
+impl ValidationTraces {
+    /// Merges two ranges by selecting the maximum of the start values and the minimum of the end values,
+    /// producing the narrowest possible time window. Note that overlapping ranges are essential;
+    /// a lack of overlap would have triggered an assertion failure in the `TimestampAsserter` contract,
+    /// as `block.timestamp` cannot satisfy two non-overlapping ranges.
+    pub fn apply_timestamp_asserter_range(&mut self, new_range: Range<u64>) {
+        if let Some(range) = &mut self.timestamp_asserter_range {
+            range.start = range.start.max(new_range.start);
+            range.end = range.end.min(new_range.end);
+        } else {
+            self.timestamp_asserter_range = Some(new_range);
+        }
+    }
+}
+
 impl fmt::Display for ValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -114,5 +154,38 @@ impl fmt::Display for ValidationError {
                 write!(f, "Violated validation rules: {}", rule)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_apply_range_when_none() {
+        let mut validation_traces = ValidationTraces {
+            timestamp_asserter_range: None,
+        };
+        let new_range = 10..20;
+        validation_traces.apply_timestamp_asserter_range(new_range.clone());
+        assert_eq!(validation_traces.timestamp_asserter_range, Some(new_range));
+    }
+
+    #[test]
+    fn test_apply_range_with_overlap_narrower_result() {
+        let mut validation_traces = ValidationTraces {
+            timestamp_asserter_range: Some(5..25),
+        };
+        validation_traces.apply_timestamp_asserter_range(10..20);
+        assert_eq!(validation_traces.timestamp_asserter_range, Some(10..20));
+    }
+
+    #[test]
+    fn test_apply_range_with_partial_overlap() {
+        let mut validation_traces = ValidationTraces {
+            timestamp_asserter_range: Some(10..30),
+        };
+        validation_traces.apply_timestamp_asserter_range(20..40);
+        assert_eq!(validation_traces.timestamp_asserter_range, Some(20..30));
     }
 }

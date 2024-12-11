@@ -5,11 +5,13 @@ use zksync_types::{get_known_code_key, StorageKey, StorageValue, H256};
 pub use self::{
     // Note, that `test_infra` of the bootloader tests relies on this value to be exposed
     in_memory::{InMemoryStorage, IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID},
+    overrides::StorageWithOverrides,
     snapshot::{StorageSnapshot, StorageWithSnapshot},
     view::{ImmutableStorageView, StorageView, StorageViewCache, StorageViewStats},
 };
 
 mod in_memory;
+mod overrides;
 mod snapshot;
 mod view;
 

@@ -1,6 +1,6 @@
 //! Metrics for `MetadataCalculator`.
 
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use vise::{
     Buckets, DurationAsSecs, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Info,
@@ -9,7 +9,6 @@ use vise::{
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_shared_metrics::{BlockStage, APP_METRICS};
 use zksync_types::block::L1BatchHeader;
-use zksync_utils::time::seconds_since_epoch;
 
 use super::{MetadataCalculator, MetadataCalculatorConfig};
 
@@ -187,6 +186,11 @@ impl MetadataCalculator {
         total_logs: usize,
         start: Instant,
     ) {
+        let (Some(first_header), Some(last_header)) = (batch_headers.first(), batch_headers.last())
+        else {
+            return;
+        };
+
         let elapsed = start.elapsed();
         METRICS.update_tree_latency.observe(elapsed);
         if total_logs > 0 {
@@ -205,17 +209,20 @@ impl MetadataCalculator {
         METRICS.log_batch.observe(total_logs);
         METRICS.blocks_batch.observe(batch_headers.len());
 
-        let first_batch_number = batch_headers.first().unwrap().number.0;
-        let last_batch_number = batch_headers.last().unwrap().number.0;
+        let first_batch_number = first_header.number.0;
+        let last_batch_number = last_header.number.0;
         tracing::info!(
             "L1 batches #{:?} processed in tree",
             first_batch_number..=last_batch_number
         );
         APP_METRICS.block_number[&BlockStage::Tree].set(last_batch_number.into());
 
+        let duration_since_epoch = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("incorrect system time");
         let latency =
-            seconds_since_epoch().saturating_sub(batch_headers.first().unwrap().timestamp);
-        APP_METRICS.block_latency[&BlockStage::Tree].observe(Duration::from_secs(latency));
+            duration_since_epoch.saturating_sub(Duration::from_secs(first_header.timestamp));
+        APP_METRICS.block_latency[&BlockStage::Tree].observe(latency);
     }
 }
 

@@ -1,21 +1,28 @@
-use std::fmt;
+use std::{fmt, sync::Arc};
 
 use anyhow::Context;
 use zksync_contracts::{
     getters_facet_contract, state_transition_manager_contract, verifier_contract,
+    MESSAGE_ROOT_CONTRACT,
 };
 use zksync_eth_client::{
     clients::{DynClient, L1},
     CallFunctionArgs, ClientError, ContractCallError, EnrichedClientError, EnrichedClientResult,
     EthInterface,
 };
+use zksync_system_constants::L2_MESSAGE_ROOT_ADDRESS;
 use zksync_types::{
+    api::{ChainAggProof, Log},
     ethabi::Contract,
-    web3::{BlockId, BlockNumber, FilterBuilder, Log},
-    Address, SLChainId, H256, U256,
+    web3::{BlockId, BlockNumber, Filter, FilterBuilder},
+    Address, L1BatchNumber, L2ChainId, SLChainId, H256, U256, U64,
+};
+use zksync_web3_decl::{
+    client::{Network, L2},
+    namespaces::{EthNamespaceClient, UnstableNamespaceClient, ZksNamespaceClient},
 };
 
-/// L1 client functionality used by [`EthWatch`](crate::EthWatch) and constituent event processors.
+/// Common L1 and L2 client functionality used by [`EthWatch`](crate::EthWatch) and constituent event processors.
 #[async_trait::async_trait]
 pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     /// Returns events in a given block range.
@@ -27,6 +34,10 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         topic2: Option<H256>,
         retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>>;
+
+    /// Returns either finalized L1 block number or block number that satisfies `self.confirmations_for_eth_event` if it's set.
+    async fn confirmed_block_number(&self) -> EnrichedClientResult<u64>;
+
     /// Returns finalized L1 block number.
     async fn finalized_block_number(&self) -> EnrichedClientResult<u64>;
 
@@ -40,7 +51,17 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         packed_version: H256,
     ) -> EnrichedClientResult<Option<Vec<u8>>>;
 
+    /// Returns ID of the chain.
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId>;
+
+    /// Returns chain root for `l2_chain_id` at the moment right after `block_number`.
+    /// `block_number` is block number on SL.
+    /// `l2_chain_id` is chain id of L2.
+    async fn get_chain_root(
+        &self,
+        block_number: U64,
+        l2_chain_id: L2ChainId,
+    ) -> Result<H256, ContractCallError>;
 }
 
 pub const RETRY_LIMIT: usize = 5;
@@ -50,10 +71,10 @@ const TOO_MANY_RESULTS_RETH: &str = "length limit exceeded";
 const TOO_BIG_RANGE_RETH: &str = "query exceeds max block range";
 const TOO_MANY_RESULTS_CHAINSTACK: &str = "range limit exceeded";
 
-/// Implementation of [`EthClient`] based on HTTP JSON-RPC (encapsulated via [`EthInterface`]).
+/// Implementation of [`EthClient`] based on HTTP JSON-RPC.
 #[derive(Debug, Clone)]
-pub struct EthHttpQueryClient {
-    client: Box<DynClient<L1>>,
+pub struct EthHttpQueryClient<Net: Network> {
+    client: Box<DynClient<Net>>,
     diamond_proxy_addr: Address,
     governance_address: Address,
     new_upgrade_cut_data_signature: H256,
@@ -62,12 +83,16 @@ pub struct EthHttpQueryClient {
     chain_admin_address: Option<Address>,
     verifier_contract_abi: Contract,
     getters_facet_contract_abi: Contract,
+    message_root_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
 }
 
-impl EthHttpQueryClient {
+impl<Net: Network> EthHttpQueryClient<Net>
+where
+    Box<DynClient<Net>>: GetLogsClient,
+{
     pub fn new(
-        client: Box<DynClient<L1>>,
+        client: Box<DynClient<Net>>,
         diamond_proxy_addr: Address,
         state_transition_manager_address: Option<Address>,
         chain_admin_address: Option<Address>,
@@ -92,6 +117,7 @@ impl EthHttpQueryClient {
                 .signature(),
             verifier_contract_abi: verifier_contract(),
             getters_facet_contract_abi: getters_facet_contract(),
+            message_root_abi: MESSAGE_ROOT_CONTRACT.clone(),
             confirmations_for_eth_event,
         }
     }
@@ -102,6 +128,7 @@ impl EthHttpQueryClient {
             Some(self.governance_address),
             self.state_transition_manager_address,
             self.chain_admin_address,
+            Some(L2_MESSAGE_ROOT_ADDRESS),
         ]
         .into_iter()
         .flatten()
@@ -126,7 +153,7 @@ impl EthHttpQueryClient {
             builder = builder.address(addresses);
         }
         let filter = builder.build();
-        let mut result = self.client.logs(&filter).await;
+        let mut result = self.client.get_logs(filter).await;
 
         // This code is compatible with both Infura and Alchemy API providers.
         // Note: we don't handle rate-limits here - assumption is that we're never going to hit them.
@@ -216,7 +243,10 @@ impl EthHttpQueryClient {
 }
 
 #[async_trait::async_trait]
-impl EthClient for EthHttpQueryClient {
+impl<Net: Network> EthClient for EthHttpQueryClient<Net>
+where
+    Box<DynClient<Net>>: EthInterface + GetLogsClient,
+{
     async fn scheduler_vk_hash(
         &self,
         verifier_address: Address,
@@ -274,25 +304,29 @@ impl EthClient for EthHttpQueryClient {
         .await
     }
 
-    async fn finalized_block_number(&self) -> EnrichedClientResult<u64> {
+    async fn confirmed_block_number(&self) -> EnrichedClientResult<u64> {
         if let Some(confirmations) = self.confirmations_for_eth_event {
             let latest_block_number = self.client.block_number().await?.as_u64();
             Ok(latest_block_number.saturating_sub(confirmations))
         } else {
-            let block = self
-                .client
-                .block(BlockId::Number(BlockNumber::Finalized))
-                .await?
-                .ok_or_else(|| {
-                    let err = ClientError::Custom("Finalized block must be present on L1".into());
-                    EnrichedClientError::new(err, "block")
-                })?;
-            let block_number = block.number.ok_or_else(|| {
-                let err = ClientError::Custom("Finalized block must contain number".into());
-                EnrichedClientError::new(err, "block").with_arg("block", &block)
-            })?;
-            Ok(block_number.as_u64())
+            self.finalized_block_number().await
         }
+    }
+
+    async fn finalized_block_number(&self) -> EnrichedClientResult<u64> {
+        let block = self
+            .client
+            .block(BlockId::Number(BlockNumber::Finalized))
+            .await?
+            .ok_or_else(|| {
+                let err = ClientError::Custom("Finalized block must be present on L1".into());
+                EnrichedClientError::new(err, "block")
+            })?;
+        let block_number = block.number.ok_or_else(|| {
+            let err = ClientError::Custom("Finalized block must contain number".into());
+            EnrichedClientError::new(err, "block").with_arg("block", &block)
+        })?;
+        Ok(block_number.as_u64())
     }
 
     async fn get_total_priority_txs(&self) -> Result<u64, ContractCallError> {
@@ -304,6 +338,157 @@ impl EthClient for EthHttpQueryClient {
     }
 
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId> {
-        Ok(self.client.fetch_chain_id().await?)
+        self.client.fetch_chain_id().await
+    }
+
+    async fn get_chain_root(
+        &self,
+        block_number: U64,
+        l2_chain_id: L2ChainId,
+    ) -> Result<H256, ContractCallError> {
+        CallFunctionArgs::new("getChainRoot", U256::from(l2_chain_id.as_u64()))
+            .with_block(BlockId::Number(block_number.into()))
+            .for_contract(L2_MESSAGE_ROOT_ADDRESS, &self.message_root_abi)
+            .call(&self.client)
+            .await
+    }
+}
+
+/// Encapsulates `eth_getLogs` calls.
+#[async_trait::async_trait]
+pub trait GetLogsClient: 'static + fmt::Debug + Send + Sync {
+    /// Returns L2 version of [`Log`] with L2-specific fields, e.g. `l1_batch_number`.
+    /// L1 clients fill such fields with `None`.
+    async fn get_logs(&self, filter: Filter) -> EnrichedClientResult<Vec<Log>>;
+}
+
+#[async_trait::async_trait]
+impl GetLogsClient for Box<DynClient<L1>> {
+    async fn get_logs(&self, filter: Filter) -> EnrichedClientResult<Vec<Log>> {
+        Ok(self
+            .logs(&filter)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+}
+
+#[async_trait::async_trait]
+impl GetLogsClient for Box<DynClient<L2>> {
+    async fn get_logs(&self, filter: Filter) -> EnrichedClientResult<Vec<Log>> {
+        EthNamespaceClient::get_logs(self, filter.into())
+            .await
+            .map_err(|err| EnrichedClientError::new(err, "eth_getLogs"))
+    }
+}
+
+/// L2 client functionality used by [`EthWatch`](crate::EthWatch) and constituent event processors.
+/// Trait extension for [`EthClient`].
+#[async_trait::async_trait]
+pub trait L2EthClient: EthClient {
+    async fn get_chain_log_proof(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        chain_id: L2ChainId,
+    ) -> EnrichedClientResult<Option<ChainAggProof>>;
+
+    async fn get_chain_root_l2(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        l2_chain_id: L2ChainId,
+    ) -> Result<Option<H256>, ContractCallError>;
+}
+
+#[async_trait::async_trait]
+impl L2EthClient for EthHttpQueryClient<L2> {
+    async fn get_chain_log_proof(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        chain_id: L2ChainId,
+    ) -> EnrichedClientResult<Option<ChainAggProof>> {
+        self.client
+            .get_chain_log_proof(l1_batch_number, chain_id)
+            .await
+            .map_err(|err| EnrichedClientError::new(err, "unstable_getChainLogProof"))
+    }
+
+    async fn get_chain_root_l2(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        l2_chain_id: L2ChainId,
+    ) -> Result<Option<H256>, ContractCallError> {
+        let l2_block_range = self
+            .client
+            .get_l2_block_range(l1_batch_number)
+            .await
+            .map_err(|err| EnrichedClientError::new(err, "zks_getL1BatchBlockRange"))?;
+        if let Some((_, l2_block_number)) = l2_block_range {
+            self.get_chain_root(l2_block_number, l2_chain_id)
+                .await
+                .map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+/// Wrapper for L2 client object.
+/// It is used for L2EthClient -> EthClient dyn upcasting coercion:
+///     Arc<dyn L2EthClient> -> L2EthClientW -> Arc<dyn EthClient>
+#[derive(Debug, Clone)]
+pub struct L2EthClientW(pub Arc<dyn L2EthClient>);
+
+#[async_trait::async_trait]
+impl EthClient for L2EthClientW {
+    async fn get_events(
+        &self,
+        from: BlockNumber,
+        to: BlockNumber,
+        topic1: H256,
+        topic2: Option<H256>,
+        retries_left: usize,
+    ) -> EnrichedClientResult<Vec<Log>> {
+        self.0
+            .get_events(from, to, topic1, topic2, retries_left)
+            .await
+    }
+
+    async fn confirmed_block_number(&self) -> EnrichedClientResult<u64> {
+        self.0.confirmed_block_number().await
+    }
+
+    async fn finalized_block_number(&self) -> EnrichedClientResult<u64> {
+        self.0.finalized_block_number().await
+    }
+
+    async fn get_total_priority_txs(&self) -> Result<u64, ContractCallError> {
+        self.0.get_total_priority_txs().await
+    }
+
+    async fn scheduler_vk_hash(
+        &self,
+        verifier_address: Address,
+    ) -> Result<H256, ContractCallError> {
+        self.0.scheduler_vk_hash(verifier_address).await
+    }
+
+    async fn diamond_cut_by_version(
+        &self,
+        packed_version: H256,
+    ) -> EnrichedClientResult<Option<Vec<u8>>> {
+        self.0.diamond_cut_by_version(packed_version).await
+    }
+
+    async fn chain_id(&self) -> EnrichedClientResult<SLChainId> {
+        self.0.chain_id().await
+    }
+
+    async fn get_chain_root(
+        &self,
+        block_number: U64,
+        l2_chain_id: L2ChainId,
+    ) -> Result<H256, ContractCallError> {
+        self.0.get_chain_root(block_number, l2_chain_id).await
     }
 }

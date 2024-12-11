@@ -30,7 +30,7 @@ on:
       CUDA_ARCH:
         description: "CUDA Arch to build"
         type: string
-        default: "89"
+        default: "75;80;89"
         required: false
     outputs:
       protocol_version:
@@ -75,7 +75,6 @@ jobs:
       - name: start-services
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
-          mkdir -p ./volumes/postgres
           run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
           ci_run sccache --start-server

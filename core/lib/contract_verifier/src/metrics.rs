@@ -5,6 +5,7 @@ use vise::{Buckets, Histogram, Metrics};
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "api_contract_verifier")]
 pub(crate) struct ApiContractVerifierMetrics {
+    /// Latency of processing a single request.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub request_processing_time: Histogram<Duration>,
 }

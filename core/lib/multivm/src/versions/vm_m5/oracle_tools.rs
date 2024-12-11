@@ -10,7 +10,7 @@ use crate::vm_m5::{
         storage::StorageOracle,
     },
     storage::{Storage, StoragePtr},
-    vm_instance::MultiVMSubversion,
+    vm_instance::MultiVmSubversion,
 };
 
 #[derive(Debug)]
@@ -25,7 +25,7 @@ pub struct OracleTools<const B: bool, S: Storage> {
 }
 
 impl<S: Storage> OracleTools<false, S> {
-    pub fn new(storage_pointer: StoragePtr<S>, refund_state: MultiVMSubversion) -> Self {
+    pub fn new(storage_pointer: StoragePtr<S>, refund_state: MultiVmSubversion) -> Self {
         Self {
             storage: StorageOracle::new(storage_pointer.clone(), refund_state),
             memory: SimpleMemory::default(),

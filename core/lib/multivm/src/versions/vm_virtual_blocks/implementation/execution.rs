@@ -1,4 +1,4 @@
-use std::mem;
+use std::{collections::HashMap, mem};
 
 use zk_evm_1_3_3::aux_structures::Timestamp;
 
@@ -88,7 +88,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
                 .refund_tracer
                 .map(|r| r.get_refunds())
                 .unwrap_or_default(),
-            new_known_factory_deps: None,
+            dynamic_factory_deps: HashMap::new(), // dynamic bytecode deployment is not supported
         };
 
         tx_tracer.dispatcher.save_results(&mut result);

@@ -11,26 +11,34 @@
 //! Generally speaking, in most cases, the tracer dispatcher is a wrapper around `Vec<Box<dyn VmTracer>>`,
 //! where `VmTracer` is a trait implemented for a specific VM version.
 
+use std::rc::Rc;
+
 use zksync_types::{Transaction, H256};
 
 use crate::{
-    storage::StoragePtr, BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-    SystemEnv, VmExecutionMode, VmExecutionResultAndLogs,
+    pubdata::PubdataBuilder, storage::StoragePtr, BytecodeCompressionResult, FinishedL1Batch,
+    InspectExecutionMode, L1BatchEnv, L2BlockEnv, PushTransactionResult, SystemEnv,
+    VmExecutionResultAndLogs,
 };
 
 pub trait VmInterface {
     /// Lifetime is used to be able to define `Option<&mut _>` as a dispatcher.
     type TracerDispatcher: Default;
 
-    /// Push transaction to bootloader memory.
-    fn push_transaction(&mut self, tx: Transaction);
+    /// Pushes a transaction to bootloader memory for future execution with bytecode compression (if it's supported by the VM).
+    ///
+    /// # Return value
+    ///
+    /// Returns preprocessing results, such as compressed bytecodes. The results may borrow from the VM state,
+    /// so you may want to inspect results before next operations with the VM, or clone the necessary parts.
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_>;
 
     /// Executes the next VM step (either next transaction or bootloader or the whole batch)
     /// with custom tracers.
     fn inspect(
         &mut self,
         dispatcher: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs;
 
     /// Start a new L2 block.
@@ -46,13 +54,13 @@ pub trait VmInterface {
 
     /// Execute batch till the end and return the result, with final execution state
     /// and bootloader memory.
-    fn finish_batch(&mut self) -> FinishedL1Batch;
+    fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch;
 }
 
 /// Extension trait for [`VmInterface`] that provides some additional methods.
 pub trait VmInterfaceExt: VmInterface {
     /// Executes the next VM step (either next transaction or bootloader or the whole batch).
-    fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
+    fn execute(&mut self, execution_mode: InspectExecutionMode) -> VmExecutionResultAndLogs {
         self.inspect(&mut <Self::TracerDispatcher>::default(), execution_mode)
     }
 

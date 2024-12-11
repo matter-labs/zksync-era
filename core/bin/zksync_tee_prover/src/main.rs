@@ -45,11 +45,12 @@ fn main() -> anyhow::Result<()> {
         .add_layer(SigintHandlerLayer)
         .add_layer(TeeProverLayer::new(tee_prover_config));
 
-    if let Some(gateway) = prometheus_config.gateway_endpoint() {
-        let exporter_config =
-            PrometheusExporterConfig::push(gateway, prometheus_config.push_interval());
-        builder.add_layer(PrometheusExporterLayer(exporter_config));
-    }
+    let exporter_config = if let Some(gateway) = prometheus_config.gateway_endpoint() {
+        PrometheusExporterConfig::push(gateway, prometheus_config.push_interval())
+    } else {
+        PrometheusExporterConfig::pull(prometheus_config.listener_port)
+    };
+    builder.add_layer(PrometheusExporterLayer(exporter_config));
 
     builder.build().run(observability_guard)?;
     Ok(())

@@ -16,8 +16,46 @@ use crate::{Core, CoreDal};
 #[cfg(test)]
 mod tests;
 
+/// Hash of the batch.
 pub fn batch_hash(info: &StoredBatchInfo) -> attester::BatchHash {
     attester::BatchHash(Keccak256::from_bytes(info.hash().0))
+}
+
+/// Verifies that the transition from `old` to `new` is admissible.
+pub fn verify_config_transition(old: &GlobalConfig, new: &GlobalConfig) -> anyhow::Result<()> {
+    anyhow::ensure!(
+        old.genesis.chain_id == new.genesis.chain_id,
+        "changing chain_id is not allowed: old = {:?}, new = {:?}",
+        old.genesis.chain_id,
+        new.genesis.chain_id,
+    );
+    // Note that it may happen that the fork number didn't change,
+    // in case the binary was updated to support more fields in genesis struct.
+    // In such a case, the old binary was not able to connect to the consensus network,
+    // because of the genesis hash mismatch.
+    // TODO: Perhaps it would be better to deny unknown fields in the genesis instead.
+    // It would require embedding the genesis either as a json string or protobuf bytes within
+    // the global config, so that the global config can be parsed with
+    // `deny_unknown_fields:false` while genesis would be parsed with
+    // `deny_unknown_fields:true`.
+    anyhow::ensure!(
+        old.genesis.fork_number <= new.genesis.fork_number,
+        "transition to a past fork is not allowed: old = {:?}, new = {:?}",
+        old.genesis.fork_number,
+        new.genesis.fork_number,
+    );
+    new.genesis.verify().context("genesis.verify()")?;
+    // This is a temporary hack until the `consensus_genesis()` RPC is disabled.
+    if new
+        == (&GlobalConfig {
+            genesis: old.genesis.clone(),
+            registry_address: None,
+            seed_peers: [].into(),
+        })
+    {
+        anyhow::bail!("new config is equal to truncated old config, which means that it was sourced from the wrong endpoint");
+    }
+    Ok(())
 }
 
 /// Storage access methods for `zksync_core::consensus` module.
@@ -31,8 +69,8 @@ pub struct ConsensusDal<'a, 'c> {
 pub enum InsertCertificateError {
     #[error("corresponding payload is missing")]
     MissingPayload,
-    #[error("certificate doesn't match the payload")]
-    PayloadMismatch,
+    #[error("certificate doesn't match the payload, payload = {0:?}")]
+    PayloadMismatch(Payload),
     #[error(transparent)]
     Dal(#[from] DalError),
     #[error(transparent)]
@@ -94,6 +132,8 @@ impl ConsensusDal<'_, '_> {
             if got == want {
                 return Ok(());
             }
+            verify_config_transition(got, want)?;
+
             // If genesis didn't change, just update the config.
             if got.genesis == want.genesis {
                 let s = zksync_protobuf::serde::Serialize;
@@ -112,30 +152,6 @@ impl ConsensusDal<'_, '_> {
                 txn.commit().await?;
                 return Ok(());
             }
-
-            // Verify the genesis change.
-            anyhow::ensure!(
-                got.genesis.chain_id == want.genesis.chain_id,
-                "changing chain_id is not allowed: old = {:?}, new = {:?}",
-                got.genesis.chain_id,
-                want.genesis.chain_id,
-            );
-            // Note that it may happen that the fork number didn't change,
-            // in case the binary was updated to support more fields in genesis struct.
-            // In such a case, the old binary was not able to connect to the consensus network,
-            // because of the genesis hash mismatch.
-            // TODO: Perhaps it would be better to deny unknown fields in the genesis instead.
-            // It would require embedding the genesis either as a json string or protobuf bytes within
-            // the global config, so that the global config can be parsed with
-            // `deny_unknown_fields:false` while genesis would be parsed with
-            // `deny_unknown_fields:true`.
-            anyhow::ensure!(
-                got.genesis.fork_number <= want.genesis.fork_number,
-                "transition to a past fork is not allowed: old = {:?}, new = {:?}",
-                got.genesis.fork_number,
-                want.genesis.fork_number,
-            );
-            want.genesis.verify().context("genesis.verify()")?;
         }
 
         // Reset the consensus state.
@@ -285,10 +301,10 @@ impl ConsensusDal<'_, '_> {
             .get_pruning_info()
             .await
             .context("get_pruning_info()")?;
-        Ok(match info.last_soft_pruned_l2_block {
+        Ok(match info.last_soft_pruned {
             // It is guaranteed that pruning info values are set for storage recovered from
             // snapshot, even if pruning was not enabled.
-            Some(last_pruned) => validator::BlockNumber(last_pruned.0.into()) + 1,
+            Some(last_pruned) => validator::BlockNumber(last_pruned.l2_block.0.into()) + 1,
             // No snapshot and no pruning:
             None => validator::BlockNumber(0),
         })
@@ -512,7 +528,7 @@ impl ConsensusDal<'_, '_> {
             .await?
             .ok_or(E::MissingPayload)?;
         if header.payload != want_payload.encode().hash() {
-            return Err(E::PayloadMismatch);
+            return Err(E::PayloadMismatch(want_payload));
         }
         sqlx::query!(
             r#"
@@ -618,7 +634,7 @@ impl ConsensusDal<'_, '_> {
     pub async fn insert_batch_certificate(
         &mut self,
         cert: &attester::BatchQC,
-    ) -> Result<(), InsertCertificateError> {
+    ) -> anyhow::Result<()> {
         let cfg = self
             .global_config()
             .await
@@ -636,9 +652,7 @@ impl ConsensusDal<'_, '_> {
                 .context("batch()")?
                 .context("batch is missing")?,
         );
-        if cert.message.hash != hash {
-            return Err(InsertCertificateError::PayloadMismatch);
-        }
+        anyhow::ensure!(cert.message.hash == hash, "hash mismatch");
         cert.verify(cfg.genesis.hash(), &committee)
             .context("cert.verify()")?;
         sqlx::query!(

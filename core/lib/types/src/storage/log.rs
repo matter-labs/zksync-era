@@ -2,10 +2,10 @@ use std::mem;
 
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::AccountTreeId;
-use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     api::ApiStorageLog,
+    h256_to_u256, u256_to_h256,
     zk_evm_types::{self, LogQuery, Timestamp},
     StorageKey, StorageValue, U256,
 };

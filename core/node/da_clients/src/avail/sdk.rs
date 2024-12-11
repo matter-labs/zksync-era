@@ -1,20 +1,24 @@
 //! Minimal reimplementation of the Avail SDK client required for the DA client implementation.
 //! This is considered to be a temporary solution until a mature SDK is available on crates.io
 
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc, time};
 
+use backon::{ConstantBuilder, Retryable};
+use bytes::Bytes;
 use jsonrpsee::{
     core::client::{Client, ClientT, Subscription, SubscriptionClientT},
     rpc_params,
 };
 use parity_scale_codec::{Compact, Decode, Encode};
 use scale_encode::EncodeAsFields;
+use serde::{Deserialize, Serialize};
 use subxt_signer::{
     bip39::Mnemonic,
     sr25519::{Keypair, Signature},
 };
+use zksync_types::H256;
 
-use crate::avail::client::to_non_retriable_da_error;
+use crate::utils::to_non_retriable_da_error;
 
 const PROTOCOL_VERSION: u8 = 4;
 
@@ -287,7 +291,7 @@ impl RawAvailClient {
             let status = sub.next().await.transpose()?;
 
             if status.is_some() && status.as_ref().unwrap().is_object() {
-                if let Some(block_hash) = status.unwrap().get("inBlock") {
+                if let Some(block_hash) = status.unwrap().get("finalized") {
                     break block_hash
                         .as_str()
                         .ok_or_else(|| anyhow::anyhow!("Invalid block hash"))?
@@ -368,4 +372,96 @@ fn ss58hash(data: &[u8]) -> Vec<u8> {
     ctx.update(PREFIX);
     ctx.update(data);
     ctx.finalize().to_vec()
+}
+
+/// An implementation of the `DataAvailabilityClient` trait that interacts with the Avail network.
+#[derive(Debug, Clone)]
+pub(crate) struct GasRelayClient {
+    api_url: String,
+    api_key: String,
+    max_retries: usize,
+    api_client: Arc<reqwest::Client>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct GasRelayAPISubmissionResponse {
+    submission_id: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct GasRelayAPIStatusResponse {
+    submission: GasRelayAPISubmission,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct GasRelayAPISubmission {
+    block_hash: Option<H256>,
+    extrinsic_index: Option<u64>,
+}
+
+impl GasRelayClient {
+    const DEFAULT_INCLUSION_DELAY: time::Duration = time::Duration::from_secs(60);
+    const RETRY_DELAY: time::Duration = time::Duration::from_secs(5);
+    pub(crate) async fn new(
+        api_url: &str,
+        api_key: &str,
+        max_retries: usize,
+        api_client: Arc<reqwest::Client>,
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
+            api_url: api_url.to_owned(),
+            api_key: api_key.to_owned(),
+            max_retries,
+            api_client,
+        })
+    }
+
+    pub(crate) async fn post_data(&self, data: Vec<u8>) -> anyhow::Result<(H256, u64)> {
+        let submit_url = format!("{}/user/submit_raw_data?token=ethereum", &self.api_url);
+        // send the data to the gas relay
+        let submit_response = self
+            .api_client
+            .post(&submit_url)
+            .body(Bytes::from(data))
+            .header("Content-Type", "text/plain")
+            .header("Authorization", &self.api_key)
+            .send()
+            .await?;
+
+        let submit_response = submit_response
+            .json::<GasRelayAPISubmissionResponse>()
+            .await?;
+
+        let status_url = format!(
+            "{}/user/get_submission_info?submission_id={}",
+            self.api_url, submit_response.submission_id
+        );
+
+        tokio::time::sleep(Self::DEFAULT_INCLUSION_DELAY).await;
+        let status_response = (|| async {
+            self.api_client
+                .get(&status_url)
+                .header("Authorization", &self.api_key)
+                .send()
+                .await
+        })
+        .retry(
+            &ConstantBuilder::default()
+                .with_delay(Self::RETRY_DELAY)
+                .with_max_times(self.max_retries),
+        )
+        .await?;
+
+        let status_response = status_response.json::<GasRelayAPIStatusResponse>().await?;
+        let (block_hash, extrinsic_index) = (
+            status_response.submission.block_hash.ok_or_else(|| {
+                anyhow::anyhow!("Block hash not found in the response from the gas relay")
+            })?,
+            status_response.submission.extrinsic_index.ok_or_else(|| {
+                anyhow::anyhow!("Extrinsic index not found in the response from the gas relay")
+            })?,
+        );
+
+        Ok((block_hash, extrinsic_index))
+    }
 }

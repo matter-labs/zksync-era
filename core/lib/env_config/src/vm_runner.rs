@@ -55,6 +55,7 @@ mod tests {
         let mut lock = MUTEX.lock();
         let config = r#"
             EXPERIMENTAL_VM_STATE_KEEPER_FAST_VM_MODE=new
+            EXPERIMENTAL_VM_API_FAST_VM_MODE=shadow
             EXPERIMENTAL_VM_PLAYGROUND_FAST_VM_MODE=shadow
             EXPERIMENTAL_VM_PLAYGROUND_DB_PATH=/db/vm_playground
             EXPERIMENTAL_VM_PLAYGROUND_FIRST_PROCESSED_BATCH=123
@@ -64,6 +65,7 @@ mod tests {
 
         let config = ExperimentalVmConfig::from_env().unwrap();
         assert_eq!(config.state_keeper_fast_vm_mode, FastVmMode::New);
+        assert_eq!(config.api_fast_vm_mode, FastVmMode::Shadow);
         assert_eq!(config.playground.fast_vm_mode, FastVmMode::Shadow);
         assert_eq!(config.playground.db_path.unwrap(), "/db/vm_playground");
         assert_eq!(config.playground.first_processed_batch, L1BatchNumber(123));

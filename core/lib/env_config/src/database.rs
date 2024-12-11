@@ -1,23 +1,8 @@
-use std::{env, error, str::FromStr};
+use std::env;
 
-use anyhow::Context as _;
 use zksync_config::{configs::DatabaseSecrets, DBConfig, PostgresConfig};
 
-use crate::{envy_load, FromEnv};
-
-fn parse_optional_var<T>(name: &str) -> anyhow::Result<Option<T>>
-where
-    T: FromStr,
-    T::Err: 'static + error::Error + Send + Sync,
-{
-    env::var(name)
-        .ok()
-        .map(|val| {
-            val.parse()
-                .with_context(|| format!("failed to parse env variable {name}"))
-        })
-        .transpose()
-}
+use crate::{envy_load, utils::parse_optional_var, FromEnv};
 
 impl FromEnv for DBConfig {
     fn from_env() -> anyhow::Result<Self> {
@@ -103,6 +88,7 @@ mod tests {
             DATABASE_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER=50
             DATABASE_EXPERIMENTAL_STATE_KEEPER_DB_BLOCK_CACHE_CAPACITY_MB=64
             DATABASE_EXPERIMENTAL_STATE_KEEPER_DB_MAX_OPEN_FILES=100
+            DATABASE_EXPERIMENTAL_MERKLE_TREE_REPAIR_STALE_KEYS=true
         "#;
         lock.set_env(config);
 
@@ -124,6 +110,7 @@ mod tests {
             db_config.experimental.state_keeper_db_max_open_files,
             NonZeroU32::new(100)
         );
+        assert!(db_config.experimental.merkle_tree_repair_stale_keys);
     }
 
     #[test]
@@ -133,6 +120,7 @@ mod tests {
             "DATABASE_STATE_KEEPER_DB_PATH",
             "DATABASE_EXPERIMENTAL_STATE_KEEPER_DB_MAX_OPEN_FILES",
             "DATABASE_EXPERIMENTAL_STATE_KEEPER_DB_BLOCK_CACHE_CAPACITY_MB",
+            "DATABASE_EXPERIMENTAL_MERKLE_TREE_REPAIR_STALE_KEYS",
             "DATABASE_MERKLE_TREE_BACKUP_PATH",
             "DATABASE_MERKLE_TREE_PATH",
             "DATABASE_MERKLE_TREE_MODE",
@@ -159,6 +147,7 @@ mod tests {
             128
         );
         assert_eq!(db_config.experimental.state_keeper_db_max_open_files, None);
+        assert!(!db_config.experimental.merkle_tree_repair_stale_keys);
 
         // Check that new env variable for Merkle tree path is supported
         lock.set_env("DATABASE_MERKLE_TREE_PATH=/db/tree/main");

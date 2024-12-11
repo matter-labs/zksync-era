@@ -108,14 +108,15 @@ fn build_explorer_chain_config(
     // Get L2 RPC URL from general config
     let l2_rpc_url = general_config.get_l2_rpc_url()?;
     // Get Verification API URL from general config
-    let verification_api_url = general_config
+    let verification_api_port = general_config
         .contract_verifier
         .as_ref()
-        .map(|verifier| &verifier.url)
-        .context("verification_url")?;
+        .map(|verifier| verifier.port)
+        .context("verifier.port")?;
+    let verification_api_url = format!("http://127.0.0.1:{verification_api_port}");
     // Build API URL
     let api_port = backend_config.ports.api_http_port;
-    let api_url = format!("http://127.0.0.1:{}", api_port);
+    let api_url = format!("http://127.0.0.1:{api_port}");
 
     // Build explorer chain config
     Ok(ExplorerChainConfig {

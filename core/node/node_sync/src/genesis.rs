@@ -109,21 +109,18 @@ async fn fetch_base_system_contracts(
         let bytes = client
             .fetch_system_contract_by_hash(hash)
             .await?
-            .context("EVM Simulator bytecode is missing on main node")?;
-        Some(SystemContractCode {
-            code: zksync_utils::bytes_to_be_words(bytes),
-            hash,
-        })
+            .context("EVM emulator bytecode is missing on main node")?;
+        Some(SystemContractCode { code: bytes, hash })
     } else {
         None
     };
     Ok(BaseSystemContracts {
         bootloader: SystemContractCode {
-            code: zksync_utils::bytes_to_be_words(bootloader_bytecode),
+            code: bootloader_bytecode,
             hash: contract_hashes.bootloader,
         },
         default_aa: SystemContractCode {
-            code: zksync_utils::bytes_to_be_words(default_aa_bytecode),
+            code: default_aa_bytecode,
             hash: contract_hashes.default_aa,
         },
         evm_emulator,

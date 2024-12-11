@@ -1,4 +1,6 @@
 use clap::Subcommand;
+use commands::status::args::StatusArgs;
+use messages::MSG_STATUS_ABOUT;
 use xshell::Shell;
 
 use self::commands::{
@@ -41,6 +43,8 @@ pub enum DevCommands {
     ConfigWriter(ConfigWriterArgs),
     #[command(about = MSG_SEND_TXNS_ABOUT)]
     SendTransactions(SendTransactionsArgs),
+    #[command(about = MSG_STATUS_ABOUT)]
+    Status(StatusArgs),
     #[command(about = MSG_GENERATE_GENESIS_ABOUT, alias = "genesis")]
     GenerateGenesis,
 }
@@ -59,6 +63,7 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         DevCommands::SendTransactions(args) => {
             commands::send_transactions::run(shell, args).await?
         }
+        DevCommands::Status(args) => commands::status::run(shell, args).await?,
         DevCommands::GenerateGenesis => commands::genesis::run(shell).await?,
     }
     Ok(())

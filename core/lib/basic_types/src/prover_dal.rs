@@ -1,5 +1,5 @@
 //! Types exposed by the prover DAL for general-purpose use.
-use std::{net::IpAddr, ops::Add, str::FromStr};
+use std::{net::IpAddr, ops::Add, str::FromStr, time::Instant};
 
 use chrono::{DateTime, Duration, NaiveDateTime, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -18,6 +18,23 @@ pub struct FriProverJobMetadata {
     pub sequence_number: usize,
     pub depth: u16,
     pub is_node_final_proof: bool,
+    pub pick_time: Instant,
+}
+
+impl FriProverJobMetadata {
+    /// Checks whether the metadata corresponds to a scheduler proof or not.
+    pub fn is_scheduler_proof(&self) -> anyhow::Result<bool> {
+        if self.aggregation_round == AggregationRound::Scheduler {
+            if self.circuit_id != 1 {
+                return Err(anyhow::anyhow!(
+                    "Invalid circuit id {} for Scheduler proof",
+                    self.circuit_id
+                ));
+            }
+            return Ok(true);
+        }
+        Ok(false)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -26,12 +43,6 @@ pub struct ExtendedJobCountStatistics {
     pub in_progress: usize,
     pub failed: usize,
     pub successful: usize,
-}
-
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
-pub struct JobCountStatistics {
-    pub queued: usize,
-    pub in_progress: usize,
 }
 
 impl Add for ExtendedJobCountStatistics {
@@ -44,6 +55,19 @@ impl Add for ExtendedJobCountStatistics {
             failed: self.failed + rhs.failed,
             successful: self.successful + rhs.successful,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct JobCountStatistics {
+    pub queued: usize,
+    pub in_progress: usize,
+}
+
+impl JobCountStatistics {
+    /// all returns sum of queued and in_progress.
+    pub fn all(&self) -> usize {
+        self.queued + self.in_progress
     }
 }
 

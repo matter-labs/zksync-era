@@ -7,10 +7,9 @@ use zk_evm_1_3_1::{
     zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 use zksync_types::{
-    utils::storage_key_for_eth_balance, AccountTreeId, Address, StorageKey, StorageLogKind,
-    BOOTLOADER_ADDRESS, U256,
+    u256_to_h256, utils::storage_key_for_eth_balance, AccountTreeId, Address, StorageKey,
+    StorageLogKind, BOOTLOADER_ADDRESS, U256,
 };
-use zksync_utils::u256_to_h256;
 
 use super::OracleWithHistory;
 use crate::vm_m5::{
@@ -19,7 +18,7 @@ use crate::vm_m5::{
     },
     storage::{Storage, StoragePtr},
     utils::StorageLogQuery,
-    vm_instance::MultiVMSubversion,
+    vm_instance::MultiVmSubversion,
 };
 
 // While the storage does not support different shards, it was decided to write the
@@ -46,7 +45,7 @@ pub struct StorageOracle<S: Storage> {
     // to cover this slot.
     pub paid_changes: HistoryRecorder<HashMap<StorageKey, u32>>,
 
-    pub refund_state: MultiVMSubversion,
+    pub refund_state: MultiVmSubversion,
 }
 
 impl<S: Storage> OracleWithHistory for StorageOracle<S> {
@@ -64,7 +63,7 @@ impl<S: Storage> OracleWithHistory for StorageOracle<S> {
 }
 
 impl<S: Storage> StorageOracle<S> {
-    pub fn new(storage: StoragePtr<S>, refund_state: MultiVMSubversion) -> Self {
+    pub fn new(storage: StoragePtr<S>, refund_state: MultiVmSubversion) -> Self {
         Self {
             storage: HistoryRecorder::from_inner(StorageWrapper::new(storage)),
             frames_stack: Default::default(),
@@ -75,10 +74,10 @@ impl<S: Storage> StorageOracle<S> {
 
     fn is_storage_key_free(&self, key: &StorageKey) -> bool {
         match self.refund_state {
-            MultiVMSubversion::V1 => {
+            MultiVmSubversion::V1 => {
                 key.address() == &zksync_system_constants::SYSTEM_CONTEXT_ADDRESS
             }
-            MultiVMSubversion::V2 => {
+            MultiVmSubversion::V2 => {
                 key.address() == &zksync_system_constants::SYSTEM_CONTEXT_ADDRESS
                     || *key == storage_key_for_eth_balance(&BOOTLOADER_ADDRESS)
             }

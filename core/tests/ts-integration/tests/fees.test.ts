@@ -15,13 +15,15 @@ import { TestContextOwner, TestMaster } from '../src';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { DataAvailabityMode, Token } from '../src/types';
-import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
+import { SYSTEM_CONTEXT_ADDRESS, getTestContract, waitForNewL1Batch, anyTransaction } from '../src/helpers';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import { logsTestPath } from 'utils/build/logs';
-import path from 'path';
-import { NodeSpawner, Node, NodeType } from '../src/utils';
-import { deleteInternalEnforcedL1GasPrice, deleteInternalEnforcedPubdataPrice, setTransactionSlots } from './utils';
+import { sleep } from 'utils/build';
 import { killPidWithAllChilds } from 'utils/build/kill';
+import path from 'path';
+import { NodeSpawner } from '../src/utils';
+import { sendTransfers } from '../src/context-owner';
+import { Reporter } from '../src/reporter';
 
 declare global {
     var __ZKSYNC_TEST_CONTEXT_OWNER__: TestContextOwner;
@@ -60,13 +62,13 @@ testFees('Test fees', function () {
 
     let tokenDetails: Token;
     let aliceErc20: zksync.Contract;
+    let isETHBasedChain: boolean;
 
     let mainLogs: fs.FileHandle;
     let baseTokenAddress: string;
     let ethClientWeb3Url: string;
     let apiWeb3JsonRpcHttpUrl: string;
     let mainNodeSpawner: NodeSpawner;
-    let mainNode: Node<NodeType.MAIN>;
 
     const fileConfig = shouldLoadConfigFromFile();
     const pathToHome = path.join(__dirname, '../../../..');
@@ -121,11 +123,41 @@ testFees('Test fees', function () {
             baseTokenAddress
         });
 
-        mainNode = await mainNodeSpawner.spawnMainNode();
+        await mainNodeSpawner.killAndSpawnMainNode();
 
         alice = testMaster.mainAccount();
         tokenDetails = testMaster.environment().erc20Token;
         aliceErc20 = new ethers.Contract(tokenDetails.l1Address, zksync.utils.IERC20, alice.ethWallet());
+
+        const mainWallet = new zksync.Wallet(
+            testMaster.environment().mainWalletPK,
+            alice._providerL2(),
+            alice._providerL1()
+        );
+
+        isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
+
+        // On non ETH based chains the standard deposit is not enough to run all this tests
+        if (!isETHBasedChain) {
+            const depositTx = await mainWallet.deposit({
+                token: baseTokenAddress,
+                amount: ethers.parseEther('100'),
+                approveERC20: true,
+                approveBaseERC20: true
+            });
+            await depositTx.wait();
+            await Promise.all(
+                await sendTransfers(
+                    zksync.utils.ETH_ADDRESS,
+                    mainWallet,
+                    { alice: alice.privateKey },
+                    ethers.parseEther('100'),
+                    undefined,
+                    undefined,
+                    new Reporter()
+                )
+            );
+        }
     });
 
     test('Test all fees', async () => {
@@ -177,8 +209,10 @@ testFees('Test fees', function () {
         ];
         for (const gasPrice of L1_GAS_PRICES_TO_TEST) {
             // For the sake of simplicity, we'll use the same pubdata price as the L1 gas price.
-            await mainNode.killAndWaitForShutdown();
-            mainNode = await mainNodeSpawner.spawnMainNode(gasPrice.toString(), gasPrice.toString());
+            await mainNodeSpawner.killAndSpawnMainNode({
+                newL1GasPrice: gasPrice,
+                newPubdataPrice: gasPrice
+            });
 
             reports = await appendResults(
                 alice,
@@ -213,6 +247,96 @@ testFees('Test fees', function () {
         console.log(`Full report: \n\n${reports.join('\n\n')}`);
     });
 
+    test('Test gas price expected value', async () => {
+        const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
+        await mainNodeSpawner.killAndSpawnMainNode({
+            newL1GasPrice: l1GasPrice,
+            newPubdataPrice: l1GasPrice
+        });
+
+        // wait for new batch so gas price is updated with new config set above
+        await waitForNewL1Batch(alice);
+
+        const receipt = await anyTransaction(alice);
+
+        const feeParams = await alice._providerL2().getFeeParams();
+        const feeConfig = feeParams.V2.config;
+        // type is missing conversion_ratio field
+        const conversionRatio: { numerator: bigint; denominator: bigint } = (feeParams.V2 as any)['conversion_ratio'];
+        if (isETHBasedChain) {
+            expect(conversionRatio.numerator).toBe(1); //number not bigint for some reason
+            expect(conversionRatio.denominator).toBe(1);
+        } else {
+            expect(conversionRatio.numerator).toBeGreaterThan(1n);
+        }
+
+        // the minimum + compute overhead of 0.01gwei in validium mode
+        const expectedETHGasPrice =
+            feeConfig.minimal_l2_gas_price +
+            (feeConfig.compute_overhead_part * feeParams.V2.l1_gas_price * feeConfig.batch_overhead_l1_gas) /
+                feeConfig.max_gas_per_batch;
+        const expectedConvertedGasPrice =
+            (expectedETHGasPrice * conversionRatio.numerator) / conversionRatio.denominator;
+
+        expect(receipt.gasPrice).toBe(BigInt(expectedConvertedGasPrice));
+    });
+
+    test('Test base token ratio fluctuations', async () => {
+        const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
+
+        if (isETHBasedChain) return;
+
+        await mainNodeSpawner.killAndSpawnMainNode({
+            newL1GasPrice: l1GasPrice,
+            newPubdataPrice: l1GasPrice,
+            externalPriceApiClientForcedNumerator: 300,
+            externalPriceApiClientForcedDenominator: 100,
+            externalPriceApiClientForcedFluctuation: 20,
+            baseTokenPricePollingIntervalMs: 1000,
+            baseTokenAdjusterL1UpdateDeviationPercentage: 0
+        });
+
+        const beginFeeParams = await alice._providerL2().getFeeParams();
+        const mainContract = await alice.getMainContract();
+        const beginL1Nominator = await mainContract.baseTokenGasPriceMultiplierNominator();
+        let changedL2 = false;
+        let changedL1 = false;
+        for (let i = 0; i < 20; i++) {
+            await sleep(0.5);
+            const newFeeParams = await alice._providerL2().getFeeParams();
+            // we need any as FeeParams is missing existing conversion_ratio field
+
+            if (
+                ((newFeeParams.V2 as any)['conversion_ratio'].numerator as number) !=
+                ((beginFeeParams.V2 as any)['conversion_ratio'].numerator as number)
+            ) {
+                // @ts-ignore
+                const diff =
+                    (newFeeParams.V2 as any)['conversion_ratio'].numerator -
+                    (beginFeeParams.V2 as any)['conversion_ratio'].numerator;
+                // Deviation is 20%, Adding 5% extra for any arithmetic precision issues, 25%*300 = 75
+                expect(diff).toBeLessThan(75);
+                expect(diff).toBeGreaterThan(-75);
+                changedL2 = true;
+                break;
+            }
+        }
+        expect(changedL2).toBeTruthy();
+        for (let i = 0; i < 10; i++) {
+            const newL1Nominator = await mainContract.baseTokenGasPriceMultiplierNominator();
+            if (newL1Nominator != beginL1Nominator) {
+                const diff = newL1Nominator - beginL1Nominator;
+                expect(diff).toBeLessThan(75); // as above
+                expect(diff).toBeGreaterThan(-75);
+                changedL1 = true;
+                break;
+            }
+            await sleep(0.5);
+        }
+
+        expect(changedL1).toBeTruthy();
+    });
+
     test('Test gas consumption under large L1 gas price', async () => {
         if (testMaster.environment().l1BatchCommitDataGeneratorMode === DataAvailabityMode.Validium) {
             // We skip this test for Validium mode, since L1 gas price has little impact on the gasLimit in this mode.
@@ -233,11 +357,10 @@ testFees('Test fees', function () {
         // that the gasLimit is indeed over u32::MAX, which is the most important tested property.
         const requiredPubdataPrice = minimalL2GasPrice * 100_000n;
 
-        await mainNode.killAndWaitForShutdown();
-        mainNode = await mainNodeSpawner.spawnMainNode(
-            requiredPubdataPrice.toString(),
-            requiredPubdataPrice.toString()
-        );
+        await mainNodeSpawner.killAndSpawnMainNode({
+            newL1GasPrice: requiredPubdataPrice,
+            newPubdataPrice: requiredPubdataPrice
+        });
 
         const l1Messenger = new ethers.Contract(zksync.utils.L1_MESSENGER_ADDRESS, zksync.utils.L1_MESSENGER, alice);
 
@@ -278,16 +401,11 @@ testFees('Test fees', function () {
     });
 
     afterAll(async () => {
-        await mainNode.killAndWaitForShutdown();
+        await mainNodeSpawner.killAndSpawnMainNode();
         // Returning the pubdata price to the default one
-
-        // Restore defaults
-        setTransactionSlots(pathToHome, fileConfig, 8192);
-        deleteInternalEnforcedL1GasPrice(pathToHome, fileConfig);
-        deleteInternalEnforcedPubdataPrice(pathToHome, fileConfig);
-        mainNode = await mainNodeSpawner.spawnMainNode();
+        // Spawning with no options restores defaults.
         await testMaster.deinitialize();
-        __ZKSYNC_TEST_CONTEXT_OWNER__.setL2NodePid(mainNode.proc.pid!);
+        __ZKSYNC_TEST_CONTEXT_OWNER__.setL2NodePid(mainNodeSpawner.mainNode!.proc.pid!);
     });
 });
 

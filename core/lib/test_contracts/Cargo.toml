@@ -1,0 +1,27 @@
+[package]
+name = "zksync_test_contracts"
+description = "ZKsync test contracts for writing unit tests"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_types.workspace = true
+zksync_system_constants.workspace = true
+zksync_eth_signer.workspace = true
+
+hex.workspace = true
+once_cell.workspace = true
+ethabi.workspace = true
+rand.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[build-dependencies]
+serde_json.workspace = true
+foundry-compilers.workspace = true

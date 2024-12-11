@@ -3,7 +3,7 @@ use std::time::Duration;
 use anyhow::Context;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
-use zksync_types::{L1BatchNumber, L2BlockNumber, H256};
+use zksync_types::{commitment::PubdataParams, L1BatchNumber, L2BlockNumber, H256};
 
 use super::PendingBatchData;
 
@@ -85,6 +85,7 @@ pub async fn load_pending_batch(
     storage: &mut Connection<'_, Core>,
     system_env: SystemEnv,
     l1_batch_env: L1BatchEnv,
+    pubdata_params: PubdataParams,
 ) -> anyhow::Result<PendingBatchData> {
     let pending_l2_blocks = storage
         .transactions_dal()
@@ -104,6 +105,7 @@ pub async fn load_pending_batch(
     Ok(PendingBatchData {
         l1_batch_env,
         system_env,
+        pubdata_params,
         pending_l2_blocks,
     })
 }

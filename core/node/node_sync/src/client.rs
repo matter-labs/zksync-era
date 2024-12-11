@@ -8,7 +8,8 @@ use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
     api::{self, en},
-    get_code_key, Address, L2BlockNumber, ProtocolVersionId, H256, U64,
+    bytecode::BytecodeHash,
+    get_code_key, h256_to_u256, Address, L2BlockNumber, ProtocolVersionId, H256, U64,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -57,7 +58,7 @@ impl MainNodeClient for Box<DynClient<L2>> {
             .with_arg("hash", &hash)
             .await?;
         if let Some(bytecode) = &bytecode {
-            let actual_bytecode_hash = zksync_utils::bytecode::hash_bytecode(bytecode);
+            let actual_bytecode_hash = BytecodeHash::for_bytecode(bytecode).value();
             if actual_bytecode_hash != hash {
                 return Err(EnrichedClientError::custom(
                     "Got invalid base system contract bytecode from main node",
@@ -81,7 +82,7 @@ impl MainNodeClient for Box<DynClient<L2>> {
         let code_hash = self
             .get_storage_at(
                 ACCOUNT_CODE_STORAGE_ADDRESS,
-                zksync_utils::h256_to_u256(*code_key.key()),
+                h256_to_u256(*code_key.key()),
                 Some(GENESIS_BLOCK),
             )
             .rpc_context("get_storage_at")

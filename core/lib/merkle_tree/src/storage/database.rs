@@ -400,6 +400,17 @@ pub trait PruneDatabase: Database {
     ///
     /// Propagates database I/O errors.
     fn prune(&mut self, patch: PrunePatchSet) -> anyhow::Result<()>;
+
+    /// Atomically truncates the specified range of versions and stale keys.
+    ///
+    /// # Errors
+    ///
+    /// Propagates database I/O errors.
+    fn truncate(
+        &mut self,
+        manifest: Manifest,
+        truncated_versions: ops::RangeTo<u64>,
+    ) -> anyhow::Result<()>;
 }
 
 impl<T: PruneDatabase + ?Sized> PruneDatabase for &mut T {
@@ -413,6 +424,14 @@ impl<T: PruneDatabase + ?Sized> PruneDatabase for &mut T {
 
     fn prune(&mut self, patch: PrunePatchSet) -> anyhow::Result<()> {
         (**self).prune(patch)
+    }
+
+    fn truncate(
+        &mut self,
+        manifest: Manifest,
+        truncated_versions: ops::RangeTo<u64>,
+    ) -> anyhow::Result<()> {
+        (**self).truncate(manifest, truncated_versions)
     }
 }
 
@@ -445,6 +464,17 @@ impl PruneDatabase for PatchSet {
 
         self.stale_keys_by_version
             .retain(|version, _| !patch.deleted_stale_key_versions.contains(version));
+        Ok(())
+    }
+
+    fn truncate(
+        &mut self,
+        manifest: Manifest,
+        truncated_versions: ops::RangeTo<u64>,
+    ) -> anyhow::Result<()> {
+        self.manifest = manifest;
+        self.stale_keys_by_version
+            .retain(|version, _| !truncated_versions.contains(version));
         Ok(())
     }
 }

@@ -40,6 +40,8 @@ pub struct ChainConfigInternal {
     pub wallet_creation: WalletCreation,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub legacy_bridge: Option<bool>,
+    #[serde(default)] // for backward compatibility
+    pub evm_emulator: bool,
 }
 
 /// Chain configuration file. This file is created in the chain
@@ -61,6 +63,7 @@ pub struct ChainConfig {
     pub wallet_creation: WalletCreation,
     pub shell: OnceCell<Shell>,
     pub legacy_bridge: Option<bool>,
+    pub evm_emulator: bool,
 }
 
 impl Serialize for ChainConfig {
@@ -157,6 +160,7 @@ impl ChainConfig {
             base_token: self.base_token.clone(),
             wallet_creation: self.wallet_creation,
             legacy_bridge: self.legacy_bridge,
+            evm_emulator: self.evm_emulator,
         }
     }
 }

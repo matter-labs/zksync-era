@@ -10,7 +10,8 @@ message DB {
   optional uint32 state_keeper_db_max_open_files = 2; // optional
   optional bool reads_persistence_enabled = 3;
   optional uint64 processing_delay_ms = 4;
-  optional bool include_indices_and_filters_in_block_cache = 5;
+  optional bool include_indices_and_filters_in_block_cache = 5; // optional; defaults to false
+  optional bool merkle_tree_repair_stale_keys = 6; // optional; defaults to false
 }
 
 // Experimental part of the Snapshot recovery configuration.
@@ -37,4 +38,5 @@ message VmPlayground {
 message Vm {
   optional VmPlayground playground = 1; // optional
   optional FastVmMode state_keeper_fast_vm_mode = 2; // optional; if not set, fast VM is not used
+  optional FastVmMode api_fast_vm_mode = 3; // optional; if not set, fast VM is not used
 }

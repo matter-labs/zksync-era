@@ -36,10 +36,6 @@ pub fn run(shell: &Shell, args: ContainersArgs) -> anyhow::Result<()> {
 }
 
 pub fn initialize_docker(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::Result<()> {
-    if !shell.path_exists("volumes") {
-        create_docker_folders(shell)?;
-    };
-
     if !shell.path_exists(DOCKER_COMPOSE_FILE) {
         copy_dockerfile(shell, ecosystem.link_to_code.clone())?;
     };
@@ -72,14 +68,6 @@ pub fn start_containers(shell: &Shell, observability: bool) -> anyhow::Result<()
         )?;
     }
 
-    Ok(())
-}
-
-fn create_docker_folders(shell: &Shell) -> anyhow::Result<()> {
-    shell.create_dir("volumes")?;
-    shell.create_dir("volumes/postgres")?;
-    shell.create_dir("volumes/reth")?;
-    shell.create_dir("volumes/reth/data")?;
     Ok(())
 }
 

@@ -1,5 +1,4 @@
-use zksync_types::{L1BatchNumber, H256};
-use zksync_utils::h256_to_account_address;
+use zksync_types::{h256_to_address, L1BatchNumber, H256};
 use zksync_vm2::interface::Event;
 
 use crate::interface::VmEvent;
@@ -16,7 +15,7 @@ impl EventAccumulator {
     fn into_vm_event(self, block_number: L1BatchNumber) -> VmEvent {
         VmEvent {
             location: (block_number, self.tx_number_in_block as u32),
-            address: h256_to_account_address(&H256(self.topics[0])),
+            address: h256_to_address(&H256(self.topics[0])),
             indexed_topics: self.topics[1..].iter().map(H256::from).collect(),
             value: self.data,
         }

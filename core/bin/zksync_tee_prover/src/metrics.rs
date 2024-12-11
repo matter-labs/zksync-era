@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use vise::{Buckets, Gauge, Histogram, Metrics, Unit};
+use vise::{Buckets, Counter, Gauge, Histogram, Metrics, Unit};
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "tee_prover")]
@@ -13,7 +13,7 @@ pub(crate) struct TeeProverMetrics {
     pub proof_generation_time: Histogram<Duration>,
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
     pub proof_submitting_time: Histogram<Duration>,
-    pub network_errors_counter: Gauge<u64>,
+    pub network_errors_counter: Counter<u64>,
     pub last_batch_number_processed: Gauge<u64>,
 }
 

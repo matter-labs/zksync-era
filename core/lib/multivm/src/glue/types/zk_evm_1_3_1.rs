@@ -1,4 +1,4 @@
-use zksync_utils::u256_to_h256;
+use zksync_types::u256_to_h256;
 
 use crate::glue::{GlueFrom, GlueInto};
 

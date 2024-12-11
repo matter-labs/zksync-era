@@ -137,6 +137,8 @@ pub struct VerificationIncomingRequest {
     #[serde(flatten)]
     pub compiler_versions: CompilerVersions,
     pub optimization_used: bool,
+    /// Optimization mode used for the contract. Semantics depends on the compiler used; e.g., for `vyper`,
+    /// allowed values are `gas` (default), `codesize` or `none`.
     pub optimizer_mode: Option<String>,
     #[serde(default)]
     pub constructor_arguments: Bytes,
@@ -152,17 +154,19 @@ pub enum CompilerType {
     Vyper,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CompilerVersions {
     #[serde(rename_all = "camelCase")]
     Solc {
-        compiler_zksolc_version: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        compiler_zksolc_version: Option<String>,
         compiler_solc_version: String,
     },
     #[serde(rename_all = "camelCase")]
     Vyper {
-        compiler_zkvyper_version: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        compiler_zkvyper_version: Option<String>,
         compiler_vyper_version: String,
     },
 }
@@ -175,29 +179,29 @@ impl CompilerVersions {
         }
     }
 
-    pub fn zk_compiler_version(&self) -> String {
+    pub fn zk_compiler_version(&self) -> Option<&str> {
         match self {
-            CompilerVersions::Solc {
+            Self::Solc {
                 compiler_zksolc_version,
                 ..
-            } => compiler_zksolc_version.clone(),
-            CompilerVersions::Vyper {
+            } => compiler_zksolc_version.as_deref(),
+            Self::Vyper {
                 compiler_zkvyper_version,
                 ..
-            } => compiler_zkvyper_version.clone(),
+            } => compiler_zkvyper_version.as_deref(),
         }
     }
 
-    pub fn compiler_version(&self) -> String {
+    pub fn compiler_version(&self) -> &str {
         match self {
-            CompilerVersions::Solc {
+            Self::Solc {
                 compiler_solc_version,
                 ..
-            } => compiler_solc_version.clone(),
-            CompilerVersions::Vyper {
+            } => compiler_solc_version,
+            Self::Vyper {
                 compiler_vyper_version,
                 ..
-            } => compiler_vyper_version.clone(),
+            } => compiler_vyper_version,
         }
     }
 }
@@ -213,8 +217,19 @@ pub struct VerificationRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompilationArtifacts {
+    /// In case of EVM contracts, this is the creation bytecode (`bytecode` in `solc` output).
     pub bytecode: Vec<u8>,
+    /// Deployed bytecode (`deployedBytecode` in `solc` output). Only set for EVM contracts; for EraVM contracts, the deployed bytecode
+    /// is always `bytecode` (i.e., there's no distinction between creation and deployed bytecodes).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deployed_bytecode: Option<Vec<u8>>,
     pub abi: serde_json::Value,
+}
+
+impl CompilationArtifacts {
+    pub fn deployed_bytecode(&self) -> &[u8] {
+        self.deployed_bytecode.as_deref().unwrap_or(&self.bytecode)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -233,12 +248,6 @@ pub struct VerificationRequestStatus {
     pub error: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub compilation_errors: Option<Vec<String>>,
-}
-
-#[derive(Debug)]
-pub enum DeployContractCalldata {
-    Deploy(Vec<u8>),
-    Ignore,
 }
 
 #[cfg(test)]

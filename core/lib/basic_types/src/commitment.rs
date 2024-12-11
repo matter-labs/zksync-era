@@ -1,10 +1,12 @@
+use std::str::FromStr;
+
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
 
 use crate::{
     ethabi,
     web3::contract::{Detokenize, Error as ContractError},
-    U256,
+    Address, U256,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, EnumIter, Display)]
@@ -40,4 +42,24 @@ impl Detokenize for L1BatchCommitmentMode {
             _ => Err(error(&tokens)),
         }
     }
+}
+
+impl FromStr for L1BatchCommitmentMode {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Rollup" => Ok(Self::Rollup),
+            "Validium" => Ok(Self::Validium),
+            _ => {
+                Err("Incorrect l1 batch commitment mode type; expected one of `Rollup`, `Validium`")
+            }
+        }
+    }
+}
+
+#[derive(Default, Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PubdataParams {
+    pub l2_da_validator_address: Address,
+    pub pubdata_type: L1BatchCommitmentMode,
 }

@@ -1,9 +1,9 @@
 //! Tests for the transaction sender.
 
 use test_casing::TestCases;
-use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, prepare_recovery_snapshot};
+use zksync_test_contracts::LoadnextContractExecutionParams;
 use zksync_types::{get_nonce_key, L1BatchNumber, L2BlockNumber, StorageLog};
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 
@@ -18,7 +18,8 @@ const LOAD_TEST_CASES: TestCases<LoadnextContractExecutionParams> = test_casing:
     LoadnextContractExecutionParams::default(),
     // No storage modification
     LoadnextContractExecutionParams {
-        writes: 0,
+        initial_writes: 0,
+        repeated_writes: 0,
         events: 0,
         ..LoadnextContractExecutionParams::default()
     },
@@ -145,16 +146,17 @@ async fn create_real_tx_sender(pool: ConnectionPool<Core>) -> TxSender {
     drop(storage);
 
     let genesis_config = genesis_params.config();
-    let executor_options = SandboxExecutorOptions::new(
+    let mut executor_options = SandboxExecutorOptions::new(
         genesis_config.l2_chain_id,
         AccountTreeId::new(genesis_config.fee_account),
         u32::MAX,
     )
     .await
     .unwrap();
+    executor_options.set_fast_vm_mode(FastVmMode::Shadow);
 
     let pg_caches = PostgresStorageCaches::new(1, 1);
-    let tx_executor = SandboxExecutor::real(executor_options, pg_caches, usize::MAX);
+    let tx_executor = SandboxExecutor::real(executor_options, pg_caches, usize::MAX, None);
     create_test_tx_sender(pool, genesis_params.config().l2_chain_id, tx_executor)
         .await
         .0

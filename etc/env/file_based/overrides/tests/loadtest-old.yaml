@@ -3,5 +3,6 @@ db:
     mode: LIGHTWEIGHT
 experimental_vm:
   state_keeper_fast_vm_mode: OLD
+  api_fast_vm_mode: OLD
 mempool:
   delay_interval: 50

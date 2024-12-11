@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
-use zksync_types::{L2ChainId, U256};
+use zksync_types::{L2ChainId, ProtocolVersionId, U256};
 
 use super::{
     l2_block::BootloaderL2Block,
@@ -10,8 +10,11 @@ use super::{
     BootloaderStateSnapshot,
 };
 use crate::{
-    interface::{BootloaderMemory, CompressedBytecodeInfo, L2BlockEnv, TxExecutionMode},
-    versions::vm_fast::{pubdata::PubdataInput, transaction_data::TransactionData},
+    interface::{
+        pubdata::{PubdataBuilder, PubdataInput},
+        BootloaderMemory, CompressedBytecodeInfo, L2BlockEnv, TxExecutionMode,
+    },
+    versions::vm_fast::transaction_data::TransactionData,
     vm_latest::{constants::TX_DESCRIPTION_OFFSET, utils::l2_blocks::assert_next_block},
 };
 
@@ -42,6 +45,8 @@ pub struct BootloaderState {
     free_tx_offset: usize,
     /// Information about the pubdata that will be needed to supply to the L1Messenger
     pubdata_information: OnceCell<PubdataInput>,
+    /// Protocol version.
+    protocol_version: ProtocolVersionId,
 }
 
 impl BootloaderState {
@@ -49,6 +54,7 @@ impl BootloaderState {
         execution_mode: TxExecutionMode,
         initial_memory: BootloaderMemory,
         first_l2_block: L2BlockEnv,
+        protocol_version: ProtocolVersionId,
     ) -> Self {
         let l2_block = BootloaderL2Block::new(first_l2_block, 0);
         Self {
@@ -59,6 +65,7 @@ impl BootloaderState {
             execution_mode,
             free_tx_offset: 0,
             pubdata_information: Default::default(),
+            protocol_version,
         }
     }
 
@@ -139,12 +146,23 @@ impl BootloaderState {
             .expect("Pubdata information is not set")
     }
 
+    pub(crate) fn settlement_layer_pubdata(&self, pubdata_builder: &dyn PubdataBuilder) -> Vec<u8> {
+        let pubdata_information = self
+            .pubdata_information
+            .get()
+            .expect("Pubdata information is not set");
+        pubdata_builder.settlement_layer_pubdata(pubdata_information, self.protocol_version)
+    }
+
     fn last_mut_l2_block(&mut self) -> &mut BootloaderL2Block {
         self.l2_blocks.last_mut().unwrap()
     }
 
     /// Apply all bootloader transaction to the initial memory
-    pub(crate) fn bootloader_memory(&self) -> BootloaderMemory {
+    pub(crate) fn bootloader_memory(
+        &self,
+        pubdata_builder: &dyn PubdataBuilder,
+    ) -> BootloaderMemory {
         let mut initial_memory = self.initial_memory.clone();
         let mut offset = 0;
         let mut compressed_bytecodes_offset = 0;
@@ -172,11 +190,15 @@ impl BootloaderState {
 
         let pubdata_information = self
             .pubdata_information
-            .clone()
-            .into_inner()
+            .get()
             .expect("Empty pubdata information");
 
-        apply_pubdata_to_memory(&mut initial_memory, pubdata_information);
+        apply_pubdata_to_memory(
+            &mut initial_memory,
+            pubdata_builder,
+            pubdata_information,
+            self.protocol_version,
+        );
         initial_memory
     }
 

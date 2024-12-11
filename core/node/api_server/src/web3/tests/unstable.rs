@@ -27,14 +27,9 @@ impl HttpTest for GetTeeProofsTest {
 
         assert!(proof.is_empty());
 
-        let mut storage = pool.connection().await.unwrap();
-        storage
-            .tee_verifier_input_producer_dal()
-            .create_tee_verifier_input_producer_job(batch_no)
-            .await?;
-
         let pubkey = vec![0xDE, 0xAD, 0xBE, 0xEF];
         let attestation = vec![0xC0, 0xFF, 0xEE];
+        let mut storage = pool.connection().await.unwrap();
         let mut tee_proof_generation_dal = storage.tee_proof_generation_dal();
         tee_proof_generation_dal
             .save_attestation(&pubkey, &attestation)

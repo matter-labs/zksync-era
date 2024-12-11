@@ -7,10 +7,10 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,
     block::{L1BatchHeader, L2BlockHeader, UnsealedL1BatchHeader},
-    commitment::{L1BatchMetaParameters, L1BatchMetadata},
+    commitment::{L1BatchCommitmentMode, L1BatchMetaParameters, L1BatchMetadata, PubdataParams},
     fee_model::BatchFeeInput,
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
-    Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
+    Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256,
 };
 
 /// This is the gas limit that was used inside blocks before we started saving block gas limit into the database.
@@ -168,6 +168,10 @@ pub(crate) struct StorageL1Batch {
     pub bootloader_initial_content_commitment: Option<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
     pub fee_address: Vec<u8>,
+    pub aggregation_root: Option<Vec<u8>>,
+    pub local_root: Option<Vec<u8>>,
+    pub state_diff_hash: Option<Vec<u8>>,
+    pub inclusion_data: Option<Vec<u8>>,
 
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
@@ -289,6 +293,10 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
             bootloader_initial_content_commitment: batch
                 .bootloader_initial_content_commitment
                 .map(|v| H256::from_slice(&v)),
+            state_diff_hash: batch.state_diff_hash.map(|v| H256::from_slice(&v)),
+            local_root: batch.local_root.map(|v| H256::from_slice(&v)),
+            aggregation_root: batch.aggregation_root.map(|v| H256::from_slice(&v)),
+            da_inclusion_data: batch.inclusion_data,
         })
     }
 }
@@ -335,10 +343,13 @@ pub(crate) struct StorageBlockDetails {
     pub root_hash: Option<Vec<u8>>,
     pub commit_tx_hash: Option<String>,
     pub committed_at: Option<NaiveDateTime>,
+    pub commit_chain_id: Option<i64>,
     pub prove_tx_hash: Option<String>,
     pub proven_at: Option<NaiveDateTime>,
+    pub prove_chain_id: Option<i64>,
     pub execute_tx_hash: Option<String>,
     pub executed_at: Option<NaiveDateTime>,
+    pub execute_chain_id: Option<i64>,
     // L1 gas price assumed in the corresponding batch
     pub l1_gas_price: i64,
     // L2 gas price assumed in the corresponding batch
@@ -373,6 +384,7 @@ impl From<StorageBlockDetails> for api::BlockDetails {
             committed_at: details
                 .committed_at
                 .map(|committed_at| DateTime::from_naive_utc_and_offset(committed_at, Utc)),
+            commit_chain_id: details.commit_chain_id.map(|id| SLChainId(id as u64)),
             prove_tx_hash: details
                 .prove_tx_hash
                 .as_deref()
@@ -380,6 +392,7 @@ impl From<StorageBlockDetails> for api::BlockDetails {
             proven_at: details
                 .proven_at
                 .map(|proven_at| DateTime::<Utc>::from_naive_utc_and_offset(proven_at, Utc)),
+            prove_chain_id: details.prove_chain_id.map(|id| SLChainId(id as u64)),
             execute_tx_hash: details
                 .execute_tx_hash
                 .as_deref()
@@ -387,6 +400,7 @@ impl From<StorageBlockDetails> for api::BlockDetails {
             executed_at: details
                 .executed_at
                 .map(|executed_at| DateTime::<Utc>::from_naive_utc_and_offset(executed_at, Utc)),
+            execute_chain_id: details.execute_chain_id.map(|id| SLChainId(id as u64)),
             l1_gas_price: details.l1_gas_price as u64,
             l2_fair_gas_price: details.l2_fair_gas_price as u64,
             fair_pubdata_price: details.fair_pubdata_price.map(|x| x as u64),
@@ -417,10 +431,13 @@ pub(crate) struct StorageL1BatchDetails {
     pub root_hash: Option<Vec<u8>>,
     pub commit_tx_hash: Option<String>,
     pub committed_at: Option<NaiveDateTime>,
+    pub commit_chain_id: Option<i64>,
     pub prove_tx_hash: Option<String>,
     pub proven_at: Option<NaiveDateTime>,
+    pub prove_chain_id: Option<i64>,
     pub execute_tx_hash: Option<String>,
     pub executed_at: Option<NaiveDateTime>,
+    pub execute_chain_id: Option<i64>,
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
@@ -450,6 +467,7 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
             committed_at: details
                 .committed_at
                 .map(|committed_at| DateTime::<Utc>::from_naive_utc_and_offset(committed_at, Utc)),
+            commit_chain_id: details.commit_chain_id.map(|id| SLChainId(id as u64)),
             prove_tx_hash: details
                 .prove_tx_hash
                 .as_deref()
@@ -457,6 +475,7 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
             proven_at: details
                 .proven_at
                 .map(|proven_at| DateTime::<Utc>::from_naive_utc_and_offset(proven_at, Utc)),
+            prove_chain_id: details.prove_chain_id.map(|id| SLChainId(id as u64)),
             execute_tx_hash: details
                 .execute_tx_hash
                 .as_deref()
@@ -464,6 +483,7 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
             executed_at: details
                 .executed_at
                 .map(|executed_at| DateTime::<Utc>::from_naive_utc_and_offset(executed_at, Utc)),
+            execute_chain_id: details.execute_chain_id.map(|id| SLChainId(id as u64)),
             l1_gas_price: details.l1_gas_price as u64,
             l2_fair_gas_price: details.l2_fair_gas_price as u64,
             fair_pubdata_price: details.fair_pubdata_price.map(|x| x as u64),
@@ -511,6 +531,8 @@ pub(crate) struct StorageL2BlockHeader {
     /// This value should bound the maximal amount of gas that can be spent by transactions in the miniblock.
     pub gas_limit: Option<i64>,
     pub logs_bloom: Option<Vec<u8>>,
+    pub l2_da_validator_address: Vec<u8>,
+    pub pubdata_type: String,
 }
 
 impl From<StorageL2BlockHeader> for L2BlockHeader {
@@ -545,6 +567,10 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
                 .logs_bloom
                 .map(|b| Bloom::from_slice(&b))
                 .unwrap_or_default(),
+            pubdata_params: PubdataParams {
+                l2_da_validator_address: Address::from_slice(&row.l2_da_validator_address),
+                pubdata_type: L1BatchCommitmentMode::from_str(&row.pubdata_type).unwrap(),
+            },
         }
     }
 }

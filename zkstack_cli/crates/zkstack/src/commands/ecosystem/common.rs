@@ -14,7 +14,7 @@ use config::{
 use types::{L1Network, ProverMode};
 use xshell::Shell;
 
-use crate::utils::forge::{check_the_balance, fill_forge_private_key};
+use crate::utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner};
 
 pub async fn deploy_l1(
     shell: &Shell,
@@ -28,7 +28,7 @@ pub async fn deploy_l1(
     let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.link_to_code);
     let default_genesis_config =
         GenesisConfig::read_with_base_path(shell, config.get_default_configs_path())
-            .context("Context")?;
+            .context("failed reading genesis config")?;
 
     let wallets_config = config.get_wallets()?;
     // For deploying ecosystem we only need genesis batch params
@@ -54,7 +54,11 @@ pub async fn deploy_l1(
     if let Some(address) = sender {
         forge = forge.with_sender(address);
     } else {
-        forge = fill_forge_private_key(forge, wallets_config.deployer.as_ref())?;
+        forge = fill_forge_private_key(
+            forge,
+            wallets_config.deployer.as_ref(),
+            WalletOwner::Deployer,
+        )?;
     }
 
     if broadcast {

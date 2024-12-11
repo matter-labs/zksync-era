@@ -16,9 +16,7 @@ zksync_types.workspace = true
 zksync_dal.workspace = true
 zksync_config.workspace = true
 zksync_eth_client.workspace = true
-zksync_utils.workspace = true
 zksync_web3_decl.workspace = true
-bigdecimal.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true

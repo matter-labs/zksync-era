@@ -56,6 +56,9 @@ pub enum ChainCommands {
     /// Deploy L2 multicall3
     #[command(alias = "multicall3")]
     DeployMulticall3(ForgeScriptArgs),
+    /// Deploy L2 TimestampAsserter
+    #[command(alias = "timestamp-asserter")]
+    DeployTimestampAsserter(ForgeScriptArgs),
     /// Deploy Default Upgrader
     #[command(alias = "upgrader")]
     DeployUpgrader(ForgeScriptArgs),
@@ -82,6 +85,9 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         }
         ChainCommands::DeployMulticall3(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Multicall3).await
+        }
+        ChainCommands::DeployTimestampAsserter(args) => {
+            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::TimestampAsserter).await
         }
         ChainCommands::DeployUpgrader(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Upgrader).await

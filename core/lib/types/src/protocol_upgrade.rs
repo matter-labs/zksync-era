@@ -12,11 +12,10 @@ use zksync_contracts::{
     BaseSystemContractsHashes, ADMIN_EXECUTE_UPGRADE_FUNCTION,
     ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION, DIAMOND_CUT,
 };
-use zksync_utils::h256_to_u256;
 
 use crate::{
-    abi, ethabi::ParamType, web3::Log, Address, Execute, ExecuteTransactionCommon, Transaction,
-    TransactionType, H256, U256,
+    abi, ethabi::ParamType, h256_to_u256, web3::Log, Address, Execute, ExecuteTransactionCommon,
+    Transaction, TransactionType, H256, U256,
 };
 
 /// Represents a call to be made during governance operation.

@@ -76,6 +76,12 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("l2_shared_bridge_addr")?,
+            l2_legacy_shared_bridge_addr: l2
+                .legacy_shared_bridge_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("l2_legacy_shared_bridge_addr")?,
             l1_weth_bridge_proxy_addr: weth_bridge
                 .as_ref()
                 .and_then(|bridge| bridge.l1_address.as_ref().map(|x| parse_h160(x)))
@@ -92,6 +98,12 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("l2_testnet_paymaster_addr")?,
+            l2_timestamp_asserter_addr: l2
+                .timestamp_asserter_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("l2_timestamp_asserter_addr")?,
             l1_multicall3_addr: required(&l1.multicall3_addr)
                 .and_then(|x| parse_h160(x))
                 .context("l1_multicall3_addr")?,
@@ -107,6 +119,12 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("chain_admin_addr")?,
+            l2_da_validator_addr: l2
+                .da_validator_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("l2_da_validator_addr")?,
         })
     }
 
@@ -142,6 +160,13 @@ impl ProtoRepr for proto::Contracts {
             }),
             l2: Some(proto::L2 {
                 testnet_paymaster_addr: this.l2_testnet_paymaster_addr.map(|a| format!("{:?}", a)),
+                da_validator_addr: this.l2_da_validator_addr.map(|a| format!("{:?}", a)),
+                legacy_shared_bridge_addr: this
+                    .l2_legacy_shared_bridge_addr
+                    .map(|a| format!("{:?}", a)),
+                timestamp_asserter_addr: this
+                    .l2_timestamp_asserter_addr
+                    .map(|a| format!("{:?}", a)),
             }),
             bridges: Some(proto::Bridges {
                 shared: Some(proto::Bridge {

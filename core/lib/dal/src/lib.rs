@@ -23,8 +23,7 @@ use crate::{
     snapshots_dal::SnapshotsDal, storage_logs_dal::StorageLogsDal,
     storage_logs_dedup_dal::StorageLogsDedupDal, storage_web3_dal::StorageWeb3Dal,
     sync_dal::SyncDal, system_dal::SystemDal, tee_proof_generation_dal::TeeProofGenerationDal,
-    tee_verifier_input_producer_dal::TeeVerifierInputProducerDal, tokens_dal::TokensDal,
-    tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
+    tokens_dal::TokensDal, tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
     transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
 };
 
@@ -56,7 +55,6 @@ pub mod storage_web3_dal;
 pub mod sync_dal;
 pub mod system_dal;
 pub mod tee_proof_generation_dal;
-pub mod tee_verifier_input_producer_dal;
 pub mod tokens_dal;
 pub mod tokens_web3_dal;
 pub mod transactions_dal;
@@ -80,8 +78,6 @@ where
     fn transactions_dal(&mut self) -> TransactionsDal<'_, 'a>;
 
     fn transactions_web3_dal(&mut self) -> TransactionsWeb3Dal<'_, 'a>;
-
-    fn tee_verifier_input_producer_dal(&mut self) -> TeeVerifierInputProducerDal<'_, 'a>;
 
     fn blocks_dal(&mut self) -> BlocksDal<'_, 'a>;
 
@@ -135,7 +131,7 @@ where
 
     fn base_token_dal(&mut self) -> BaseTokenDal<'_, 'a>;
 
-    fn processed_events_dal(&mut self) -> EthWatcherDal<'_, 'a>;
+    fn eth_watcher_dal(&mut self) -> EthWatcherDal<'_, 'a>;
 }
 
 #[derive(Clone, Debug)]
@@ -153,10 +149,6 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn transactions_web3_dal(&mut self) -> TransactionsWeb3Dal<'_, 'a> {
         TransactionsWeb3Dal { storage: self }
-    }
-
-    fn tee_verifier_input_producer_dal(&mut self) -> TeeVerifierInputProducerDal<'_, 'a> {
-        TeeVerifierInputProducerDal { storage: self }
     }
 
     fn blocks_dal(&mut self) -> BlocksDal<'_, 'a> {
@@ -263,7 +255,7 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
         BaseTokenDal { storage: self }
     }
 
-    fn processed_events_dal(&mut self) -> EthWatcherDal<'_, 'a> {
+    fn eth_watcher_dal(&mut self) -> EthWatcherDal<'_, 'a> {
         EthWatcherDal { storage: self }
     }
 }

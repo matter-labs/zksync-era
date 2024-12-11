@@ -33,7 +33,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
 
     let application_args = component.get_application_args(in_docker)?;
     let additional_args =
-        component.get_additional_args(in_docker, args, &chain, &path_to_ecosystem)?;
+        component.get_additional_args(in_docker, args.clone(), &chain, &path_to_ecosystem)?;
 
     let (message, error) = match component {
         ProverComponent::WitnessGenerator => (
@@ -83,6 +83,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
         run_dockerized_component(
             shell,
             component.image_name(),
+            &args.tag.unwrap(),
             &application_args,
             &additional_args,
             message,
@@ -110,6 +111,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
 fn run_dockerized_component(
     shell: &Shell,
     image_name: &str,
+    tag: &str,
     application_args: &[String],
     args: &[String],
     message: &'static str,
@@ -124,7 +126,7 @@ fn run_dockerized_component(
 
     let mut cmd = Cmd::new(cmd!(
         shell,
-        "docker run --net=host -v {path_to_prover}/data/keys:/prover/data/keys -v {path_to_prover}/artifacts:/artifacts -v {path_to_configs}:/configs {application_args...} {image_name} {args...}"
+        "docker run --net=host -v {path_to_prover}/data/keys:/prover/data/keys -v {path_to_prover}/artifacts:/artifacts -v {path_to_configs}:/configs {application_args...} {image_name}:{tag} {args...}"
     ));
 
     cmd = cmd.with_force_run();

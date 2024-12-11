@@ -1,7 +1,11 @@
 db:
   merkle_tree:
     mode: LIGHTWEIGHT
+api:
+  web3_json_rpc:
+    estimate_gas_optimize_search: true
 experimental_vm:
   state_keeper_fast_vm_mode: NEW
+  api_fast_vm_mode: NEW
 mempool:
   delay_interval: 50

@@ -11,7 +11,7 @@ use zksync_dal::{
     helpers::wait_for_l1_batch, transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool,
     Core, CoreDal, DalError,
 };
-use zksync_multivm::interface::TransactionExecutionMetrics;
+use zksync_multivm::interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_types::{api, l2::L2Tx, Address, Nonce, H256, U256};
 use zksync_web3_decl::{
@@ -309,6 +309,7 @@ impl TxSink for TxProxy {
         &self,
         tx: &L2Tx,
         _execution_metrics: TransactionExecutionMetrics,
+        _validation_traces: ValidationTraces,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         // We're running an external node: we have to proxy the transaction to the main node.
         // But before we do that, save the tx to cache in case someone will request it
@@ -416,7 +417,11 @@ mod tests {
 
         let proxy = TxProxy::new(Box::new(main_node_client));
         proxy
-            .submit_tx(&tx, TransactionExecutionMetrics::default())
+            .submit_tx(
+                &tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         assert!(send_tx_called.load(Ordering::Relaxed));
@@ -525,7 +530,11 @@ mod tests {
 
         let proxy = TxProxy::new(Box::new(main_node_client));
         proxy
-            .submit_tx(&tx, TransactionExecutionMetrics::default())
+            .submit_tx(
+                &tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap_err();
 
@@ -585,7 +594,11 @@ mod tests {
         // Add transaction to the cache
         let proxy = TxProxy::new(Box::new(main_node_client));
         proxy
-            .submit_tx(&tx, TransactionExecutionMetrics::default())
+            .submit_tx(
+                &tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         assert_eq!(proxy.tx_cache.get(tx.hash()).await.unwrap(), tx);
@@ -662,15 +675,27 @@ mod tests {
             .build();
         let proxy = TxProxy::new(Box::new(main_node_client));
         proxy
-            .submit_tx(&tx, TransactionExecutionMetrics::default())
+            .submit_tx(
+                &tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         proxy
-            .submit_tx(&replacing_tx, TransactionExecutionMetrics::default())
+            .submit_tx(
+                &replacing_tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         proxy
-            .submit_tx(&future_tx, TransactionExecutionMetrics::default())
+            .submit_tx(
+                &future_tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         {

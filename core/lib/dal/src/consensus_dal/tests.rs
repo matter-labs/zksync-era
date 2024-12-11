@@ -131,6 +131,9 @@ async fn test_batch_certificate() {
                     compressed_repeated_writes: None,
                     zkporter_is_available: false,
                     aux_commitments: None,
+                    aggregation_root: rng.gen(),
+                    local_root: rng.gen(),
+                    state_diff_hash: rng.gen(),
                 },
             )
             .await

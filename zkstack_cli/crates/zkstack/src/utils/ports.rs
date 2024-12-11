@@ -12,7 +12,24 @@ use xshell::Shell;
 use crate::defaults::{DEFAULT_OBSERVABILITY_PORT, PORT_RANGE_END, PORT_RANGE_START};
 
 pub struct EcosystemPorts {
-    pub ports: HashMap<u16, Vec<String>>,
+    pub ports: HashMap<u16, Vec<PortInfo>>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PortInfo {
+    pub port: u16,
+    pub file_path: String,
+    pub description: String,
+}
+
+impl fmt::Display for PortInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "[{}] {} >{}",
+            self.file_path, self.description, self.port
+        )
+    }
 }
 
 impl EcosystemPorts {
@@ -20,14 +37,19 @@ impl EcosystemPorts {
         self.ports.contains_key(&port)
     }
 
-    pub fn add_port_info(&mut self, port: u16, info: String) {
+    pub fn add_port_info(&mut self, port: u16, info: PortInfo) {
+        let info = PortInfo {
+            port,
+            file_path: info.file_path,
+            description: info.description,
+        };
         self.ports.entry(port).or_default().push(info);
     }
 
-    pub fn allocate_port(&mut self, range: Range<u16>, info: String) -> anyhow::Result<u16> {
+    pub fn allocate_port(&mut self, range: Range<u16>, info: PortInfo) -> anyhow::Result<u16> {
         for port in range {
             if !self.is_port_assigned(port) {
-                self.add_port_info(port, info.to_string());
+                self.add_port_info(port, info);
                 return Ok(port);
             }
         }
@@ -48,10 +70,15 @@ impl EcosystemPorts {
         let mut new_ports = HashMap::new();
         for (desc, port) in config.get_default_ports()? {
             let mut new_port = port + offset;
+            let port_info = PortInfo {
+                port: new_port,
+                description: desc.clone(),
+                ..Default::default()
+            };
             if self.is_port_assigned(new_port) {
-                new_port = self.allocate_port(port_range.clone(), desc.clone())?;
+                new_port = self.allocate_port(port_range.clone(), port_info)?;
             } else {
-                self.add_port_info(new_port, desc.to_string());
+                self.add_port_info(new_port, port_info);
             }
             new_ports.insert(desc, new_port);
         }
@@ -89,7 +116,7 @@ impl EcosystemPorts {
                         if let Some(port) = val.as_u64().and_then(|p| u16::try_from(p).ok()) {
                             let new_port = self.allocate_port(
                                 (port + offset as u16)..PORT_RANGE_END,
-                                "".to_string(),
+                                PortInfo::default(),
                             )?;
                             *val = Value::Number(serde_yaml::Number::from(new_port));
                             updated_ports.insert(port, new_port);
@@ -131,6 +158,19 @@ impl EcosystemPorts {
         }
 
         Ok(())
+    }
+
+    pub fn group_by_file_path(&self) -> HashMap<String, Vec<PortInfo>> {
+        let mut grouped_ports: HashMap<String, Vec<PortInfo>> = HashMap::new();
+        for port_infos in self.ports.values() {
+            for port_info in port_infos {
+                grouped_ports
+                    .entry(port_info.file_path.clone())
+                    .or_default()
+                    .push(port_info.clone());
+            }
+        }
+        grouped_ports
     }
 }
 
@@ -278,8 +318,12 @@ impl EcosystemPortsScanner {
         ecosystem_ports: &mut EcosystemPorts,
     ) {
         if let Some(port) = value.as_u64().and_then(|p| u16::try_from(p).ok()) {
-            let description = format!("[{}] {}", file_path.display(), path);
-            ecosystem_ports.add_port_info(port, description);
+            let info = PortInfo {
+                port,
+                file_path: file_path.display().to_string(),
+                description: path.to_string(),
+            };
+            ecosystem_ports.add_port_info(port, info);
         }
     }
 
@@ -318,8 +362,12 @@ impl EcosystemPortsScanner {
         file_path: &Path,
         ecosystem_ports: &mut EcosystemPorts,
     ) {
-        let description = format!("[{}] {}", file_path.display(), path);
-        ecosystem_ports.add_port_info(port, description);
+        let info = PortInfo {
+            port,
+            file_path: file_path.display().to_string(),
+            description: path.to_string(),
+        };
+        ecosystem_ports.add_port_info(port, info);
     }
 }
 
@@ -360,7 +408,7 @@ impl ConfigWithChainPorts for ExplorerBackendPorts {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::utils::ports::{EcosystemPorts, EcosystemPortsScanner};
+    use crate::utils::ports::{EcosystemPorts, EcosystemPortsScanner, PortInfo};
 
     #[test]
     fn test_traverse_yaml() {
@@ -414,21 +462,28 @@ mod tests {
         // Check description:
         let port_3050_info = ecosystem_ports.ports.get(&3050).unwrap();
         assert_eq!(port_3050_info.len(), 1);
-        assert_eq!(
-            port_3050_info[0],
-            "[test_config.yaml] api:web3_json_rpc:http_port"
-        );
+        let expected_port_3050_info = PortInfo {
+            port: 3050,
+            file_path: "test_config.yaml".to_string(),
+            description: "api:web3_json_rpc:http_port".to_string(),
+        };
+        assert_eq!(port_3050_info[0], expected_port_3050_info);
 
         let port_3412_info = ecosystem_ports.ports.get(&3412).unwrap();
         assert_eq!(port_3412_info.len(), 2);
-        assert_eq!(
-            port_3412_info[0],
-            "[test_config.yaml] api:prometheus:listener_port"
-        );
-        assert_eq!(
-            port_3412_info[1],
-            "[test_config.yaml] prometheus:listener_port"
-        );
+        let expected_port_3412_info_0 = PortInfo {
+            port: 3412,
+            file_path: "test_config.yaml".to_string(),
+            description: "api:prometheus:listener_port".to_string(),
+        };
+        let expected_port_3412_info_1 = PortInfo {
+            port: 3412,
+            file_path: "test_config.yaml".to_string(),
+            description: "prometheus:listener_port".to_string(),
+        };
+
+        assert_eq!(port_3412_info[0], expected_port_3412_info_0);
+        assert_eq!(port_3412_info[1], expected_port_3412_info_1);
     }
 
     #[test]
@@ -451,7 +506,12 @@ mod tests {
 
         assert!(ecosystem_ports.is_port_assigned(3050));
         let port_info = ecosystem_ports.ports.get(&3050).unwrap();
-        assert_eq!(port_info[0], "[test_config.yaml] web3_json_rpc:http_port");
+        let expected_port_info = PortInfo {
+            port: 3050,
+            file_path: "test_config.yaml".to_string(),
+            description: "web3_json_rpc:http_port".to_string(),
+        };
+        assert_eq!(port_info[0], expected_port_info);
     }
 
     #[test]
@@ -482,7 +542,12 @@ mod tests {
 
         assert!(ecosystem_ports.is_port_assigned(8546));
         let port_info = ecosystem_ports.ports.get(&8546).unwrap();
-        assert_eq!(port_info[0], "[test_config.yaml] reth:ports");
+        let expected_port_info = PortInfo {
+            port: 8546,
+            file_path: "test_config.yaml".to_string(),
+            description: "reth:ports".to_string(),
+        };
+        assert_eq!(port_info[0], expected_port_info);
     }
 
     #[test]

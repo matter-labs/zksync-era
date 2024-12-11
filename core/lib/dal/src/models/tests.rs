@@ -1,4 +1,6 @@
+use bigdecimal::num_bigint::BigInt;
 use chrono::Utc;
+use rand::{prelude::StdRng, Rng, SeedableRng};
 use zksync_types::{
     fee::Fee,
     l1::{OpProcessingType, PriorityQueueType},
@@ -7,9 +9,9 @@ use zksync_types::{
     Address, Execute, ExecuteTransactionCommon, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE,
     EIP_712_TX_TYPE, H160, H256, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
-use zksync_utils::bigdecimal_to_u256;
 
-use crate::{models::storage_transaction::StorageTransaction, BigDecimal};
+use super::*;
+use crate::models::storage_transaction::StorageTransaction;
 
 fn default_execute() -> Execute {
     Execute {
@@ -94,6 +96,49 @@ fn l2_storage_tx(tx_format: i32) -> StorageTransaction {
         signature: Some("ABCD".as_bytes().to_vec()),
         ..StorageTransaction::default()
     }
+}
+
+#[test]
+fn test_u256_to_bigdecimal() {
+    const RNG_SEED: u64 = 123;
+
+    let mut rng = StdRng::seed_from_u64(RNG_SEED);
+    // Small values.
+    for _ in 0..10_000 {
+        let value: u64 = rng.gen();
+        let expected = BigDecimal::from(value);
+        assert_eq!(u256_to_big_decimal(value.into()), expected);
+    }
+
+    // Arbitrary values
+    for _ in 0..10_000 {
+        let u64_digits: [u64; 4] = rng.gen();
+        let value = u64_digits
+            .iter()
+            .enumerate()
+            .map(|(i, &digit)| U256::from(digit) << (i * 64))
+            .fold(U256::zero(), |acc, x| acc + x);
+        let expected_value = u64_digits
+            .iter()
+            .enumerate()
+            .map(|(i, &digit)| BigInt::from(digit) << (i * 64))
+            .fold(BigInt::from(0), |acc, x| acc + x);
+        assert_eq!(
+            u256_to_big_decimal(value),
+            BigDecimal::new(expected_value, 0)
+        );
+    }
+}
+
+#[test]
+fn test_bigdecimal_to_u256() {
+    let value = BigDecimal::from(100u32);
+    let expected = U256::from(100u32);
+    assert_eq!(bigdecimal_to_u256(value), expected);
+
+    let value = BigDecimal::new(BigInt::from(100), -2);
+    let expected = U256::from(10000u32);
+    assert_eq!(bigdecimal_to_u256(value), expected);
 }
 
 #[test]

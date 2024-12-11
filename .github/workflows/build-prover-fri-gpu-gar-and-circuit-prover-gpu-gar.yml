@@ -28,7 +28,6 @@ jobs:
       - name: Download Setup data
         run: |
           gsutil -m rsync -r gs://matterlabs-setup-data-us/${{ inputs.setup_keys_id }} docker/prover-gpu-fri-gar
-          cp -v docker/prover-gpu-fri-gar/*.bin docker/circuit-prover-gpu-gar/
 
       - name: Login to us-central1 GAR
         run: |
@@ -69,6 +68,10 @@ jobs:
           docker buildx imagetools create \
             --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
+
+      - name: Move Setup data from prover-gpu-fri-gar to circuit-prover-gpu-gar
+        run: |
+          mv -v docker/prover-gpu-fri-gar/*.bin docker/circuit-prover-gpu-gar/
 
       - name: Build and push circuit-prover-gpu-gar
         uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0

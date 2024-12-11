@@ -9,6 +9,10 @@ on:
         description: "DOCKERHUB_TOKEN"
         required: true
     inputs:
+      ERA_BELLMAN_CUDA_RELEASE:
+        description: "ERA_BELLMAN_CUDA_RELEASE"
+        type: string
+        required: true
       image_tag_suffix:
         description: "Optional suffix to override tag name generation"
         type: string
@@ -16,11 +20,6 @@ on:
       action:
         type: string
         default: non-push
-        required: false
-      CUDA_ARCH:
-        description: "CUDA Arch to build"
-        type: string
-        default: "89"
         required: false
       WITNESS_GENERATOR_RUST_FLAGS:
         description: "Rust flags for witness_generator compilation"
@@ -35,7 +34,7 @@ on:
 jobs:
   get-protocol-version:
     name: Get protocol version
-    runs-on: [ matterlabs-ci-runner-high-performance ]
+    runs-on: [matterlabs-ci-runner-high-performance]
     outputs:
       protocol_version: ${{ steps.protocolversion.outputs.protocol_version }}
     steps:
@@ -81,7 +80,7 @@ jobs:
     needs: get-protocol-version
     env:
       PROTOCOL_VERSION: ${{ needs.get-protocol-version.outputs.protocol_version }}
-    runs-on: [ matterlabs-ci-runner-c3d ]
+    runs-on: [matterlabs-ci-runner-c3d]
     strategy:
       matrix:
         components:
@@ -122,12 +121,18 @@ jobs:
           context: .
           push: ${{ inputs.action == 'push' }}
           build-args: |
-            CUDA_ARCH=${{ inputs.CUDA_ARCH }}
             SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage
             SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
             SCCACHE_GCS_RW_MODE=READ_WRITE
             RUSTC_WRAPPER=sccache
+            PROTOCOL_VERSION=${{ env.PROTOCOL_VERSION }}
+            ERA_BELLMAN_CUDA_RELEASE=${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
+            RUST_FLAGS=${{ inputs.WITNESS_GENERATOR_RUST_FLAGS }}
           file: docker/${{ matrix.components }}/Dockerfile
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
             matterlabs/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
+            matterlabs/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:latest
+            matterlabs/${{ matrix.components }}:latest

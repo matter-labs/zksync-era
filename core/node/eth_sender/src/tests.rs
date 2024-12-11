@@ -34,6 +34,7 @@ fn get_dummy_operation(number: u32) -> AggregatedOperation {
             metadata: default_l1_batch_metadata(),
             raw_published_factory_deps: Vec::new(),
         }],
+        priority_ops_proofs: Vec::new(),
     })
 }
 
@@ -126,6 +127,10 @@ pub(crate) fn default_l1_batch_metadata() -> L1BatchMetadata {
         events_queue_commitment: Some(H256::zero()),
         bootloader_initial_content_commitment: Some(H256::zero()),
         state_diffs_compressed: vec![],
+        state_diff_hash: Some(H256::default()),
+        local_root: Some(H256::default()),
+        aggregation_root: Some(H256::default()),
+        da_inclusion_data: Some(vec![]),
     }
 }
 
@@ -203,7 +208,6 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
         .save_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
             &get_dummy_operation(0),
-            false,
             false,
         )
         .await?;

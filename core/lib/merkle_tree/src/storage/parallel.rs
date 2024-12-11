@@ -4,7 +4,7 @@ use std::{
     any::Any,
     collections::{HashMap, VecDeque},
     error::Error as StdError,
-    mem,
+    mem, ops,
     sync::{mpsc, Arc},
     thread,
     time::Duration,
@@ -375,6 +375,17 @@ impl<DB: PruneDatabase> PruneDatabase for ParallelDatabase<DB> {
             .context("failed synchronizing database before pruning")?;
         self.inner.prune(patch)
     }
+
+    fn truncate(
+        &mut self,
+        manifest: Manifest,
+        truncated_versions: ops::RangeTo<u64>,
+    ) -> anyhow::Result<()> {
+        // Require the underlying database to be fully synced.
+        self.wait_sync()
+            .context("failed synchronizing database before truncation")?;
+        self.inner.truncate(manifest, truncated_versions)
+    }
 }
 
 /// Database with either sequential or parallel persistence.
@@ -477,6 +488,17 @@ impl<DB: PruneDatabase> PruneDatabase for MaybeParallel<DB> {
         match self {
             Self::Sequential(db) => db.prune(patch),
             Self::Parallel(db) => db.prune(patch),
+        }
+    }
+
+    fn truncate(
+        &mut self,
+        manifest: Manifest,
+        truncated_versions: ops::RangeTo<u64>,
+    ) -> anyhow::Result<()> {
+        match self {
+            Self::Sequential(db) => db.truncate(manifest, truncated_versions),
+            Self::Parallel(db) => db.truncate(manifest, truncated_versions),
         }
     }
 }

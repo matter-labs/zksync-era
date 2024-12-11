@@ -1,14 +1,15 @@
 use std::{cmp::Ordering, collections::HashMap};
 
 use zksync_types::{
-    fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, Address, Nonce, Transaction, U256,
+    fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, Address, Nonce, Transaction,
+    TransactionTimeRangeConstraint, U256,
 };
 
 /// Pending mempool transactions of account
 #[derive(Debug)]
 pub(crate) struct AccountTransactions {
     /// transactions that belong to given account keyed by transaction nonce
-    transactions: HashMap<Nonce, L2Tx>,
+    transactions: HashMap<Nonce, (L2Tx, TransactionTimeRangeConstraint)>,
     /// account nonce in mempool
     /// equals to committed nonce in db + number of transactions sent to state keeper
     nonce: Nonce,
@@ -23,7 +24,11 @@ impl AccountTransactions {
     }
 
     /// Inserts new transaction for given account. Returns insertion metadata
-    pub fn insert(&mut self, transaction: L2Tx) -> InsertionMetadata {
+    pub fn insert(
+        &mut self,
+        transaction: L2Tx,
+        constraint: TransactionTimeRangeConstraint,
+    ) -> InsertionMetadata {
         let mut metadata = InsertionMetadata::default();
         let nonce = transaction.common_data.nonce;
         // skip insertion if transaction is old
@@ -33,8 +38,8 @@ impl AccountTransactions {
         let new_score = Self::score_for_transaction(&transaction);
         let previous_score = self
             .transactions
-            .insert(nonce, transaction)
-            .map(|tx| Self::score_for_transaction(&tx));
+            .insert(nonce, (transaction, constraint))
+            .map(|x| Self::score_for_transaction(&x.0));
         metadata.is_new = previous_score.is_none();
         if nonce == self.nonce {
             metadata.new_score = Some(new_score);
@@ -43,9 +48,9 @@ impl AccountTransactions {
         metadata
     }
 
-    /// Returns next transaction to be included in block and optional score of its successor
-    /// Panics if no such transaction exists
-    pub fn next(&mut self) -> (L2Tx, Option<MempoolScore>) {
+    /// Returns next transaction to be included in block, its time range constraint and optional
+    /// score of its successor. Panics if no such transaction exists
+    pub fn next(&mut self) -> (L2Tx, TransactionTimeRangeConstraint, Option<MempoolScore>) {
         let transaction = self
             .transactions
             .remove(&self.nonce)
@@ -54,12 +59,16 @@ impl AccountTransactions {
         let score = self
             .transactions
             .get(&self.nonce)
-            .map(Self::score_for_transaction);
-        (transaction, score)
+            .map(|(tx, _c)| Self::score_for_transaction(tx));
+        (transaction.0, transaction.1, score)
     }
 
-    /// Handles transaction rejection. Returns optional score of its successor
-    pub fn reset(&mut self, transaction: &Transaction) -> Option<MempoolScore> {
+    /// Handles transaction rejection. Returns optional score of its successor and time range
+    /// constraint that the transaction has been added to the mempool with
+    pub fn reset(
+        &mut self,
+        transaction: &Transaction,
+    ) -> Option<(MempoolScore, TransactionTimeRangeConstraint)> {
         // current nonce for the group needs to be reset
         let tx_nonce = transaction
             .nonce()
@@ -67,7 +76,7 @@ impl AccountTransactions {
         self.nonce = self.nonce.min(tx_nonce);
         self.transactions
             .get(&(tx_nonce + 1))
-            .map(Self::score_for_transaction)
+            .map(|(tx, c)| (Self::score_for_transaction(tx), c.clone()))
     }
 
     pub fn len(&self) -> usize {

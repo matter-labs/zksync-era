@@ -23,7 +23,7 @@ use crate::{
             utils::{get_vm_hook_params, read_pointer, VmHook},
         },
         types::internals::ZkSyncVmState,
-        vm::MultiVMSubversion,
+        vm::MultiVmSubversion,
         BootloaderState, HistoryMode, SimpleMemory,
     },
 };
@@ -102,19 +102,22 @@ pub(crate) struct ResultTracer<S> {
     execution_mode: VmExecutionMode,
 
     far_call_tracker: FarCallTracker,
-    subversion: MultiVMSubversion,
+    subversion: MultiVmSubversion,
+
+    pub(crate) tx_finished_in_one_tx_mode: bool,
 
     _phantom: PhantomData<S>,
 }
 
 impl<S> ResultTracer<S> {
-    pub(crate) fn new(execution_mode: VmExecutionMode, subversion: MultiVMSubversion) -> Self {
+    pub(crate) fn new(execution_mode: VmExecutionMode, subversion: MultiVmSubversion) -> Self {
         Self {
             result: None,
             bootloader_out_of_gas: false,
             execution_mode,
             far_call_tracker: Default::default(),
             subversion,
+            tx_finished_in_one_tx_mode: false,
             _phantom: PhantomData,
         }
     }
@@ -297,7 +300,7 @@ impl<S: WriteStorage> ResultTracer<S> {
 
             let has_failed =
                 tx_has_failed(state, bootloader_state.current_tx() as u32, self.subversion);
-            if has_failed {
+            if self.tx_finished_in_one_tx_mode && has_failed {
                 self.result = Some(Result::Error {
                     error_reason: VmRevertReason::General {
                         msg: "Transaction reverted with empty reason. Possibly out of gas"
@@ -306,9 +309,9 @@ impl<S: WriteStorage> ResultTracer<S> {
                     },
                 });
             } else {
-                self.result = Some(self.result.clone().unwrap_or(Result::Success {
+                self.result = Some(Result::Success {
                     return_data: vec![],
-                }));
+                });
             }
         }
     }
@@ -333,7 +336,7 @@ impl<S: WriteStorage> ResultTracer<S> {
 pub(crate) fn tx_has_failed<S: WriteStorage, H: HistoryMode>(
     state: &ZkSyncVmState<S, H>,
     tx_id: u32,
-    subversion: MultiVMSubversion,
+    subversion: MultiVmSubversion,
 ) -> bool {
     let mem_slot = get_result_success_first_slot(subversion) + tx_id;
     let mem_value = state

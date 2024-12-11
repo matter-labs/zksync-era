@@ -81,7 +81,7 @@ impl DBBaseTokenRatioProvider {
                 // Though the DB should be populated very soon after the server starts, it is possible
                 // to have no ratios in the DB right after genesis. Having initial ratios in the DB
                 // from the genesis stage will eliminate this possibility.
-                tracing::error!("No latest price found in the database. Using default ratio.");
+                tracing::warn!("No latest price found in the database. Using default ratio.");
                 BaseTokenConversionRatio::default()
             }
             Err(err) => anyhow::bail!("Failed to get latest base token ratio: {:?}", err),

@@ -10,7 +10,7 @@ use zksync_types::{
     api::FeeHistory,
     ethabi,
     web3::{self, contract::Tokenize, BlockId},
-    Address, L1ChainId, L2ChainId, SLChainId, EIP_4844_TX_TYPE, H160, H256, U256, U64,
+    Address, L2ChainId, SLChainId, EIP_4844_TX_TYPE, H160, H256, U256, U64,
 };
 use zksync_web3_decl::client::{MockClient, MockClientBuilder, Network, L1, L2};
 
@@ -237,6 +237,7 @@ pub struct MockSettlementLayerBuilder<Net: SupportedMockSLNetwork = L1> {
     non_ordering_confirmations: bool,
     inner: Arc<RwLock<MockSettlementLayerInner>>,
     call_handler: Box<CallHandler>,
+    chain_id: u64,
     _network: PhantomData<Net>,
 }
 
@@ -267,6 +268,7 @@ impl<Net: SupportedMockSLNetwork> Default for MockSettlementLayerBuilder<Net> {
             call_handler: Box::new(|call, block_id| {
                 panic!("Unexpected eth_call: {call:?}, {block_id:?}");
             }),
+            chain_id: 9,
             _network: PhantomData,
         }
     }
@@ -313,6 +315,10 @@ impl<Net: SupportedMockSLNetwork> MockSettlementLayerBuilder<Net> {
             call_handler: Box::new(call_handler),
             ..self
         }
+    }
+
+    pub fn with_chain_id(self, chain_id: u64) -> Self {
+        Self { chain_id, ..self }
     }
 
     fn get_block_by_number(
@@ -415,36 +421,46 @@ fn l2_eth_fee_history(
     let from_block = from_block.as_usize();
     let start_block = from_block.saturating_sub(block_count.as_usize() - 1);
 
+    // duplicates last value to follow `feeHistory` response format, it should return `block_count + 1` values
+    let base_fee_per_gas = base_fee_history[start_block..=from_block]
+        .iter()
+        .chain([&base_fee_history[from_block]])
+        .map(|fee| U256::from(fee.base_fee_per_gas))
+        .collect();
+
+    // duplicates last value to follow `feeHistory` response format, it should return `block_count + 1` values
+    let base_fee_per_blob_gas = base_fee_history[start_block..=from_block]
+        .iter()
+        .chain([&base_fee_history[from_block]]) // duplicate last value
+        .map(|fee| fee.base_fee_per_blob_gas)
+        .collect();
+
+    let l2_pubdata_price = base_fee_history[start_block..=from_block]
+        .iter()
+        .map(|fee| fee.l2_pubdata_price)
+        .collect();
+
     FeeHistory {
         inner: web3::FeeHistory {
             oldest_block: start_block.into(),
-            base_fee_per_gas: base_fee_history[start_block..=from_block]
-                .iter()
-                .map(|fee| U256::from(fee.base_fee_per_gas))
-                .collect(),
-            base_fee_per_blob_gas: base_fee_history[start_block..=from_block]
-                .iter()
-                .map(|fee| fee.base_fee_per_blob_gas)
-                .collect(),
+            base_fee_per_gas,
+            base_fee_per_blob_gas,
             gas_used_ratio: vec![],      // not used
             blob_gas_used_ratio: vec![], // not used
             reward: None,
         },
-        l2_pubdata_price: base_fee_history[start_block..=from_block]
-            .iter()
-            .map(|fee| fee.l2_pubdata_price)
-            .collect(),
+        l2_pubdata_price,
     }
 }
 
 impl SupportedMockSLNetwork for L1 {
     fn build_client(builder: MockSettlementLayerBuilder<Self>) -> MockClient<Self> {
-        const CHAIN_ID: L1ChainId = L1ChainId(9);
-
         let base_fee_history = builder.base_fee_history.clone();
+        let chain_id = builder.chain_id;
+        let net = SLChainId(builder.chain_id).into();
 
         builder
-            .build_client_inner(CHAIN_ID.0, CHAIN_ID.into())
+            .build_client_inner(chain_id, net)
             .method(
                 "eth_feeHistory",
                 move |block_count: U64, newest_block: web3::BlockNumber, _: Option<Vec<f32>>| {
@@ -457,12 +473,12 @@ impl SupportedMockSLNetwork for L1 {
 
 impl SupportedMockSLNetwork for L2 {
     fn build_client(builder: MockSettlementLayerBuilder<Self>) -> MockClient<Self> {
-        let chain_id: L2ChainId = 9u64.try_into().unwrap();
-
         let base_fee_history = builder.base_fee_history.clone();
+        let chain_id = builder.chain_id;
+        let net = L2ChainId::new(builder.chain_id).unwrap().into();
 
         builder
-            .build_client_inner(chain_id.as_u64(), chain_id.into())
+            .build_client_inner(chain_id, net)
             .method(
                 "eth_feeHistory",
                 move |block_count: U64, newest_block: web3::BlockNumber, _: Option<Vec<f32>>| {

@@ -1,13 +1,12 @@
 use itertools::Itertools;
-use zksync_types::U256;
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
+use zksync_types::{bytecode::BytecodeHash, U256};
 
 use crate::{
     interface::{
         storage::{StoragePtr, WriteStorage},
         CompressedBytecodeInfo,
     },
-    utils::bytecode,
+    utils::{bytecode, bytecode::bytes_to_be_words},
     vm_latest::Vm,
     HistoryMode,
 };
@@ -25,18 +24,15 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
                     .storage
                     .get_ptr()
                     .borrow_mut()
-                    .is_bytecode_known(&hash_bytecode(&info.original))
+                    .is_bytecode_known(&BytecodeHash::for_bytecode(&info.original).value())
             })
     }
 }
 
 /// Converts bytecode to tokens and hashes it.
 pub(crate) fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> (U256, Vec<U256>) {
-    let bytecode_hash = hash_bytecode(&bytecode);
-    let bytecode_hash = U256::from_big_endian(bytecode_hash.as_bytes());
-
-    let bytecode_words = bytes_to_be_words(bytecode);
-
+    let bytecode_hash = BytecodeHash::for_bytecode(&bytecode).value_u256();
+    let bytecode_words = bytes_to_be_words(&bytecode);
     (bytecode_hash, bytecode_words)
 }
 
@@ -49,7 +45,11 @@ pub(crate) fn compress_bytecodes<S: WriteStorage>(
         .enumerate()
         .sorted_by_key(|(_idx, dep)| *dep)
         .dedup_by(|x, y| x.1 == y.1)
-        .filter(|(_idx, dep)| !storage.borrow_mut().is_bytecode_known(&hash_bytecode(dep)))
+        .filter(|(_idx, dep)| {
+            !storage
+                .borrow_mut()
+                .is_bytecode_known(&BytecodeHash::for_bytecode(dep).value())
+        })
         .sorted_by_key(|(idx, _dep)| *idx)
         .filter_map(|(_idx, dep)| bytecode::compress(dep.clone()).ok())
         .collect()

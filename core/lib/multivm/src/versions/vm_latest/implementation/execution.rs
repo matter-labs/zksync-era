@@ -1,6 +1,7 @@
 use std::mem;
 
 use zk_evm_1_5_0::aux_structures::Timestamp;
+use zksync_vm_interface::VmEvent;
 
 use crate::{
     interface::{
@@ -14,7 +15,6 @@ use crate::{
             circuits_capacity::circuit_statistic_from_cycles, dispatcher::TracerDispatcher,
             DefaultExecutionTracer, PubdataTracer, RefundsTracer,
         },
-        utils::extract_bytecodes_marked_as_known,
         vm::Vm,
     },
     HistoryMode,
@@ -69,6 +69,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
                     self.batch_env.clone(),
                     execution_mode,
                     self.subversion,
+                    None,
                 ))
             }),
             self.subversion,
@@ -100,8 +101,8 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             circuit_statistic_from_cycles(tx_tracer.circuits_tracer.statistics),
         );
         let result = tx_tracer.result_tracer.into_result();
-        let factory_deps_marked_as_known = extract_bytecodes_marked_as_known(&logs.events);
-        let new_known_factory_deps = self.decommit_bytecodes(&factory_deps_marked_as_known);
+        let factory_deps_marked_as_known = VmEvent::extract_bytecodes_marked_as_known(&logs.events);
+        let dynamic_factory_deps = self.decommit_dynamic_bytecodes(factory_deps_marked_as_known);
         *dispatcher = tx_tracer.dispatcher;
 
         let result = VmExecutionResultAndLogs {
@@ -109,7 +110,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             logs,
             statistics,
             refunds,
-            new_known_factory_deps: Some(new_known_factory_deps),
+            dynamic_factory_deps,
         };
 
         (stop_reason, result)

@@ -9,6 +9,7 @@ mod abi;
 mod config;
 mod en;
 pub mod era;
+mod metrics;
 mod mn;
 mod registry;
 mod storage;

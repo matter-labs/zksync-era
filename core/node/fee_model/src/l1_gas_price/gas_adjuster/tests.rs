@@ -1,9 +1,11 @@
 use std::{collections::VecDeque, sync::RwLockReadGuard};
 
 use test_casing::test_casing;
-use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
+use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
-use zksync_types::{commitment::L1BatchCommitmentMode, settlement::SettlementMode};
+use zksync_types::{
+    commitment::L1BatchCommitmentMode, pubdata_da::PubdataSendingMode, settlement::SettlementMode,
+};
 use zksync_web3_decl::client::L2;
 
 use super::{GasAdjuster, GasStatistics, GasStatisticsInner};

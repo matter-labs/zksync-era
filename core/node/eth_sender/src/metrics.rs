@@ -1,12 +1,14 @@
 //! Metrics for the Ethereum sender component.
 
-use std::{fmt, time::Duration};
+use std::{
+    fmt,
+    time::{Duration, SystemTime},
+};
 
 use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_shared_metrics::{BlockL1Stage, BlockStage, APP_METRICS};
 use zksync_types::{aggregated_operations::AggregatedActionType, eth_sender::EthTx};
-use zksync_utils::time::seconds_since_epoch;
 
 use crate::abstract_l1_interface::{L1BlockNumbers, OperatorType};
 
@@ -143,10 +145,13 @@ impl EthSenderMetrics {
             return;
         }
 
+        let duration_since_epoch = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("incorrect system time");
         for statistics in l1_batches_statistics {
-            APP_METRICS.block_latency[&stage].observe(Duration::from_secs(
-                seconds_since_epoch() - statistics.timestamp,
-            ));
+            let block_latency =
+                duration_since_epoch.saturating_sub(Duration::from_secs(statistics.timestamp));
+            APP_METRICS.block_latency[&stage].observe(block_latency);
             APP_METRICS.processed_txs[&stage.into()]
                 .inc_by(statistics.l2_tx_count as u64 + statistics.l1_tx_count as u64);
             APP_METRICS.processed_l1_txs[&stage.into()].inc_by(statistics.l1_tx_count as u64);

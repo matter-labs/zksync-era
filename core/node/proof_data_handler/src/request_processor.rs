@@ -17,7 +17,7 @@ use zksync_types::{
     basic_fri_types::Eip4844Blobs,
     commitment::{serialize_commitments, L1BatchCommitmentMode},
     web3::keccak256,
-    L1BatchNumber, H256,
+    L1BatchNumber, ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY,
 };
 
 use crate::{errors::RequestProcessorError, metrics::METRICS};
@@ -226,58 +226,63 @@ impl RequestProcessor {
                     .unwrap()
                     .expect("Proved block without metadata");
 
-                let is_pre_boojum = l1_batch
+                let protocol_version = l1_batch
                     .header
                     .protocol_version
-                    .map(|v| v.is_pre_boojum())
-                    .unwrap_or(true);
-                if !is_pre_boojum {
-                    let events_queue_state = l1_batch
-                        .metadata
-                        .events_queue_commitment
-                        .expect("No events_queue_commitment");
-                    let bootloader_heap_initial_content = l1_batch
-                        .metadata
-                        .bootloader_initial_content_commitment
-                        .expect("No bootloader_initial_content_commitment");
+                    .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
-                    if events_queue_state != events_queue_state_from_prover
-                        || bootloader_heap_initial_content
-                            != bootloader_heap_initial_content_from_prover
-                    {
-                        let server_values = format!("events_queue_state = {events_queue_state}, bootloader_heap_initial_content = {bootloader_heap_initial_content}");
-                        let prover_values = format!("events_queue_state = {events_queue_state_from_prover}, bootloader_heap_initial_content = {bootloader_heap_initial_content_from_prover}");
-                        panic!(
-                            "Auxilary output doesn't match, server values: {} prover values: {}",
-                            server_values, prover_values
-                        );
-                    }
+                let events_queue_state = l1_batch
+                    .metadata
+                    .events_queue_commitment
+                    .expect("No events_queue_commitment");
+                let bootloader_heap_initial_content = l1_batch
+                    .metadata
+                    .bootloader_initial_content_commitment
+                    .expect("No bootloader_initial_content_commitment");
+
+                if events_queue_state != events_queue_state_from_prover
+                    || bootloader_heap_initial_content
+                        != bootloader_heap_initial_content_from_prover
+                {
+                    panic!(
+                        "Auxilary output doesn't match\n\
+                        server values: events_queue_state = {events_queue_state}, bootloader_heap_initial_content = {bootloader_heap_initial_content}\n\
+                        prover values: events_queue_state = {events_queue_state_from_prover}, bootloader_heap_initial_content = {bootloader_heap_initial_content_from_prover}",
+                    );
                 }
 
                 let system_logs = serialize_commitments(&l1_batch.header.system_logs);
                 let system_logs_hash = H256(keccak256(&system_logs));
 
-                if !is_pre_boojum {
-                    let state_diff_hash = l1_batch
+                let state_diff_hash = if protocol_version.is_pre_gateway() {
+                    l1_batch
                         .header
                         .system_logs
-                        .into_iter()
-                        .find(|elem| elem.0.key == H256::from_low_u64_be(2))
-                        .expect("No state diff hash key")
-                        .0
-                        .value;
+                        .iter()
+                        .find_map(|log| {
+                            (log.0.key
+                                == H256::from_low_u64_be(STATE_DIFF_HASH_KEY_PRE_GATEWAY as u64))
+                            .then_some(log.0.value)
+                        })
+                        .expect("Failed to get state_diff_hash from system logs")
+                } else {
+                    l1_batch
+                        .metadata
+                        .state_diff_hash
+                        .expect("Failed to get state_diff_hash from metadata")
+                };
 
-                    if state_diff_hash != state_diff_hash_from_prover
-                        || system_logs_hash != system_logs_hash_from_prover
-                    {
-                        let server_values = format!("system_logs_hash = {system_logs_hash}, state_diff_hash = {state_diff_hash}");
-                        let prover_values = format!("system_logs_hash = {system_logs_hash_from_prover}, state_diff_hash = {state_diff_hash_from_prover}");
-                        panic!(
-                            "Auxilary output doesn't match, server values: {} prover values: {}",
-                            server_values, prover_values
-                        );
-                    }
+                if state_diff_hash != state_diff_hash_from_prover
+                    || system_logs_hash != system_logs_hash_from_prover
+                {
+                    let server_values = format!("system_logs_hash = {system_logs_hash}, state_diff_hash = {state_diff_hash}");
+                    let prover_values = format!("system_logs_hash = {system_logs_hash_from_prover}, state_diff_hash = {state_diff_hash_from_prover}");
+                    panic!(
+                        "Auxilary output doesn't match, server values: {} prover values: {}",
+                        server_values, prover_values
+                    );
                 }
+
                 storage
                     .proof_generation_dal()
                     .save_proof_artifacts_metadata(l1_batch_number, &blob_url)

@@ -2,7 +2,9 @@
 
 pub use self::{
     dump::VmDump,
-    shadow::{DivergenceErrors, DivergenceHandler, ShadowVm},
+    shadow::{
+        CheckDivergence, DivergenceErrors, DivergenceHandler, ShadowMut, ShadowRef, ShadowVm,
+    },
 };
 
 mod dump;
