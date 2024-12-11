@@ -278,10 +278,12 @@ pub async fn gateway_governance_whitelisting(
     .await?
     .governance_l2_tx_hash;
 
-    shell.copy_file(
-        config.link_to_code.join("contracts/l1-contracts/broadcast/GatewayPreparation.s.sol/9/dry-run/932d9a4d-latest.json"),
-        config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
-    )?;
+    if !with_broadcast {
+        shell.copy_file(
+            config.link_to_code.join("contracts/l1-contracts/broadcast/GatewayPreparation.s.sol/9/dry-run/932d9a4d-latest.json"),
+            config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
+        )?;
+    }
 
     println!(
         "Gateway registered as a settlement layer with L2 hash: {}",
@@ -306,10 +308,12 @@ pub async fn gateway_governance_whitelisting(
     .await?
     .governance_l2_tx_hash;
 
-    shell.copy_file(
-        config.link_to_code.join("contracts/l1-contracts/broadcast/GatewayPreparation.s.sol/9/dry-run/e518d36a-latest.json"),
-        config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
-    )?;
+    if !with_broadcast {
+        shell.copy_file(
+            config.link_to_code.join("contracts/l1-contracts/broadcast/GatewayPreparation.s.sol/9/dry-run/e518d36a-latest.json"),
+            config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
+        )?;
+    }
 
     // Just in case, the L2 tx may or may not fail depending on whether it was executed previously,
     println!(
@@ -332,10 +336,12 @@ pub async fn gateway_governance_whitelisting(
     .await?
     .governance_l2_tx_hash;
 
-    shell.copy_file(
-        config.link_to_code.join("contracts/l1-contracts/broadcast/GatewayPreparation.s.sol/9/dry-run/98b2aab7-latest.json"),
-        config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
-    )?;
+    if !with_broadcast {
+        shell.copy_file(
+            config.link_to_code.join("contracts/l1-contracts/broadcast/GatewayPreparation.s.sol/9/dry-run/98b2aab7-latest.json"),
+            config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
+        )?;
+    }
 
     // Just in case, the L2 tx may or may not fail depending on whether it was executed previously,
     println!(
@@ -361,10 +367,12 @@ pub async fn gateway_governance_whitelisting(
     .await?
     .governance_l2_tx_hash;
 
-    shell.copy_file(
-        config.link_to_code.join("contracts/l1-contracts/broadcast/GatewayPreparation.s.sol/9/dry-run/b620eb4c-latest.json"),
-        config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
-    )?;
+    if !with_broadcast {
+        shell.copy_file(
+            config.link_to_code.join("contracts/l1-contracts/broadcast/GatewayPreparation.s.sol/9/dry-run/b620eb4c-latest.json"),
+            config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
+        )?;
+    }
 
     // Just in case, the L2 tx may or may not fail depending on whether it was executed previously,
     println!(
