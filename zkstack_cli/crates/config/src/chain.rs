@@ -7,8 +7,9 @@ use serde::{Deserialize, Serialize, Serializer};
 use types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
 use zksync_basic_types::L2ChainId;
-use zksync_config::configs::{
-    da_client::NO_DA_CLIENT_CONFIG_NAME, gateway::GatewayChainConfig, GatewayConfig,
+use zksync_config::{
+    configs::{gateway::GatewayChainConfig, GatewayConfig},
+    DAClientConfig::Avail,
 };
 
 use crate::{
@@ -69,6 +70,13 @@ pub struct ChainConfig {
     pub evm_emulator: bool,
 }
 
+#[derive(Debug, Clone)]
+pub enum DAValidatorType {
+    Rollup = 0,
+    NoDA = 1,
+    Avail = 2,
+}
+
 impl Serialize for ChainConfig {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -104,15 +112,16 @@ impl ChainConfig {
         anyhow::bail!("Wallets configs has not been found");
     }
 
-    pub fn get_validium_type(&self) -> Option<String> {
+    pub fn get_da_validator_type(&self) -> anyhow::Result<DAValidatorType> {
         let general = self.get_general_config().expect("General config not found");
         match (
             self.l1_batch_commit_data_generator_mode,
             general.da_client_config,
         ) {
-            (L1BatchCommitmentMode::Validium, Some(conf)) => Some(conf.to_string()),
-            (L1BatchCommitmentMode::Validium, None) => Some(NO_DA_CLIENT_CONFIG_NAME.to_string()),
-            _ => None,
+            (L1BatchCommitmentMode::Rollup, _) => Ok(DAValidatorType::Rollup),
+            (L1BatchCommitmentMode::Validium, None) => Ok(DAValidatorType::NoDA),
+            (L1BatchCommitmentMode::Validium, Some(Avail(_))) => Ok(DAValidatorType::Avail),
+            _ => anyhow::bail!("DAValidatorType is not supported"),
         }
     }
 
