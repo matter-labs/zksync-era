@@ -135,7 +135,7 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_se
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -l ecosystem-upgrade-stage -r -f -a "{no-governance-prepare\t'',governance-stage1\t'',governance-stage2\t'',no-governance-stage2\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -l ecosystem-upgrade-stage -r -f -a "{no-governance-prepare\t'',governance-stage1\t'',governance-stage2\t'',no-governance-stage2\t'',governance-stage3\t'',no-governance-stage3\t''}"
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -l ecosystem-contracts-path -d 'Path to ecosystem contracts' -r -F
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -l l1-rpc-url -d 'L1 RPC URL' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -l chain -d 'Chain to use' -r

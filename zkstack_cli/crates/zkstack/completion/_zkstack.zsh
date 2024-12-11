@@ -179,7 +179,7 @@ _arguments "${_arguments_options[@]}" : \
 '--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
 '*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'--ecosystem-upgrade-stage=[]:ECOSYSTEM_UPGRADE_STAGE:(no-governance-prepare governance-stage1 governance-stage2 no-governance-stage2)' \
+'--ecosystem-upgrade-stage=[]:ECOSYSTEM_UPGRADE_STAGE:(no-governance-prepare governance-stage1 governance-stage2 no-governance-stage2 governance-stage3 no-governance-stage3)' \
 '--ecosystem-contracts-path=[Path to ecosystem contracts]:ECOSYSTEM_CONTRACTS_PATH:_files' \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
@@ -721,7 +721,7 @@ _arguments "${_arguments_options[@]}" : \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
-':chain_upgrade_stage:(adapt-config prepare-stage1 schedule-stage1 finalize-stage1 finalize-stage2 keep-up-stage2)' \
+':chain_upgrade_stage:(adapt-config prepare-stage1 schedule-stage1 finalize-stage1 finalize-stage2 keep-up-stage2 set-l2weth-for-chain)' \
 && ret=0
 ;;
 (help)
