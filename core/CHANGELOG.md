@@ -1,5 +1,27 @@
 # Changelog
 
+## [25.3.0](https://github.com/matter-labs/zksync-era/compare/core-v25.2.0...core-v25.3.0) (2024-12-11)
+
+
+### Features
+
+* change seal criteria for gateway ([#3320](https://github.com/matter-labs/zksync-era/issues/3320)) ([a0a74aa](https://github.com/matter-labs/zksync-era/commit/a0a74aaeb42f076d20c4ae8a32925eff2de11d0c))
+* **contract-verifier:** Download compilers from GH automatically ([#3291](https://github.com/matter-labs/zksync-era/issues/3291)) ([a10c4ba](https://github.com/matter-labs/zksync-era/commit/a10c4baa312f26ebac2a10115fb7bd314d18b9c1))
+* integrate gateway changes for some components ([#3274](https://github.com/matter-labs/zksync-era/issues/3274)) ([cbc91e3](https://github.com/matter-labs/zksync-era/commit/cbc91e35f84d04f2e4c8e81028596db009e478d1))
+* **proof-data-handler:** exclude batches without object file in GCS  ([#2980](https://github.com/matter-labs/zksync-era/issues/2980)) ([3e309e0](https://github.com/matter-labs/zksync-era/commit/3e309e06b24649c74bfe120e8ca45247cb2b5628))
+* **pruning:** Record L1 batch root hash in pruning logs ([#3266](https://github.com/matter-labs/zksync-era/issues/3266)) ([7b6e590](https://github.com/matter-labs/zksync-era/commit/7b6e59083cf0cafeaef5dd4b2dd39257ff91316d))
+* **state-keeper:** mempool io opens batch if there is protocol upgrade tx ([#3360](https://github.com/matter-labs/zksync-era/issues/3360)) ([f6422cd](https://github.com/matter-labs/zksync-era/commit/f6422cd59dab2c105bb7c125c172f2621fe39464))
+* **tee:** add error handling for unstable_getTeeProofs API endpoint ([#3321](https://github.com/matter-labs/zksync-era/issues/3321)) ([26f630c](https://github.com/matter-labs/zksync-era/commit/26f630cb75958c711d67d13bc77ddbb1117156c3))
+* **zksync_cli:** Health checkpoint improvements ([#3193](https://github.com/matter-labs/zksync-era/issues/3193)) ([440fe8d](https://github.com/matter-labs/zksync-era/commit/440fe8d8afdf0fc2768692a1b40b0910873e2faf))
+
+
+### Bug Fixes
+
+* **api:** batch fee input scaling for `debug_traceCall` ([#3344](https://github.com/matter-labs/zksync-era/issues/3344)) ([7ace594](https://github.com/matter-labs/zksync-era/commit/7ace594fb3140212bd94ffd6bffcac99805cf4b1))
+* **tee:** correct previous fix for race condition in batch locking ([#3358](https://github.com/matter-labs/zksync-era/issues/3358)) ([b12da8d](https://github.com/matter-labs/zksync-era/commit/b12da8d1fddc7870bf17d5e08312d20773815269))
+* **tee:** fix race condition in batch locking ([#3342](https://github.com/matter-labs/zksync-era/issues/3342)) ([a7dc0ed](https://github.com/matter-labs/zksync-era/commit/a7dc0ed5007f6b2f789f4c61cb3d137843151860))
+* **tracer:** adds vm error to flatCallTracer error field if exists ([#3374](https://github.com/matter-labs/zksync-era/issues/3374)) ([5d77727](https://github.com/matter-labs/zksync-era/commit/5d77727cd3ba5f4d84643fee1873f03656310b4d))
+
 ## [25.2.0](https://github.com/matter-labs/zksync-era/compare/core-v25.1.0...core-v25.2.0) (2024-11-19)
 
 
