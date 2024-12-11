@@ -53,8 +53,7 @@ automatically recognized by the server during the execution of `zkstack ecosyste
   protocol level. If two chains require different states, this can only be achieved by bringing the chain into the
   ecosystem through governance voting.
   - If a chain is added to the ecosystem via a vote, ensure no assets are minted on the old bridge, as this would create
-    discrepancies with the new one. One should set gas prices to zero when generating a state to
-    account for that.
+    discrepancies with the new one. One should set gas prices to zero when generating a state to account for that.
 - To calculate genesis parameters, the tool must load all VM logs into RAM. This is due to implementation specifics. For
   larger states, ensure the VM has sufficient RAM capacity.
 - After the import, block numbers for all VM logs will be reset to zero - if the imported data has been indexed based on
