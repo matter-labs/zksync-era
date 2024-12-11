@@ -47,23 +47,23 @@ impl From<L1BatchCommitmentModeInternal> for L1BatchCommitmentMode {
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct ChainCreateArgs {
     #[arg(long)]
-    pub chain_name: Option<String>,
+    chain_name: Option<String>,
     #[clap(long, help = MSG_CHAIN_ID_HELP)]
-    pub chain_id: Option<ChainId>,
+    chain_id: Option<ChainId>,
     #[clap(long, help = MSG_PROVER_MODE_HELP, value_enum)]
-    pub prover_mode: Option<ProverMode>,
+    prover_mode: Option<ProverMode>,
     #[clap(long, help = MSG_WALLET_CREATION_HELP, value_enum)]
-    pub wallet_creation: Option<WalletCreation>,
+    wallet_creation: Option<WalletCreation>,
     #[clap(long, help = MSG_WALLET_PATH_HELP, value_hint = ValueHint::FilePath)]
-    pub wallet_path: Option<PathBuf>,
+    wallet_path: Option<PathBuf>,
     #[clap(long, help = MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP)]
-    pub l1_batch_commit_data_generator_mode: Option<L1BatchCommitmentModeInternal>,
+    l1_batch_commit_data_generator_mode: Option<L1BatchCommitmentModeInternal>,
     #[clap(long, help = MSG_BASE_TOKEN_ADDRESS_HELP)]
-    pub base_token_address: Option<String>,
+    base_token_address: Option<String>,
     #[clap(long, help = MSG_BASE_TOKEN_PRICE_NOMINATOR_HELP)]
-    pub base_token_price_nominator: Option<u64>,
+    base_token_price_nominator: Option<u64>,
     #[clap(long, help = MSG_BASE_TOKEN_PRICE_DENOMINATOR_HELP)]
-    pub base_token_price_denominator: Option<u64>,
+    base_token_price_denominator: Option<u64>,
     #[clap(long, help = MSG_SET_AS_DEFAULT_HELP, default_missing_value = "true", num_args = 0..=1)]
     pub(crate) set_as_default: Option<bool>,
     #[clap(long, default_value = "false")]
@@ -81,7 +81,7 @@ pub struct ChainCreateArgs {
     )]
     pub skip_contract_compilation_override: bool,
     #[arg(long, help = MSG_EVM_EMULATOR_HELP, default_missing_value = "true", num_args = 0..=1)]
-    pub evm_emulator: Option<bool>,
+    evm_emulator: Option<bool>,
 }
 
 impl ChainCreateArgs {

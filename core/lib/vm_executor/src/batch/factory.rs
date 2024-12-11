@@ -1,12 +1,9 @@
-use std::{
-    borrow::Cow, fmt, fs::File, io::Write, marker::PhantomData, rc::Rc, sync::Arc, time::Duration,
-};
+use std::{borrow::Cow, fmt, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use tokio::sync::mpsc;
 use zksync_multivm::{
-    circuit_sequencer_api_latest::boojum::pairing::hex,
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
         pubdata::PubdataBuilder,

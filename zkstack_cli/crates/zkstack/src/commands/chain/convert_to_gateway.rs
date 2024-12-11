@@ -375,6 +375,7 @@ pub async fn gateway_governance_whitelisting(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn call_script(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
@@ -392,8 +393,6 @@ pub async fn call_script(
         .with_calldata(data);
     if with_broadcast {
         forge = forge.with_broadcast();
-    } else {
-        // forge = forge.with_skip_simulation();
     }
 
     // Governor private key is required for this script

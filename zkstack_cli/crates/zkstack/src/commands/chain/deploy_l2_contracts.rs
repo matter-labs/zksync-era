@@ -332,8 +332,6 @@ async fn call_forge(
         );
     if with_broadcast {
         forge = forge.with_broadcast();
-    } else {
-        // forge = forge.with_skip_simulation();
     }
 
     if let Some(signature) = signature {

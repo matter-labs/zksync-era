@@ -59,7 +59,8 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
     match final_ecosystem_args.ecosystem_upgrade_stage {
         GatewayUpgradeStage::NoGovernancePrepare => {
             no_governance_prepare(&mut final_ecosystem_args, shell, &ecosystem_config).await?;
-            no_governance_prepare2(&mut final_ecosystem_args, shell, &mut ecosystem_config).await?;
+            no_governance_prepare_gateway(&mut final_ecosystem_args, shell, &mut ecosystem_config)
+                .await?;
         }
         GatewayUpgradeStage::GovernanceStage1 => {
             governance_stage_1(&mut final_ecosystem_args, shell, &ecosystem_config).await?;
@@ -151,7 +152,7 @@ async fn no_governance_prepare(
     Ok(())
 }
 
-async fn no_governance_prepare2(
+async fn no_governance_prepare_gateway(
     init_args: &mut GatewayUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &mut EcosystemConfig,
@@ -209,26 +210,8 @@ async fn no_governance_prepare2(
             .ecosystem_contracts
             .expected_rollup_l2_da_validator =
             Some(output.contracts_config.expected_rollup_l2_da_validator);
-        // contracts_config.ecosystem_contracts.state_transition_proxy_addr = output.deployed_addresses.bridgehub.
     }
 
-    // if contracts_config.ecosystem_contracts.force_deployments_data.is_none() {
-    //     // TODO: old zksync cli should also save this value.
-    //     contracts_config.ecosystem_contracts.force_deployments_data = Some("0x0000000000000000000000000000000000000000000000000000000000000009000000000000000000000000000000000000000000000000000000000000010e000000000000000000000000c22e290b14a42cad8ee32bf165dd1be905679a34010000fdc4fc03a924d130a36ee26083dd4e1eb13c419b7a6f7438f3941d62730000000000000000000000001c67c036179a891daf9073ae2e396796d9ce0b6e0000000000000000000000000000000000000000000000000000000000000064010009b1de4b4963b67a90614dc2cec9e7a2e65f771093a4f6a15e991bfd41d4010004c322750befd4bcd2262220978349eab84b956309b79206707ea0bac42f010007efe290b35f1c6ca0966cf62c8f29e01356ccd097fb795b77ad1e7b2bb201000303dddd9a9ed78f8ccc477359e66091baba75aafa162eb70db0425f8e5700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000".to_string());
-    // }
-
-    // ci_run zkstack chain create \
-    // --chain-name gateway \
-    // --chain-id 505 \
-    // --prover-mode no-proofs \
-    // --wallet-creation localhost \
-    // --l1-batch-commit-data-generator-mode rollup \
-    // --base-token-address 0x0000000000000000000000000000000000000001 \
-    // --base-token-price-nominator 1 \
-    // --base-token-price-denominator 1 \
-    // --set-as-default false \
-    // --ignore-prerequisites \
-    // --evm-emulator false
     let chain_create_args = ChainCreateArgsFinal {
         chain_name: "gateway".to_string(),
         chain_id: 505,
@@ -307,7 +290,7 @@ async fn no_governance_prepare2(
     let gateway_config = chain::convert_to_gateway::calculate_gateway_ctm(
         shell,
         init_args.forge_args.clone(),
-        &ecosystem_config,
+        ecosystem_config,
         &chain_config,
         &chain_genesis_config,
         &ecosystem_config.get_initial_deployment_config().unwrap(),
@@ -329,7 +312,7 @@ async fn no_governance_prepare2(
     chain::convert_to_gateway::gateway_governance_whitelisting(
         shell,
         init_args.forge_args.clone(),
-        &ecosystem_config,
+        ecosystem_config,
         &chain_config,
         gateway_config,
         init_args.l1_rpc_url.clone(),
@@ -630,7 +613,7 @@ async fn no_governance_stage_3(
     let gateway_config = calculate_gateway_ctm(
         shell,
         init_args.forge_args.clone(),
-        &ecosystem_config,
+        ecosystem_config,
         &chain_config,
         &chain_genesis_config,
         &ecosystem_config.get_initial_deployment_config().unwrap(),
@@ -654,7 +637,7 @@ async fn no_governance_stage_3(
         &GATEWAY_PREPARATION_INTERFACE
             .encode("deployAndSetGatewayTransactionFilterer", ())
             .unwrap(),
-        &ecosystem_config,
+        ecosystem_config,
         &chain_config,
         &chain_config.get_wallets_config()?.governor,
         init_args.l1_rpc_url.clone(),
@@ -684,7 +667,7 @@ async fn no_governance_stage_3(
                 ),
             )
             .unwrap(),
-        &ecosystem_config,
+        ecosystem_config,
         &chain_config,
         &chain_config.get_wallets_config()?.governor,
         init_args.l1_rpc_url.clone(),
@@ -696,7 +679,7 @@ async fn no_governance_stage_3(
     chain::convert_to_gateway::deploy_gateway_ctm(
         shell,
         init_args.forge_args.clone(),
-        &ecosystem_config,
+        ecosystem_config,
         &chain_config,
         &chain_genesis_config,
         &ecosystem_config.get_initial_deployment_config().unwrap(),
