@@ -1471,7 +1471,6 @@ _arguments "${_arguments_options[@]}" : \
 '--l1-contracts=[Build L1 contracts]' \
 '--l2-contracts=[Build L2 contracts]' \
 '--system-contracts=[Build system contracts]' \
-'--test-contracts=[Build test contracts]' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \

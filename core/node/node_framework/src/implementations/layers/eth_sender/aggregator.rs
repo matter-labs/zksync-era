@@ -9,6 +9,7 @@ use crate::{
     implementations::resources::{
         circuit_breakers::CircuitBreakersResource,
         eth_interface::{BoundEthInterfaceForBlobsResource, BoundEthInterfaceResource},
+        healthcheck::AppHealthCheckResource,
         object_store::ObjectStoreResource,
         pools::{MasterPool, PoolResource, ReplicaPool},
     },
@@ -55,6 +56,8 @@ pub struct Input {
     pub object_store: ObjectStoreResource,
     #[context(default)]
     pub circuit_breakers: CircuitBreakersResource,
+    #[context(default)]
+    pub app_health: AppHealthCheckResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -108,8 +111,9 @@ impl WiringLayer for EthTxAggregatorLayer {
         let aggregator = Aggregator::new(
             config.clone(),
             object_store,
-            eth_client_blobs_addr.is_some(),
+            eth_client_blobs_addr,
             self.l1_batch_commit_data_generator_mode,
+            self.settlement_mode,
         );
 
         let eth_tx_aggregator = EthTxAggregator::new(
@@ -132,6 +136,12 @@ impl WiringLayer for EthTxAggregatorLayer {
             .breakers
             .insert(Box::new(FailedL1TransactionChecker { pool: replica_pool }))
             .await;
+
+        input
+            .app_health
+            .0
+            .insert_component(eth_tx_aggregator.health_check())
+            .map_err(WiringError::internal)?;
 
         Ok(Output { eth_tx_aggregator })
     }

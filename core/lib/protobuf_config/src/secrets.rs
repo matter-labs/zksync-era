@@ -86,12 +86,22 @@ impl ProtoRepr for proto::L1Secrets {
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             l1_rpc_url: SensitiveUrl::from_str(required(&self.l1_rpc_url).context("l1_rpc_url")?)?,
+            gateway_rpc_url: self
+                .gateway_rpc_url
+                .clone()
+                .map(|url| SensitiveUrl::from_str(&url))
+                .transpose()
+                .context("gateway_rpc_url")?,
         })
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
             l1_rpc_url: Some(this.l1_rpc_url.expose_str().to_string()),
+            gateway_rpc_url: this
+                .gateway_rpc_url
+                .as_ref()
+                .map(|url| url.expose_url().to_string()),
         }
     }
 }

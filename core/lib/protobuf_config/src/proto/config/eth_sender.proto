@@ -28,7 +28,7 @@ enum PubdataSendingMode {
 }
 
 message Sender {
-  repeated uint64 aggregated_proof_sizes = 1; // ?
+  reserved 1; reserved "aggregated_proof_sizes";
   optional uint64 wait_confirmations = 2; // optional
   optional uint64 tx_poll_period = 3; // required; s
   optional uint64 aggregate_tx_poll_period = 4; // required; s

@@ -7,7 +7,7 @@ use zksync_protobuf::{
     testonly::{test_encode, test_encode_all_formats, FmtConv},
     ProtoRepr,
 };
-use zksync_test_account::Account;
+use zksync_test_contracts::Account;
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, PubdataParams},
     web3::Bytes,

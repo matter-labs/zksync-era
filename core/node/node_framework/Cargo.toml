@@ -54,6 +54,7 @@ zksync_node_storage_init.workspace = true
 zksync_external_price_api.workspace = true
 zksync_external_proof_integration_api.workspace = true
 zksync_logs_bloom_backfill.workspace = true
+zksync_shared_metrics.workspace = true
 
 pin-project-lite.workspace = true
 tracing.workspace = true
@@ -61,6 +62,7 @@ thiserror.workspace = true
 async-trait.workspace = true
 futures.workspace = true
 anyhow.workspace = true
+serde.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 ctrlc.workspace = true
 semver.workspace = true

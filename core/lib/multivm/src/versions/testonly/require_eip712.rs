@@ -1,13 +1,12 @@
 use ethabi::Token;
 use zksync_eth_signer::TransactionParameters;
+use zksync_test_contracts::TestContract;
 use zksync_types::{
     fee::Fee, l2::L2Tx, transaction_request::TransactionRequest, Address, Eip712Domain, Execute,
     L2ChainId, Nonce, Transaction, U256,
 };
 
-use super::{
-    read_many_owners_custom_account_contract, tester::VmTesterBuilder, ContractToDeploy, TestedVm,
-};
+use super::{tester::VmTesterBuilder, ContractToDeploy, TestedVm};
 use crate::interface::{InspectExecutionMode, TxExecutionMode, VmInterfaceExt};
 
 /// This test deploys 'buggy' account abstraction code, and then tries accessing it both with legacy
@@ -21,7 +20,7 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
     let aa_address = Address::repeat_byte(0x10);
     let beneficiary_address = Address::repeat_byte(0x20);
 
-    let (bytecode, contract) = read_many_owners_custom_account_contract();
+    let bytecode = TestContract::many_owners().bytecode.to_vec();
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_custom_contracts(vec![
@@ -36,7 +35,7 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
 
     // First, let's set the owners of the AA account to the `private_address`.
     // (so that messages signed by `private_address`, are authorized to act on behalf of the AA account).
-    let set_owners_function = contract.function("setOwners").unwrap();
+    let set_owners_function = TestContract::many_owners().function("setOwners");
     let encoded_input = set_owners_function
         .encode_input(&[Token::Array(vec![Token::Address(private_account.address)])])
         .unwrap();

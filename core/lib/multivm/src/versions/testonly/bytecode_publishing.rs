@@ -1,6 +1,6 @@
-use zksync_test_account::TxType;
+use zksync_test_contracts::{TestContract, TxType};
 
-use super::{default_pubdata_builder, read_test_contract, tester::VmTesterBuilder, TestedVm};
+use super::{default_pubdata_builder, tester::VmTesterBuilder, TestedVm};
 use crate::{
     interface::{InspectExecutionMode, TxExecutionMode, VmEvent, VmInterfaceExt},
     utils::bytecode,
@@ -15,12 +15,12 @@ pub(crate) fn test_bytecode_publishing<VM: TestedVm>() {
         .with_rich_accounts(1)
         .build::<VM>();
 
-    let counter = read_test_contract();
+    let counter = TestContract::counter().bytecode;
     let account = &mut vm.rich_accounts[0];
 
-    let compressed_bytecode = bytecode::compress(counter.clone()).unwrap().compressed;
+    let compressed_bytecode = bytecode::compress(counter.to_vec()).unwrap().compressed;
 
-    let tx = account.get_deploy_tx(&counter, None, TxType::L2).tx;
+    let tx = account.get_deploy_tx(counter, None, TxType::L2).tx;
     assert_eq!(tx.execute.factory_deps.len(), 1); // The deployed bytecode is the only dependency
     let push_result = vm.vm.push_transaction(tx);
     assert_eq!(push_result.compressed_bytecodes.len(), 1);

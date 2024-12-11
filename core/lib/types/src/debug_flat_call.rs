@@ -16,6 +16,7 @@ pub struct DebugCallFlat {
     pub action: Action,
     pub result: Option<CallResult>,
     pub subtraces: usize,
+    pub error: Option<String>,
     pub trace_address: Vec<usize>,
     pub transaction_position: usize,
     pub transaction_hash: H256,

@@ -33,7 +33,7 @@ use zksync_node_framework::{
             NodeStorageInitializerLayer,
         },
         pools_layer::PoolsLayerBuilder,
-        postgres_metrics::PostgresMetricsLayer,
+        postgres::PostgresLayer,
         prometheus_exporter::PrometheusExporterLayer,
         pruning::PruningLayer,
         query_eth_client::QueryEthClientLayer,
@@ -57,7 +57,7 @@ use zksync_node_framework::{
     service::{ZkStackService, ZkStackServiceBuilder},
 };
 use zksync_state::RocksdbStorageOptions;
-use zksync_types::L2_NATIVE_TOKEN_VAULT_ADDRESS;
+use zksync_types::L2_ASSET_ROUTER_ADDRESS;
 
 use crate::{config::ExternalNodeConfig, metrics::framework::ExternalNodeMetricsLayer, Component};
 
@@ -125,8 +125,8 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
-    fn add_postgres_metrics_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(PostgresMetricsLayer);
+    fn add_postgres_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(PostgresLayer);
         Ok(self)
     }
 
@@ -181,8 +181,7 @@ impl ExternalNodeBuilder {
         let query_eth_client_layer = QueryEthClientLayer::new(
             self.config.required.settlement_layer_id(),
             self.config.required.eth_client_url.clone(),
-            // TODO(EVM-676): add this config for external node
-            Default::default(),
+            self.config.optional.gateway_url.clone(),
         );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
@@ -200,12 +199,11 @@ impl ExternalNodeBuilder {
             .remote
             .l2_shared_bridge_addr
             .context("Missing `l2_shared_bridge_addr`")?;
-        let l2_legacy_shared_bridge_addr = if l2_shared_bridge_addr == L2_NATIVE_TOKEN_VAULT_ADDRESS
-        {
-            // System has migrated to `L2_NATIVE_TOKEN_VAULT_ADDRESS`, use legacy shared bridge address from main node.
+        let l2_legacy_shared_bridge_addr = if l2_shared_bridge_addr == L2_ASSET_ROUTER_ADDRESS {
+            // System has migrated to `L2_ASSET_ROUTER_ADDRESS`, use legacy shared bridge address from main node.
             self.config.remote.l2_legacy_shared_bridge_addr
         } else {
-            // System hasn't migrated on `L2_NATIVE_TOKEN_VAULT_ADDRESS`, we can safely use `l2_shared_bridge_addr`.
+            // System hasn't migrated on `L2_ASSET_ROUTER_ADDRESS`, we can safely use `l2_shared_bridge_addr`.
             Some(l2_shared_bridge_addr)
         };
 
@@ -278,7 +276,7 @@ impl ExternalNodeBuilder {
 
     fn add_l1_batch_commitment_mode_validation_layer(mut self) -> anyhow::Result<Self> {
         let layer = L1BatchCommitmentModeValidationLayer::new(
-            self.config.diamond_proxy_address(),
+            self.config.l1_diamond_proxy_address(),
             self.config.optional.l1_batch_commit_data_generator_mode,
         );
         self.node.add_layer(layer);
@@ -297,9 +295,10 @@ impl ExternalNodeBuilder {
     fn add_consistency_checker_layer(mut self) -> anyhow::Result<Self> {
         let max_batches_to_recheck = 10; // TODO (BFT-97): Make it a part of a proper EN config
         let layer = ConsistencyCheckerLayer::new(
-            self.config.diamond_proxy_address(),
+            self.config.l1_diamond_proxy_address(),
             max_batches_to_recheck,
             self.config.optional.l1_batch_commit_data_generator_mode,
+            self.config.required.l2_chain_id,
         );
         self.node.add_layer(layer);
         Ok(self)
@@ -324,7 +323,10 @@ impl ExternalNodeBuilder {
     }
 
     fn add_tree_data_fetcher_layer(mut self) -> anyhow::Result<Self> {
-        let layer = TreeDataFetcherLayer::new(self.config.diamond_proxy_address());
+        let layer = TreeDataFetcherLayer::new(
+            self.config.l1_diamond_proxy_address(),
+            self.config.required.l2_chain_id,
+        );
         self.node.add_layer(layer);
         Ok(self)
     }
@@ -582,7 +584,7 @@ impl ExternalNodeBuilder {
             // so until we have a dedicated component for "auxiliary" tasks,
             // it's responsible for things like metrics.
             self = self
-                .add_postgres_metrics_layer()?
+                .add_postgres_layer()?
                 .add_external_node_metrics_layer()?;
             // We assign the storage initialization to the core, as it's considered to be
             // the "main" component.

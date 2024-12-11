@@ -18,7 +18,7 @@ First of all, you need to install CUDA drivers, all other things will be dealt w
 For that, check the following [guide](./02_setup.md)(you can skip bellman-cuda step).
 
 Install the prerequisites, which you can find
-[here](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/setup-dev.md). Note, that if you are not using
+[here](https://matter-labs.github.io/zksync-era/core/latest/guides/setup-dev.html). Note, that if you are not using
 Google VM instance, you also need to install [gcloud](https://cloud.google.com/sdk/docs/install#deb).
 
 Now, you can use `zkstack` and `prover_cli` tools for setting up the env and running prover subsystem.

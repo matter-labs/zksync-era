@@ -1,5 +1,5 @@
-use zksync_contracts::{deployer_contract, load_sys_contract, read_bytecode};
-use zksync_test_account::TxType;
+use zksync_contracts::{deployer_contract, load_sys_contract};
+use zksync_test_contracts::{TestContract, TxType};
 use zksync_types::{
     bytecode::BytecodeHash,
     ethabi::{Contract, Token},
@@ -10,10 +10,7 @@ use zksync_types::{
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
 };
 
-use super::{
-    get_complex_upgrade_abi, get_empty_storage, read_complex_upgrade, read_test_contract,
-    tester::VmTesterBuilder, TestedVm,
-};
+use super::{get_empty_storage, tester::VmTesterBuilder, TestedVm};
 use crate::interface::{
     ExecutionResult, Halt, InspectExecutionMode, TxExecutionMode, VmInterfaceExt,
 };
@@ -23,7 +20,7 @@ use crate::interface::{
 /// - If present, this transaction must be the first one in block
 pub(crate) fn test_protocol_upgrade_is_first<VM: TestedVm>() {
     let mut storage = get_empty_storage();
-    let bytecode_hash = BytecodeHash::for_bytecode(&read_test_contract()).value();
+    let bytecode_hash = BytecodeHash::for_bytecode(TestContract::counter().bytecode).value();
     storage.set_value(get_known_code_key(&bytecode_hash), u256_to_h256(1.into()));
 
     let mut vm = VmTesterBuilder::new()
@@ -61,7 +58,11 @@ pub(crate) fn test_protocol_upgrade_is_first<VM: TestedVm>() {
     }]);
 
     let normal_l1_transaction = vm.rich_accounts[0]
-        .get_deploy_tx(&read_test_contract(), None, TxType::L1 { serial_id: 0 })
+        .get_deploy_tx(
+            TestContract::counter().bytecode,
+            None,
+            TxType::L1 { serial_id: 0 },
+        )
         .tx;
 
     let expected_error =
@@ -111,7 +112,7 @@ pub(crate) fn test_protocol_upgrade_is_first<VM: TestedVm>() {
 /// In this test we try to test how force deployments could be done via protocol upgrade transactions.
 pub(crate) fn test_force_deploy_upgrade<VM: TestedVm>() {
     let mut storage = get_empty_storage();
-    let bytecode_hash = BytecodeHash::for_bytecode(&read_test_contract()).value();
+    let bytecode_hash = BytecodeHash::for_bytecode(TestContract::counter().bytecode).value();
     let known_code_key = get_known_code_key(&bytecode_hash);
     // It is generally expected that all the keys will be set as known prior to the protocol upgrade.
     storage.set_value(known_code_key, u256_to_h256(1.into()));
@@ -156,8 +157,10 @@ pub(crate) fn test_force_deploy_upgrade<VM: TestedVm>() {
 /// Here we show how the work with the complex upgrader could be done.
 pub(crate) fn test_complex_upgrader<VM: TestedVm>() {
     let mut storage = get_empty_storage();
-    let bytecode_hash = BytecodeHash::for_bytecode(&read_complex_upgrade()).value();
-    let msg_sender_test_hash = BytecodeHash::for_bytecode(&read_msg_sender_test()).value();
+    let upgrade_bytecode = TestContract::complex_upgrade().bytecode.to_vec();
+    let bytecode_hash = BytecodeHash::for_bytecode(&upgrade_bytecode).value();
+    let msg_sender_test_bytecode = TestContract::msg_sender_test().bytecode.to_vec();
+    let msg_sender_test_hash = BytecodeHash::for_bytecode(&msg_sender_test_bytecode).value();
     // Let's assume that the bytecode for the implementation of the complex upgrade
     // is already deployed in some address in user space
     let upgrade_impl = Address::repeat_byte(1);
@@ -168,8 +171,8 @@ pub(crate) fn test_complex_upgrader<VM: TestedVm>() {
         u256_to_h256(1.into()),
     );
     storage.set_value(account_code_key, bytecode_hash);
-    storage.store_factory_dep(bytecode_hash, read_complex_upgrade());
-    storage.store_factory_dep(msg_sender_test_hash, read_msg_sender_test());
+    storage.store_factory_dep(bytecode_hash, upgrade_bytecode);
+    storage.store_factory_dep(msg_sender_test_hash, msg_sender_test_bytecode);
 
     let mut vm = VmTesterBuilder::new()
         .with_storage(storage)
@@ -268,16 +271,15 @@ fn get_forced_deploy_tx(deployment: &[ForceDeployment]) -> Transaction {
 // Returns the transaction that performs a complex protocol upgrade.
 // The first param is the address of the implementation of the complex upgrade
 // in user-space, while the next 3 params are params of the implementation itself
-// For the explanation for the parameters, please refer to:
-// etc/contracts-test-data/complex-upgrade/complex-upgrade.sol
+// For the explanation for the parameters, please refer to the contract source code.
 fn get_complex_upgrade_tx(
     implementation_address: Address,
     address1: Address,
     address2: Address,
     bytecode_hash: H256,
 ) -> Transaction {
-    let impl_contract = get_complex_upgrade_abi();
-    let impl_function = impl_contract.function("someComplexUpgrade").unwrap();
+    let impl_contract = TestContract::complex_upgrade();
+    let impl_function = impl_contract.function("someComplexUpgrade");
     let impl_calldata = impl_function
         .encode_input(&[
             Token::Address(address1),
@@ -313,10 +315,6 @@ fn get_complex_upgrade_tx(
         received_timestamp_ms: 0,
         raw_bytes: None,
     }
-}
-
-fn read_msg_sender_test() -> Vec<u8> {
-    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/msg-sender.sol/MsgSenderTest.json")
 }
 
 fn get_complex_upgrader_abi() -> Contract {

@@ -234,22 +234,22 @@ impl BenchmarkingVm<Legacy> {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
-    use zksync_contracts::read_bytecode;
     use zksync_multivm::interface::ExecutionResult;
+    use zksync_test_contracts::TestContract;
 
     use super::*;
     use crate::{
         get_deploy_tx, get_heavy_load_test_tx, get_load_test_deploy_tx, get_load_test_tx,
-        get_realistic_load_test_tx, get_transfer_tx, LoadTestParams, BYTECODES,
+        get_realistic_load_test_tx, get_transfer_tx,
+        transaction::{get_erc20_deploy_tx, get_erc20_transfer_tx},
+        LoadTestParams, BYTECODES,
     };
 
     #[test]
     fn can_deploy_contract() {
-        let test_contract = read_bytecode(
-            "etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json",
-        );
+        let test_contract = &TestContract::counter().bytecode;
         let mut vm = BenchmarkingVm::new();
-        let res = vm.run_transaction(&get_deploy_tx(&test_contract));
+        let res = vm.run_transaction(&get_deploy_tx(test_contract));
 
         assert_matches!(res.result, ExecutionResult::Success { .. });
     }
@@ -259,6 +259,18 @@ mod tests {
         let mut vm = BenchmarkingVm::new();
         let res = vm.run_transaction(&get_transfer_tx(0));
         assert_matches!(res.result, ExecutionResult::Success { .. });
+    }
+
+    #[test]
+    fn can_erc20_transfer() {
+        let mut vm = BenchmarkingVm::new();
+        let res = vm.run_transaction(&get_erc20_deploy_tx());
+        assert_matches!(res.result, ExecutionResult::Success { .. });
+
+        for nonce in 1..=5 {
+            let res = vm.run_transaction(&get_erc20_transfer_tx(nonce));
+            assert_matches!(res.result, ExecutionResult::Success { .. });
+        }
     }
 
     #[test]

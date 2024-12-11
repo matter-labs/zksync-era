@@ -12,11 +12,11 @@ use zksync_types::{
     bytecode::BytecodeHash, writes::StateDiffRecord, StorageKey, StorageValue, Transaction, H256,
     U256,
 };
-use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use super::{HistoryEnabled, Vm};
 use crate::{
     interface::{
+        pubdata::{PubdataBuilder, PubdataInput},
         storage::{InMemoryStorage, ReadStorage, StorageView, WriteStorage},
         CurrentExecutionState, L2BlockEnv, VmExecutionMode, VmExecutionResultAndLogs,
     },
@@ -46,6 +46,7 @@ mod evm_emulator;
 mod gas_limit;
 mod get_used_contracts;
 mod is_write_initial;
+mod l1_messenger;
 mod l1_tx_execution;
 mod l2_blocks;
 mod nonce_holder;
@@ -187,6 +188,10 @@ impl TestedVm for TestedLatestVm {
         let tx = TransactionData::new(tx, false);
         let overhead = tx.overhead_gas();
         self.push_raw_transaction(tx, overhead, refund, true)
+    }
+
+    fn pubdata_input(&self) -> PubdataInput {
+        self.bootloader_state.get_pubdata_information().clone()
     }
 }
 

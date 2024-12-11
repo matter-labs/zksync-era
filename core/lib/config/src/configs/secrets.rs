@@ -16,6 +16,7 @@ pub struct DatabaseSecrets {
 #[derive(Debug, Clone, PartialEq)]
 pub struct L1Secrets {
     pub l1_rpc_url: SensitiveUrl,
+    pub gateway_rpc_url: Option<SensitiveUrl>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

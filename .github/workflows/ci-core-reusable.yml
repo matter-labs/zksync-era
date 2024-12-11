@@ -61,7 +61,7 @@ jobs:
       - name: Init
         run: |
           ci_run run_retried rustup show
-      
+
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
@@ -151,7 +151,6 @@ jobs:
             --evm-emulator false
 
           ci_run zkstack ecosystem init --dev --verbose
-          ci_run zkstack dev contracts --test-contracts
 
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
@@ -202,7 +201,7 @@ jobs:
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
           ci_run zkstackup -g --local
-  
+
       - name: Create log directories
         run: |
           SERVER_LOGS_DIR=logs/server
@@ -427,7 +426,7 @@ jobs:
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test recovery --no-deps --no-kill --ignore-prerequisites --verbose" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
-      - name: Run external node server
+      - name: Run external nodes
         run: |
           ci_run zkstack external-node run --ignore-prerequisites --chain era &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/rollup.log &
           ci_run zkstack external-node run --ignore-prerequisites --chain validium &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/validium.log &

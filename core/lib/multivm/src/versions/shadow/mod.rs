@@ -2,12 +2,7 @@
 //! these tests are placed here.
 
 use assert_matches::assert_matches;
-use ethabi::Contract;
-use zksync_contracts::{
-    get_loadnext_contract, load_contract, read_bytecode,
-    test_contracts::LoadnextContractExecutionParams,
-};
-use zksync_test_account::{Account, TxType};
+use zksync_test_contracts::{Account, LoadnextContractExecutionParams, TestContract, TxType};
 use zksync_types::{
     block::L2BlockHasher, fee::Fee, AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber,
     ProtocolVersionId, StorageKey, H256, U256,
@@ -60,13 +55,11 @@ struct Harness {
     alice: Account,
     bob: Account,
     storage_contract: ContractToDeploy,
-    storage_contract_abi: Contract,
+    storage_contract_abi: &'static ethabi::Contract,
     current_block: L2BlockEnv,
 }
 
 impl Harness {
-    const STORAGE_CONTRACT_PATH: &'static str =
-        "etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json";
     const STORAGE_CONTRACT_ADDRESS: Address = Address::repeat_byte(23);
 
     fn new(l1_batch_env: &L1BatchEnv) -> Self {
@@ -74,10 +67,10 @@ impl Harness {
             alice: Account::from_seed(0),
             bob: Account::from_seed(1),
             storage_contract: ContractToDeploy::new(
-                read_bytecode(Self::STORAGE_CONTRACT_PATH),
+                TestContract::storage_test().bytecode.to_vec(),
                 Self::STORAGE_CONTRACT_ADDRESS,
             ),
-            storage_contract_abi: load_contract(Self::STORAGE_CONTRACT_PATH),
+            storage_contract_abi: &TestContract::storage_test().abi,
             current_block: l1_batch_env.first_l2_block,
         }
     }
@@ -177,7 +170,7 @@ impl Harness {
         self.new_block(vm, &[out_of_gas_transfer.hash(), simple_write_tx.hash()]);
 
         let deploy_tx = self.alice.get_deploy_tx(
-            &get_loadnext_contract().bytecode,
+            TestContract::load_test().bytecode,
             Some(&[ethabi::Token::Uint(100.into())]),
             TxType::L2,
         );

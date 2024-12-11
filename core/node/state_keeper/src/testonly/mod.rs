@@ -12,12 +12,11 @@ use zksync_multivm::interface::{
     VmExecutionResultAndLogs,
 };
 use zksync_state::OwnedStorage;
-use zksync_test_account::Account;
 use zksync_types::{
     commitment::PubdataParams, fee::Fee, u256_to_h256,
-    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Execute, L1BatchNumber,
-    L2BlockNumber, PriorityOpId, StorageLog, Transaction, L2_BASE_TOKEN_ADDRESS,
-    SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
+    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, L1BatchNumber,
+    L2BlockNumber, StorageLog, Transaction, L2_BASE_TOKEN_ADDRESS, SYSTEM_CONTEXT_MINIMAL_BASE_FEE,
+    U256,
 };
 
 pub mod test_batch_executor;
@@ -120,30 +119,4 @@ pub fn fee(gas_limit: u32) -> Fee {
         max_priority_fee_per_gas: U256::zero(),
         gas_per_pubdata_limit: U256::from(DEFAULT_GAS_PER_PUBDATA),
     }
-}
-
-/// Returns a valid L2 transaction.
-/// Automatically increments nonce of the account.
-pub fn l2_transaction(account: &mut Account, gas_limit: u32) -> Transaction {
-    account.get_l2_tx_for_execute(
-        Execute {
-            contract_address: Some(Address::random()),
-            calldata: vec![],
-            value: Default::default(),
-            factory_deps: vec![],
-        },
-        Some(fee(gas_limit)),
-    )
-}
-
-pub fn l1_transaction(account: &mut Account, serial_id: PriorityOpId) -> Transaction {
-    account.get_l1_tx(
-        Execute {
-            contract_address: Some(Address::random()),
-            value: Default::default(),
-            calldata: vec![],
-            factory_deps: vec![],
-        },
-        serial_id.0,
-    )
 }

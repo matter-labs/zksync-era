@@ -3,10 +3,10 @@ use zksync_types::{
         pre_boojum_serialize_commitments, serialize_commitments, L1BatchCommitmentMode,
         L1BatchWithMetadata,
     },
-    ethabi::Token,
+    ethabi::{ParamType, Token},
     pubdata_da::PubdataSendingMode,
-    web3::contract::Error as ContractError,
-    ProtocolVersionId, U256,
+    web3::{contract::Error as ContractError, keccak256},
+    ProtocolVersionId, H256, U256,
 };
 
 use crate::{
@@ -15,9 +15,9 @@ use crate::{
 };
 
 /// These are used by the L1 Contracts to indicate what DA layer is used for pubdata
-const PUBDATA_SOURCE_CALLDATA: u8 = 0;
-const PUBDATA_SOURCE_BLOBS: u8 = 1;
-const PUBDATA_SOURCE_CUSTOM: u8 = 2;
+pub const PUBDATA_SOURCE_CALLDATA: u8 = 0;
+pub const PUBDATA_SOURCE_BLOBS: u8 = 1;
+pub const PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY: u8 = 2;
 
 /// Encoding for `CommitBatchInfo` from `IExecutor.sol` for a contract running in rollup mode.
 #[derive(Debug)]
@@ -38,6 +38,21 @@ impl<'a> CommitBatchInfo<'a> {
             l1_batch_with_metadata,
             pubdata_da,
         }
+    }
+
+    pub fn post_gateway_schema() -> ParamType {
+        ParamType::Tuple(vec![
+            ParamType::Uint(64),       // `batch_number`
+            ParamType::Uint(64),       // `timestamp`
+            ParamType::Uint(64),       // `index_repeated_storage_changes`
+            ParamType::FixedBytes(32), // `new_state_root`
+            ParamType::Uint(256),      // `numberOfLayer1Txs`
+            ParamType::FixedBytes(32), // `priorityOperationsHash`
+            ParamType::FixedBytes(32), // `bootloaderHeapInitialContentsHash`
+            ParamType::FixedBytes(32), // `eventsQueueStateHash`
+            ParamType::Bytes,          // `systemLogs`
+            ParamType::Bytes,          // `operatorDAInput`
+        ])
     }
 
     fn base_tokens(&self) -> Vec<Token> {
@@ -199,7 +214,7 @@ impl Tokenizable for CommitBatchInfo<'_> {
                 // Here we're not pushing any pubdata on purpose; no pubdata is sent in Validium mode.
                 L1BatchCommitmentMode::Validium => vec![],
             }));
-        } else {
+        } else if protocol_version.is_pre_gateway() {
             tokens.push(Token::Bytes(match (self.mode, self.pubdata_da) {
                 // Here we're not pushing any pubdata on purpose; no pubdata is sent in Validium mode.
                 (
@@ -211,14 +226,12 @@ impl Tokenizable for CommitBatchInfo<'_> {
                 (L1BatchCommitmentMode::Validium, PubdataSendingMode::Blobs) => {
                     vec![PUBDATA_SOURCE_BLOBS]
                 }
-
                 (L1BatchCommitmentMode::Rollup, PubdataSendingMode::Custom) => {
                     panic!("Custom pubdata DA is incompatible with Rollup mode")
                 }
                 (L1BatchCommitmentMode::Validium, PubdataSendingMode::Custom) => {
-                    vec![PUBDATA_SOURCE_CUSTOM]
+                    vec![PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY]
                 }
-
                 (
                     L1BatchCommitmentMode::Rollup,
                     PubdataSendingMode::Calldata | PubdataSendingMode::RelayedL2Calldata,
@@ -227,7 +240,8 @@ impl Tokenizable for CommitBatchInfo<'_> {
                     // even if we are not using blobs.
                     let pubdata = self.pubdata_input();
                     let blob_commitment = KzgInfo::new(&pubdata).to_blob_commitment();
-                    std::iter::once(PUBDATA_SOURCE_CALLDATA)
+                    [PUBDATA_SOURCE_CALLDATA]
+                        .into_iter()
                         .chain(pubdata)
                         .chain(blob_commitment)
                         .collect()
@@ -239,7 +253,86 @@ impl Tokenizable for CommitBatchInfo<'_> {
                             let kzg_info = KzgInfo::new(blob);
                             kzg_info.to_pubdata_commitment()
                         });
-                    std::iter::once(PUBDATA_SOURCE_BLOBS)
+                    [PUBDATA_SOURCE_BLOBS]
+                        .into_iter()
+                        .chain(pubdata_commitments)
+                        .collect()
+                }
+            }));
+        } else {
+            let state_diff_hash = self
+                .l1_batch_with_metadata
+                .metadata
+                .state_diff_hash
+                .expect("Failed to get state_diff_hash from metadata");
+            tokens.push(Token::Bytes(match (self.mode, self.pubdata_da) {
+                // Validiums with custom DA need the inclusion data to be part of operator_da_input
+                (L1BatchCommitmentMode::Validium, PubdataSendingMode::Custom) => {
+                    let mut operator_da_input: Vec<u8> = state_diff_hash.0.into();
+
+                    operator_da_input.extend(
+                        &self
+                            .l1_batch_with_metadata
+                            .metadata
+                            .da_inclusion_data
+                            .clone()
+                            .unwrap_or_default(),
+                    );
+
+                    operator_da_input
+                }
+                // Here we're not pushing any pubdata on purpose; no pubdata is sent in Validium mode.
+                (
+                    L1BatchCommitmentMode::Validium,
+                    PubdataSendingMode::Calldata
+                    | PubdataSendingMode::RelayedL2Calldata
+                    | PubdataSendingMode::Blobs,
+                ) => state_diff_hash.0.into(),
+                (L1BatchCommitmentMode::Rollup, PubdataSendingMode::Custom) => {
+                    panic!("Custom pubdata DA is incompatible with Rollup mode")
+                }
+                (
+                    L1BatchCommitmentMode::Rollup,
+                    PubdataSendingMode::Calldata | PubdataSendingMode::RelayedL2Calldata,
+                ) => {
+                    let pubdata = self.pubdata_input();
+
+                    let header =
+                        compose_header_for_l1_commit_rollup(state_diff_hash, pubdata.clone());
+
+                    // We compute and add the blob commitment to the pubdata payload so that we can verify the proof
+                    // even if we are not using blobs.
+                    let blob_commitment = KzgInfo::new(&pubdata).to_blob_commitment();
+                    header
+                        .into_iter()
+                        .chain([PUBDATA_SOURCE_CALLDATA])
+                        .chain(pubdata)
+                        .chain(blob_commitment)
+                        .collect()
+                }
+                (L1BatchCommitmentMode::Rollup, PubdataSendingMode::Blobs) => {
+                    let pubdata = self.pubdata_input();
+
+                    let header =
+                        compose_header_for_l1_commit_rollup(state_diff_hash, pubdata.clone());
+
+                    let pubdata_commitments: Vec<u8> = pubdata
+                        .chunks(ZK_SYNC_BYTES_PER_BLOB)
+                        .flat_map(|blob| {
+                            let kzg_info = KzgInfo::new(blob);
+
+                            let blob_commitment = kzg_info.to_pubdata_commitment();
+
+                            // We also append 0s to show that we do not reuse previously published blobs.
+                            blob_commitment
+                                .into_iter()
+                                .chain([0u8; 32])
+                                .collect::<Vec<u8>>()
+                        })
+                        .collect();
+                    header
+                        .into_iter()
+                        .chain([PUBDATA_SOURCE_BLOBS])
                         .chain(pubdata_commitments)
                         .collect()
                 }
@@ -248,4 +341,39 @@ impl Tokenizable for CommitBatchInfo<'_> {
 
         Token::Tuple(tokens)
     }
+}
+
+fn compose_header_for_l1_commit_rollup(state_diff_hash: H256, pubdata: Vec<u8>) -> Vec<u8> {
+    // The preimage under the hash `l2DAValidatorOutputHash` is expected to be in the following format:
+    // - First 32 bytes are the hash of the uncompressed state diff.
+    // - Then, there is a 32-byte hash of the full pubdata.
+    // - Then, there is the 1-byte number of blobs published.
+    // - Then, there are linear hashes of the published blobs, 32 bytes each.
+
+    let mut full_header = vec![];
+
+    full_header.extend(state_diff_hash.0);
+
+    let mut full_pubdata = pubdata;
+    let full_pubdata_hash = keccak256(&full_pubdata);
+    full_header.extend(full_pubdata_hash);
+
+    // Now, we need to calculate the linear hashes of the blobs.
+    // Firstly, let's pad the pubdata to the size of the blob.
+    if full_pubdata.len() % ZK_SYNC_BYTES_PER_BLOB != 0 {
+        full_pubdata.resize(
+            full_pubdata.len() + ZK_SYNC_BYTES_PER_BLOB
+                - full_pubdata.len() % ZK_SYNC_BYTES_PER_BLOB,
+            0,
+        );
+    }
+    full_header.push((full_pubdata.len() / ZK_SYNC_BYTES_PER_BLOB) as u8);
+
+    full_pubdata
+        .chunks(ZK_SYNC_BYTES_PER_BLOB)
+        .for_each(|chunk| {
+            full_header.extend(keccak256(chunk));
+        });
+
+    full_header
 }

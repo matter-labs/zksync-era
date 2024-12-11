@@ -1,9 +1,11 @@
 use anyhow::Context;
-use zksync_types::{settlement::SettlementMode, url::SensitiveUrl, L2ChainId, SLChainId};
+use zksync_types::{url::SensitiveUrl, L2ChainId, SLChainId};
 use zksync_web3_decl::client::Client;
 
 use crate::{
-    implementations::resources::eth_interface::{EthInterfaceResource, L2InterfaceResource},
+    implementations::resources::eth_interface::{
+        EthInterfaceResource, GatewayEthInterfaceResource, L2InterfaceResource,
+    },
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
 };
@@ -13,19 +15,19 @@ use crate::{
 pub struct QueryEthClientLayer {
     chain_id: SLChainId,
     web3_url: SensitiveUrl,
-    settlement_mode: SettlementMode,
+    gateway_web3_url: Option<SensitiveUrl>,
 }
 
 impl QueryEthClientLayer {
     pub fn new(
         chain_id: SLChainId,
         web3_url: SensitiveUrl,
-        settlement_mode: SettlementMode,
+        gateway_web3_url: Option<SensitiveUrl>,
     ) -> Self {
         Self {
             chain_id,
             web3_url,
-            settlement_mode,
+            gateway_web3_url,
         }
     }
 }
@@ -35,6 +37,7 @@ impl QueryEthClientLayer {
 pub struct Output {
     query_client_l1: EthInterfaceResource,
     query_client_l2: Option<L2InterfaceResource>,
+    query_client_gateway: Option<GatewayEthInterfaceResource>,
 }
 
 #[async_trait::async_trait]
@@ -47,7 +50,7 @@ impl WiringLayer for QueryEthClientLayer {
     }
 
     async fn wire(self, _input: Self::Input) -> Result<Output, WiringError> {
-        // Both the L1 and L2 client have the same URL, but provide different type guarantees.
+        // Both `query_client_gateway` and `query_client_l2` use the same URL, but provide different type guarantees.
         Ok(Output {
             query_client_l1: EthInterfaceResource(Box::new(
                 Client::http(self.web3_url.clone())
@@ -55,11 +58,20 @@ impl WiringLayer for QueryEthClientLayer {
                     .for_network(self.chain_id.into())
                     .build(),
             )),
-            query_client_l2: if self.settlement_mode.is_gateway() {
+            query_client_l2: if let Some(gateway_web3_url) = self.gateway_web3_url.clone() {
                 Some(L2InterfaceResource(Box::new(
-                    Client::http(self.web3_url.clone())
+                    Client::http(gateway_web3_url)
                         .context("Client::new()")?
                         .for_network(L2ChainId::try_from(self.chain_id.0).unwrap().into())
+                        .build(),
+                )))
+            } else {
+                None
+            },
+            query_client_gateway: if let Some(gateway_web3_url) = self.gateway_web3_url {
+                Some(GatewayEthInterfaceResource(Box::new(
+                    Client::http(gateway_web3_url)
+                        .context("Client::new()")?
                         .build(),
                 )))
             } else {

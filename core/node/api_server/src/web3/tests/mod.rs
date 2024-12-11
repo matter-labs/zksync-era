@@ -1313,7 +1313,7 @@ impl HttpTest for FeeHistoryTest {
         .map(U256::from);
 
         let history = client
-            .fee_history(1_000.into(), api::BlockNumber::Latest, vec![])
+            .fee_history(1_000.into(), api::BlockNumber::Latest, Some(vec![]))
             .await?;
         assert_eq!(history.inner.oldest_block, 0.into());
         assert_eq!(
@@ -1346,7 +1346,11 @@ impl HttpTest for FeeHistoryTest {
 
         // Check partial histories: blocks 0..=1
         let history = client
-            .fee_history(1_000.into(), api::BlockNumber::Number(1.into()), vec![])
+            .fee_history(
+                1_000.into(),
+                api::BlockNumber::Number(1.into()),
+                Some(vec![]),
+            )
             .await?;
         assert_eq!(history.inner.oldest_block, 0.into());
         assert_eq!(
@@ -1357,7 +1361,7 @@ impl HttpTest for FeeHistoryTest {
 
         // Blocks 1..=2
         let history = client
-            .fee_history(2.into(), api::BlockNumber::Latest, vec![])
+            .fee_history(2.into(), api::BlockNumber::Latest, Some(vec![]))
             .await?;
         assert_eq!(history.inner.oldest_block, 1.into());
         assert_eq!(
@@ -1368,7 +1372,7 @@ impl HttpTest for FeeHistoryTest {
 
         // Blocks 1..=1
         let history = client
-            .fee_history(1.into(), api::BlockNumber::Number(1.into()), vec![])
+            .fee_history(1.into(), api::BlockNumber::Number(1.into()), Some(vec![]))
             .await?;
         assert_eq!(history.inner.oldest_block, 1.into());
         assert_eq!(history.inner.base_fee_per_gas, [100, 100].map(U256::from));
@@ -1376,7 +1380,11 @@ impl HttpTest for FeeHistoryTest {
 
         // Non-existing newest block.
         let err = client
-            .fee_history(1000.into(), api::BlockNumber::Number(100.into()), vec![])
+            .fee_history(
+                1000.into(),
+                api::BlockNumber::Number(100.into()),
+                Some(vec![]),
+            )
             .await
             .unwrap_err();
         assert_matches!(
