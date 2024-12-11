@@ -32,7 +32,7 @@ use zksync_types::{
 
 use crate::utils::{
     add_eth_token, get_deduped_log_queries, get_storage_logs,
-    insert_base_system_contracts_to_factory_deps, insert_system_contracts,
+    insert_base_system_contracts_to_factory_deps, insert_factory_deps_and_storage_logs,
     save_genesis_l1_batch_metadata,
 };
 
@@ -196,6 +196,8 @@ pub fn make_genesis_batch_params(
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
 ) -> (GenesisBatchParams, L1BatchCommitment) {
+    // This action disregards how leaf indeces used to be ordered before, and it reorders them by
+    // sorting by <address, key>, which is required for calculating genesis parameters.
     let storage_logs = get_deduped_log_queries(storage_logs)
         .into_iter()
         .filter(|log_query| log_query.rw_flag) // only writes
@@ -493,7 +495,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         .await?;
 
     insert_base_system_contracts_to_factory_deps(&mut transaction, base_system_contracts).await?;
-    insert_system_contracts(&mut transaction, factory_deps, storage_logs).await?;
+    insert_factory_deps_and_storage_logs(&mut transaction, factory_deps, storage_logs).await?;
     add_eth_token(&mut transaction).await?;
 
     transaction.commit().await?;

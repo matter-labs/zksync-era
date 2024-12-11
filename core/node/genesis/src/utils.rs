@@ -172,7 +172,7 @@ pub(super) async fn save_genesis_l1_batch_metadata(
     Ok(())
 }
 
-pub(super) async fn insert_system_contracts(
+pub(super) async fn insert_factory_deps_and_storage_logs(
     storage: &mut Connection<'_, Core>,
     factory_deps: HashMap<H256, Vec<u8>>,
     storage_logs: &[StorageLog],
