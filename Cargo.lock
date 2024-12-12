@@ -2311,6 +2311,7 @@ dependencies = [
  "tokio",
  "zksync_contracts",
  "zksync_core_leftovers",
+ "zksync_dal",
  "zksync_node_genesis",
  "zksync_protobuf_config",
  "zksync_types",

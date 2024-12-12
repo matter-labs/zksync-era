@@ -8,12 +8,6 @@ use std::{
 use zksync_types::{AccountTreeId, Address, StorageKey, StorageLog, H160, H256};
 
 #[derive(Debug, Clone)]
-pub struct InitialWriteExport {
-    pub hashed_key: H256,
-    pub index: usize,
-}
-
-#[derive(Debug, Clone)]
 pub struct StorageLogExport {
     pub address: Address,
     pub key: H256,
@@ -38,8 +32,6 @@ pub struct FactoryDepExport {
 #[derive(Debug)]
 pub struct GenesisExportReader {
     file: File,
-    initial_writes_offset: usize,
-    initial_writes_count: usize,
     storage_logs_offset: usize,
     storage_logs_count: usize,
     factory_deps_offset: usize,
@@ -53,41 +45,26 @@ fn randreadn<const N: usize>(file: &File, at: usize) -> [u8; N] {
 }
 
 impl GenesisExportReader {
-    const INITIAL_WRITE_EXPORT_SIZE: usize = 32 + 8;
     const STORAGE_LOG_EXPORT_SIZE: usize = 20 + 32 + 32;
 
     pub fn new(file: File) -> Self {
-        let initial_writes_count = usize::from_le_bytes(randreadn(&file, 0));
-        let initial_writes_offset: usize = 8;
-        let storage_logs_count_offset =
-            initial_writes_offset + Self::INITIAL_WRITE_EXPORT_SIZE * initial_writes_count;
-        let storage_logs_count = usize::from_le_bytes(randreadn(&file, storage_logs_count_offset));
-        let storage_logs_offset = storage_logs_count_offset + 8;
+        let storage_logs_count = u32::from_le_bytes(randreadn(&file, 0)) as usize;
+        let storage_logs_offset = 4;
         let factory_deps_count_offset =
             storage_logs_offset + Self::STORAGE_LOG_EXPORT_SIZE * storage_logs_count;
-        let factory_deps_count = usize::from_le_bytes(randreadn(&file, factory_deps_count_offset));
-        let factory_deps_offset = factory_deps_count_offset + 8;
+        let factory_deps_count =
+            u32::from_le_bytes(randreadn(&file, factory_deps_count_offset)) as usize;
+        let factory_deps_offset = factory_deps_count_offset + 4;
 
-        eprintln!("Genesis export reader: {initial_writes_count}, {storage_logs_count}, {factory_deps_count}");
+        tracing::trace!("Genesis export reader: {storage_logs_count}, {factory_deps_count}");
 
         Self {
             file,
-            initial_writes_count,
-            initial_writes_offset,
             storage_logs_count,
             storage_logs_offset,
             factory_deps_count,
             factory_deps_offset,
         }
-    }
-
-    pub fn initial_writes(&self) -> ExportItemReader<InitialWriteExport> {
-        let mut buf_reader = BufReader::new(&self.file);
-        buf_reader
-            .seek(SeekFrom::Start(self.initial_writes_offset as u64))
-            .unwrap();
-
-        ExportItemReader::new(buf_reader, self.initial_writes_count)
     }
 
     pub fn storage_logs(&self) -> ExportItemReader<StorageLogExport> {
@@ -152,15 +129,6 @@ impl<'a, T: ExportItem> Iterator for ExportItemReader<'a, T> {
     }
 }
 
-impl ExportItem for InitialWriteExport {
-    fn read(reader: &mut impl BufRead) -> Self {
-        let hashed_key = H256(readn(reader));
-        let index = i64::from_le_bytes(readn(reader)) as usize;
-
-        Self { hashed_key, index }
-    }
-}
-
 impl ExportItem for StorageLogExport {
     fn read(reader: &mut impl BufRead) -> Self {
         let address = H160(readn(reader));
@@ -198,17 +166,11 @@ mod tests {
         let path = "tests/data/genesis_export.bin";
         let reader = GenesisExportReader::new(File::open(path).unwrap());
 
-        let mut count_iw = 0;
-        for _ in reader.initial_writes() {
-            count_iw += 1;
-        }
-        assert_eq!(count_iw, 8934);
-
         let mut count_sl = 0;
         for _ in reader.storage_logs() {
             count_sl += 1;
         }
-        assert_eq!(count_sl, 8810);
+        assert_eq!(count_sl, 8804);
 
         let mut count_fd = 0;
         for _ in reader.factory_deps() {

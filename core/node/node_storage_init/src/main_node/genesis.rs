@@ -42,10 +42,6 @@ impl InitializeStorage for MainNodeGenesis {
         let custom_genesis_state_reader = match &self.genesis.custom_genesis_state_path {
             Some(path) => match File::open(path) {
                 Ok(file) => Some(GenesisExportReader::new(file)),
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    tracing::info!("Custom genesis state not found at path {:?}. This is expected during normal server operation; however, it shouldn't be the case if the server is running in Genesis mode.", path);
-                    None
-                }
                 Err(e) => return Err(e.into()), // Propagate other errors
             },
             None => None,

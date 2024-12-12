@@ -57,7 +57,7 @@ impl FromEnv for GenesisConfig {
         // #PLA-811
         let network_config = &NetworkConfig::from_env()?;
         let contracts_config = &ContractsForGenesis::from_env()?;
-        let custom_genesis_state_config = &CustomGenesisState::from_env()?;
+        let custom_genesis_state_config = CustomGenesisState::from_env()?;
         let state_keeper = StateKeeperConfig::from_env()?;
 
         // This is needed for backward compatibility, so if the new variable `genesis_protocol_semantic_version`
@@ -93,7 +93,7 @@ impl FromEnv for GenesisConfig {
                 .context("Fee account required for genesis")?,
             dummy_verifier: false,
             l1_batch_commit_data_generator_mode: state_keeper.l1_batch_commit_data_generator_mode,
-            custom_genesis_state_path: custom_genesis_state_config.path.clone(),
+            custom_genesis_state_path: custom_genesis_state_config.path,
         })
     }
 }

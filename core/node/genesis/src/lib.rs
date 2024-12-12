@@ -26,20 +26,21 @@ use zksync_types::{
     system_contracts::get_system_smart_contracts,
     u256_to_h256,
     web3::{BlockNumber, FilterBuilder},
+    zk_evm_types::LogQuery,
     AccountTreeId, Address, Bloom, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
     ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog, H256, U256,
 };
 
 use crate::utils::{
     add_eth_token, get_deduped_log_queries, get_storage_logs,
-    insert_base_system_contracts_to_factory_deps, insert_factory_deps_and_storage_logs,
-    save_genesis_l1_batch_metadata,
+    insert_base_system_contracts_to_factory_deps, insert_deduplicated_writes_and_protective_reads,
+    insert_factory_deps, insert_storage_logs, save_genesis_l1_batch_metadata,
 };
 
 pub mod custom_genesis;
 #[cfg(test)]
 mod tests;
-mod utils;
+pub mod utils;
 
 #[derive(Debug, Clone)]
 pub struct BaseContractsHashError {
@@ -192,13 +193,13 @@ pub fn mock_genesis_config() -> GenesisConfig {
 }
 
 pub fn make_genesis_batch_params(
-    storage_logs: &[StorageLog],
+    deduped_log_queries: Vec<LogQuery>,
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
 ) -> (GenesisBatchParams, L1BatchCommitment) {
     // This action disregards how leaf indeces used to be ordered before, and it reorders them by
     // sorting by <address, key>, which is required for calculating genesis parameters.
-    let storage_logs = get_deduped_log_queries(storage_logs)
+    let storage_logs = deduped_log_queries
         .into_iter()
         .filter(|log_query| log_query.rw_flag) // only writes
         .enumerate()
@@ -269,7 +270,7 @@ pub async fn insert_genesis_batch_with_custom_state(
             ),
         };
 
-    create_genesis_l1_batch_from_storage_logs_and_factory_deps(
+    let deduped_log_queries = create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         &mut transaction,
         genesis_params.protocol_version(),
         genesis_params.base_system_contracts(),
@@ -293,7 +294,7 @@ pub async fn insert_genesis_batch_with_custom_state(
     };
 
     let (genesis_batch_params, block_commitment) = make_genesis_batch_params(
-        storage_logs.as_slice(),
+        deduped_log_queries,
         base_system_contract_hashes,
         genesis_params.minor_protocol_version(),
     );
@@ -436,7 +437,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
     storage_logs: &[StorageLog],
     factory_deps: HashMap<H256, Vec<u8>>,
     l1_verifier_config: L1VerifierConfig,
-) -> Result<(), GenesisError> {
+) -> Result<Vec<LogQuery>, GenesisError> {
     let version = ProtocolVersion {
         version: protocol_version,
         timestamp: 0,
@@ -495,11 +496,22 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         .await?;
 
     insert_base_system_contracts_to_factory_deps(&mut transaction, base_system_contracts).await?;
-    insert_factory_deps_and_storage_logs(&mut transaction, factory_deps, storage_logs).await?;
+
+    let mut genesis_transaction = transaction.start_transaction().await?;
+
+    insert_storage_logs(&mut genesis_transaction, storage_logs).await?;
+    let dedup_log_queries = get_deduped_log_queries(storage_logs);
+    insert_deduplicated_writes_and_protective_reads(
+        &mut genesis_transaction,
+        &dedup_log_queries.as_slice(),
+    )
+    .await?;
+    insert_factory_deps(&mut genesis_transaction, factory_deps).await?;
+    genesis_transaction.commit().await?;
     add_eth_token(&mut transaction).await?;
 
     transaction.commit().await?;
-    Ok(())
+    Ok(dedup_log_queries)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -530,7 +542,8 @@ pub async fn create_genesis_l1_batch(
         factory_deps,
         l1_verifier_config,
     )
-    .await
+    .await?;
+    Ok(())
 }
 
 // Save chain id transaction into the database
