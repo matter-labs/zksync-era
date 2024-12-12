@@ -1,6 +1,6 @@
 name: zk
 l1_network: Localhost
-link_to_code: /Users/romanbrodetskiy/src/zksync-2-dev/.
+link_to_code: /Users/antond/Desktop/zk_os_playground/zksync-era/.
 bellman_cuda_dir: null
 chains: ./chains
 config: ./configs/

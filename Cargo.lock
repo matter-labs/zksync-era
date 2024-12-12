@@ -270,27 +270,29 @@ checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
 
 [[package]]
 name = "ark-bn254"
-version = "0.4.0"
-source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d69eab57e8d2663efa5c63135b2af4f396d66424f88954c21104125ab6b3e6bc"
 dependencies = [
  "ark-ec",
- "ark-ff 0.4.2",
- "ark-std 0.4.0",
+ "ark-ff 0.5.0",
+ "ark-std 0.5.0",
 ]
 
 [[package]]
 name = "ark-ec"
-version = "0.4.2"
-source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43d68f2d516162846c1238e755a7c4d131b892b70cc70c471a8e3ca3ed818fce"
 dependencies = [
  "ahash 0.8.11",
- "ark-ff 0.4.2",
+ "ark-ff 0.5.0",
  "ark-poly",
- "ark-serialize 0.4.2",
- "ark-std 0.4.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
  "educe",
  "fnv",
- "hashbrown 0.14.5",
+ "hashbrown 0.15.0",
  "itertools 0.13.0",
  "num-bigint 0.4.6",
  "num-integer",
@@ -336,6 +338,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-ff"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a177aba0ed1e0fbb62aa9f6d0502e9b46dad8c2eab04c14258a1212d2557ea70"
+dependencies = [
+ "ark-ff-asm 0.5.0",
+ "ark-ff-macros 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+ "arrayvec 0.7.6",
+ "digest 0.10.7",
+ "educe",
+ "itertools 0.13.0",
+ "num-bigint 0.4.6",
+ "num-traits",
+ "paste",
+ "zeroize",
+]
+
+[[package]]
 name = "ark-ff-asm"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -349,6 +371,16 @@ dependencies = [
 name = "ark-ff-asm"
 version = "0.4.2"
 source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+dependencies = [
+ "quote 1.0.37",
+ "syn 2.0.85",
+]
+
+[[package]]
+name = "ark-ff-asm"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62945a2f7e6de02a31fe400aa489f0e0f5b2502e69f95f853adb82a96c7a6b60"
 dependencies = [
  "quote 1.0.37",
  "syn 2.0.85",
@@ -379,17 +411,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-ff-macros"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09be120733ee33f7693ceaa202ca41accd5653b779563608f1234f78ae07c4b3"
+dependencies = [
+ "num-bigint 0.4.6",
+ "num-traits",
+ "proc-macro2 1.0.89",
+ "quote 1.0.37",
+ "syn 2.0.85",
+]
+
+[[package]]
 name = "ark-poly"
-version = "0.4.2"
-source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "579305839da207f02b89cd1679e50e67b4331e2f9294a57693e5051b7703fe27"
 dependencies = [
  "ahash 0.8.11",
- "ark-ff 0.4.2",
- "ark-serialize 0.4.2",
- "ark-std 0.4.0",
+ "ark-ff 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
  "educe",
  "fnv",
- "hashbrown 0.14.5",
+ "hashbrown 0.15.0",
 ]
 
 [[package]]
@@ -407,7 +453,6 @@ name = "ark-serialize"
 version = "0.4.2"
 source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
 dependencies = [
- "ark-serialize-derive",
  "ark-std 0.4.0",
  "arrayvec 0.7.6",
  "digest 0.10.7",
@@ -415,9 +460,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-serialize"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f4d068aaf107ebcd7dfb52bc748f8030e0fc930ac8e360146ca54c1203088f7"
+dependencies = [
+ "ark-serialize-derive",
+ "ark-std 0.5.0",
+ "arrayvec 0.7.6",
+ "digest 0.10.7",
+ "num-bigint 0.4.6",
+]
+
+[[package]]
 name = "ark-serialize-derive"
-version = "0.4.2"
-source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "213888f660fddcca0d257e88e54ac05bca01885f258ccdf695bafd77031bb69d"
 dependencies = [
  "proc-macro2 1.0.89",
  "quote 1.0.37",
@@ -438,6 +497,16 @@ dependencies = [
 name = "ark-std"
 version = "0.4.0"
 source = "git+https://github.com/arkworks-rs/std/#9bd198f5efa116441da68035c7b54c55c49f68e1"
+dependencies = [
+ "num-traits",
+ "rand 0.8.5",
+]
+
+[[package]]
+name = "ark-std"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "246a225cc6131e9ee4f24619af0f19d67761fff15d7ccc22e42b80846e69449a"
 dependencies = [
  "num-traits",
  "rand 0.8.5",
@@ -1033,15 +1102,15 @@ dependencies = [
 [[package]]
 name = "basic_bootloader"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration#3417f30dc4e6249a450eed47c12df052c249ecec"
+source = "git+https://github.com/matter-labs/zk_ee?branch=main#093413eb07869cc024b315f52f22952630eca78a"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
  "either",
  "evm_interpreter",
  "hex",
- "iwasm",
  "iwasm_ee",
+ "iwasm_interpreter",
  "ruint",
  "seq-macro",
  "system_hooks",
@@ -1051,21 +1120,25 @@ dependencies = [
 [[package]]
 name = "basic_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration#3417f30dc4e6249a450eed47c12df052c249ecec"
+source = "git+https://github.com/matter-labs/zk_ee?branch=main#093413eb07869cc024b315f52f22952630eca78a"
 dependencies = [
  "ark-bn254",
  "ark-ec",
- "ark-ff 0.4.2",
- "ark-serialize 0.4.2",
+ "ark-ff 0.5.0",
+ "ark-serialize 0.5.0",
  "arrayvec 0.7.6",
+ "cfg-if",
+ "const_for",
  "crypto",
  "either",
  "evm_interpreter",
  "hex",
- "iwasm",
  "iwasm_ee",
+ "iwasm_interpreter",
  "miniz_nostd_compression",
  "ruint",
+ "secp256k1 0.1.0",
+ "serde",
  "storage_models",
  "system_hooks",
  "zk_ee",
@@ -1991,6 +2064,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
 
 [[package]]
+name = "const_for"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9c50fcfdf972929aff202c16b80086aa3cfc6a3a820af714096c58c7c1d0582"
+
+[[package]]
 name = "const_format"
 version = "0.2.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2196,7 +2275,7 @@ checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 [[package]]
 name = "crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration#3417f30dc4e6249a450eed47c12df052c249ecec"
+source = "git+https://github.com/matter-labs/zk_ee?branch=main#093413eb07869cc024b315f52f22952630eca78a"
 dependencies = [
  "blake2 0.10.6",
  "k256 0.13.4",
@@ -3039,7 +3118,7 @@ dependencies = [
 [[package]]
 name = "evm_interpreter"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration#3417f30dc4e6249a450eed47c12df052c249ecec"
+source = "git+https://github.com/matter-labs/zk_ee?branch=main#093413eb07869cc024b315f52f22952630eca78a"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
@@ -3207,17 +3286,19 @@ dependencies = [
 [[package]]
 name = "forward_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration#3417f30dc4e6249a450eed47c12df052c249ecec"
+source = "git+https://github.com/matter-labs/zk_ee?branch=main#093413eb07869cc024b315f52f22952630eca78a"
 dependencies = [
  "arrayvec 0.7.6",
  "basic_bootloader",
  "basic_system",
+ "bincode",
  "crypto",
  "either",
  "evm_interpreter",
  "hex",
  "ruint",
  "seq-macro",
+ "serde",
  "system_hooks",
  "zk_ee",
 ]
@@ -4053,15 +4134,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "host_specification"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/iwasm.git#848d9dd5fd1bacba66e0f04a27cfd9736dc4164a"
-dependencies = [
- "num-derive 0.4.2",
- "num-traits",
-]
-
-[[package]]
 name = "hostname"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4557,24 +4629,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 
 [[package]]
-name = "iwasm"
+name = "iwasm_ee"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/iwasm.git#848d9dd5fd1bacba66e0f04a27cfd9736dc4164a"
+source = "git+https://github.com/matter-labs/zk_ee?branch=main#093413eb07869cc024b315f52f22952630eca78a"
+dependencies = [
+ "arrayvec 0.7.6",
+ "crypto",
+ "iwasm_interpreter",
+ "iwasm_specification",
+ "ruint",
+ "zk_ee",
+]
+
+[[package]]
+name = "iwasm_interpreter"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee?branch=main#093413eb07869cc024b315f52f22952630eca78a"
 dependencies = [
  "arrayvec 0.7.6",
 ]
 
 [[package]]
-name = "iwasm_ee"
+name = "iwasm_specification"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration#3417f30dc4e6249a450eed47c12df052c249ecec"
+source = "git+https://github.com/matter-labs/zk_ee?branch=main#093413eb07869cc024b315f52f22952630eca78a"
 dependencies = [
- "arrayvec 0.7.6",
- "crypto",
- "host_specification",
- "iwasm",
- "ruint",
- "zk_ee",
+ "num-derive 0.4.2",
+ "num-traits",
 ]
 
 [[package]]
@@ -5463,7 +5544,7 @@ checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
 [[package]]
 name = "miniz_nostd_compression"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration#3417f30dc4e6249a450eed47c12df052c249ecec"
+source = "git+https://github.com/matter-labs/zk_ee?branch=main#093413eb07869cc024b315f52f22952630eca78a"
 dependencies = [
  "adler",
 ]
@@ -7939,6 +8020,16 @@ dependencies = [
 
 [[package]]
 name = "secp256k1"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee?branch=main#093413eb07869cc024b315f52f22952630eca78a"
+dependencies = [
+ "cfg-if",
+ "const_for",
+ "crypto",
+]
+
+[[package]]
+name = "secp256k1"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25996b82292a7a57ed3508f052cfff8640d38d32018784acd714758b43da9c8f"
@@ -9032,7 +9123,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "storage_models"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration#3417f30dc4e6249a450eed47c12df052c249ecec"
+source = "git+https://github.com/matter-labs/zk_ee?branch=main#093413eb07869cc024b315f52f22952630eca78a"
 dependencies = [
  "arrayvec 0.7.6",
  "either",
@@ -9424,7 +9515,7 @@ dependencies = [
 [[package]]
 name = "system_hooks"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration#3417f30dc4e6249a450eed47c12df052c249ecec"
+source = "git+https://github.com/matter-labs/zk_ee?branch=main#093413eb07869cc024b315f52f22952630eca78a"
 dependencies = [
  "crypto",
  "ruint",
@@ -11001,7 +11092,7 @@ dependencies = [
 [[package]]
 name = "zk_ee"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=rb-zk-os-integration#3417f30dc4e6249a450eed47c12df052c249ecec"
+source = "git+https://github.com/matter-labs/zk_ee?branch=main#093413eb07869cc024b315f52f22952630eca78a"
 dependencies = [
  "arrayvec 0.7.6",
  "bitflags 2.6.0",
@@ -11009,6 +11100,7 @@ dependencies = [
  "crypto",
  "derivative",
  "ruint",
+ "serde",
 ]
 
 [[package]]
@@ -11665,7 +11757,7 @@ dependencies = [
  "blake2 0.10.6",
  "hex",
  "rand 0.8.5",
- "secp256k1",
+ "secp256k1 0.27.0",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -11719,7 +11811,7 @@ dependencies = [
  "reqwest 0.12.9",
  "ripemd",
  "scale-encode",
- "secp256k1",
+ "secp256k1 0.27.0",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -12862,7 +12954,7 @@ dependencies = [
  "async-trait",
  "envy",
  "reqwest 0.12.9",
- "secp256k1",
+ "secp256k1 0.27.0",
  "serde",
  "thiserror",
  "tokio",
@@ -13178,3 +13270,13 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
+
+[[patch.unused]]
+name = "ark-bn254"
+version = "0.4.0"
+source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+
+[[patch.unused]]
+name = "ark-ec"
+version = "0.4.2"
+source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"

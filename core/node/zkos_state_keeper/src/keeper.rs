@@ -108,6 +108,7 @@ impl ZkosStateKeeper {
                 //todo: gas
                 eip1559_basefee: U256::from(1),
                 ergs_price: U256::from(1),
+                gas_per_pubdata: Default::default(),
                 block_number: pending_block_number.0 as u64,
                 timestamp: (millis_since_epoch() / 1000) as u64,
             };
@@ -186,11 +187,12 @@ impl ZkosStateKeeper {
     async fn fund_dev_wallets_if_needed(connection: &mut Connection<'_, Core>, pending_block_number: &mut L2BlockNumber) {
         for address in &[
             "0x27FBEc0B5D2A2B89f77e4D3648bBBBCF11784bdE",
-            "0x2eF0972bd8AFc29d63b2412508ce5e20219b9A8c"
+            "0x2eF0972bd8AFc29d63b2412508ce5e20219b9A8c",
+            "0xBC989fDe9e54cAd2aB4392Af6dF60f04873A033A"
         ] {
             let address = B160::from_str(address).unwrap();
             let key = address_into_special_storage_key(&address);
-            let balance = bytes32_to_h256(Bytes32::from_u256_be(U256::from(170000000)));
+            let balance = bytes32_to_h256(Bytes32::from_u256_be(U256::from_str("1700000000000000000").unwrap()));;
             let flat_key = bytes32_to_h256(derive_flat_storage_key(&NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, &key));
 
             let r = connection
