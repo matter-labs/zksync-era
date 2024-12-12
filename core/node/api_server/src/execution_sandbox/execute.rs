@@ -153,8 +153,9 @@ impl SandboxExecutor {
 
         // todo: gas
         let context = BatchContext {
-            eip1559_basefee: U256::from(1),
+            eip1559_basefee: U256::from(0),
             ergs_price: U256::from(1),
+            gas_per_pubdata: Default::default(),
             block_number: (env.l1_batch.number.0 + 1) as u64,
             timestamp: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
