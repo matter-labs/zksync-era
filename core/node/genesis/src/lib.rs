@@ -503,7 +503,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
     let dedup_log_queries = get_deduped_log_queries(storage_logs);
     insert_deduplicated_writes_and_protective_reads(
         &mut genesis_transaction,
-        &dedup_log_queries.as_slice(),
+        dedup_log_queries.as_slice(),
     )
     .await?;
     insert_factory_deps(&mut genesis_transaction, factory_deps).await?;
