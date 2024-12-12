@@ -118,7 +118,10 @@ impl<T: GetBlobData> RawEigenClient<T> {
             | disperser::BlobStatus::InsufficientSignatures
             | disperser::BlobStatus::Unknown => Err(anyhow::anyhow!("Blob dispatch failed")),
 
-            _ => Ok(hex::encode(disperse_reply.request_id)),
+            disperser::BlobStatus::Dispersing
+            | disperser::BlobStatus::Processing
+            | disperser::BlobStatus::Finalized
+            | disperser::BlobStatus::Confirmed => Ok(hex::encode(disperse_reply.request_id)),
         }
     }
 
@@ -163,7 +166,10 @@ impl<T: GetBlobData> RawEigenClient<T> {
             | disperser::BlobStatus::InsufficientSignatures
             | disperser::BlobStatus::Unknown => Err(anyhow::anyhow!("Blob dispatch failed")),
 
-            _ => Ok(hex::encode(disperse_reply.request_id)),
+            disperser::BlobStatus::Dispersing
+            | disperser::BlobStatus::Processing
+            | disperser::BlobStatus::Finalized
+            | disperser::BlobStatus::Confirmed => Ok(hex::encode(disperse_reply.request_id)),
         }
     }
 
