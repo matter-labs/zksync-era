@@ -59,6 +59,7 @@ impl WiringLayer for EthWatchLayer {
         let main_pool = input.master_pool.get().await?;
         let client = input.eth_client.0;
 
+        println!("{:?}", self.contracts_config);
         let eth_client = EthHttpQueryClient::new(
             client,
             self.contracts_config.diamond_proxy_addr,
