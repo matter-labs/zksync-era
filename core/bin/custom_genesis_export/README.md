@@ -14,9 +14,8 @@ A typical workflow could be:
 
 ## How it works
 
-The tool exports all entries from `initial_writes`, `storage_logs`, and `factory_deps`, except those related to the
-system context. The data is then written to a binary file using the Rust standard library following a simple
-serialisation format.
+The tool exports all entries from `storage_logs`, and `factory_deps`, except those related to the system context. The
+data is then written to a binary file using the Rust standard library following a simple serialisation format.
 
 `custom_genesis_export` can be built using the following command:
 

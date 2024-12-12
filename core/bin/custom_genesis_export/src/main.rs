@@ -125,7 +125,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let (genesis_batch_params, _) = make_genesis_batch_params(
-        get_deduped_log_queries(storage_logs_for_genesis.as_slice()),
+        get_deduped_log_queries(&storage_logs_for_genesis),
         base_system_contract_hashes,
         genesis_config
             .protocol_version

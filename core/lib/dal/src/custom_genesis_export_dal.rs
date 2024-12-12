@@ -32,30 +32,30 @@ impl CustomGenesisExportDal<'_, '_> {
         // 0x5 -- difficulty
         let rows = sqlx::query!(
             r#"
-            WITH LatestStorageLogs AS (
-                SELECT DISTINCT ON (Hashed_Key)
-                    Hashed_Key,
-                    Address,
-                    Key,
-                    Value
-                FROM Storage_Logs
-                ORDER BY Hashed_Key, Miniblock_Number DESC, Operation_Number DESC
+            WITH latest_storage_logs AS (
+                SELECT DISTINCT ON (hashed_key)
+                    hashed_key,
+                    address,
+                    key,
+                    value
+                FROM storage_logs
+                ORDER BY hashed_key, miniblock_number DESC, operation_number DESC
             )
             
             SELECT
-                Lsl.Address,
-                Lsl.Key,
-                Lsl.Value
+                lsl.address,
+                lsl.key,
+                lsl.value
             FROM
-                Initial_Writes Iw
+                initial_writes iw
             JOIN
-                LatestStorageLogs Lsl ON Iw.Hashed_Key = Lsl.Hashed_Key
+                latest_storage_logs lsl ON iw.hashed_key = lsl.hashed_key
             WHERE
-                Lsl.Value
+                lsl.value
                 <> '\x0000000000000000000000000000000000000000000000000000000000000000'::bytea
                 AND (
-                    Lsl.Address <> '\x000000000000000000000000000000000000800b'::bytea OR
-                    Lsl.Key IN (
+                    lsl.address <> '\x000000000000000000000000000000000000800b'::bytea OR
+                    lsl.key IN (
                         '\x0000000000000000000000000000000000000000000000000000000000000000'::bytea,
                         '\x0000000000000000000000000000000000000000000000000000000000000003'::bytea,
                         '\x0000000000000000000000000000000000000000000000000000000000000004'::bytea,

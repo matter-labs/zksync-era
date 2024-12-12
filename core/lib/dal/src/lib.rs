@@ -133,6 +133,7 @@ where
     fn base_token_dal(&mut self) -> BaseTokenDal<'_, 'a>;
 
     fn eth_watcher_dal(&mut self) -> EthWatcherDal<'_, 'a>;
+
     fn custom_genesis_export_dal(&mut self) -> CustomGenesisExportDal<'_, 'a>;
 }
 

@@ -197,8 +197,6 @@ pub fn make_genesis_batch_params(
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
 ) -> (GenesisBatchParams, L1BatchCommitment) {
-    // This action disregards how leaf indeces used to be ordered before, and it reorders them by
-    // sorting by <address, key>, which is required for calculating genesis parameters.
     let storage_logs = deduped_log_queries
         .into_iter()
         .filter(|log_query| log_query.rw_flag) // only writes
@@ -270,11 +268,13 @@ pub async fn insert_genesis_batch_with_custom_state(
             ),
         };
 
+    // This action disregards how leaf indeces used to be ordered before, and it reorders them by
+    // sorting by <address, key>, which is required for calculating genesis parameters.
     let deduped_log_queries = create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         &mut transaction,
         genesis_params.protocol_version(),
         genesis_params.base_system_contracts(),
-        storage_logs.as_slice(),
+        &storage_logs,
         factory_deps,
         verifier_config,
     )
