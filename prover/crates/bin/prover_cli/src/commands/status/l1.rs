@@ -81,15 +81,18 @@ pub(crate) async fn run() -> anyhow::Result<()> {
 
     let function = helper::verifier_contract()
         .functions_by_name("verificationKeyHash")
-        .map_err(ContractCallError::Function)?[1]
-        .clone();
+        .map_err(ContractCallError::Function)?
+        .get(1);
 
-    let fflonk_verification_key_hash: Option<H256> =
+    let fflonk_verification_key_hash: Option<H256> = if let Some(function) = function {
         CallFunctionArgs::new("verificationKeyHash", U256::from(FFLONK_VERIFIER_TYPE))
             .for_contract(contracts_config.verifier_addr, &helper::verifier_contract())
-            .call_with_function(&query_client, function)
+            .call_with_function(&query_client, function.clone())
             .await
-            .ok();
+            .ok()
+    } else {
+        None
+    };
 
     let node_l1_verifier_config = L1VerifierConfig {
         snark_wrapper_vk_hash: node_verification_key_hash,

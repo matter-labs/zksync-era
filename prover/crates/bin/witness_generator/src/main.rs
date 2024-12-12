@@ -140,9 +140,10 @@ async fn main() -> anyhow::Result<()> {
     let (stop_sender, stop_receiver) = watch::channel(false);
 
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
-    ensure_protocol_alignment(&connection_pool, protocol_version, &keystore)
-        .await
-        .unwrap_or_else(|err| panic!("Protocol alignment check failed: {:?}", err));
+    // TODO: enable when VK issue is resolved
+    // ensure_protocol_alignment(&connection_pool, protocol_version, &keystore)
+    //     .await
+    //     .unwrap_or_else(|err| panic!("Protocol alignment check failed: {:?}", err));
 
     let rounds = match (opt.round, opt.all_rounds) {
         (Some(round), false) => vec![round],

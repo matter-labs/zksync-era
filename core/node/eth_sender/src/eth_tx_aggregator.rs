@@ -386,15 +386,20 @@ impl EthTxAggregator {
             .functions
             .verifier_contract
             .functions_by_name(&get_vk_hash.name)
-            .map_err(|x| EthSenderError::ContractCall(ContractCallError::Function(x)))?[1]
-            .clone();
-        let vk_hash: Option<H256> =
-            CallFunctionArgs::new(&get_vk_hash.name, U256::from(FFLONK_VERIFIER_TYPE))
-                .for_contract(verifier_address, &self.functions.verifier_contract)
-                .call_with_function((*self.eth_client).as_ref(), function)
-                .await
-                .ok();
-        Ok(vk_hash)
+            .map_err(|x| EthSenderError::ContractCall(ContractCallError::Function(x)))?
+            .get(1);
+
+        if let Some(function) = function {
+            let vk_hash: Option<H256> =
+                CallFunctionArgs::new(&get_vk_hash.name, U256::from(FFLONK_VERIFIER_TYPE))
+                    .for_contract(verifier_address, &self.functions.verifier_contract)
+                    .call_with_function((*self.eth_client).as_ref(), function.clone())
+                    .await
+                    .ok();
+            Ok(vk_hash)
+        } else {
+            Ok(None)
+        }
     }
 
     #[tracing::instrument(skip_all, name = "EthTxAggregator::loop_iteration")]

@@ -324,15 +324,20 @@ where
         let function = self
             .verifier_contract_abi
             .functions_by_name("verificationKeyHash")
-            .map_err(ContractCallError::Function)?[1]
-            .clone();
-        Ok(
-            CallFunctionArgs::new("verificationKeyHash", U256::from(FFLONK_VERIFIER_TYPE))
-                .for_contract(verifier_address, &self.verifier_contract_abi)
-                .call_with_function(&self.client, function)
-                .await
-                .ok(),
-        )
+            .map_err(ContractCallError::Function)?
+            .get(1);
+
+        if let Some(function) = function {
+            Ok(
+                CallFunctionArgs::new("verificationKeyHash", U256::from(FFLONK_VERIFIER_TYPE))
+                    .for_contract(verifier_address, &self.verifier_contract_abi)
+                    .call_with_function(&self.client, function.clone())
+                    .await
+                    .ok(),
+            )
+        } else {
+            Ok(None)
+        }
     }
 
     async fn diamond_cut_by_version(
