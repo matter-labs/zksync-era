@@ -5,13 +5,12 @@
 use std::{collections::HashMap, fmt::Formatter};
 
 use anyhow::Context as _;
-use custom_genesis::GenesisExportReader;
 use zksync_config::GenesisConfig;
 use zksync_contracts::{
     hyperchain_contract, verifier_contract, BaseSystemContracts, BaseSystemContractsHashes,
     SET_CHAIN_ID_EVENT,
 };
-use zksync_dal::{Connection, Core, CoreDal, DalError};
+use zksync_dal::{custom_genesis_export_dal::GenesisState, Connection, Core, CoreDal, DalError};
 use zksync_eth_client::{CallFunctionArgs, EthInterface};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
@@ -36,8 +35,6 @@ use crate::utils::{
     insert_base_system_contracts_to_factory_deps, insert_deduplicated_writes_and_protective_reads,
     insert_factory_deps, insert_storage_logs, save_genesis_l1_batch_metadata,
 };
-
-pub mod custom_genesis;
 #[cfg(test)]
 mod tests;
 pub mod utils;
@@ -237,7 +234,7 @@ pub fn make_genesis_batch_params(
 pub async fn insert_genesis_batch_with_custom_state(
     storage: &mut Connection<'_, Core>,
     genesis_params: &GenesisParams,
-    custom_genesis_state: Option<GenesisExportReader>,
+    custom_genesis_state: Option<GenesisState>,
 ) -> Result<GenesisBatchParams, GenesisError> {
     let mut transaction = storage.start_transaction().await?;
     let verifier_config = L1VerifierConfig {
@@ -248,9 +245,13 @@ pub async fn insert_genesis_batch_with_custom_state(
     let (storage_logs, factory_deps): (Vec<StorageLog>, HashMap<H256, Vec<u8>>) =
         match custom_genesis_state {
             Some(r) => (
-                r.storage_logs().map(Into::into).collect(),
-                r.factory_deps()
-                    .map(|f| (f.bytecode_hash, f.bytecode))
+                r.storage_logs
+                    .into_iter()
+                    .map(|x| StorageLog::from(&x))
+                    .collect(),
+                r.factory_deps
+                    .into_iter()
+                    .map(|f| (H256(f.bytecode_hash), f.bytecode))
                     .collect(),
             ),
             None => (
@@ -369,7 +370,7 @@ pub async fn validate_genesis_params(
 pub async fn ensure_genesis_state(
     storage: &mut Connection<'_, Core>,
     genesis_params: &GenesisParams,
-    custom_genesis_state: Option<GenesisExportReader>,
+    custom_genesis_state: Option<GenesisState>,
 ) -> Result<H256, GenesisError> {
     let mut transaction = storage.start_transaction().await?;
 

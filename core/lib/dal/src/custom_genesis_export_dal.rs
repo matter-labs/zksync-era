@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{AccountTreeId, StorageKey, StorageLog, H160, H256};
 
@@ -8,14 +9,20 @@ pub struct CustomGenesisExportDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenesisState {
+    pub storage_logs: Vec<StorageLogRow>,
+    pub factory_deps: Vec<FactoryDepRow>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageLogRow {
     pub address: [u8; 20],
     pub key: [u8; 32],
     pub value: [u8; 32],
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FactoryDepRow {
     pub bytecode_hash: [u8; 32],
     pub bytecode: Vec<u8>,
@@ -107,8 +114,8 @@ impl CustomGenesisExportDal<'_, '_> {
     }
 }
 
-impl From<StorageLogRow> for StorageLog {
-    fn from(value: StorageLogRow) -> Self {
+impl From<&StorageLogRow> for StorageLog {
+    fn from(value: &StorageLogRow) -> Self {
         StorageLog::new_write_log(
             StorageKey::new(AccountTreeId::new(H160(value.address)), H256(value.key)),
             H256(value.value),

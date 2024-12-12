@@ -4,7 +4,8 @@ use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_config::{ContractsConfig, GenesisConfig};
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
-use zksync_node_genesis::{custom_genesis::GenesisExportReader, GenesisParams};
+use zksync_node_genesis::GenesisParams;
+use zksync_object_store::bincode;
 use zksync_web3_decl::client::{DynClient, L1};
 
 use crate::traits::InitializeStorage;
@@ -41,7 +42,7 @@ impl InitializeStorage for MainNodeGenesis {
 
         let custom_genesis_state_reader = match &self.genesis.custom_genesis_state_path {
             Some(path) => match File::open(path) {
-                Ok(file) => Some(GenesisExportReader::new(file)),
+                Ok(file) => Some(bincode::deserialize_from(file)?),
                 Err(e) => return Err(e.into()), // Propagate other errors
             },
             None => None,

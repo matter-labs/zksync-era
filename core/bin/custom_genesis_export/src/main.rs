@@ -1,17 +1,11 @@
 extern crate core;
 
-use std::{
-    fs,
-    fs::File,
-    io::{BufWriter, Write},
-    path::PathBuf,
-    str::FromStr,
-};
+use std::{fs, fs::File, io::BufWriter, path::PathBuf, str::FromStr};
 
 use clap::Parser;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_core_leftovers::temp_config_store::read_yaml_repr;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{custom_genesis_export_dal::GenesisState, ConnectionPool, Core, CoreDal};
 use zksync_node_genesis::{make_genesis_batch_params, utils::get_deduped_log_queries};
 use zksync_protobuf_config::encode_yaml_repr;
 use zksync_types::{url::SensitiveUrl, StorageLog};
@@ -78,36 +72,34 @@ async fn main() -> anyhow::Result<()> {
         .custom_genesis_export_dal()
         .get_storage_logs()
         .await?;
-    let storage_logs_count = storage_logs.len() as u32;
-    out.write_all(&u32::to_le_bytes(storage_logs_count))?;
-
-    for r in storage_logs.iter() {
-        out.write_all(&r.address)?;
-        out.write_all(&r.key)?;
-        out.write_all(&r.value)?;
-    }
-    println!("Exported {storage_logs_count} storage logs from source database.");
-
-    let storage_logs_for_genesis: Vec<StorageLog> =
-        storage_logs.into_iter().map(|x| x.into()).collect();
-
-    println!("Loading factory deps from source database...");
     let factory_deps = transaction
         .custom_genesis_export_dal()
         .get_factory_deps()
         .await?;
-    let count_factory_deps = factory_deps.len() as u32;
-    out.write_all(&u32::to_le_bytes(count_factory_deps))?;
 
-    for r in factory_deps.into_iter() {
-        out.write_all(&r.bytecode_hash)?;
-        out.write_all(&(r.bytecode.len() as u64).to_le_bytes())?;
-        out.write_all(&r.bytecode)?;
-    }
-
-    println!("Exported {count_factory_deps} factory deps from source database.");
     transaction.commit().await?;
 
+    println!(
+        "Loaded {} storage logs {} factory deps from source database.",
+        storage_logs.len(),
+        factory_deps.len()
+    );
+
+    let storage_logs_for_genesis: Vec<StorageLog> =
+        storage_logs.iter().map(StorageLog::from).collect();
+
+    bincode::serialize_into(
+        &mut out,
+        &GenesisState {
+            storage_logs,
+            factory_deps,
+        },
+    )?;
+
+    println!(
+        "Saved genesis state into the file {}.",
+        args.output_path.display()
+    );
     println!("Calculating new genesis parameters");
 
     let mut genesis_config = read_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(
