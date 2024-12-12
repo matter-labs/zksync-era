@@ -11364,4 +11364,4 @@ zksync-ethers@^6.9.0:
 
 "zksync-ethers@https://github.com/zksync-sdk/zksync-ethers#sb-use-new-encoding-in-sdk":
   version "6.12.1"
-  resolved "https://github.com/zksync-sdk/zksync-ethers#f7289947c94106341f822012fabcc62d5f92dc12"
+  resolved "https://github.com/zksync-sdk/zksync-ethers#9441755692dd2b05de808579eaf467d6fec31024"
