@@ -15,10 +15,10 @@ use crate::commands::chain::{
 
 mod accept_chain_ownership;
 pub(crate) mod args;
-mod build_transactions;
-mod common;
-mod convert_to_gateway;
-mod create;
+pub mod build_transactions;
+pub mod common;
+pub mod convert_to_gateway;
+pub mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
 pub mod gateway_upgrade;

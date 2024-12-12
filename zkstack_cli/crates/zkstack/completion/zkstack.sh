@@ -1661,7 +1661,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__gateway__upgrade)
-            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --zksync --additional-args --verbose --chain --ignore-prerequisites --help adapt-config prepare-stage1 schedule-stage1 finalize-stage1 finalize-stage2 keep-up-stage2"
+            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --zksync --additional-args --verbose --chain --ignore-prerequisites --help adapt-config prepare-stage1 schedule-stage1 finalize-stage1 finalize-stage2 keep-up-stage2 set-l2weth-for-chain"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5310,7 +5310,7 @@ _zkstack() {
                     return 0
                     ;;
                 --ecosystem-upgrade-stage)
-                    COMPREPLY=($(compgen -W "no-governance-prepare governance-stage1 governance-stage2 no-governance-stage2" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "no-governance-prepare governance-stage1 governance-stage2 no-governance-stage2 governance-stage3 no-governance-stage3" -- "${cur}"))
                     return 0
                     ;;
                 --ecosystem-contracts-path)
