@@ -321,6 +321,8 @@ where
         verifier_address: Address,
     ) -> Result<Option<H256>, ContractCallError> {
         // New verifier returns the hash of the verification key.
+        // We are getting function separately to get the second function with the same name, but
+        // overriden one
         let function = self
             .verifier_contract_abi
             .functions_by_name("verificationKeyHash")

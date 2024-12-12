@@ -34,5 +34,6 @@ futures = { workspace = true, features = ["compat"] }
 
 [features]
 default = []
+# feature to not compile era-bellman-cuda, but to be able to use GPU features
 gpu-light = ["dep:shivini", "dep:boojum-cuda"]
 gpu = ["dep:shivini", "dep:fflonk-gpu", "dep:boojum-cuda"]

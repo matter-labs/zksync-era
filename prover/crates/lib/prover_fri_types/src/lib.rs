@@ -27,6 +27,8 @@ use crate::keys::FriCircuitKey;
 pub mod keys;
 pub mod queue;
 
+pub const MAX_COMPRESSION_CIRCUITS: u8 = 5;
+
 // THESE VALUES SHOULD BE UPDATED ON ANY PROTOCOL UPGRADE OF PROVERS
 pub const PROVER_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version25;
 pub const PROVER_PROTOCOL_PATCH: VersionPatch = VersionPatch(0);
@@ -292,8 +294,8 @@ impl ProverServiceDataKey {
         for numeric_circuit in ZkSyncRecursionLayerStorageType::as_iter_u8() {
             results.push(ProverServiceDataKey::new_recursive(numeric_circuit))
         }
-        // todo: don't use hardcoded values
-        for numeric_circuit in 1..5 {
+
+        for numeric_circuit in 1..MAX_COMPRESSION_CIRCUITS {
             results.push(ProverServiceDataKey::new_compression(numeric_circuit));
         }
         results.push(ProverServiceDataKey::new_compression_wrapper(5));

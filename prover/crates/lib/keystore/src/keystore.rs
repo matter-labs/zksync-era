@@ -29,12 +29,12 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use shivini::boojum::field::goldilocks::GoldilocksField;
 use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
-use zksync_prover_fri_types::{ProverServiceDataKey, ProvingStage};
+use zksync_prover_fri_types::{ProverServiceDataKey, ProvingStage, MAX_COMPRESSION_CIRCUITS};
 use zksync_utils::env::Workspace;
 
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use crate::{GoldilocksGpuProverSetupData, GpuProverSetupData};
-use crate::{GoldilocksProverSetupData, VkCommitments};
+use crate::{GoldilocksProverSetupData, VkCommitments, MAX_COMPRESSION_CIRCUITS};
 
 #[derive(Debug, Clone, Copy)]
 pub enum ProverServiceDataType {
@@ -522,7 +522,7 @@ impl Keystore {
             )?)
             .unwrap();
 
-        for circuit in 1..5 {
+        for circuit in 1..MAX_COMPRESSION_CIRCUITS {
             data_source
                 .set_compression_vk(self.load_compression_vk(circuit)?)
                 .unwrap();

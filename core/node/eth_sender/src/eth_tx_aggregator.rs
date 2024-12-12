@@ -382,6 +382,8 @@ impl EthTxAggregator {
         verifier_address: Address,
     ) -> Result<Option<H256>, EthSenderError> {
         let get_vk_hash = &self.functions.verification_key_hash;
+        // We are getting function separately to get the second function with the same name, but
+        // overriden one
         let function = self
             .functions
             .verifier_contract

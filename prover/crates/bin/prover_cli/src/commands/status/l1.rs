@@ -79,7 +79,10 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         .call(&query_client)
         .await?;
 
-    let function = helper::verifier_contract()
+    // We are getting function separately to get the second function with the same name, but
+    // overriden one
+    let contract = helper::verifier_contract();
+    let function = contract
         .functions_by_name("verificationKeyHash")
         .map_err(ContractCallError::Function)?
         .get(1);
@@ -142,7 +145,7 @@ fn pretty_print_l1_status(
     let eth_sender_lag = U256::from(last_state_keeper_l1_batch.0) - total_batches_committed;
     if eth_sender_lag > U256::zero() {
         println!(
-            "Eth sender is {} behind. Last block committed: {}. Most recent sealed state keeper batch: {}.", 
+            "Eth sender is {} behind. Last block committed: {}. Most recent sealed state keeper batch: {}.",
             eth_sender_lag,
             total_batches_committed,
             last_state_keeper_l1_batch
