@@ -134,6 +134,10 @@ impl ProtoRepr for proto::Config {
             .and_then(|x| Ok((*x).try_into()?))
             .context("max_payload_size")?;
 
+        let view_timeout = required(&self.view_timeout)
+            .and_then(|x| Ok((*x).try_into()?))
+            .context("view_timeout")?;
+
         let max_batch_size = match self.max_batch_size {
             Some(x) => x.try_into().context("max_batch_size")?,
             None => {
@@ -154,6 +158,7 @@ impl ProtoRepr for proto::Config {
                 .context("server_addr")?,
             public_addr: Host(required(&self.public_addr).context("public_addr")?.clone()),
             max_payload_size,
+            view_timeout,
             max_batch_size,
             gossip_dynamic_inbound_limit: required(&self.gossip_dynamic_inbound_limit)
                 .and_then(|x| Ok((*x).try_into()?))
@@ -187,6 +192,7 @@ impl ProtoRepr for proto::Config {
             server_addr: Some(this.server_addr.to_string()),
             public_addr: Some(this.public_addr.0.clone()),
             max_payload_size: Some(this.max_payload_size.try_into().unwrap()),
+            view_timeout: Some(this.view_timeout.try_into().unwrap()),
             max_batch_size: Some(this.max_batch_size.try_into().unwrap()),
             gossip_dynamic_inbound_limit: Some(
                 this.gossip_dynamic_inbound_limit.try_into().unwrap(),

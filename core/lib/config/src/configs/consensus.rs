@@ -126,6 +126,9 @@ pub struct ConsensusConfig {
     /// Maximal allowed size of the payload in bytes.
     pub max_payload_size: usize,
 
+    /// View timeout duration in milliseconds.
+    pub view_timeout: usize,
+
     /// Maximal allowed size of the sync-batch payloads in bytes.
     ///
     /// The batch consists of block payloads and a Merkle proof of inclusion on L1 (~1kB),
