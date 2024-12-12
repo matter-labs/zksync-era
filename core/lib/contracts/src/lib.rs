@@ -55,14 +55,11 @@ const GETTERS_FACET_CONTRACT_FILE: (&str, &str) = (
 );
 
 const MULTICALL3_CONTRACT_FILE: (&str, &str) = ("dev-contracts", "Multicall3.sol/Multicall3.json");
-const VERIFIER_CONTRACT_FILE: (&str, &str) = (
-    "state-transition/verifiers",
-    "DualVerifier.sol/DualVerifier.json",
-);
+const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
 
 const _IERC20_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
-const _FAIL_ON_RECEIVE_CONTRACT_FILE:  &str  =
+const _FAIL_ON_RECEIVE_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
 
 fn home_path() -> PathBuf {

@@ -380,7 +380,7 @@ impl EthTxAggregator {
     async fn get_fflonk_snark_wrapper_vk_hash(
         &mut self,
         verifier_address: Address,
-    ) -> Result<H256, EthSenderError> {
+    ) -> Result<Option<H256>, EthSenderError> {
         let get_vk_hash = &self.functions.verification_key_hash;
         let function = self
             .functions
@@ -388,11 +388,12 @@ impl EthTxAggregator {
             .functions_by_name(&get_vk_hash.name)
             .map_err(|x| EthSenderError::ContractCall(ContractCallError::Function(x)))?[1]
             .clone();
-        let vk_hash: H256 =
+        let vk_hash: Option<H256> =
             CallFunctionArgs::new(&get_vk_hash.name, U256::from(FFLONK_VERIFIER_TYPE))
                 .for_contract(verifier_address, &self.functions.verifier_contract)
                 .call_with_function((*self.eth_client).as_ref(), function)
-                .await?;
+                .await
+                .ok();
         Ok(vk_hash)
     }
 
@@ -427,7 +428,7 @@ impl EthTxAggregator {
 
         let l1_verifier_config = L1VerifierConfig {
             snark_wrapper_vk_hash,
-            fflonk_snark_wrapper_vk_hash: Some(fflonk_snark_wrapper_vk_hash),
+            fflonk_snark_wrapper_vk_hash,
         };
         if let Some(agg_op) = self
             .aggregator

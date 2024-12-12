@@ -305,14 +305,15 @@ pub async fn validate_genesis_params(
         .call(query_client)
         .await?;
 
-    let fflonk_verification_key_hash: H256 =
+    let fflonk_verification_key_hash: Option<H256> =
         CallFunctionArgs::new("verificationKeyHash", U256::from(0))
             .for_contract(verifier_address, &verifier_abi)
             .call_with_function(
                 query_client,
                 verifier_abi.functions_by_name("verificationKeyHash")?[1].clone(),
             )
-            .await?;
+            .await
+            .ok();
 
     if verification_key_hash != genesis_params.config().snark_wrapper_vk_hash {
         return Err(anyhow::anyhow!(
@@ -321,9 +322,11 @@ pub async fn validate_genesis_params(
         ));
     }
 
-    if Some(fflonk_verification_key_hash) != genesis_params.config().fflonk_snark_wrapper_vk_hash {
+    if fflonk_verification_key_hash.is_some()
+        && fflonk_verification_key_hash != genesis_params.config().fflonk_snark_wrapper_vk_hash
+    {
         return Err(anyhow::anyhow!(
-            "FFLONK Verification key hash mismatch: {fflonk_verification_key_hash:?} on contract, {:?} in config",
+            "FFlonk verification key hash mismatch: {fflonk_verification_key_hash:?} on contract, {:?} in config",
             genesis_params.config().fflonk_snark_wrapper_vk_hash
         ));
     }

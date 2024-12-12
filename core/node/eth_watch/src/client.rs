@@ -50,7 +50,7 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     async fn fflonk_scheduler_vk_hash(
         &self,
         verifier_address: Address,
-    ) -> Result<H256, ContractCallError>;
+    ) -> Result<Option<H256>, ContractCallError>;
     /// Returns upgrade diamond cut by packed protocol version.
     async fn diamond_cut_by_version(
         &self,
@@ -319,17 +319,20 @@ where
     async fn fflonk_scheduler_vk_hash(
         &self,
         verifier_address: Address,
-    ) -> Result<H256, ContractCallError> {
+    ) -> Result<Option<H256>, ContractCallError> {
         // New verifier returns the hash of the verification key.
         let function = self
             .verifier_contract_abi
             .functions_by_name("verificationKeyHash")
             .map_err(ContractCallError::Function)?[1]
             .clone();
-        CallFunctionArgs::new("verificationKeyHash", U256::from(FFLONK_VERIFIER_TYPE))
-            .for_contract(verifier_address, &self.verifier_contract_abi)
-            .call_with_function(&self.client, function)
-            .await
+        Ok(
+            CallFunctionArgs::new("verificationKeyHash", U256::from(FFLONK_VERIFIER_TYPE))
+                .for_contract(verifier_address, &self.verifier_contract_abi)
+                .call_with_function(&self.client, function)
+                .await
+                .ok(),
+        )
     }
 
     async fn diamond_cut_by_version(
@@ -498,8 +501,8 @@ impl EthClient for L2EthClientW {
     async fn fflonk_scheduler_vk_hash(
         &self,
         verifier_address: Address,
-    ) -> Result<H256, ContractCallError> {
-        self.0.scheduler_vk_hash(verifier_address).await
+    ) -> Result<Option<H256>, ContractCallError> {
+        self.0.fflonk_scheduler_vk_hash(verifier_address).await
     }
 
     async fn diamond_cut_by_version(

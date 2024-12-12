@@ -87,7 +87,7 @@ impl ProofCompressor {
     }
 
     #[tracing::instrument(skip(proof, _compression_mode))]
-    pub fn compress_proof(
+    pub fn generate_plonk_proof(
         proof: ZkSyncRecursionLayerProof,
         _compression_mode: u8,
         keystore: Keystore,
@@ -123,7 +123,7 @@ impl ProofCompressor {
     }
 
     #[tracing::instrument(skip(proof, compression_mode))]
-    pub fn compress_fflonk_proof(
+    pub fn generate_fflonk_proof(
         proof: ZkSyncRecursionLayerProof,
         compression_mode: u8,
         keystore: Keystore,
@@ -135,7 +135,7 @@ impl ProofCompressor {
             .context("get_recursiver_layer_vk_for_circuit_type()")?;
 
         // compress proof step by step: 1 -> 2 -> 3 -> 4 -> 5(wrapper)
-        let (compression_wrapper_proof, compression_wrapper_vk) = Self::fflonk_compress_proof(
+        let (compression_wrapper_proof, compression_wrapper_vk) = Self::compress_proof(
             &keystore,
             proof.into_inner(),
             scheduler_vk.into_inner(),
@@ -169,7 +169,7 @@ impl ProofCompressor {
         Ok(proof)
     }
 
-    pub fn fflonk_compress_proof(
+    pub fn compress_proof(
         keystore: &Keystore,
         proof: ZkSyncCompressionProof,
         vk: ZkSyncRecursionVerificationKey,
@@ -297,13 +297,13 @@ impl JobProcessor for ProofCompressor {
         let is_fflonk = self.is_fflonk;
         tokio::task::spawn_blocking(move || {
             if !is_fflonk {
-                Ok(Proof::Plonk(Box::new(Self::compress_proof(
+                Ok(Proof::Plonk(Box::new(Self::generate_plonk_proof(
                     job,
                     compression_mode,
                     keystore,
                 )?)))
             } else {
-                Ok(Proof::Fflonk(Self::compress_fflonk_proof(
+                Ok(Proof::Fflonk(Self::generate_fflonk_proof(
                     job,
                     compression_mode,
                     keystore,

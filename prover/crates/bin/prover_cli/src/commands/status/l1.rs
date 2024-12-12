@@ -84,15 +84,16 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         .map_err(ContractCallError::Function)?[1]
         .clone();
 
-    let fflonk_verification_key_hash: H256 =
+    let fflonk_verification_key_hash: Option<H256> =
         CallFunctionArgs::new("verificationKeyHash", U256::from(FFLONK_VERIFIER_TYPE))
             .for_contract(contracts_config.verifier_addr, &helper::verifier_contract())
             .call_with_function(&query_client, function)
-            .await?;
+            .await
+            .ok();
 
     let node_l1_verifier_config = L1VerifierConfig {
         snark_wrapper_vk_hash: node_verification_key_hash,
-        fflonk_snark_wrapper_vk_hash: Some(fflonk_verification_key_hash),
+        fflonk_snark_wrapper_vk_hash: fflonk_verification_key_hash,
     };
 
     let prover_connection_pool = ConnectionPool::<Prover>::builder(

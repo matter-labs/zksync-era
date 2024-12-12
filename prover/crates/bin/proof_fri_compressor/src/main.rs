@@ -10,10 +10,11 @@ use zksync_config::configs::FriProofCompressorConfig;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_dal::{ConnectionPool, Prover};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
+use zksync_types::protocol_version::L1VerifierConfig;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
@@ -85,6 +86,18 @@ async fn main() -> anyhow::Result<()> {
         .expect("ProverConfig doesn't exist");
     let keystore =
         Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
+
+    let l1_verifier_config = pool
+        .connection()
+        .await?
+        .fri_protocol_versions_dal()
+        .get_l1_verifier_config()
+        .await
+        .map_err(|| anyhow::anyhow!("Failed to get L1 verifier config from database"))?;
+    if l1_verifier_config.fflonk_snark_wrapper_vk_hash.is_none() && is_fflonk {
+        anyhow::bail!("There was no FFLONK verification hash found in the database while trying to run compressor in FFLONK mode, aborting");
+    }
+
     let proof_compressor = ProofCompressor::new(
         blob_store,
         pool,

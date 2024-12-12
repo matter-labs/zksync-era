@@ -74,7 +74,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
 
             // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
             let fflonk_scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
-                Some(self.sl_client.fflonk_scheduler_vk_hash(address).await?)
+                self.sl_client.fflonk_scheduler_vk_hash(address).await?
             } else {
                 None
             };

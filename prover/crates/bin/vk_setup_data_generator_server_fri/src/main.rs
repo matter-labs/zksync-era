@@ -318,7 +318,25 @@ fn main() -> anyhow::Result<()> {
                 "Generating verification keys and storing them inside {:?}",
                 keystore.get_base_path()
             );
-            generate_vks(&keystore, jobs, quiet).context("generate_vks()")
+            // generate_vks(&keystore, jobs, quiet).context("generate_vks()")
+            let mut in_memory_source = keystore.load_keys_to_data_source()?;
+            let scheduler_vk = in_memory_source
+                .get_recursion_layer_vk(ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8)
+                .map_err(|err| anyhow::anyhow!("Failed to get scheduler vk: {err}"))?;
+
+            tracing::info!("Generating PLONK verification keys for snark wrapper.");
+
+            let (_, plonk_vk) = get_wrapper_setup_and_vk_from_scheduler_vk(
+                scheduler_vk.clone(),
+                WrapperConfig::new(1),
+            );
+
+            keystore
+                .save_snark_verification_key(plonk_vk)
+                .context("save_plonk_snark_vk")?;
+
+            tracing::info!("PLONK vk is generated");
+            Ok(())
         }
         Command::UpdateCommitments { dryrun, path } => {
             let keystore = keystore_from_optional_path(path, None);
