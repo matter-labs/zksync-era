@@ -6,12 +6,15 @@ use types::L1Network;
 use url::Url;
 
 use crate::{
-    commands::chain::args::genesis::{GenesisArgs, GenesisArgsFinal},
+    commands::{
+        args::run::Mode,
+        chain::args::genesis::{GenesisArgs, GenesisArgsFinal},
+    },
     defaults::LOCAL_RPC_URL,
     messages::{
-        MSG_DEPLOY_PAYMASTER_PROMPT, MSG_DEV_ARG_HELP, MSG_L1_RPC_URL_HELP,
-        MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT, MSG_NO_PORT_REALLOCATION_HELP,
-        MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
+        MSG_DEPLOY_PAYMASTER_PROMPT, MSG_DEV_ARG_HELP, MSG_DOCKER_IMAGE_TAG_OPTION,
+        MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
+        MSG_NO_PORT_REALLOCATION_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
     },
 };
 
@@ -23,6 +26,10 @@ pub struct InitArgs {
     #[clap(flatten)]
     #[serde(flatten)]
     pub forge_args: ForgeScriptArgs,
+    #[arg(long, default_value = "release")]
+    pub mode: Mode,
+    #[arg(long, help = MSG_DOCKER_IMAGE_TAG_OPTION)]
+    pub tag: Option<String>,
     #[clap(long, help = MSG_SERVER_DB_URL_HELP)]
     pub server_db_url: Option<Url>,
     #[clap(long, help = MSG_SERVER_DB_NAME_HELP)]
@@ -42,6 +49,8 @@ pub struct InitArgs {
 impl InitArgs {
     pub fn get_genesis_args(&self) -> GenesisArgs {
         GenesisArgs {
+            mode: self.mode.clone(),
+            tag: self.tag.clone(),
             server_db_url: self.server_db_url.clone(),
             server_db_name: self.server_db_name.clone(),
             dev: self.dev,
@@ -49,7 +58,7 @@ impl InitArgs {
         }
     }
 
-    pub fn fill_values_with_prompt(self, config: &ChainConfig) -> InitArgsFinal {
+    pub async fn fill_values_with_prompt(self, config: &ChainConfig) -> InitArgsFinal {
         let genesis = self.get_genesis_args();
 
         let deploy_paymaster = if self.dev {
@@ -82,21 +91,19 @@ impl InitArgs {
 
         InitArgsFinal {
             forge_args: self.forge_args,
-            genesis_args: genesis.fill_values_with_prompt(config),
+            genesis_args: genesis.fill_values_with_prompt(config).await,
             deploy_paymaster,
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
-            dev: self.dev,
         }
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone)]
 pub struct InitArgsFinal {
     pub forge_args: ForgeScriptArgs,
     pub genesis_args: GenesisArgsFinal,
     pub deploy_paymaster: bool,
     pub l1_rpc_url: String,
     pub no_port_reallocation: bool,
-    pub dev: bool,
 }

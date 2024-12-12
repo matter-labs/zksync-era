@@ -58,7 +58,7 @@ async fn run_init(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_config = config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    let args = args.fill_values_with_prompt(&chain_config);
+    let args = args.fill_values_with_prompt(&chain_config).await;
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));
     logger::info(msg_initializing_chain(""));
