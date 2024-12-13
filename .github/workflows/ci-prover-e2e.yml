@@ -38,13 +38,12 @@ jobs:
           ci_run git config --global --add safe.directory "*"
 
       - name: Checkout DualVerifier commit
-        working-directory: ${{ZKSYNC_HOME}}
+        working-directory: ./contracts
         if: matrix.compressor-mode == 'fflonk'
         run: |
-          docker-compose -f ${RUNNER_COMPOSE_FILE} exec -T -w /usr/src/zksync/contracts zk "apt-get install git"
-          docker-compose -f ${RUNNER_COMPOSE_FILE} exec -T -w /usr/src/zksync/contracts zk "git fetch"
-          docker-compose -f ${RUNNER_COMPOSE_FILE} exec -T -w /usr/src/zksync/contracts zk "git checkout 38694d1"
-          docker-compose -f ${RUNNER_COMPOSE_FILE} exec -T -w /usr/src/zksync/contracts zk "git submodule update --init --recursive"
+          git fetch
+          git checkout 38694d1
+          git submodule update --init --recursive
 
       - name: Init
         run: |
