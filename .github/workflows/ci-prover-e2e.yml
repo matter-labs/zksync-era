@@ -70,6 +70,10 @@ jobs:
           ci_run zkstack prover init --dev --verbose
           echo "URL=$(grep "http_url" ./chains/proving_chain/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
 
+      - name: Print contracts revision
+        working-directory: ./contracts
+        run: |
+          git rev-parse --short HEAD
       - name: Prepare prover subsystem
         run: |
           ci_run zkstack prover init-bellman-cuda --clone --verbose
