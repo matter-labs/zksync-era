@@ -35,6 +35,7 @@ use crate::utils::{
     insert_base_system_contracts_to_factory_deps, insert_deduplicated_writes_and_protective_reads,
     insert_factory_deps, insert_storage_logs, save_genesis_l1_batch_metadata,
 };
+
 #[cfg(test)]
 mod tests;
 pub mod utils;
@@ -379,6 +380,14 @@ pub async fn validate_genesis_params(
                 .call_with_function(query_client, function.clone())
                 .await
                 .ok();
+        tracing::info!(
+            "FFlonk verification key hash in contract: {:?}",
+            fflonk_verification_key_hash
+        );
+        tracing::info!(
+            "FFlonk verification key hash in config: {:?}",
+            genesis_params.config().fflonk_snark_wrapper_vk_hash
+        );
 
         if fflonk_verification_key_hash.is_some()
             && fflonk_verification_key_hash != genesis_params.config().fflonk_snark_wrapper_vk_hash
@@ -388,6 +397,8 @@ pub async fn validate_genesis_params(
             genesis_params.config().fflonk_snark_wrapper_vk_hash
         ));
         }
+    } else {
+        tracing::warn!("FFlonk verification key hash is not present in the contract");
     }
 
     Ok(())
