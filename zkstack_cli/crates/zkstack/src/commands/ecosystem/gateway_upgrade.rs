@@ -31,7 +31,10 @@ use crate::{
     commands::{
         chain,
         chain::{
-            args::{genesis::GenesisArgsFinal, init::configs::InitConfigsArgsFinal},
+            args::{
+                genesis::GenesisArgsFinal,
+                init::{configs::InitConfigsArgsFinal, da_configs::ValidiumType},
+            },
             convert_to_gateway::{
                 calculate_gateway_ctm, call_script, GATEWAY_PREPARATION_INTERFACE,
             },
@@ -181,7 +184,7 @@ async fn no_governance_prepare_gateway(
 
         contracts_config.l1.rollup_l1_da_validator_addr =
             Some(output.deployed_addresses.rollup_l1_da_validator_addr);
-        contracts_config.l1.validium_l1_da_validator_addr =
+        contracts_config.l1.no_da_validium_l1_validator_addr =
             Some(output.deployed_addresses.validium_l1_da_validator_addr);
 
         contracts_config
@@ -259,6 +262,7 @@ async fn no_governance_prepare_gateway(
         },
         l1_rpc_url,
         no_port_reallocation: false,
+        validium_config: Some(ValidiumType::NoDA),
     };
     init_configs(&args, shell, ecosystem_config, &chain_config).await?;
 
@@ -694,7 +698,7 @@ async fn no_governance_stage_3(
     let validium_mode =
         chain_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium;
     let l1_da_validator_addr = if validium_mode {
-        chain_contracts_config.l1.validium_l1_da_validator_addr
+        chain_contracts_config.l1.no_da_validium_l1_validator_addr
     } else {
         chain_contracts_config.l1.rollup_l1_da_validator_addr
     };

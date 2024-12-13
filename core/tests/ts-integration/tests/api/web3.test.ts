@@ -1233,7 +1233,10 @@ export class MockMetamask {
     readonly isMetaMask: boolean = true;
     readonly chainId: string;
 
-    constructor(readonly wallet: zksync.Wallet, readonly networkVersion: bigint) {
+    constructor(
+        readonly wallet: zksync.Wallet,
+        readonly networkVersion: bigint
+    ) {
         this.chainId = ethers.toBeHex(networkVersion);
     }
 

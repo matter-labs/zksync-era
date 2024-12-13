@@ -81,7 +81,10 @@ class L2TransactionResponse extends zksync.types.TransactionResponse implements 
     private isWaitingReported: boolean = false;
     private isReceiptReported: boolean = false;
 
-    constructor(base: zksync.types.TransactionResponse, public readonly reporter: Reporter) {
+    constructor(
+        base: zksync.types.TransactionResponse,
+        public readonly reporter: Reporter
+    ) {
         super(base, base.provider);
     }
 
