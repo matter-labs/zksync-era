@@ -133,7 +133,11 @@ impl ExternalNodeBuilder {
     fn add_external_node_metrics_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(ExternalNodeMetricsLayer {
             l1_chain_id: self.config.required.l1_chain_id,
-            sl_chain_id: self.config.required.settlement_layer_id(),
+            sl_chain_id: self
+                .config
+                .required
+                .gateway_chain_id
+                .unwrap_or(self.config.required.l1_chain_id.into()),
             l2_chain_id: self.config.required.l2_chain_id,
             postgres_pool_size: self.config.postgres.max_connections,
         });

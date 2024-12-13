@@ -1014,10 +1014,6 @@ pub(crate) struct RequiredENConfig {
 }
 
 impl RequiredENConfig {
-    pub fn settlement_layer_id(&self) -> SLChainId {
-        self.gateway_chain_id.unwrap_or(self.l1_chain_id.into())
-    }
-
     fn from_env() -> anyhow::Result<Self> {
         envy::prefixed("EN_")
             .from_env()
