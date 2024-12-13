@@ -10,6 +10,7 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { Provider, Wallet } from 'ethers';
 import { scaledGasPrice, deployContract, readContract, waitForL2ToL1LogProof } from '../src/helpers';
+import { encodeNTVAssetId } from 'zksync-ethers/build/utils';
 
 describe('L2 native ERC20 contract checks', () => {
     let testMaster: TestMaster;
@@ -24,6 +25,7 @@ describe('L2 native ERC20 contract checks', () => {
     let l2Wallet: Wallet;
     let l1Provider: Provider;
     let l2Provider: Provider;
+    let l2NativeTokenVault: zksync.Contract;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
@@ -37,7 +39,7 @@ describe('L2 native ERC20 contract checks', () => {
         const L2_NATIVE_TOKEN_VAULT_ADDRESS = '0x0000000000000000000000000000000000010004';
         const ARTIFACTS_PATH = '../../../contracts/l1-contracts/out';
         const l2NtvInterface = readContract(`${ARTIFACTS_PATH}`, 'L2NativeTokenVault').abi;
-        const l2NativeTokenVault = new ethers.Contract(L2_NATIVE_TOKEN_VAULT_ADDRESS, l2NtvInterface, l2Wallet);
+        l2NativeTokenVault = new zksync.Contract(L2_NATIVE_TOKEN_VAULT_ADDRESS, l2NtvInterface, l2Wallet);
         const l1AssetRouterInterface = readContract(`${ARTIFACTS_PATH}`, 'L1AssetRouter').abi;
         const l1NativeTokenVaultInterface = readContract(`${ARTIFACTS_PATH}`, 'L1NativeTokenVault').abi;
         const l1AssetRouter = new ethers.Contract(await assetRouter.getAddress(), l1AssetRouterInterface, l1Wallet);
@@ -64,13 +66,49 @@ describe('L2 native ERC20 contract checks', () => {
         };
         const mintTx = await aliceErc20.mint(alice.address, 1000n);
         await mintTx.wait();
-        // const mintTx2 = await aliceErc20.mint('0x36615Cf349d7F6344891B1e7CA7C72883F5dc049', 1000n);
-        // await mintTx2.wait();
-        const registerZKTx = await l2NativeTokenVault.registerToken(tokenDetails.l2Address);
-        await registerZKTx.wait();
-        zkTokenAssetId = await l2NativeTokenVault.assetId(l2TokenAddress);
+
+        // We will test that the token can be withdrawn and work with without explicit registration
+        const l2ChainId = (await l2Provider.getNetwork()).chainId;
+        zkTokenAssetId = encodeNTVAssetId(l2ChainId, l2TokenAddress);
+
         const tokenApprovalTx = await aliceErc20.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, 100n);
         await tokenApprovalTx.wait();
+    });
+
+    test('check weth', async () => {
+        const weth = testMaster.environment().l2WETHAddress;
+        if (!weth) {
+            console.log('skip weth');
+            return;
+        }
+        const wethabi = await readContract('../../../contracts/l2-contracts/zkout', 'L2WETH').abi;
+        const wethContract = new zksync.Contract(weth, wethabi, alice);
+
+        const name = await wethContract.name();
+        expect(name).toEqual('Wrapped ETH');
+
+        const addressFromNTV = await l2NativeTokenVault.WETH_TOKEN();
+        expect(addressFromNTV.toLowerCase()).toEqual(weth.toLowerCase());
+
+        const wrapTx = await wethContract.deposit({ value: 1 });
+        await expect(wrapTx).toBeAccepted();
+
+        const balance = await wethContract.balanceOf(alice.address);
+        expect(balance).toEqual(1n);
+
+        const withdrawTx = alice.withdraw({
+            token: weth,
+            amount: 1
+        });
+        let thrown = false;
+        try {
+            await withdrawTx;
+        } catch (err: any) {
+            thrown = true;
+            // TokenNotSupported(weth)
+            expect(err.toString()).toContain(ethers.concat(['0x06439c6b', ethers.zeroPadBytes('0x', 12), weth]));
+        }
+        expect(thrown).toBeTruthy();
     });
 
     test('Token properties are correct', async () => {
@@ -100,7 +138,6 @@ describe('L2 native ERC20 contract checks', () => {
         await withdrawalTx.waitFinalize();
         await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, withdrawalTx.hash);
 
-        await alice.finalizeWithdrawalParams(withdrawalTx.hash); // kl todo finalize the Withdrawals with the params here. Alternatively do in the SDK.
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();
 
         tokenDetails.l1Address = await l1NativeTokenVault.tokenAddress(zkTokenAssetId);

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, time::Duration};
 
-use chrono::DateTime;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 
@@ -14,11 +14,11 @@ pub(crate) struct TableSize {
     pub total_size: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseMigration {
     pub version: i64,
     pub description: String,
-    pub installed_on: DateTime<chrono::Utc>,
+    pub installed_on: DateTime<Utc>,
     pub success: bool,
     pub checksum: String,
     pub execution_time: Duration,
@@ -118,7 +118,7 @@ impl SystemDal<'_, '_> {
             installed_on: row.installed_on,
             success: row.success,
             checksum: hex::encode(row.checksum),
-            execution_time: Duration::from_millis(u64::try_from(row.execution_time).unwrap_or(0)),
+            execution_time: Duration::from_nanos(u64::try_from(row.execution_time).unwrap_or(0)),
         })
     }
 }

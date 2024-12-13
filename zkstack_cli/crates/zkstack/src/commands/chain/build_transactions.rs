@@ -18,9 +18,9 @@ use crate::{
     },
 };
 
-const REGISTER_CHAIN_TXNS_FILE_SRC: &str =
+pub const REGISTER_CHAIN_TXNS_FILE_SRC: &str =
     "contracts/l1-contracts/broadcast/RegisterZKChain.s.sol/9/dry-run/run-latest.json";
-const REGISTER_CHAIN_TXNS_FILE_DST: &str = "register-zk-chain-txns.json";
+pub const REGISTER_CHAIN_TXNS_FILE_DST: &str = "register-zk-chain-txns.json";
 
 const SCRIPT_CONFIG_FILE_SRC: &str = "contracts/l1-contracts/script-config/register-zk-chain.toml";
 const SCRIPT_CONFIG_FILE_DST: &str = "register-zk-chain.toml";

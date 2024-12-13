@@ -59,7 +59,7 @@ impl GatewayPreparationConfig {
                 .l1_nullifier_addr
                 .expect("l1_nullifier_addr"),
             l1_diamond_cut_data: hex::decode(
-                ecosystem_contracts_config
+                chain_contracts_config
                     .ecosystem_contracts
                     .diamond_cut_data
                     .clone(),

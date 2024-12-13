@@ -56,6 +56,38 @@ pub fn get_transfer_tx(nonce: u32) -> Transaction {
     signed.into()
 }
 
+pub fn get_erc20_transfer_tx(nonce: u32) -> Transaction {
+    let transfer_fn = TestContract::test_erc20().function("transfer");
+    let calldata = transfer_fn
+        .encode_input(&[
+            Token::Address(Address::from_low_u64_be(nonce.into())), // send tokens to unique addresses
+            Token::Uint(1.into()),
+        ])
+        .unwrap();
+
+    let mut signed = L2Tx::new_signed(
+        Some(*LOAD_TEST_CONTRACT_ADDRESS),
+        calldata,
+        Nonce(nonce),
+        tx_fee(1_000_000),
+        0.into(), // value
+        L2ChainId::from(270),
+        &PRIVATE_KEY,
+        vec![],             // factory deps
+        Default::default(), // paymaster params
+    )
+    .expect("should create a signed execute transaction");
+
+    signed.set_input(H256::random().as_bytes().to_vec(), H256::random());
+    signed.into()
+}
+
+pub fn get_erc20_deploy_tx() -> Transaction {
+    let calldata = [Token::Uint(U256::one() << 128)]; // initial token amount minted to the deployer
+    let execute = TestContract::test_erc20().deploy_payload(&calldata);
+    Account::new(PRIVATE_KEY.clone()).get_l2_tx_for_execute(execute, Some(tx_fee(500_000_000)))
+}
+
 pub fn get_load_test_deploy_tx() -> Transaction {
     let calldata = [Token::Uint(LOAD_TEST_MAX_READS.into())];
     let execute = TestContract::load_test().deploy_payload(&calldata);
