@@ -382,7 +382,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     let mut general_config = chain_config.get_general_config().unwrap();
 
     let eth_config = general_config.eth.as_mut().context("eth")?;
-    let api_config = general_config.api_config.as_mut().context("api config")?;
 
     eth_config
         .gas_adjuster
@@ -414,7 +413,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .as_mut()
         .expect("sender")
         .max_eth_tx_data_size = 550_000;
-    api_config.web3_json_rpc.settlement_layer_url = Some(gateway_url);
 
     general_config.save_with_base_path(shell, chain_config.configs.clone())?;
 

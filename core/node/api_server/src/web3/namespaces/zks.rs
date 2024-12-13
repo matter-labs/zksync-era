@@ -11,8 +11,7 @@ use zksync_types::{
     address_to_h256,
     api::{
         state_override::StateOverride, BlockDetails, BridgeAddresses, GetLogsFilter,
-        L1BatchDetails, L1ProcessingDetails, L2ToL1LogProof, Proof, ProtocolVersion, StorageProof,
-        TransactionDetails,
+        L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion, StorageProof, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -24,14 +23,12 @@ use zksync_types::{
     transaction_request::CallRequest,
     utils::storage_key_for_standard_token_balance,
     web3::Bytes,
-    AccountTreeId, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, StorageKey,
-    Transaction, L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS,
-    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+    AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction,
+    L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_web3_decl::{
-    client::{Client, L2},
     error::{ClientRpcContext, Web3Error},
-    namespaces::{EthNamespaceClient, ZksNamespaceClient},
+    namespaces::ZksNamespaceClient,
     types::{Address, Token, H256},
 };
 
@@ -561,96 +558,6 @@ impl ZksNamespace {
             .get_l1_batch_details(batch_number)
             .await
             .map_err(DalError::generalize)?)
-    }
-
-    pub async fn get_l1_processing_details_impl(
-        &self,
-        batch_number: L1BatchNumber,
-    ) -> Result<Option<L1ProcessingDetails>, Web3Error> {
-        let mut storage = self.state.acquire_connection().await?;
-        self.state
-            .start_info
-            .ensure_not_pruned(batch_number, &mut storage)
-            .await?;
-
-        let batch_details = storage
-            .blocks_web3_dal()
-            .get_l1_batch_details(batch_number)
-            .await
-            .map_err(DalError::generalize)?;
-
-        let Some(batch_details) = batch_details else {
-            return Ok(None);
-        };
-
-        let settlement_info = storage
-            .eth_sender_dal()
-            .get_batch_finalization_info(batch_number)
-            .await
-            .map_err(DalError::generalize)?;
-
-        let Some(info) = settlement_info else {
-            return Ok(None);
-        };
-
-        // FIXME: this method should eventually also provide data about L1 commit and L1 prove.
-
-        let (execute_tx_hash, executed_at) =
-            if info.settlement_layer_id.0 == self.state.api_config.l1_chain_id.0 {
-                (
-                    batch_details.base.execute_tx_hash,
-                    batch_details.base.executed_at,
-                )
-            } else {
-                // It is sl-based chain, we need to query the batch info from the SL
-                // Create a client for pinging the RPC.
-                let client: Client<L2> = Client::http(
-                    self.state
-                        .api_config
-                        .settlement_layer_url
-                        .clone()
-                        .unwrap()
-                        .parse()
-                        .unwrap(),
-                )?
-                .for_network(L2::from(L2ChainId(self.state.api_config.l1_chain_id.0)))
-                .build();
-
-                let info = client
-                    .get_transaction_receipt(info.settlement_layer_tx_hash)
-                    .await
-                    .expect("Failed to query the SL");
-                let Some(info) = info else {
-                    return Ok(None);
-                };
-                let sl_l1_batch_number = info.l1_batch_number;
-                let Some(sl_l1_batch_number) = sl_l1_batch_number else {
-                    return Ok(None);
-                };
-                let batch_details = client
-                    .get_l1_batch_details(L1BatchNumber(sl_l1_batch_number.as_u32()))
-                    .await
-                    .expect("Failed to query the SL2");
-                let Some(batch_details) = batch_details else {
-                    return Ok(None);
-                };
-
-                (
-                    batch_details.base.execute_tx_hash,
-                    batch_details.base.executed_at,
-                )
-            };
-
-        let details = L1ProcessingDetails {
-            commit_tx_hash: None,
-            committed_at: None,
-            prove_tx_hash: None,
-            proven_at: None,
-            execute_tx_hash,
-            executed_at,
-        };
-
-        Ok(Some(details))
     }
 
     pub async fn get_bytecode_by_hash_impl(
