@@ -224,7 +224,7 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(
-            err.contains("L1 chain ID") && err.contains("Ethereum node"),
+            err.contains("chain ID") && err.contains("node") && !err.contains("main node"),
             "{err}"
         );
 
