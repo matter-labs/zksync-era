@@ -39,7 +39,7 @@ The interop process has 7 main steps, each with its substeps:
 6. Receiving the tx on the destination chain
 
    - On the destination chain the xL2 txs is verified. This means the merkle proof is checked agains the MessageRoot.
-     This shows the the xL2 txs was indeed sent.
+     This shows the xL2 txs was indeed sent.
    - After this the txs can be executed. The tx hash is stored in the L2Nullifier contract, so that the txs cannot be
      replayed.
    - The specified contract is called, with the calldata, and the message sender =
