@@ -35,7 +35,7 @@ pub struct InitArgs {
     pub l1_rpc_url: Option<String>,
     #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP)]
     pub no_port_reallocation: bool,
-    #[clap(long, default_value_t = "true")]
+    #[clap(long, default_value_t = true)]
     pub update_submodules: bool,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
