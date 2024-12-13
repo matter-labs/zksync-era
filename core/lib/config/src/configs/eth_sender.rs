@@ -3,7 +3,7 @@ use std::time::Duration;
 use anyhow::Context as _;
 use serde::Deserialize;
 use smart_config::{
-    de::{Optional, Serde, WellKnown},
+    de::{Delimited, Optional, Serde, WellKnown},
     metadata::TimeUnit,
     DescribeConfig, DeserializeConfig,
 };
@@ -15,14 +15,13 @@ use crate::EthWatchConfig;
 /// Configuration for the Ethereum related components.
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct EthConfig {
-    // FIXME: aliases to accommodate for env? (sender -> sender_sender, gas_adjuster -> sender_gas_adjuster, watcher -> watch)
     /// Options related to the Ethereum sender directly.
-    #[config(nest)]
+    #[config(nest, alias = "sender_sender")]
     pub sender: SenderConfig,
     /// Options related to the `GasAdjuster` submodule.
-    #[config(nest, default)]
+    #[config(nest, alias = "sender_gas_adjuster")]
     pub gas_adjuster: GasAdjusterConfig,
-    #[config(nest, default)]
+    #[config(nest, alias = "watch")]
     pub watcher: EthWatchConfig,
 }
 
@@ -96,7 +95,7 @@ pub enum ProofLoadingMode {
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct SenderConfig {
-    #[config(default_t = vec![1])]
+    #[config(default_t = vec![1], with = Delimited(","))]
     pub aggregated_proof_sizes: Vec<usize>,
     /// Amount of confirmations required to consider L1 transaction committed.
     /// If not specified L1 transaction will be considered finalized once its block is finalized.
@@ -232,7 +231,10 @@ pub struct GasAdjusterConfig {
 
 #[cfg(test)]
 mod tests {
-    use smart_config::{testing::test_complete, Environment, Yaml};
+    use smart_config::{
+        testing::{test, Tester},
+        Environment, Yaml,
+    };
 
     use super::*;
 
@@ -283,12 +285,11 @@ mod tests {
         }
     }
 
-    #[ignore] // FIXME: doesn't work w/o config aliases
     #[test]
     fn parsing_from_env() {
         let env = r#"
-            ETH_WATCH_CONFIRMATIONS_FOR_ETH_EVENT = "0"
-            ETH_WATCH_ETH_NODE_POLL_INTERVAL = "30"
+            ETH_WATCH_CONFIRMATIONS_FOR_ETH_EVENT="0"
+            ETH_WATCH_ETH_NODE_POLL_INTERVAL="300"
             ETH_SENDER_SENDER_WAIT_CONFIRMATIONS="1"
             ETH_SENDER_SENDER_TX_POLL_PERIOD="3"
             ETH_SENDER_SENDER_AGGREGATE_TX_POLL_PERIOD="3"
@@ -302,9 +303,10 @@ mod tests {
             ETH_SENDER_GAS_ADJUSTER_INTERNAL_L1_PRICING_MULTIPLIER="0.8"
             ETH_SENDER_GAS_ADJUSTER_POLL_PERIOD="15"
             ETH_SENDER_GAS_ADJUSTER_MAX_L1_GAS_PRICE="100000000"
-            ETH_SENDER_GAS_ADJUSTER_MAX_BLOB_BASE_FEE_SAMPLES="10"
+            ETH_SENDER_GAS_ADJUSTER_MAX_BLOB_BASE_FEE=1000
             ETH_SENDER_GAS_ADJUSTER_INTERNAL_PUBDATA_PRICING_MULTIPLIER="1.0"
-            ETH_SENDER_WAIT_FOR_PROOFS="false"
+            ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE=10000000
+            ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_PUBDATA_PRICE=5000000
             ETH_SENDER_SENDER_AGGREGATED_PROOF_SIZES="1,5"
             ETH_SENDER_SENDER_MAX_AGGREGATED_BLOCKS_TO_COMMIT="3"
             ETH_SENDER_SENDER_MAX_AGGREGATED_BLOCKS_TO_EXECUTE="4"
@@ -321,13 +323,12 @@ mod tests {
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
-            .strip_prefix("ETH_SENDER_");
+            .strip_prefix("ETH_");
 
-        let config: EthConfig = test_complete(env).unwrap();
+        let config: EthConfig = test(env).unwrap();
         assert_eq!(config, expected_config());
     }
 
-    #[ignore] // FIXME: requires more intelligent enum variant coercion
     #[test]
     fn parsing_from_yaml() {
         let yaml = r#"
@@ -336,32 +337,32 @@ mod tests {
             - 1
             - 5
             wait_confirmations: 1
-            tx_poll_period: 1
-            aggregate_tx_poll_period: 1
+            tx_poll_period: 3
+            aggregate_tx_poll_period: 3
             l1_batch_min_age_before_execute_seconds: 1000
-            max_txs_in_flight: 30
+            max_txs_in_flight: 3
             proof_sending_mode: SKIP_EVERY_PROOF
-            max_aggregated_tx_gas: 15000000
+            max_aggregated_tx_gas: 4000000
             max_eth_tx_data_size: 120000
-            max_aggregated_blocks_to_commit: 1
-            max_aggregated_blocks_to_execute: 45
-            aggregated_block_commit_deadline: 1
-            aggregated_block_prove_deadline: 10
-            aggregated_block_execute_deadline: 10
+            max_aggregated_blocks_to_commit: 3
+            max_aggregated_blocks_to_execute: 4
+            aggregated_block_commit_deadline: 30
+            aggregated_block_prove_deadline: 3000
+            aggregated_block_execute_deadline: 4000
             timestamp_criteria_max_allowed_lag: 30
             max_acceptable_priority_fee_in_gwei: 100000000000
-            pubdata_sending_mode: BLOBS
+            pubdata_sending_mode: CALLDATA
             tx_aggregation_paused: false
             tx_aggregation_only_prove_and_execute: false
-            time_in_mempool_in_l1_blocks_cap: 1800
+            time_in_mempool_in_l1_blocks_cap: 2000
           gas_adjuster:
-            default_priority_fee_per_gas: 1000000000
-            max_base_fee_samples: 100
+            default_priority_fee_per_gas: 20000000000
+            max_base_fee_samples: 10000
             max_l1_gas_price: 100000000
             pricing_formula_parameter_a: 1.5
-            pricing_formula_parameter_b: 1.001
+            pricing_formula_parameter_b: 1.0005
             internal_l1_pricing_multiplier: 0.8
-            poll_period: 5
+            poll_period: 15
             num_samples_for_blob_base_fee_estimate: 10
             settlement_mode: "SettlesToL1"
             internal_pubdata_pricing_multiplier: 1.0
@@ -373,7 +374,10 @@ mod tests {
             eth_node_poll_interval: 300
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
-        let config: EthConfig = test_complete(yaml).unwrap();
+        let config: EthConfig = Tester::default()
+            .coerce_variant_names()
+            .test_complete(yaml)
+            .unwrap();
         assert_eq!(config, expected_config());
     }
 }

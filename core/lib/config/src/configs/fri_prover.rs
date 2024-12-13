@@ -74,7 +74,10 @@ pub struct FriProverConfig {
 
 #[cfg(test)]
 mod tests {
-    use smart_config::{testing::test, Environment, Yaml};
+    use smart_config::{
+        testing::{test, Tester},
+        Environment, Yaml,
+    };
 
     use super::*;
     use crate::configs::object_store::ObjectStoreMode;
@@ -147,14 +150,13 @@ mod tests {
     }
 
     // Migration path: use tagged enums for object stores
-    #[ignore] // FIXME: requires extended variant coercion
     #[test]
     fn parsing_from_yaml() {
         let yaml = r#"
-          setup_data_path: data/keys
+          setup_data_path: prover/data/keys
           prometheus_port: 3315
           max_attempts: 10
-          generation_timeout_in_secs: 600
+          generation_timeout_in_secs: 300
           setup_load_mode: FROM_DISK
           specialized_group_id: 10
           queue_capacity: 10
@@ -162,12 +164,13 @@ mod tests {
           zone_read_url: http://metadata.google.internal/computeMetadata/v1/instance/zone
           shall_save_to_public_bucket: true
           availability_check_interval_in_secs: 1800
-          public_object_store:
-            mode: FileBacked
+          prover_object_store:
+            mode: GCSWithCredentialFile
+            bucket_base_url: "/base/url"
             gcs_credential_file_path: /path/to/credentials1.json
             max_retries: 5
             local_mirror_path: null
-          prover_object_store:
+          public_object_store:
             mode: FileBacked
             file_backed_base_path: ./chains/era/artifacts/
             max_retries: 5
@@ -175,7 +178,7 @@ mod tests {
           cloud_type: GCP
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
-        let config: FriProverConfig = test(yaml).unwrap();
+        let config: FriProverConfig = Tester::default().coerce_variant_names().test(yaml).unwrap();
         assert_eq!(config, expected_config());
     }
 }

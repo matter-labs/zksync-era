@@ -77,3 +77,64 @@ pub struct ExperimentalVmConfig {
     #[config(default, with = Serde![str])]
     pub api_fast_vm_mode: FastVmMode,
 }
+
+#[cfg(test)]
+mod tests {
+    use smart_config::{
+        testing::{test_complete, Tester},
+        Environment, Yaml,
+    };
+
+    use super::*;
+
+    fn assert_experimental_vm_config(config: ExperimentalVmConfig) {
+        assert_eq!(config.state_keeper_fast_vm_mode, FastVmMode::New);
+        assert_eq!(config.api_fast_vm_mode, FastVmMode::Shadow);
+        assert_eq!(config.playground.fast_vm_mode, FastVmMode::Shadow);
+        assert_eq!(
+            config.playground.db_path.unwrap().as_os_str(),
+            "/db/vm_playground"
+        );
+        assert_eq!(config.playground.first_processed_batch, L1BatchNumber(123));
+        assert_eq!(config.playground.window_size, NonZeroU32::new(1).unwrap());
+        assert!(config.playground.reset);
+    }
+
+    #[test]
+    fn experimental_vm_from_env() {
+        let env = r#"
+            EXPERIMENTAL_VM_STATE_KEEPER_FAST_VM_MODE=new
+            EXPERIMENTAL_VM_API_FAST_VM_MODE=shadow
+            EXPERIMENTAL_VM_PLAYGROUND_FAST_VM_MODE=shadow
+            EXPERIMENTAL_VM_PLAYGROUND_DB_PATH=/db/vm_playground
+            EXPERIMENTAL_VM_PLAYGROUND_FIRST_PROCESSED_BATCH=123
+            EXPERIMENTAL_VM_PLAYGROUND_WINDOW_SIZE=1
+            EXPERIMENTAL_VM_PLAYGROUND_RESET=true
+        "#;
+        let env = Environment::from_dotenv("test.env", env)
+            .unwrap()
+            .strip_prefix("EXPERIMENTAL_VM_");
+        let config: ExperimentalVmConfig = test_complete(env).unwrap();
+        assert_experimental_vm_config(config);
+    }
+
+    #[test]
+    fn experimental_vm_from_yaml() {
+        let yaml = r#"
+          playground:
+            fast_vm_mode: SHADOW
+            db_path: /db/vm_playground
+            first_processed_batch: 123
+            reset: true
+            window_size: 1
+          state_keeper_fast_vm_mode: NEW
+          api_fast_vm_mode: SHADOW
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: ExperimentalVmConfig = Tester::default()
+            .coerce_variant_names()
+            .test_complete(yaml)
+            .unwrap();
+        assert_experimental_vm_config(config);
+    }
+}

@@ -318,7 +318,9 @@ mod tests {
             .is_none());
     }
 
-    #[ignore] // FIXME: requires extended parsing from env to work
+    // Migration path:
+    // - Define `group_${i}` vars either for new or old values
+    // - Use JSON-serialized strings for params (i.e., `{ "circuit_id": _, "aggregation_round": _ }`)
     #[test]
     fn parsing_from_env() {
         let groups = [
@@ -428,16 +430,9 @@ mod tests {
             ),
         ];
 
-        let env = groups.iter().flat_map(|(key_base, circuit_round_tuple)| {
-            let circuit_id_key = format!("{key_base}_CIRCUIT_ID");
-            let aggregation_round_key = format!("{key_base}_AGGREGATION_ROUND");
-            [
-                (circuit_id_key, circuit_round_tuple.circuit_id.to_string()),
-                (
-                    aggregation_round_key,
-                    circuit_round_tuple.aggregation_round.to_string(),
-                ),
-            ]
+        let env = groups.iter().map(|(key_base, circuit_round_tuple)| {
+            let json = serde_json::to_string(circuit_round_tuple).unwrap();
+            (key_base.to_owned(), json)
         });
         let env = Environment::from_iter("FRI_PROVER_GROUP_", env);
 

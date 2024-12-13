@@ -114,7 +114,10 @@ impl PostgresConfig {
 mod tests {
     use std::num::NonZeroU32;
 
-    use smart_config::{testing::test_complete, Environment, Yaml};
+    use smart_config::{
+        testing::{test_complete, Tester},
+        Environment, Yaml,
+    };
 
     use super::*;
 
@@ -167,14 +170,13 @@ mod tests {
         assert_db_config(&config);
     }
 
-    // TODO: switch to `mode: LIGHTWEIGHT` once more advanced tester is implemented
     #[test]
     fn db_from_yaml() {
         let yaml = r#"
           state_keeper_db_path: /db/state_keeper
           merkle_tree:
             path: /db/tree
-            mode: lightweight
+            mode: LIGHTWEIGHT
             multi_get_chunk_size: 250
             block_cache_size_mb: 128
             memtable_capacity_mb: 512
@@ -189,7 +191,10 @@ mod tests {
             state_keeper_db_max_open_files: 100
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
-        let config: DBConfig = test_complete(yaml).unwrap();
+        let config: DBConfig = Tester::default()
+            .coerce_variant_names()
+            .test_complete(yaml)
+            .unwrap();
 
         assert_db_config(&config);
     }

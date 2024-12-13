@@ -33,10 +33,7 @@ pub struct ExternalPriceApiClientConfig {
 
 #[cfg(test)]
 mod tests {
-    use smart_config::{
-        testing::{test, test_complete},
-        Environment, Yaml,
-    };
+    use smart_config::{testing::test_complete, Environment, Yaml};
 
     use super::*;
 
@@ -50,7 +47,7 @@ mod tests {
                 numerator: Some(100),
                 denominator: Some(1),
                 fluctuation: Some(10),
-                next_value_fluctuation: 1,
+                next_value_fluctuation: 3,
             }),
         }
     }
@@ -65,7 +62,7 @@ mod tests {
             EXTERNAL_PRICE_API_CLIENT_FORCED_NUMERATOR=100
             EXTERNAL_PRICE_API_CLIENT_FORCED_DENOMINATOR=1
             EXTERNAL_PRICE_API_CLIENT_FORCED_FLUCTUATION=10
-            EXTERNAL_PRICE_API_CLIENT_FORCED_NEXT_VALUE_FLUCTUATION=1
+            EXTERNAL_PRICE_API_CLIENT_FORCED_NEXT_VALUE_FLUCTUATION=3
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -75,7 +72,6 @@ mod tests {
         assert_eq!(config, expected_config());
     }
 
-    #[ignore] // FIXME: requires nesting into sub-configs
     #[test]
     fn parsing_from_yaml() {
         let yaml = r#"
@@ -83,12 +79,14 @@ mod tests {
           base_url: "https://pro-api.coingecko.com"
           api_key: "qwerty12345"
           client_timeout_ms: 10000
-          forced_numerator: 314
-          forced_denominator: 1000
+          forced_numerator: 100
+          forced_denominator: 1
           forced_next_value_fluctuation: 3
+          forced:
+            fluctuation: 10
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
-        let config: ExternalPriceApiClientConfig = test(yaml).unwrap();
+        let config: ExternalPriceApiClientConfig = test_complete(yaml).unwrap();
         assert_eq!(config, expected_config());
     }
 }

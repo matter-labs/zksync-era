@@ -27,7 +27,8 @@ impl TryFrom<ObservabilityConfig> for zksync_vlog::Logs {
     type Error = anyhow::Error;
 
     fn try_from(config: ObservabilityConfig) -> Result<Self, Self::Error> {
-        Ok(zksync_vlog::Logs::new(&config.log_format)?.with_log_directives(config.log_directives))
+        Ok(zksync_vlog::Logs::new(&config.log_format)?
+            .with_log_directives(Some(config.log_directives)))
     }
 }
 
@@ -35,11 +36,11 @@ impl TryFrom<ObservabilityConfig> for Option<zksync_vlog::Sentry> {
     type Error = anyhow::Error;
 
     fn try_from(config: ObservabilityConfig) -> Result<Self, Self::Error> {
-        Ok(config
-            .sentry_url
-            .map(|url| zksync_vlog::Sentry::new(&url))
-            .transpose()?
-            .map(|sentry| sentry.with_environment(config.sentry_environment)))
+        let Some(sentry_config) = config.sentry else {
+            return Ok(None);
+        };
+        let sentry = zksync_vlog::Sentry::new(&sentry_config.url)?;
+        Ok(Some(sentry.with_environment(sentry_config.environment)))
     }
 }
 

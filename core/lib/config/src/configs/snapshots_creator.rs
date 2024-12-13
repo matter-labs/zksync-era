@@ -27,3 +27,88 @@ pub struct SnapshotsCreatorConfig {
     #[config(nest)]
     pub object_store: ObjectStoreConfig,
 }
+
+#[cfg(test)]
+mod tests {
+    use smart_config::{ConfigRepository, ConfigSchema, Environment, Yaml};
+
+    use super::*;
+    use crate::configs::object_store::ObjectStoreMode;
+
+    fn create_schema() -> ConfigSchema {
+        let mut schema = ConfigSchema::default();
+        schema
+            .insert(&SnapshotsCreatorConfig::DESCRIPTION, "snapshot_creator")
+            .unwrap()
+            .push_alias("snapshots_creator")
+            .unwrap();
+        schema
+            .get_mut(
+                &ObjectStoreConfig::DESCRIPTION,
+                "snapshot_creator.object_store",
+            )
+            .unwrap()
+            .push_alias("snapshots.object_store")
+            .unwrap();
+        schema
+    }
+
+    fn expected_config() -> SnapshotsCreatorConfig {
+        SnapshotsCreatorConfig {
+            version: 0,
+            l1_batch_number: Some(L1BatchNumber(1234)),
+            storage_logs_chunk_size: 200000,
+            concurrent_queries_count: 20,
+            object_store: ObjectStoreConfig {
+                mode: ObjectStoreMode::FileBacked {
+                    file_backed_base_path: "./chains/era/artifacts/".into(),
+                },
+                max_retries: 100,
+                local_mirror_path: None,
+            },
+        }
+    }
+
+    // Env config doesn't seem to be used anywhere, so this is an artificial test
+    #[test]
+    fn parsing_from_env() {
+        let env = r#"
+            SNAPSHOTS_CREATOR_STORAGE_LOGS_CHUNK_SIZE=200000
+            SNAPSHOTS_CREATOR_CONCURRENT_QUERIES_COUNT=20
+            SNAPSHOTS_CREATOR_VERSION=0
+            SNAPSHOTS_CREATOR_L1_BATCH_NUMBER=1234
+
+            SNAPSHOTS_OBJECT_STORE_MODE=FileBacked
+            SNAPSHOTS_OBJECT_STORE_MAX_RETRIES=100
+            SNAPSHOTS_OBJECT_STORE_FILE_BACKED_BASE_PATH=./chains/era/artifacts/
+        "#;
+        let env = Environment::from_dotenv("test.env", env).unwrap();
+
+        let schema = create_schema();
+        let repo = ConfigRepository::new(&schema).with(env);
+        let config: SnapshotsCreatorConfig = repo.single().unwrap().parse().unwrap();
+        assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn parsing_from_yaml() {
+        let yaml = r#"
+        snapshot_creator:
+          storage_logs_chunk_size: 200000
+          concurrent_queries_count: 20
+          object_store:
+            # file_backed:
+            #   file_backed_base_path: ./chains/era/artifacts/
+            mode: FileBacked
+            file_backed_base_path: ./chains/era/artifacts/
+            max_retries: 100
+          version: 0
+          l1_batch_number: 1234
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let schema = create_schema();
+        let repo = ConfigRepository::new(&schema).with(yaml);
+        let config: SnapshotsCreatorConfig = repo.single().unwrap().parse().unwrap();
+        assert_eq!(config, expected_config());
+    }
+}

@@ -21,3 +21,48 @@ pub struct PruningConfig {
     #[config(default_t = Duration::from_secs(3_600), with = TimeUnit::Seconds)]
     pub data_retention_sec: Duration,
 }
+
+#[cfg(test)]
+mod tests {
+    use smart_config::{testing::test_complete, Environment, Yaml};
+
+    use super::*;
+
+    fn expected_config() -> PruningConfig {
+        PruningConfig {
+            enabled: true,
+            chunk_size: NonZeroU32::new(10).unwrap(),
+            removal_delay_sec: Duration::from_secs(60),
+            data_retention_sec: Duration::from_secs(3600),
+        }
+    }
+
+    #[test]
+    fn parsing_from_env() {
+        let env = r#"
+            EN_PRUNING_ENABLED=true
+            EN_PRUNING_DATA_RETENTION_SEC=3600
+            EN_PRUNING_CHUNK_SIZE=10
+            EN_PRUNING_REMOVAL_DELAY_SEC=60
+        "#;
+        let env = Environment::from_dotenv("test.env", env)
+            .unwrap()
+            .strip_prefix("EN_PRUNING_");
+
+        let config: PruningConfig = test_complete(env).unwrap();
+        assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn parsing_from_yaml() {
+        let yaml = r#"
+            chunk_size: 10
+            data_retention_sec: 3600
+            enabled: true
+            removal_delay_sec: 60
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: PruningConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_config());
+    }
+}

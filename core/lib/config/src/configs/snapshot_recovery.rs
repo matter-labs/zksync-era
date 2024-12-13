@@ -59,3 +59,109 @@ pub struct SnapshotRecoveryConfig {
     #[config(nest)]
     pub object_store: ObjectStoreConfig,
 }
+
+#[cfg(test)]
+mod tests {
+    use smart_config::{ConfigRepository, ConfigSchema, Environment, Yaml};
+
+    use super::*;
+    use crate::configs::object_store::ObjectStoreMode;
+
+    fn expected_config() -> SnapshotRecoveryConfig {
+        SnapshotRecoveryConfig {
+            enabled: false,
+            l1_batch: Some(L1BatchNumber(1234)),
+            drop_storage_key_preimages: true,
+            tree: TreeRecoveryConfig {
+                chunk_size: 250000,
+                parallel_persistence_buffer: Some(NonZeroUsize::new(4).unwrap()),
+            },
+            postgres: PostgresRecoveryConfig {
+                max_concurrency: NonZeroUsize::new(10).unwrap(),
+            },
+            object_store: ObjectStoreConfig {
+                mode: ObjectStoreMode::FileBacked {
+                    file_backed_base_path: "./chains/era/artifacts/".into(),
+                },
+                max_retries: 100,
+                local_mirror_path: None,
+            },
+        }
+    }
+
+    fn create_schema() -> ConfigSchema {
+        let mut schema = ConfigSchema::default();
+        schema
+            .insert(&SnapshotRecoveryConfig::DESCRIPTION, "snapshot_recovery")
+            .unwrap()
+            .push_alias("snapshots_recovery")
+            .unwrap();
+        schema
+            .get_mut(
+                &ObjectStoreConfig::DESCRIPTION,
+                "snapshot_recovery.object_store",
+            )
+            .unwrap()
+            .push_alias("snapshots.object_store")
+            .unwrap();
+        schema
+    }
+
+    // Migration path: add global alias `snapshots.object_store` for `snapshots_recovery.object_store`.
+    #[test]
+    fn parsing_from_env() {
+        let env = r#"
+            EN_SNAPSHOTS_RECOVERY_ENABLED=false
+            EN_SNAPSHOTS_RECOVERY_L1_BATCH=1234
+            EN_SNAPSHOTS_RECOVERY_DROP_STORAGE_KEY_PREIMAGES=true
+            EN_SNAPSHOTS_RECOVERY_TREE_CHUNK_SIZE=250000
+            EN_SNAPSHOTS_RECOVERY_TREE_PARALLEL_PERSISTENCE_BUFFER=4
+
+            EN_SNAPSHOTS_OBJECT_STORE_MODE=FileBacked
+            EN_SNAPSHOTS_OBJECT_STORE_MAX_RETRIES=100
+            EN_SNAPSHOTS_OBJECT_STORE_FILE_BACKED_BASE_PATH=./chains/era/artifacts/
+        "#;
+        let env = Environment::from_dotenv("test.env", env)
+            .unwrap()
+            .strip_prefix("EN_");
+
+        let schema = create_schema();
+        let repo = ConfigRepository::new(&schema).with(env);
+        let config: SnapshotRecoveryConfig = repo.single().unwrap().parse().unwrap();
+        assert_eq!(config, expected_config());
+    }
+
+    // Migration path:
+    // - Use tagged object store
+    // - Copy `experimental.drop_storage_key_preimages` -> drop_storage_key_preimages
+    // - Copy `experimental.tree_recovery_parallel_persistence_buffer` -> `tree.parallel_persistence_buffer`.
+    #[test]
+    fn parsing_from_yaml() {
+        let yaml = r#"
+        snapshot_recovery:
+          enabled: false
+          l1_batch: 1234
+          drop_storage_key_preimages: true
+          postgres:
+            max_concurrency: 10
+          tree:
+            chunk_size: 250000
+            parallel_persistence_buffer: 4
+          object_store:
+            # file_backed:
+            #   file_backed_base_path: ./chains/era/artifacts/
+            mode: FileBacked
+            file_backed_base_path: ./chains/era/artifacts/
+            max_retries: 100
+            local_mirror_path: null
+          # experimental:
+          #  drop_storage_key_preimages: true
+          #  tree_recovery_parallel_persistence_buffer: 1
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let schema = create_schema();
+        let repo = ConfigRepository::new(&schema).with(yaml);
+        let config: SnapshotRecoveryConfig = repo.single().unwrap().parse().unwrap();
+        assert_eq!(config, expected_config());
+    }
+}

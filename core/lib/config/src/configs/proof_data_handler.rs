@@ -29,6 +29,59 @@ pub struct ProofDataHandlerConfig {
     pub http_port: u16,
     #[config(default_t = Duration::from_secs(60), with = TimeUnit::Seconds)]
     pub proof_generation_timeout_in_secs: Duration,
-    #[config(nest)]
+    #[config(flatten)]
     pub tee_config: TeeConfig,
+}
+
+#[cfg(test)]
+mod tests {
+    use smart_config::{testing::test_complete, Environment, Yaml};
+
+    use super::*;
+
+    fn expected_config() -> ProofDataHandlerConfig {
+        ProofDataHandlerConfig {
+            http_port: 3320,
+            proof_generation_timeout_in_secs: Duration::from_secs(18000),
+            tee_config: TeeConfig {
+                tee_support: true,
+                first_tee_processed_batch: L1BatchNumber(1337),
+                tee_proof_generation_timeout_in_secs: Duration::from_secs(600),
+                tee_batch_permanently_ignored_timeout_in_hours: Duration::from_secs(240 * 3600),
+            },
+        }
+    }
+
+    #[test]
+    fn parsing_from_env() {
+        let env = r#"
+            PROOF_DATA_HANDLER_PROOF_GENERATION_TIMEOUT_IN_SECS="18000"
+            PROOF_DATA_HANDLER_HTTP_PORT="3320"
+            PROOF_DATA_HANDLER_TEE_SUPPORT="true"
+            PROOF_DATA_HANDLER_FIRST_TEE_PROCESSED_BATCH="1337"
+            PROOF_DATA_HANDLER_TEE_PROOF_GENERATION_TIMEOUT_IN_SECS="600"
+            PROOF_DATA_HANDLER_TEE_BATCH_PERMANENTLY_IGNORED_TIMEOUT_IN_HOURS="240"
+        "#;
+        let env = Environment::from_dotenv("test.env", env)
+            .unwrap()
+            .strip_prefix("PROOF_DATA_HANDLER_");
+
+        let config: ProofDataHandlerConfig = test_complete(env).unwrap();
+        assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn parsing_from_yaml() {
+        let yaml = r#"
+          http_port: 3320
+          proof_generation_timeout_in_secs: 18000
+          tee_support: true
+          first_tee_processed_batch: 1337
+          tee_proof_generation_timeout_in_secs: 600
+          tee_batch_permanently_ignored_timeout_in_hours: 240
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: ProofDataHandlerConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_config());
+    }
 }
