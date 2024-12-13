@@ -58,11 +58,15 @@ async fn run_init(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_config = config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+
+    if args.update_submodules {
+        git::submodule_update(shell, config.link_to_code.clone())?;
+    }
+
     let args = args.fill_values_with_prompt(&chain_config);
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));
     logger::info(msg_initializing_chain(""));
-    git::submodule_update(shell, config.link_to_code.clone())?;
 
     init(&args, shell, &config, &chain_config).await?;
 
@@ -97,7 +101,7 @@ pub async fn init(
         None,
         true,
     )
-    .await?;
+        .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
     spinner.finish();
 
@@ -112,7 +116,7 @@ pub async fn init(
         &init_args.forge_args.clone(),
         init_args.l1_rpc_url.clone(),
     )
-    .await?;
+        .await?;
     spinner.finish();
 
     // Set token multiplier setter address (run by L2 Governor)
@@ -132,7 +136,7 @@ pub async fn init(
             &init_args.forge_args.clone(),
             init_args.l1_rpc_url.clone(),
         )
-        .await?;
+            .await?;
         spinner.finish();
     }
 
@@ -144,7 +148,7 @@ pub async fn init(
         &mut contracts_config,
         init_args.forge_args.clone(),
     )
-    .await?;
+        .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     // Setup legacy bridge - shouldn't be used for new chains (run by L1 Governor)
@@ -156,7 +160,7 @@ pub async fn init(
             &contracts_config,
             init_args.forge_args.clone(),
         )
-        .await?;
+            .await?;
     }
 
     // Deploy Paymaster contract (run by L2 Governor)
@@ -170,7 +174,7 @@ pub async fn init(
             None,
             true,
         )
-        .await?;
+            .await?;
         contracts_config.save_with_base_path(shell, &chain_config.configs)?;
         spinner.finish();
     }

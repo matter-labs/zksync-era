@@ -37,9 +37,12 @@ jobs:
           ci_run sccache --start-server
 
       - name: Checkout DualVerifier commit
+        working-directory: ./contracts
         if: matrix.compressor-mode == 'fflonk'
         run: |
-          ci_run cd contracts && git checkout 38694d1 && cd ..
+          DIR=$(ci_run pwd)
+          echo $DIR
+          ci_run git checkout 38694d1
 
       - name: Init
         run: |
