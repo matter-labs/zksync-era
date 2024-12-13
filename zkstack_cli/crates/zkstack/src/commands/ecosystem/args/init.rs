@@ -7,7 +7,7 @@ use types::L1Network;
 use url::Url;
 
 use crate::{
-    commands::chain::args::genesis::GenesisArgs,
+    commands::chain::args::{genesis::GenesisArgs, init::da_configs::ValidiumTypeArgs},
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEV_ARG_HELP,
@@ -97,7 +97,8 @@ pub struct EcosystemInitArgs {
     pub ecosystem_only: bool,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
-    #[clap(long, short = 'o', help = MSG_OBSERVABILITY_HELP, default_missing_value = "true", num_args = 0..=1)]
+    #[clap(long, short = 'o', help = MSG_OBSERVABILITY_HELP, default_missing_value = "true", num_args = 0..=1
+    )]
     pub observability: Option<bool>,
     #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP)]
     pub no_port_reallocation: bool,
@@ -113,6 +114,8 @@ pub struct EcosystemInitArgs {
         default_missing_value = "true"
     )]
     pub skip_contract_compilation_override: bool,
+    #[clap(flatten)]
+    pub validium_args: ValidiumTypeArgs,
 }
 
 impl EcosystemInitArgs {
@@ -156,6 +159,7 @@ impl EcosystemInitArgs {
             no_port_reallocation: self.no_port_reallocation,
             skip_submodules_checkout: self.skip_submodules_checkout,
             skip_contract_compilation_override: self.skip_contract_compilation_override,
+            validium_args: self.validium_args,
         }
     }
 }
@@ -171,4 +175,5 @@ pub struct EcosystemInitArgsFinal {
     pub no_port_reallocation: bool,
     pub skip_submodules_checkout: bool,
     pub skip_contract_compilation_override: bool,
+    pub validium_args: ValidiumTypeArgs,
 }

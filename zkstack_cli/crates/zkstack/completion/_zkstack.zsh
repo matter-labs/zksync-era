@@ -133,6 +133,7 @@ _arguments "${_arguments_options[@]}" : \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '-o+[Enable Grafana]' \
 '--observability=[Enable Grafana]' \
+'--validium-type=[Type of the Validium network]:VALIDIUM_TYPE:(no-da avail)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
 '--zksync[]' \
@@ -318,6 +319,7 @@ _arguments "${_arguments_options[@]}" : \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '--deploy-paymaster=[]' \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
+'--validium-type=[Type of the Validium network]:VALIDIUM_TYPE:(no-da avail)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
 '--zksync[]' \

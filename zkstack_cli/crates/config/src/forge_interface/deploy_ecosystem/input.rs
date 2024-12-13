@@ -6,6 +6,7 @@ use ethers::{
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+use types::L1Network;
 use zksync_basic_types::L2ChainId;
 
 use crate::{
@@ -124,6 +125,7 @@ impl DeployL1Config {
         initial_deployment_config: &InitialDeploymentConfig,
         era_chain_id: L2ChainId,
         testnet_verifier: bool,
+        l1_network: L1Network,
     ) -> Self {
         Self {
             era_chain_id,
@@ -162,6 +164,7 @@ impl DeployL1Config {
                 priority_tx_max_gas_limit: initial_deployment_config.priority_tx_max_gas_limit,
                 validator_timelock_execution_delay: initial_deployment_config
                     .validator_timelock_execution_delay,
+                avail_l1_da_validator_addr: l1_network.avail_l1_da_validator_addr(),
             },
             tokens: TokensDeployL1Config {
                 token_weth_address: initial_deployment_config.token_weth_address,
@@ -196,6 +199,8 @@ pub struct ContractsDeployL1Config {
     pub bootloader_hash: H256,
     pub default_aa_hash: H256,
     pub evm_emulator_hash: Option<H256>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avail_l1_da_validator_addr: Option<Address>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

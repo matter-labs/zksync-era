@@ -89,6 +89,7 @@ pub(crate) fn resolve_link_to_code(
     shell: &Shell,
     base_path: PathBuf,
     link_to_code: String,
+    skip_submodules_checkout: bool,
 ) -> anyhow::Result<PathBuf> {
     if link_to_code.is_empty() {
         if base_path.join("zksync-era").exists() {
@@ -103,7 +104,10 @@ pub(crate) fn resolve_link_to_code(
         Ok(link_to_code)
     } else {
         let path = PathBuf::from_str(&link_to_code)?;
-        git::submodule_update(shell, path.clone())?;
+        if !skip_submodules_checkout {
+            git::submodule_update(shell, path.clone())?;
+        }
+
         Ok(path)
     }
 }
