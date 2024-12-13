@@ -102,7 +102,6 @@ pub struct InternalApiConfig {
     /// Chain ID of the L1 network. Note, that it may be different from the chain id of the settlement layer.
     pub l1_chain_id: L1ChainId,
     pub l2_chain_id: L2ChainId,
-    pub settlement_layer_url: Option<String>,
     pub max_tx_size: usize,
     pub estimate_gas_scale_factor: f64,
     pub estimate_gas_acceptable_overestimation: u32,
@@ -132,7 +131,6 @@ impl InternalApiConfig {
         Self {
             l1_chain_id: genesis_config.l1_chain_id,
             l2_chain_id: genesis_config.l2_chain_id,
-            settlement_layer_url: web3_config.settlement_layer_url.clone(),
             max_tx_size: web3_config.max_tx_size,
             estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: web3_config
