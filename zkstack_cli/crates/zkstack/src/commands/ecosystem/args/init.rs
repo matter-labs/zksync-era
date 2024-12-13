@@ -103,7 +103,7 @@ pub struct EcosystemInitArgs {
     pub observability: Option<bool>,
     #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP)]
     pub no_port_reallocation: bool,
-    #[clap(long, default_value_t = None)]
+    #[clap(long)]
     pub update_submodules: Option<bool>,
 }
 

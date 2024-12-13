@@ -130,6 +130,7 @@ _arguments "${_arguments_options[@]}" : \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '-o+[Enable Grafana]' \
 '--observability=[Enable Grafana]' \
+'--update-submodules=[]:UPDATE_SUBMODULES:(true false)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
 '-d[]' \
@@ -137,7 +138,6 @@ _arguments "${_arguments_options[@]}" : \
 '--ecosystem-only[Initialize ecosystem only and skip chain initialization (chain can be initialized later with \`chain init\` subcommand)]' \
 '--dev[Use defaults for all options and flags. Suitable for local development]' \
 '--no-port-reallocation[Do not reallocate ports]' \
-'--update-submodules[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -285,12 +285,12 @@ _arguments "${_arguments_options[@]}" : \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '--deploy-paymaster=[]' \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
+'--update-submodules=[]:UPDATE_SUBMODULES:(true false)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
 '-d[]' \
 '--dont-drop[]' \
 '--no-port-reallocation[Do not reallocate ports]' \
-'--update-submodules[]' \
 '--dev[Use defaults for all options and flags. Suitable for local development]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \

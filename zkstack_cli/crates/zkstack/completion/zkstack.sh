@@ -2012,6 +2012,10 @@ _zkstack() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
+                --update-submodules)
+                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
+                    return 0
+                    ;;
                 --chain)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
@@ -5163,6 +5167,10 @@ _zkstack() {
                     return 0
                     ;;
                 -o)
+                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
+                    return 0
+                    ;;
+                --update-submodules)
                     COMPREPLY=($(compgen -W "true false" -- "${cur}"))
                     return 0
                     ;;
