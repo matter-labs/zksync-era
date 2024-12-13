@@ -36,6 +36,11 @@ jobs:
           docker-compose -f ${RUNNER_COMPOSE_FILE} --profile runner up -d --wait
           ci_run sccache --start-server
 
+      - name: Checkout DualVerifier commit
+        if: matrix.compressor-mode == 'fflonk'
+        run: |
+          ci_run cd contracts && git checkout 38694d1 && cd ..
+
       - name: Init
         run: |
           ci_run git config --global --add safe.directory "*"
@@ -56,8 +61,9 @@ jobs:
             --set-as-default true \
             --ignore-prerequisites \
             --evm-emulator false
+          
+          ci_run zkstack ecosystem init --dev --update-submodules=${{matrix.compressor-mode == 'plonk'}} --verbose
 
-          ci_run zkstack ecosystem init --dev --verbose
           ci_run zkstack prover init --dev --verbose
           echo "URL=$(grep "http_url" ./chains/proving_chain/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
 

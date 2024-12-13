@@ -59,6 +59,7 @@ struct Opt {
 /// This function recalculates the commitment in order to check the exact code that
 /// will run, instead of loading `commitments.json` (which also may correct misaligned
 /// information).
+#[allow(dead_code)] // todo: remove after VK issue is resolved
 async fn ensure_protocol_alignment(
     prover_pool: &ConnectionPool<Prover>,
     protocol_version: ProtocolSemanticVersion,
