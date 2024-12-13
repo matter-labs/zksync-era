@@ -42,7 +42,9 @@ jobs:
         if: matrix.compressor-mode == 'fflonk'
         run: |
           docker-compose -f ${RUNNER_COMPOSE_FILE} exec -it zk "echo $PWD"
-          docker-compose -f ${RUNNER_COMPOSE_FILE} exec -it -w ./contracts zk "git checkout 38694d1"
+          docker-compose -f ${RUNNER_COMPOSE_FILE} exec -it -w usr/src/zksync/contracts zk "git checkout 38694d1"
+          docker-compose -f ${RUNNER_COMPOSE_FILE} exec -it -w usr/src/zksync/contracts zk "git submodule update --init --recursive"
+          docker-compose -f ${RUNNER_COMPOSE_FILE} exec -it zk "echo $PWD"
 
       - name: Init
         run: |
