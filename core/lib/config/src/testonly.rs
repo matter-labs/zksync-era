@@ -10,7 +10,7 @@ use zksync_basic_types::{
     pubdata_da::PubdataSendingMode,
     secrets::{APIKey, SeedPhrase},
     vm::FastVmMode,
-    L1BatchNumber, L1ChainId, L2ChainId,
+    L1BatchNumber, L1ChainId, L2ChainId, SLChainId,
 };
 use zksync_consensus_utils::EncodeDist;
 use zksync_crypto_primitives::K256PrivateKey;
@@ -271,7 +271,6 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             base_token_asset_id: self.sample_opt(|| rng.gen()),
             predeployed_l2_wrapped_base_token_address: self.sample_opt(|| rng.gen()),
             chain_admin_addr: self.sample_opt(|| rng.gen()),
-            settlement_layer: self.sample_opt(|| rng.gen()),
             l2_da_validator_addr: self.sample_opt(|| rng.gen()),
         }
     }
@@ -744,7 +743,6 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             evm_emulator_hash: Some(rng.gen()),
             fee_account: rng.gen(),
             l1_chain_id: L1ChainId(self.sample(rng)),
-            sl_chain_id: None,
             l2_chain_id: L2ChainId::default(),
             snark_wrapper_vk_hash: rng.gen(),
             dummy_verifier: rng.gen(),
@@ -939,7 +937,6 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
         configs::en_config::ENConfig {
             l2_chain_id: L2ChainId::default(),
             l1_chain_id: L1ChainId(rng.gen()),
-            sl_chain_id: None,
             main_node_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
             l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
                 0 => L1BatchCommitmentMode::Rollup,
@@ -947,6 +944,7 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
             },
             main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
             bridge_addresses_refresh_interval_sec: self.sample_opt(|| rng.gen()),
+            gateway_chain_id: self.sample_opt(|| SLChainId(rng.gen())),
         }
     }
 }

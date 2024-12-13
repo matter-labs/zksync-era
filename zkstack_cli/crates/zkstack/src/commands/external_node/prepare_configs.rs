@@ -60,10 +60,10 @@ fn prepare_configs(
     let mut ports = EcosystemPortsScanner::scan(shell)?;
     let genesis = config.get_genesis_config()?;
     let general = config.get_general_config()?;
+    let gateway = config.get_gateway_chain_config().ok();
     let en_config = ENConfig {
         l2_chain_id: genesis.l2_chain_id,
         l1_chain_id: genesis.l1_chain_id,
-        sl_chain_id: genesis.sl_chain_id,
         l1_batch_commit_data_generator_mode: genesis.l1_batch_commit_data_generator_mode,
         main_node_url: SensitiveUrl::from_str(
             &general
@@ -75,6 +75,7 @@ fn prepare_configs(
         )?,
         main_node_rate_limit_rps: None,
         bridge_addresses_refresh_interval_sec: None,
+        gateway_chain_id: gateway.map(|g| g.gateway_chain_id),
     };
     let mut general_en = general.clone();
     general_en.consensus_config = None;

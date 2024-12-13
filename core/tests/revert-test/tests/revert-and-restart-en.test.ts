@@ -298,29 +298,21 @@ describe('Block reverting test', function () {
 });
 
 export function getGatewayInfo(pathToHome: string, chain: string): GatewayInfo | null {
-    const genesisConfig = loadConfig({
+    const gatewayChainConfig = loadConfig({
         pathToHome,
-        chain: chain,
-        config: 'genesis.yaml'
+        chain,
+        config: 'gateway_chain.yaml'
     });
 
-    const slChainId = genesisConfig.sl_chain_id;
-    const l1ChainId = genesisConfig.l1_chain_id;
-
-    if (slChainId && l1ChainId != slChainId) {
-        const gatewayChainConfig = loadConfig({
-            pathToHome,
-            chain: chain,
-            config: 'gateway_chain.yaml'
-        });
+    if (gatewayChainConfig.gateway_chain_id) {
         const secretsConfig = loadConfig({
             pathToHome,
-            chain: chain,
+            chain,
             config: 'secrets.yaml'
         });
 
         return {
-            gatewayChainId: slChainId,
+            gatewayChainId: gatewayChainConfig.gateway_chain_id,
             gatewayProvider: new zksync.Provider(secretsConfig.l1.gateway_rpc_url),
             gatewayCTM: gatewayChainConfig.state_transition_proxy_addr,
             l2ChainAdmin: gatewayChainConfig.chain_admin_addr,

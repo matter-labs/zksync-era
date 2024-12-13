@@ -190,7 +190,6 @@ pub fn mock_genesis_config() -> GenesisConfig {
         default_aa_hash: Some(base_system_contracts_hashes.default_aa),
         evm_emulator_hash: base_system_contracts_hashes.evm_emulator,
         l1_chain_id: L1ChainId(9),
-        sl_chain_id: None,
         l2_chain_id: L2ChainId::default(),
         snark_wrapper_vk_hash: first_l1_verifier_config.snark_wrapper_vk_hash,
         fee_account: Default::default(),

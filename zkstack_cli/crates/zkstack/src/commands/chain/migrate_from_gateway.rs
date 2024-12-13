@@ -186,7 +186,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     )
     .await?;
 
-    gateway_chain_chain_config.settlement_layer = 0;
+    gateway_chain_chain_config.gateway_chain_id = 0u64.into();
     gateway_chain_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
     let mut general_config = chain_config.get_general_config().unwrap();
