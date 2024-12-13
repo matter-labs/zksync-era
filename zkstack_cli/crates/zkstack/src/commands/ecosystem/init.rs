@@ -49,7 +49,7 @@ use crate::{
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    if args.update_submodules {
+    if args.update_submodules.is_none() || args.update_submodules == Some(true) {
         git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
     }
 

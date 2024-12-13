@@ -38,7 +38,6 @@ jobs:
           ci_run git config --global --add safe.directory "*"
 
       - name: Checkout DualVerifier commit
-        working-directory: ./contracts
         if: matrix.compressor-mode == 'fflonk'
         run: |
           docker-compose -f ${RUNNER_COMPOSE_FILE} exec -it zk "echo $PWD"
