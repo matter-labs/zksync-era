@@ -101,7 +101,7 @@ pub async fn init(
         None,
         true,
     )
-        .await?;
+    .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
     spinner.finish();
 
@@ -116,7 +116,7 @@ pub async fn init(
         &init_args.forge_args.clone(),
         init_args.l1_rpc_url.clone(),
     )
-        .await?;
+    .await?;
     spinner.finish();
 
     // Set token multiplier setter address (run by L2 Governor)
@@ -136,7 +136,7 @@ pub async fn init(
             &init_args.forge_args.clone(),
             init_args.l1_rpc_url.clone(),
         )
-            .await?;
+        .await?;
         spinner.finish();
     }
 
@@ -148,7 +148,7 @@ pub async fn init(
         &mut contracts_config,
         init_args.forge_args.clone(),
     )
-        .await?;
+    .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     // Setup legacy bridge - shouldn't be used for new chains (run by L1 Governor)
@@ -160,7 +160,7 @@ pub async fn init(
             &contracts_config,
             init_args.forge_args.clone(),
         )
-            .await?;
+        .await?;
     }
 
     // Deploy Paymaster contract (run by L2 Governor)
@@ -174,7 +174,7 @@ pub async fn init(
             None,
             true,
         )
-            .await?;
+        .await?;
         contracts_config.save_with_base_path(shell, &chain_config.configs)?;
         spinner.finish();
     }

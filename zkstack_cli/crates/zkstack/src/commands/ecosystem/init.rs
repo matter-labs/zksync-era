@@ -74,7 +74,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
         &ecosystem_config,
         &initial_deployment_config,
     )
-        .await?;
+    .await?;
 
     if final_ecosystem_args.deploy_erc20 {
         logger::info(MSG_DEPLOYING_ERC20);
@@ -90,7 +90,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
             final_ecosystem_args.forge_args.clone(),
             final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
         )
-            .await?;
+        .await?;
     }
 
     // Initialize chain(s)
@@ -120,7 +120,7 @@ async fn init_ecosystem(
         ecosystem_config,
         initial_deployment_config,
     )
-        .await?;
+    .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
     Ok(contracts)
 }
@@ -144,7 +144,7 @@ async fn deploy_erc20(
             wallets.blob_operator.address,
         ],
     )
-        .save(shell, deploy_config_path)?;
+    .save(shell, deploy_config_path)?;
 
     let mut forge = Forge::new(&ecosystem_config.path_to_foundry())
         .script(&DEPLOY_ERC20_SCRIPT_PARAMS.script(), forge_args.clone())
@@ -186,7 +186,7 @@ async fn deploy_ecosystem(
             initial_deployment_config,
             ecosystem.l1_rpc_url.clone(),
         )
-            .await;
+        .await;
     }
 
     let ecosystem_contracts_path = match &ecosystem.ecosystem_contracts_path {
@@ -257,7 +257,7 @@ async fn deploy_ecosystem_inner(
         None,
         true,
     )
-        .await?;
+    .await?;
     spinner.finish();
 
     accept_owner(
@@ -269,7 +269,7 @@ async fn deploy_ecosystem_inner(
         &forge_args,
         l1_rpc_url.clone(),
     )
-        .await?;
+    .await?;
 
     accept_admin(
         shell,
@@ -280,7 +280,7 @@ async fn deploy_ecosystem_inner(
         &forge_args,
         l1_rpc_url.clone(),
     )
-        .await?;
+    .await?;
 
     accept_owner(
         shell,
@@ -291,7 +291,7 @@ async fn deploy_ecosystem_inner(
         &forge_args,
         l1_rpc_url.clone(),
     )
-        .await?;
+    .await?;
 
     accept_admin(
         shell,
@@ -302,7 +302,7 @@ async fn deploy_ecosystem_inner(
         &forge_args,
         l1_rpc_url.clone(),
     )
-        .await?;
+    .await?;
 
     accept_owner(
         shell,
@@ -315,7 +315,7 @@ async fn deploy_ecosystem_inner(
         &forge_args,
         l1_rpc_url.clone(),
     )
-        .await?;
+    .await?;
 
     accept_admin(
         shell,
@@ -328,7 +328,7 @@ async fn deploy_ecosystem_inner(
         &forge_args,
         l1_rpc_url.clone(),
     )
-        .await?;
+    .await?;
 
     Ok(contracts_config)
 }
@@ -382,7 +382,7 @@ async fn init_chains(
             ecosystem_config,
             &chain_config,
         )
-            .await?;
+        .await?;
     }
     Ok(list_of_chains)
 }
