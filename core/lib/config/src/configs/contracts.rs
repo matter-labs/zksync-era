@@ -53,7 +53,6 @@ pub struct ContractsConfig {
     pub predeployed_l2_wrapped_base_token_address: Option<Address>,
 
     pub chain_admin_addr: Option<Address>,
-    pub settlement_layer: Option<u64>,
     pub l2_da_validator_addr: Option<Address>,
 }
 
@@ -80,7 +79,6 @@ impl ContractsConfig {
             predeployed_l2_wrapped_base_token_address: Some(Address::repeat_byte(0x1b)),
             ecosystem_contracts: Some(EcosystemContracts::for_tests()),
             chain_admin_addr: Some(Address::repeat_byte(0x18)),
-            settlement_layer: Some(0),
             l2_da_validator_addr: Some(Address::repeat_byte(0x1a)),
         }
     }

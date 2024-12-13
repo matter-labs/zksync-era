@@ -75,7 +75,7 @@ fn prepare_configs(
         )?,
         main_node_rate_limit_rps: None,
         bridge_addresses_refresh_interval_sec: None,
-        gateway_chain_id: gateway.map(|g| g.settlement_layer.into()),
+        gateway_chain_id: gateway.map(|g| g.gateway_chain_id),
     };
     let mut general_en = general.clone();
     general_en.consensus_config = None;

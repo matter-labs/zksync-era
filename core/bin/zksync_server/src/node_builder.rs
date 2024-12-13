@@ -166,7 +166,7 @@ impl MainNodeBuilder {
             eth_config.l1_rpc_url,
             self.gateway_contracts_config
                 .as_ref()
-                .map(|c| c.settlement_layer.into()),
+                .map(|c| c.gateway_chain_id),
             eth_config.gateway_rpc_url,
         );
         self.node.add_layer(query_eth_client_layer);

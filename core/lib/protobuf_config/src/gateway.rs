@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use zksync_basic_types::SLChainId;
 use zksync_config::configs::gateway::GatewayChainConfig;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
@@ -34,7 +35,9 @@ impl ProtoRepr for proto::GatewayChainConfig {
             governance_addr: required(&self.governance_addr)
                 .and_then(|x| parse_h160(x))
                 .context("governance_addr")?,
-            settlement_layer: *required(&self.settlement_layer)?,
+            gateway_chain_id: required(&self.gateway_chain_id)
+                .map(|x| SLChainId(*x))
+                .context("gateway_chain_id")?,
         })
     }
 
@@ -46,7 +49,7 @@ impl ProtoRepr for proto::GatewayChainConfig {
             diamond_proxy_addr: Some(format!("{:?}", this.diamond_proxy_addr)),
             chain_admin_addr: this.chain_admin_addr.map(|x| format!("{:?}", x)),
             governance_addr: Some(format!("{:?}", this.governance_addr)),
-            settlement_layer: Some(this.settlement_layer),
+            gateway_chain_id: Some(this.gateway_chain_id.0),
         }
     }
 }

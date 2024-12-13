@@ -101,7 +101,7 @@ impl WiringLayer for PKSigningEthClientLayer {
             if self
                 .gateway_contracts_config
                 .clone()
-                .is_some_and(|v| v.settlement_layer != 0_u64)
+                .is_some_and(|v| v.gateway_chain_id.0 != 0_u64)
             {
                 let private_key = self.wallets.operator.private_key();
                 let GatewayEthInterfaceResource(gateway_client) = input.gateway_client.unwrap();
@@ -110,7 +110,7 @@ impl WiringLayer for PKSigningEthClientLayer {
                     private_key.clone(),
                     gateway_contracts.diamond_proxy_addr,
                     gas_adjuster_config.default_priority_fee_per_gas,
-                    gateway_contracts.settlement_layer.into(),
+                    gateway_contracts.gateway_chain_id,
                     gateway_client,
                 );
                 Some(BoundEthInterfaceForL2Resource(Box::new(

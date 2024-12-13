@@ -375,7 +375,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         &gateway_gateway_config,
         new_diamond_proxy_address,
         l2_chain_admin,
-        gateway_chain_id,
+        gateway_chain_id.into(),
     );
     gateway_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
