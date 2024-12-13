@@ -417,9 +417,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     api_config.web3_json_rpc.settlement_layer_url = Some(gateway_url);
 
     general_config.save_with_base_path(shell, chain_config.configs.clone())?;
-    let mut chain_genesis_config = chain_config.get_genesis_config().unwrap();
-    chain_genesis_config.sl_chain_id = Some(gateway_chain_id.into());
-    chain_genesis_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
     Ok(())
 }

@@ -988,11 +988,11 @@ impl OptionalENConfig {
 /// This part of the external node config is required for its operation.
 #[derive(Debug, Deserialize)]
 pub(crate) struct RequiredENConfig {
-    /// The chain ID of the L1 network (e.g., 1 for Ethereum mainnet). In the future, it may be different from the settlement layer.
+    /// The chain ID of the L1 network (e.g., 1 for Ethereum mainnet).
     pub l1_chain_id: L1ChainId,
-    /// The chain ID of the settlement layer (e.g., 1 for Ethereum mainnet). This ID will be checked against the `eth_client_url` RPC provider on initialization
-    /// to ensure that there's no mismatch between the expected and actual settlement layer network.
-    pub sl_chain_id: Option<SLChainId>,
+    /// The chain ID of the gateway. This ID will be checked against the `gateway_rpc_url` RPC provider on initialization
+    /// to ensure that there's no mismatch between the expected and actual gateway network.
+    pub gateway_chain_id: Option<SLChainId>,
     /// L2 chain ID (e.g., 270 for ZKsync Era mainnet). This ID will be checked against the `main_node_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual L2 network.
     pub l2_chain_id: L2ChainId,
@@ -1015,7 +1015,7 @@ pub(crate) struct RequiredENConfig {
 
 impl RequiredENConfig {
     pub fn settlement_layer_id(&self) -> SLChainId {
-        self.sl_chain_id.unwrap_or(self.l1_chain_id.into())
+        self.gateway_chain_id.unwrap_or(self.l1_chain_id.into())
     }
 
     fn from_env() -> anyhow::Result<Self> {
@@ -1039,7 +1039,7 @@ impl RequiredENConfig {
             .context("Database config is required")?;
         Ok(RequiredENConfig {
             l1_chain_id: en_config.l1_chain_id,
-            sl_chain_id: None,
+            gateway_chain_id: en_config.gateway_chain_id,
             l2_chain_id: en_config.l2_chain_id,
             http_port: api_config.web3_json_rpc.http_port,
             ws_port: api_config.web3_json_rpc.ws_port,
@@ -1060,7 +1060,7 @@ impl RequiredENConfig {
     fn mock(temp_dir: &tempfile::TempDir) -> Self {
         Self {
             l1_chain_id: L1ChainId(9),
-            sl_chain_id: None,
+            gateway_chain_id: None,
             l2_chain_id: L2ChainId::default(),
             http_port: 0,
             ws_port: 0,
@@ -1465,8 +1465,6 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
         Self {
             l1_chain_id: config.required.l1_chain_id,
             l2_chain_id: config.required.l2_chain_id,
-            // TODO: EN not supported yet
-            sl_chain_id: SLChainId(config.required.l1_chain_id.0),
             settlement_layer_url: None,
             max_tx_size: config.optional.max_tx_size_bytes,
             estimate_gas_scale_factor: config.optional.estimate_gas_scale_factor,

@@ -153,7 +153,6 @@ impl MainNodeBuilder {
             eth_config,
             self.contracts_config.clone(),
             self.gateway_contracts_config.clone(),
-            self.genesis_config.settlement_layer_id(),
             wallets,
         ));
         Ok(self)
@@ -163,8 +162,11 @@ impl MainNodeBuilder {
         let genesis = self.genesis_config.clone();
         let eth_config = try_load_config!(self.secrets.l1);
         let query_eth_client_layer = QueryEthClientLayer::new(
-            genesis.settlement_layer_id(),
+            genesis.l1_chain_id,
             eth_config.l1_rpc_url,
+            self.gateway_contracts_config
+                .as_ref()
+                .map(|c| c.settlement_layer.into()),
             eth_config.gateway_rpc_url,
         );
         self.node.add_layer(query_eth_client_layer);

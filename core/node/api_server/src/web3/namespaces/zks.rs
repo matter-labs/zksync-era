@@ -373,7 +373,7 @@ impl ZksNamespace {
 
         let Some(sl_chain_id) = storage
             .eth_sender_dal()
-            .get_batch_commit_chain_id(l1_batch_number)
+            .get_batch_execute_chain_id(l1_batch_number)
             .await
             .map_err(DalError::generalize)?
         else {
