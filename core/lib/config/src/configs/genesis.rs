@@ -33,6 +33,7 @@ pub struct GenesisConfig {
     pub fee_account: Address,
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
+    pub custom_genesis_state_path: Option<String>,
 }
 
 impl GenesisConfig {
@@ -62,6 +63,7 @@ impl GenesisConfig {
             l2_chain_id: L2ChainId::default(),
             dummy_verifier: false,
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
+            custom_genesis_state_path: None,
         }
     }
 }
