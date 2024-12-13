@@ -40,8 +40,8 @@ jobs:
       - name: Checkout DualVerifier commit
         if: matrix.compressor-mode == 'fflonk'
         run: |
-          docker-compose -f ${RUNNER_COMPOSE_FILE} exec -it -w usr/src/zksync/contracts zk "git checkout 38694d1"
-          docker-compose -f ${RUNNER_COMPOSE_FILE} exec -it -w usr/src/zksync/contracts zk "git submodule update --init --recursive"
+          docker-compose -f ${RUNNER_COMPOSE_FILE} exec -it -w usr/src/zksync/contracts zk "git checkout 38694d1" bash
+          docker-compose -f ${RUNNER_COMPOSE_FILE} exec -it -w usr/src/zksync/contracts zk "git submodule update --init --recursive" bash
 
       - name: Init
         run: |
