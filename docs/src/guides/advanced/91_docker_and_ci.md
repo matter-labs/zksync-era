@@ -4,7 +4,7 @@ How to efficiently debug CI issues locally.
 
 This document will be useful in case you struggle with reproducing some CI issues on your local machine.
 
-In most cases, this is due to the fact that your local machine has some arifacts, configs, files that you might have set
+In most cases, this is due to the fact that your local machine has some artifacts, configs, files that you might have set
 in the past, that are missing from the CI.
 
 ## Basic docker commands
