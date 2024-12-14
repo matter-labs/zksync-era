@@ -110,7 +110,7 @@ be able to leverage them when available).
 }
 ```
 
-- The `requestL2TransactionTwoBridges` function should be used most of the time when bridging to a chain ( the exeption
+- The `requestL2TransactionTwoBridges` function should be used most of the time when bridging to a chain ( the exception
   is when the user bridges directly to a contract on the L2, without using a bridge contract on L1). The logic of it is
   the following:
 
