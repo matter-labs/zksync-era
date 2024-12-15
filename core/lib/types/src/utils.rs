@@ -53,8 +53,9 @@ pub fn nonces_to_full_nonce(tx_nonce: U256, deploy_nonce: U256) -> U256 {
 pub fn key_for_eth_balance(address: &Address) -> H256 {
     let address_h256 = address_to_h256(address);
 
-    let bytes = [address_h256.as_bytes(), &[0; 32]].concat();
-    keccak256(&bytes).into()
+    address_h256
+    //let bytes = [address_h256.as_bytes(), &[0; 32]].concat();
+    //keccak256(&bytes).into()
 }
 
 /// Create a `key` part of `StorageKey` to access the balance from ERC20 contract balances
