@@ -30,32 +30,6 @@ impl Distribution<configs::chain::FeeModelVersion> for EncodeDist {
     }
 }
 
-impl Distribution<configs::ContractsConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ContractsConfig {
-        configs::ContractsConfig {
-            governance_addr: rng.gen(),
-            verifier_addr: rng.gen(),
-            default_upgrade_addr: rng.gen(),
-            diamond_proxy_addr: rng.gen(),
-            validator_timelock_addr: rng.gen(),
-            l1_erc20_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
-            l2_erc20_bridge_addr: self.sample_opt(|| rng.gen()),
-            l1_shared_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
-            l2_shared_bridge_addr: self.sample_opt(|| rng.gen()),
-            l2_legacy_shared_bridge_addr: self.sample_opt(|| rng.gen()),
-            l1_weth_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
-            l2_weth_bridge_addr: self.sample_opt(|| rng.gen()),
-            l2_testnet_paymaster_addr: self.sample_opt(|| rng.gen()),
-            l2_timestamp_asserter_addr: self.sample_opt(|| rng.gen()),
-            l1_multicall3_addr: rng.gen(),
-            ecosystem_contracts: self.sample(rng),
-            base_token_addr: self.sample_opt(|| rng.gen()),
-            chain_admin_addr: self.sample_opt(|| rng.gen()),
-            l2_da_validator_addr: self.sample_opt(|| rng.gen()),
-        }
-    }
-}
-
 impl Distribution<configs::GenesisConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::GenesisConfig {
         configs::GenesisConfig {
@@ -92,79 +66,6 @@ impl Distribution<configs::EcosystemContracts> for EncodeDist {
             bridgehub_proxy_addr: rng.gen(),
             state_transition_proxy_addr: rng.gen(),
             transparent_proxy_admin_addr: rng.gen(),
-        }
-    }
-}
-
-impl Distribution<configs::consensus::WeightedValidator> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::WeightedValidator {
-        use configs::consensus::{ValidatorPublicKey, WeightedValidator};
-        WeightedValidator {
-            key: ValidatorPublicKey(self.sample(rng)),
-            weight: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::consensus::WeightedAttester> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::WeightedAttester {
-        use configs::consensus::{AttesterPublicKey, WeightedAttester};
-        WeightedAttester {
-            key: AttesterPublicKey(self.sample(rng)),
-            weight: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::consensus::GenesisSpec> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::GenesisSpec {
-        use configs::consensus::{
-            GenesisSpec, Host, NodePublicKey, ProtocolVersion, ValidatorPublicKey,
-        };
-        GenesisSpec {
-            chain_id: L2ChainId::default(),
-            protocol_version: ProtocolVersion(self.sample(rng)),
-            validators: self.sample_collect(rng),
-            attesters: self.sample_collect(rng),
-            leader: ValidatorPublicKey(self.sample(rng)),
-            registry_address: self.sample_opt(|| rng.gen()),
-            seed_peers: self
-                .sample_range(rng)
-                .map(|_| (NodePublicKey(self.sample(rng)), Host(self.sample(rng))))
-                .collect(),
-        }
-    }
-}
-
-impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::ConsensusConfig {
-        use configs::consensus::{ConsensusConfig, Host, NodePublicKey};
-        ConsensusConfig {
-            port: self.sample(rng),
-            server_addr: self.sample(rng),
-            public_addr: Host(self.sample(rng)),
-            max_payload_size: self.sample(rng),
-            max_batch_size: self.sample(rng),
-            gossip_dynamic_inbound_limit: self.sample(rng),
-            gossip_static_inbound: self
-                .sample_range(rng)
-                .map(|_| NodePublicKey(self.sample(rng)))
-                .collect(),
-            gossip_static_outbound: self
-                .sample_range(rng)
-                .map(|_| (NodePublicKey(self.sample(rng)), Host(self.sample(rng))))
-                .collect(),
-            genesis_spec: self.sample(rng),
-            rpc: self.sample(rng),
-            debug_page_addr: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::consensus::RpcConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::RpcConfig {
-        configs::consensus::RpcConfig {
-            get_block_rate: self.sample(rng),
         }
     }
 }
@@ -261,25 +162,6 @@ impl Distribution<configs::wallets::Wallets> for EncodeDist {
     }
 }
 
-impl Distribution<configs::en_config::ENConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::en_config::ENConfig {
-        configs::en_config::ENConfig {
-            l2_chain_id: L2ChainId::default(),
-            l1_chain_id: L1ChainId(rng.gen()),
-            sl_chain_id: None,
-            main_node_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
-            l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
-                0 => L1BatchCommitmentMode::Rollup,
-                _ => L1BatchCommitmentMode::Validium,
-            },
-            main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
-            gateway_url: self
-                .sample_opt(|| format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
-            bridge_addresses_refresh_interval_sec: self.sample_opt(|| rng.gen()),
-        }
-    }
-}
-
 impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::da_client::DAClientConfig {
         Avail(AvailConfig {
@@ -335,7 +217,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             core_object_store: None,
             base_token_adjuster: None,
             external_price_api_client_config: None,
-            consensus_config: self.sample(rng),
+            consensus_config: None,
             external_proof_integration_api_config: None,
             experimental_vm_config: None,
             prover_job_monitor_config: None,
