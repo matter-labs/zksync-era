@@ -35,6 +35,7 @@ If you are using the recommended file-based configuration then you'll need to ad
 consensus:
   server_addr: '0.0.0.0:3054'
   public_addr:
+    '???'
     # Address under which the node is accessible to the other nodes.
     # It can be a public domain, like `example.com:3054`, in case the main node is accessible from the internet,
     # or it can be a kubernetes cluster domain, like `server-v2-core.<cluster name>.svc.cluster.local:3054` in
@@ -46,9 +47,12 @@ consensus:
     chain_id: ??? # chain id
     protocol_version: 1 # consensus protocol version
     validators:
-      - key: validator:public:??? # public key of the main node (copy this PUBLIC key from the secrets you generated)
+      - key: validator:public:??? # validator public key of the main node (copy this PUBLIC key from the secrets you generated)
         weight: 1
     leader: validator:public:??? # same as above - main node will be the only validator and the only leader.
+    seed_peers:
+      - key: 'node:public:ed25519:...' # node public key of the main node (copy this PUBLIC key from the secrets you generated)
+        addr: '???' # same as public_addr above
 ```
 
 And the secrets you generated to your `secrets.yaml` config file:
@@ -68,6 +72,7 @@ content:
 ```yaml
 server_addr: '0.0.0.0:3054'
 public_addr:
+  '???'
   # Address under which the node is accessible to the other nodes.
   # It can be a public domain, like `example.com:3054`, in case the main node is accessible from the internet,
   # or it can be a kubernetes cluster domain, like `server-v2-core.<cluster name>.svc.cluster.local:3054` in
@@ -79,9 +84,12 @@ genesis_spec:
   chain_id: ??? # chain id
   protocol_version: 1 # consensus protocol version
   validators:
-    - key: validator:public:??? # public key of the main node (copy this PUBLIC key from the secrets you generated)
+    - key: validator:public:??? # validator public key of the main node (copy this PUBLIC key from the secrets you generated)
       weight: 1
   leader: validator:public:??? # same as above - main node will be the only validator and the only leader.
+  seed_peers:
+    - key: 'node:public:ed25519:...' # node public key of the main node (copy this PUBLIC key from the secrets you generated)
+      addr: '???' # same as public_addr above
 ```
 
 And a `consensus_secrets.yaml` file with the with the secrets you generated previously:
