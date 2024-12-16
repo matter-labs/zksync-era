@@ -13,7 +13,7 @@ use zksync_node_fee_model::BatchFeeModelInputProvider;
 #[cfg(test)]
 use zksync_types::H256;
 use zksync_types::{get_nonce_key, vm::VmVersion, Address, Nonce, Transaction, U256};
-
+use zksync_zkos_vm_runner::zkos_nonce_flat_key;
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
@@ -156,36 +156,32 @@ async fn get_transaction_nonces(
     storage: &mut Connection<'_, Core>,
     transactions: &[&Transaction],
 ) -> anyhow::Result<HashMap<Address, Nonce>> {
-    //todo: revert changes once nonces stored in storage properly
+    let (nonce_keys, address_by_nonce_key): (Vec<_>, HashMap<_, _>) = transactions
+        .iter()
+        .map(|tx| {
+            let address = tx.initiator_account();
+            let nonce_key = zkos_nonce_flat_key(address);
+            (nonce_key, (nonce_key, address))
+        })
+        .unzip();
 
-    // let (nonce_keys, address_by_nonce_key): (Vec<_>, HashMap<_, _>) = transactions
-    //     .iter()
-    //     .map(|tx| {
-    //         let address = tx.initiator_account();
-    //         let nonce_key = get_nonce_key(&address).hashed_key();
-    //         (nonce_key, (nonce_key, address))
-    //     })
-    //     .unzip();
+    let nonce_values = storage
+        .storage_web3_dal()
+        .get_values(&nonce_keys)
+        .await
+        .context("failed getting nonces from storage")?;
 
-    let mut result: HashMap<Address, Nonce> = HashMap::new();
-    for tx in transactions {
-        let address = tx.initiator_account();
-        let maybe_nonce =  storage
-            .transactions_web3_dal()
-            .zkos_max_nonce_by_initiator_account(address)
-            .await
-            .context("failed getting nonce from storage")?;
-        match maybe_nonce {
-            None => {
-                continue;
-            }
-            Some(nonce) => {
-                result.insert(address, Nonce(nonce.as_u32()));
-            }
-        }
-    }
+    let storage_result: HashMap<Address, Nonce> = nonce_values
+        .into_iter()
+        .map(|(nonce_key, nonce_value)| {
+            // `unwrap()` is safe by construction.
+            let be_u32_bytes: [u8; 4] = nonce_value[28..].try_into().unwrap();
+            let nonce = Nonce(u32::from_be_bytes(be_u32_bytes));
+            (address_by_nonce_key[&nonce_key], nonce)
+        })
+        .collect();
 
-    Ok(result)
+    Ok(storage_result)
 }
 
 #[cfg(test)]
