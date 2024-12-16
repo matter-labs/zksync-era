@@ -16,5 +16,6 @@ zksync_types.workspace = true
 zk_os_forward_system.workspace = true
 zk_ee.workspace = true
 zk_os_basic_system.workspace = true
+zk_os_system_hooks.workspace = true
 
 ruint.workspace = true
