@@ -54,9 +54,6 @@ pub enum ChainCommands {
     /// DiamondProxy contract.
     #[command(alias = "accept-ownership")]
     AcceptChainOwnership(ForgeScriptArgs),
-    /// Initialize bridges on L2
-    #[command(alias = "bridge")]
-    InitializeBridges(ForgeScriptArgs),
     /// Deploy L2 consensus registry
     #[command(alias = "consensus")]
     DeployConsensusRegistry(ForgeScriptArgs),
@@ -106,9 +103,6 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         }
         ChainCommands::DeployUpgrader(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Upgrader).await
-        }
-        ChainCommands::InitializeBridges(args) => {
-            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::InitiailizeBridges).await
         }
         ChainCommands::DeployPaymaster(args) => deploy_paymaster::run(args, shell).await,
         ChainCommands::UpdateTokenMultiplierSetter(args) => {

@@ -116,6 +116,8 @@ pub struct EcosystemInitArgs {
     pub skip_contract_compilation_override: bool,
     #[clap(flatten)]
     pub validium_args: ValidiumTypeArgs,
+    #[clap(long, default_missing_value = "false", num_args = 0..=1)]
+    pub support_l2_legacy_shared_bridge_test: Option<bool>,
 }
 
 impl EcosystemInitArgs {
@@ -160,6 +162,9 @@ impl EcosystemInitArgs {
             skip_submodules_checkout: self.skip_submodules_checkout,
             skip_contract_compilation_override: self.skip_contract_compilation_override,
             validium_args: self.validium_args,
+            support_l2_legacy_shared_bridge_test: self
+                .support_l2_legacy_shared_bridge_test
+                .unwrap_or_default(),
         }
     }
 }
@@ -176,4 +181,5 @@ pub struct EcosystemInitArgsFinal {
     pub skip_submodules_checkout: bool,
     pub skip_contract_compilation_override: bool,
     pub validium_args: ValidiumTypeArgs,
+    pub support_l2_legacy_shared_bridge_test: bool,
 }

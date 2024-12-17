@@ -34,7 +34,6 @@ use crate::{
 pub enum Deploy2ContractsOption {
     All,
     Upgrader,
-    InitiailizeBridges,
     ConsensusRegistry,
     Multicall3,
     TimestampAsserter,
@@ -106,16 +105,6 @@ pub async fn run(
             )
             .await?;
         }
-        Deploy2ContractsOption::InitiailizeBridges => {
-            initialize_bridges(
-                shell,
-                &chain_config,
-                &ecosystem_config,
-                &mut contracts,
-                args,
-            )
-            .await?
-        }
     }
 
     contracts.save_with_base_path(shell, &chain_config.configs)?;
@@ -150,32 +139,6 @@ async fn build_and_deploy(
         &DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS.output(&chain_config.link_to_code),
     )?;
     Ok(())
-}
-
-pub async fn initialize_bridges(
-    shell: &Shell,
-    chain_config: &ChainConfig,
-    ecosystem_config: &EcosystemConfig,
-    contracts_config: &mut ContractsConfig,
-    forge_args: ForgeScriptArgs,
-) -> anyhow::Result<()> {
-    let signature = if let Some(true) = chain_config.legacy_bridge {
-        Some("runDeployLegacySharedBridge")
-    } else {
-        Some("runDeploySharedBridge")
-    };
-    build_and_deploy(
-        shell,
-        chain_config,
-        ecosystem_config,
-        forge_args,
-        signature,
-        |shell, out| {
-            contracts_config.set_l2_shared_bridge(&InitializeBridgeOutput::read(shell, out)?)
-        },
-        true,
-    )
-    .await
 }
 
 pub async fn deploy_upgrader(
@@ -269,17 +232,12 @@ pub async fn deploy_l2_contracts(
     forge_args: ForgeScriptArgs,
     with_broadcast: bool,
 ) -> anyhow::Result<()> {
-    let signature = if let Some(true) = chain_config.legacy_bridge {
-        Some("runWithLegacyBridge")
-    } else {
-        None
-    };
     build_and_deploy(
         shell,
         chain_config,
         ecosystem_config,
         forge_args,
-        signature,
+        None,
         |shell, out| {
             contracts_config.set_l2_shared_bridge(&InitializeBridgeOutput::read(shell, out)?)?;
             contracts_config.set_default_l2_upgrade(&DefaultL2UpgradeOutput::read(shell, out)?)?;

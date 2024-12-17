@@ -15,6 +15,7 @@ pub struct RegisterChainL1Config {
     governance: Address,
     create2_factory_address: Address,
     create2_salt: H256,
+    initialize_legacy_bridge: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -26,6 +27,7 @@ struct Bridgehub {
 struct Bridges {
     shared_bridge_proxy_addr: Address,
     l1_nullifier_proxy_addr: Address,
+    erc20_bridge_proxy_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -66,6 +68,7 @@ impl ZkStackConfig for RegisterChainL1Config {}
 
 impl RegisterChainL1Config {
     pub fn new(chain_config: &ChainConfig, contracts: &ContractsConfig) -> anyhow::Result<Self> {
+        let initialize_legacy_bridge = chain_config.legacy_bridge.unwrap_or_default();
         let wallets_config = chain_config.get_wallets_config()?;
         Ok(Self {
             contracts_config: Contracts {
@@ -91,6 +94,7 @@ impl RegisterChainL1Config {
                         .bridges
                         .l1_nullifier_addr
                         .expect("l1_nullifier_addr"),
+                    erc20_bridge_proxy_addr: contracts.bridges.erc20.l1_address,
                 },
                 validator_timelock_addr: contracts.ecosystem_contracts.validator_timelock_addr,
                 native_token_vault_addr: contracts
@@ -117,6 +121,7 @@ impl RegisterChainL1Config {
             governance: contracts.l1.governance_addr,
             create2_factory_address: contracts.create2_factory_addr,
             create2_salt: H256::random(),
+            initialize_legacy_bridge,
         })
     }
 }

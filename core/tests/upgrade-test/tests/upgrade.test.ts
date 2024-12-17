@@ -18,7 +18,13 @@ import {
 } from './utils';
 import path from 'path';
 import { ZKSYNC_MAIN_ABI } from 'zksync-ethers/build/utils';
+import { logsTestPath } from 'utils/build/logs';
 
+async function logsPath(name: string): Promise<string> {
+    return await logsTestPath(fileConfig.chain, 'logs/upgrade/', name);
+}
+
+const L2_BRIDGEHUB_ADDRESS = '0x0000000000000000000000000000000000010002';
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
 
@@ -91,7 +97,7 @@ describe('Upgrade test', function () {
         forceDeployAddress = '0xf04ce00000000000000000000000000000000000';
         deployerAddress = '0x0000000000000000000000000000000000008007';
         complexUpgraderAddress = '0x000000000000000000000000000000000000800f';
-        logs = await fs.open('upgrade.log', 'a');
+        logs = await fs.open(await logsPath('upgrade.log'), 'a');
 
         if (!fileConfig.loadFromFile) {
             throw new Error('Non file based not supported');
@@ -316,6 +322,21 @@ describe('Upgrade test', function () {
             gatewayInfo
         );
         executeOperation = chainUpgradeCalldata;
+
+        const pauseMigrationCalldata = await pauseMigrationsCalldata(
+            alice._providerL1(),
+            alice._providerL2(),
+            gatewayInfo
+        );
+        console.log('Scheduling pause migration');
+        await sendGovernanceOperation(pauseMigrationCalldata.scheduleTransparentOperation, 0, null);
+
+        console.log('Sending pause migration');
+        await sendGovernanceOperation(
+            pauseMigrationCalldata.executeOperation,
+            pauseMigrationCalldata.executeOperationValue,
+            gatewayInfo ? gatewayInfo.gatewayProvider : null
+        );
 
         console.log('Sending scheduleTransparentOperation');
         await sendGovernanceOperation(stmUpgradeData.scheduleTransparentOperation, 0, null);
@@ -664,6 +685,25 @@ async function prepareUpgradeCalldata(
         chainUpgradeCalldata,
         setTimestampCalldata
     };
+}
+
+async function pauseMigrationsCalldata(
+    l1Provider: ethers.Provider,
+    l2Provider: zksync.Provider,
+    gatewayInfo: GatewayInfo | null
+) {
+    const l1BridgehubAddr = await l2Provider.getBridgehubContractAddress();
+    const to = gatewayInfo ? L2_BRIDGEHUB_ADDRESS : l1BridgehubAddr;
+
+    const iface = new ethers.Interface(['function pauseMigration() external']);
+
+    return prepareGovernanceCalldata(
+        to,
+        iface.encodeFunctionData('pauseMigration', []),
+        l1BridgehubAddr,
+        l1Provider,
+        gatewayInfo
+    );
 }
 
 interface UpgradeCalldata {

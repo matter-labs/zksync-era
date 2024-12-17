@@ -134,6 +134,7 @@ _arguments "${_arguments_options[@]}" : \
 '-o+[Enable Grafana]' \
 '--observability=[Enable Grafana]' \
 '--validium-type=[Type of the Validium network]:VALIDIUM_TYPE:(no-da avail)' \
+'--support-l2-legacy-shared-bridge-test=[]' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
 '--zksync[]' \
@@ -525,24 +526,6 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
 ;;
-(initialize-bridges)
-_arguments "${_arguments_options[@]}" : \
-'--verify=[Verify deployed contracts]' \
-'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
-'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
-'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
-'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'--chain=[Chain to use]:CHAIN:_default' \
-'--resume[]' \
-'--zksync[]' \
-'-v[Verbose mode]' \
-'--verbose[Verbose mode]' \
-'--ignore-prerequisites[Ignores prerequisites checks]' \
-'-h[Print help (see more with '\''--help'\'')]' \
-'--help[Print help (see more with '\''--help'\'')]' \
-&& ret=0
-;;
 (deploy-consensus-registry)
 _arguments "${_arguments_options[@]}" : \
 '--verify=[Verify deployed contracts]' \
@@ -799,10 +782,6 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (accept-chain-ownership)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(initialize-bridges)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2823,10 +2802,6 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(initialize-bridges)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
 (deploy-consensus-registry)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -3388,7 +3363,6 @@ _zkstack__chain_commands() {
 'register-chain:Register a new chain on L1 (executed by L1 governor). This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts, registers chain with BridgeHub and sets pending admin for DiamondProxy. Note\: After completion, L2 governor can accept ownership by running \`accept-chain-ownership\`' \
 'deploy-l2-contracts:Deploy all L2 contracts (executed by L1 governor)' \
 'accept-chain-ownership:Accept ownership of L2 chain (executed by L2 governor). This command should be run after \`register-chain\` to accept ownership of newly created DiamondProxy contract' \
-'initialize-bridges:Initialize bridges on L2' \
 'deploy-consensus-registry:Deploy L2 consensus registry' \
 'deploy-multicall3:Deploy L2 multicall3' \
 'deploy-timestamp-asserter:Deploy L2 TimestampAsserter' \
@@ -3511,7 +3485,6 @@ _zkstack__chain__help_commands() {
 'register-chain:Register a new chain on L1 (executed by L1 governor). This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts, registers chain with BridgeHub and sets pending admin for DiamondProxy. Note\: After completion, L2 governor can accept ownership by running \`accept-chain-ownership\`' \
 'deploy-l2-contracts:Deploy all L2 contracts (executed by L1 governor)' \
 'accept-chain-ownership:Accept ownership of L2 chain (executed by L2 governor). This command should be run after \`register-chain\` to accept ownership of newly created DiamondProxy contract' \
-'initialize-bridges:Initialize bridges on L2' \
 'deploy-consensus-registry:Deploy L2 consensus registry' \
 'deploy-multicall3:Deploy L2 multicall3' \
 'deploy-timestamp-asserter:Deploy L2 TimestampAsserter' \
@@ -3616,11 +3589,6 @@ _zkstack__chain__help__init__configs_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help init configs commands' commands "$@"
 }
-(( $+functions[_zkstack__chain__help__initialize-bridges_commands] )) ||
-_zkstack__chain__help__initialize-bridges_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack chain help initialize-bridges commands' commands "$@"
-}
 (( $+functions[_zkstack__chain__help__migrate-from-gateway_commands] )) ||
 _zkstack__chain__help__migrate-from-gateway_commands() {
     local commands; commands=()
@@ -3671,11 +3639,6 @@ _zkstack__chain__init__help__configs_commands() {
 _zkstack__chain__init__help__help_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain init help help commands' commands "$@"
-}
-(( $+functions[_zkstack__chain__initialize-bridges_commands] )) ||
-_zkstack__chain__initialize-bridges_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack chain initialize-bridges commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__migrate-from-gateway_commands] )) ||
 _zkstack__chain__migrate-from-gateway_commands() {
@@ -4875,7 +4838,6 @@ _zkstack__help__chain_commands() {
 'register-chain:Register a new chain on L1 (executed by L1 governor). This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts, registers chain with BridgeHub and sets pending admin for DiamondProxy. Note\: After completion, L2 governor can accept ownership by running \`accept-chain-ownership\`' \
 'deploy-l2-contracts:Deploy all L2 contracts (executed by L1 governor)' \
 'accept-chain-ownership:Accept ownership of L2 chain (executed by L2 governor). This command should be run after \`register-chain\` to accept ownership of newly created DiamondProxy contract' \
-'initialize-bridges:Initialize bridges on L2' \
 'deploy-consensus-registry:Deploy L2 consensus registry' \
 'deploy-multicall3:Deploy L2 multicall3' \
 'deploy-timestamp-asserter:Deploy L2 TimestampAsserter' \
@@ -4973,11 +4935,6 @@ _zkstack__help__chain__init_commands() {
 _zkstack__help__chain__init__configs_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain init configs commands' commands "$@"
-}
-(( $+functions[_zkstack__help__chain__initialize-bridges_commands] )) ||
-_zkstack__help__chain__initialize-bridges_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack help chain initialize-bridges commands' commands "$@"
 }
 (( $+functions[_zkstack__help__chain__migrate-from-gateway_commands] )) ||
 _zkstack__help__chain__migrate-from-gateway_commands() {
