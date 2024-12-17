@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use anyhow::Context as _;
 use secrecy::{ExposeSecret as _, Secret};
-use zksync_concurrency::{net, time};
+use zksync_concurrency::net;
 use zksync_config::{
     configs,
     configs::consensus::{ConsensusConfig, ConsensusSecrets, Host, NodePublicKey},
