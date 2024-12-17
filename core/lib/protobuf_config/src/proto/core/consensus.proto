@@ -88,7 +88,7 @@ message Config {
   optional uint64 max_batch_size = 10; // required; bytes
 
   // View timeout for the consensus protocol.
-  optional uint64 view_timeout = 13; // required; milliseconds
+  optional std.Duration view_timeout = 13; // optional
 
   // Inbound connections that should be unconditionally accepted on the gossip network.
   repeated string gossip_static_inbound = 5; // required; NodePublicKey

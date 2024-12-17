@@ -164,7 +164,7 @@ pub(super) fn executor(
         server_addr: cfg.server_addr,
         public_addr: net::Host(cfg.public_addr.0.clone()),
         max_payload_size: cfg.max_payload_size,
-        view_timeout: time::Duration::milliseconds(cfg.view_timeout as i64),
+        view_timeout: cfg.view_timeout(),
         node_key: node_key(secrets)
             .context("node_key")?
             .context("missing node_key")?,
