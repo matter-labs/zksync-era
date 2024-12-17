@@ -105,7 +105,7 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
 #[command(
     author = "Matter Labs",
     version,
-    about = "Key generation tool. See https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/advanced/15_prover_keys.md for details.",
+    about = "Key generation tool. See https://github.com/matter-labs/zksync-era/blob/main/docs/guides/advanced/prover_keys.md for details.",
     long_about = None
 )]
 struct Cli {
