@@ -19,7 +19,7 @@ The interop process has 7 main steps, each with its substeps:
 
 1. Starting the transaction on the sending chain
 
-   - The user/calls calls the Bridgehub contract. If they want to use a bridge they call
+   - The user/calls the Bridgehub contract. If they want to use a bridge they call
      `requestL2TransactionTwoBridges`, if they want to make a direct call they call `requestL2TransactionDirect`
      function.
    - The Bridgehub collects the base token fees necessary for the interop tx to be processed on the destination chain,
@@ -39,7 +39,7 @@ The interop process has 7 main steps, each with its substeps:
 6. Receiving the tx on the destination chain
 
    - On the destination chain the xL2 txs is verified. This means the merkle proof is checked agains the MessageRoot.
-     This shows the the xL2 txs was indeed sent.
+     This shows the xL2 txs was indeed sent.
    - After this the txs can be executed. The tx hash is stored in the L2Nullifier contract, so that the txs cannot be
      replayed.
    - The specified contract is called, with the calldata, and the message sender =
