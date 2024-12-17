@@ -71,7 +71,7 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
     pub(crate) bootloader_state: BootloaderState,
     // Current state and oracles of virtual machine
     pub(crate) state: ZkSyncVmState<S, H::Vm1_5_0>,
-    pub storage: StoragePtr<S>,
+    pub(crate) storage: StoragePtr<S>,
     pub(crate) system_env: SystemEnv,
     pub(crate) batch_env: L1BatchEnv,
     // Snapshots for the current run
