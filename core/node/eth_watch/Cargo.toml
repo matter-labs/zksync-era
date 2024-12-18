@@ -18,6 +18,8 @@ zksync_contracts.workspace = true
 zksync_system_constants.workspace = true
 zksync_eth_client.workspace = true
 zksync_shared_metrics.workspace = true
+zksync_mini_merkle_tree.workspace = true
+zksync_web3_decl.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
@@ -25,7 +27,10 @@ thiserror.workspace = true
 async-trait.workspace = true
 tracing.workspace = true
 async-recursion.workspace = true
+itertools.workspace = true
 
 [dev-dependencies]
 zksync_concurrency.workspace = true
 test-log.workspace = true
+hex.workspace = true
+bincode.workspace = true

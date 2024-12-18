@@ -3,6 +3,7 @@ use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
+use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::{
         commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
@@ -14,7 +15,7 @@ use zksync_l1_contract_interface::{
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    commitment::{L1BatchWithMetadata, SerializeCommitment},
+    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, SerializeCommitment},
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
     ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
@@ -27,8 +28,9 @@ use zksync_types::{
 
 use super::aggregated_operations::AggregatedOperation;
 use crate::{
+    health::{EthTxAggregatorHealthDetails, EthTxDetails},
     metrics::{PubdataKind, METRICS},
-    utils::agg_l1_batch_base_cost,
+    publish_criterion::L1GasCriterion,
     zksync_functions::ZkSyncFunctions,
     Aggregator, EthSenderError,
 };
@@ -65,6 +67,7 @@ pub struct EthTxAggregator {
     pool: ConnectionPool<Core>,
     settlement_mode: SettlementMode,
     sl_chain_id: SLChainId,
+    health_updater: HealthUpdater,
 }
 
 struct TxData {
@@ -119,10 +122,14 @@ impl EthTxAggregator {
             pool,
             settlement_mode,
             sl_chain_id,
+            health_updater: ReactiveHealthCheck::new("eth_tx_aggregator").1,
         }
     }
 
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        self.health_updater
+            .update(Health::from(HealthStatus::Ready));
+
         let pool = self.pool.clone();
         loop {
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
@@ -380,7 +387,6 @@ impl EthTxAggregator {
             tracing::error!("Failed to get multicall data {err:?}");
             err
         })?;
-        let contracts_are_pre_shared_bridge = protocol_version_id.is_pre_shared_bridge();
 
         let snark_wrapper_vk_hash = self
             .get_snark_wrapper_vk_hash(verifier_address)
@@ -422,15 +428,15 @@ impl EthTxAggregator {
                 return Ok(());
             }
             let is_gateway = self.settlement_mode.is_gateway();
-            let tx = self
-                .save_eth_tx(
-                    storage,
-                    &agg_op,
-                    contracts_are_pre_shared_bridge,
-                    is_gateway,
-                )
-                .await?;
+            let tx = self.save_eth_tx(storage, &agg_op, is_gateway).await?;
             Self::report_eth_tx_saving(storage, &agg_op, &tx).await;
+
+            self.health_updater.update(
+                EthTxAggregatorHealthDetails {
+                    last_saved_tx: EthTxDetails::new(&tx, None),
+                }
+                .into(),
+            );
         }
         Ok(())
     }
@@ -468,19 +474,9 @@ impl EthTxAggregator {
             .await;
     }
 
-    fn encode_aggregated_op(
-        &self,
-        op: &AggregatedOperation,
-        contracts_are_pre_shared_bridge: bool,
-    ) -> TxData {
-        let operation_is_pre_shared_bridge = op.protocol_version().is_pre_shared_bridge();
-
-        // The post shared bridge contracts support pre-shared bridge operations, but vice versa is not true.
-        if contracts_are_pre_shared_bridge {
-            assert!(operation_is_pre_shared_bridge);
-        }
-
+    fn encode_aggregated_op(&self, op: &AggregatedOperation) -> TxData {
         let mut args = vec![Token::Uint(self.rollup_chain_id.as_u64().into())];
+        let is_op_pre_gateway = op.protocol_version().is_pre_gateway();
 
         let (calldata, sidecar) = match op {
             AggregatedOperation::Commit(last_committed_l1_batch, l1_batches, pubdata_da) => {
@@ -492,17 +488,12 @@ impl EthTxAggregator {
                 };
                 let commit_data_base = commit_batches.into_tokens();
 
-                let (encoding_fn, commit_data) = if contracts_are_pre_shared_bridge {
-                    (&self.functions.pre_shared_bridge_commit, commit_data_base)
+                args.extend(commit_data_base);
+                let commit_data = args;
+                let encoding_fn = if is_op_pre_gateway {
+                    &self.functions.post_shared_bridge_commit
                 } else {
-                    args.extend(commit_data_base);
-                    (
-                        self.functions
-                            .post_shared_bridge_commit
-                            .as_ref()
-                            .expect("Missing ABI for commitBatchesSharedBridge"),
-                        args,
-                    )
+                    &self.functions.post_gateway_commit
                 };
 
                 let l1_batch_for_sidecar =
@@ -515,37 +506,27 @@ impl EthTxAggregator {
                 Self::encode_commit_data(encoding_fn, &commit_data, l1_batch_for_sidecar)
             }
             AggregatedOperation::PublishProofOnchain(op) => {
-                let calldata = if contracts_are_pre_shared_bridge {
-                    self.functions
-                        .pre_shared_bridge_prove
-                        .encode_input(&op.into_tokens())
-                        .expect("Failed to encode prove transaction data")
+                args.extend(op.into_tokens());
+                let encoding_fn = if is_op_pre_gateway {
+                    &self.functions.post_shared_bridge_prove
                 } else {
-                    args.extend(op.into_tokens());
-                    self.functions
-                        .post_shared_bridge_prove
-                        .as_ref()
-                        .expect("Missing ABI for proveBatchesSharedBridge")
-                        .encode_input(&args)
-                        .expect("Failed to encode prove transaction data")
+                    &self.functions.post_gateway_prove
                 };
+                let calldata = encoding_fn
+                    .encode_input(&args)
+                    .expect("Failed to encode prove transaction data");
                 (calldata, None)
             }
             AggregatedOperation::Execute(op) => {
-                let calldata = if contracts_are_pre_shared_bridge {
-                    self.functions
-                        .pre_shared_bridge_execute
-                        .encode_input(&op.into_tokens())
-                        .expect("Failed to encode execute transaction data")
+                args.extend(op.into_tokens());
+                let encoding_fn = if is_op_pre_gateway {
+                    &self.functions.post_shared_bridge_execute
                 } else {
-                    args.extend(op.into_tokens());
-                    self.functions
-                        .post_shared_bridge_execute
-                        .as_ref()
-                        .expect("Missing ABI for executeBatchesSharedBridge")
-                        .encode_input(&args)
-                        .expect("Failed to encode execute transaction data")
+                    &self.functions.post_gateway_execute
                 };
+                let calldata = encoding_fn
+                    .encode_input(&args)
+                    .expect("Failed to encode execute transaction data");
                 (calldata, None)
             }
         };
@@ -593,7 +574,6 @@ impl EthTxAggregator {
         &self,
         storage: &mut Connection<'_, Core>,
         aggregated_op: &AggregatedOperation,
-        contracts_are_pre_shared_bridge: bool,
         is_gateway: bool,
     ) -> Result<EthTx, EthSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
@@ -606,16 +586,22 @@ impl EthTxAggregator {
             (_, _) => None,
         };
         let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
-        let encoded_aggregated_op =
-            self.encode_aggregated_op(aggregated_op, contracts_are_pre_shared_bridge);
+        let encoded_aggregated_op = self.encode_aggregated_op(aggregated_op);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
 
-        let predicted_gas_for_batches = transaction
-            .blocks_dal()
-            .get_l1_batches_predicted_gas(l1_batch_number_range.clone(), op_type)
-            .await
-            .unwrap();
-        let eth_tx_predicted_gas = agg_l1_batch_base_cost(op_type) + predicted_gas_for_batches;
+        let eth_tx_predicted_gas = match (op_type, is_gateway, self.aggregator.mode()) {
+            (AggregatedActionType::Execute, false, _) => Some(
+                L1GasCriterion::total_execute_gas_amount(
+                    &mut transaction,
+                    l1_batch_number_range.clone(),
+                )
+                .await,
+            ),
+            (AggregatedActionType::Commit, false, L1BatchCommitmentMode::Validium) => Some(
+                L1GasCriterion::total_validium_commit_gas_amount(l1_batch_number_range.clone()),
+            ),
+            _ => None,
+        };
 
         let eth_tx = transaction
             .eth_sender_dal()
@@ -669,5 +655,10 @@ impl EthTxAggregator {
                     .expect("custom base nonce is expected to be initialized; qed"),
             )
         })
+    }
+
+    /// Returns the health check for eth tx aggregator.
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.health_updater.subscribe()
     }
 }

@@ -34,6 +34,7 @@ fn get_dummy_operation(number: u32) -> AggregatedOperation {
             metadata: default_l1_batch_metadata(),
             raw_published_factory_deps: Vec::new(),
         }],
+        priority_ops_proofs: Vec::new(),
     })
 }
 
@@ -207,7 +208,6 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
         .save_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
             &get_dummy_operation(0),
-            false,
             false,
         )
         .await?;

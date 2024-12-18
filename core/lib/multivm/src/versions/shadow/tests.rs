@@ -3,11 +3,11 @@
 use std::{collections::HashSet, rc::Rc};
 
 use zksync_types::{writes::StateDiffRecord, StorageKey, Transaction, H256, U256};
-use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use super::ShadowedFastVm;
 use crate::{
     interface::{
+        pubdata::{PubdataBuilder, PubdataInput},
         utils::{ShadowMut, ShadowRef},
         CurrentExecutionState, L2BlockEnv, VmExecutionResultAndLogs,
     },
@@ -125,6 +125,13 @@ impl TestedVm for ShadowedFastVm {
             ShadowMut::Main(vm) => vm.push_transaction_with_refund(tx.clone(), refund),
             ShadowMut::Shadow(vm) => vm.push_transaction_with_refund(tx.clone(), refund),
         });
+    }
+
+    fn pubdata_input(&self) -> PubdataInput {
+        self.get("pubdata_input", |r| match r {
+            ShadowRef::Main(vm) => vm.pubdata_input(),
+            ShadowRef::Shadow(vm) => vm.pubdata_input(),
+        })
     }
 }
 
@@ -294,6 +301,16 @@ mod is_write_initial {
     #[test]
     fn is_write_initial_behaviour() {
         test_is_write_initial_behaviour::<super::ShadowedFastVm>();
+    }
+}
+
+mod l1_messenger {
+    use crate::versions::testonly::l1_messenger::*;
+
+    #[test]
+    #[ignore] // Requires post-gateway system contracts
+    fn rollup_da_output_hash_match() {
+        test_rollup_da_output_hash_match::<super::ShadowedFastVm>();
     }
 }
 

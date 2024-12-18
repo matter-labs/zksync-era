@@ -21,6 +21,7 @@ use zksync_system_constants::{
 use crate::{
     blob::num_blobs_required,
     block::{L1BatchHeader, L1BatchTreeData},
+    ethabi,
     l2_to_l1_log::{
         l2_to_l1_logs_tree_size, parse_system_logs_for_blob_hashes_pre_gateway, L2ToL1Log,
         SystemL2ToL1Log, UserL2ToL1Log,
@@ -71,6 +72,31 @@ pub fn serialize_commitments<I: SerializeCommitment>(values: &[I]) -> Vec<u8> {
         value.serialize_commitment(chunk);
     }
     input
+}
+
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct PriorityOpsMerkleProof {
+    pub left_path: Vec<H256>,
+    pub right_path: Vec<H256>,
+    pub hashes: Vec<H256>,
+}
+
+impl PriorityOpsMerkleProof {
+    pub fn into_token(&self) -> ethabi::Token {
+        let array_into_token = |array: &[H256]| {
+            ethabi::Token::Array(
+                array
+                    .iter()
+                    .map(|hash| ethabi::Token::FixedBytes(hash.as_bytes().to_vec()))
+                    .collect(),
+            )
+        };
+        ethabi::Token::Tuple(vec![
+            array_into_token(&self.left_path),
+            array_into_token(&self.right_path),
+            array_into_token(&self.hashes),
+        ])
+    }
 }
 
 /// Precalculated data for the L1 batch that was used in commitment and L1 transaction.

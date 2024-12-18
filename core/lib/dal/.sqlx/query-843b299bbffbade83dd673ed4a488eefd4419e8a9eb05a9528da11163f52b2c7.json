@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+<<<<<<<< HEAD:core/lib/dal/.sqlx/query-52f1ab74661845b61a371d01c5d5f86051e80928c5530cacc02530a93812be8c.json
+  "query": "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, created_at, updated_at) VALUES ('\\x00', 0, $1, $2, 0, now(), now()) RETURNING id",
+========
+  "query": "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, chain_id, created_at, updated_at) VALUES ('\\x00', 0, $1, '', NULL, $2, now(), now()) RETURNING id",
+>>>>>>>> origin/main:core/lib/dal/.sqlx/query-843b299bbffbade83dd673ed4a488eefd4419e8a9eb05a9528da11163f52b2c7.json
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+<<<<<<<< HEAD:core/lib/dal/.sqlx/query-52f1ab74661845b61a371d01c5d5f86051e80928c5530cacc02530a93812be8c.json
+        "Text"
+========
+        "Int8"
+>>>>>>>> origin/main:core/lib/dal/.sqlx/query-843b299bbffbade83dd673ed4a488eefd4419e8a9eb05a9528da11163f52b2c7.json
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+<<<<<<<< HEAD:core/lib/dal/.sqlx/query-52f1ab74661845b61a371d01c5d5f86051e80928c5530cacc02530a93812be8c.json
+  "hash": "52f1ab74661845b61a371d01c5d5f86051e80928c5530cacc02530a93812be8c"
+========
+  "hash": "843b299bbffbade83dd673ed4a488eefd4419e8a9eb05a9528da11163f52b2c7"
+>>>>>>>> origin/main:core/lib/dal/.sqlx/query-843b299bbffbade83dd673ed4a488eefd4419e8a9eb05a9528da11163f52b2c7.json
+}

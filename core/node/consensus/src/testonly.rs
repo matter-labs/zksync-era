@@ -149,6 +149,7 @@ fn make_config(
         public_addr: config::Host(cfg.public_addr.0.clone()),
         max_payload_size: usize::MAX,
         max_batch_size: usize::MAX,
+        view_timeout: None,
         gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
         gossip_static_inbound: cfg
             .gossip
@@ -584,7 +585,6 @@ impl StateKeeperRunner {
                 let stop_recv = stop_recv.clone();
                 async {
                     ZkSyncStateKeeper::new(
-                        stop_recv,
                         Box::new(io),
                         Box::new(executor_factory),
                         OutputHandler::new(Box::new(persistence.with_tx_insertion()))
@@ -592,7 +592,7 @@ impl StateKeeperRunner {
                         Arc::new(NoopSealer),
                         Arc::new(async_cache),
                     )
-                    .run()
+                    .run(stop_recv)
                     .await
                     .context("ZkSyncStateKeeper::run()")?;
                     Ok(())
@@ -665,7 +665,6 @@ impl StateKeeperRunner {
                 let stop_recv = stop_recv.clone();
                 async {
                     ZkSyncStateKeeper::new(
-                        stop_recv,
                         Box::new(io),
                         Box::new(MockBatchExecutor),
                         OutputHandler::new(Box::new(persistence.with_tx_insertion()))
@@ -674,7 +673,7 @@ impl StateKeeperRunner {
                         Arc::new(NoopSealer),
                         Arc::new(MockReadStorageFactory),
                     )
-                    .run()
+                    .run(stop_recv)
                     .await
                     .context("ZkSyncStateKeeper::run()")?;
                     Ok(())
