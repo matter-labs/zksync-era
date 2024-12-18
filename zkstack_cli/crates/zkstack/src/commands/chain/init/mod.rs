@@ -7,6 +7,7 @@ use xshell::Shell;
 
 use crate::{
     accept_ownership::accept_admin,
+    enable_evm_emulator::enable_evm_emulator,
     commands::chain::{
         args::init::{
             configs::{InitConfigsArgs, InitConfigsArgsFinal},
@@ -21,7 +22,7 @@ use crate::{
         setup_legacy_bridge::setup_legacy_bridge,
     },
     messages::{
-        msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
+        msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED, MSG_ENABLING_EVM_EMULATOR,
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DEPLOYING_PAYMASTER, MSG_GENESIS_DATABASE_ERR,
         MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
@@ -134,6 +135,20 @@ pub async fn init(
         )
         .await?;
         spinner.finish();
+    }
+
+    // Enable EVM emulation if needed (run by L2 Governor)
+    if chain_config.evm_emulator {
+        enable_evm_emulator(
+            shell,
+            ecosystem_config,
+            contracts_config.l1.chain_admin_addr,
+            &chain_config.get_wallets_config()?.governor,
+            contracts_config.l1.diamond_proxy_addr,
+            &init_args.forge_args.clone(),
+            init_args.l1_rpc_url.clone(),
+        )
+        .await?;
     }
 
     // Deploy L2 contracts: L2SharedBridge, L2DefaultUpgrader, ... (run by L1 Governor)

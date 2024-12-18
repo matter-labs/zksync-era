@@ -20,6 +20,7 @@ use crate::commands::{
 };
 
 pub mod accept_ownership;
+pub mod enable_evm_emulator;
 mod commands;
 mod consts;
 mod defaults;

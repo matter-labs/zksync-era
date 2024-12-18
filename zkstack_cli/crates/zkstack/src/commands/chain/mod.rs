@@ -11,6 +11,7 @@ use crate::commands::chain::{
 };
 
 mod accept_chain_ownership;
+mod enable_evm_emulator;
 pub(crate) mod args;
 mod build_transactions;
 mod common;
