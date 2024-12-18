@@ -3,9 +3,7 @@ use std::{default::Default, fs, path::PathBuf, sync::Arc};
 use chrono::DateTime;
 use tempfile::TempDir;
 use tokio::sync::watch;
-use zksync_basic_types::{
-    protocol_version::ProtocolVersionId, Address, L1BatchNumber, L2BlockNumber, H256, U256,
-};
+use zksync_basic_types::{Address, L1BatchNumber, L2BlockNumber, H256, U256};
 use zksync_dal::{eth_watcher_dal::EventType, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
 use zksync_object_store::ObjectStore;
@@ -51,7 +49,7 @@ pub async fn recover_latest_l1_batch(
     {
         return;
     }
-    let mut latest_protocol_version = storage
+    let latest_protocol_version = storage
         .protocol_versions_dal()
         .latest_semantic_version()
         .await
@@ -285,7 +283,7 @@ pub async fn recover_latest_priority_tx(
     )
     .unwrap();
     let mut storage = connection_pool.connection().await.unwrap();
-    let mut latest_protocol_version = storage
+    let latest_protocol_version = storage
         .protocol_versions_dal()
         .latest_semantic_version()
         .await

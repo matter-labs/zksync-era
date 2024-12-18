@@ -5,9 +5,8 @@ use tokio::sync::watch;
 use zksync_basic_types::{
     h256_to_u256, u256_to_h256,
     web3::{keccak256, Bytes},
-    AccountTreeId, Address, L1BatchNumber, H256, U256,
+    AccountTreeId, L1BatchNumber, H256, U256,
 };
-use zksync_merkle_tree::TreeEntry;
 use zksync_object_store::ObjectStore;
 use zksync_types::{
     block::unpack_block_info,
@@ -23,10 +22,7 @@ use zksync_vm_interface::L2Block;
 
 use crate::{
     l1_fetcher::types::CommitBlock,
-    processor::{
-        genesis::{get_genesis_factory_deps, process_raw_entries},
-        tree::TreeProcessor,
-    },
+    processor::{genesis::get_genesis_factory_deps, tree::TreeProcessor},
     storage::{snapshot::SnapshotDatabase, snapshot_columns, INDEX_TO_KEY_MAP},
 };
 
