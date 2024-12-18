@@ -19,7 +19,6 @@ pub struct GenesisConfig {
     pub default_aa_hash: Option<H256>,
     pub evm_emulator_hash: Option<H256>,
     pub l1_chain_id: L1ChainId,
-    pub sl_chain_id: Option<SLChainId>,
     pub l2_chain_id: L2ChainId,
     // Note: `serde` isn't used with protobuf config. The same alias is implemented in
     // `zksync_protobuf_config` manually.
@@ -36,12 +35,6 @@ pub struct GenesisConfig {
 }
 
 impl GenesisConfig {
-    pub fn settlement_layer_id(&self) -> SLChainId {
-        self.sl_chain_id.unwrap_or(self.l1_chain_id.into())
-    }
-}
-
-impl GenesisConfig {
     pub fn for_tests() -> Self {
         GenesisConfig {
             genesis_root_hash: Some(H256::repeat_byte(0x01)),
@@ -53,7 +46,6 @@ impl GenesisConfig {
             default_aa_hash: Default::default(),
             evm_emulator_hash: Default::default(),
             l1_chain_id: L1ChainId(9),
-            sl_chain_id: None,
             protocol_version: Some(ProtocolSemanticVersion {
                 minor: ProtocolVersionId::latest(),
                 patch: 0.into(),

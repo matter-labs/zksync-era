@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
-use zksync_types::{L2ChainId, ProtocolVersionId, U256};
+use zksync_types::{vm::VmVersion, L2ChainId, ProtocolVersionId, U256};
 
 use super::{
     l2_block::BootloaderL2Block,
@@ -15,7 +15,10 @@ use crate::{
         BootloaderMemory, CompressedBytecodeInfo, L2BlockEnv, TxExecutionMode,
     },
     versions::vm_fast::transaction_data::TransactionData,
-    vm_latest::{constants::TX_DESCRIPTION_OFFSET, utils::l2_blocks::assert_next_block},
+    vm_latest::{
+        constants::get_tx_description_offset, utils::l2_blocks::assert_next_block,
+        MultiVmSubversion,
+    },
 };
 
 /// Intermediate bootloader-related VM state.
@@ -47,6 +50,8 @@ pub struct BootloaderState {
     pubdata_information: OnceCell<PubdataInput>,
     /// Protocol version.
     protocol_version: ProtocolVersionId,
+    /// Protocol subversion
+    subversion: MultiVmSubversion,
 }
 
 impl BootloaderState {
@@ -66,6 +71,7 @@ impl BootloaderState {
             free_tx_offset: 0,
             pubdata_information: Default::default(),
             protocol_version,
+            subversion: MultiVmSubversion::try_from(VmVersion::from(protocol_version)).unwrap(),
         }
     }
 
@@ -129,6 +135,7 @@ impl BootloaderState {
             self.compressed_bytecodes_encoding,
             self.execution_mode,
             self.last_l2_block().txs.is_empty(),
+            self.subversion,
         );
         self.compressed_bytecodes_encoding += compressed_bytecode_size;
         self.free_tx_offset = tx_offset + bootloader_tx.encoded_len();
@@ -178,13 +185,14 @@ impl BootloaderState {
                     compressed_bytecodes_offset,
                     self.execution_mode,
                     num == 0,
+                    self.subversion,
                 );
                 offset += tx.encoded_len();
                 compressed_bytecodes_offset += compressed_bytecodes_size;
                 tx_index += 1;
             }
             if l2_block.txs.is_empty() {
-                apply_l2_block(&mut initial_memory, l2_block, tx_index)
+                apply_l2_block(&mut initial_memory, l2_block, tx_index, self.subversion)
             }
         }
 
@@ -242,7 +250,7 @@ impl BootloaderState {
 
     /// Get offset of tx description
     pub(crate) fn get_tx_description_offset(&self, tx_index: usize) -> usize {
-        TX_DESCRIPTION_OFFSET + self.find_tx(tx_index).offset
+        get_tx_description_offset(self.subversion) + self.find_tx(tx_index).offset
     }
 
     pub(crate) fn insert_fictive_l2_block(&mut self) -> &BootloaderL2Block {

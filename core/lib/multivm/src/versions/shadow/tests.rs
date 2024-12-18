@@ -121,10 +121,13 @@ impl TestedVm for ShadowedFastVm {
     }
 
     fn push_transaction_with_refund(&mut self, tx: Transaction, refund: u64) {
-        self.get_mut("push_transaction_with_refund", |r| match r {
-            ShadowMut::Main(vm) => vm.push_transaction_with_refund(tx.clone(), refund),
-            ShadowMut::Shadow(vm) => vm.push_transaction_with_refund(tx.clone(), refund),
-        });
+        self.get_mut(
+            "push_transaction_with_refund_and_compression",
+            |r| match r {
+                ShadowMut::Main(vm) => vm.push_transaction_with_refund(tx.clone(), refund),
+                ShadowMut::Shadow(vm) => vm.push_transaction_with_refund(tx.clone(), refund),
+            },
+        );
     }
 
     fn pubdata_input(&self) -> PubdataInput {
@@ -308,7 +311,6 @@ mod l1_messenger {
     use crate::versions::testonly::l1_messenger::*;
 
     #[test]
-    #[ignore] // Requires post-gateway system contracts
     fn rollup_da_output_hash_match() {
         test_rollup_da_output_hash_match::<super::ShadowedFastVm>();
     }

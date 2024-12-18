@@ -6965,10 +6965,12 @@ name = "zksync_types"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "bigdecimal",
  "blake2",
  "chrono",
  "derive_more",
+ "ethabi",
  "hex",
  "itertools 0.10.5",
  "num",

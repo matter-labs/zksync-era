@@ -517,6 +517,32 @@ pub fn get_max_batch_base_layer_circuits(version: VmVersion) -> usize {
     }
 }
 
+pub fn get_max_new_factory_deps(version: VmVersion) -> usize {
+    match version {
+        VmVersion::M5WithRefunds | VmVersion::M5WithoutRefunds => {
+            crate::vm_m5::vm_with_bootloader::MAX_NEW_FACTORY_DEPS
+        }
+        VmVersion::M6Initial | VmVersion::M6BugWithCompressionFixed => {
+            crate::vm_m6::vm_with_bootloader::MAX_NEW_FACTORY_DEPS
+        }
+        VmVersion::Vm1_3_2 => crate::vm_1_3_2::vm_with_bootloader::MAX_NEW_FACTORY_DEPS,
+        VmVersion::VmVirtualBlocks => crate::vm_virtual_blocks::constants::MAX_NEW_FACTORY_DEPS,
+        VmVersion::VmVirtualBlocksRefundsEnhancement => {
+            crate::vm_refunds_enhancement::constants::MAX_NEW_FACTORY_DEPS
+        }
+        VmVersion::VmBoojumIntegration => {
+            crate::vm_boojum_integration::constants::MAX_NEW_FACTORY_DEPS
+        }
+        VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::MAX_NEW_FACTORY_DEPS,
+        VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::MAX_NEW_FACTORY_DEPS,
+        version @ VmVersion::Vm1_5_0SmallBootloaderMemory
+        | version @ VmVersion::Vm1_5_0IncreasedBootloaderMemory
+        | version @ VmVersion::VmGateway => {
+            crate::vm_latest::constants::get_max_new_factory_deps(version.try_into().unwrap())
+        }
+    }
+}
+
 /// Holds information about number of cycles used per circuit type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) struct CircuitCycleStatistic {

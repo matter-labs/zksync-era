@@ -140,7 +140,7 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
         current_state_without_predefined_refunds.user_l2_to_l1_logs
     );
 
-    assert_ne!(
+    assert_eq!(
         current_state_with_changed_predefined_refunds.system_logs,
         current_state_without_predefined_refunds.system_logs
     );

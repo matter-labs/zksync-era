@@ -37,6 +37,7 @@ impl ProtoRepr for proto::Wallets {
             Some(EthSender {
                 operator,
                 blob_operator,
+                gateway: None,
             })
         } else {
             None
