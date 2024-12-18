@@ -2309,6 +2309,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "custom_genesis_export"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "clap 4.5.23",
+ "futures 0.3.31",
+ "sqlx",
+ "tokio",
+ "zksync_contracts",
+ "zksync_core_leftovers",
+ "zksync_dal",
+ "zksync_node_genesis",
+ "zksync_protobuf_config",
+ "zksync_types",
+]
+
+[[package]]
 name = "darling"
 version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12597,6 +12615,7 @@ name = "zksync_node_genesis"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bincode",
  "itertools 0.10.5",
  "thiserror 1.0.69",
  "tokio",
