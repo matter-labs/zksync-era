@@ -72,8 +72,7 @@ use zksync_node_framework::{
     service::{ZkStackService, ZkStackServiceBuilder},
 };
 use zksync_types::{
-    commitment::L1BatchCommitmentMode, pubdata_da::PubdataSendingMode, settlement::SettlementMode,
-    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+    pubdata_da::PubdataSendingMode, settlement::SettlementMode, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
 };
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 

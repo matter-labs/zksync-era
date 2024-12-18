@@ -21,7 +21,7 @@ use crate::{
         TxExecutionMode, VmInterfaceExt,
     },
     vm_latest::{
-        constants::{TX_OPERATOR_L2_BLOCK_INFO_OFFSET, TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO},
+        constants::{get_tx_operator_l2_block_info_offset, TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO},
         utils::l2_blocks::get_l2_block_hash_key,
         MultiVmSubversion,
     },

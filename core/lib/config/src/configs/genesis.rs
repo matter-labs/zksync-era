@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use zksync_basic_types::{
     commitment::L1BatchCommitmentMode,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
-    Address, L1ChainId, L2ChainId, SLChainId, H256,
+    Address, L1ChainId, L2ChainId, H256,
 };
 
 /// This config represents the genesis state of the chain.
