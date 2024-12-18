@@ -93,7 +93,7 @@ pub struct SenderConfig {
     pub max_txs_in_flight: u64,
     /// The mode in which proofs are sent.
     pub proof_sending_mode: ProofSendingMode,
-
+    /// Note, that it is used only for L1 transactions
     pub max_aggregated_tx_gas: u32,
     pub max_eth_tx_data_size: usize,
     pub max_aggregated_blocks_to_commit: u32,
