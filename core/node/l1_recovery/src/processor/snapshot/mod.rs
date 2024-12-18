@@ -1,11 +1,13 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{fs, path::PathBuf, sync::Arc};
 
+use serde_json::Value;
 use tokio::sync::watch;
 use zksync_basic_types::{
     h256_to_u256, u256_to_h256,
     web3::{keccak256, Bytes},
-    AccountTreeId, L1BatchNumber, H256, U256,
+    AccountTreeId, Address, L1BatchNumber, H256, U256,
 };
+use zksync_merkle_tree::TreeEntry;
 use zksync_object_store::ObjectStore;
 use zksync_types::{
     block::unpack_block_info,
@@ -21,7 +23,10 @@ use zksync_vm_interface::L2Block;
 
 use crate::{
     l1_fetcher::types::CommitBlock,
-    processor::{genesis::get_genesis_factory_deps, tree::TreeProcessor},
+    processor::{
+        genesis::{get_genesis_factory_deps, process_raw_entries},
+        tree::TreeProcessor,
+    },
     storage::{snapshot::SnapshotDatabase, snapshot_columns, INDEX_TO_KEY_MAP},
 };
 
@@ -180,10 +185,38 @@ impl StateCompressor {
         }
     }
 
-    pub async fn process_genesis_state(&mut self, path_buf: Option<PathBuf>) {
+    fn insert_genesis_factory_deps(&mut self, path_buf: PathBuf) {
+        let input = fs::read_to_string(path_buf.clone())
+            .expect(&format!("Unable to read initial state from {path_buf:?}"));
+        let data: Value = serde_json::from_str(&input).unwrap();
+        let factory_deps = data.get("factory_deps").unwrap();
+
+        let mut processed_deps = vec![];
+        for factory_dep in factory_deps.as_array().unwrap() {
+            let bytecode_str: &str = factory_dep
+                .get("bytecode")
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .strip_prefix("0x")
+                .unwrap();
+            let bytecode = hex::decode(bytecode_str).unwrap();
+
+            processed_deps.push(bytecode)
+        }
+
+        for factory_dep in processed_deps {
+            self.database
+                .insert_factory_dep(&SnapshotFactoryDependency {
+                    bytecode: Bytes(factory_dep),
+                })
+                .expect("failed to save factory dep");
+        }
+    }
+    pub async fn process_genesis_state(&mut self, path_buf: PathBuf) {
         let initial_entries = self
             .tree_processor
-            .process_genesis_state(path_buf)
+            .process_genesis_state(path_buf.clone())
             .await
             .unwrap();
 
@@ -199,6 +232,7 @@ impl StateCompressor {
                 })
                 .unwrap();
         }
+        self.insert_genesis_factory_deps(path_buf);
     }
 
     pub async fn process_blocks(

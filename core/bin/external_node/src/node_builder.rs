@@ -58,7 +58,7 @@ use zksync_node_framework::{
     service::{ZkStackService, ZkStackServiceBuilder},
 };
 use zksync_state::RocksdbStorageOptions;
-use zksync_types::L2_NATIVE_TOKEN_VAULT_ADDRESS;
+use zksync_types::{L1ChainId, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 
 use crate::{config::ExternalNodeConfig, metrics::framework::ExternalNodeMetricsLayer, Component};
 
@@ -524,10 +524,15 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
-    fn add_blob_client_layer(mut self) -> anyhow::Result<Self> {
+    fn add_blob_client_layer(mut self, l1_chain_id: L1ChainId) -> anyhow::Result<Self> {
+        let url = if l1_chain_id.0 == 1 {
+            "https://api.blobscan.com/blobs/"
+        } else {
+            "https://api.sepolia.blobscan.com/blobs/"
+        };
         let layer = BlobClientLayer {
             mode: BlobClientMode::Blobscan,
-            blobscan_url: Some("https://api.sepolia.blobscan.com/blobs/".to_string()),
+            blobscan_url: Some(url.to_string()),
         };
         self.node.add_layer(layer);
         Ok(self)
@@ -580,12 +585,13 @@ impl ExternalNodeBuilder {
 
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers
+        let l1_chain_id = self.config.required.l1_chain_id.clone();
         self = self
             .add_sigint_handler_layer()?
             .add_healthcheck_layer()?
             .add_prometheus_exporter_layer()?
             .add_pools_layer()?
-            .add_blob_client_layer()?
+            .add_blob_client_layer(l1_chain_id)?
             .add_main_node_client_layer()?
             .add_query_eth_client_layer()?
             .add_reorg_detector_layer()?;

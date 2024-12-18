@@ -17,7 +17,7 @@ pub use crate::{
         types::CommitBlock,
     },
     processor::db_recovery::{
-        create_l1_snapshot, insert_recovered_l1_batch, recover_eth_sender, recover_eth_watch,
-        recover_latest_protocol_version,
+        create_l1_snapshot, recover_eth_sender, recover_eth_watch, recover_latest_l1_batch,
+        recover_latest_priority_tx, recover_latest_protocol_version,
     },
 };

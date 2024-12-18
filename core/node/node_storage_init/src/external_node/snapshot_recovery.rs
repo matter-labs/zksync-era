@@ -5,9 +5,9 @@ use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::AppHealthCheck;
 use zksync_l1_recovery::{
-    create_l1_snapshot, insert_recovered_l1_batch, recover_eth_sender, recover_eth_watch,
-    recover_latest_protocol_version, BlobClient, CommitBlock, L1RecoveryDetachedMainNodeClient,
-    L1RecoveryOnlineMainNodeClient,
+    create_l1_snapshot, recover_eth_sender, recover_eth_watch, recover_latest_l1_batch,
+    recover_latest_priority_tx, recover_latest_protocol_version, BlobClient, CommitBlock,
+    L1RecoveryDetachedMainNodeClient, L1RecoveryOnlineMainNodeClient,
 };
 use zksync_object_store::ObjectStoreFactory;
 use zksync_shared_metrics::{SnapshotRecoveryStage, APP_METRICS};
@@ -21,7 +21,7 @@ use zksync_web3_decl::client::{DynClient, L1, L2};
 use crate::{InitializeStorage, SnapshotRecoveryConfig};
 
 #[derive(Debug)]
-pub struct ExternalNodeSnapshotRecovery {
+pub struct NodeRecovery {
     pub main_node_client: Option<Box<DynClient<L2>>>,
     pub l1_client: Box<DynClient<L1>>,
     pub pool: ConnectionPool<Core>,
@@ -32,12 +32,16 @@ pub struct ExternalNodeSnapshotRecovery {
     pub blob_client: Option<Arc<dyn BlobClient>>,
 }
 
-#[async_trait::async_trait]
-impl InitializeStorage for ExternalNodeSnapshotRecovery {
-    async fn initialize_storage(&self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        tracing::info!("Initializing external node storage");
-        if self.is_initialized().await? {
-            return Ok(());
+impl NodeRecovery {
+    async fn recover_data_from_snapshot(
+        &self,
+        stop_receiver: &watch::Receiver<bool>,
+    ) -> anyhow::Result<Option<CommitBlock>> {
+        tracing::info!("Initializing Node storage");
+        if self.recovery_config.recover_from_l1 {
+            tracing::info!("Recovering from L1");
+        } else {
+            tracing::info!("Recovering from snapshot");
         }
         let object_store_config =
             self.recovery_config.object_store_config.clone().context(
@@ -130,38 +134,9 @@ impl InitializeStorage for ExternalNodeSnapshotRecovery {
 
         let recovery_started_at = Instant::now();
         let stats = snapshots_applier_task
-            .run(stop_receiver)
+            .run(stop_receiver.clone())
             .await
             .context("snapshot recovery failed")?;
-
-        if self.recovery_config.recover_main_node_components {
-            let mut storage = self.pool.connection().await.unwrap();
-            let snapshot_recovery = storage
-                .snapshot_recovery_dal()
-                .get_applied_snapshot_status()
-                .await?
-                .unwrap();
-            recover_latest_protocol_version(
-                self.pool.clone(),
-                self.l1_client.clone(),
-                self.diamond_proxy_addr,
-                snapshot_recovery.l1_batch_number,
-            )
-            .await;
-            insert_recovered_l1_batch(last_l1_block.unwrap(), self.pool.clone()).await;
-            recover_eth_watch(
-                self.pool.clone(),
-                self.l1_client.clone(),
-                self.diamond_proxy_addr,
-            )
-            .await;
-            recover_eth_sender(
-                self.pool.clone(),
-                self.l1_client.clone(),
-                self.diamond_proxy_addr,
-            )
-            .await;
-        }
 
         if stats.done_work {
             let latency = recovery_started_at.elapsed();
@@ -170,6 +145,57 @@ impl InitializeStorage for ExternalNodeSnapshotRecovery {
         }
         // We don't really care if the task was canceled.
         // If it was, all the other tasks are canceled as well.
+        Ok(last_l1_block)
+    }
+}
+
+#[async_trait::async_trait]
+impl InitializeStorage for NodeRecovery {
+    async fn initialize_storage(&self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let mut storage = self.pool.connection().await.unwrap();
+        if self.is_initialized().await? {
+            return Ok(());
+        }
+        let recovering_from_empty_db = storage
+            .blocks_dal()
+            .get_sealed_l1_batch_number()
+            .await
+            .unwrap()
+            .is_none();
+        if recovering_from_empty_db {
+            let last_block = self.recover_data_from_snapshot(&stop_receiver).await?;
+            if self.recovery_config.recover_main_node_components {
+                let last_block = last_block.unwrap();
+                let snapshot_recovery = storage
+                    .snapshot_recovery_dal()
+                    .get_applied_snapshot_status()
+                    .await?
+                    .unwrap();
+                recover_latest_protocol_version(
+                    self.pool.clone(),
+                    self.l1_client.clone(),
+                    self.diamond_proxy_addr,
+                    snapshot_recovery.l1_batch_number,
+                )
+                .await;
+                recover_latest_l1_batch(last_block, self.pool.clone()).await;
+                recover_latest_priority_tx(
+                    self.pool.clone(),
+                    self.l1_client.clone(),
+                    self.diamond_proxy_addr,
+                )
+                .await;
+            }
+        }
+        if self.recovery_config.recover_main_node_components {
+            recover_eth_watch(self.pool.clone(), self.l1_client.clone()).await;
+            recover_eth_sender(
+                self.pool.clone(),
+                self.l1_client.clone(),
+                self.diamond_proxy_addr,
+            )
+            .await;
+        }
 
         Ok(())
     }
@@ -233,7 +259,7 @@ mod tests {
                 }])
             })
             .build();
-        let recovery = ExternalNodeSnapshotRecovery {
+        let recovery = NodeRecovery {
             main_node_client: Some(Box::new(client)),
             l1_client: Box::new(l1_client),
             pool,

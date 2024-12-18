@@ -36,11 +36,28 @@ use crate::{
     processor::snapshot::StateCompressor,
 };
 
-pub async fn insert_recovered_l1_batch(
+pub async fn recover_latest_l1_batch(
     last_block: CommitBlock,
     connection_pool: ConnectionPool<Core>,
 ) {
     let mut storage = connection_pool.connection().await.unwrap();
+    // This node already has at least one L1 batch in DB, nothing to do here!
+    if storage
+        .blocks_dal()
+        .get_sealed_l1_batch_number()
+        .await
+        .unwrap()
+        .is_some()
+    {
+        return;
+    }
+    let mut latest_protocol_version = storage
+        .protocol_versions_dal()
+        .latest_semantic_version()
+        .await
+        .unwrap()
+        .unwrap();
+
     let snapshot_recovery = storage
         .snapshot_recovery_dal()
         .get_applied_snapshot_status()
@@ -62,7 +79,7 @@ pub async fn insert_recovered_l1_batch(
         }),
         gas_per_pubdata_limit: 0,
         base_system_contracts_hashes: Default::default(),
-        protocol_version: Some(ProtocolVersionId::latest()),
+        protocol_version: Some(latest_protocol_version.minor),
         virtual_blocks: 0,
         gas_limit: 0,
         logs_bloom: Default::default(),
@@ -96,7 +113,7 @@ pub async fn insert_recovered_l1_batch(
         .insert_l1_batch(UnsealedL1BatchHeader {
             number: snapshot_recovery.l1_batch_number,
             timestamp: snapshot_recovery.l1_batch_timestamp,
-            protocol_version: Some(ProtocolVersionId::latest()),
+            protocol_version: Some(latest_protocol_version.minor),
             fee_address: Default::default(),
             fee_input: BatchFeeInput::L1Pegged(L1PeggedBatchFeeModelInput {
                 fair_l2_gas_price: 0,
@@ -120,7 +137,7 @@ pub async fn insert_recovered_l1_batch(
                 used_contract_hashes: vec![],
                 base_system_contracts_hashes: Default::default(),
                 system_logs: vec![],
-                protocol_version: Some(ProtocolVersionId::latest()),
+                protocol_version: Some(latest_protocol_version.minor),
                 pubdata_input: None,
                 fee_address: Default::default(),
             },
@@ -253,7 +270,7 @@ pub async fn recover_eth_sender(
         .unwrap();
 }
 
-pub async fn recover_eth_watch(
+pub async fn recover_latest_priority_tx(
     connection_pool: ConnectionPool<Core>,
     l1_client: Box<DynClient<L1>>,
     diamond_proxy_addr: Address,
@@ -267,17 +284,100 @@ pub async fn recover_eth_watch(
         l1_client.clone(),
     )
     .unwrap();
-    let last_l1_batch_number = l1_fetcher
-        .get_last_executed_l1_batch_number()
-        .await
-        .unwrap();
-    let last_processed_priority_tx = l1_fetcher
-        .get_last_processed_priority_transaction(last_l1_batch_number)
-        .await;
-    let block = last_processed_priority_tx.eth_block() + 1;
-    //panic!("{:?}", block)
-    let chain_id = l1_client.fetch_chain_id().await.unwrap();
     let mut storage = connection_pool.connection().await.unwrap();
+    let mut latest_protocol_version = storage
+        .protocol_versions_dal()
+        .latest_semantic_version()
+        .await
+        .unwrap()
+        .unwrap();
+
+    if storage
+        .transactions_dal()
+        .last_priority_id()
+        .await
+        .unwrap()
+        .is_none()
+    {
+        let last_l1_batch_number = storage
+            .blocks_dal()
+            .get_sealed_l1_batch_number()
+            .await
+            .unwrap()
+            .unwrap();
+        let last_processed_priority_tx = l1_fetcher
+            .get_last_processed_priority_transaction(last_l1_batch_number)
+            .await;
+        let block = last_processed_priority_tx.eth_block() + 1;
+        storage
+            .transactions_dal()
+            .insert_transaction_l1(&last_processed_priority_tx, block)
+            .await
+            .unwrap();
+        let tx_result = TransactionExecutionResult {
+            transaction: Transaction {
+                common_data: ExecuteTransactionCommon::L1(
+                    last_processed_priority_tx.common_data.clone(),
+                ),
+                execute: Execute::default(),
+                received_timestamp_ms: 0,
+                raw_bytes: None,
+            },
+            hash: last_processed_priority_tx.hash(),
+            execution_info: VmExecutionMetrics::default(),
+            execution_status: TxExecutionStatus::Success,
+            refunded_gas: 0,
+            operator_suggested_refund: 0,
+            compressed_bytecodes: vec![],
+            call_traces: vec![],
+            revert_reason: None,
+        };
+        let last_miniblock = storage
+            .blocks_dal()
+            .get_last_sealed_l2_block_header()
+            .await
+            .unwrap()
+            .unwrap()
+            .number;
+        storage
+            .transactions_dal()
+            .mark_txs_as_executed_in_l2_block(
+                last_miniblock,
+                &[tx_result.clone()],
+                U256::zero(),
+                latest_protocol_version.minor,
+                false,
+            )
+            .await
+            .unwrap();
+        storage
+            .transactions_dal()
+            .mark_txs_as_executed_in_l1_batch(last_l1_batch_number, &[tx_result])
+            .await
+            .unwrap();
+        tracing::info!(
+            "Inserted bogus priority transaction with id {:?}",
+            last_processed_priority_tx.common_data.serial_id
+        );
+    }
+}
+
+pub async fn recover_eth_watch(
+    connection_pool: ConnectionPool<Core>,
+    l1_client: Box<DynClient<L1>>,
+) {
+    let mut storage = connection_pool.connection().await.unwrap();
+
+    // If there are no priority transactions in the database, we need to find last priority transaction number on L1 and insert it
+
+    let chain_id = l1_client.fetch_chain_id().await.unwrap();
+    let block = storage
+        .transactions_dal()
+        .get_last_processed_l1_block()
+        .await
+        .unwrap()
+        .unwrap();
+
     storage
         .eth_watcher_dal()
         .get_or_set_next_block_to_process(EventType::PriorityTransactions, chain_id, block.0 as u64)
@@ -288,56 +388,6 @@ pub async fn recover_eth_watch(
         .get_or_set_next_block_to_process(EventType::ProtocolUpgrades, chain_id, block.0 as u64)
         .await
         .unwrap();
-    storage
-        .transactions_dal()
-        .insert_transaction_l1(&last_processed_priority_tx, block)
-        .await
-        .unwrap();
-    let tx_result = TransactionExecutionResult {
-        transaction: Transaction {
-            common_data: ExecuteTransactionCommon::L1(
-                last_processed_priority_tx.common_data.clone(),
-            ),
-            execute: Execute::default(),
-            received_timestamp_ms: 0,
-            raw_bytes: None,
-        },
-        hash: last_processed_priority_tx.hash(),
-        execution_info: VmExecutionMetrics::default(),
-        execution_status: TxExecutionStatus::Success,
-        refunded_gas: 0,
-        operator_suggested_refund: 0,
-        compressed_bytecodes: vec![],
-        call_traces: vec![],
-        revert_reason: None,
-    };
-    let last_miniblock = storage
-        .blocks_dal()
-        .get_last_sealed_l2_block_header()
-        .await
-        .unwrap()
-        .unwrap()
-        .number;
-    storage
-        .transactions_dal()
-        .mark_txs_as_executed_in_l2_block(
-            last_miniblock,
-            &[tx_result.clone()],
-            U256::zero(),
-            ProtocolVersionId::latest(),
-            false,
-        )
-        .await
-        .unwrap();
-    storage
-        .transactions_dal()
-        .mark_txs_as_executed_in_l1_batch(last_l1_batch_number, &[tx_result])
-        .await
-        .unwrap();
-    tracing::info!(
-        "Inserted bogus priority transaction with id {:?}",
-        last_processed_priority_tx.common_data.serial_id
-    );
     tracing::info!("Recovered eth_watch state, last processed block is {block}")
 }
 
@@ -380,12 +430,12 @@ pub async fn find_matching_genesis_state_file(l1_fetcher: &L1Fetcher) -> PathBuf
         let entry = entry.unwrap();
         let temp_dir = TempDir::new().unwrap().into_path().join("db");
         let mut processor = StateCompressor::new(temp_dir).await;
-        processor.process_genesis_state(Some(entry.path())).await;
+        processor.process_genesis_state(entry.path()).await;
         if processor.get_root_hash() == genesis_hash {
             return entry.path();
         }
     }
-    panic!("No matching genesis state file found!")
+    panic!("No matching genesis state file found for hash {genesis_hash:?}!")
 }
 pub async fn create_l1_snapshot(
     l1_client: Box<DynClient<L1>>,
@@ -414,9 +464,7 @@ pub async fn create_l1_snapshot(
     let last_l1_batch_number = L1BatchNumber(last_block.l1_batch_number as u32);
     let mut processor = StateCompressor::new(temp_dir).await;
     processor.disabled_tree();
-    processor
-        .process_genesis_state(Some(initial_state_path))
-        .await;
+    processor.process_genesis_state(initial_state_path).await;
     processor.process_blocks(blocks, &stop_receiver).await;
 
     tracing::info!("Processing L1 data finished");

@@ -5,7 +5,7 @@ use zksync_config::{
 };
 use zksync_dal::CoreDal;
 use zksync_node_storage_init::{
-    external_node::ExternalNodeSnapshotRecovery, main_node::MainNodeGenesis, InitializeStorage,
+    external_node::NodeRecovery, main_node::MainNodeGenesis, InitializeStorage,
     NodeInitializationStrategy, SnapshotRecoveryConfig,
 };
 
@@ -63,20 +63,10 @@ impl WiringLayer for MainNodeInitStrategyLayer {
             pool: pool.clone(),
         });
 
-        let recovered_from_l1 = pool
-            .clone()
-            .connection()
-            .await
-            .unwrap()
-            .snapshot_recovery_dal()
-            .get_applied_snapshot_status()
-            .await
-            .unwrap()
-            .is_some();
-        let snapshot_recovery = if self.l1_recovery_enabled || recovered_from_l1 {
+        let snapshot_recovery = if self.l1_recovery_enabled {
             // Add a connection for checking whether the storage is initialized.
             let recovery_pool = input.master_pool.get_custom(10).await?;
-            let recovery: Arc<dyn InitializeStorage> = Arc::new(ExternalNodeSnapshotRecovery {
+            let recovery: Arc<dyn InitializeStorage> = Arc::new(NodeRecovery {
                 main_node_client: None,
                 l1_client: l1_client.clone(),
                 pool: recovery_pool,

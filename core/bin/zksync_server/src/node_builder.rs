@@ -73,7 +73,8 @@ use zksync_node_framework::{
     service::{ZkStackService, ZkStackServiceBuilder},
 };
 use zksync_types::{
-    pubdata_da::PubdataSendingMode, settlement::SettlementMode, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+    pubdata_da::PubdataSendingMode, settlement::SettlementMode, L1ChainId,
+    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
 };
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
@@ -206,11 +207,17 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_blob_client_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(BlobClientLayer {
-            mode: BlobClientMode::Local,
-            blobscan_url: None,
-        });
+    fn add_blob_client_layer(mut self, l1_chain_id: L1ChainId) -> anyhow::Result<Self> {
+        let url = if l1_chain_id.0 == 1 {
+            "https://api.blobscan.com/blobs/"
+        } else {
+            "https://api.sepolia.blobscan.com/blobs/"
+        };
+        let layer = BlobClientLayer {
+            mode: BlobClientMode::Blobscan,
+            blobscan_url: Some(url.to_string()),
+        };
+        self.node.add_layer(layer);
         Ok(self)
     }
 
@@ -685,10 +692,11 @@ impl MainNodeBuilder {
 
     /// Builds the node with the genesis initialization task only.
     pub fn only_genesis(mut self) -> anyhow::Result<ZkStackService> {
+        let l1_chain_id = self.genesis_config.l1_chain_id.clone();
         self = self
             .add_pools_layer()?
             .add_object_store_layer()?
-            .add_blob_client_layer()?
+            .add_blob_client_layer(l1_chain_id)?
             .add_query_eth_client_layer()?
             .add_healthcheck_layer()?
             .add_storage_initialization_layer(LayerKind::Task, false)?;
@@ -697,10 +705,11 @@ impl MainNodeBuilder {
     }
 
     pub fn only_l1_recovery(mut self) -> anyhow::Result<ZkStackService> {
+        let l1_chain_id = self.genesis_config.l1_chain_id.clone();
         self = self
             .add_pools_layer()?
             .add_object_store_layer()?
-            .add_blob_client_layer()?
+            .add_blob_client_layer(l1_chain_id)?
             .add_query_eth_client_layer()?
             .add_healthcheck_layer()?
             .add_storage_initialization_layer(LayerKind::Task, true)?;
@@ -711,11 +720,12 @@ impl MainNodeBuilder {
     /// Builds the node with the specified components.
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers (resources and helper tasks).
+        let l1_chain_id = self.genesis_config.l1_chain_id.clone();
         self = self
             .add_sigint_handler_layer()?
             .add_pools_layer()?
             .add_object_store_layer()?
-            .add_blob_client_layer()?
+            .add_blob_client_layer(l1_chain_id)?
             .add_circuit_breaker_checker_layer()?
             .add_healthcheck_layer()?
             .add_prometheus_exporter_layer()?

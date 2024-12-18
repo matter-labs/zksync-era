@@ -3,7 +3,7 @@ use std::{num::NonZeroUsize, sync::Arc};
 // Re-export to initialize the layer without having to depend on the crate directly.
 pub use zksync_node_storage_init::SnapshotRecoveryConfig;
 use zksync_node_storage_init::{
-    external_node::{ExternalNodeGenesis, ExternalNodeReverter, ExternalNodeSnapshotRecovery},
+    external_node::{ExternalNodeGenesis, ExternalNodeReverter, NodeRecovery},
     InitializeStorage, NodeInitializationStrategy, RevertStorage,
 };
 use zksync_types::{Address, L2ChainId};
@@ -86,7 +86,7 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
                     .master_pool
                     .get_custom(self.max_postgres_concurrency.get() as u32 + 1)
                     .await?;
-                let recovery: Arc<dyn InitializeStorage> = Arc::new(ExternalNodeSnapshotRecovery {
+                let recovery: Arc<dyn InitializeStorage> = Arc::new(NodeRecovery {
                     main_node_client: Some(client.clone()),
                     l1_client: input.l1_client.0.clone(),
                     pool: recovery_pool,

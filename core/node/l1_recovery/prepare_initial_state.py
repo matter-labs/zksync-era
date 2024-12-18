@@ -38,7 +38,7 @@ ORDER BY bytecode_hash;
 
 
 # Write results to JSON file
-with open(f'InitialState{chain_name}.json', 'w') as output_file:
+with open(f'initial_states/InitialState{chain_name}.json', 'w') as output_file:
     cur.execute(storage_logs_query)
     storage_logs_rows = cur.fetchall()
 

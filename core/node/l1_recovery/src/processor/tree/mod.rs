@@ -43,9 +43,11 @@ impl TreeProcessor {
     }
     pub async fn process_genesis_state(
         &mut self,
-        initial_state_path: Option<PathBuf>,
+        initial_state_path: PathBuf,
     ) -> Result<Vec<TreeEntry>> {
-        self.tree.insert_genesis_state(initial_state_path).await
+        self.tree
+            .insert_genesis_state(Some(initial_state_path))
+            .await
     }
 
     pub fn get_inner_db(&self) -> Arc<Mutex<ReconstructionDatabase>> {
