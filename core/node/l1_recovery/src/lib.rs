@@ -1,5 +1,3 @@
-#![feature(array_chunks)]
-#![feature(iter_next_chunk)]
 mod processor;
 
 mod storage;

@@ -94,20 +94,8 @@ impl TryFrom<&ethabi::Token> for V1 {
         };
 
         for initial_calldata in initial_changes_calldata[4..].chunks(64) {
-            let mut t = initial_calldata.array_chunks::<32>();
-            let key = *t.next().ok_or_else(|| {
-                ParseError::InvalidCommitBlockInfo("initialStorageChangesKey".to_string())
-            })?;
-            let value = *t.next().ok_or_else(|| {
-                ParseError::InvalidCommitBlockInfo("initialStorageChangesValue".to_string())
-            })?;
-
-            if t.next().is_some() {
-                return Err(ParseError::InvalidCommitBlockInfo(
-                    "initialStorageChangesMulti".to_string(),
-                ));
-            }
-
+            let key: [u8; 32] = initial_calldata[..32].try_into().unwrap();
+            let value: [u8; 32] = initial_calldata[32..].try_into().unwrap();
             let key = U256::from_little_endian(&key);
             let _ = blk.initial_storage_changes.insert(key, value);
         }
@@ -123,17 +111,7 @@ impl TryFrom<&ethabi::Token> for V1 {
                 repeated_calldata[6],
                 repeated_calldata[7],
             ]);
-            let mut t = repeated_calldata[8..].array_chunks::<32>();
-            let value = *t.next().ok_or_else(|| {
-                ParseError::InvalidCommitBlockInfo("repeatedStorageChanges".to_string())
-            })?;
-
-            if t.next().is_some() {
-                return Err(ParseError::InvalidCommitBlockInfo(
-                    "repeatedStorageChanges".to_string(),
-                ));
-            }
-
+            let value: [u8; 32] = repeated_calldata[8..].try_into().unwrap();
             blk.repeated_storage_changes.insert(index, value);
         }
 
