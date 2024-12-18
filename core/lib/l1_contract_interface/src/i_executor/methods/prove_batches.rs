@@ -60,7 +60,7 @@ impl Tokenize for &ProveBatches {
 
             if protocol_version.is_pre_gateway() {
                 let proof_input = Token::Tuple(vec![
-                    Token::Array(vec![verifier_type.into_token()]),
+                    Token::Array(vec![]),
                     Token::Array(proof.into_iter().map(Token::Uint).collect()),
                 ]);
 
