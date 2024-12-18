@@ -265,7 +265,7 @@ export const initCommand = new Command('init')
         'used to test LegacyBridge compatibily. The chain will have the same id as the era chain id, while eraChainId in L2SharedBridge will be 0'
     )
     .option('--should-check-postgres', 'Whether to perform cargo sqlx prepare --check during database setup', true)
-    .option('--allow-evm-emulator', 'allow deployment of EVM contracts')
+    .option('--allow-evm-emulator', 'allow deployment of EVM contracts (not supported yet)')
     .description('Deploys the shared bridge and registers a hyperchain locally, as quickly as possible.')
     .action(initDevCmdAction);
 
@@ -290,5 +290,5 @@ initCommand
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--validium-mode', 'deploy contracts in Validium mode')
     .option('--run-observability', 'run observability suite')
-    .option('--allow-evm-emulator', 'allow deployment of EVM contracts')
+    .option('--allow-evm-emulator', 'allow deployment of EVM contracts (not supported yet)')
     .action(initHyperCmdAction);
