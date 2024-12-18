@@ -575,7 +575,7 @@ impl ExternalNodeBuilder {
                 .optional
                 .snapshots_recovery_postgres_max_concurrency,
             snapshot_recovery_config,
-            diamond_proxy_addr: self.config.diamond_proxy_address(),
+            diamond_proxy_addr: self.config.l1_diamond_proxy_address(),
         });
         let mut layer = NodeStorageInitializerLayer::new();
         if matches!(kind, LayerKind::Precondition) {

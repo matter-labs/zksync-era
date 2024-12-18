@@ -3,7 +3,6 @@ use std::{num::NonZeroUsize, sync::Arc};
 use zksync_config::{
     configs::object_store::ObjectStoreMode, ContractsConfig, GenesisConfig, ObjectStoreConfig,
 };
-use zksync_dal::CoreDal;
 use zksync_node_storage_init::{
     external_node::NodeRecovery, main_node::MainNodeGenesis, InitializeStorage,
     NodeInitializationStrategy, SnapshotRecoveryConfig,

@@ -9,10 +9,7 @@ use zksync_eth_client::EthInterface;
 use zksync_object_store::ObjectStore;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::{
-        BlockGasCount, L1BatchHeader, L1BatchTreeData, L2BlockHasher, L2BlockHeader,
-        UnsealedL1BatchHeader,
-    },
+    block::{L1BatchHeader, L1BatchTreeData, L2BlockHasher, L2BlockHeader, UnsealedL1BatchHeader},
     commitment::{L1BatchCommitmentArtifacts, L1BatchCommitmentHash},
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
     snapshots::SnapshotFactoryDependencies,
@@ -140,7 +137,6 @@ pub async fn recover_latest_l1_batch(
                 fee_address: Default::default(),
             },
             &[],
-            BlockGasCount::default(),
             &[],
             &[],
             CircuitStatistic::default(),
@@ -236,6 +232,7 @@ pub async fn recover_eth_sender(
         .await
         .unwrap();
     let mut storage = connection_pool.connection().await.unwrap();
+    let chain_id = Some(l1_client.fetch_chain_id().await.unwrap());
     storage
         .eth_sender_dal()
         .insert_bogus_confirmed_eth_tx(
@@ -243,6 +240,7 @@ pub async fn recover_eth_sender(
             AggregatedActionType::Commit,
             H256::random(),
             DateTime::default(),
+            chain_id,
         )
         .await
         .unwrap();
@@ -253,6 +251,7 @@ pub async fn recover_eth_sender(
             AggregatedActionType::PublishProofOnchain,
             H256::random(),
             DateTime::default(),
+            chain_id,
         )
         .await
         .unwrap();
@@ -263,6 +262,7 @@ pub async fn recover_eth_sender(
             AggregatedActionType::Execute,
             H256::random(),
             DateTime::default(),
+            chain_id,
         )
         .await
         .unwrap();
