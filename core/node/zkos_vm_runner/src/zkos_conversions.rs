@@ -92,8 +92,6 @@ impl From<Transaction> for TransactionData {
                     U256::zero()
                 };
 
-                // todo: second `reserved` value should be non-zero for deployment tx
-
                 // Ethereum transactions do not sign gas per pubdata limit, and so for them we need to use
                 // some default value. We use the maximum possible value that is allowed by the bootloader
                 // (i.e. we can not use u64::MAX, because the bootloader requires gas per pubdata for such
@@ -137,8 +135,32 @@ impl From<Transaction> for TransactionData {
                     raw_bytes: execute_tx.raw_bytes.map(|a| a.0),
                 }
             }
-            ExecuteTransactionCommon::L1(_) => {
-                unimplemented!("l1 transactions are not supported for zk os")
+            ExecuteTransactionCommon::L1(common_data) => {
+                // TODO: cleanup - double check gas fields, and sender, use constant for tx type
+                TransactionData {
+                    tx_type: 255,
+                    from: common_data.sender,
+                    to: execute_tx.execute.contract_address,
+                    gas_limit: common_data.gas_limit,
+                    pubdata_price_limit: common_data.gas_per_pubdata_limit,
+                    max_fee_per_gas: common_data.max_fee_per_gas,
+                    max_priority_fee_per_gas: U256::zero(),
+                    paymaster: Address::zero(),
+                    nonce: U256::zero(),
+                    value: execute_tx.execute.value,
+                    reserved: [
+                        common_data.to_mint,
+                        U256::from_big_endian(common_data.refund_recipient.as_bytes()),
+                        U256::zero(),
+                        U256::zero(),
+                    ],
+                    data: execute_tx.execute.calldata,
+                    signature: vec![],
+                    factory_deps: execute_tx.execute.factory_deps,
+                    paymaster_input: vec![],
+                    reserved_dynamic: vec![],
+                    raw_bytes: execute_tx.raw_bytes.map(|a| a.0),
+                }
             }
             ExecuteTransactionCommon::ProtocolUpgrade(_) => {
                 unreachable!()
