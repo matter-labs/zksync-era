@@ -63,7 +63,10 @@ impl EvmDeployTracer {
             return;
         }
 
-        match ethabi::decode(&[ethabi::ParamType::Bytes], data) {
+        match ethabi::decode(
+            &[ethabi::ParamType::Uint(256), ethabi::ParamType::Bytes],
+            data,
+        ) {
             Ok(decoded) => {
                 // `unwrap`s should be safe since the function signature is checked above.
                 let mut decoded_iter = decoded.into_iter();
