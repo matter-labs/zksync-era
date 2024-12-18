@@ -175,6 +175,7 @@ where
                 let failure_info = match result {
                     Err(err) => {
                         if let ClientError::Call(call_err) = err.as_ref() {
+                            println!("{:?}", err);
                             let revert_code = call_err.code().into();
                             let message_len =
                                 "execution reverted: ".len().min(call_err.message().len());

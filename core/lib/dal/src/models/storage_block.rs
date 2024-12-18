@@ -207,52 +207,52 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
     fn try_from(batch: StorageL1Batch) -> Result<Self, Self::Error> {
         Ok(Self {
             root_hash: H256::from_slice(
-                &batch.hash.ok_or(L1BatchMetadataError::Incomplete("hash"))?,
+                &batch.hash.unwrap_or(vec![0u8; 32]),
             ),
             rollup_last_leaf_index: batch
                 .rollup_last_leaf_index
-                .ok_or(L1BatchMetadataError::Incomplete("rollup_last_leaf_index"))?
+                .unwrap_or_default()
                 as u64,
             initial_writes_compressed: batch.compressed_initial_writes,
             repeated_writes_compressed: batch.compressed_repeated_writes,
             l2_l1_merkle_root: H256::from_slice(
                 &batch
                     .l2_l1_merkle_root
-                    .ok_or(L1BatchMetadataError::Incomplete("l2_l1_merkle_root"))?,
+                    .unwrap_or(vec![0u8; 32]),
             ),
             aux_data_hash: H256::from_slice(
                 &batch
                     .aux_data_hash
-                    .ok_or(L1BatchMetadataError::Incomplete("aux_data_hash"))?,
+                    .unwrap_or(vec![0u8; 32]),
             ),
             meta_parameters_hash: H256::from_slice(
                 &batch
                     .meta_parameters_hash
-                    .ok_or(L1BatchMetadataError::Incomplete("meta_parameters_hash"))?,
+                    .unwrap_or(vec![0u8; 32]),
             ),
             pass_through_data_hash: H256::from_slice(
                 &batch
                     .pass_through_data_hash
-                    .ok_or(L1BatchMetadataError::Incomplete("pass_through_data_hash"))?,
+                    .unwrap_or(vec![0u8; 32]),
             ),
             commitment: H256::from_slice(
                 &batch
                     .commitment
-                    .ok_or(L1BatchMetadataError::Incomplete("commitment"))?,
+                    .unwrap_or(vec![0u8; 32]),
             ),
             block_meta_params: L1BatchMetaParameters {
                 zkporter_is_available: batch
                     .zkporter_is_available
-                    .ok_or(L1BatchMetadataError::Incomplete("zkporter_is_available"))?,
+                    .unwrap_or_default(),
                 bootloader_code_hash: H256::from_slice(
                     &batch
                         .bootloader_code_hash
-                        .ok_or(L1BatchMetadataError::Incomplete("bootloader_code_hash"))?,
+                        .unwrap_or(vec![0u8; 32]),
                 ),
                 default_aa_code_hash: H256::from_slice(
                     &batch
                         .default_aa_code_hash
-                        .ok_or(L1BatchMetadataError::Incomplete("default_aa_code_hash"))?,
+                        .unwrap_or(vec![0u8; 32]),
                 ),
                 evm_emulator_code_hash: batch
                     .evm_emulator_code_hash
@@ -272,6 +272,74 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
             aggregation_root: batch.aggregation_root.map(|v| H256::from_slice(&v)),
             da_inclusion_data: batch.inclusion_data,
         })
+        // TODO(zk os): uncomment, for now used mock data if not present to test
+        // Ok(Self {
+        //     root_hash: H256::from_slice(
+        //         &batch.hash.ok_or(L1BatchMetadataError::Incomplete("hash"))?,
+        //     ),
+        //     rollup_last_leaf_index: batch
+        //         .rollup_last_leaf_index
+        //         .ok_or(L1BatchMetadataError::Incomplete("rollup_last_leaf_index"))?
+        //         as u64,
+        //     initial_writes_compressed: batch.compressed_initial_writes,
+        //     repeated_writes_compressed: batch.compressed_repeated_writes,
+        //     l2_l1_merkle_root: H256::from_slice(
+        //         &batch
+        //             .l2_l1_merkle_root
+        //             .ok_or(L1BatchMetadataError::Incomplete("l2_l1_merkle_root"))?,
+        //     ),
+        //     aux_data_hash: H256::from_slice(
+        //         &batch
+        //             .aux_data_hash
+        //             .ok_or(L1BatchMetadataError::Incomplete("aux_data_hash"))?,
+        //     ),
+        //     meta_parameters_hash: H256::from_slice(
+        //         &batch
+        //             .meta_parameters_hash
+        //             .ok_or(L1BatchMetadataError::Incomplete("meta_parameters_hash"))?,
+        //     ),
+        //     pass_through_data_hash: H256::from_slice(
+        //         &batch
+        //             .pass_through_data_hash
+        //             .ok_or(L1BatchMetadataError::Incomplete("pass_through_data_hash"))?,
+        //     ),
+        //     commitment: H256::from_slice(
+        //         &batch
+        //             .commitment
+        //             .ok_or(L1BatchMetadataError::Incomplete("commitment"))?,
+        //     ),
+        //     block_meta_params: L1BatchMetaParameters {
+        //         zkporter_is_available: batch
+        //             .zkporter_is_available
+        //             .ok_or(L1BatchMetadataError::Incomplete("zkporter_is_available"))?,
+        //         bootloader_code_hash: H256::from_slice(
+        //             &batch
+        //                 .bootloader_code_hash
+        //                 .ok_or(L1BatchMetadataError::Incomplete("bootloader_code_hash"))?,
+        //         ),
+        //         default_aa_code_hash: H256::from_slice(
+        //             &batch
+        //                 .default_aa_code_hash
+        //                 .ok_or(L1BatchMetadataError::Incomplete("default_aa_code_hash"))?,
+        //         ),
+        //         evm_emulator_code_hash: batch
+        //             .evm_emulator_code_hash
+        //             .as_deref()
+        //             .map(H256::from_slice),
+        //         protocol_version: batch
+        //             .protocol_version
+        //             .map(|v| (v as u16).try_into().unwrap()),
+        //     },
+        //     state_diffs_compressed: batch.compressed_state_diffs.unwrap_or_default(),
+        //     events_queue_commitment: batch.events_queue_commitment.map(|v| H256::from_slice(&v)),
+        //     bootloader_initial_content_commitment: batch
+        //         .bootloader_initial_content_commitment
+        //         .map(|v| H256::from_slice(&v)),
+        //     state_diff_hash: batch.state_diff_hash.map(|v| H256::from_slice(&v)),
+        //     local_root: batch.local_root.map(|v| H256::from_slice(&v)),
+        //     aggregation_root: batch.aggregation_root.map(|v| H256::from_slice(&v)),
+        //     da_inclusion_data: batch.inclusion_data,
+        // })
     }
 }
 
