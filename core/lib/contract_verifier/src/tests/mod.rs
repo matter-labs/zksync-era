@@ -163,7 +163,7 @@ async fn mock_evm_deployment(
         factory_deps: vec![],
     };
     let bytecode = pad_evm_bytecode(deployed_bytecode);
-    let bytecode_hash = BytecodeHash::for_evm_bytecode(&bytecode).value();
+    let bytecode_hash = BytecodeHash::for_evm_bytecode(deployed_bytecode.len(), &bytecode).value();
     mock_deployment_inner(storage, address, bytecode_hash, bytecode, deployment).await;
 }
 

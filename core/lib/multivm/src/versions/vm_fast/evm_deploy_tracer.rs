@@ -37,8 +37,10 @@ pub(super) struct EvmDeployTracer {
 
 impl EvmDeployTracer {
     pub(super) fn new(bytecodes: DynamicBytecodes) -> Self {
-        let tracked_signature =
-            ethabi::short_signature("publishEVMBytecode", &[ethabi::ParamType::Bytes]);
+        let tracked_signature = ethabi::short_signature(
+            "publishEVMBytecode",
+            &[ethabi::ParamType::Uint(256), ethabi::ParamType::Bytes],
+        );
         Self {
             tracked_signature,
             bytecodes,
@@ -64,10 +66,20 @@ impl EvmDeployTracer {
         match ethabi::decode(&[ethabi::ParamType::Bytes], data) {
             Ok(decoded) => {
                 // `unwrap`s should be safe since the function signature is checked above.
-                let published_bytecode = decoded.into_iter().next().unwrap().into_bytes().unwrap();
-                let bytecode_hash =
-                    BytecodeHash::for_evm_bytecode(&published_bytecode).value_u256();
-                self.bytecodes.insert(bytecode_hash, published_bytecode);
+                let mut decoded_iter = decoded.into_iter();
+                let raw_bytecode_len = decoded_iter.next().unwrap().into_uint().unwrap().try_into();
+                match raw_bytecode_len {
+                    Ok(raw_bytecode_len) => {
+                        let published_bytecode = decoded_iter.next().unwrap().into_bytes().unwrap();
+                        let bytecode_hash =
+                            BytecodeHash::for_evm_bytecode(raw_bytecode_len, &published_bytecode)
+                                .value_u256();
+                        self.bytecodes.insert(bytecode_hash, published_bytecode);
+                    }
+                    Err(err) => {
+                        tracing::error!("Invalid bytecode len in `publishEVMBytecode` call: {err}")
+                    }
+                }
             }
             Err(err) => tracing::error!("Unable to decode `publishEVMBytecode` call: {err}"),
         }

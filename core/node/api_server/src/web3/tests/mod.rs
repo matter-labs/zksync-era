@@ -1171,7 +1171,7 @@ impl GetBytecodeTest {
         at_block: L2BlockNumber,
         address: Address,
     ) -> anyhow::Result<()> {
-        let evm_bytecode_hash = BytecodeHash::for_evm_bytecode(RAW_EVM_BYTECODE).value();
+        let evm_bytecode_hash = BytecodeHash::for_raw_evm_bytecode(RAW_EVM_BYTECODE).value();
         let code_log = StorageLog::new_write_log(get_code_key(&address), evm_bytecode_hash);
         connection
             .storage_logs_dal()

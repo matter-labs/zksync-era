@@ -10,6 +10,8 @@
 //! Both bytecode kinds are right-padded to consist of an integer, odd number of 32-byte words. All methods
 //! in this module operate on padded bytecodes unless explicitly specified otherwise.
 
+use std::iter;
+
 use anyhow::Context as _;
 use sha2::{Digest, Sha256};
 
@@ -68,21 +70,31 @@ pub struct BytecodeHash(H256);
 impl BytecodeHash {
     /// Hashes the provided EraVM bytecode.
     pub fn for_bytecode(bytecode: &[u8]) -> Self {
-        Self::for_generic_bytecode(BytecodeMarker::EraVm, bytecode)
+        Self::for_generic_bytecode(BytecodeMarker::EraVm, bytecode, bytecode.len())
     }
 
     /// Hashes the provided padded EVM bytecode.
-    pub fn for_evm_bytecode(bytecode: &[u8]) -> Self {
-        Self::for_generic_bytecode(BytecodeMarker::Evm, bytecode)
+    pub fn for_evm_bytecode(raw_bytecode_len: usize, bytecode: &[u8]) -> Self {
+        Self::for_generic_bytecode(BytecodeMarker::Evm, bytecode, raw_bytecode_len)
     }
 
-    fn for_generic_bytecode(kind: BytecodeMarker, bytecode: &[u8]) -> Self {
+    /// Hashes the provided raw EVM bytecode.
+    pub fn for_raw_evm_bytecode(bytecode: &[u8]) -> Self {
+        let padded_evm_bytecode = pad_evm_bytecode(bytecode);
+        Self::for_evm_bytecode(bytecode.len(), &padded_evm_bytecode)
+    }
+
+    fn for_generic_bytecode(
+        kind: BytecodeMarker,
+        bytecode: &[u8],
+        bytecode_len_in_bytes: usize,
+    ) -> Self {
         validate_bytecode(bytecode).expect("invalid bytecode");
 
         let mut hasher = Sha256::new();
         let len = match kind {
-            BytecodeMarker::EraVm => (bytecode.len() / 32) as u16,
-            BytecodeMarker::Evm => bytecode.len() as u16,
+            BytecodeMarker::EraVm => (bytecode_len_in_bytes / 32) as u16,
+            BytecodeMarker::Evm => bytecode_len_in_bytes as u16,
         };
         hasher.update(bytecode);
         let result = hasher.finalize();
@@ -157,28 +169,46 @@ impl BytecodeMarker {
 }
 
 /// Removes padding from an EVM bytecode, returning the original EVM bytecode.
-pub fn trim_padded_evm_bytecode(raw: &[u8]) -> anyhow::Result<&[u8]> {
+pub fn trim_padded_evm_bytecode(bytecode_hash: BytecodeHash, raw: &[u8]) -> anyhow::Result<&[u8]> {
+    if bytecode_hash.marker() != BytecodeMarker::Evm {
+        anyhow::bail!("only EVM bytecode hashes allowed")
+    }
     validate_bytecode(raw).context("bytecode fails basic validity checks")?;
 
-    // EVM bytecodes are prefixed with a big-endian `U256` bytecode length.
-    let bytecode_len_bytes = raw.get(..32).context("length < 32")?;
-    let bytecode_len = U256::from_big_endian(bytecode_len_bytes);
-    let bytecode_len: usize = bytecode_len
-        .try_into()
-        .map_err(|_| anyhow::anyhow!("length ({bytecode_len}) overflow"))?;
-    let bytecode = raw.get(32..(32 + bytecode_len)).with_context(|| {
+    // Actual raw unpadded EVM bytecode length is encoded in bytecode hash
+    let bytecode_len: usize = bytecode_hash.len_in_bytes();
+    let bytecode = raw.get(0..bytecode_len).with_context(|| {
         format!(
-            "prefixed length ({bytecode_len}) exceeds real length ({})",
-            raw.len() - 32
+            "encoded length ({bytecode_len}) exceeds real length ({})",
+            raw.len()
         )
     })?;
     // Since slicing above succeeded, this one is safe.
-    let padding = &raw[(32 + bytecode_len)..];
+    let padding = &raw[bytecode_len..];
     anyhow::ensure!(
         padding.iter().all(|&b| b == 0),
         "bytecode padding contains non-zero bytes"
     );
     Ok(bytecode)
+}
+
+/// Pads an EVM bytecode in the same ways it's done by system contracts.
+pub fn pad_evm_bytecode(deployed_bytecode: &[u8]) -> Vec<u8> {
+    let mut padded = Vec::with_capacity(deployed_bytecode.len());
+    padded.extend_from_slice(deployed_bytecode);
+
+    // Pad to the 32-byte word boundary.
+    if padded.len() % 32 != 0 {
+        padded.extend(iter::repeat(0).take(32 - padded.len() % 32));
+    }
+    assert_eq!(padded.len() % 32, 0);
+
+    // Pad to contain the odd number of words.
+    if (padded.len() / 32) % 2 != 1 {
+        padded.extend_from_slice(&[0; 32]);
+    }
+    assert_eq!((padded.len() / 32) % 2, 1);
+    padded
 }
 
 #[doc(hidden)] // only useful for tests
@@ -223,14 +253,19 @@ mod tests {
         assert_eq!(bytecode_hash.marker(), BytecodeMarker::EraVm);
         assert_eq!(bytecode_hash.len_in_bytes(), 32);
 
-        let bytecode_hash = BytecodeHash::for_evm_bytecode(&[0; 32]);
+        let bytecode_hash = BytecodeHash::for_raw_evm_bytecode(&[0; 32]);
+        assert_eq!(bytecode_hash.marker(), BytecodeMarker::Evm);
+        assert_eq!(bytecode_hash.len_in_bytes(), 32);
+
+        let bytecode_hash = BytecodeHash::for_evm_bytecode(32, &[0; 64]);
         assert_eq!(bytecode_hash.marker(), BytecodeMarker::Evm);
         assert_eq!(bytecode_hash.len_in_bytes(), 32);
     }
 
     #[test]
     fn preparing_evm_bytecode() {
-        let prepared = trim_padded_evm_bytecode(RAW_EVM_BYTECODE).unwrap();
+        let bytecode_hash = BytecodeHash::for_raw_evm_bytecode(&RAW_EVM_BYTECODE);
+        let prepared = trim_padded_evm_bytecode(bytecode_hash, RAW_EVM_BYTECODE).unwrap();
         assert_eq!(prepared, PROCESSED_EVM_BYTECODE);
     }
 }
