@@ -42,7 +42,7 @@ jobs:
         if: matrix.compressor-mode == 'fflonk'
         run: |
           git fetch
-          git checkout 38694d1
+          git checkout b4d5b984
           git submodule update --init --recursive
 
       - name: Init
@@ -70,10 +70,6 @@ jobs:
           ci_run zkstack prover init --dev --verbose
           echo "URL=$(grep "http_url" ./chains/proving_chain/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
 
-      - name: Print contracts revision
-        working-directory: ./contracts
-        run: |
-          git rev-parse --short HEAD
       - name: Prepare prover subsystem
         run: |
           ci_run zkstack prover init-bellman-cuda --clone --verbose
@@ -100,7 +96,6 @@ jobs:
           ci_run ./bin/prover_checkers/batch_availability_checker
       - name: Run Witness Generator
         run: |
-          ci_run zkstack dev prover info
           ci_run zkstack prover run --component=witness-generator --round=all-rounds --docker=false &>prover_logs_${{matrix.compressor-mode}}/witness-generator.log &
       - name: Run Circuit Prover
         run: |
