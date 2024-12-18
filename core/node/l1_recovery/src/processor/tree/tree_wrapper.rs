@@ -241,7 +241,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap().into_path().join("db");
         let mut processor = TreeProcessor::new(temp_dir).await.unwrap();
         processor
-            .process_genesis_state(Some(mainnet_initial_state_path()))
+            .process_genesis_state(mainnet_initial_state_path())
             .await
             .unwrap();
 
@@ -257,7 +257,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap().into_path().join("db");
         let mut processor = TreeProcessor::new(temp_dir).await.unwrap();
         processor
-            .process_genesis_state(Some(sepolia_initial_state_path()))
+            .process_genesis_state(sepolia_initial_state_path())
             .await
             .unwrap();
 

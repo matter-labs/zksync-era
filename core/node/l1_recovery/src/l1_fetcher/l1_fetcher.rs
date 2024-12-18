@@ -1053,7 +1053,7 @@ mod tests {
 
         let mut processor = StateCompressor::new(temp_dir).await;
         processor
-            .process_genesis_state(Some(sepolia_initial_state_path()))
+            .process_genesis_state(sepolia_initial_state_path())
             .await;
         processor.process_blocks(blocks, &stop_receiver).await;
 
