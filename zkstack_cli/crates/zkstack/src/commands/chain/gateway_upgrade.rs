@@ -175,15 +175,6 @@ async fn adapt_config(shell: &Shell, chain_config: ChainConfig) -> anyhow::Resul
     ));
 
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
-
-    replace_in_file(
-        chain_config
-            .path_to_general_config()
-            .to_str()
-            .context("failed to get general config path")?,
-        "internal_l1_pricing_multiplier",
-        "internal_sl_pricing_multiplier",
-    )?;
     println!("Done");
 
     Ok(())
