@@ -72,6 +72,7 @@ pub struct ZkSyncStateKeeper {
     sealer: Arc<dyn ConditionalSealer>,
     storage_factory: Arc<dyn ReadStorageFactory>,
     health_updater: HealthUpdater,
+    should_create_l2_block: bool,
 }
 
 impl ZkSyncStateKeeper {
@@ -89,6 +90,7 @@ impl ZkSyncStateKeeper {
             sealer,
             storage_factory,
             health_updater: ReactiveHealthCheck::new("state_keeper").1,
+            should_create_l2_block: false,
         }
     }
 
@@ -187,7 +189,10 @@ impl ZkSyncStateKeeper {
 
             // Finish current batch.
             if !updates_manager.l2_block.executed_transactions.is_empty() {
-                self.seal_l2_block(&updates_manager).await?;
+                if !self.should_create_l2_block {
+                    // l2 block has been already sealed
+                    self.seal_l2_block(&updates_manager).await?;
+                }
                 // We've sealed the L2 block that we had, but we still need to set up the timestamp
                 // for the fictive L2 block.
                 let new_l2_block_params = self
@@ -199,6 +204,7 @@ impl ZkSyncStateKeeper {
                     &mut *batch_executor,
                 )
                 .await?;
+                self.should_create_l2_block = false;
             }
 
             let (finished_batch, _) = batch_executor.finish_batch().await?;
@@ -585,14 +591,30 @@ impl ZkSyncStateKeeper {
                 return Ok(());
             }
 
-            if self.io.should_seal_l2_block(updates_manager) {
+            if !self.should_create_l2_block && self.io.should_seal_l2_block(updates_manager) {
                 tracing::debug!(
                     "L2 block #{} (L1 batch #{}) should be sealed as per sealing rules",
                     updates_manager.l2_block.number,
                     updates_manager.l1_batch.number
                 );
                 self.seal_l2_block(updates_manager).await?;
+                self.should_create_l2_block = true;
+            }
+            let waiting_latency = KEEPER_METRICS.waiting_for_tx.start();
+            let Some(tx) = self
+                .io
+                .wait_for_next_tx(POLL_WAIT_DURATION, updates_manager.l2_block.timestamp)
+                .instrument(info_span!("wait_for_next_tx"))
+                .await
+                .context("error waiting for next transaction")?
+            else {
+                waiting_latency.observe();
+                continue;
+            };
+            waiting_latency.observe();
+            let tx_hash = tx.hash();
 
+            if self.should_create_l2_block {
                 let new_l2_block_params = self
                     .wait_for_new_l2_block_params(updates_manager, stop_receiver)
                     .await
@@ -605,22 +627,9 @@ impl ZkSyncStateKeeper {
                 );
                 Self::start_next_l2_block(new_l2_block_params, updates_manager, batch_executor)
                     .await?;
+                self.should_create_l2_block = false;
             }
-            let waiting_latency = KEEPER_METRICS.waiting_for_tx.start();
-            let Some(tx) = self
-                .io
-                .wait_for_next_tx(POLL_WAIT_DURATION, updates_manager.l2_block.timestamp)
-                .instrument(info_span!("wait_for_next_tx"))
-                .await
-                .context("error waiting for next transaction")?
-            else {
-                waiting_latency.observe();
-                tracing::trace!("No new transactions. Waiting!");
-                continue;
-            };
-            waiting_latency.observe();
 
-            let tx_hash = tx.hash();
             let (seal_resolution, exec_result) = self
                 .process_one_tx(batch_executor, updates_manager, tx.clone())
                 .await?;
