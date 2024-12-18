@@ -744,12 +744,13 @@ impl L1Fetcher {
                         );
                     }
                 }
-                return Err(e);
+                Err(e)
             }
         }
     }
 
     /// Get a specified transaction on L1 by its hash.
+    #[allow(clippy::borrowed_box)]
     async fn get_transaction_by_hash(
         eth_client: &Box<DynClient<L1>>,
         hash: H256,
@@ -766,10 +767,12 @@ impl L1Fetcher {
         }
     }
 
+    #[allow(clippy::borrowed_box)]
     fn query_client(eth_client: &Box<DynClient<L1>>) -> &dyn EthInterface {
         eth_client
     }
     /// Get the last published L1 block.
+    #[allow(clippy::borrowed_box)]
     async fn get_last_l1_block_number(eth_client: &Box<DynClient<L1>>) -> Result<U64> {
         let last_block = L1Fetcher::retry_call(
             || L1Fetcher::query_client(eth_client).block(BlockId::Number(BlockNumber::Finalized)),

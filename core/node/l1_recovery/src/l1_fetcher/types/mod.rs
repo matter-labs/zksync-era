@@ -124,7 +124,7 @@ impl CommitBlock {
         Self::from_commit_block_resolve(commit_block_info, client).await
     }
 
-    pub fn uncompress_bytecode(compressed_bytes: &Vec<u8>) -> Vec<u8> {
+    pub fn uncompress_bytecode(compressed_bytes: &[u8]) -> Vec<u8> {
         // decompression based on publishCompressedBytecode from Compressor.sol
         let mut ptr = 0;
         let dictionary_len: usize =
