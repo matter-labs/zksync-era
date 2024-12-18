@@ -1,12 +1,13 @@
 use anyhow::Context;
 use common::{forge::ForgeScriptArgs, logger};
-use config::EcosystemConfig;
+use config::{traits::ReadConfigWithBasePath, EcosystemConfig, GenesisConfig};
 use xshell::Shell;
 
 use crate::{
     enable_evm_emulator::enable_evm_emulator,
     messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_EVM_EMULATOR_ENABLED, MSG_L1_SECRETS_MUST_BE_PRESENTED,
+        MSG_CHAIN_NOT_INITIALIZED, MSG_EVM_EMULATOR_ENABLED, MSG_EVM_EMULATOR_HASH_MISSING_ERR,
+        MSG_L1_SECRETS_MUST_BE_PRESENTED,
     },
 };
 
@@ -15,6 +16,16 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
+
+    let default_genesis_config = GenesisConfig::read_with_base_path(
+        shell,
+        EcosystemConfig::default_configs_path(&chain_config.link_to_code),
+    )?;
+    let has_evm_emulation_support = default_genesis_config.evm_emulator_hash.is_some();
+    if !has_evm_emulation_support {
+        anyhow::bail!(MSG_EVM_EMULATOR_HASH_MISSING_ERR);
+    }
+
     let contracts = chain_config.get_contracts_config()?;
     let secrets = chain_config.get_secrets_config()?;
     let l1_rpc_url = secrets
