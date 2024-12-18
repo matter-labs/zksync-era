@@ -60,7 +60,7 @@ impl DataAvailabilityDispatcher {
                 }
             }
 
-            if tokio::time::timeout(self.config.polling_interval(), stop_receiver.changed())
+            if tokio::time::timeout(self.config.polling_interval_ms, stop_receiver.changed())
                 .await
                 .is_ok()
             {
@@ -77,13 +77,13 @@ impl DataAvailabilityDispatcher {
         let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
         let batches = conn
             .data_availability_dal()
-            .get_ready_for_da_dispatch_l1_batches(self.config.max_rows_to_dispatch() as usize)
+            .get_ready_for_da_dispatch_l1_batches(self.config.max_rows_to_dispatch as usize)
             .await?;
         drop(conn);
 
         for batch in batches {
             let dispatch_latency = METRICS.blob_dispatch_latency.start();
-            let dispatch_response = retry(self.config.max_retries(), batch.l1_batch_number, || {
+            let dispatch_response = retry(self.config.max_retries, batch.l1_batch_number, || {
                 self.client
                     .dispatch_blob(batch.l1_batch_number.0, batch.pubdata.clone())
             })
@@ -136,7 +136,7 @@ impl DataAvailabilityDispatcher {
             return Ok(());
         };
 
-        let inclusion_data = if self.config.use_dummy_inclusion_data() {
+        let inclusion_data = if self.config.use_dummy_inclusion_data {
             Some(InclusionData { data: vec![] })
         } else {
             self.client

@@ -1,6 +1,6 @@
 //! Tests for metadata calculator snapshot recovery.
 
-use std::{collections::HashMap, path::Path, sync::Mutex};
+use std::{collections::HashMap, path::Path, sync::Mutex, time::Duration};
 
 use assert_matches::assert_matches;
 use tempfile::TempDir;
@@ -347,12 +347,14 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
 
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let merkle_tree_config = MerkleTreeConfig {
-        path: temp_dir.path().to_str().unwrap().to_owned(),
+        path: temp_dir.path().to_owned(),
         ..MerkleTreeConfig::default()
     };
     let calculator_config = MetadataCalculatorConfig::for_main_node(
         &merkle_tree_config,
-        &OperationsManagerConfig { delay_interval: 50 },
+        &OperationsManagerConfig {
+            delay_interval: Duration::from_millis(50),
+        },
         &StateKeeperConfig {
             protective_reads_persistence_enabled: true,
             ..Default::default()

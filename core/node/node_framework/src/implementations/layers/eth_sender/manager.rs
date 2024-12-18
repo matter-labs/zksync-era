@@ -1,4 +1,3 @@
-use anyhow::Context;
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::eth_sender::EthConfig;
 use zksync_eth_sender::EthTxManager;
@@ -77,12 +76,12 @@ impl WiringLayer for EthTxManagerLayer {
         let master_pool = input.master_pool.get().await.unwrap();
         let replica_pool = input.replica_pool.get().await.unwrap();
 
-        let settlement_mode = self.eth_sender_config.gas_adjuster.unwrap().settlement_mode;
+        let settlement_mode = self.eth_sender_config.gas_adjuster.settlement_mode;
         let eth_client = input.eth_client.0.clone();
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
         let l2_client = input.eth_client.0;
 
-        let config = self.eth_sender_config.sender.context("sender")?;
+        let config = self.eth_sender_config.sender;
 
         let gas_adjuster = input.gas_adjuster.0;
 

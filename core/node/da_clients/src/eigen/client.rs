@@ -2,7 +2,7 @@ use std::{str::FromStr, sync::Arc};
 
 use async_trait::async_trait;
 use secp256k1::SecretKey;
-use subxt_signer::ExposeSecret;
+use secrecy::ExposeSecret;
 use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
@@ -19,7 +19,7 @@ pub struct EigenClient {
 
 impl EigenClient {
     pub async fn new(config: EigenConfig, secrets: EigenSecrets) -> anyhow::Result<Self> {
-        let private_key = SecretKey::from_str(secrets.private_key.0.expose_secret().as_str())
+        let private_key = SecretKey::from_str(secrets.private_key.0.expose_secret())
             .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;
 
         Ok(EigenClient {

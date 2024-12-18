@@ -66,7 +66,7 @@ impl Aggregator {
                 }),
                 Box::from(TimestampDeadlineCriterion {
                     op: AggregatedActionType::Commit,
-                    deadline_seconds: config.aggregated_block_commit_deadline,
+                    deadline_seconds: config.aggregated_block_commit_deadline.as_secs(),
                     max_allowed_lag: Some(config.timestamp_criteria_max_allowed_lag),
                 }),
             ],
@@ -81,7 +81,7 @@ impl Aggregator {
                 )),
                 Box::from(TimestampDeadlineCriterion {
                     op: AggregatedActionType::PublishProofOnchain,
-                    deadline_seconds: config.aggregated_block_prove_deadline,
+                    deadline_seconds: config.aggregated_block_prove_deadline.as_secs(),
                     // Currently, we can't use this functionality for proof criterion
                     // since we don't send dummy and real proofs in the same range,
                     // so even small ranges must be closed.
@@ -99,7 +99,7 @@ impl Aggregator {
                 )),
                 Box::from(TimestampDeadlineCriterion {
                     op: AggregatedActionType::Execute,
-                    deadline_seconds: config.aggregated_block_execute_deadline,
+                    deadline_seconds: config.aggregated_block_execute_deadline.as_secs(),
                     max_allowed_lag: Some(config.timestamp_criteria_max_allowed_lag),
                 }),
             ],
@@ -167,7 +167,7 @@ impl Aggregator {
         let max_l1_batch_timestamp_millis = self
             .config
             .l1_batch_min_age_before_execute_seconds
-            .map(|age| unix_timestamp_ms() - age * 1_000);
+            .map(|age| unix_timestamp_ms() - age.as_millis() as u64);
         let ready_for_execute_batches = storage
             .blocks_dal()
             .get_ready_for_execute_l1_batches(limit, max_l1_batch_timestamp_millis)

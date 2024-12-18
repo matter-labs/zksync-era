@@ -80,7 +80,7 @@ impl RequestProcessor {
             .await
             .map_err(RequestProcessorError::Dal)?
             .proof_generation_dal()
-            .lock_batch_for_proving(self.config.proof_generation_timeout())
+            .lock_batch_for_proving(self.config.proof_generation_timeout_in_secs)
             .await
             .map_err(RequestProcessorError::Dal)
     }

@@ -46,7 +46,7 @@ where
 
 pub(super) fn mock_config(db_path: &Path) -> MetadataCalculatorConfig {
     MetadataCalculatorConfig {
-        db_path: db_path.to_str().unwrap().to_owned(),
+        db_path: db_path.to_owned(),
         max_open_files: None,
         mode: MerkleTreeMode::Full,
         delay_interval: POLL_INTERVAL,
@@ -488,7 +488,7 @@ async fn shutting_down_calculator() {
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let (merkle_tree_config, mut operation_config) =
         create_config(temp_dir.path(), MerkleTreeMode::Lightweight);
-    operation_config.delay_interval = 30_000; // ms; chosen to be larger than `RUN_TIMEOUT`
+    operation_config.delay_interval = Duration::from_secs(30); // chosen to be larger than `RUN_TIMEOUT`
 
     let calculator = setup_calculator_with_options(
         &merkle_tree_config,
@@ -676,13 +676,13 @@ fn create_config(
     mode: MerkleTreeMode,
 ) -> (MerkleTreeConfig, OperationsManagerConfig) {
     let db_config = MerkleTreeConfig {
-        path: path_to_string(&db_path.join("new")),
+        path: db_path.join("new"),
         mode,
         ..MerkleTreeConfig::default()
     };
 
     let operation_config = OperationsManagerConfig {
-        delay_interval: 50, // ms
+        delay_interval: Duration::from_millis(50),
     };
     (db_config, operation_config)
 }
@@ -712,10 +712,6 @@ async fn setup_calculator_with_options(
     MetadataCalculator::new(calculator_config, object_store, pool)
         .await
         .unwrap()
-}
-
-fn path_to_string(path: &Path) -> String {
-    path.to_str().unwrap().to_owned()
 }
 
 pub(crate) async fn run_calculator(mut calculator: MetadataCalculator) -> H256 {

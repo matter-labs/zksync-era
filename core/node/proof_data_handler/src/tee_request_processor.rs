@@ -54,7 +54,7 @@ impl TeeRequestProcessor {
         let batch_ignored_timeout = ChronoDuration::from_std(
             self.config
                 .tee_config
-                .tee_batch_permanently_ignored_timeout(),
+                .tee_batch_permanently_ignored_timeout_in_hours,
         )
         .map_err(|err| {
             RequestProcessorError::GeneralError(format!(
@@ -181,7 +181,7 @@ impl TeeRequestProcessor {
             .tee_proof_generation_dal()
             .lock_batch_for_proving(
                 tee_type,
-                self.config.tee_config.tee_proof_generation_timeout(),
+                self.config.tee_config.tee_proof_generation_timeout_in_secs,
                 min_batch_number,
             )
             .await

@@ -395,7 +395,7 @@ impl SendRawTransactionTest {
             to: include_to.then(|| Address::repeat_byte(2)),
             value: 123_456.into(),
             gas: (get_intrinsic_constants().l2_tx_intrinsic_gas * 2).into(),
-            gas_price: StateKeeperConfig::for_tests().minimal_l2_gas_price.into(),
+            gas_price: StateKeeperConfig::default().minimal_l2_gas_price.into(),
             input: if include_to {
                 vec![1, 2, 3, 4].into()
             } else {

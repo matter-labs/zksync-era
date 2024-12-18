@@ -148,7 +148,7 @@ impl EthSenderTester {
         let aggregator_config = SenderConfig {
             aggregated_proof_sizes: vec![1],
             pubdata_sending_mode,
-            ..eth_sender_config.clone().sender.unwrap()
+            ..eth_sender_config.clone().sender
         };
 
         let history: Vec<_> = history
@@ -173,7 +173,7 @@ impl EthSenderTester {
             )
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
-                assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
+                assert_eq!(call.to, Some(contracts_config.l1.multicall3_addr));
                 crate::tests::mock_multicall_response(call)
             })
             .build();
@@ -193,7 +193,7 @@ impl EthSenderTester {
             )
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
-                assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
+                assert_eq!(call.to, Some(contracts_config.l1.multicall3_addr));
                 crate::tests::mock_multicall_response(call)
             })
             .build();
@@ -213,7 +213,7 @@ impl EthSenderTester {
             )
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
-                assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
+                assert_eq!(call.to, Some(contracts_config.l1.multicall3_addr));
                 crate::tests::mock_multicall_response(call)
             })
             .build();
@@ -227,7 +227,7 @@ impl EthSenderTester {
                     max_base_fee_samples: Self::MAX_BASE_FEE_SAMPLES,
                     pricing_formula_parameter_a: 3.0,
                     pricing_formula_parameter_b: 2.0,
-                    ..eth_sender_config.gas_adjuster.unwrap()
+                    ..eth_sender_config.gas_adjuster
                 },
                 pubdata_sending_mode,
                 commitment_mode,
@@ -236,7 +236,7 @@ impl EthSenderTester {
             .unwrap(),
         );
 
-        let eth_sender = eth_sender_config.sender.clone().unwrap();
+        let eth_sender = eth_sender_config.sender.clone();
 
         let custom_commit_sender_addr =
             if aggregator_operate_4844_mode && commitment_mode == L1BatchCommitmentMode::Rollup {
@@ -262,7 +262,7 @@ impl EthSenderTester {
             gateway.clone(),
             // ZKsync contract address
             Address::random(),
-            contracts_config.l1_multicall3_addr,
+            contracts_config.l1.multicall3_addr,
             STATE_TRANSITION_CONTRACT_ADDRESS,
             Default::default(),
             custom_commit_sender_addr,
@@ -308,7 +308,7 @@ impl EthSenderTester {
     pub fn switch_to_using_gateway(&mut self) {
         self.manager = EthTxManager::new(
             self.conn.clone(),
-            EthConfig::for_tests().sender.unwrap(),
+            EthConfig::for_tests().sender,
             self.gas_adjuster.clone(),
             None,
             None,

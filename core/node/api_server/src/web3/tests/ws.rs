@@ -164,7 +164,7 @@ trait WsTest: Send + Sync {
 
 async fn test_ws_server(test: impl WsTest) {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let network_config = NetworkConfig::for_tests();
+    let network_config = NetworkConfig::default();
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
     let genesis_config = GenesisConfig::for_tests();

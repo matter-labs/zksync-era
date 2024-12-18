@@ -1,5 +1,5 @@
 //! Utilities for testing the consensus module.
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use rand::Rng;
@@ -9,6 +9,7 @@ use zksync_config::{
     configs::{
         chain::{OperationsManagerConfig, StateKeeperConfig},
         consensus as config,
+        consensus::RpcConfig,
         database::{MerkleTreeConfig, MerkleTreeMode},
     },
 };
@@ -89,18 +90,12 @@ pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) 
         validators: setup
             .validator_keys
             .iter()
-            .map(|k| config::WeightedValidator {
-                key: config::ValidatorPublicKey(k.public().encode()),
-                weight: 1,
-            })
+            .map(|k| (config::ValidatorPublicKey(k.public().encode()), 1))
             .collect(),
         attesters: setup
             .attester_keys
             .iter()
-            .map(|k| config::WeightedAttester {
-                key: config::AttesterPublicKey(k.public().encode()),
-                weight: 1,
-            })
+            .map(|k| (config::AttesterPublicKey(k.public().encode()), 1))
             .collect(),
         leader: config::ValidatorPublicKey(setup.validator_keys[0].public().encode()),
         registry_address: None,
@@ -130,12 +125,9 @@ fn make_secrets(
     attester_key: Option<attester::SecretKey>,
 ) -> config::ConsensusSecrets {
     config::ConsensusSecrets {
-        node_key: Some(config::NodeSecretKey(cfg.gossip.key.encode().into())),
-        validator_key: cfg
-            .validator_key
-            .as_ref()
-            .map(|k| config::ValidatorSecretKey(k.encode().into())),
-        attester_key: attester_key.map(|k| config::AttesterSecretKey(k.encode().into())),
+        node_key: Some(cfg.gossip.key.encode().into()),
+        validator_key: cfg.validator_key.as_ref().map(|k| k.encode().into()),
+        attester_key: attester_key.map(|k| k.encode().into()),
     }
 }
 
@@ -168,7 +160,7 @@ fn make_config(
         // TODO: this might be misleading, so it would be better to write some more custom
         // genesis generator for zksync-era tests.
         genesis_spec,
-        rpc: None,
+        rpc: RpcConfig::default(),
         debug_page_addr: None,
     }
 }
@@ -216,16 +208,12 @@ impl StateKeeper {
 
         let rocksdb_dir = tempfile::tempdir().context("tempdir()")?;
         let merkle_tree_config = MerkleTreeConfig {
-            path: rocksdb_dir
-                .path()
-                .join("merkle_tree")
-                .to_string_lossy()
-                .into(),
+            path: rocksdb_dir.path().join("merkle_tree"),
             mode: MerkleTreeMode::Lightweight,
             ..Default::default()
         };
         let operation_manager_config = OperationsManagerConfig {
-            delay_interval: 100, //`100ms`
+            delay_interval: Duration::from_millis(100),
         };
         let state_keeper_config = StateKeeperConfig {
             protective_reads_persistence_enabled: true,
@@ -556,11 +544,7 @@ impl StateKeeperRunner {
             // Caching shouldn't be needed for tests.
             let (async_cache, async_catchup_task) = AsyncRocksdbCache::new(
                 self.pool.0.clone(),
-                self.rocksdb_dir
-                    .path()
-                    .join("cache")
-                    .to_string_lossy()
-                    .into(),
+                self.rocksdb_dir.path().join("cache"),
                 Default::default(),
             );
             s.spawn_bg({

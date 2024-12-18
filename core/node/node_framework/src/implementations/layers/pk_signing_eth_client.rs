@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use zksync_config::{
     configs::{wallets, ContractsConfig},
     EthConfig,
@@ -64,16 +63,12 @@ impl WiringLayer for PKSigningEthClientLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let private_key = self.wallets.operator.private_key();
-        let gas_adjuster_config = self
-            .eth_sender_config
-            .gas_adjuster
-            .as_ref()
-            .context("gas_adjuster config is missing")?;
+        let gas_adjuster_config = &self.eth_sender_config.gas_adjuster;
         let EthInterfaceResource(query_client) = input.eth_client;
 
         let signing_client = PKSigningClient::new_raw(
             private_key.clone(),
-            self.contracts_config.diamond_proxy_addr,
+            self.contracts_config.l1.diamond_proxy_addr,
             gas_adjuster_config.default_priority_fee_per_gas,
             self.sl_chain_id,
             query_client.clone(),
@@ -84,7 +79,7 @@ impl WiringLayer for PKSigningEthClientLayer {
             let private_key = blob_operator.private_key();
             let signing_client_for_blobs = PKSigningClient::new_raw(
                 private_key.clone(),
-                self.contracts_config.diamond_proxy_addr,
+                self.contracts_config.l1.diamond_proxy_addr,
                 gas_adjuster_config.default_priority_fee_per_gas,
                 self.sl_chain_id,
                 query_client,

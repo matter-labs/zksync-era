@@ -2,7 +2,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use anyhow::Context as _;
-use secrecy::{ExposeSecret as _, Secret};
+use secrecy::{ExposeSecret as _, SecretString};
 use zksync_concurrency::{limiter, net, time};
 use zksync_config::{
     configs,
@@ -15,7 +15,7 @@ use zksync_consensus_roles::{attester, node, validator};
 use zksync_dal::consensus_dal;
 use zksync_types::ethabi;
 
-fn read_secret_text<T: TextFmt>(text: Option<&Secret<String>>) -> anyhow::Result<Option<T>> {
+fn read_secret_text<T: TextFmt>(text: Option<&SecretString>) -> anyhow::Result<Option<T>> {
     text.map(|text| Text::new(text.expose_secret()).decode())
         .transpose()
         .map_err(|_| anyhow::format_err!("invalid format"))
@@ -24,13 +24,13 @@ fn read_secret_text<T: TextFmt>(text: Option<&Secret<String>>) -> anyhow::Result
 pub(super) fn validator_key(
     secrets: &ConsensusSecrets,
 ) -> anyhow::Result<Option<validator::SecretKey>> {
-    read_secret_text(secrets.validator_key.as_ref().map(|x| &x.0))
+    read_secret_text(secrets.validator_key.as_ref())
 }
 
 pub(super) fn attester_key(
     secrets: &ConsensusSecrets,
 ) -> anyhow::Result<Option<attester::SecretKey>> {
-    read_secret_text(secrets.attester_key.as_ref().map(|x| &x.0))
+    read_secret_text(secrets.attester_key.as_ref())
 }
 
 /// Consensus genesis specification.
@@ -66,10 +66,10 @@ impl GenesisSpec {
             .validators
             .iter()
             .enumerate()
-            .map(|(i, v)| {
+            .map(|(i, (key, weight))| {
                 Ok(validator::WeightedValidator {
-                    key: Text::new(&v.key.0).decode().context("key").context(i)?,
-                    weight: v.weight,
+                    key: Text::new(&key.0).decode().context("key").context(i)?,
+                    weight: *weight,
                 })
             })
             .collect::<anyhow::Result<_>>()
@@ -79,10 +79,10 @@ impl GenesisSpec {
             .attesters
             .iter()
             .enumerate()
-            .map(|(i, v)| {
+            .map(|(i, (key, weight))| {
                 Ok(attester::WeightedAttester {
-                    key: Text::new(&v.key.0).decode().context("key").context(i)?,
-                    weight: v.weight,
+                    key: Text::new(&key.0).decode().context("key").context(i)?,
+                    weight: *weight,
                 })
             })
             .collect::<anyhow::Result<_>>()
@@ -119,7 +119,7 @@ impl GenesisSpec {
 }
 
 pub(super) fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<node::SecretKey>> {
-    read_secret_text(secrets.node_key.as_ref().map(|x| &x.0))
+    read_secret_text(secrets.node_key.as_ref())
 }
 
 pub(super) fn executor(

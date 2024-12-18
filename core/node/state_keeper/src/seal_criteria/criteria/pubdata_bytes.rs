@@ -76,7 +76,7 @@ mod tests {
         let config = StateKeeperConfig {
             reject_tx_at_eth_params_percentage: 0.95,
             close_block_at_eth_params_percentage: 0.95,
-            max_pubdata_per_batch: 100000,
+            max_pubdata_per_batch: 100000.into(),
             ..Default::default()
         };
 
@@ -85,7 +85,7 @@ mod tests {
         };
 
         let block_execution_metrics = VmExecutionMetrics {
-            l2_l1_long_messages: (config.max_pubdata_per_batch as f64
+            l2_l1_long_messages: (config.max_pubdata_per_batch.0 as f64
                 * config.close_block_at_eth_params_percentage
                 - 1.0
                 - execution_metrics_bootloader_batch_tip_overhead(
@@ -109,7 +109,7 @@ mod tests {
         assert_eq!(empty_block_resolution, SealResolution::NoSeal);
 
         let block_execution_metrics = VmExecutionMetrics {
-            l2_l1_long_messages: (config.max_pubdata_per_batch as f64
+            l2_l1_long_messages: (config.max_pubdata_per_batch.0 as f64
                 * config.close_block_at_eth_params_percentage
                 + 1f64)
                 .round() as usize,
@@ -130,7 +130,7 @@ mod tests {
         assert_eq!(full_block_resolution, SealResolution::IncludeAndSeal);
 
         let block_execution_metrics = VmExecutionMetrics {
-            l2_l1_long_messages: config.max_pubdata_per_batch as usize + 1,
+            l2_l1_long_messages: config.max_pubdata_per_batch.0 as usize + 1,
             ..VmExecutionMetrics::default()
         };
         let full_block_resolution = criterion.should_seal(

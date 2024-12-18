@@ -3,6 +3,7 @@ use std::{env, time::Duration};
 use serde::Deserialize;
 use smart_config::{DescribeConfig, DeserializeConfig};
 
+// FIXME: remove `Deserialize` (used in loadnext)
 #[derive(Debug, Deserialize, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct PrometheusConfig {
     /// Port to which the Prometheus exporter server is listening.

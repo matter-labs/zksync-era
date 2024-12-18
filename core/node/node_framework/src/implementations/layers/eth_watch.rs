@@ -61,12 +61,12 @@ impl WiringLayer for EthWatchLayer {
 
         let eth_client = EthHttpQueryClient::new(
             client,
-            self.contracts_config.diamond_proxy_addr,
+            self.contracts_config.l1.diamond_proxy_addr,
             self.contracts_config
                 .ecosystem_contracts
                 .map(|a| a.state_transition_proxy_addr),
-            self.contracts_config.chain_admin_addr,
-            self.contracts_config.governance_addr,
+            self.contracts_config.l1.chain_admin_addr,
+            self.contracts_config.l1.governance_addr,
             self.eth_watch_config.confirmations_for_eth_event,
         );
 
@@ -75,7 +75,7 @@ impl WiringLayer for EthWatchLayer {
             Box::new(eth_client.clone()),
             Box::new(eth_client),
             main_pool,
-            self.eth_watch_config.poll_interval(),
+            self.eth_watch_config.eth_node_poll_interval,
         )
         .await?;
 

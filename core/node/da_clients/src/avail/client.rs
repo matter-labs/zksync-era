@@ -3,8 +3,8 @@ use std::{fmt::Debug, sync::Arc, time::Duration};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use jsonrpsee::ws_client::WsClientBuilder;
+use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
-use subxt_signer::ExposeSecret;
 use zksync_config::configs::da_client::avail::{AvailClientConfig, AvailConfig, AvailSecrets};
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
@@ -100,9 +100,7 @@ impl AvailClient {
         let api_client = Arc::new(reqwest::Client::new());
         match config.config.clone() {
             AvailClientConfig::GasRelay(conf) => {
-                let gas_relay_api_key = secrets
-                    .gas_relay_api_key
-                    .ok_or_else(|| anyhow::anyhow!("Gas relay API key is missing"))?;
+                let gas_relay_api_key = secrets.gas_relay_api_key;
                 let gas_relay_client = GasRelayClient::new(
                     &conf.gas_relay_api_url,
                     gas_relay_api_key.0.expose_secret(),
@@ -117,9 +115,7 @@ impl AvailClient {
                 })
             }
             AvailClientConfig::FullClient(conf) => {
-                let seed_phrase = secrets
-                    .seed_phrase
-                    .ok_or_else(|| anyhow::anyhow!("Seed phrase is missing"))?;
+                let seed_phrase = secrets.seed_phrase;
                 // these unwraps are safe because we validate in protobuf config
                 let sdk_client =
                     RawAvailClient::new(conf.app_id, seed_phrase.0.expose_secret()).await?;

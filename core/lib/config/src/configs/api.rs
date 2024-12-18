@@ -155,10 +155,10 @@ pub struct Web3JsonRpcConfig {
     pub filters_disabled: bool,
     /// Max possible limit of filters to be in the state at once.
     #[config(default_t = 10_000)]
-    pub filters_limit: u32,
+    pub filters_limit: usize,
     /// Max possible limit of subscriptions to be in the state at once.
     #[config(default_t = 10_000)]
-    pub subscriptions_limit: u32,
+    pub subscriptions_limit: usize,
     /// Interval between polling db for pubsub (in ms).
     #[config(default_t = Duration::from_millis(200), with = TimeUnit::Millis)]
     pub pubsub_polling_interval: Duration,

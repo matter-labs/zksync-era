@@ -7,8 +7,8 @@ use std::{
 
 use async_trait::async_trait;
 use celestia_types::{blob::Commitment, nmt::Namespace, Blob};
+use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
-use subxt_signer::ExposeSecret;
 use tonic::transport::Endpoint;
 use zksync_config::configs::da_client::celestia::{CelestiaConfig, CelestiaSecrets};
 use zksync_da_client::{

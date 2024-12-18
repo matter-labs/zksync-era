@@ -1,7 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
     net::Ipv4Addr,
-    num::NonZeroUsize,
     slice,
 };
 
@@ -92,7 +91,7 @@ async fn setting_response_size_limits() {
             Ok::<_, ErrorObjectOwned>("!".repeat(response_size))
         })
         .unwrap();
-    let overrides = MaxResponseSizeOverrides::from_iter([("test_unlimited", NonZeroUsize::MAX)]);
+    let overrides = MaxResponseSizeOverrides::from_iter([("test_unlimited", None)]);
     let methods = ApiServer::override_method_response_sizes(rpc_module, &overrides).unwrap();
 
     let server = ServerBuilder::default()
@@ -272,7 +271,7 @@ impl StorageInitialization {
 
 async fn test_http_server(test: impl HttpTest) {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let network_config = NetworkConfig::for_tests();
+    let network_config = NetworkConfig::default();
     let mut storage = pool.connection().await.unwrap();
     test.storage_initialization()
         .prepare_storage(&network_config, &mut storage)

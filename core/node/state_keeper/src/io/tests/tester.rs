@@ -77,11 +77,11 @@ impl Tester {
             internal_l1_pricing_multiplier: 1.0,
             internal_enforced_l1_gas_price: None,
             internal_enforced_pubdata_price: None,
-            poll_period: 10,
-            max_l1_gas_price: None,
+            poll_period: Duration::from_millis(10),
+            max_l1_gas_price: u64::MAX,
             num_samples_for_blob_base_fee_estimate: 10,
             internal_pubdata_pricing_multiplier: 1.0,
-            max_blob_base_fee: None,
+            max_blob_base_fee: u64::MAX,
             settlement_mode: Default::default(),
         };
 
@@ -139,7 +139,7 @@ impl Tester {
         let config = StateKeeperConfig {
             minimal_l2_gas_price: self.minimal_l2_gas_price(),
             validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
-            ..StateKeeperConfig::for_tests()
+            ..StateKeeperConfig::default()
         };
         let wallets = Wallets::for_tests();
         let io = MempoolIO::new(

@@ -80,6 +80,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
         let price_api_client = input.price_api_client;
         let base_token_addr = self
             .contracts_config
+            .l1
             .base_token_addr
             .expect("base token address is not set");
 
@@ -93,7 +94,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
 
                 let signing_client = PKSigningClient::new_raw(
                     tms_private_key.clone(),
-                    self.contracts_config.diamond_proxy_addr,
+                    self.contracts_config.l1.diamond_proxy_addr,
                     self.config.default_priority_fee_per_gas,
                     #[allow(clippy::useless_conversion)]
                     self.l1_chain_id.into(),
@@ -106,8 +107,8 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                         token_multiplier_setter_account_address: tms_address,
                         chain_admin_contract: chain_admin_contract(),
                         getters_facet_contract: getters_facet_contract(),
-                        diamond_proxy_contract_address: self.contracts_config.diamond_proxy_addr,
-                        chain_admin_contract_address: self.contracts_config.chain_admin_addr,
+                        diamond_proxy_contract_address: self.contracts_config.l1.diamond_proxy_addr,
+                        chain_admin_contract_address: self.contracts_config.l1.chain_admin_addr,
                         config: self.config.clone(),
                     },
                     last_persisted_l1_ratio: None,

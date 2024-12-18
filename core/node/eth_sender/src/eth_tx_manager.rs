@@ -539,7 +539,7 @@ impl EthTxManager {
             METRICS.track_block_numbers(&l1_block_numbers);
 
             self.loop_iteration(&mut storage).await;
-            tokio::time::sleep(self.config.tx_poll_period()).await;
+            tokio::time::sleep(self.config.tx_poll_period).await;
         }
         Ok(())
     }

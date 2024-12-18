@@ -1,4 +1,3 @@
-use anyhow::Context;
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::{eth_sender::EthConfig, ContractsConfig};
 use zksync_eth_client::BoundEthInterface;
@@ -104,7 +103,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             .as_deref()
             .map(BoundEthInterface::sender_account);
 
-        let config = self.eth_sender_config.sender.context("sender")?;
+        let config = self.eth_sender_config.sender;
         let aggregator = Aggregator::new(
             config.clone(),
             object_store,
@@ -117,9 +116,9 @@ impl WiringLayer for EthTxAggregatorLayer {
             config.clone(),
             aggregator,
             input.eth_client.unwrap().0,
-            self.contracts_config.validator_timelock_addr,
-            self.contracts_config.l1_multicall3_addr,
-            self.contracts_config.diamond_proxy_addr,
+            self.contracts_config.l1.validator_timelock_addr,
+            self.contracts_config.l1.multicall3_addr,
+            self.contracts_config.l1.diamond_proxy_addr,
             self.zksync_network_id,
             eth_client_blobs_addr,
             self.settlement_mode,

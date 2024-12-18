@@ -221,8 +221,8 @@ pub(super) struct TimeoutSealer {
 impl TimeoutSealer {
     pub fn new(config: &StateKeeperConfig) -> Self {
         Self {
-            block_commit_deadline_ms: config.block_commit_deadline_ms,
-            l2_block_commit_deadline_ms: config.l2_block_commit_deadline_ms,
+            block_commit_deadline_ms: config.l1_batch_commit_deadline_ms.as_millis() as u64,
+            l2_block_commit_deadline_ms: config.l2_block_commit_deadline_ms.as_millis() as u64,
         }
     }
 }
@@ -266,7 +266,7 @@ pub(super) struct L2BlockMaxPayloadSizeSealer {
 impl L2BlockMaxPayloadSizeSealer {
     pub fn new(config: &StateKeeperConfig) -> Self {
         Self {
-            max_payload_size: config.l2_block_max_payload_size,
+            max_payload_size: config.l2_block_max_payload_size.0 as usize,
         }
     }
 
