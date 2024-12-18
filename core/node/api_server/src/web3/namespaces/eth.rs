@@ -405,10 +405,12 @@ impl EthNamespace {
         let marker = BytecodeMarker::new(contract_code.bytecode_hash);
         let prepared_bytecode = if marker == Some(BytecodeMarker::Evm) {
             trim_padded_evm_bytecode(
-                BytecodeHash::try_from(contract_code.bytecode_hash).expect(&format!(
-                    "Invalid bytecode hash at address {address:?}: {:?}",
-                    contract_code.bytecode_hash
-                )),
+                BytecodeHash::try_from(contract_code.bytecode_hash).unwrap_or_else(|_| {
+                    panic!(
+                        "Invalid bytecode hash at address {address:?}: {:?}",
+                        contract_code.bytecode_hash
+                    )
+                }),
                 &contract_code.bytecode,
             )
             .with_context(|| {
