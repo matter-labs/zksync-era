@@ -73,4 +73,3 @@ pub const ENABLE_EVM_EMULATOR_PARAMS: ForgeScriptParams = ForgeScriptParams {
     output: "script-out/output-enable-evm-emulator.toml",
     script_path: "deploy-scripts/EnableEvmEmulator.s.sol",
 };
-

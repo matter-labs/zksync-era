@@ -6,7 +6,7 @@ use xshell::Shell;
 use crate::{
     enable_evm_emulator::enable_evm_emulator,
     messages::{
-        MSG_ENABLING_EVM_EMULATOR, MSG_CHAIN_NOT_INITIALIZED, MSG_EVM_EMULATOR_ENABLED,
+        MSG_CHAIN_NOT_INITIALIZED, MSG_ENABLING_EVM_EMULATOR, MSG_EVM_EMULATOR_ENABLED,
         MSG_L1_SECRETS_MUST_BE_PRESENTED,
     },
 };

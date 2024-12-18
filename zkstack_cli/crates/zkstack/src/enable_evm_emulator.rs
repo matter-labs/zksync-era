@@ -15,10 +15,8 @@ use crate::{
 
 lazy_static! {
     static ref ENABLE_EVM_EMULATOR: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function chainAllowEvmEmulation(address chainAdmin, address target) public",
-        ])
-        .unwrap(),
+        parse_abi(&["function chainAllowEvmEmulation(address chainAdmin, address target) public",])
+            .unwrap(),
     );
 }
 
@@ -42,10 +40,7 @@ pub async fn enable_evm_emulator(
         .unwrap();
     let foundry_contracts_path = ecosystem_config.path_to_foundry();
     let forge = Forge::new(&foundry_contracts_path)
-        .script(
-            &ENABLE_EVM_EMULATOR_PARAMS.script(),
-            forge_args.clone(),
-        )
+        .script(&ENABLE_EVM_EMULATOR_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
         .with_broadcast()

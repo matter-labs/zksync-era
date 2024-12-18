@@ -11,13 +11,13 @@ use crate::commands::chain::{
 };
 
 mod accept_chain_ownership;
-mod enable_evm_emulator;
 pub(crate) mod args;
 mod build_transactions;
 mod common;
 mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
+mod enable_evm_emulator;
 pub mod genesis;
 pub mod init;
 pub mod register_chain;
