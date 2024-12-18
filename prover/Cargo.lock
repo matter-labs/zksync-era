@@ -620,7 +620,7 @@ dependencies = [
 [[package]]
 name = "boojum"
 version = "0.30.9"
-source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#5eb4e04d814f3f1b4773106e1991b2416b12393c"
+source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#7edd1ab61bfb27fe080d298d506fd7782732e7c6"
 dependencies = [
  "arrayvec 0.7.6",
  "bincode",
@@ -1826,7 +1826,7 @@ dependencies = [
 [[package]]
 name = "fflonk"
 version = "0.30.9"
-source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#5eb4e04d814f3f1b4773106e1991b2416b12393c"
+source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#7edd1ab61bfb27fe080d298d506fd7782732e7c6"
 dependencies = [
  "bincode",
  "byteorder",
@@ -1961,7 +1961,7 @@ dependencies = [
 [[package]]
 name = "franklin-crypto"
 version = "0.30.9"
-source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#5eb4e04d814f3f1b4773106e1991b2416b12393c"
+source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#7edd1ab61bfb27fe080d298d506fd7782732e7c6"
 dependencies = [
  "arr_macro",
  "bit-vec",
@@ -5055,7 +5055,7 @@ dependencies = [
 [[package]]
 name = "rescue_poseidon"
 version = "0.30.9"
-source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#5eb4e04d814f3f1b4773106e1991b2416b12393c"
+source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#7edd1ab61bfb27fe080d298d506fd7782732e7c6"
 dependencies = [
  "addchain",
  "arrayvec 0.7.6",
@@ -5934,7 +5934,7 @@ dependencies = [
 [[package]]
 name = "snark_wrapper"
 version = "0.30.9"
-source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#5eb4e04d814f3f1b4773106e1991b2416b12393c"
+source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#7edd1ab61bfb27fe080d298d506fd7782732e7c6"
 dependencies = [
  "derivative",
  "rand 0.4.6",
@@ -8062,7 +8062,7 @@ dependencies = [
 [[package]]
 name = "zksync_bellman"
 version = "0.30.9"
-source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#5eb4e04d814f3f1b4773106e1991b2416b12393c"
+source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#7edd1ab61bfb27fe080d298d506fd7782732e7c6"
 dependencies = [
  "arrayvec 0.7.6",
  "bit-vec",
@@ -8287,7 +8287,7 @@ dependencies = [
 [[package]]
 name = "zksync_cs_derive"
 version = "0.30.9"
-source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#5eb4e04d814f3f1b4773106e1991b2416b12393c"
+source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#7edd1ab61bfb27fe080d298d506fd7782732e7c6"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.92",
@@ -8388,7 +8388,7 @@ dependencies = [
 [[package]]
 name = "zksync_ff"
 version = "0.30.9"
-source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#5eb4e04d814f3f1b4773106e1991b2416b12393c"
+source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#7edd1ab61bfb27fe080d298d506fd7782732e7c6"
 dependencies = [
  "byteorder",
  "hex",
@@ -8400,7 +8400,7 @@ dependencies = [
 [[package]]
 name = "zksync_ff_derive"
 version = "0.30.9"
-source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#5eb4e04d814f3f1b4773106e1991b2416b12393c"
+source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#7edd1ab61bfb27fe080d298d506fd7782732e7c6"
 dependencies = [
  "num-bigint 0.4.6",
  "num-integer",
@@ -8505,7 +8505,7 @@ dependencies = [
 [[package]]
 name = "zksync_pairing"
 version = "0.30.9"
-source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#5eb4e04d814f3f1b4773106e1991b2416b12393c"
+source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#7edd1ab61bfb27fe080d298d506fd7782732e7c6"
 dependencies = [
  "byteorder",
  "cfg-if",
@@ -8837,7 +8837,7 @@ dependencies = [
 [[package]]
 name = "zksync_solidity_vk_codegen"
 version = "0.30.9"
-source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#5eb4e04d814f3f1b4773106e1991b2416b12393c"
+source = "git+https://github.com/matter-labs/zksync-crypto.git?branch=fflonk#7edd1ab61bfb27fe080d298d506fd7782732e7c6"
 dependencies = [
  "ethereum-types",
  "franklin-crypto",
