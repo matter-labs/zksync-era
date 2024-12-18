@@ -146,23 +146,6 @@ pub fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
     H256(keccak256(&encoded_data))
 }
 
-fn replace_in_file(file_path: &str, target: &str, replacement: &str) -> std::io::Result<()> {
-    // Read the file content
-    let content = std::fs::read_to_string(file_path)?;
-
-    // Replace all occurrences of the target substring
-    let modified_content = content.replace(target, replacement);
-
-    // Write the modified content back to the file
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .truncate(true) // Clear the file before writing
-        .open(file_path)?;
-
-    file.write_all(modified_content.as_bytes())?;
-    Ok(())
-}
-
 async fn adapt_config(shell: &Shell, chain_config: ChainConfig) -> anyhow::Result<()> {
     println!("Adapting config");
     let mut contracts_config = chain_config.get_contracts_config()?;
