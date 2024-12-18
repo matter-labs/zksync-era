@@ -12,8 +12,12 @@
 use anyhow::Context as _;
 use structopt::StructOpt;
 use tokio::{sync::watch, task::JoinHandle};
-use zksync_config::configs::PrometheusConfig;
-use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
+use zksync_config::{
+    configs::{DatabaseSecrets, ObservabilityConfig, PrometheusConfig},
+    full_config_schema,
+    sources::ConfigFilePaths,
+    ConfigRepository, ParseResultExt, SnapshotsCreatorConfig,
+};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
@@ -64,26 +68,29 @@ async fn main() -> anyhow::Result<()> {
     let (stop_sender, stop_receiver) = watch::channel(false);
 
     let opt = Opt::from_args();
-    let general_config = load_general_config(opt.config_path).context("general config")?;
-    let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
+    let config_file_paths = ConfigFilePaths {
+        general: opt.config_path,
+        secrets: opt.secrets_path,
+    };
+    let config_sources =
+        tokio::task::spawn_blocking(|| config_file_paths.into_config_sources("")).await??;
 
-    let observability_config = general_config
-        .observability
-        .context("observability config")?;
+    let observability_config =
+        ObservabilityConfig::from_sources(config_sources.clone()).context("ObservabilityConfig")?;
     let _observability_guard = observability_config.install()?;
+
+    let schema = full_config_schema();
+    let repo = ConfigRepository::new(&schema).with_all(config_sources);
+    let database_secrets: DatabaseSecrets = repo.single()?.parse().log_all_errors()?;
+    let creator_config: SnapshotsCreatorConfig = repo.single()?.parse().log_all_errors()?;
+    // FIXME: implement `parse_opt`
+    let prometheus_config: PrometheusConfig = repo.single()?.parse().log_all_errors()?;
+
     let prometheus_exporter_task =
-        maybe_enable_prometheus_metrics(general_config.prometheus_config, stop_receiver).await?;
+        maybe_enable_prometheus_metrics(Some(prometheus_config), stop_receiver).await?;
     tracing::info!("Starting snapshots creator");
 
-    let creator_config = general_config
-        .snapshot_creator
-        .context("snapshot creator config")?;
-
-    let object_store_config = creator_config
-        .clone()
-        .object_store
-        .context("snapshot creator object storage config")?;
-
+    let object_store_config = creator_config.object_store.clone();
     let blob_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
         .await?;

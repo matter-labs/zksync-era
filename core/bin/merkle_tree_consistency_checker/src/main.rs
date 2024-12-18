@@ -2,8 +2,10 @@ use std::{path::Path, time::Instant};
 
 use anyhow::Context as _;
 use clap::Parser;
-use zksync_config::{configs::ObservabilityConfig, DBConfig};
-use zksync_env_config::FromEnv;
+use zksync_config::{
+    configs::ObservabilityConfig, full_config_schema, sources::ConfigFilePaths, ConfigRepository,
+    DBConfig, ParseResultExt,
+};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_storage::RocksDB;
 use zksync_types::L1BatchNumber;
@@ -25,7 +27,7 @@ struct Cli {
 impl Cli {
     fn run(self, config: &DBConfig) -> anyhow::Result<()> {
         let db_path = &config.merkle_tree.path;
-        tracing::info!("Verifying consistency of Merkle tree at {db_path}");
+        tracing::info!("Verifying consistency of Merkle tree at {db_path:?}");
         let start = Instant::now();
         let db =
             RocksDB::new(Path::new(db_path)).context("failed initializing Merkle tree RocksDB")?;
@@ -52,10 +54,19 @@ impl Cli {
 }
 
 fn main() -> anyhow::Result<()> {
+    let config_sources = ConfigFilePaths::default().into_config_sources("")?;
+
     let observability_config =
-        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
+        ObservabilityConfig::from_sources(config_sources.clone()).context("ObservabilityConfig")?;
     let _observability_guard = observability_config.install()?;
 
-    let db_config = DBConfig::from_env().context("DBConfig::from_env()")?;
+    let schema = full_config_schema();
+    let repo = ConfigRepository::new(&schema).with_all(config_sources);
+
+    let db_config: DBConfig = repo
+        .single()
+        .context("DB config is not unique in config schema")?
+        .parse()
+        .log_all_errors()?;
     Cli::parse().run(&db_config)
 }

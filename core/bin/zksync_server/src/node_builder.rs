@@ -1,9 +1,8 @@
 //! This module provides a "builder" for the main node,
 //! as well as an interface to run the node with the specified components.
 
-use std::time::Duration;
-
 use anyhow::{bail, Context};
+use tokio::runtime::Runtime;
 use zksync_config::{
     configs::{
         da_client::DAClientConfig, secrets::DataAvailabilitySecrets, wallets::Wallets,
@@ -95,24 +94,21 @@ pub struct MainNodeBuilder {
 
 impl MainNodeBuilder {
     pub fn new(
+        runtime: Runtime,
         configs: GeneralConfig,
         wallets: Wallets,
         genesis_config: GenesisConfig,
         contracts_config: ContractsConfig,
         secrets: Secrets,
-    ) -> anyhow::Result<Self> {
-        Ok(Self {
-            node: ZkStackServiceBuilder::new().context("Cannot create ZkStackServiceBuilder")?,
+    ) -> Self {
+        Self {
+            node: ZkStackServiceBuilder::on_runtime(runtime),
             configs,
             wallets,
             genesis_config,
             contracts_config,
             secrets,
-        })
-    }
-
-    pub fn runtime_handle(&self) -> tokio::runtime::Handle {
-        self.node.runtime_handle()
+        }
     }
 
     fn add_sigint_handler_layer(mut self) -> anyhow::Result<Self> {
@@ -122,7 +118,7 @@ impl MainNodeBuilder {
 
     fn add_pools_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.postgres_config);
-        let secrets = try_load_config!(self.secrets.database);
+        let secrets = self.secrets.database.clone();
         let pools_layer = PoolsLayerBuilder::empty(config, secrets)
             .with_master(true)
             .with_replica(true)
@@ -157,14 +153,16 @@ impl MainNodeBuilder {
 
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
         let genesis = self.genesis_config.clone();
-        let eth_config = try_load_config!(self.secrets.l1);
+        let eth_config = self.secrets.l1.clone();
         let query_eth_client_layer = QueryEthClientLayer::new(
             genesis.settlement_layer_id(),
-            eth_config.l1_rpc_url,
+            eth_config
+                .l1_rpc_url
+                .context("L1 RPC URL is not specified")?,
             self.configs
                 .eth
                 .as_ref()
-                .and_then(|x| Some(x.gas_adjuster?.settlement_mode))
+                .map(|x| x.gas_adjuster.settlement_mode)
                 .unwrap_or(SettlementMode::SettlesToL1),
         );
         self.node.add_layer(query_eth_client_layer);
@@ -172,14 +170,12 @@ impl MainNodeBuilder {
     }
 
     fn add_gas_adjuster_layer(mut self) -> anyhow::Result<Self> {
-        let gas_adjuster_config = try_load_config!(self.configs.eth)
-            .gas_adjuster
-            .context("Gas adjuster")?;
+        let gas_adjuster_config = try_load_config!(self.configs.eth).gas_adjuster;
         let eth_sender_config = try_load_config!(self.configs.eth);
         let gas_adjuster_layer = GasAdjusterLayer::new(
             gas_adjuster_config,
             self.genesis_config.clone(),
-            try_load_config!(eth_sender_config.sender).pubdata_sending_mode,
+            eth_sender_config.sender.pubdata_sending_mode,
         );
         self.node.add_layer(gas_adjuster_layer);
         Ok(self)
@@ -187,7 +183,7 @@ impl MainNodeBuilder {
 
     fn add_l1_gas_layer(mut self) -> anyhow::Result<Self> {
         // Ensure the BaseTokenRatioProviderResource is inserted if the base token is not ETH.
-        if self.contracts_config.base_token_addr != Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS) {
+        if self.contracts_config.l1.base_token_addr != Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS) {
             let base_token_adjuster_config = try_load_config!(self.configs.base_token_adjuster);
             self.node
                 .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
@@ -207,7 +203,7 @@ impl MainNodeBuilder {
 
     fn add_l1_batch_commitment_mode_validation_layer(mut self) -> anyhow::Result<Self> {
         let layer = L1BatchCommitmentModeValidationLayer::new(
-            self.contracts_config.diamond_proxy_addr,
+            self.contracts_config.l1.diamond_proxy_addr,
             self.genesis_config.l1_batch_commit_data_generator_mode,
         );
         self.node.add_layer(layer);
@@ -240,7 +236,7 @@ impl MainNodeBuilder {
         let wallets = self.wallets.clone();
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let persistence_layer = OutputHandlerLayer::new(
-            self.contracts_config.l2_legacy_shared_bridge_addr,
+            self.contracts_config.l2.legacy_shared_bridge_addr,
             sk_config.l2_block_seal_queue_capacity,
         )
         .with_protective_reads_persistence_enabled(sk_config.protective_reads_persistence_enabled);
@@ -249,7 +245,7 @@ impl MainNodeBuilder {
             sk_config.clone(),
             try_load_config!(self.configs.mempool_config),
             try_load_config!(wallets.state_keeper),
-            self.contracts_config.l2_da_validator_addr,
+            self.contracts_config.l2.da_validator_addr,
             self.genesis_config.l1_batch_commit_data_generator_mode,
         );
         let db_config = try_load_config!(self.configs.db_config);
@@ -265,7 +261,8 @@ impl MainNodeBuilder {
         let rocksdb_options = RocksdbStorageOptions {
             block_cache_capacity: db_config
                 .experimental
-                .state_keeper_db_block_cache_capacity(),
+                .state_keeper_db_block_cache_capacity_mb
+                .0 as usize,
             max_open_files: db_config.experimental.state_keeper_db_max_open_files,
         };
         let state_keeper_layer =
@@ -281,7 +278,7 @@ impl MainNodeBuilder {
     fn add_eth_watch_layer(mut self) -> anyhow::Result<Self> {
         let eth_config = try_load_config!(self.configs.eth);
         self.node.add_layer(EthWatchLayer::new(
-            try_load_config!(eth_config.watcher),
+            eth_config.watcher,
             self.contracts_config.clone(),
         ));
         Ok(self)
@@ -306,24 +303,22 @@ impl MainNodeBuilder {
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
 
-        let timestamp_asserter_params = match self.contracts_config.l2_timestamp_asserter_addr {
+        let timestamp_asserter_params = match self.contracts_config.l2.timestamp_asserter_addr {
             Some(address) => {
                 let timestamp_asserter_config =
                     try_load_config!(self.configs.timestamp_asserter_config);
                 Some(TimestampAsserterParams {
                     address,
-                    min_time_till_end: Duration::from_secs(
-                        timestamp_asserter_config.min_time_till_end_sec.into(),
-                    ),
+                    min_time_till_end: timestamp_asserter_config.min_time_till_end_sec,
                 })
             }
             None => None,
         };
         let postgres_storage_caches_config = PostgresStorageCachesConfig {
-            factory_deps_cache_size: rpc_config.factory_deps_cache_size() as u64,
-            initial_writes_cache_size: rpc_config.initial_writes_cache_size() as u64,
-            latest_values_cache_size: rpc_config.latest_values_cache_size() as u64,
-            latest_values_max_block_lag: rpc_config.latest_values_max_block_lag(),
+            factory_deps_cache_size: rpc_config.factory_deps_cache_size_mb.0,
+            initial_writes_cache_size: rpc_config.initial_writes_cache_size_mb.0,
+            latest_values_cache_size: rpc_config.latest_values_cache_size_mb.0,
+            latest_values_max_block_lag: rpc_config.latest_values_max_block_lag.get(),
         };
         let vm_config = self
             .configs
@@ -345,7 +340,7 @@ impl MainNodeBuilder {
                 timestamp_asserter_params,
             ),
             postgres_storage_caches_config,
-            rpc_config.vm_concurrency_limit(),
+            rpc_config.vm_concurrency_limit,
         );
         let layer = layer.with_vm_mode(vm_config.api_fast_vm_mode);
         self.node.add_layer(layer);
@@ -355,8 +350,8 @@ impl MainNodeBuilder {
     fn add_api_caches_layer(mut self) -> anyhow::Result<Self> {
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
         self.node.add_layer(MempoolCacheLayer::new(
-            rpc_config.mempool_cache_size(),
-            rpc_config.mempool_cache_update_interval(),
+            rpc_config.mempool_cache_size,
+            rpc_config.mempool_cache_update_interval,
         ));
         Ok(self)
     }
@@ -388,9 +383,9 @@ impl MainNodeBuilder {
 
         let optional_config = Web3ServerOptionalConfig {
             namespaces: Some(namespaces),
-            filters_limit: Some(rpc_config.filters_limit()),
-            subscriptions_limit: Some(rpc_config.subscriptions_limit()),
-            batch_request_size_limit: Some(rpc_config.max_batch_request_size()),
+            filters_limit: Some(rpc_config.filters_limit),
+            subscriptions_limit: Some(rpc_config.subscriptions_limit),
+            batch_request_size_limit: Some(rpc_config.max_batch_request_size),
             response_body_size_limit: Some(rpc_config.max_response_body_size()),
             with_extended_tracing: rpc_config.extended_api_tracing,
             ..Default::default()
@@ -425,14 +420,14 @@ impl MainNodeBuilder {
 
         let optional_config = Web3ServerOptionalConfig {
             namespaces: Some(namespaces),
-            filters_limit: Some(rpc_config.filters_limit()),
-            subscriptions_limit: Some(rpc_config.subscriptions_limit()),
-            batch_request_size_limit: Some(rpc_config.max_batch_request_size()),
+            filters_limit: Some(rpc_config.filters_limit),
+            subscriptions_limit: Some(rpc_config.subscriptions_limit),
+            batch_request_size_limit: Some(rpc_config.max_batch_request_size),
             response_body_size_limit: Some(rpc_config.max_response_body_size()),
             websocket_requests_per_minute_limit: Some(
-                rpc_config.websocket_requests_per_minute_limit(),
+                rpc_config.websocket_requests_per_minute_limit,
             ),
-            replication_lag_limit: circuit_breaker_config.replication_lag_limit(),
+            replication_lag_limit: circuit_breaker_config.replication_lag_limit_sec,
             with_extended_tracing: rpc_config.extended_api_tracing,
             ..Default::default()
         };
@@ -465,7 +460,7 @@ impl MainNodeBuilder {
             self.configs
                 .eth
                 .as_ref()
-                .and_then(|x| Some(x.gas_adjuster?.settlement_mode))
+                .map(|x| x.gas_adjuster.settlement_mode)
                 .unwrap_or(SettlementMode::SettlesToL1),
         ));
 
@@ -510,11 +505,7 @@ impl MainNodeBuilder {
                 .consensus_config
                 .clone()
                 .context("Consensus config has to be provided")?,
-            secrets: self
-                .secrets
-                .consensus
-                .clone()
-                .context("Consensus secrets have to be provided")?,
+            secrets: self.secrets.consensus.clone(),
         });
 
         Ok(self)
@@ -554,11 +545,9 @@ impl MainNodeBuilder {
 
     fn add_da_dispatcher_layer(mut self) -> anyhow::Result<Self> {
         let eth_sender_config = try_load_config!(self.configs.eth);
-        if let Some(sender_config) = eth_sender_config.sender {
-            if sender_config.pubdata_sending_mode != PubdataSendingMode::Custom {
-                tracing::warn!("DA dispatcher is enabled, but the pubdata sending mode is not `Custom`. DA dispatcher will not be started.");
-                return Ok(self);
-            }
+        if eth_sender_config.sender.pubdata_sending_mode != PubdataSendingMode::Custom {
+            tracing::warn!("DA dispatcher is enabled, but the pubdata sending mode is not `Custom`. DA dispatcher will not be started.");
+            return Ok(self);
         }
 
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);

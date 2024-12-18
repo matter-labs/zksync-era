@@ -1,13 +1,21 @@
 use std::io::Write;
 
-use zksync_config::configs::DatabaseSecrets;
+use zksync_config::{
+    configs::DatabaseSecrets, full_config_schema, sources::ConfigFilePaths, ConfigRepository,
+};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_env_config::FromEnv;
 use zksync_types::contract_verification_api::SourceCodeData;
 
 #[tokio::main]
 async fn main() {
-    let config = DatabaseSecrets::from_env().unwrap();
+    let config_sources = ConfigFilePaths::default().into_config_sources("").unwrap();
+
+    // FIXME: observability? error handling?
+
+    let schema = full_config_schema();
+    let repo = ConfigRepository::new(&schema).with_all(config_sources);
+    let config: DatabaseSecrets = repo.single().unwrap().parse().unwrap();
+
     let pool = ConnectionPool::<Core>::singleton(config.replica_url().unwrap())
         .build()
         .await

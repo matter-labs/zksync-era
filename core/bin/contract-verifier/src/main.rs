@@ -3,9 +3,13 @@ use std::{path::PathBuf, time::Duration};
 use anyhow::Context as _;
 use clap::Parser;
 use tokio::sync::watch;
-use zksync_config::configs::PrometheusConfig;
+use zksync_config::{
+    configs::{DatabaseSecrets, ObservabilityConfig, PrometheusConfig},
+    full_config_schema,
+    sources::ConfigFilePaths,
+    ConfigRepository, ContractVerifierConfig, ParseResultExt,
+};
 use zksync_contract_verifier_lib::ContractVerifier;
-use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::ManagedTasks;
@@ -29,20 +33,24 @@ struct Opt {
 async fn main() -> anyhow::Result<()> {
     let opt = Opt::parse();
 
-    let general_config = load_general_config(opt.config_path).context("general config")?;
-    let observability_config = general_config
-        .observability
-        .context("ObservabilityConfig")?;
+    let config_file_paths = ConfigFilePaths {
+        general: opt.config_path,
+        secrets: opt.secrets_path,
+    };
+    let config_sources =
+        tokio::task::spawn_blocking(|| config_file_paths.into_config_sources("")).await??;
+
+    let observability_config =
+        ObservabilityConfig::from_sources(config_sources.clone()).context("ObservabilityConfig")?;
     let _observability_guard = observability_config.install()?;
 
-    let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
-    let verifier_config = general_config
-        .contract_verifier
-        .context("ContractVerifierConfig")?;
-    let prometheus_config = PrometheusConfig {
-        listener_port: verifier_config.prometheus_port,
-        ..general_config.api_config.context("ApiConfig")?.prometheus
-    };
+    let schema = full_config_schema();
+    let repo = ConfigRepository::new(&schema).with_all(config_sources);
+    let database_secrets: DatabaseSecrets = repo.single()?.parse().log_all_errors()?;
+    let verifier_config: ContractVerifierConfig = repo.single()?.parse().log_all_errors()?;
+    let mut prometheus_config: PrometheusConfig = repo.single()?.parse().log_all_errors()?;
+    prometheus_config.listener_port = verifier_config.prometheus_port;
+
     let pool = ConnectionPool::<Core>::singleton(
         database_secrets
             .master_url()
@@ -52,7 +60,7 @@ async fn main() -> anyhow::Result<()> {
     .await?;
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let contract_verifier = ContractVerifier::new(verifier_config.compilation_timeout(), pool)
+    let contract_verifier = ContractVerifier::new(verifier_config.compilation_timeout, pool)
         .await
         .context("failed initializing contract verifier")?;
     let update_task = contract_verifier.sync_compiler_versions_task();
