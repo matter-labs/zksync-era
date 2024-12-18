@@ -1,13 +1,12 @@
 use anyhow::Context;
-use common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
+use common::{forge::ForgeScriptArgs, logger};
 use config::EcosystemConfig;
 use xshell::Shell;
 
 use crate::{
     enable_evm_emulator::enable_evm_emulator,
     messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_ENABLING_EVM_EMULATOR, MSG_EVM_EMULATOR_ENABLED,
-        MSG_L1_SECRETS_MUST_BE_PRESENTED,
+        MSG_CHAIN_NOT_INITIALIZED, MSG_EVM_EMULATOR_ENABLED, MSG_L1_SECRETS_MUST_BE_PRESENTED,
     },
 };
 

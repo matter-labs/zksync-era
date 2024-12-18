@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use anyhow::Context as _;
 use xshell::Shell;
 use zksync_basic_types::L1ChainId;
 pub use zksync_config::GenesisConfig;
