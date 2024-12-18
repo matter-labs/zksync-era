@@ -41,7 +41,6 @@ impl EthConfig {
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
                 tx_aggregation_paused: false,
                 tx_aggregation_only_prove_and_execute: false,
-                ignore_db_nonce: None,
                 priority_tree_start_index: Some(0),
                 time_in_mempool_in_l1_blocks_cap: 1800,
             }),
@@ -119,8 +118,6 @@ pub struct SenderConfig {
     /// special mode specifically for gateway migration to decrease number of non-executed batches
     #[serde(default = "SenderConfig::default_tx_aggregation_only_prove_and_execute")]
     pub tx_aggregation_only_prove_and_execute: bool,
-    /// Used to ignore db nonce check for sender and only use the RPC one.
-    pub ignore_db_nonce: Option<bool>,
     /// Index of the priority operation to start building the `PriorityMerkleTree` from.
     pub priority_tree_start_index: Option<usize>,
     /// Cap of time in mempool for price calculations
