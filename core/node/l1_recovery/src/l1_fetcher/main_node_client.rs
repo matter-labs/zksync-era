@@ -59,7 +59,7 @@ impl SnapshotsApplierMainNodeClient for L1RecoveryOnlineMainNodeClient {
             .rpc_context("get_block_details")
             .with_arg("batch", &l1_batch_number)
             .await?
-            .expect(&format!("Unable to find {l1_batch_number:?} batch"))
+            .unwrap_or_else(|| panic!("Unable to find {l1_batch_number:?} batch"))
             .1;
         Ok(Some(SnapshotHeader {
             version: SnapshotVersion::Version1.into(),

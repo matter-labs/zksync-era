@@ -58,7 +58,6 @@ impl TreeProcessor {
         self.tree.get_root_hash()
     }
     pub async fn process_one_block(&mut self, block: CommitBlock) -> Vec<TreeEntry> {
-        let entries = self.tree.insert_block(&block).await.unwrap();
-        return entries;
+        self.tree.insert_block(&block).await.unwrap()
     }
 }

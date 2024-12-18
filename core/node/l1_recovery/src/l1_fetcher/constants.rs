@@ -5,7 +5,7 @@ use zksync_utils::env::Workspace;
 use zksync_web3_decl::client::{Client, DynClient, L1};
 
 use crate::{
-    l1_fetcher::l1_fetcher::{
+    l1_fetcher::fetcher::{
         L1Fetcher, L1FetcherConfig, ProtocolVersioning, ProtocolVersioning::AllVersions,
     },
     BlobClient, BlobHttpClient,
@@ -73,7 +73,7 @@ pub fn sepolia_diamond_proxy_addr() -> &'static str {
 
 #[allow(unused)] // only used in tests
 pub fn sepolia_l1_client() -> Box<DynClient<L1>> {
-    let url = SensitiveUrl::from_str(&"https://ethereum-sepolia-rpc.publicnode.com").unwrap();
+    let url = SensitiveUrl::from_str("https://ethereum-sepolia-rpc.publicnode.com").unwrap();
     let eth_client = Client::http(url)
         .unwrap()
         .with_allowed_requests_per_second(NonZero::new(10).unwrap())

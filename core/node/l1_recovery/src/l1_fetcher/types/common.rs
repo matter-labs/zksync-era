@@ -131,7 +131,7 @@ pub fn parse_l2_to_l1_log(bytes: &[u8], pointer: &mut usize) -> Result<L2ToL1Pub
         shard_id: u8::from_be_bytes(read_next_n_bytes(bytes, pointer)),
         is_service: u8::from_be_bytes(read_next_n_bytes(bytes, pointer)) != 0,
         tx_number_in_block: u16::from_be_bytes(read_next_n_bytes(bytes, pointer)),
-        sender: H160::from_slice(&read_next_n_bytes::<20>(bytes, pointer)).into(),
+        sender: H160::from_slice(&read_next_n_bytes::<20>(bytes, pointer)),
         key: H256::from_slice(&read_next_n_bytes::<32>(bytes, pointer)),
         value: H256::from_slice(&read_next_n_bytes::<32>(bytes, pointer)),
     };

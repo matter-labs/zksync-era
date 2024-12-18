@@ -587,7 +587,7 @@ impl ExternalNodeBuilder {
 
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers
-        let l1_chain_id = self.config.required.l1_chain_id.clone();
+        let l1_chain_id = self.config.required.l1_chain_id;
         self = self
             .add_sigint_handler_layer()?
             .add_healthcheck_layer()?

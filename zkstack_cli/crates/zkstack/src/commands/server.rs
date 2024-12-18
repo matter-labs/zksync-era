@@ -57,12 +57,10 @@ fn run_server(
 
     let mode = if args.genesis {
         ServerMode::Genesis
+    } else if args.l1_recovery {
+        ServerMode::L1Recovery
     } else {
-        if args.l1_recovery {
-            ServerMode::L1Recovery
-        } else {
-            ServerMode::Normal
-        }
+        ServerMode::Normal
     };
     server
         .run(

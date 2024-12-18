@@ -164,13 +164,13 @@ impl CommitBlock {
                     }
                 }
                 L2ToL1Pubdata::L2ToL2Message(bytes) => {
-                    l1_messages.insert(H256::from(keccak256(&bytes)), bytes.clone());
+                    l1_messages.insert(H256::from(keccak256(bytes)), bytes.clone());
                 }
                 _ => (),
             }
         }
         for hashed_contracts_message in hashed_contracts_messages {
-            if let Some(l2_message) = l1_messages.get(&hashed_contracts_message) {
+            if let Some(l2_message) = l1_messages.get(hashed_contracts_message) {
                 factory_deps.push(CommitBlock::uncompress_bytecode(l2_message));
             }
         }

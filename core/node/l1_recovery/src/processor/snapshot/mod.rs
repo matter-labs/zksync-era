@@ -116,7 +116,7 @@ impl StateCompressor {
             if result.len() == chunk_size || (last_key && !result.is_empty()) {
                 let key = SnapshotStorageLogsStorageKey {
                     l1_batch_number: last_l1_batch_number,
-                    chunk_id: chunk_id,
+                    chunk_id,
                 };
                 let storage_logs = SnapshotStorageLogsChunk {
                     storage_logs: result.clone(),
@@ -183,7 +183,7 @@ impl StateCompressor {
 
     fn insert_genesis_factory_deps(&mut self, path_buf: PathBuf) {
         let input = fs::read_to_string(path_buf.clone())
-            .expect(&format!("Unable to read initial state from {path_buf:?}"));
+            .unwrap_or_else(|_| panic!("Unable to read initial state from {path_buf:?}"));
         let data: Value = serde_json::from_str(&input).unwrap();
         let factory_deps = data.get("factory_deps").unwrap();
 

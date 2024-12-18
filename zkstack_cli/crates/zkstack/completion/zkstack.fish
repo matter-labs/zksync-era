@@ -529,6 +529,7 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -s a -l additional-args -d 'Additional arguments that can be passed through the CLI' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -l genesis -d 'Run server in genesis mode'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -l l1-recovery -d 'Run server in L1 recovery mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -l uring -d 'Enables uring support for RocksDB'
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -l ignore-prerequisites -d 'Ignores prerequisites checks'
@@ -545,6 +546,7 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -s a -l additional-args -d 'Additional arguments that can be passed through the CLI' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -l genesis -d 'Run server in genesis mode'
+complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -l l1-recovery -d 'Run server in L1 recovery mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -l uring -d 'Enables uring support for RocksDB'
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and __fish_seen_subcommand_from run" -l ignore-prerequisites -d 'Ignores prerequisites checks'

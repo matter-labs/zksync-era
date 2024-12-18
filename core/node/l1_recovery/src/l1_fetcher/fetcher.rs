@@ -288,17 +288,13 @@ impl L1Fetcher {
                 .unwrap();
         let default_aa_bytecode_hash: H256 =
             CallFunctionArgs::new("getL2DefaultAccountBytecodeHash", ())
-                .with_block(BlockId::Number(BlockNumber::Number(U64::from(
-                    block_to_check,
-                ))))
+                .with_block(BlockId::Number(BlockNumber::Number(block_to_check)))
                 .for_contract(self.config.diamond_proxy_addr, &Self::hyperchain_contract())
                 .call(&self.eth_client)
                 .await
                 .unwrap();
         let packed_protocol_version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
-            .with_block(BlockId::Number(BlockNumber::Number(U64::from(
-                block_to_check,
-            ))))
+            .with_block(BlockId::Number(BlockNumber::Number(block_to_check)))
             .for_contract(self.config.diamond_proxy_addr, &Self::hyperchain_contract())
             .call(&self.eth_client)
             .await
@@ -539,9 +535,9 @@ impl L1Fetcher {
 
         let first_unprocessed_priority_id: U256 =
             CallFunctionArgs::new("getFirstUnprocessedPriorityTx", ())
-                .with_block(BlockId::Number(BlockNumber::Number(U64::from(
+                .with_block(BlockId::Number(BlockNumber::Number(
                     block_just_after_execute_tx_eth_block,
-                ))))
+                )))
                 .for_contract(self.config.diamond_proxy_addr, &Self::hyperchain_contract())
                 .call(&self.eth_client)
                 .await
@@ -559,10 +555,12 @@ impl L1Fetcher {
                 RollupEventsFilter::PriorityOpId(first_unprocessed_priority_id - 1),
             )
             .await
-            .expect(&format!(
-                "Unable to find priority tx with id {}",
-                first_unprocessed_priority_id - 1
-            ));
+            .unwrap_or_else(|| {
+                panic!(
+                    "Unable to find priority tx with id {}",
+                    first_unprocessed_priority_id - 1
+                )
+            });
         L1Tx::try_from(log).unwrap()
     }
 
@@ -638,7 +636,7 @@ impl L1Fetcher {
                         .unwrap();
                     let blocks = L1Fetcher::process_tx_data(
                         &functions,
-                        &blob_client,
+                        blob_client,
                         tx,
                         &self.config.versioning,
                     )
@@ -679,11 +677,13 @@ impl L1Fetcher {
                             .push(priority_tx.common_data.onchain_data());
                         for factory_dep in &priority_tx.execute.factory_deps {
                             let hashed = BytecodeHash::for_bytecode(factory_dep).value();
-                            if factory_deps_hashes.contains_key(&hashed) {
-                                continue;
-                            } else {
-                                factory_deps_hashes.insert(hashed, ());
+                            if let std::collections::hash_map::Entry::Vacant(e) =
+                                factory_deps_hashes.entry(hashed)
+                            {
+                                e.insert(());
                                 block.factory_deps.push(factory_dep.clone());
+                            } else {
+                                continue;
                             }
                         }
                         last_processed_priority_tx += 1;
@@ -710,7 +710,7 @@ impl L1Fetcher {
             }
             current_block = filter_to_block + 1;
         }
-        return result;
+        result
     }
 
     async fn process_tx_data(
@@ -720,31 +720,31 @@ impl L1Fetcher {
         protocol_versioning: &ProtocolVersioning,
     ) -> Result<Vec<CommitBlock>, ParseError> {
         let block_number = tx.block_number.unwrap().as_u64();
-        loop {
-            match parse_calldata(
-                protocol_versioning,
-                block_number,
-                &commit_functions,
-                &tx.input.0,
-                &blob_client,
-            )
-            .await
-            {
-                Ok(blks) => break Ok(blks),
-                Err(e) => {
-                    match e.clone() {
-                        ParseError::BlobStorageError(err) => {
-                            tracing::error!("Blob storage error {err}");
-                        }
-                        ParseError::BlobFormatError(data, inner) => {
-                            tracing::error!("Cannot parse {}: {}", data, inner);
-                        }
-                        _ => {
-                            tracing::error!("Failed to parse calldata: {e}, encountered on block: {block_number}");
-                        }
+        match parse_calldata(
+            protocol_versioning,
+            block_number,
+            commit_functions,
+            &tx.input.0,
+            blob_client,
+        )
+        .await
+        {
+            Ok(blks) => Ok(blks),
+            Err(e) => {
+                match e.clone() {
+                    ParseError::BlobStorageError(err) => {
+                        tracing::error!("Blob storage error {err}");
                     }
-                    return Err(e);
+                    ParseError::BlobFormatError(data, inner) => {
+                        tracing::error!("Cannot parse {}: {}", data, inner);
+                    }
+                    _ => {
+                        tracing::error!(
+                            "Failed to parse calldata: {e}, encountered on block: {block_number}"
+                        );
+                    }
                 }
+                return Err(e);
             }
         }
     }
@@ -817,7 +817,7 @@ pub async fn parse_last_committed_l1_batch(
 
     let _new_blocks_data = parsed_input.pop().unwrap();
     let stored_block_info = parsed_input.pop().unwrap();
-    return Ok(StoredBatchInfo::from_token(stored_block_info).unwrap());
+    Ok(StoredBatchInfo::from_token(stored_block_info).unwrap())
 }
 
 pub async fn parse_calldata(
@@ -936,7 +936,7 @@ mod tests {
                 sepolia_blob_client, sepolia_initial_state_path, sepolia_l1_client,
                 sepolia_l1_fetcher, sepolia_versioning,
             },
-            l1_fetcher::L1Fetcher,
+            fetcher::L1Fetcher,
         },
         processor::{snapshot::StateCompressor, tree::TreeProcessor},
     };

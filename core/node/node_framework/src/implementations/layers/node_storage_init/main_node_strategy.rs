@@ -86,7 +86,7 @@ impl WiringLayer for MainNodeInitStrategyLayer {
                     }),
                 },
                 app_health: input.app_health.0,
-                diamond_proxy_addr: self.contracts.diamond_proxy_addr.clone(),
+                diamond_proxy_addr: self.contracts.diamond_proxy_addr,
                 blob_client: Some(input.blob_client_resource.0),
             });
             Some(recovery)

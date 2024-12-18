@@ -689,7 +689,7 @@ impl MainNodeBuilder {
 
     /// Builds the node with the genesis initialization task only.
     pub fn only_genesis(mut self) -> anyhow::Result<ZkStackService> {
-        let l1_chain_id = self.genesis_config.l1_chain_id.clone();
+        let l1_chain_id = self.genesis_config.l1_chain_id;
         self = self
             .add_pools_layer()?
             .add_object_store_layer()?
@@ -702,7 +702,7 @@ impl MainNodeBuilder {
     }
 
     pub fn only_l1_recovery(mut self) -> anyhow::Result<ZkStackService> {
-        let l1_chain_id = self.genesis_config.l1_chain_id.clone();
+        let l1_chain_id = self.genesis_config.l1_chain_id;
         self = self
             .add_pools_layer()?
             .add_object_store_layer()?
@@ -717,7 +717,7 @@ impl MainNodeBuilder {
     /// Builds the node with the specified components.
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers (resources and helper tasks).
-        let l1_chain_id = self.genesis_config.l1_chain_id.clone();
+        let l1_chain_id = self.genesis_config.l1_chain_id;
         self = self
             .add_sigint_handler_layer()?
             .add_pools_layer()?

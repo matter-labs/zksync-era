@@ -68,7 +68,7 @@ pub fn reconstruct_genesis_state(path: PathBuf) -> Vec<TreeEntry> {
     let mut block_batched_accesses = vec![];
 
     let input = fs::read_to_string(path.clone())
-        .expect(&format!("Unable to read initial state from {path:?}"));
+        .unwrap_or_else(|_| panic!("Unable to read initial state from {path:?}"));
     let data: Value = serde_json::from_str(&input).unwrap();
     let storage_logs = data.get("storage_logs").unwrap();
 
@@ -124,7 +124,7 @@ pub fn get_genesis_state() -> Vec<TreeEntry> {
         .enumerate()
         .map(|(index, log)| {
             (
-                log.key.account().address().clone(),
+                *log.key.account().address(),
                 U256::from_big_endian(log.key.key().as_bytes()),
                 U256::from_big_endian(log.value.as_bytes()),
                 index as u32,

@@ -25,7 +25,7 @@ use crate::{
     l1_fetcher::{
         blob_http_client::BlobClient,
         constants::{initial_states_directory, sepolia_versioning},
-        l1_fetcher::{L1Fetcher, L1FetcherConfig, ProtocolVersioning::OnlyV3},
+        fetcher::{L1Fetcher, L1FetcherConfig, ProtocolVersioning::OnlyV3},
         types::CommitBlock,
     },
     processor::snapshot::StateCompressor,
@@ -456,19 +456,19 @@ pub async fn create_l1_snapshot(
     let initial_state_path = find_matching_genesis_state_file(&l1_fetcher).await;
     tracing::info!("Using genesis state file {:?}", initial_state_path);
     let blocks = l1_fetcher
-        .get_all_blocks_to_process(&blob_client, Some(object_store), &stop_receiver)
+        .get_all_blocks_to_process(blob_client, Some(object_store), stop_receiver)
         .await;
     let last_block = blocks.last().unwrap().clone();
     let last_l1_batch_number = L1BatchNumber(last_block.l1_batch_number as u32);
     let mut processor = StateCompressor::new(temp_dir).await;
     processor.disabled_tree();
     processor.process_genesis_state(initial_state_path).await;
-    processor.process_blocks(blocks, &stop_receiver).await;
+    processor.process_blocks(blocks, stop_receiver).await;
 
     tracing::info!("Processing L1 data finished");
 
     let chunks_count = processor
-        .dump_storage_logs_chunked(last_l1_batch_number, &object_store)
+        .dump_storage_logs_chunked(last_l1_batch_number, object_store)
         .await;
 
     let factory_deps = SnapshotFactoryDependencies {

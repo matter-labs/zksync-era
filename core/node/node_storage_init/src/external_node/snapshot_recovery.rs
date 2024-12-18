@@ -68,7 +68,7 @@ impl NodeRecovery {
                 self.blob_client.as_ref().unwrap(),
                 &object_store,
                 self.diamond_proxy_addr,
-                &stop_receiver,
+                stop_receiver,
             )
             .await;
             last_l1_block = Some(last_block.clone());
