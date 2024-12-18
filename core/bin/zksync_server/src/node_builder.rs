@@ -6,8 +6,8 @@ use std::time::Duration;
 use anyhow::{bail, Context};
 use zksync_config::{
     configs::{
-        da_client::DAClientConfig, secrets::DataAvailabilitySecrets, wallets::Wallets,
-        GeneralConfig, Secrets,
+        da_client::DAClientConfig, gateway::GatewayChainConfig, secrets::DataAvailabilitySecrets,
+        wallets::Wallets, GeneralConfig, Secrets,
     },
     ContractsConfig, GenesisConfig,
 };
@@ -72,7 +72,10 @@ use zksync_node_framework::{
     service::{ZkStackService, ZkStackServiceBuilder},
 };
 use zksync_types::{
-    pubdata_da::PubdataSendingMode, settlement::SettlementMode, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+    commitment::{L1BatchCommitmentMode, PubdataType},
+    pubdata_da::PubdataSendingMode,
+    settlement::SettlementMode,
+    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
 };
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
@@ -90,6 +93,7 @@ pub struct MainNodeBuilder {
     wallets: Wallets,
     genesis_config: GenesisConfig,
     contracts_config: ContractsConfig,
+    gateway_contracts_config: Option<GatewayChainConfig>,
     secrets: Secrets,
 }
 
@@ -99,6 +103,7 @@ impl MainNodeBuilder {
         wallets: Wallets,
         genesis_config: GenesisConfig,
         contracts_config: ContractsConfig,
+        gateway_contracts_config: Option<GatewayChainConfig>,
         secrets: Secrets,
     ) -> anyhow::Result<Self> {
         Ok(Self {
@@ -107,12 +112,31 @@ impl MainNodeBuilder {
             wallets,
             genesis_config,
             contracts_config,
+            gateway_contracts_config,
             secrets,
         })
     }
 
     pub fn runtime_handle(&self) -> tokio::runtime::Handle {
         self.node.runtime_handle()
+    }
+
+    pub fn get_pubdata_type(&self) -> PubdataType {
+        if self.genesis_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup
+        {
+            return PubdataType::Rollup;
+        }
+
+        let Some(da_client_config) = self.configs.da_client_config.clone() else {
+            return PubdataType::NoDA;
+        };
+
+        match da_client_config {
+            DAClientConfig::Avail(_) => PubdataType::Avail,
+            DAClientConfig::Celestia(_) => PubdataType::Celestia,
+            DAClientConfig::Eigen(_) => PubdataType::Eigen,
+            DAClientConfig::ObjectStore(_) => PubdataType::ObjectStore,
+        }
     }
 
     fn add_sigint_handler_layer(mut self) -> anyhow::Result<Self> {
@@ -149,7 +173,7 @@ impl MainNodeBuilder {
         self.node.add_layer(PKSigningEthClientLayer::new(
             eth_config,
             self.contracts_config.clone(),
-            self.genesis_config.settlement_layer_id(),
+            self.gateway_contracts_config.clone(),
             wallets,
         ));
         Ok(self)
@@ -159,8 +183,11 @@ impl MainNodeBuilder {
         let genesis = self.genesis_config.clone();
         let eth_config = try_load_config!(self.secrets.l1);
         let query_eth_client_layer = QueryEthClientLayer::new(
-            genesis.settlement_layer_id(),
+            genesis.l1_chain_id,
             eth_config.l1_rpc_url,
+            self.gateway_contracts_config
+                .as_ref()
+                .map(|c| c.gateway_chain_id),
             eth_config.gateway_rpc_url,
         );
         self.node.add_layer(query_eth_client_layer);
@@ -246,7 +273,7 @@ impl MainNodeBuilder {
             try_load_config!(self.configs.mempool_config),
             try_load_config!(wallets.state_keeper),
             self.contracts_config.l2_da_validator_addr,
-            self.genesis_config.l1_batch_commit_data_generator_mode,
+            self.get_pubdata_type(),
         );
         let db_config = try_load_config!(self.configs.db_config);
         let experimental_vm_config = self
@@ -279,6 +306,12 @@ impl MainNodeBuilder {
         self.node.add_layer(EthWatchLayer::new(
             try_load_config!(eth_config.watcher),
             self.contracts_config.clone(),
+            self.gateway_contracts_config.clone(),
+            self.configs
+                .eth
+                .as_ref()
+                .and_then(|x| Some(x.gas_adjuster?.settlement_mode))
+                .unwrap_or(SettlementMode::SettlesToL1),
             self.genesis_config.l2_chain_id,
         ));
         Ok(self)
@@ -453,10 +486,10 @@ impl MainNodeBuilder {
 
     fn add_eth_tx_aggregator_layer(mut self) -> anyhow::Result<Self> {
         let eth_sender_config = try_load_config!(self.configs.eth);
-
         self.node.add_layer(EthTxAggregatorLayer::new(
             eth_sender_config,
             self.contracts_config.clone(),
+            self.gateway_contracts_config.clone(),
             self.genesis_config.l2_chain_id,
             self.genesis_config.l1_batch_commit_data_generator_mode,
             self.configs

@@ -1,13 +1,14 @@
 // External uses
 use serde::{Deserialize, Serialize};
 // Workspace uses
-use zksync_basic_types::Address;
+use zksync_basic_types::{Address, H256};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct EcosystemContracts {
     pub bridgehub_proxy_addr: Address,
     pub state_transition_proxy_addr: Address,
     pub transparent_proxy_admin_addr: Address,
+    pub l1_bytecodes_supplier_addr: Option<Address>,
 }
 
 impl EcosystemContracts {
@@ -16,6 +17,7 @@ impl EcosystemContracts {
             bridgehub_proxy_addr: Address::repeat_byte(0x14),
             state_transition_proxy_addr: Address::repeat_byte(0x15),
             transparent_proxy_admin_addr: Address::repeat_byte(0x15),
+            l1_bytecodes_supplier_addr: Some(Address::repeat_byte(0x16)),
         }
     }
 }
@@ -46,6 +48,10 @@ pub struct ContractsConfig {
     pub ecosystem_contracts: Option<EcosystemContracts>,
     // Used by the RPC API and by the node builder in wiring the BaseTokenRatioProvider layer.
     pub base_token_addr: Option<Address>,
+    pub base_token_asset_id: Option<H256>,
+
+    pub predeployed_l2_wrapped_base_token_address: Option<Address>,
+
     pub chain_admin_addr: Option<Address>,
     pub l2_da_validator_addr: Option<Address>,
 }
@@ -69,6 +75,8 @@ impl ContractsConfig {
             l2_timestamp_asserter_addr: Some(Address::repeat_byte(0x19)),
             governance_addr: Address::repeat_byte(0x13),
             base_token_addr: Some(Address::repeat_byte(0x14)),
+            base_token_asset_id: Some(H256::repeat_byte(0x15)),
+            predeployed_l2_wrapped_base_token_address: Some(Address::repeat_byte(0x1b)),
             ecosystem_contracts: Some(EcosystemContracts::for_tests()),
             chain_admin_addr: Some(Address::repeat_byte(0x18)),
             l2_da_validator_addr: Some(Address::repeat_byte(0x1a)),

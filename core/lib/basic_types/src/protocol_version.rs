@@ -74,11 +74,11 @@ pub enum ProtocolVersionId {
 
 impl ProtocolVersionId {
     pub const fn latest() -> Self {
-        Self::Version25
+        Self::Version26
     }
 
     pub const fn next() -> Self {
-        Self::Version26
+        Self::Version27
     }
 
     pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
@@ -122,7 +122,7 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version23 => VmVersion::Vm1_5_0SmallBootloaderMemory,
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
-            ProtocolVersionId::Version26 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmGateway,
         }
     }
@@ -142,7 +142,11 @@ impl ProtocolVersionId {
     }
 
     pub fn is_pre_gateway(&self) -> bool {
-        self <= &Self::Version26
+        self < &Self::gateway_upgrade()
+    }
+
+    pub fn is_post_gateway(&self) -> bool {
+        self >= &Self::gateway_upgrade()
     }
 
     pub fn is_1_4_0(&self) -> bool {
@@ -179,6 +183,10 @@ impl ProtocolVersionId {
 
     pub fn is_post_1_5_0(&self) -> bool {
         self >= &ProtocolVersionId::Version23
+    }
+
+    pub const fn gateway_upgrade() -> Self {
+        ProtocolVersionId::Version26
     }
 }
 
@@ -283,7 +291,7 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version23 => VmVersion::Vm1_5_0SmallBootloaderMemory,
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
-            ProtocolVersionId::Version26 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmGateway,
         }
     }
