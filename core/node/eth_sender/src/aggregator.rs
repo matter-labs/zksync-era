@@ -56,12 +56,17 @@ impl Aggregator {
     ) -> anyhow::Result<Self> {
         let pubdata_da = config.pubdata_sending_mode;
 
-        let priority_tree_start_index = config.priority_tree_start_index.unwrap_or(0);
-        let priority_op_hashes = connection
-            .transactions_dal()
-            .get_l1_transactions_hashes(priority_tree_start_index)
-            .await
-            .map_err(DalError::generalize)?;
+        let priority_op_hashes =
+            if let Some(priority_tree_start_index) = config.priority_tree_start_index {
+                connection
+                    .transactions_dal()
+                    .get_l1_transactions_hashes(priority_tree_start_index)
+                    .await
+                    .map_err(DalError::generalize)?
+            } else {
+                vec![]
+            };
+
         let priority_merkle_tree =
             MiniMerkleTree::<L1Tx>::from_hashes(KeccakHasher, priority_op_hashes.into_iter(), None);
 
@@ -217,9 +222,17 @@ impl Aggregator {
         )
         .await?;
 
-        let priority_tree_start_index = self.config.priority_tree_start_index.unwrap_or(0);
         let mut priority_ops_proofs = vec![];
         for batch in l1_batches.iter() {
+            let priority_tree_start_index =
+                if let Some(start_index) = self.config.priority_tree_start_index {
+                    start_index
+                } else {
+                    // Start index not present, we push empty proof.
+                    priority_ops_proofs.push(Default::default());
+                    continue;
+                };
+
             let first_priority_op_id_option = match storage
                 .blocks_dal()
                 .get_batch_first_priority_op_id(batch.header.number)
@@ -235,7 +248,6 @@ impl Aggregator {
 
             let count = batch.header.l1_tx_count as usize;
             if let Some(first_priority_op_id_in_batch) = first_priority_op_id_option {
-                let priority_tree_start_index = self.config.priority_tree_start_index.unwrap_or(0);
                 let new_l1_tx_hashes = storage
                     .transactions_dal()
                     .get_l1_transactions_hashes(

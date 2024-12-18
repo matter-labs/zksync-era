@@ -122,7 +122,7 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version23 => VmVersion::Vm1_5_0SmallBootloaderMemory,
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
-            ProtocolVersionId::Version26 => VmVersion::VmGateway,
+            ProtocolVersionId::Version26 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version27 => VmVersion::VmGateway,
         }
     }
@@ -186,7 +186,7 @@ impl ProtocolVersionId {
     }
 
     pub const fn gateway_upgrade() -> Self {
-        ProtocolVersionId::Version26
+        ProtocolVersionId::Version27
     }
 }
 
@@ -291,7 +291,7 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version23 => VmVersion::Vm1_5_0SmallBootloaderMemory,
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
-            ProtocolVersionId::Version26 => VmVersion::VmGateway,
+            ProtocolVersionId::Version26 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version27 => VmVersion::VmGateway,
         }
     }
