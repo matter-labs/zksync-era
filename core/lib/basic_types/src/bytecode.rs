@@ -215,18 +215,19 @@ pub fn pad_evm_bytecode(deployed_bytecode: &[u8]) -> Vec<u8> {
 pub mod testonly {
     use const_decoder::Decoder;
 
-    pub const RAW_EVM_BYTECODE: &[u8] = &const_decoder::decode!(
+    pub const PADDED_EVM_BYTECODE: &[u8] = &const_decoder::decode!(
         Decoder::Hex,
-        b"00000000000000000000000000000000000000000000000000000000000001266080604052348015\
-          600e575f80fd5b50600436106030575f3560e01c8063816898ff146034578063fb5343f314604c57\
-          5b5f80fd5b604a60048036038101906046919060a6565b6066565b005b6052606f565b604051605d\
-          919060d9565b60405180910390f35b805f8190555050565b5f5481565b5f80fd5b5f819050919050\
-          565b6088816078565b81146091575f80fd5b50565b5f8135905060a0816081565b92915050565b5f\
-          6020828403121560b85760b76074565b5b5f60c3848285016094565b91505092915050565b60d381\
-          6078565b82525050565b5f60208201905060ea5f83018460cc565b9291505056fea2646970667358\
-          221220caca1247066da378f2ec77c310f2ae51576272367b4fa11cc4350af4e9ce4d0964736f6c63\
-          4300081a00330000000000000000000000000000000000000000000000000000"
+        b"6080604052348015600e575f80fd5b50600436106030575f3560e01c8063816898ff146034578063\
+          fb5343f314604c575b5f80fd5b604a60048036038101906046919060a6565b6066565b005b605260\
+          6f565b604051605d919060d9565b60405180910390f35b805f8190555050565b5f5481565b5f80fd\
+          5b5f819050919050565b6088816078565b81146091575f80fd5b50565b5f8135905060a081608156\
+          5b92915050565b5f6020828403121560b85760b76074565b5b5f60c3848285016094565b91505092\
+          915050565b60d3816078565b82525050565b5f60208201905060ea5f83018460cc565b9291505056\
+          fea2646970667358221220caca1247066da378f2ec77c310f2ae51576272367b4fa11cc4350af4e9\
+          ce4d0964736f6c634300081a00330000000000000000000000000000000000000000000000000000\
+          0000000000000000000000000000000000000000000000000000000000000000"
     );
+
     pub const PROCESSED_EVM_BYTECODE: &[u8] = &const_decoder::decode!(
         Decoder::Hex,
         b"6080604052348015600e575f80fd5b50600436106030575f3560e01c8063816898ff146034578063\
@@ -243,7 +244,7 @@ pub mod testonly {
 #[cfg(test)]
 mod tests {
     use super::{
-        testonly::{PROCESSED_EVM_BYTECODE, RAW_EVM_BYTECODE},
+        testonly::{PADDED_EVM_BYTECODE, PROCESSED_EVM_BYTECODE},
         *,
     };
 
@@ -257,15 +258,16 @@ mod tests {
         assert_eq!(bytecode_hash.marker(), BytecodeMarker::Evm);
         assert_eq!(bytecode_hash.len_in_bytes(), 32);
 
-        let bytecode_hash = BytecodeHash::for_evm_bytecode(32, &[0; 64]);
+        let bytecode_hash = BytecodeHash::for_evm_bytecode(32, &[0; 96]);
         assert_eq!(bytecode_hash.marker(), BytecodeMarker::Evm);
         assert_eq!(bytecode_hash.len_in_bytes(), 32);
     }
 
     #[test]
     fn preparing_evm_bytecode() {
-        let bytecode_hash = BytecodeHash::for_raw_evm_bytecode(&RAW_EVM_BYTECODE);
-        let prepared = trim_padded_evm_bytecode(bytecode_hash, RAW_EVM_BYTECODE).unwrap();
+        let bytecode_hash =
+            BytecodeHash::for_evm_bytecode(PROCESSED_EVM_BYTECODE.len(), &PADDED_EVM_BYTECODE);
+        let prepared = trim_padded_evm_bytecode(bytecode_hash, PADDED_EVM_BYTECODE).unwrap();
         assert_eq!(prepared, PROCESSED_EVM_BYTECODE);
     }
 }
