@@ -125,6 +125,7 @@ impl DataAvailabilityDispatcher {
 
     /// Polls the data availability layer for inclusion data, and saves it in the database.
     async fn poll_for_inclusion(&self) -> anyhow::Result<()> {
+        tracing::debug!("Polling for inclusion data");
         let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
         let blob_info = conn
             .data_availability_dal()
@@ -132,6 +133,7 @@ impl DataAvailabilityDispatcher {
             .await?;
         drop(conn);
 
+        tracing::debug!("Got blob_info: {:?}", blob_info);
         let Some(blob_info) = blob_info else {
             return Ok(());
         };
@@ -152,6 +154,7 @@ impl DataAvailabilityDispatcher {
             Some(InclusionData { data: vec![] })
         };
 
+        tracing::debug!("inclusion_data.is_some(): {:?}", inclusion_data.is_some());
         let Some(inclusion_data) = inclusion_data else {
             return Ok(());
         };
@@ -165,6 +168,10 @@ impl DataAvailabilityDispatcher {
             .await?;
         drop(conn);
 
+        tracing::debug!(
+            "Saved inclusion data for batch_number: {}",
+            blob_info.l1_batch_number
+        );
         let inclusion_latency = Utc::now().signed_duration_since(blob_info.sent_at);
         if let Ok(latency) = inclusion_latency.to_std() {
             METRICS.inclusion_latency.observe(latency);

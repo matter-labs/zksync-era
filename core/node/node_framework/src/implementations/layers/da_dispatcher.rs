@@ -53,7 +53,7 @@ impl WiringLayer for DataAvailabilityDispatcherLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         // A pool with size 2 is used here because there are 2 functions within a task that execute in parallel
-        let master_pool = input.master_pool.get_custom(2).await?;
+        let master_pool = input.master_pool.get_custom(4).await?;
         let da_client = input.da_client.0;
 
         if let Some(limit) = da_client.blob_size_limit() {
