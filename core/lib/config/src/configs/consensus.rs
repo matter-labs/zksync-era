@@ -3,12 +3,11 @@ use std::{
     num::NonZeroUsize,
 };
 
-use secrecy::ExposeSecret as _;
-pub use secrecy::Secret;
 use serde::Deserialize;
 use smart_config::{
-    de::{Entries, Qualified, WellKnown},
-    DescribeConfig, DeserializeConfig, Serde,
+    de::{Entries, Qualified, Serde, WellKnown},
+    value::SecretString,
+    DescribeConfig, DeserializeConfig,
 };
 use zksync_basic_types::{ethabi, L2ChainId};
 use zksync_concurrency::{limiter, time};
@@ -24,10 +23,6 @@ impl WellKnown for ValidatorPublicKey {
         Qualified::new(Serde![str], "has `validator:public:bls12_381:` prefix");
 }
 
-/// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::validator::SecretKey`.
-#[derive(Debug, Clone)]
-pub struct ValidatorSecretKey(pub Secret<String>);
-
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::attester::PublicKey`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize)]
 #[serde(transparent)]
@@ -39,10 +34,6 @@ impl WellKnown for AttesterPublicKey {
         Qualified::new(Serde![str], "has `attester:public:secp256k1:` prefix");
 }
 
-/// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::attester::SecretKey`.
-#[derive(Debug, Clone)]
-pub struct AttesterSecretKey(pub Secret<String>);
-
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::node::PublicKey`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize)]
 #[serde(transparent)]
@@ -51,28 +42,6 @@ pub struct NodePublicKey(pub String);
 impl WellKnown for NodePublicKey {
     type Deserializer = Qualified<Serde![str]>;
     const DE: Self::Deserializer = Qualified::new(Serde![str], "has `node:public:ed25519:` prefix");
-}
-
-/// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::node::SecretKey`.
-#[derive(Debug, Clone)]
-pub struct NodeSecretKey(pub Secret<String>);
-
-impl PartialEq for ValidatorSecretKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.expose_secret().eq(other.0.expose_secret())
-    }
-}
-
-impl PartialEq for AttesterSecretKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.expose_secret().eq(other.0.expose_secret())
-    }
-}
-
-impl PartialEq for NodeSecretKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.expose_secret().eq(other.0.expose_secret())
-    }
 }
 
 /// Copy-paste of `zksync_concurrency::net::Host`.
@@ -198,11 +167,14 @@ impl ConsensusConfig {
 }
 
 /// Secrets needed for consensus.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
 pub struct ConsensusSecrets {
-    pub validator_key: Option<ValidatorSecretKey>,
-    pub attester_key: Option<AttesterSecretKey>,
-    pub node_key: Option<NodeSecretKey>,
+    /// Has `validator:secret:bls12_381:` prefix.
+    pub validator_key: Option<SecretString>,
+    /// Has `attester:secret:secp256k1:` prefix.
+    pub attester_key: Option<SecretString>,
+    /// Has `node:secret:ed25519:` prefix.
+    pub node_key: Option<SecretString>,
 }
 
 #[cfg(test)]

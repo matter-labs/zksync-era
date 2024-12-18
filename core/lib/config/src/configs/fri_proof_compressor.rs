@@ -55,7 +55,7 @@ mod tests {
         }
     }
 
-    // Migration guide: mismatch between env prefix and YAML path ()
+    // Migration guide: mismatch between env prefix and YAML path
     #[test]
     fn parsing_from_env() {
         let env = r#"

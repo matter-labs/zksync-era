@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use smart_config::{de::FromSecretString, DescribeConfig, DeserializeConfig};
 use zksync_basic_types::secrets::{APIKey, SeedPhrase};
 
 pub const AVAIL_GAS_RELAY_CLIENT_NAME: &str = "GasRelay";
@@ -31,8 +32,10 @@ pub struct AvailGasRelayConfig {
     pub max_retries: usize,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
 pub struct AvailSecrets {
-    pub seed_phrase: Option<SeedPhrase>,
-    pub gas_relay_api_key: Option<APIKey>,
+    #[config(with = FromSecretString)]
+    pub seed_phrase: SeedPhrase,
+    #[config(with = FromSecretString)]
+    pub gas_relay_api_key: APIKey,
 }

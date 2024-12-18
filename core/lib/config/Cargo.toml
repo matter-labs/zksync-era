@@ -23,10 +23,10 @@ smart-config = { workspace = true, features = ["primitive-types"] }
 rand.workspace = true
 secrecy.workspace = true
 serde = { workspace = true, features = ["derive"] }
+serde_yaml.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
-serde_yaml.workspace = true
 
 [features]
 default = []

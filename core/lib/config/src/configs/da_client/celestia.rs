@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use smart_config::{de::FromSecretString, DescribeConfig, DeserializeConfig};
 use zksync_basic_types::secrets::PrivateKey;
 
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
@@ -9,7 +10,8 @@ pub struct CelestiaConfig {
     pub timeout_ms: u64,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
 pub struct CelestiaSecrets {
+    #[config(with = FromSecretString)]
     pub private_key: PrivateKey,
 }

@@ -115,7 +115,7 @@ mod tests {
         }
     }
 
-    // TODO: test with non-prefixed `PROVER_OBJECT_STORE_` / `PUBLIC_OBJECT_STORE_` (requires global aliases + )
+    // TODO: test with non-prefixed `PROVER_OBJECT_STORE_` / `PUBLIC_OBJECT_STORE_` (requires global aliases)
     #[test]
     fn parsing_from_env() {
         let env = r#"

@@ -211,6 +211,7 @@ mod tests {
         }
     }
 
+    // FIXME: is `NetworkConfig` just a legacy thing?
     #[test]
     fn network_from_env() {
         let env = r#"
