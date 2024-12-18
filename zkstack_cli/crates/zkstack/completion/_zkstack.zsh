@@ -3259,7 +3259,7 @@ _zkstack__chain_commands() {
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
-'enable-evm-emulator:Enable EVM emulation on chain' \
+'enable-evm-emulator:Enable EVM emulation on chain (Not supported yet)' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack chain commands' commands "$@"
@@ -3374,7 +3374,7 @@ _zkstack__chain__help_commands() {
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
-'enable-evm-emulator:Enable EVM emulation on chain' \
+'enable-evm-emulator:Enable EVM emulation on chain (Not supported yet)' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack chain help commands' commands "$@"
@@ -4698,7 +4698,7 @@ _zkstack__help__chain_commands() {
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
-'enable-evm-emulator:Enable EVM emulation on chain' \
+'enable-evm-emulator:Enable EVM emulation on chain (Not supported yet)' \
     )
     _describe -t commands 'zkstack help chain commands' commands "$@"
 }
