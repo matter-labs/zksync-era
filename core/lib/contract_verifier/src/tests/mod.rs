@@ -1,9 +1,6 @@
 //! Tests for the contract verifier.
 
-use std::{
-    collections::{HashMap, HashSet},
-    iter,
-};
+use std::collections::{HashMap, HashSet};
 
 use test_casing::{test_casing, Product};
 use tokio::sync::watch;
