@@ -160,7 +160,7 @@ impl From<HttpError> for ObjectStoreError {
 impl ObjectStore for GoogleCloudStore {
     async fn get_raw(&self, bucket: Bucket, key: &str) -> Result<Vec<u8>, ObjectStoreError> {
         let filename = Self::filename(bucket.as_str(), key);
-        tracing::trace!(
+        tracing::info!(
             "Fetching data from GCS for key {filename} from bucket {}",
             self.bucket_prefix
         );
@@ -170,10 +170,20 @@ impl ObjectStore for GoogleCloudStore {
             object: filename,
             ..GetObjectRequest::default()
         };
-        self.client
+        let response = self
+            .client
             .download_object(&request, &Range::default())
-            .await
-            .map_err(Into::into)
+            .await;
+        match response {
+            Err(err) => {
+                tracing::info!("Errored with: {err:?}");
+                Err(err.into())
+            }
+            Ok(data) => {
+                tracing::info!("received {} bytes of data", data.len());
+                Ok(data)
+            }
+        }
     }
 
     async fn put_raw(
