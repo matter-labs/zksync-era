@@ -418,6 +418,7 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             tx_aggregation_paused: false,
             tx_aggregation_only_prove_and_execute: false,
             time_in_mempool_in_l1_blocks_cap: self.sample(rng),
+            verifier_pre_fflonk: self.sample(rng),
         }
     }
 }

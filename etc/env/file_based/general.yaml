@@ -104,6 +104,7 @@ eth:
     max_aggregated_tx_gas: 15000000
     max_acceptable_priority_fee_in_gwei: 100000000000 # typo: value is in wei (100 gwei)
     pubdata_sending_mode: BLOBS
+    verifier_pre_fflonk: true
   gas_adjuster:
     default_priority_fee_per_gas: 1000000000
     max_base_fee_samples: 100

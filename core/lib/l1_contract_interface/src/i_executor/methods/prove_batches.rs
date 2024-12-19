@@ -29,8 +29,8 @@ pub struct ProveBatches {
     pub should_verify: bool,
 }
 
-impl Tokenize for &ProveBatches {
-    fn into_tokens(self) -> Vec<Token> {
+impl ProveBatches {
+    pub fn conditional_into_tokens(&self, verifier_pre_fflonk: bool) -> Vec<Token> {
         let prev_l1_batch_info = StoredBatchInfo::from(&self.prev_l1_batch).into_token();
         let batches_arg = self
             .l1_batches
@@ -59,10 +59,17 @@ impl Tokenize for &ProveBatches {
             };
 
             if protocol_version.is_pre_gateway() {
-                let proof_input = Token::Tuple(vec![
-                    Token::Array(vec![]),
-                    Token::Array(proof.into_iter().map(Token::Uint).collect()),
-                ]);
+                let proof_input = if !verifier_pre_fflonk || !protocol_version.is_pre_fflonk() {
+                    Token::Tuple(vec![
+                        Token::Array(vec![verifier_type.into_token()]),
+                        Token::Array(proof.into_iter().map(Token::Uint).collect()),
+                    ])
+                } else {
+                    Token::Tuple(vec![
+                        Token::Array(vec![]),
+                        Token::Array(proof.into_iter().map(Token::Uint).collect()),
+                    ])
+                };
 
                 vec![prev_l1_batch_info, batches_arg, proof_input]
             } else {

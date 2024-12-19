@@ -56,6 +56,10 @@ const GETTERS_FACET_CONTRACT_FILE: (&str, &str) = (
 
 const MULTICALL3_CONTRACT_FILE: (&str, &str) = ("dev-contracts", "Multicall3.sol/Multicall3.json");
 const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
+const DUAL_VERIFIER_CONTRACT_FILE: (&str, &str) = (
+    "state-transition/verifiers",
+    "DualVerifier.sol/DualVerifier.json",
+);
 
 const _IERC20_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
@@ -167,7 +171,18 @@ pub fn multicall_contract() -> Contract {
 }
 
 pub fn verifier_contract() -> Contract {
-    load_contract_for_both_compilers(VERIFIER_CONTRACT_FILE)
+    let path = format!(
+        "{}/{}/{}",
+        FORGE_PATH_PREFIX, DUAL_VERIFIER_CONTRACT_FILE.0, DUAL_VERIFIER_CONTRACT_FILE.1
+    );
+    let zksync_home = home_path();
+    let path = Path::new(&zksync_home).join(path);
+
+    if path.exists() {
+        load_contract_for_both_compilers(DUAL_VERIFIER_CONTRACT_FILE)
+    } else {
+        load_contract_for_both_compilers(VERIFIER_CONTRACT_FILE)
+    }
 }
 
 pub fn deployer_contract() -> Contract {

@@ -70,6 +70,13 @@ jobs:
           ci_run zkstack prover init --dev --verbose
           echo "URL=$(grep "http_url" ./chains/proving_chain/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
 
+      - name: Switch verifier to FFLONK interface
+        working-directory: ./chains/proving_chain/configs
+        if: matrix.compressor-mode == 'fflonk'
+        run: |
+          apt-get install yq
+          yq e '.eth.sender.verifier_pre_fflonk = false' -i general.yaml
+
       - name: Prepare prover subsystem
         run: |
           ci_run zkstack prover init-bellman-cuda --clone --verbose
