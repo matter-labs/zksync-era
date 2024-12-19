@@ -84,7 +84,7 @@ impl Server {
 
     /// Builds the server.
     pub fn build(&self, shell: &Shell) -> anyhow::Result<()> {
-        let _dir_guard = shell.push_dir(&self.code_path);
+        let _dir_guard = shell.push_dir(self.code_path.join("core"));
         Cmd::new(cmd!(shell, "cargo build --release --bin zksync_server")).run()?;
         Ok(())
     }

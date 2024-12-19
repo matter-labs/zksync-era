@@ -59,7 +59,7 @@ pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
 
     reset_test_databases(shell, &link_to_code, dals).await?;
 
-    let _dir_guard = shell.push_dir(&link_to_code.join("core"));
+    let _dir_guard = shell.push_dir(link_to_code.join("core"));
 
     logger::info(MSG_USING_CARGO_NEXTEST);
     let cmd = cmd!(shell, "cargo nextest run --release");

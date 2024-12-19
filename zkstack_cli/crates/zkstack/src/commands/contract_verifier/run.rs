@@ -16,7 +16,7 @@ pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
     let config_path = chain.path_to_general_config();
     let secrets_path = chain.path_to_secrets_config();
 
-    let _dir_guard = shell.push_dir(&chain.link_to_code.join("core"));
+    let _dir_guard = shell.push_dir(chain.link_to_code.join("core"));
 
     logger::info(MSG_RUNNING_CONTRACT_VERIFIER);
 

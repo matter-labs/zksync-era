@@ -17,28 +17,31 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
         .api_config
         .context("API config is not found")?;
 
-    let mut command = cmd!(shell, "cargo run --manifest-path ./core/Cargo.toml --release --bin loadnext")
-        .env(
-            "L2_CHAIN_ID",
-            chain_config
-                .get_genesis_config()?
-                .l2_chain_id
-                .as_u64()
-                .to_string(),
-        )
-        .env(
-            "MAIN_TOKEN",
-            format!(
-                "{:?}",
-                ecosystem_config
-                    .get_erc20_tokens()
-                    .first()
-                    .context("NO Erc20 tokens were deployed")?
-                    .address
-            ),
-        )
-        .env("L2_RPC_ADDRESS", general_api.web3_json_rpc.http_url)
-        .env("L2_WS_RPC_ADDRESS", general_api.web3_json_rpc.ws_url);
+    let mut command = cmd!(
+        shell,
+        "cargo run --manifest-path ./core/Cargo.toml --release --bin loadnext"
+    )
+    .env(
+        "L2_CHAIN_ID",
+        chain_config
+            .get_genesis_config()?
+            .l2_chain_id
+            .as_u64()
+            .to_string(),
+    )
+    .env(
+        "MAIN_TOKEN",
+        format!(
+            "{:?}",
+            ecosystem_config
+                .get_erc20_tokens()
+                .first()
+                .context("NO Erc20 tokens were deployed")?
+                .address
+        ),
+    )
+    .env("L2_RPC_ADDRESS", general_api.web3_json_rpc.http_url)
+    .env("L2_WS_RPC_ADDRESS", general_api.web3_json_rpc.ws_url);
 
     if global_config().verbose {
         command = command.env("RUST_LOG", "loadnext=info")

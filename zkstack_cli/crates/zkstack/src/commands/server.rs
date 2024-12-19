@@ -34,7 +34,7 @@ pub async fn run(shell: &Shell, args: ServerArgs) -> anyhow::Result<()> {
 }
 
 fn build_server(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(&chain_config.link_to_code);
+    let _dir_guard = shell.push_dir(chain_config.link_to_code.join("core"));
 
     logger::info(MSG_BUILDING_SERVER);
 
