@@ -1,5 +1,20 @@
 # Changelog
 
+## [17.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v17.1.1...prover-v17.2.0) (2024-12-19)
+
+
+### Features
+
+* **consensus:** Added view_timeout to consensus config ([#3383](https://github.com/matter-labs/zksync-era/issues/3383)) ([fc02a8f](https://github.com/matter-labs/zksync-era/commit/fc02a8f1c9f0bffb438fb27769d6dced3ce14cd9))
+* **consensus:** Update consensus dependencies ([#3339](https://github.com/matter-labs/zksync-era/issues/3339)) ([aa9575f](https://github.com/matter-labs/zksync-era/commit/aa9575fccbbc941f416d597256442afa974efd0a))
+* Support stable compiler for VM (and some other crates) ([#3248](https://github.com/matter-labs/zksync-era/issues/3248)) ([cbee99d](https://github.com/matter-labs/zksync-era/commit/cbee99d8661b38aa6b49784c3934b8070a743fb4))
+
+
+### Bug Fixes
+
+* added missing quote in prover query ([#3347](https://github.com/matter-labs/zksync-era/issues/3347)) ([668ca51](https://github.com/matter-labs/zksync-era/commit/668ca51f5d52646e64b19b973acec05daa1c6f09))
+* **prover:** Create reqwest client only once ([#3324](https://github.com/matter-labs/zksync-era/issues/3324)) ([40f8123](https://github.com/matter-labs/zksync-era/commit/40f8123a67970efbba3519f7954f807958a76cff))
+
 ## [17.1.1](https://github.com/matter-labs/zksync-era/compare/prover-v17.1.0...prover-v17.1.1) (2024-11-26)
 
 
