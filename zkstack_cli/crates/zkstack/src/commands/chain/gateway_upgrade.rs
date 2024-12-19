@@ -510,7 +510,7 @@ async fn set_weth_for_chain(
                     .expect("get_contracts_config()")
                     .l1
                     .chain_admin_addr,
-                chain_config.chain_id.0,
+                chain_config.chain_id.as_u64(),
                 contracts_config
                     .l2
                     .predeployed_l2_wrapped_base_token_address

@@ -85,8 +85,8 @@ impl DeployGatewayCTMInput {
 
             base_token: chain_config.base_token.address,
 
-            chain_chain_id: U256::from(chain_config.chain_id.0),
-            era_chain_id: U256::from(ecosystem_config.era_chain_id.0),
+            chain_chain_id: U256::from(chain_config.chain_id.as_u64()),
+            era_chain_id: U256::from(ecosystem_config.era_chain_id.as_u64()),
             l1_chain_id: U256::from(ecosystem_config.l1_network.chain_id()),
 
             // TODO: import it similar to DeployL1 config?
