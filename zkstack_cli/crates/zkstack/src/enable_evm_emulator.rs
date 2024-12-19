@@ -5,20 +5,12 @@ use common::{
 };
 use config::{forge_interface::script_params::ENABLE_EVM_EMULATOR_PARAMS, EcosystemConfig};
 use ethers::{abi::parse_abi, contract::BaseContract, types::Address};
-use lazy_static::lazy_static;
 use xshell::Shell;
 
 use crate::{
     messages::MSG_ENABLING_EVM_EMULATOR,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
-
-lazy_static! {
-    static ref ENABLE_EVM_EMULATOR: BaseContract = BaseContract::from(
-        parse_abi(&["function chainAllowEvmEmulation(address chainAdmin, address target) public",])
-            .unwrap(),
-    );
-}
 
 pub async fn enable_evm_emulator(
     shell: &Shell,
@@ -29,7 +21,11 @@ pub async fn enable_evm_emulator(
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
-    let calldata = ENABLE_EVM_EMULATOR
+    let enable_evm_emulator_contract = BaseContract::from(
+        parse_abi(&["function chainAllowEvmEmulation(address chainAdmin, address target) public",])
+            .unwrap(),
+    );
+    let calldata = enable_evm_emulator_contract
         .encode("chainAllowEvmEmulation", (admin, target_address))
         .unwrap();
     let foundry_contracts_path = ecosystem_config.path_to_foundry();
