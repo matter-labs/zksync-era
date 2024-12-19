@@ -1,5 +1,3 @@
-use std::io::Write;
-
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
 use common::{
