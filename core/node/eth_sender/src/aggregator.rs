@@ -3,7 +3,7 @@ use std::sync::Arc;
 use once_cell::sync::OnceCell;
 use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
@@ -243,7 +243,7 @@ impl Aggregator {
         )
         .await?;
 
-        let start_index = self.config.priority_tree_start_index.clone();
+        let start_index = self.config.priority_tree_start_index;
         let priority_merkle_tree = self.get_or_init_tree().await;
 
         let mut priority_ops_proofs = vec![];
