@@ -53,6 +53,9 @@ impl Request<'_> {
                     backoff_secs *= 2;
                 }
                 Err(err) => {
+                    if !err.to_string().contains("key not found") {
+                        tracing::warn!(%err, "Failed request with a fatal error");
+                    }
                     break Err(err);
                 }
             }

@@ -11,9 +11,7 @@ use tokio::sync::Barrier;
 use zksync_health_check::CheckHealth;
 use zksync_object_store::MockObjectStore;
 use zksync_types::{
-    api::{BlockDetails, L1BatchDetails},
-    block::L1BatchHeader,
-    get_code_key, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
+    block::L1BatchHeader, get_code_key, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
 };
 
 use self::utils::{
@@ -30,7 +28,8 @@ async fn is_recovery_completed(
     client: &MockMainNodeClient,
 ) -> RecoveryCompletionStatus {
     let mut connection = pool.connection().await.unwrap();
-    SnapshotsApplierTask::is_recovery_completed(&mut connection, client)
+    let client: Box<dyn SnapshotsApplierMainNodeClient> = Box::new(client.clone());
+    SnapshotsApplierTask::is_recovery_completed(&mut connection, &Some(client))
         .await
         .unwrap()
 }
@@ -375,7 +374,7 @@ async fn health_status_immediately_after_task_start() {
         async fn fetch_l1_batch_details(
             &self,
             _number: L1BatchNumber,
-        ) -> EnrichedClientResult<Option<L1BatchDetails>> {
+        ) -> EnrichedClientResult<Option<L1BlockMetadata>> {
             self.0.wait().await;
             future::pending().await
         }
@@ -383,7 +382,7 @@ async fn health_status_immediately_after_task_start() {
         async fn fetch_l2_block_details(
             &self,
             _number: L2BlockNumber,
-        ) -> EnrichedClientResult<Option<BlockDetails>> {
+        ) -> EnrichedClientResult<Option<L2BlockMetadata>> {
             self.0.wait().await;
             future::pending().await
         }

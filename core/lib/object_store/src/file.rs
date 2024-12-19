@@ -43,6 +43,8 @@ impl FileBackedObjectStore {
             Bucket::ProofsFri,
             Bucket::StorageSnapshot,
             Bucket::VmDumps,
+            Bucket::CommitBlocksCache,
+            Bucket::LocalBlobs,
         ] {
             let bucket_path = format!("{base_dir}/{bucket}");
             fs::create_dir_all(&bucket_path).await?;

@@ -19,4 +19,5 @@ message SnapshotRecovery {
   optional uint32 l1_batch = 4;
   optional config.object_store.ObjectStore object_store = 5;
   optional experimental.SnapshotRecovery experimental = 6;
+  optional bool recover_from_l1 = 7;
 }

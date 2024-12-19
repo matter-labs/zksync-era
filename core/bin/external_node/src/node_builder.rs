@@ -18,6 +18,7 @@ use zksync_node_api_server::web3::Namespace;
 use zksync_node_framework::{
     implementations::layers::{
         batch_status_updater::BatchStatusUpdaterLayer,
+        blob_client::{BlobClientLayer, BlobClientMode},
         block_reverter::BlockReverterLayer,
         commitment_generator::CommitmentGeneratorLayer,
         consensus::ExternalNodeConsensusLayer,
@@ -57,7 +58,7 @@ use zksync_node_framework::{
     service::{ZkStackService, ZkStackServiceBuilder},
 };
 use zksync_state::RocksdbStorageOptions;
-use zksync_types::L2_ASSET_ROUTER_ADDRESS;
+use zksync_types::{L1ChainId, L2_ASSET_ROUTER_ADDRESS};
 
 use crate::{config::ExternalNodeConfig, metrics::framework::ExternalNodeMetricsLayer, Component};
 
@@ -525,6 +526,20 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_blob_client_layer(mut self, l1_chain_id: L1ChainId) -> anyhow::Result<Self> {
+        let url = if l1_chain_id.0 == 1 {
+            "https://api.blobscan.com/blobs/"
+        } else {
+            "https://api.sepolia.blobscan.com/blobs/"
+        };
+        let layer = BlobClientLayer {
+            mode: BlobClientMode::Blobscan,
+            blobscan_url: Some(url.to_string()),
+        };
+        self.node.add_layer(layer);
+        Ok(self)
+    }
+
     /// This layer will make sure that the database is initialized correctly,
     /// e.g.:
     /// - genesis or snapshot recovery will be performed if it's required.
@@ -545,11 +560,13 @@ impl ExternalNodeBuilder {
                 .optional
                 .snapshots_recovery_enabled
                 .then_some(SnapshotRecoveryConfig {
+                    recover_from_l1: config.experimental.snapshots_recovery_recover_from_l1,
                     snapshot_l1_batch_override: config.experimental.snapshots_recovery_l1_batch,
                     drop_storage_key_preimages: config
                         .experimental
                         .snapshots_recovery_drop_storage_key_preimages,
                     object_store_config: config.optional.snapshots_recovery_object_store.clone(),
+                    recover_main_node_components: false,
                 });
         self.node.add_layer(ExternalNodeInitStrategyLayer {
             l2_chain_id: self.config.required.l2_chain_id,
@@ -558,6 +575,7 @@ impl ExternalNodeBuilder {
                 .optional
                 .snapshots_recovery_postgres_max_concurrency,
             snapshot_recovery_config,
+            diamond_proxy_addr: self.config.l1_diamond_proxy_address(),
         });
         let mut layer = NodeStorageInitializerLayer::new();
         if matches!(kind, LayerKind::Precondition) {
@@ -569,11 +587,13 @@ impl ExternalNodeBuilder {
 
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers
+        let l1_chain_id = self.config.required.l1_chain_id;
         self = self
             .add_sigint_handler_layer()?
             .add_healthcheck_layer()?
             .add_prometheus_exporter_layer()?
             .add_pools_layer()?
+            .add_blob_client_layer(l1_chain_id)?
             .add_main_node_client_layer()?
             .add_query_eth_client_layer()?
             .add_reorg_detector_layer()?;

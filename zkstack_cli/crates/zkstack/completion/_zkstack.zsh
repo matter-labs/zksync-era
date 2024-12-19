@@ -2011,6 +2011,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--genesis[Run server in genesis mode]' \
+'--l1-recovery[Run server in L1 recovery mode]' \
 '--uring[Enables uring support for RocksDB]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
@@ -2044,6 +2045,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--genesis[Run server in genesis mode]' \
+'--l1-recovery[Run server in L1 recovery mode]' \
 '--uring[Enables uring support for RocksDB]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \

@@ -62,6 +62,7 @@ impl ProtoRepr for proto::SnapshotRecovery {
                 .as_ref()
                 .and_then(|experimental| experimental.drop_storage_key_preimages)
                 .unwrap_or_default(),
+            recover_from_l1: self.recover_from_l1.unwrap_or_default(),
         })
     }
 
@@ -94,6 +95,7 @@ impl ProtoRepr for proto::SnapshotRecovery {
             experimental,
             l1_batch: this.l1_batch.map(|a| a.0),
             object_store: this.object_store.as_ref().map(ProtoRepr::build),
+            recover_from_l1: Some(this.recover_from_l1),
         }
     }
 }

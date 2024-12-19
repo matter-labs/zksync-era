@@ -1,6 +1,5 @@
 pub use self::{
-    genesis::ExternalNodeGenesis, revert::ExternalNodeReverter,
-    snapshot_recovery::ExternalNodeSnapshotRecovery,
+    genesis::ExternalNodeGenesis, revert::ExternalNodeReverter, snapshot_recovery::NodeRecovery,
 };
 
 mod genesis;

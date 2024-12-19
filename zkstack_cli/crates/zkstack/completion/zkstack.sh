@@ -7426,7 +7426,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__server)
-            opts="-a -v -h --components --genesis --additional-args --uring --verbose --chain --ignore-prerequisites --help build run wait help"
+            opts="-a -v -h --components --genesis --l1-recovery --additional-args --uring --verbose --chain --ignore-prerequisites --help build run wait help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7544,7 +7544,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__server__run)
-            opts="-a -v -h --components --genesis --additional-args --uring --verbose --chain --ignore-prerequisites --help"
+            opts="-a -v -h --components --genesis --l1-recovery --additional-args --uring --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0

@@ -1049,6 +1049,7 @@ impl Distribution<configs::snapshot_recovery::SnapshotRecoveryConfig> for Encode
             tree,
             postgres: self.sample(rng),
             object_store: self.sample(rng),
+            recover_from_l1: self.sample(rng),
         }
     }
 }

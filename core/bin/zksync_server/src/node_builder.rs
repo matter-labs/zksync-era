@@ -23,6 +23,7 @@ use zksync_node_framework::{
             base_token_ratio_persister::BaseTokenRatioPersisterLayer,
             base_token_ratio_provider::BaseTokenRatioProviderLayer, ExternalPriceApiLayer,
         },
+        blob_client::{BlobClientLayer, BlobClientMode},
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
         consensus::MainNodeConsensusLayer,
@@ -72,7 +73,8 @@ use zksync_node_framework::{
     service::{ZkStackService, ZkStackServiceBuilder},
 };
 use zksync_types::{
-    pubdata_da::PubdataSendingMode, settlement::SettlementMode, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+    pubdata_da::PubdataSendingMode, settlement::SettlementMode, L1ChainId,
+    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
 };
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
@@ -198,6 +200,20 @@ impl MainNodeBuilder {
         let object_store_config = try_load_config!(self.configs.core_object_store);
         self.node
             .add_layer(ObjectStoreLayer::new(object_store_config));
+        Ok(self)
+    }
+
+    fn add_blob_client_layer(mut self, l1_chain_id: L1ChainId) -> anyhow::Result<Self> {
+        let url = if l1_chain_id.0 == 1 {
+            "https://api.blobscan.com/blobs/"
+        } else {
+            "https://api.sepolia.blobscan.com/blobs/"
+        };
+        let layer = BlobClientLayer {
+            mode: BlobClientMode::Blobscan,
+            blobscan_url: Some(url.to_string()),
+        };
+        self.node.add_layer(layer);
         Ok(self)
     }
 
@@ -653,12 +669,20 @@ impl MainNodeBuilder {
     ///
     /// This task works in pair with precondition, which must be present in every component:
     /// the precondition will prevent node from starting until the database is initialized.
-    fn add_storage_initialization_layer(mut self, kind: LayerKind) -> anyhow::Result<Self> {
+    fn add_storage_initialization_layer(
+        mut self,
+        kind: LayerKind,
+        l1_recovery: bool,
+    ) -> anyhow::Result<Self> {
         self.node.add_layer(MainNodeInitStrategyLayer {
             genesis: self.genesis_config.clone(),
+            l1_recovery_enabled: l1_recovery,
             contracts: self.contracts_config.clone(),
         });
         let mut layer = NodeStorageInitializerLayer::new();
+        if matches!(kind, LayerKind::TaskEndingExecution) {
+            layer = layer.stop_node_on_completion();
+        }
         if matches!(kind, LayerKind::Precondition) {
             layer = layer.as_precondition();
         }
@@ -668,10 +692,27 @@ impl MainNodeBuilder {
 
     /// Builds the node with the genesis initialization task only.
     pub fn only_genesis(mut self) -> anyhow::Result<ZkStackService> {
+        let l1_chain_id = self.genesis_config.l1_chain_id;
         self = self
             .add_pools_layer()?
+            .add_object_store_layer()?
+            .add_blob_client_layer(l1_chain_id)?
             .add_query_eth_client_layer()?
-            .add_storage_initialization_layer(LayerKind::Task)?;
+            .add_healthcheck_layer()?
+            .add_storage_initialization_layer(LayerKind::TaskEndingExecution, false)?;
+
+        Ok(self.node.build())
+    }
+
+    pub fn only_l1_recovery(mut self) -> anyhow::Result<ZkStackService> {
+        let l1_chain_id = self.genesis_config.l1_chain_id;
+        self = self
+            .add_pools_layer()?
+            .add_object_store_layer()?
+            .add_blob_client_layer(l1_chain_id)?
+            .add_query_eth_client_layer()?
+            .add_healthcheck_layer()?
+            .add_storage_initialization_layer(LayerKind::TaskEndingExecution, true)?;
 
         Ok(self.node.build())
     }
@@ -679,10 +720,12 @@ impl MainNodeBuilder {
     /// Builds the node with the specified components.
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers (resources and helper tasks).
+        let l1_chain_id = self.genesis_config.l1_chain_id;
         self = self
             .add_sigint_handler_layer()?
             .add_pools_layer()?
             .add_object_store_layer()?
+            .add_blob_client_layer(l1_chain_id)?
             .add_circuit_breaker_checker_layer()?
             .add_healthcheck_layer()?
             .add_prometheus_exporter_layer()?
@@ -692,7 +735,7 @@ impl MainNodeBuilder {
         // Add preconditions for all the components.
         self = self
             .add_l1_batch_commitment_mode_validation_layer()?
-            .add_storage_initialization_layer(LayerKind::Precondition)?;
+            .add_storage_initialization_layer(LayerKind::Precondition, false)?;
 
         // Sort the components, so that the components they may depend on each other are added in the correct order.
         components.sort_unstable_by_key(|component| match component {
@@ -711,7 +754,7 @@ impl MainNodeBuilder {
                     // which is why we consider it to be responsible for the storage initialization.
                     self = self
                         .add_l1_gas_layer()?
-                        .add_storage_initialization_layer(LayerKind::Task)?
+                        .add_storage_initialization_layer(LayerKind::Task, false)?
                         .add_state_keeper_layer()?
                         .add_logs_bloom_backfill_layer()?;
                 }
@@ -800,4 +843,5 @@ impl MainNodeBuilder {
 enum LayerKind {
     Task,
     Precondition,
+    TaskEndingExecution,
 }
