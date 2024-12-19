@@ -241,7 +241,7 @@ There are a few reasons why refunds might be 'larger' on ZKsync (i.e., why we mi
   impacts the amount of gas used by pubdata.
 
 [gas_adjuster]:
-  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/l1_gas_price/gas_adjuster/mod.rs#L30
+  https://github.com/matter-labs/zksync-era/blob/main/core/node/fee_model/src/l1_gas_price/gas_adjuster/mod.rs#L30
   'gas_adjuster'
 [get_txs_fee_in_wei]:
   https://github.com/matter-labs/zksync-era/blob/714a8905d407de36a906a4b6d464ec2cab6eb3e8/core/lib/zksync_core/src/api_server/tx_sender/mod.rs#L656
