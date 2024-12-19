@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{alloc::Global, sync::Arc};
 
 use anyhow::Context;
 use shivini::{gpu_proof_config::GpuProofConfig, gpu_prove_from_external_witness_data};
@@ -84,7 +84,7 @@ impl Circuit {
         let span = tracing::info_span!("prove_base_circuit").entered();
         let gpu_proof_config = GpuProofConfig::from_base_layer_circuit(circuit);
         let boojum_proof_config = base_layer_proof_config();
-        let proof = gpu_prove_from_external_witness_data::<Transcript, Hasher, NoPow, _>(
+        let proof = gpu_prove_from_external_witness_data::<Transcript, Hasher, NoPow, Global>(
             &gpu_proof_config,
             &witness_vector,
             boojum_proof_config,
@@ -113,7 +113,7 @@ impl Circuit {
         let span = tracing::info_span!("prove_recursive_circuit").entered();
         let gpu_proof_config = GpuProofConfig::from_recursive_layer_circuit(circuit);
         let boojum_proof_config = recursion_layer_proof_config();
-        let proof = gpu_prove_from_external_witness_data::<Transcript, Hasher, NoPow, _>(
+        let proof = gpu_prove_from_external_witness_data::<Transcript, Hasher, NoPow, Global>(
             &gpu_proof_config,
             &witness_vector,
             boojum_proof_config,
