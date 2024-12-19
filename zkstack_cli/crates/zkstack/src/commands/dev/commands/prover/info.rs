@@ -16,7 +16,7 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
         .load_current_chain()
         .expect(MSG_CHAIN_NOT_FOUND_ERR);
 
-    let link_to_code = ecosystem_config.link_to_code;
+    let link_to_code = ecosystem_config.link_to_code.join("core");
     let link_to_prover = link_to_code.join("prover");
 
     let protocol_version = get_protocol_version(shell, &link_to_prover).await?;
