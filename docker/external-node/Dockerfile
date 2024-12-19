@@ -20,8 +20,8 @@ RUN cargo build --release --bin zksync_external_node --bin block_reverter
 
 FROM ghcr.io/matter-labs/zksync-runtime-base:latest
 
-COPY --from=builder /usr/src/zksync/target/release/zksync_external_node /usr/bin
-COPY --from=builder /usr/src/zksync/target/release/block_reverter /usr/bin
+COPY --from=builder /usr/src/zksync/core/target/release/zksync_external_node /usr/bin
+COPY --from=builder /usr/src/zksync/core/target/release/block_reverter /usr/bin
 COPY --from=builder /usr/local/cargo/bin/sqlx /usr/bin
 COPY --from=builder /usr/src/zksync/docker/external-node/entrypoint.sh /usr/bin
 COPY contracts/system-contracts/zkout/ /contracts/system-contracts/zkout/

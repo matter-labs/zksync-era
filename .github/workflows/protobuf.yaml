@@ -45,10 +45,10 @@ jobs:
       - name: checkout LCA
         run:
           git checkout $(git merge-base $BASE $HEAD) --recurse-submodules
-        working-directory: ./before/core
+        working-directory: ./before
       - name: compile before
-        run: cargo check --all-targets
-        working-directory: ./before/core
+        run: cargo check --manifest-path ./core/Cargo.toml --all-targets
+        working-directory: ./before
       - name: build before.binpb
         run: >
           perl -ne 'print "$1\n" if /PROTOBUF_DESCRIPTOR="(.*)"/'
@@ -62,8 +62,8 @@ jobs:
           path: after
           submodules: recursive
       - name: compile after
-        run: cargo check --all-targets
-        working-directory: ./after/core
+        run: cargo check --manifest-path ./core/Cargo.toml --all-targets
+        working-directory: ./after
       - name: build after.binpb
         run: >
           perl -ne 'print "$1\n" if /PROTOBUF_DESCRIPTOR="(.*)"/'
@@ -75,6 +75,9 @@ jobs:
         with:
           github_token: ${{ github.token }}
       - name: buf breaking
-        run: >
-          buf breaking './after.binpb' --against './before.binpb' --exclude-path 'zksync/config/experimental.proto'
-          --config '{"version":"v1","breaking":{"use":["WIRE_JSON","WIRE"]}}' --error-format 'github-actions'
+        run: |
+          pwd
+          ls -la
+          buf breaking './after.binpb' --against './before.binpb' --exclude-path 'zksync/config/experimental.proto' \
+            --config '{"version":"v1","breaking":{"use":["WIRE_JSON","WIRE"]}}' --error-format 'github-actions'
+          

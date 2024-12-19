@@ -17,7 +17,7 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
         .api_config
         .context("API config is not found")?;
 
-    let mut command = cmd!(shell, "cargo run --release --bin loadnext")
+    let mut command = cmd!(shell, "cargo run --manifest-path ./core/Cargo.toml --release --bin loadnext")
         .env(
             "L2_CHAIN_ID",
             chain_config

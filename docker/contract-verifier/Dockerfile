@@ -96,7 +96,7 @@ RUN mkdir -p /etc/vyper-bin/0.4.0 \
     && mv vyper0.4.0 /etc/vyper-bin/0.4.0/vyper \
     && chmod +x /etc/vyper-bin/0.4.0/vyper
 
-COPY --from=builder /usr/src/zksync/target/release/zksync_contract_verifier /usr/bin/
+COPY --from=builder /usr/src/zksync/core/target/release/zksync_contract_verifier /usr/bin/
 COPY contracts/system-contracts/zkout/ /contracts/system-contracts/zkout/
 
 # CMD tail -f /dev/null
