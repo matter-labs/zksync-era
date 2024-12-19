@@ -14,8 +14,12 @@ use zksync_block_reverter::{
     BlockReverter, BlockReverterEthConfig, NodeRole,
 };
 use zksync_config::{
-    configs::{GatewayChainConfig, ObservabilityConfig},
-    GenesisConfig,
+    configs::{
+        chain::NetworkConfig, wallets::Wallets, BasicWitnessInputProducerConfig, DatabaseSecrets,
+        GatewayChainConfig, GeneralConfig, L1Secrets, ObservabilityConfig,
+        ProtectiveReadsWriterConfig,
+    },
+    ContractsConfig, DBConfig, EthConfig, GenesisConfig, PostgresConfig,
 };
 use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 use zksync_dal::{ConnectionPool, Core};
@@ -25,29 +29,24 @@ use zksync_protobuf_config::proto;
 use zksync_types::{Address, L1BatchNumber};
 
 #[derive(Debug, Parser)]
-#[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None, subcommand_negates_reqs = true)]
+#[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
-    /// Path to yaml config. Note, that while required,
-    /// it is still an `Option` due to internal specifics of the `clap` crate.
-    #[arg(long, global = true, required = true)]
+    /// Path to yaml config. If set, it will be used instead of env vars
+    #[arg(long, global = true)]
     config_path: Option<PathBuf>,
-    /// Path to yaml contracts config. Note, that while required,
-    /// it is still an `Option` due to internal specifics of the `clap` crate.
-    #[arg(long, global = true, required = true)]
+    /// Path to yaml contracts config. If set, it will be used instead of env vars
+    #[arg(long, global = true)]
     contracts_config_path: Option<PathBuf>,
-    /// Path to yaml secrets config. Note, that while required,
-    /// it is still an `Option` due to internal specifics of the `clap` crate.
-    #[arg(long, global = true, required = true)]
+    /// Path to yaml secrets config. If set, it will be used instead of env vars
+    #[arg(long, global = true)]
     secrets_path: Option<PathBuf>,
-    /// Path to yaml wallets config. Note, that while required,
-    /// it is still an `Option` due to internal specifics of the `clap` crate.
-    #[arg(long, global = true, required = true)]
+    /// Path to yaml wallets config. If set, it will be used instead of env vars
+    #[arg(long, global = true)]
     wallets_path: Option<PathBuf>,
-    /// Path to yaml genesis config. Note, that while required,
-    /// it is still an `Option` due to internal specifics of the `clap` crate.
-    #[arg(long, global = true, required = true)]
+    /// Path to yaml genesis config. If set, it will be used instead of env vars
+    #[arg(long, global = true)]
     genesis_path: Option<PathBuf>,
     /// Path to yaml config of the chain on top of gateway.
     /// It may be `None` in case a chain is not settling on top of Gateway.
@@ -133,80 +132,111 @@ async fn main() -> anyhow::Result<()> {
         .with_opentelemetry(opentelemetry)
         .build();
 
-    let general_config = read_yaml_repr::<proto::general::GeneralConfig>(
-        &opts.config_path.context("Config path missing")?,
-    )
-    .context("failed decoding general YAML config")?;
+    let general_config: Option<GeneralConfig> = if let Some(path) = opts.config_path {
+        Some(
+            read_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&path)
+                .context("failed decoding general YAML config")?,
+        )
+    } else {
+        None
+    };
+    let wallets_config: Option<Wallets> = if let Some(path) = opts.wallets_path {
+        Some(
+            read_yaml_repr::<zksync_protobuf_config::proto::wallets::Wallets>(&path)
+                .context("failed decoding wallets YAML config")?,
+        )
+    } else {
+        None
+    };
+    let genesis_config: Option<GenesisConfig> = if let Some(path) = opts.genesis_path {
+        Some(
+            read_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&path)
+                .context("failed decoding genesis YAML config")?,
+        )
+    } else {
+        None
+    };
 
-    let wallets_config = read_yaml_repr::<proto::wallets::Wallets>(
-        &opts.wallets_path.context("Wallets path missing")?,
-    )
-    .context("failed decoding wallets YAML config")?;
+    let eth_sender = match &general_config {
+        Some(general_config) => general_config
+            .eth
+            .clone()
+            .context("Failed to find eth config")?,
+        None => EthConfig::from_env().context("EthConfig::from_env()")?,
+    };
+    let db_config = match &general_config {
+        Some(general_config) => general_config
+            .db_config
+            .clone()
+            .context("Failed to find eth config")?,
+        None => DBConfig::from_env().context("DBConfig::from_env()")?,
+    };
+    let protective_reads_writer_config = match &general_config {
+        Some(general_config) => general_config
+            .protective_reads_writer_config
+            .clone()
+            .context("Failed to find eth config")?,
+        None => ProtectiveReadsWriterConfig::from_env()
+            .context("ProtectiveReadsWriterConfig::from_env()")?,
+    };
+    let basic_witness_input_producer_config = match &general_config {
+        Some(general_config) => general_config
+            .basic_witness_input_producer_config
+            .clone()
+            .context("Failed to find eth config")?,
+        None => BasicWitnessInputProducerConfig::from_env()
+            .context("BasicWitnessInputProducerConfig::from_env()")?,
+    };
+    let contracts = match opts.contracts_config_path {
+        Some(path) => read_yaml_repr::<proto::contracts::Contracts>(&path)
+            .context("failed decoding contracts YAML config")?,
+        None => ContractsConfig::from_env().context("ContractsConfig::from_env()")?,
+    };
+    let secrets_config = if let Some(path) = opts.secrets_path {
+        Some(
+            read_yaml_repr::<proto::secrets::Secrets>(&path)
+                .context("failed decoding secrets YAML config")?,
+        )
+    } else {
+        None
+    };
 
-    let genesis_config: GenesisConfig = read_yaml_repr::<proto::genesis::Genesis>(
-        &opts.genesis_path.context("Genesis path missing")?,
-    )
-    .context("failed decoding genesis YAML config")?;
+    let gas_adjuster = eth_sender.gas_adjuster.context("gas_adjuster")?;
+    let default_priority_fee_per_gas = gas_adjuster.default_priority_fee_per_gas;
+    let settlement_mode = gas_adjuster.settlement_mode;
 
-    let eth_sender = general_config
-        .eth
-        .clone()
-        .context("Failed to find eth config")?;
-
-    let db_config = general_config
-        .db_config
-        .clone()
-        .context("Failed to find eth config")?;
-    let protective_reads_writer_config = general_config
-        .protective_reads_writer_config
-        .clone()
-        .context("Failed to find eth config")?;
-    let basic_witness_input_producer_config = general_config
-        .basic_witness_input_producer_config
-        .clone()
-        .context("Failed to find eth config")?;
-    let contracts = read_yaml_repr::<proto::contracts::Contracts>(
-        &opts
-            .contracts_config_path
-            .context("Missing contracts config")?,
-    )
-    .context("failed decoding contracts YAML config")?;
-
-    let secrets_config = read_yaml_repr::<proto::secrets::Secrets>(
-        &opts.secrets_path.context("Missing secrets config")?,
-    )
-    .context("failed decoding secrets YAML config")?;
-
-    let default_priority_fee_per_gas = eth_sender
-        .gas_adjuster
-        .context("gas_adjuster")?
-        .default_priority_fee_per_gas;
-
-    let database_secrets = secrets_config
-        .database
-        .clone()
-        .context("Failed to find database config")?;
-
-    let l1_secrets = secrets_config
-        .l1
-        .clone()
-        .context("Failed to find l1 config")?;
-
-    let postgres_config = general_config
-        .postgres_config
-        .clone()
-        .context("Failed to find postgres config")?;
-
-    let zksync_network_id = genesis_config.l2_chain_id;
-
-    let settlement_mode = general_config
-        .eth
-        .context("Missing `eth` config")?
-        .gas_adjuster
-        .context("Missing `gas_adjuster` config")?
-        .settlement_mode;
+    let database_secrets = match &secrets_config {
+        Some(secrets_config) => secrets_config
+            .database
+            .clone()
+            .context("Failed to find database config")?,
+        None => DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?,
+    };
+    let l1_secrets = match &secrets_config {
+        Some(secrets_config) => secrets_config
+            .l1
+            .clone()
+            .context("Failed to find l1 config")?,
+        None => L1Secrets::from_env().context("L1Secrets::from_env()")?,
+    };
+    let postgres_config = match &general_config {
+        Some(general_config) => general_config
+            .postgres_config
+            .clone()
+            .context("Failed to find postgres config")?,
+        None => PostgresConfig::from_env().context("PostgresConfig::from_env()")?,
+    };
+    let zksync_network_id = match &genesis_config {
+        Some(genesis_config) => genesis_config.l2_chain_id,
+        None => {
+            NetworkConfig::from_env()
+                .context("NetworkConfig::from_env()")?
+                .zksync_network_id
+        }
+    };
 
     let (sl_rpc_url, sl_diamond_proxy, sl_validator_timelock) = if settlement_mode.is_gateway() {
+        // Gateway config is required to be provided by file for now.
         let gateway_chain_config: GatewayChainConfig =
             read_yaml_repr::<proto::gateway::GatewayChainConfig>(
                 &opts
@@ -273,12 +303,22 @@ async fn main() -> anyhow::Result<()> {
             nonce,
         } => {
             let sl_client = Client::http(sl_rpc_url).context("Ethereum client")?.build();
-            let reverter_private_key = wallets_config
-                .eth_sender
-                .unwrap()
-                .operator
-                .private_key()
-                .to_owned();
+            let reverter_private_key = if let Some(wallets_config) = wallets_config {
+                wallets_config
+                    .eth_sender
+                    .unwrap()
+                    .operator
+                    .private_key()
+                    .to_owned()
+            } else {
+                #[allow(deprecated)]
+                eth_sender
+                    .sender
+                    .context("eth_sender_config")?
+                    .private_key()
+                    .context("eth_sender_config.private_key")?
+                    .context("eth_sender_config.private_key is not set")?
+            };
 
             let priority_fee_per_gas = priority_fee_per_gas.unwrap_or(default_priority_fee_per_gas);
             let l1_chain_id = sl_client
