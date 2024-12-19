@@ -12,7 +12,7 @@ async fn main() {
 
     // FIXME: observability? error handling?
 
-    let schema = full_config_schema();
+    let schema = full_config_schema(false);
     let repo = ConfigRepository::new(&schema).with_all(config_sources);
     let config: DatabaseSecrets = repo.single().unwrap().parse().unwrap();
 

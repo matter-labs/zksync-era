@@ -80,7 +80,7 @@ async fn main() -> anyhow::Result<()> {
         ObservabilityConfig::from_sources(config_sources.clone()).context("ObservabilityConfig")?;
     let _observability_guard = observability_config.install()?;
 
-    let schema = full_config_schema();
+    let schema = full_config_schema(false);
     let repo = ConfigRepository::new(&schema).with_all(config_sources);
     let database_secrets: DatabaseSecrets = repo.single()?.parse().log_all_errors()?;
     let creator_config: SnapshotsCreatorConfig = repo.single()?.parse().log_all_errors()?;

@@ -168,6 +168,7 @@ impl ConsensusConfig {
 
 /// Secrets needed for consensus.
 #[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
 pub struct ConsensusSecrets {
     /// Has `validator:secret:bls12_381:` prefix.
     pub validator_key: Option<SecretString>,

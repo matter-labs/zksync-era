@@ -118,6 +118,7 @@ async fn main() -> anyhow::Result<()> {
         wallets: opts.wallets_path,
         genesis: opts.genesis_path,
         contracts: opts.contracts_config_path,
+        ..ConfigFilePaths::default()
     };
     let config_sources =
         tokio::task::spawn_blocking(|| config_file_paths.into_config_sources("")).await??;
@@ -138,7 +139,7 @@ async fn main() -> anyhow::Result<()> {
         .with_opentelemetry(opentelemetry)
         .build();
 
-    let schema = full_config_schema();
+    let schema = full_config_schema(false);
     let repo = ConfigRepository::new(&schema).with_all(config_sources);
     let wallets_config: Option<Wallets> = repo.single()?.parse_opt().log_all_errors()?;
     let genesis_config = repo

@@ -6,6 +6,7 @@ use std::{
 use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
 pub struct ContractVerifierConfig {
     /// Max time of a single compilation (in s).
     #[config(default_t = Duration::from_secs(240), with = TimeUnit::Seconds)]

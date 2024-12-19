@@ -3,6 +3,7 @@ use std::{num::NonZeroU32, time::Duration};
 use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
 pub struct PruningConfig {
     #[config(default)]
     pub enabled: bool,

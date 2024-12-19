@@ -9,12 +9,14 @@ use crate::{
         },
         consensus::ConsensusConfig,
         da_dispatcher::DADispatcherConfig,
+        en_config::ENConfig,
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         prover_job_monitor::ProverJobMonitorConfig,
         pruning::PruningConfig,
         snapshot_recovery::SnapshotRecoveryConfig,
         vm_runner::{BasicWitnessInputProducerConfig, ProtectiveReadsWriterConfig},
+        wallets::Wallets,
         CommitmentGeneratorConfig, ExperimentalVmConfig, ExternalPriceApiClientConfig,
         FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
@@ -28,21 +30,21 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct GeneralConfig {
     #[config(nest, rename = "postgres", alias = "database")]
-    pub postgres_config: Option<PostgresConfig>,
+    pub postgres_config: PostgresConfig,
     #[config(nest, rename = "api")]
     pub api_config: Option<ApiConfig>,
     #[config(nest)]
-    pub contract_verifier: Option<ContractVerifierConfig>,
+    pub contract_verifier: ContractVerifierConfig,
     #[config(nest, rename = "circuit_breaker")]
-    pub circuit_breaker_config: Option<CircuitBreakerConfig>,
+    pub circuit_breaker_config: CircuitBreakerConfig,
     #[config(nest, rename = "mempool")]
-    pub mempool_config: Option<MempoolConfig>,
+    pub mempool_config: MempoolConfig,
     #[config(nest, rename = "operations_manager")]
-    pub operations_manager_config: Option<OperationsManagerConfig>,
+    pub operations_manager_config: OperationsManagerConfig,
     #[config(nest, rename = "state_keeper")]
     pub state_keeper_config: Option<StateKeeperConfig>,
     #[config(nest, rename = "house_keeper")]
-    pub house_keeper_config: Option<HouseKeeperConfig>,
+    pub house_keeper_config: HouseKeeperConfig,
 
     #[config(nest, rename = "proof_compressor", alias = "fri_proof_compressor")]
     pub proof_compressor_config: Option<FriProofCompressorConfig>,
@@ -57,18 +59,18 @@ pub struct GeneralConfig {
     #[config(nest, rename = "witness_generator", alias = "fri_witness")]
     pub witness_generator_config: Option<FriWitnessGeneratorConfig>,
 
-    #[config(nest)] // FIXME: nested within API
+    #[config(nest)] // FIXME: also nested within API
     pub prometheus_config: Option<PrometheusConfig>,
     #[config(nest, rename = "data_handler")]
     pub proof_data_handler_config: Option<ProofDataHandlerConfig>,
     #[config(nest, rename = "db", alias = "database")]
-    pub db_config: Option<DBConfig>,
+    pub db_config: DBConfig,
     #[config(nest)]
     pub eth: Option<EthConfig>,
     #[config(nest)]
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
     #[config(nest)]
-    pub observability: Option<ObservabilityConfig>,
+    pub observability: ObservabilityConfig,
     //#[config(nest)]
     //pub da_client_config: Option<DAClientConfig>,
     #[config(nest, rename = "da_dispatcher")]
@@ -78,30 +80,30 @@ pub struct GeneralConfig {
     #[config(nest, rename = "basic_witness_input_producer")]
     pub basic_witness_input_producer_config: Option<BasicWitnessInputProducerConfig>,
     #[config(nest)]
-    pub commitment_generator: Option<CommitmentGeneratorConfig>,
+    pub commitment_generator: CommitmentGeneratorConfig,
     #[config(nest)]
-    pub snapshot_recovery: Option<SnapshotRecoveryConfig>,
+    pub snapshot_recovery: SnapshotRecoveryConfig,
     #[config(nest)]
-    pub pruning: Option<PruningConfig>,
+    pub pruning: PruningConfig,
     #[config(nest)]
     pub core_object_store: Option<ObjectStoreConfig>,
     #[config(nest)]
-    pub base_token_adjuster: Option<BaseTokenAdjusterConfig>,
+    pub base_token_adjuster: BaseTokenAdjusterConfig,
     #[config(nest, rename = "external_price_api_client")]
-    pub external_price_api_client_config: Option<ExternalPriceApiClientConfig>,
+    pub external_price_api_client_config: ExternalPriceApiClientConfig,
     #[config(nest, rename = "consensus")]
     pub consensus_config: Option<ConsensusConfig>,
     #[config(nest, rename = "external_proof_integration_api")]
     pub external_proof_integration_api_config: Option<ExternalProofIntegrationApiConfig>,
     #[config(nest, rename = "experimental_vm")]
-    pub experimental_vm_config: Option<ExperimentalVmConfig>,
+    pub experimental_vm_config: ExperimentalVmConfig,
     #[config(nest, rename = "prover_job_monitor")]
     pub prover_job_monitor_config: Option<ProverJobMonitorConfig>,
     #[config(nest, rename = "timestamp_asserter")]
-    pub timestamp_asserter_config: Option<TimestampAsserterConfig>,
+    pub timestamp_asserter_config: TimestampAsserterConfig,
 }
 
-pub fn full_config_schema() -> ConfigSchema {
+pub fn full_config_schema(with_en: bool) -> ConfigSchema {
     let mut schema = ConfigSchema::new(&GeneralConfig::DESCRIPTION, "");
 
     // Add global aliases for the snapshots object store.
@@ -123,6 +125,7 @@ pub fn full_config_schema() -> ConfigSchema {
         .unwrap();
     // TODO: add aliases for prover object stores in the same way
 
+    // Specialized configuration that were placed in separate files.
     schema.insert(&Secrets::DESCRIPTION, "").unwrap();
     schema
         .insert(&GenesisConfigWrapper::DESCRIPTION, "")
@@ -130,7 +133,13 @@ pub fn full_config_schema() -> ConfigSchema {
     schema
         .insert(&ContractsConfig::DESCRIPTION, "contracts")
         .unwrap();
-    // FIXME: wallets
+    schema.insert(&Wallets::DESCRIPTION, "wallets").unwrap();
+
+    if with_en {
+        schema
+            .insert(&ENConfig::DESCRIPTION, "external_node")
+            .unwrap();
+    }
     schema
 }
 
@@ -140,6 +149,6 @@ mod tests {
 
     #[test]
     fn config_schema_can_be_constructed() {
-        full_config_schema();
+        full_config_schema(true);
     }
 }

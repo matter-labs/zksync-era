@@ -62,16 +62,15 @@ pub struct ExperimentalVmPlaygroundConfig {
 }
 
 /// Experimental VM configuration options.
-#[derive(Debug, Clone, Default, PartialEq, DescribeConfig, DeserializeConfig)]
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
 pub struct ExperimentalVmConfig {
-    #[config(nest, default)]
+    #[config(nest)]
     pub playground: ExperimentalVmPlaygroundConfig,
-
     /// Mode in which to run the fast VM implementation in the state keeper. Should not be set in production;
     /// the new VM doesn't produce call traces and can diverge from the old VM!
     #[config(default, with = Serde![str])]
     pub state_keeper_fast_vm_mode: FastVmMode,
-
     /// Fast VM mode to use in the API server. Currently, some operations are not supported by the fast VM (e.g., `debug_traceCall`
     /// or transaction validation), so the legacy VM will always be used for them.
     #[config(default, with = Serde![str])]

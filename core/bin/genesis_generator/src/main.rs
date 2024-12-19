@@ -46,7 +46,7 @@ async fn main() -> anyhow::Result<()> {
     let config_sources =
         tokio::task::spawn_blocking(|| config_file_paths.into_config_sources("")).await??;
 
-    let schema = full_config_schema();
+    let schema = full_config_schema(false);
     let repo = ConfigRepository::new(&schema).with_all(config_sources);
     let database_secrets: DatabaseSecrets = repo.single()?.parse().log_all_errors()?;
 

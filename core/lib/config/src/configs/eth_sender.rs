@@ -133,7 +133,7 @@ pub struct SenderConfig {
     /// L1 batches will only be executed on L1 contract after they are at least this number of seconds old.
     /// Note that this number must be slightly higher than the one set on the contract,
     /// because the contract uses `block.timestamp` which lags behind the clock time.
-    #[config(default, with = Optional(TimeUnit::Seconds))]
+    #[config(with = Optional(TimeUnit::Seconds))]
     pub l1_batch_min_age_before_execute_seconds: Option<Duration>,
     // Max acceptable fee for sending tx it acts as a safeguard to prevent sending tx with very high fees.
     #[config(default_t = 100_000_000_000)]

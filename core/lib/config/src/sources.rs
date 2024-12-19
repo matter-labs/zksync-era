@@ -6,7 +6,6 @@ use std::{
 use anyhow::Context;
 use smart_config::{ConfigSources, Environment, Prefixed, Yaml};
 
-// FIXME: consensus
 #[derive(Debug, Default)]
 pub struct ConfigFilePaths {
     pub general: Option<PathBuf>,
@@ -14,10 +13,13 @@ pub struct ConfigFilePaths {
     pub contracts: Option<PathBuf>,
     pub genesis: Option<PathBuf>,
     pub wallets: Option<PathBuf>,
+    pub consensus: Option<PathBuf>,
+    pub external_node: Option<PathBuf>,
 }
 
 impl ConfigFilePaths {
-    fn read_yaml(path: &Path) -> anyhow::Result<Yaml> {
+    /// This method is blocking.
+    pub fn read_yaml(path: &Path) -> anyhow::Result<Yaml> {
         let file =
             fs::File::open(path).with_context(|| format!("failed opening config file {path:?}"))?;
         let raw: serde_yaml::Mapping = serde_yaml::from_reader(io::BufReader::new(file))
@@ -48,6 +50,12 @@ impl ConfigFilePaths {
         }
         if let Some(path) = &self.wallets {
             sources.push(Prefixed::new(Self::read_yaml(path)?, "wallets"));
+        }
+        if let Some(path) = &self.external_node {
+            sources.push(Prefixed::new(Self::read_yaml(path)?, "external_node"));
+        }
+        if let Some(path) = &self.consensus {
+            sources.push(Prefixed::new(Self::read_yaml(path)?, "consensus"));
         }
 
         Ok(sources)

@@ -117,7 +117,7 @@ impl MainNodeBuilder {
     }
 
     fn add_pools_layer(mut self) -> anyhow::Result<Self> {
-        let config = try_load_config!(self.configs.postgres_config);
+        let config = self.configs.postgres_config.clone();
         let secrets = self.secrets.database.clone();
         let pools_layer = PoolsLayerBuilder::empty(config, secrets)
             .with_master(true)
@@ -186,7 +186,7 @@ impl MainNodeBuilder {
     fn add_l1_gas_layer(mut self) -> anyhow::Result<Self> {
         // Ensure the BaseTokenRatioProviderResource is inserted if the base token is not ETH.
         if self.contracts_config.l1.base_token_addr != Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS) {
-            let base_token_adjuster_config = try_load_config!(self.configs.base_token_adjuster);
+            let base_token_adjuster_config = self.configs.base_token_adjuster.clone();
             self.node
                 .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
         }
@@ -213,9 +213,8 @@ impl MainNodeBuilder {
     }
 
     fn add_metadata_calculator_layer(mut self, with_tree_api: bool) -> anyhow::Result<Self> {
-        let merkle_tree_env_config = try_load_config!(self.configs.db_config).merkle_tree;
-        let operations_manager_env_config =
-            try_load_config!(self.configs.operations_manager_config);
+        let merkle_tree_env_config = self.configs.db_config.merkle_tree.clone();
+        let operations_manager_env_config = self.configs.operations_manager_config.clone();
         let state_keeper_env_config = try_load_config!(self.configs.state_keeper_config);
         let metadata_calculator_config = MetadataCalculatorConfig::for_main_node(
             &merkle_tree_env_config,
@@ -244,17 +243,13 @@ impl MainNodeBuilder {
         let mempool_io_layer = MempoolIOLayer::new(
             self.genesis_config.l2_chain_id,
             sk_config.clone(),
-            try_load_config!(self.configs.mempool_config),
+            self.configs.mempool_config.clone(),
             try_load_config!(self.wallets.fee_account),
             self.contracts_config.l2.da_validator_addr,
             self.genesis_config.l1_batch_commit_data_generator_mode,
         );
-        let db_config = try_load_config!(self.configs.db_config);
-        let experimental_vm_config = self
-            .configs
-            .experimental_vm_config
-            .clone()
-            .unwrap_or_default();
+        let db_config = self.configs.db_config.clone();
+        let experimental_vm_config = self.configs.experimental_vm_config.clone();
         let main_node_batch_executor_builder_layer =
             MainBatchExecutorLayer::new(sk_config.save_call_traces, OPTIONAL_BYTECODE_COMPRESSION)
                 .with_fast_vm_mode(experimental_vm_config.state_keeper_fast_vm_mode);
@@ -306,8 +301,7 @@ impl MainNodeBuilder {
 
         let timestamp_asserter_params = match self.contracts_config.l2.timestamp_asserter_addr {
             Some(address) => {
-                let timestamp_asserter_config =
-                    try_load_config!(self.configs.timestamp_asserter_config);
+                let timestamp_asserter_config = &self.configs.timestamp_asserter_config;
                 Some(TimestampAsserterParams {
                     address,
                     min_time_till_end: timestamp_asserter_config.min_time_till_end_sec,
@@ -321,11 +315,7 @@ impl MainNodeBuilder {
             latest_values_cache_size: rpc_config.latest_values_cache_size_mb.0,
             latest_values_max_block_lag: rpc_config.latest_values_max_block_lag.get(),
         };
-        let vm_config = self
-            .configs
-            .experimental_vm_config
-            .clone()
-            .unwrap_or_default();
+        let vm_config = self.configs.experimental_vm_config.clone();
 
         // On main node we always use master pool sink.
         self.node.add_layer(MasterPoolSinkLayer);
@@ -401,7 +391,7 @@ impl MainNodeBuilder {
     fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
-        let circuit_breaker_config = try_load_config!(self.configs.circuit_breaker_config);
+        let circuit_breaker_config = &self.configs.circuit_breaker_config;
         let with_debug_namespace = state_keeper_config.save_call_traces;
 
         let mut namespaces = if let Some(namespaces) = &rpc_config.api_namespaces {
@@ -467,11 +457,9 @@ impl MainNodeBuilder {
     }
 
     fn add_house_keeper_layer(mut self) -> anyhow::Result<Self> {
-        let house_keeper_config = try_load_config!(self.configs.house_keeper_config);
-
+        let house_keeper_config = self.configs.house_keeper_config.clone();
         self.node
             .add_layer(HouseKeeperLayer::new(house_keeper_config));
-
         Ok(self)
     }
 
@@ -484,7 +472,7 @@ impl MainNodeBuilder {
     }
 
     fn add_circuit_breaker_checker_layer(mut self) -> anyhow::Result<Self> {
-        let circuit_breaker_config = try_load_config!(self.configs.circuit_breaker_config);
+        let circuit_breaker_config = self.configs.circuit_breaker_config.clone();
         self.node
             .add_layer(CircuitBreakerCheckerLayer(circuit_breaker_config));
 
@@ -492,7 +480,7 @@ impl MainNodeBuilder {
     }
 
     fn add_contract_verification_api_layer(mut self) -> anyhow::Result<Self> {
-        let config = try_load_config!(self.configs.contract_verifier);
+        let config = self.configs.contract_verifier.clone();
         self.node.add_layer(ContractVerificationApiLayer(config));
         Ok(self)
     }
@@ -511,7 +499,8 @@ impl MainNodeBuilder {
     }
 
     fn add_da_client_layer(mut self) -> anyhow::Result<Self> {
-        let Some(da_client_config) = self.configs.da_client_config.clone() else {
+        let no_config_yet = None::<DAClientConfig>;
+        let Some(da_client_config) = no_config_yet else {
             tracing::warn!("No config for DA client, using the NoDA client");
             self.node.add_layer(NoDAClientWiringLayer);
             return Ok(self);
@@ -571,7 +560,7 @@ impl MainNodeBuilder {
     }
 
     fn add_external_api_client_layer(mut self) -> anyhow::Result<Self> {
-        let config = try_load_config!(self.configs.external_price_api_client_config);
+        let config = self.configs.external_price_api_client_config.clone();
         self.node
             .add_layer(ExternalPriceApiLayer::try_from(config)?);
         Ok(self)
@@ -589,11 +578,7 @@ impl MainNodeBuilder {
     }
 
     fn add_vm_playground_layer(mut self) -> anyhow::Result<Self> {
-        let vm_config = self
-            .configs
-            .experimental_vm_config
-            .clone()
-            .unwrap_or_default();
+        let vm_config = self.configs.experimental_vm_config.clone();
         self.node.add_layer(VmPlaygroundLayer::new(
             vm_config.playground,
             self.genesis_config.l2_chain_id,
@@ -603,7 +588,7 @@ impl MainNodeBuilder {
     }
 
     fn add_base_token_ratio_persister_layer(mut self) -> anyhow::Result<Self> {
-        let config = try_load_config!(self.configs.base_token_adjuster);
+        let config = self.configs.base_token_adjuster.clone();
         let contracts_config = self.contracts_config.clone();
         let wallets = self.wallets.clone();
         let l1_chain_id = self.genesis_config.l1_chain_id;

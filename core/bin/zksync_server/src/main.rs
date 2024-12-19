@@ -76,6 +76,7 @@ fn main() -> anyhow::Result<()> {
         contracts: opt.contracts_config_path,
         genesis: opt.genesis_path,
         wallets: opt.wallets_path,
+        ..ConfigFilePaths::default()
     };
     let config_sources = config_file_paths.into_config_sources("")?;
 
@@ -88,7 +89,7 @@ fn main() -> anyhow::Result<()> {
         observability_config.install()?
     };
 
-    let schema = full_config_schema();
+    let schema = full_config_schema(false);
     let repo = ConfigRepository::new(&schema).with_all(config_sources);
     let configs: GeneralConfig = repo.single()?.parse().log_all_errors()?;
     let wallets: Wallets = repo.single()?.parse().log_all_errors()?;
