@@ -12008,7 +12008,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -13055,6 +13055,7 @@ dependencies = [
  "once_cell",
  "reqwest 0.12.9",
  "serde_json",
+ "sha2 0.10.8",
  "tokio",
  "tracing",
  "zksync_vlog",
