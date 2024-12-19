@@ -10,6 +10,8 @@ impl FromEnv for EcosystemContracts {
                 .parse()?,
             transparent_proxy_admin_addr: std::env::var("CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR")?
                 .parse()?,
+            // Not supported yet
+            l1_bytecodes_supplier_addr: None,
         })
     }
 }
@@ -70,8 +72,11 @@ mod tests {
                 bridgehub_proxy_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
                 state_transition_proxy_addr: addr("0xd90f1c081c6117241624e97cb6147257c3cb2097"),
                 transparent_proxy_admin_addr: addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"),
+                l1_bytecodes_supplier_addr: None,
             }),
             base_token_addr: Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS),
+            l1_base_token_asset_id: None,
+            l2_predeployed_wrapped_base_token_address: None,
             chain_admin_addr: Some(addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
             l2_da_validator_addr: Some(addr("0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
             l2_timestamp_asserter_addr: Some(addr("0x0000000000000000000000000000000000000002")),

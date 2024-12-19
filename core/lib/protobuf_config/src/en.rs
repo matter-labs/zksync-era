@@ -4,7 +4,7 @@ use std::{
 };
 
 use anyhow::Context;
-use zksync_basic_types::{url::SensitiveUrl, L1ChainId, L2ChainId};
+use zksync_basic_types::{url::SensitiveUrl, L1ChainId, L2ChainId, SLChainId};
 use zksync_config::configs::en_config::ENConfig;
 use zksync_protobuf::{required, ProtoRepr};
 
@@ -21,7 +21,6 @@ impl ProtoRepr for proto::ExternalNode {
             l1_chain_id: required(&self.l1_chain_id)
                 .map(|x| L1ChainId(*x))
                 .context("l1_chain_id")?,
-            sl_chain_id: None,
             l2_chain_id: required(&self.l2_chain_id)
                 .and_then(|x| L2ChainId::try_from(*x).map_err(|a| anyhow::anyhow!(a)))
                 .context("l2_chain_id")?,
@@ -37,6 +36,7 @@ impl ProtoRepr for proto::ExternalNode {
             bridge_addresses_refresh_interval_sec: self
                 .bridge_addresses_refresh_interval_sec
                 .and_then(NonZeroU64::new),
+            gateway_chain_id: self.gateway_chain_id.map(SLChainId),
         })
     }
 
@@ -55,6 +55,7 @@ impl ProtoRepr for proto::ExternalNode {
             bridge_addresses_refresh_interval_sec: this
                 .bridge_addresses_refresh_interval_sec
                 .map(|a| a.get()),
+            gateway_chain_id: this.gateway_chain_id.map(|c| c.0),
         }
     }
 }

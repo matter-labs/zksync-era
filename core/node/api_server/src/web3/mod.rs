@@ -16,6 +16,7 @@ use zksync_metadata_calculator::api_server::TreeApiClient;
 use zksync_node_sync::SyncState;
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
+    client::{DynClient, L2},
     jsonrpsee::{
         server::{
             middleware::rpc::either::Either, BatchRequestConfig, RpcServiceBuilder, ServerBuilder,
@@ -137,6 +138,7 @@ struct OptionalApiParams {
     mempool_cache: Option<MempoolCache>,
     extended_tracing: bool,
     pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
+    l2_l1_log_proof_handler: Option<Box<DynClient<L2>>>,
 }
 
 /// Structure capable of spawning a configured Web3 API server along with all the required
@@ -296,6 +298,14 @@ impl ApiBuilder {
         self
     }
 
+    pub fn with_l2_l1_log_proof_handler(
+        mut self,
+        l2_l1_log_proof_handler: Box<DynClient<L2>>,
+    ) -> Self {
+        self.optional.l2_l1_log_proof_handler = Some(l2_l1_log_proof_handler);
+        self
+    }
+
     // Intended for tests only.
     #[doc(hidden)]
     fn with_pub_sub_events(mut self, sender: mpsc::UnboundedSender<PubSubEvent>) -> Self {
@@ -379,6 +389,7 @@ impl ApiServer {
             last_sealed_l2_block: self.sealed_l2_block_handle,
             bridge_addresses_handle: self.bridge_addresses_handle,
             tree_api: self.optional.tree_api,
+            l2_l1_log_proof_handler: self.optional.l2_l1_log_proof_handler,
         })
     }
 

@@ -11,4 +11,5 @@ message ExternalNode {
   optional config.genesis.L1BatchCommitDataGeneratorMode l1_batch_commit_data_generator_mode = 7; // optional, default to rollup
   reserved 8; reserved "gateway_url";
   optional uint64 bridge_addresses_refresh_interval_sec = 9; // optional
+  optional uint64 gateway_chain_id = 10; // optional
 }

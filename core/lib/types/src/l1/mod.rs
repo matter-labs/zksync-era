@@ -1,6 +1,9 @@
 //! Definition of ZKsync network priority operations: operations initiated from the L1.
 
 use serde::{Deserialize, Serialize};
+use zksync_basic_types::{web3::Log, Address, L1BlockNumber, PriorityOpId, H256, U256};
+use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
+use zksync_mini_merkle_tree::HashEmptySubtree;
 
 use super::Transaction;
 use crate::{
@@ -12,10 +15,8 @@ use crate::{
     l2::TransactionType,
     priority_op_onchain_data::{PriorityOpOnchainData, PriorityOpOnchainMetadata},
     tx::Execute,
-    u256_to_address,
-    web3::Log,
-    Address, ExecuteTransactionCommon, L1BlockNumber, PriorityOpId, H256,
-    PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
+    u256_to_address, ExecuteTransactionCommon, PRIORITY_OPERATION_L2_TX_TYPE,
+    PROTOCOL_UPGRADE_TX_TYPE,
 };
 
 pub mod error;
@@ -207,6 +208,12 @@ pub struct L1Tx {
     pub execute: Execute,
     pub common_data: L1TxCommonData,
     pub received_timestamp_ms: u64,
+}
+
+impl HashEmptySubtree<L1Tx> for KeccakHasher {
+    fn empty_leaf_hash(&self) -> H256 {
+        self.hash_bytes(&[])
+    }
 }
 
 impl From<L1Tx> for Transaction {

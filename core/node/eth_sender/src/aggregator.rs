@@ -2,14 +2,17 @@ use std::sync::Arc;
 
 use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{Connection, Core, CoreDal};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
+use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
+    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
+    hasher::keccak::KeccakHasher,
     helpers::unix_timestamp_ms,
+    l1::L1Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementMode,
@@ -31,6 +34,7 @@ pub struct Aggregator {
     execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>>,
     config: SenderConfig,
     blob_store: Arc<dyn ObjectStore>,
+    pool: ConnectionPool<Core>,
     /// If we are operating in 4844 mode we need to wait for commit transaction
     /// to get included before sending the respective prove and execute transactions.
     /// In non-4844 mode of operation we operate with the single address and this
@@ -39,18 +43,21 @@ pub struct Aggregator {
     operate_4844_mode: bool,
     pubdata_da: PubdataSendingMode,
     commitment_mode: L1BatchCommitmentMode,
+    priority_merkle_tree: Option<MiniMerkleTree<L1Tx>>,
 }
 
 impl Aggregator {
-    pub fn new(
+    pub async fn new(
         config: SenderConfig,
         blob_store: Arc<dyn ObjectStore>,
         custom_commit_sender_addr: Option<Address>,
         commitment_mode: L1BatchCommitmentMode,
+        pool: ConnectionPool<Core>,
         settlement_mode: SettlementMode,
-    ) -> Self {
+    ) -> anyhow::Result<Self> {
         let pubdata_da = config.pubdata_sending_mode;
-        let operate_4844_mode =
+
+        let operate_4844_mode: bool =
             custom_commit_sender_addr.is_some() && !settlement_mode.is_gateway();
 
         // We do not have a reliable lower bound for gas needed to execute batches on gateway so we do not aggregate.
@@ -121,7 +128,7 @@ impl Aggregator {
             })]
         };
 
-        Self {
+        Ok(Self {
             commit_criteria,
             proof_criteria: vec![Box::from(NumberCriterion {
                 op: AggregatedActionType::PublishProofOnchain,
@@ -133,7 +140,9 @@ impl Aggregator {
             operate_4844_mode,
             pubdata_da,
             commitment_mode,
-        }
+            priority_merkle_tree: None,
+            pool,
+        })
     }
 
     pub async fn get_next_ready_operation(
@@ -178,6 +187,35 @@ impl Aggregator {
         }
     }
 
+    async fn get_or_init_tree(&mut self) -> &mut MiniMerkleTree<L1Tx> {
+        if self.priority_merkle_tree.is_none() {
+            // We unwrap here since it is only invoked during initialization
+            let mut connection = self.pool.connection_tagged("eth_sender").await.unwrap();
+
+            let priority_op_hashes =
+                if let Some(priority_tree_start_index) = self.config.priority_tree_start_index {
+                    // We unwrap here since it is only invoked during initialization
+                    connection
+                        .transactions_dal()
+                        .get_l1_transactions_hashes(priority_tree_start_index)
+                        .await
+                        .unwrap()
+                } else {
+                    vec![]
+                };
+            let priority_merkle_tree = MiniMerkleTree::<L1Tx>::from_hashes(
+                KeccakHasher,
+                priority_op_hashes.into_iter(),
+                None,
+            );
+
+            self.priority_merkle_tree = Some(priority_merkle_tree);
+        };
+
+        // It is known that the `self.priority_merkle_tree` is initialized, so it is safe to unwrap here
+        self.priority_merkle_tree.as_mut().unwrap()
+    }
+
     async fn get_execute_operations(
         &mut self,
         storage: &mut Connection<'_, Core>,
@@ -199,11 +237,65 @@ impl Aggregator {
             ready_for_execute_batches,
             last_sealed_l1_batch,
         )
-        .await;
+        .await?;
 
-        l1_batches.map(|l1_batches| ExecuteBatches {
+        let priority_tree_start_index =
+            if let Some(start_index) = self.config.priority_tree_start_index {
+                start_index
+            } else {
+                let length = l1_batches.len();
+                return Some(ExecuteBatches {
+                    l1_batches,
+                    priority_ops_proofs: vec![Default::default(); length],
+                });
+            };
+        let priority_merkle_tree = self.get_or_init_tree().await;
+
+        let mut priority_ops_proofs = vec![];
+        for batch in &l1_batches {
+            let first_priority_op_id_option = storage
+                .blocks_dal()
+                .get_batch_first_priority_op_id(batch.header.number)
+                .await
+                .unwrap()
+                .filter(|id| *id >= priority_tree_start_index);
+
+            let count = batch.header.l1_tx_count as usize;
+            if let Some(first_priority_op_id_in_batch) = first_priority_op_id_option {
+                let new_l1_tx_hashes = storage
+                    .transactions_dal()
+                    .get_l1_transactions_hashes(
+                        priority_tree_start_index + priority_merkle_tree.length(),
+                    )
+                    .await
+                    .unwrap();
+                for hash in new_l1_tx_hashes {
+                    priority_merkle_tree.push_hash(hash);
+                }
+
+                // We cache paths for priority transactions that happened in the previous batches.
+                // For this we absorb all the elements up to `first_priority_op_id_in_batch`.`
+                priority_merkle_tree.trim_start(
+                    first_priority_op_id_in_batch // global index
+                        - priority_tree_start_index // first index when tree is activated
+                        - priority_merkle_tree.start_index(), // first index in the tree
+                );
+                let (_, left, right) =
+                    priority_merkle_tree.merkle_root_and_paths_for_range(..count);
+                let hashes = priority_merkle_tree.hashes_prefix(count);
+                priority_ops_proofs.push(PriorityOpsMerkleProof {
+                    left_path: left.into_iter().map(Option::unwrap_or_default).collect(),
+                    right_path: right.into_iter().map(Option::unwrap_or_default).collect(),
+                    hashes,
+                });
+            } else {
+                priority_ops_proofs.push(Default::default());
+            }
+        }
+
+        Some(ExecuteBatches {
             l1_batches,
-            priority_ops_proofs: Vec::new(),
+            priority_ops_proofs,
         })
     }
 
