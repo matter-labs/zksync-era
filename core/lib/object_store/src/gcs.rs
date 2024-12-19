@@ -170,10 +170,20 @@ impl ObjectStore for GoogleCloudStore {
             object: filename,
             ..GetObjectRequest::default()
         };
-        self.client
+        let response = self
+            .client
             .download_object(&request, &Range::default())
-            .await
-            .map_err(Into::into)
+            .await;
+        match response {
+            Err(err) => {
+                tracing::info!("Errored with: {err:?}");
+                Err(err.into())
+            }
+            Ok(data) => {
+                tracing::info!("received {} bytes of data", data.len());
+                Ok(data)
+            }
+        }
     }
 
     async fn put_raw(
