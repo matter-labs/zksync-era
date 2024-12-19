@@ -44,7 +44,7 @@ Besides running Postgres, you are expected to have a DB dump from a correspondin
 `pg_restore -O -C <DUMP_PATH> --dbname=<DB_URL>`.
 
 You can also refer to
-[ZKsync Node configuration management blueprint](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/00_quick_start.md#advanced-setup)
+[ZKsync Node configuration management blueprint](https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/external-node/00_quick_start.md#advanced-setup)
 for advanced DB instance configurations.
 
 [host_docker_internal](https://docs.docker.com/desktop/networking/#i-want-to-connect-from-a-container-to-a-service-on-the-host)
