@@ -116,6 +116,9 @@ impl<S> RefundsTracer<S> {
 
         // For now, bootloader charges only for base fee.
         let effective_gas_price = get_batch_base_fee(&self.l1_batch);
+        if effective_gas_price == 0 {
+            return bootloader_refund;
+        }
 
         let bootloader_eth_price_per_pubdata_byte =
             U256::from(effective_gas_price) * U256::from(current_ergs_per_pubdata_byte);
