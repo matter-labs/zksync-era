@@ -1,4 +1,4 @@
-use common::{
+use zkstack_common::{
     db::{drop_db_if_exists, DatabaseConfig},
     logger,
     spinner::Spinner,

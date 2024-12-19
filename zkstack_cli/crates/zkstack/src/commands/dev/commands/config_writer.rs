@@ -1,7 +1,7 @@
 use anyhow::Context;
 use clap::Parser;
-use common::{logger, Prompt};
-use config::{override_config, EcosystemConfig};
+use zkstack_common::{logger, Prompt};
+use zkstack_config::{override_config, EcosystemConfig};
 use xshell::Shell;
 
 use crate::commands::dev::messages::{

@@ -1,8 +1,8 @@
 use clap::Parser;
-use common::{forge::ForgeScriptArgs, Prompt};
-use config::ChainConfig;
+use zkstack_common::{forge::ForgeScriptArgs, Prompt};
+use zkstack_config::ChainConfig;
 use serde::{Deserialize, Serialize};
-use types::L1Network;
+use zkstack_types::L1Network;
 use url::Url;
 
 use crate::{
@@ -56,7 +56,7 @@ impl InitArgs {
             true
         } else {
             self.deploy_paymaster.unwrap_or_else(|| {
-                common::PromptConfirm::new(MSG_DEPLOY_PAYMASTER_PROMPT)
+                zkstack_common::PromptConfirm::new(MSG_DEPLOY_PAYMASTER_PROMPT)
                     .default(true)
                     .ask()
             })

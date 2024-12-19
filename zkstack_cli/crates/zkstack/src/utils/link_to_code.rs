@@ -4,8 +4,8 @@ use std::{
 };
 
 use anyhow::bail;
-use common::{cmd::Cmd, git, logger, spinner::Spinner, Prompt, PromptConfirm, PromptSelect};
-use config::ZKSYNC_ERA_GIT_REPO;
+use zkstack_common::{cmd::Cmd, git, logger, spinner::Spinner, Prompt, PromptConfirm, PromptSelect};
+use zkstack_config::ZKSYNC_ERA_GIT_REPO;
 use strum::{EnumIter, IntoEnumIterator};
 use xshell::{cmd, Shell};
 

@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use anyhow::Context;
-use common::docker;
-use config::{explorer_compose::ExplorerBackendComposeConfig, EcosystemConfig};
+use zkstack_common::docker;
+use zkstack_config::{explorer_compose::ExplorerBackendComposeConfig, EcosystemConfig};
 use xshell::Shell;
 
 use crate::messages::{

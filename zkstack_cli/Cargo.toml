@@ -9,7 +9,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.2" # x-release-please-version
 edition = "2021"
 homepage = "https://zksync.io/"
 license = "MIT OR Apache-2.0"
@@ -21,15 +21,15 @@ keywords = ["zk", "cryptography", "blockchain", "ZKStack", "ZKsync"]
 
 [workspace.dependencies]
 # Local dependencies
-common = { path = "crates/common" }
-config = { path = "crates/config" }
-types = { path = "crates/types" }
-git_version_macro = { path = "crates/git_version_macro" }
+zkstack_common = { version = "0.1.2", path = "crates/common" }
+zkstack_config = { version = "0.1.2", path = "crates/config" }
+zkstack_types = { version = "0.1.2", path = "crates/types" }
+zkstack_git_version_macro = { version = "0.1.2", path = "crates/git_version_macro" }
 
 # ZkSync deps
-zksync_config = { path = "../core/lib/config" }
-zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
-zksync_basic_types = { path = "../core/lib/basic_types" }
+zksync_config = { version = "25.3.0", path = "../core/lib/config" }
+zksync_protobuf_config = { version = "25.3.0", path = "../core/lib/protobuf_config" }
+zksync_basic_types = { version = "25.3.0", path = "../core/lib/basic_types" }
 zksync_consensus_roles = "=0.7.0"
 zksync_consensus_crypto = "=0.7.0"
 zksync_consensus_utils = "=0.7.0"

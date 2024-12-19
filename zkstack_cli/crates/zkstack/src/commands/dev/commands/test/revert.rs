@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::{cmd::Cmd, logger, spinner::Spinner};
-use config::EcosystemConfig;
+use zkstack_common::{cmd::Cmd, logger, spinner::Spinner};
+use zkstack_config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
 use super::{

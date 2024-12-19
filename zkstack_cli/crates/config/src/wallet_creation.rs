@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use common::wallets::Wallet;
+use zkstack_common::wallets::Wallet;
 use rand::thread_rng;
-use types::WalletCreation;
+use zkstack_types::WalletCreation;
 use xshell::Shell;
 
 use crate::{

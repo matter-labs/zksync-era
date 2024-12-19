@@ -1,12 +1,12 @@
 use std::path::Path;
 
 use anyhow::Context;
-use common::{
+use zkstack_common::{
     contracts::build_l2_contracts,
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
 };
-use config::{
+use zkstack_config::{
     forge_interface::{
         deploy_l2_contracts::{
             input::DeployL2ContractsInput,

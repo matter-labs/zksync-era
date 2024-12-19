@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use types::TokenInfo;
+use zkstack_types::TokenInfo;
 use xshell::Shell;
 
 use crate::{

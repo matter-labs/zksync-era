@@ -2,8 +2,8 @@ use std::path::Path;
 
 use anyhow::anyhow;
 use clap::{Parser, ValueEnum};
-use common::{Prompt, PromptSelect};
-use config::ChainConfig;
+use zkstack_common::{Prompt, PromptSelect};
+use zkstack_config::ChainConfig;
 use strum::{EnumIter, IntoEnumIterator};
 
 use crate::{

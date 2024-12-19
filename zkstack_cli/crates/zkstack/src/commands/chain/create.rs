@@ -1,8 +1,8 @@
 use std::cell::OnceCell;
 
 use anyhow::Context;
-use common::{logger, spinner::Spinner};
-use config::{
+use zkstack_common::{logger, spinner::Spinner};
+use zkstack_config::{
     create_local_configs_dir, create_wallets,
     traits::{ReadConfigWithBasePath, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig, GenesisConfig,

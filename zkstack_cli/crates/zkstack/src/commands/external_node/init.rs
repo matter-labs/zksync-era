@@ -1,9 +1,9 @@
 use anyhow::Context;
-use common::{
+use zkstack_common::{
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     spinner::Spinner,
 };
-use config::{traits::ReadConfigWithBasePath, ChainConfig, EcosystemConfig, SecretsConfig};
+use zkstack_config::{traits::ReadConfigWithBasePath, ChainConfig, EcosystemConfig, SecretsConfig};
 use xshell::Shell;
 
 use crate::{

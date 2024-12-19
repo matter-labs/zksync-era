@@ -20,8 +20,8 @@ keys/setup
 !prover/
 !yarn.lock
 !package.json
-!Cargo.lock
-!Cargo.toml
+!core/Cargo.lock
+!core/Cargo.toml
 !contracts/
 !setup_2\^26.key
 !setup_2\^24.key
@@ -46,4 +46,4 @@ contracts/.git
 !etc/env/dev.toml
 !etc/env/consensus_secrets.yaml
 !etc/env/consensus_config.yaml
-!rust-toolchain
+!core/rust-toolchain

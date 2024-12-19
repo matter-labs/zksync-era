@@ -1,6 +1,6 @@
 use anyhow::Context;
-use common::forge::{Forge, ForgeScriptArgs};
-use config::{
+use zkstack_common::forge::{Forge, ForgeScriptArgs};
+use zkstack_config::{
     forge_interface::{
         deploy_ecosystem::{
             input::{DeployL1Config, InitialDeploymentConfig},
@@ -11,7 +11,7 @@ use config::{
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig},
     ContractsConfig, EcosystemConfig, GenesisConfig,
 };
-use types::{L1Network, ProverMode};
+use zkstack_types::{L1Network, ProverMode};
 use xshell::Shell;
 
 use crate::utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner};

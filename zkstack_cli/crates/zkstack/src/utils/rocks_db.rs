@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use config::RocksDbs;
+use zkstack_config::RocksDbs;
 use xshell::Shell;
 
 use crate::defaults::{

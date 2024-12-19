@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use common::cmd::Cmd;
+use zkstack_common::cmd::Cmd;
 use xshell::{cmd, Shell};
 
 pub(super) fn install_yarn_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {

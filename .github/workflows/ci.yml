@@ -60,8 +60,6 @@ jobs:
               - '.github/workflows/new-build-contract-verifier-template.yml'
               - '.github/workflows/ci-core-reusable.yml'
               - '.github/workflows/ci-core-lint-reusable.yml'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
               - 'zkstack_cli/**'
               - '!**/*.md'
               - '!**/*.MD'

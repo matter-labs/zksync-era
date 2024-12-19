@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use config::{
+use zkstack_config::{
     external_node::ENConfig, traits::FileConfigWithDefaultName, ChainConfig, GeneralConfig,
     SecretsConfig,
 };
@@ -63,7 +63,7 @@ impl RunExternalNode {
             consensus_args.push(format!("--consensus-path={}", consensus_config))
         }
 
-        common::external_node::run(
+        zkstack_common::external_node::run(
             shell,
             code_path,
             config_general_config,

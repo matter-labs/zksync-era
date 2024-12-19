@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::{cmd::Cmd, config::global_config, logger};
-use config::EcosystemConfig;
+use zkstack_common::{cmd::Cmd, config::global_config, logger};
+use zkstack_config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
 use super::{

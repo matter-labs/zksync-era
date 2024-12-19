@@ -1,9 +1,9 @@
-use common::{
+use zkstack_common::{
     forge::{Forge, ForgeScript, ForgeScriptArgs},
     spinner::Spinner,
     wallets::Wallet,
 };
-use config::{forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, EcosystemConfig};
+use zkstack_config::{forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, EcosystemConfig};
 use ethers::{abi::parse_abi, contract::BaseContract, types::Address};
 use lazy_static::lazy_static;
 use xshell::Shell;

@@ -702,31 +702,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b63caa9aa9397e2d9480a9b13673856c78d8ac123288526c37d7839f2a86990"
 
 [[package]]
-name = "common"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "cliclack",
- "console",
- "ethers",
- "futures",
- "git_version_macro",
- "once_cell",
- "serde",
- "serde_json",
- "serde_yaml",
- "sqlx",
- "strum",
- "thiserror",
- "tokio",
- "toml",
- "types",
- "url",
- "xshell",
-]
-
-[[package]]
 name = "common-path"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -745,29 +720,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
 dependencies = [
  "crossbeam-utils",
-]
-
-[[package]]
-name = "config"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "common",
- "ethers",
- "rand",
- "serde",
- "serde_json",
- "serde_yaml",
- "strum",
- "thiserror",
- "types",
- "url",
- "xshell",
- "zksync_basic_types",
- "zksync_config",
- "zksync_protobuf",
- "zksync_protobuf_config",
 ]
 
 [[package]]
@@ -1986,13 +1938,6 @@ name = "gimli"
 version = "0.31.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
-
-[[package]]
-name = "git_version_macro"
-version = "0.1.0"
-dependencies = [
- "chrono",
-]
 
 [[package]]
 name = "glob"
@@ -5895,18 +5840,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
 
 [[package]]
-name = "types"
-version = "0.1.0"
-dependencies = [
- "clap",
- "ethers",
- "serde",
- "strum",
- "thiserror",
- "zksync_basic_types",
-]
-
-[[package]]
 name = "uint"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6707,7 +6640,7 @@ dependencies = [
 
 [[package]]
 name = "zkstack"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -6715,8 +6648,6 @@ dependencies = [
  "clap-markdown",
  "clap_complete",
  "cliclack",
- "common",
- "config",
  "dirs",
  "ethers",
  "futures",
@@ -6735,9 +6666,11 @@ dependencies = [
  "thiserror",
  "tokio",
  "toml",
- "types",
  "url",
  "xshell",
+ "zkstack_common",
+ "zkstack_config",
+ "zkstack_types",
  "zksync_basic_types",
  "zksync_config",
  "zksync_consensus_crypto",
@@ -6749,8 +6682,75 @@ dependencies = [
 ]
 
 [[package]]
+name = "zkstack_common"
+version = "0.1.2"
+dependencies = [
+ "anyhow",
+ "clap",
+ "cliclack",
+ "console",
+ "ethers",
+ "futures",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sqlx",
+ "strum",
+ "thiserror",
+ "tokio",
+ "toml",
+ "url",
+ "xshell",
+ "zkstack_git_version_macro",
+ "zkstack_types",
+]
+
+[[package]]
+name = "zkstack_config"
+version = "0.1.2"
+dependencies = [
+ "anyhow",
+ "clap",
+ "ethers",
+ "rand",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "strum",
+ "thiserror",
+ "url",
+ "xshell",
+ "zkstack_common",
+ "zkstack_types",
+ "zksync_basic_types",
+ "zksync_config",
+ "zksync_protobuf",
+ "zksync_protobuf_config",
+]
+
+[[package]]
+name = "zkstack_git_version_macro"
+version = "0.1.2"
+dependencies = [
+ "chrono",
+]
+
+[[package]]
+name = "zkstack_types"
+version = "0.1.2"
+dependencies = [
+ "clap",
+ "ethers",
+ "serde",
+ "strum",
+ "thiserror",
+ "zksync_basic_types",
+]
+
+[[package]]
 name = "zksync_basic_types"
-version = "0.1.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -6790,7 +6790,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_config"
-version = "0.1.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "rand",
@@ -6859,7 +6859,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_contracts"
-version = "0.1.0"
+version = "25.3.0"
 dependencies = [
  "envy",
  "hex",
@@ -6872,7 +6872,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_crypto_primitives"
-version = "0.1.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "blake2",
@@ -6888,7 +6888,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_mini_merkle_tree"
-version = "0.1.0"
+version = "25.3.0"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -6935,7 +6935,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_config"
-version = "0.1.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "hex",
@@ -6955,7 +6955,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_system_constants"
-version = "0.1.0"
+version = "25.3.0"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -6963,7 +6963,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_types"
-version = "0.1.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "bigdecimal",
@@ -6994,7 +6994,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_utils"
-version = "0.1.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "futures",
@@ -7009,7 +7009,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vlog"
-version = "0.1.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "chrono",

@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use anyhow::Context;
-use common::{config::global_config, docker, logger};
-use config::{explorer::*, traits::SaveConfig, AppsEcosystemConfig, EcosystemConfig};
+use zkstack_common::{config::global_config, docker, logger};
+use zkstack_config::{explorer::*, traits::SaveConfig, AppsEcosystemConfig, EcosystemConfig};
 use xshell::Shell;
 
 use crate::{

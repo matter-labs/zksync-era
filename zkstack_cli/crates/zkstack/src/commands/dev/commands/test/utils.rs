@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use anyhow::Context;
-use common::{cmd::Cmd, spinner::Spinner, wallets::Wallet};
-use config::{ChainConfig, EcosystemConfig};
+use zkstack_common::{cmd::Cmd, spinner::Spinner, wallets::Wallet};
+use zkstack_config::{ChainConfig, EcosystemConfig};
 use ethers::{
     providers::{Http, Middleware, Provider},
     utils::hex::ToHex,
@@ -67,7 +67,7 @@ impl TestWallets {
         let balance = provider.get_balance(wallet.address, None).await?;
 
         if balance.is_zero() {
-            common::ethereum::distribute_eth(
+            zkstack_common::ethereum::distribute_eth(
                 self.get_main_wallet()?,
                 vec![wallet.address],
                 l1_rpc,

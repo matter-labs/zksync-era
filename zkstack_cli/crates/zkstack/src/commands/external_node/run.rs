@@ -1,6 +1,6 @@
 use anyhow::Context;
-use common::logger;
-use config::{ChainConfig, EcosystemConfig};
+use zkstack_common::logger;
+use zkstack_config::{ChainConfig, EcosystemConfig};
 use xshell::Shell;
 
 use crate::{

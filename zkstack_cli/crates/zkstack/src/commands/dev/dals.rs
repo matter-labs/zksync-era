@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use config::{EcosystemConfig, SecretsConfig};
+use zkstack_config::{EcosystemConfig, SecretsConfig};
 use url::Url;
 use xshell::Shell;
 

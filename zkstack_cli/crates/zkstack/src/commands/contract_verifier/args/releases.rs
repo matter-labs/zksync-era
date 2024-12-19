@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use common::spinner::Spinner;
+use zkstack_common::spinner::Spinner;
 use serde::Deserialize;
 use xshell::Shell;
 
