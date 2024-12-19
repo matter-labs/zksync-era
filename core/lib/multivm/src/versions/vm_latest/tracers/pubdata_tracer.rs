@@ -242,6 +242,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PubdataTracer<S> {
                     .as_ref(),
                 &pubdata_input,
                 bootloader_state.protocol_version(),
+                self.subversion,
             );
 
             // Save the pubdata for the future initial bootloader memory building

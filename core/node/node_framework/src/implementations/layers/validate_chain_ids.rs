@@ -1,9 +1,10 @@
 use zksync_node_sync::validate_chain_ids_task::ValidateChainIdsTask;
-use zksync_types::{L2ChainId, SLChainId};
+use zksync_types::{L1ChainId, L2ChainId, SLChainId};
 
 use crate::{
     implementations::resources::{
-        eth_interface::EthInterfaceResource, main_node_client::MainNodeClientResource,
+        eth_interface::{EthInterfaceResource, GatewayEthInterfaceResource},
+        main_node_client::MainNodeClientResource,
     },
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
@@ -17,21 +18,24 @@ use crate::{
 /// ## Requests resources
 ///
 /// - `EthInterfaceResource`
-/// - `MainNodeClientResource
+/// - `GatewayEthInterfaceResource`
+/// - `MainNodeClientResource`
 ///
 /// ## Adds preconditions
 ///
 /// - `ValidateChainIdsTask`
 #[derive(Debug)]
 pub struct ValidateChainIdsLayer {
-    sl_chain_id: SLChainId,
+    l1_chain_id: L1ChainId,
     l2_chain_id: L2ChainId,
+    gateway_chain_id: Option<SLChainId>,
 }
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub eth_client: EthInterfaceResource,
+    pub l1_client: EthInterfaceResource,
+    pub gateway_client: Option<GatewayEthInterfaceResource>,
     pub main_node_client: MainNodeClientResource,
 }
 
@@ -43,10 +47,15 @@ pub struct Output {
 }
 
 impl ValidateChainIdsLayer {
-    pub fn new(sl_chain_id: SLChainId, l2_chain_id: L2ChainId) -> Self {
+    pub fn new(
+        l1_chain_id: L1ChainId,
+        l2_chain_id: L2ChainId,
+        gateway_chain_id: Option<SLChainId>,
+    ) -> Self {
         Self {
-            sl_chain_id,
+            l1_chain_id,
             l2_chain_id,
+            gateway_chain_id,
         }
     }
 }
@@ -61,14 +70,16 @@ impl WiringLayer for ValidateChainIdsLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let EthInterfaceResource(query_client) = input.eth_client;
+        let EthInterfaceResource(l1_query_client) = input.l1_client;
         let MainNodeClientResource(main_node_client) = input.main_node_client;
 
         let task = ValidateChainIdsTask::new(
-            self.sl_chain_id,
+            self.l1_chain_id,
             self.l2_chain_id,
-            query_client,
+            self.gateway_chain_id,
+            l1_query_client,
             main_node_client,
+            input.gateway_client.map(|c| c.0),
         );
 
         Ok(Output { task })

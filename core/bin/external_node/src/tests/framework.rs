@@ -17,7 +17,7 @@ use zksync_node_framework::{
     task::TaskKind,
     FromContext, IntoContext, StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
-use zksync_types::{L2ChainId, SLChainId};
+use zksync_types::{L1ChainId, L2ChainId};
 use zksync_web3_decl::client::{MockClient, L1, L2};
 
 use super::ExternalNodeBuilder;
@@ -127,11 +127,11 @@ impl WiringLayer for MockL1ClientLayer {
 
     fn layer_name(&self) -> &'static str {
         // We don't care about values, we just want to hijack the layer name.
-        // TODO(EVM-676): configure the `settlement_mode` here
         QueryEthClientLayer::new(
-            SLChainId(1),
+            L1ChainId(1),
             "https://example.com".parse().unwrap(),
-            Default::default(),
+            None,
+            None,
         )
         .layer_name()
     }

@@ -16,3 +16,9 @@ pub enum DAClientConfig {
     Eigen(EigenConfig),
     ObjectStore(ObjectStoreConfig),
 }
+
+impl From<AvailConfig> for DAClientConfig {
+    fn from(config: AvailConfig) -> Self {
+        Self::Avail(config)
+    }
+}

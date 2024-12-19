@@ -16,7 +16,7 @@ use crate::{
     tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
         bootloader_state::BootloaderState,
-        constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},
+        constants::{get_operator_refunds_offset, BOOTLOADER_HEAP_PAGE, TX_GAS_LIMIT_OFFSET},
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::{
             traits::VmTracer,
@@ -272,7 +272,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
 
             let refund_to_propose = tx_body_refund + self.block_overhead_refund();
 
-            let refund_slot = OPERATOR_REFUNDS_OFFSET + current_tx_index;
+            let refund_slot = get_operator_refunds_offset(bootloader_state.get_vm_subversion())
+                + current_tx_index;
 
             // Writing the refund into memory
             state.memory.populate_page(

@@ -13,7 +13,9 @@ use zksync_multivm::{
         tracer::TimestampAsserterParams as TracerTimestampAsserterParams, OneshotTracingParams,
         TransactionExecutionMetrics, VmExecutionResultAndLogs,
     },
-    utils::{derive_base_fee_and_gas_per_pubdata, get_max_batch_gas_limit},
+    utils::{
+        derive_base_fee_and_gas_per_pubdata, get_max_batch_gas_limit, get_max_new_factory_deps,
+    },
 };
 use zksync_node_fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider};
 use zksync_state::PostgresStorageCaches;
@@ -29,8 +31,7 @@ use zksync_types::{
     transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
     vm::FastVmMode,
-    AccountTreeId, Address, L2ChainId, Nonce, ProtocolVersionId, Transaction, H160, H256,
-    MAX_NEW_FACTORY_DEPS, U256,
+    AccountTreeId, Address, L2ChainId, Nonce, ProtocolVersionId, Transaction, H160, H256, U256,
 };
 use zksync_vm_executor::oneshot::{
     CallOrExecute, EstimateGas, MultiVmBaseSystemContracts, OneshotEnvParameters,
@@ -475,10 +476,11 @@ impl TxSender {
             );
             return Err(SubmitTxError::MaxPriorityFeeGreaterThanMaxFee);
         }
-        if tx.execute.factory_deps.len() > MAX_NEW_FACTORY_DEPS {
+        let max_new_factory_deps = get_max_new_factory_deps(protocol_version.into());
+        if tx.execute.factory_deps.len() > max_new_factory_deps {
             return Err(SubmitTxError::TooManyFactoryDependencies(
                 tx.execute.factory_deps.len(),
-                MAX_NEW_FACTORY_DEPS,
+                max_new_factory_deps,
             ));
         }
 

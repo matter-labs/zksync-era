@@ -160,9 +160,35 @@ impl TransactionsDal<'_, '_> {
         )
         .instrument("insert_transaction_l1")
         .with_arg("tx_hash", &tx_hash)
-        .fetch_optional(self.storage)
+        .execute(self.storage)
         .await?;
+
         Ok(())
+    }
+
+    pub async fn get_l1_transactions_hashes(&mut self, start_id: usize) -> DalResult<Vec<H256>> {
+        let hashes = sqlx::query!(
+            r#"
+            SELECT
+                hash
+            FROM
+                transactions
+            WHERE
+                priority_op_id >= $1
+                AND is_priority = TRUE
+            ORDER BY
+                priority_op_id
+            "#,
+            start_id as i64
+        )
+        .instrument("get_l1_transactions_hashes")
+        .with_arg("start_id", &start_id)
+        .fetch_all(self.storage)
+        .await?;
+        Ok(hashes
+            .into_iter()
+            .map(|row| H256::from_slice(&row.hash))
+            .collect())
     }
 
     pub async fn insert_system_transaction(&mut self, tx: &ProtocolUpgradeTx) -> DalResult<()> {
