@@ -34,7 +34,7 @@ impl GatewayPreparationConfig {
 
         Ok(Self {
             bridgehub_proxy_addr: contracts.ecosystem_contracts.bridgehub_proxy_addr,
-            chain_chain_id: chain_config.chain_id.0,
+            chain_chain_id: chain_config.chain_id.as_u64(),
             ctm_deployment_tracker_proxy_addr: contracts
                 .ecosystem_contracts
                 .stm_deployment_tracker_proxy_addr
