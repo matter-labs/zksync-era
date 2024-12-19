@@ -14,7 +14,7 @@ use config::{
 use types::{L1Network, ProverMode};
 use xshell::Shell;
 
-use crate::utils::forge::{check_the_balance, fill_forge_private_key};
+use crate::utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner};
 
 pub async fn deploy_l1(
     shell: &Shell,
@@ -54,7 +54,11 @@ pub async fn deploy_l1(
     if let Some(address) = sender {
         forge = forge.with_sender(address);
     } else {
-        forge = fill_forge_private_key(forge, wallets_config.deployer.as_ref())?;
+        forge = fill_forge_private_key(
+            forge,
+            wallets_config.deployer.as_ref(),
+            WalletOwner::Deployer,
+        )?;
     }
 
     if broadcast {

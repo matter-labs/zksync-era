@@ -371,9 +371,11 @@ describe('System behavior checks', () => {
     function bootloaderUtilsContract() {
         const BOOTLOADER_UTILS_ADDRESS = '0x000000000000000000000000000000000000800c';
         const BOOTLOADER_UTILS = new ethers.Interface(
-            require(`${
-                testMaster.environment().pathToHome
-            }/contracts/system-contracts/zkout/BootloaderUtilities.sol/BootloaderUtilities.json`).abi
+            require(
+                `${
+                    testMaster.environment().pathToHome
+                }/contracts/system-contracts/zkout/BootloaderUtilities.sol/BootloaderUtilities.json`
+            ).abi
         );
 
         return new ethers.Contract(BOOTLOADER_UTILS_ADDRESS, BOOTLOADER_UTILS, alice);

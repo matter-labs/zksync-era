@@ -746,6 +746,7 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
                 0 => L1BatchCommitmentMode::Rollup,
                 _ => L1BatchCommitmentMode::Validium,
             },
+            custom_genesis_state_path: None,
         }
     }
 }
@@ -808,6 +809,7 @@ impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
             server_addr: self.sample(rng),
             public_addr: Host(self.sample(rng)),
             max_payload_size: self.sample(rng),
+            view_timeout: self.sample(rng),
             max_batch_size: self.sample(rng),
             gossip_dynamic_inbound_limit: self.sample(rng),
             gossip_static_inbound: self
