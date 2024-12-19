@@ -402,12 +402,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .as_mut()
         .context("sender")?
         .wait_confirmations = Some(0);
-    // FIXME: do we need to move the following to be u64?
-    eth_config
-        .sender
-        .as_mut()
-        .expect("sender")
-        .max_aggregated_tx_gas = 4294967295;
     eth_config
         .sender
         .as_mut()

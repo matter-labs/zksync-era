@@ -125,7 +125,6 @@ impl ProtoRepr for proto::Sender {
                 .parse(),
             tx_aggregation_only_prove_and_execute: self.tx_aggregation_paused.unwrap_or(false),
             tx_aggregation_paused: self.tx_aggregation_only_prove_and_execute.unwrap_or(false),
-            ignore_db_nonce: None,
             priority_tree_start_index: self.priority_op_start_index.map(|x| x as usize),
             time_in_mempool_in_l1_blocks_cap: self
                 .time_in_mempool_in_l1_blocks_cap
