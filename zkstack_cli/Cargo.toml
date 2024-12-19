@@ -27,9 +27,9 @@ zkstack_types = { version = "0.1.2", path = "crates/types" }
 zkstack_git_version_macro = { version = "0.1.2", path = "crates/git_version_macro" }
 
 # ZkSync deps
-zksync_config = { version = "25.3.0", path = "../core/lib/config" }
-zksync_protobuf_config = { version = "25.3.0", path = "../core/lib/protobuf_config" }
-zksync_basic_types = { version = "25.3.0", path = "../core/lib/basic_types" }
+zksync_config = { version = "25.4.0", path = "../core/lib/config" }
+zksync_protobuf_config = { version = "25.4.0", path = "../core/lib/protobuf_config" }
+zksync_basic_types = { version = "25.4.0", path = "../core/lib/basic_types" }
 zksync_consensus_roles = "=0.7.0"
 zksync_consensus_crypto = "=0.7.0"
 zksync_consensus_utils = "=0.7.0"

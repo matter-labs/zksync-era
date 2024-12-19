@@ -77,24 +77,24 @@ shivini = "=0.152.9"
 boojum-cuda = "=0.152.9"
 
 # Core workspace dependencies
-zksync_multivm = { version = "25.3.0", path = "../core/lib/multivm"}
-zksync_vlog = { version = "25.3.0", path = "../core/lib/vlog" }
-zksync_basic_types = { version = "25.3.0", path = "../core/lib/basic_types" }
-zksync_config = { version = "25.3.0", path = "../core/lib/config" }
-zksync_dal = { version = "25.3.0", path = "../core/lib/dal" }
-zksync_db_connection = { version = "25.3.0", path = "../core/lib/db_connection" }
-zksync_env_config = { version = "25.3.0", path = "../core/lib/env_config" }
-zksync_object_store = { version = "25.3.0", path = "../core/lib/object_store" }
-zksync_prover_interface = { version = "25.3.0", path = "../core/lib/prover_interface" }
-zksync_queued_job_processor = { version = "25.3.0", path = "../core/lib/queued_job_processor" }
-zksync_system_constants = { version = "25.3.0", path = "../core/lib/constants" }
-zksync_types = { version = "25.3.0", path = "../core/lib/types" }
-zksync_utils = { version = "25.3.0", path = "../core/lib/utils" }
-zksync_eth_client = { version = "25.3.0", path = "../core/lib/eth_client" }
-zksync_contracts = { version = "25.3.0", path = "../core/lib/contracts" }
-zksync_core_leftovers = { version = "25.3.0", path = "../core/lib/zksync_core_leftovers" }
-zksync_periodic_job = { version = "25.3.0", path = "../core/lib/periodic_job" }
-zksync_protobuf_config = { version = "25.3.0", path = "../core/lib/protobuf_config" }
+zksync_multivm = { version = "25.4.0", path = "../core/lib/multivm"}
+zksync_vlog = { version = "25.4.0", path = "../core/lib/vlog" }
+zksync_basic_types = { version = "25.4.0", path = "../core/lib/basic_types" }
+zksync_config = { version = "25.4.0", path = "../core/lib/config" }
+zksync_dal = { version = "25.4.0", path = "../core/lib/dal" }
+zksync_db_connection = { version = "25.4.0", path = "../core/lib/db_connection" }
+zksync_env_config = { version = "25.4.0", path = "../core/lib/env_config" }
+zksync_object_store = { version = "25.4.0", path = "../core/lib/object_store" }
+zksync_prover_interface = { version = "25.4.0", path = "../core/lib/prover_interface" }
+zksync_queued_job_processor = { version = "25.4.0", path = "../core/lib/queued_job_processor" }
+zksync_system_constants = { version = "25.4.0", path = "../core/lib/constants" }
+zksync_types = { version = "25.4.0", path = "../core/lib/types" }
+zksync_utils = { version = "25.4.0", path = "../core/lib/utils" }
+zksync_eth_client = { version = "25.4.0", path = "../core/lib/eth_client" }
+zksync_contracts = { version = "25.4.0", path = "../core/lib/contracts" }
+zksync_core_leftovers = { version = "25.4.0", path = "../core/lib/zksync_core_leftovers" }
+zksync_periodic_job = { version = "25.4.0", path = "../core/lib/periodic_job" }
+zksync_protobuf_config = { version = "25.4.0", path = "../core/lib/protobuf_config" }
 
 # Prover workspace dependencies
 zksync_prover_dal = { version = "17.1.1", path = "crates/lib/prover_dal" }

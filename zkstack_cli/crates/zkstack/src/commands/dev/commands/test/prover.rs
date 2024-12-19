@@ -20,7 +20,7 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     }];
     reset_test_databases(shell, &ecosystem.link_to_code, dals).await?;
 
-    let _dir_guard = shell.push_dir(ecosystem.join("prover"));
+    let _dir_guard = shell.push_dir(ecosystem.link_to_code.join("prover"));
     Cmd::new(cmd!(shell, "cargo test --release --workspace --locked"))
         .with_force_run()
         .env("TEST_DATABASE_PROVER_URL", TEST_DATABASE_PROVER_URL)

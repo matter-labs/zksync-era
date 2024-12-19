@@ -6750,7 +6750,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_basic_types"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -6790,7 +6790,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_config"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "rand",
@@ -6859,7 +6859,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_contracts"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "envy",
  "hex",
@@ -6872,7 +6872,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_crypto_primitives"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "blake2",
@@ -6888,7 +6888,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_mini_merkle_tree"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -6935,7 +6935,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_config"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "hex",
@@ -6955,7 +6955,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_system_constants"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -6963,7 +6963,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_types"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "bigdecimal",
@@ -6994,7 +6994,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_utils"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "futures",
@@ -7009,7 +7009,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vlog"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "chrono",
