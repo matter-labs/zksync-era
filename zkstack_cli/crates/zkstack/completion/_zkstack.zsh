@@ -603,6 +603,23 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
 ;;
+(enable-evm-emulator)
+_arguments "${_arguments_options[@]}" : \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_zkstack__chain__help_commands" \
@@ -704,6 +721,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (update-token-multiplier-setter)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(enable-evm-emulator)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2706,6 +2727,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(enable-evm-emulator)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
         esac
     ;;
 esac
@@ -3234,6 +3259,7 @@ _zkstack__chain_commands() {
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
+'enable-evm-emulator:Enable EVM emulation on chain (Not supported yet)' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack chain commands' commands "$@"
@@ -3282,6 +3308,11 @@ _zkstack__chain__deploy-timestamp-asserter_commands() {
 _zkstack__chain__deploy-upgrader_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain deploy-upgrader commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__enable-evm-emulator_commands] )) ||
+_zkstack__chain__enable-evm-emulator_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain enable-evm-emulator commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__genesis_commands] )) ||
 _zkstack__chain__genesis_commands() {
@@ -3343,6 +3374,7 @@ _zkstack__chain__help_commands() {
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
+'enable-evm-emulator:Enable EVM emulation on chain (Not supported yet)' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack chain help commands' commands "$@"
@@ -3391,6 +3423,11 @@ _zkstack__chain__help__deploy-timestamp-asserter_commands() {
 _zkstack__chain__help__deploy-upgrader_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help deploy-upgrader commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__enable-evm-emulator_commands] )) ||
+_zkstack__chain__help__enable-evm-emulator_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help enable-evm-emulator commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__help__genesis_commands] )) ||
 _zkstack__chain__help__genesis_commands() {
@@ -4661,6 +4698,7 @@ _zkstack__help__chain_commands() {
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
+'enable-evm-emulator:Enable EVM emulation on chain (Not supported yet)' \
     )
     _describe -t commands 'zkstack help chain commands' commands "$@"
 }
@@ -4708,6 +4746,11 @@ _zkstack__help__chain__deploy-timestamp-asserter_commands() {
 _zkstack__help__chain__deploy-upgrader_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain deploy-upgrader commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__enable-evm-emulator_commands] )) ||
+_zkstack__help__chain__enable-evm-emulator_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain enable-evm-emulator commands' commands "$@"
 }
 (( $+functions[_zkstack__help__chain__genesis_commands] )) ||
 _zkstack__help__chain__genesis_commands() {
