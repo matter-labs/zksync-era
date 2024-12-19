@@ -1,5 +1,12 @@
 # Changelog
 
+## [25.5.0](https://github.com/matter-labs/zksync-era/compare/core-v25.4.0...core-v25.5.0) (2024-12-19)
+
+
+### Features
+
+* Adapt server for new EVM bytecode hash encoding ([#3396](https://github.com/matter-labs/zksync-era/issues/3396)) ([5a1e6d2](https://github.com/matter-labs/zksync-era/commit/5a1e6d2445d4d4310fc1e54ccd44dc4254e5bcbc))
+
 ## [25.4.0](https://github.com/matter-labs/zksync-era/compare/core-v25.3.0...core-v25.4.0) (2024-12-19)
 
 
