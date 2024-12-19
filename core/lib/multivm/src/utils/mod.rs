@@ -5,11 +5,26 @@ use zksync_types::{
 };
 
 pub use self::deduplicator::{ModifiedSlot, StorageWritesDeduplicator};
-use crate::interface::L1BatchEnv;
+use crate::{
+    glue::{GlueFrom, GlueInto},
+    interface::L1BatchEnv,
+};
 
 pub(crate) mod bytecode;
 mod deduplicator;
 pub(crate) mod events;
+
+/// Allows to convert `LogQuery` between two different versions, even if they don't provide
+/// direct conversion between each other.
+/// It transforms the input query to the `LogQuery` from `zksync_types` (for which most of the
+/// `zk_evm` versions provide conversion) and then converts it to the target version.
+pub fn glue_log_query<L, R>(l: L) -> R
+where
+    L: GlueInto<zksync_types::zk_evm_types::LogQuery>,
+    R: GlueFrom<zksync_types::zk_evm_types::LogQuery>,
+{
+    R::glue_from(l.glue_into())
+}
 
 /// Calculates the base fee and gas per pubdata for the given L1 gas price.
 pub fn derive_base_fee_and_gas_per_pubdata(

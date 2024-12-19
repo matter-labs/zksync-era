@@ -180,7 +180,7 @@ pub fn l1_messenger_contract() -> Contract {
 
 /// Reads bytecode from the path RELATIVE to the Cargo workspace location.
 pub fn read_bytecode(relative_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u8> {
-    read_bytecode_from_path(relative_path).expect("Exists")
+    read_bytecode_from_path(relative_path).expect("Failed to open file")
 }
 
 pub fn eth_contract() -> Contract {
