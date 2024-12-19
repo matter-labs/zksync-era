@@ -138,7 +138,7 @@ impl<ML: WitnessVectorMetadataLoader> JobPicker for WitnessVectorGeneratorJobPic
 
         let key = ProverServiceDataKey {
             circuit_id: metadata.circuit_id,
-            round: metadata.aggregation_round,
+            stage: metadata.aggregation_round.into(),
         }
         .crypto_setup_key();
         let finalization_hints = self
