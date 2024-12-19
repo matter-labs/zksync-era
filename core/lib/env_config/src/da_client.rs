@@ -248,8 +248,15 @@ mod tests {
         let mut lock = MUTEX.lock();
         let config = r#"
             DA_CLIENT="Eigen"
-            DA_RPC_NODE_URL="localhost:12345"
-            DA_INCLUSION_POLLING_INTERVAL_MS="1000"
+            DA_DISPERSER_RPC="http://localhost:8080"
+            DA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
+            DA_EIGENDA_ETH_RPC="http://localhost:8545"
+            DA_EIGENDA_SVC_MANAGER_ADDRESS="0x123"
+            DA_WAIT_FOR_FINALIZATION=true
+            DA_AUTHENTICATED=false
+            DA_G1_URL="resources1"
+            DA_G2_URL="resources2"
+            DA_CHAIN_ID=1
         "#;
         lock.set_env(config);
 
@@ -257,8 +264,15 @@ mod tests {
         assert_eq!(
             actual,
             DAClientConfig::Eigen(EigenConfig {
-                rpc_node_url: "localhost:12345".to_string(),
-                inclusion_polling_interval_ms: 1000,
+                disperser_rpc: "http://localhost:8080".to_string(),
+                settlement_layer_confirmation_depth: 0,
+                eigenda_eth_rpc: Some("http://localhost:8545".to_string()),
+                eigenda_svc_manager_address: "0x123".to_string(),
+                wait_for_finalization: true,
+                authenticated: false,
+                g1_url: "resources1".to_string(),
+                g2_url: "resources2".to_string(),
+                chain_id: 1
             })
         );
     }
