@@ -1,9 +1,9 @@
 use std::path::Path;
 
 use anyhow::Context;
-use common::docker;
-use config::{explorer_compose::ExplorerBackendComposeConfig, EcosystemConfig};
 use xshell::Shell;
+use zkstack_common::docker;
+use zkstack_config::{explorer_compose::ExplorerBackendComposeConfig, EcosystemConfig};
 
 use crate::messages::{
     msg_explorer_chain_not_initialized, MSG_CHAIN_NOT_FOUND_ERR,

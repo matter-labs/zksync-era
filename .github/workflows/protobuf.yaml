@@ -45,15 +45,15 @@ jobs:
       - name: checkout LCA
         run:
           git checkout $(git merge-base $BASE $HEAD) --recurse-submodules
-        working-directory: ./before
+        working-directory: ./before/core
       - name: compile before
         run: cargo check --all-targets
-        working-directory: ./before/
+        working-directory: ./before/core
       - name: build before.binpb
         run: >
           perl -ne 'print "$1\n" if /PROTOBUF_DESCRIPTOR="(.*)"/'
-          `find ./before/target/debug/build/*/output`
-          | xargs cat > ./before.binpb
+          `find ./before/core/target/debug/build/*/output`
+          | xargs cat > ./before/.binpb
 
       # after
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -63,11 +63,11 @@ jobs:
           submodules: recursive
       - name: compile after
         run: cargo check --all-targets
-        working-directory: ./after
+        working-directory: ./after/core
       - name: build after.binpb
         run: >
           perl -ne 'print "$1\n" if /PROTOBUF_DESCRIPTOR="(.*)"/'
-          `find ./after/target/debug/build/*/output`
+          `find ./after/core/target/debug/build/*/output`
           | xargs cat > ./after.binpb
 
       # compare

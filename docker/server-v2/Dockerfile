@@ -16,7 +16,7 @@ ENV RUSTC_WRAPPER=${RUSTC_WRAPPER}
 WORKDIR /usr/src/zksync
 
 COPY . .
-
+WORKDIR /usr/src/zksync/core
 RUN cargo build --release --features=rocksdb/io-uring --bin zksync_server --bin block_reverter --bin merkle_tree_consistency_checker
 
 FROM ghcr.io/matter-labs/zksync-runtime-base:latest

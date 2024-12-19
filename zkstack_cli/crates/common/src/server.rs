@@ -59,7 +59,7 @@ impl Server {
         let mut cmd = Cmd::new(
             cmd!(
                 shell,
-                "cargo run --release --bin zksync_server {uring...} --
+                "cargo run --release --manifest-path ./core/Cargo.toml --bin zksync_server {uring...} --
                 --genesis-path {genesis_path}
                 --wallets-path {wallets_path}
                 --config-path {general_path}

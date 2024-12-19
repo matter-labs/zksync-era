@@ -1,6 +1,6 @@
 [package]
 name = "zkstack"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
@@ -17,8 +17,8 @@ clap.workspace = true
 clap_complete.workspace = true
 clap-markdown.workspace = true
 cliclack.workspace = true
-common.workspace = true
-config.workspace = true
+zkstack_common.workspace = true
+zkstack_config.workspace = true
 dirs.workspace = true
 ethers.workspace = true
 futures.workspace = true
@@ -34,7 +34,7 @@ sqruff-lib = "0.19.0"
 thiserror.workspace = true
 tokio.workspace = true
 toml.workspace = true
-types.workspace = true
+zkstack_types.workspace = true
 url.workspace = true
 xshell.workspace = true
 zksync_basic_types.workspace = true

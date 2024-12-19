@@ -1,10 +1,10 @@
 use anyhow::Context;
-use common::{
+use xshell::Shell;
+use zkstack_common::{
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     spinner::Spinner,
 };
-use config::{traits::ReadConfigWithBasePath, ChainConfig, EcosystemConfig, SecretsConfig};
-use xshell::Shell;
+use zkstack_config::{traits::ReadConfigWithBasePath, ChainConfig, EcosystemConfig, SecretsConfig};
 
 use crate::{
     consts::SERVER_MIGRATIONS,
