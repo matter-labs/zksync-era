@@ -17,7 +17,6 @@ jobs:
           submodules: "recursive"
           fetch-depth: 0
           ref: ${{ github.base_ref }}
-          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
       - name: fetch PR branch
         run: |
