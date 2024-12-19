@@ -47,10 +47,7 @@ jobs:
           git checkout $(git merge-base $BASE $HEAD) --recurse-submodules
         working-directory: ./before
       - name: compile before
-        run: |
-          pwd
-          ls -la
-          cargo check --manifest-path ./core/Cargo.toml --all-targets
+        run: cargo check --manifest-path ./core/Cargo.toml --all-targets
         working-directory: ./before
       - name: build before.binpb
         run: >
@@ -83,4 +80,3 @@ jobs:
           ls -la
           buf breaking './after.binpb' --against './before.binpb' --exclude-path 'zksync/config/experimental.proto' \
             --config '{"version":"v1","breaking":{"use":["WIRE_JSON","WIRE"]}}' --error-format 'github-actions'
-          
