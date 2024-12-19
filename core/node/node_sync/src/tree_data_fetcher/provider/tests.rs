@@ -418,7 +418,7 @@ async fn using_different_settlement_layers() {
             .batch_details(number, &get_last_l2_block(&mut storage, number).await)
             .await
             .unwrap()
-            .expect(&format!("no root hash for batch #{number}"));
+            .unwrap_or_else(|err| panic!("no root hash for batch #{number}: {err:?}"));
         assert_eq!(root_hash, H256::repeat_byte(number.0 as u8));
 
         let past_l1_batch = provider.past_l1_batch.unwrap();
