@@ -9,6 +9,7 @@ use std::{
 
 use anyhow::Context;
 use serde::Deserialize;
+use smart_config::{ConfigSchema, ConfigSources, DescribeConfig, Prefixed};
 use zksync_config::{
     configs::{
         api::{MaxResponseSize, MaxResponseSizeOverrides},
@@ -16,11 +17,12 @@ use zksync_config::{
         en_config::ENConfig,
         GeneralConfig, Secrets,
     },
-    ObjectStoreConfig,
+    full_config_schema,
+    sources::ConfigFilePaths,
+    ConfigRepository, ObjectStoreConfig, ParseResultExt,
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
-use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
 use zksync_metadata_calculator::MetadataCalculatorRecoveryConfig;
@@ -28,7 +30,6 @@ use zksync_node_api_server::{
     tx_sender::{TimestampAsserterParams, TxSenderConfig},
     web3::{state::InternalApiConfig, Namespace},
 };
-use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
 use zksync_types::{
     api::BridgeAddresses, commitment::L1BatchCommitmentMode, url::SensitiveUrl, Address,
@@ -46,15 +47,6 @@ use crate::config::observability::ObservabilityENConfig;
 pub(crate) mod observability;
 #[cfg(test)]
 mod tests;
-
-macro_rules! load_optional_config_or_default {
-    ($config:expr, $($name:ident).+, $default:ident) => {
-        $config
-            .as_ref()
-            .map(|a| a.$($name).+.map(|a| a.try_into())).flatten().transpose()?
-            .unwrap_or_else(Self::$default)
-    };
-}
 
 macro_rules! load_config_or_default {
     ($config:expr, $($name:ident).+, $default:ident) => {
@@ -457,7 +449,7 @@ pub(crate) struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_snapshots_recovery_postgres_max_concurrency")]
     pub snapshots_recovery_postgres_max_concurrency: NonZeroUsize,
 
-    #[serde(default)]
+    #[serde(skip)] // FIXME: can it be deserialized at all?
     pub snapshots_recovery_object_store: Option<ObjectStoreConfig>,
 
     /// Enables pruning of the historical node state (Postgres and Merkle tree). The node will retain
@@ -493,168 +485,81 @@ impl OptionalENConfig {
         let api_namespaces = load_config!(general_config.api_config, web3_json_rpc.api_namespaces)
             .map(|a: Vec<String>| a.iter().map(|a| a.parse()).collect::<Result<_, _>>())
             .transpose()?;
+        let web3_json_rpc = general_config
+            .api_config
+            .as_ref()
+            .map_or_else(Default::default, |api| api.web3_json_rpc.clone());
+        let merkle_tree = &general_config.db_config.merkle_tree;
 
         Ok(OptionalENConfig {
-            filters_limit: load_optional_config_or_default!(
-                general_config.api_config,
-                web3_json_rpc.filters_limit,
-                default_filters_limit
-            ),
-            subscriptions_limit: load_optional_config_or_default!(
-                general_config.api_config,
-                web3_json_rpc.subscriptions_limit,
-                default_subscriptions_limit
-            ),
-            req_entities_limit: load_optional_config_or_default!(
-                general_config.api_config,
-                web3_json_rpc.req_entities_limit,
-                default_req_entities_limit
-            ),
-            max_tx_size_bytes: load_config_or_default!(
-                general_config.api_config,
-                web3_json_rpc.max_tx_size,
-                default_max_tx_size_bytes
-            ),
-            vm_execution_cache_misses_limit: load_config!(
-                general_config.api_config,
-                web3_json_rpc.vm_execution_cache_misses_limit
-            ),
-            fee_history_limit: load_optional_config_or_default!(
-                general_config.api_config,
-                web3_json_rpc.fee_history_limit,
-                default_fee_history_limit
-            ),
-            max_batch_request_size: load_optional_config_or_default!(
-                general_config.api_config,
-                web3_json_rpc.max_batch_request_size,
-                default_max_batch_request_size
-            ),
-            max_response_body_size_mb: load_optional_config_or_default!(
-                general_config.api_config,
-                web3_json_rpc.max_response_body_size_mb,
-                default_max_response_body_size_mb
-            ),
-            max_response_body_size_overrides_mb: load_config_or_default!(
-                general_config.api_config,
-                web3_json_rpc.max_response_body_size_overrides_mb,
-                default_max_response_body_size_overrides_mb
-            ),
-            pubsub_polling_interval_ms: load_optional_config_or_default!(
-                general_config.api_config,
-                web3_json_rpc.pubsub_polling_interval,
-                default_polling_interval
-            ),
-            max_nonce_ahead: load_config_or_default!(
-                general_config.api_config,
-                web3_json_rpc.max_nonce_ahead,
-                default_max_nonce_ahead
-            ),
-            vm_concurrency_limit: load_optional_config_or_default!(
-                general_config.api_config,
-                web3_json_rpc.vm_concurrency_limit,
-                default_vm_concurrency_limit
-            ),
-            factory_deps_cache_size_mb: load_optional_config_or_default!(
-                general_config.api_config,
-                web3_json_rpc.factory_deps_cache_size_mb,
-                default_factory_deps_cache_size_mb
-            ),
-            initial_writes_cache_size_mb: load_optional_config_or_default!(
-                general_config.api_config,
-                web3_json_rpc.initial_writes_cache_size_mb,
-                default_initial_writes_cache_size_mb
-            ),
-            latest_values_cache_size_mb: load_optional_config_or_default!(
-                general_config.api_config,
-                web3_json_rpc.latest_values_cache_size_mb,
-                default_latest_values_cache_size_mb
-            ),
-            filters_disabled: general_config
-                .api_config
-                .as_ref()
-                .map(|a| a.web3_json_rpc.filters_disabled)
-                .unwrap_or_default(),
-            mempool_cache_update_interval_ms: load_optional_config_or_default!(
-                general_config.api_config,
-                web3_json_rpc.mempool_cache_update_interval,
-                default_mempool_cache_update_interval_ms
-            ),
-            mempool_cache_size: load_optional_config_or_default!(
-                general_config.api_config,
-                web3_json_rpc.mempool_cache_size,
-                default_mempool_cache_size
-            ),
+            filters_limit: web3_json_rpc.filters_limit,
+            subscriptions_limit: web3_json_rpc.subscriptions_limit,
+            req_entities_limit: web3_json_rpc.req_entities_limit as usize,
+            max_tx_size_bytes: web3_json_rpc.max_tx_size,
+            vm_execution_cache_misses_limit: web3_json_rpc.vm_execution_cache_misses_limit,
+            fee_history_limit: web3_json_rpc.fee_history_limit,
+            max_batch_request_size: web3_json_rpc.max_batch_request_size,
+            max_response_body_size_mb: web3_json_rpc.max_response_body_size_mb.0 as usize
+                / BYTES_IN_MEGABYTE,
+            max_response_body_size_overrides_mb: web3_json_rpc.max_response_body_size_overrides_mb,
+            pubsub_polling_interval_ms: web3_json_rpc.pubsub_polling_interval.as_millis() as u64,
+            max_nonce_ahead: web3_json_rpc.max_nonce_ahead,
+            vm_concurrency_limit: web3_json_rpc.vm_concurrency_limit,
+            factory_deps_cache_size_mb: web3_json_rpc.factory_deps_cache_size_mb.0 as usize
+                / BYTES_IN_MEGABYTE,
+            initial_writes_cache_size_mb: web3_json_rpc.initial_writes_cache_size_mb.0 as usize
+                / BYTES_IN_MEGABYTE,
+            latest_values_cache_size_mb: web3_json_rpc.latest_values_cache_size_mb.0 as usize
+                / BYTES_IN_MEGABYTE,
+            filters_disabled: web3_json_rpc.filters_disabled,
+            mempool_cache_update_interval_ms: web3_json_rpc
+                .mempool_cache_update_interval
+                .as_millis() as u64,
+            mempool_cache_size: web3_json_rpc.mempool_cache_size,
 
             healthcheck_slow_time_limit_ms: load_config!(
                 general_config.api_config,
                 healthcheck.slow_time_limit_ms
-            ),
+            )
+            .map(|dur: Duration| dur.as_millis() as u64),
             healthcheck_hard_time_limit_ms: load_config!(
                 general_config.api_config,
                 healthcheck.hard_time_limit_ms
-            ),
-            estimate_gas_scale_factor: load_config_or_default!(
-                general_config.api_config,
-                web3_json_rpc.estimate_gas_scale_factor,
-                default_estimate_gas_scale_factor
-            ),
-            estimate_gas_acceptable_overestimation: load_config_or_default!(
-                general_config.api_config,
-                web3_json_rpc.estimate_gas_acceptable_overestimation,
-                default_estimate_gas_acceptable_overestimation
-            ),
-            estimate_gas_optimize_search: general_config
-                .api_config
-                .as_ref()
-                .map(|a| a.web3_json_rpc.estimate_gas_optimize_search)
-                .unwrap_or_default(),
-            gas_price_scale_factor: load_config_or_default!(
-                general_config.api_config,
-                web3_json_rpc.gas_price_scale_factor,
-                default_gas_price_scale_factor
-            ),
-            merkle_tree_max_l1_batches_per_iter: load_config_or_default!(
-                general_config.db_config,
-                merkle_tree.max_l1_batches_per_iter,
-                default_merkle_tree_max_l1_batches_per_iter
-            ),
-            merkle_tree_max_open_files: load_config!(
-                general_config.db_config,
-                experimental.state_keeper_db_max_open_files
-            ),
-            merkle_tree_multi_get_chunk_size: load_config_or_default!(
-                general_config.db_config,
-                merkle_tree.multi_get_chunk_size,
-                default_merkle_tree_multi_get_chunk_size
-            ),
-            merkle_tree_block_cache_size_mb: load_config_or_default!(
-                general_config.db_config,
-                merkle_tree.block_cache_size_mb,
-                default_merkle_tree_block_cache_size_mb
-            ),
-            merkle_tree_memtable_capacity_mb: load_config_or_default!(
-                general_config.db_config,
-                merkle_tree.memtable_capacity_mb,
-                default_merkle_tree_memtable_capacity_mb
-            ),
-            merkle_tree_stalled_writes_timeout_sec: load_config_or_default!(
-                general_config.db_config,
-                merkle_tree.stalled_writes_timeout_sec,
-                default_merkle_tree_stalled_writes_timeout_sec
-            ),
+            )
+            .map(|dur: Duration| dur.as_millis() as u64),
+            estimate_gas_scale_factor: web3_json_rpc.estimate_gas_scale_factor,
+            estimate_gas_acceptable_overestimation: web3_json_rpc
+                .estimate_gas_acceptable_overestimation,
+            estimate_gas_optimize_search: web3_json_rpc.estimate_gas_optimize_search,
+            gas_price_scale_factor: web3_json_rpc.gas_price_scale_factor,
+            merkle_tree_max_l1_batches_per_iter: merkle_tree.max_l1_batches_per_iter,
+            merkle_tree_max_open_files: general_config
+                .db_config
+                .experimental
+                .state_keeper_db_max_open_files,
+            merkle_tree_multi_get_chunk_size: merkle_tree.multi_get_chunk_size,
+            merkle_tree_block_cache_size_mb: merkle_tree.block_cache_size_mb.0 as usize
+                / BYTES_IN_MEGABYTE,
+            merkle_tree_memtable_capacity_mb: merkle_tree.memtable_capacity_mb.0 as usize
+                / BYTES_IN_MEGABYTE,
+            merkle_tree_stalled_writes_timeout_sec: merkle_tree
+                .stalled_writes_timeout_sec
+                .as_secs(),
             merkle_tree_repair_stale_keys: general_config
                 .db_config
-                .as_ref()
-                .map_or(false, |config| {
-                    config.experimental.merkle_tree_repair_stale_keys
-                }),
-            database_long_connection_threshold_ms: load_config!(
-                general_config.postgres_config,
-                long_connection_threshold_ms
+                .experimental
+                .merkle_tree_repair_stale_keys,
+            database_long_connection_threshold_ms: Some(
+                general_config
+                    .postgres_config
+                    .long_connection_threshold_ms
+                    .as_millis() as u64,
             ),
-            database_slow_query_threshold_ms: load_config!(
-                general_config.postgres_config,
-                slow_query_threshold_ms
+            database_slow_query_threshold_ms: Some(
+                general_config
+                    .postgres_config
+                    .slow_query_threshold_ms
+                    .as_millis() as u64,
             ),
             l2_block_seal_queue_capacity: load_config_or_default!(
                 general_config.state_keeper_config,
@@ -662,72 +567,46 @@ impl OptionalENConfig {
                 default_l2_block_seal_queue_capacity
             ),
             l1_batch_commit_data_generator_mode: enconfig.l1_batch_commit_data_generator_mode,
-            snapshots_recovery_enabled: general_config
+            snapshots_recovery_enabled: general_config.snapshot_recovery.enabled,
+            snapshots_recovery_postgres_max_concurrency: general_config
                 .snapshot_recovery
-                .as_ref()
-                .map(|a| a.enabled)
-                .unwrap_or_default(),
-            snapshots_recovery_postgres_max_concurrency: load_optional_config_or_default!(
-                general_config.snapshot_recovery,
-                postgres.max_concurrency,
-                default_snapshots_recovery_postgres_max_concurrency
+                .postgres
+                .max_concurrency,
+            pruning_enabled: general_config.pruning.enabled,
+            snapshots_recovery_object_store: Some(
+                general_config.snapshot_recovery.object_store.clone(),
             ),
-            pruning_enabled: general_config
-                .pruning
-                .as_ref()
-                .map(|a| a.enabled)
-                .unwrap_or_default(),
-            snapshots_recovery_object_store: load_config!(
-                general_config.snapshot_recovery,
-                object_store
-            ),
-            pruning_chunk_size: load_optional_config_or_default!(
-                general_config.pruning,
-                chunk_size,
-                default_pruning_chunk_size
-            ),
-            pruning_removal_delay_sec: load_optional_config_or_default!(
-                general_config.pruning,
-                removal_delay_sec,
-                default_pruning_removal_delay_sec
-            ),
-            pruning_data_retention_sec: load_optional_config_or_default!(
-                general_config.pruning,
-                data_retention_sec,
-                default_pruning_data_retention_sec
-            ),
+            pruning_chunk_size: general_config.pruning.chunk_size.get(),
+            pruning_removal_delay_sec: NonZeroU64::new(
+                general_config.pruning.removal_delay_sec.as_secs(),
+            )
+            .unwrap_or_else(|| NonZeroU64::new(1).unwrap()),
+            pruning_data_retention_sec: general_config.pruning.data_retention_sec.as_secs(),
             protective_reads_persistence_enabled: general_config
                 .db_config
-                .as_ref()
-                .map(|a| a.experimental.protective_reads_persistence_enabled)
-                .unwrap_or_default(),
-            merkle_tree_processing_delay_ms: load_config_or_default!(
-                general_config.db_config,
-                experimental.processing_delay_ms,
-                default_merkle_tree_processing_delay_ms
-            ),
+                .experimental
+                .protective_reads_persistence_enabled,
+            merkle_tree_processing_delay_ms: general_config
+                .db_config
+                .experimental
+                .processing_delay_ms
+                .as_millis() as u64,
             merkle_tree_include_indices_and_filters_in_block_cache: general_config
                 .db_config
-                .as_ref()
-                .map(|a| a.experimental.include_indices_and_filters_in_block_cache)
-                .unwrap_or_default(),
-            extended_rpc_tracing: load_config_or_default!(
-                general_config.api_config,
-                web3_json_rpc.extended_api_tracing,
-                default_extended_api_tracing
-            ),
-            main_node_rate_limit_rps: enconfig
-                .main_node_rate_limit_rps
-                .unwrap_or_else(Self::default_main_node_rate_limit_rps),
+                .experimental
+                .include_indices_and_filters_in_block_cache,
+            extended_rpc_tracing: web3_json_rpc.extended_api_tracing,
+            main_node_rate_limit_rps: enconfig.main_node_rate_limit_rps,
             api_namespaces,
             contracts_diamond_proxy_addr: None,
             gateway_url: enconfig.gateway_url.clone(),
-            bridge_addresses_refresh_interval_sec: enconfig.bridge_addresses_refresh_interval_sec,
+            bridge_addresses_refresh_interval_sec: enconfig
+                .bridge_addresses_refresh_interval
+                .and_then(|dur| NonZeroU64::new(dur.as_secs())),
             timestamp_asserter_min_time_till_end_sec: general_config
                 .timestamp_asserter_config
-                .as_ref()
-                .map(|x| x.min_time_till_end_sec)
-                .unwrap_or_else(Self::default_timestamp_asserter_min_time_till_end_sec),
+                .min_time_till_end_sec
+                .as_secs() as u32,
         })
     }
 
@@ -820,10 +699,6 @@ impl OptionalENConfig {
 
     const fn default_max_response_body_size_mb() -> usize {
         10
-    }
-
-    fn default_max_response_body_size_overrides_mb() -> MaxResponseSizeOverrides {
-        MaxResponseSizeOverrides::empty()
     }
 
     const fn default_l2_block_seal_queue_capacity() -> usize {
@@ -993,9 +868,9 @@ pub(crate) struct RequiredENConfig {
     /// Main node URL - used by external node to proxy transactions to, query state from, etc.
     pub main_node_url: SensitiveUrl,
     /// Path to the database data directory that serves state cache.
-    pub state_cache_path: String,
+    pub state_cache_path: PathBuf,
     /// Fast SSD path. Used as a RocksDB dir for the Merkle tree (*new* implementation).
-    pub merkle_tree_path: String,
+    pub merkle_tree_path: PathBuf,
 }
 
 impl RequiredENConfig {
@@ -1018,10 +893,7 @@ impl RequiredENConfig {
             .api_config
             .as_ref()
             .context("Api config is required")?;
-        let db_config = general
-            .db_config
-            .as_ref()
-            .context("Database config is required")?;
+        let db_config = &general.db_config;
         Ok(RequiredENConfig {
             l1_chain_id: en_config.l1_chain_id,
             sl_chain_id: None,
@@ -1031,10 +903,9 @@ impl RequiredENConfig {
             healthcheck_port: api_config.healthcheck.port,
             eth_client_url: secrets
                 .l1
-                .as_ref()
-                .context("L1 secrets are required")?
                 .l1_rpc_url
-                .clone(),
+                .clone()
+                .context("L1 secrets are required")?,
             main_node_url: en_config.main_node_url.clone(),
             state_cache_path: db_config.state_keeper_db_path.clone(),
             merkle_tree_path: db_config.merkle_tree.path.clone(),
@@ -1053,13 +924,8 @@ impl RequiredENConfig {
             // L1 and L2 clients must be instantiated before accessing mocks, so these values don't matter
             eth_client_url: "http://localhost".parse().unwrap(),
             main_node_url: "http://localhost".parse().unwrap(),
-            state_cache_path: temp_dir
-                .path()
-                .join("state_keeper_cache")
-                .to_str()
-                .unwrap()
-                .to_owned(),
-            merkle_tree_path: temp_dir.path().join("tree").to_str().unwrap().to_owned(),
+            state_cache_path: temp_dir.path().join("state_keeper_cache"),
+            merkle_tree_path: temp_dir.path().join("tree"),
         }
     }
 }
@@ -1170,33 +1036,28 @@ impl ExperimentalENConfig {
 
     pub fn from_configs(general_config: &GeneralConfig) -> anyhow::Result<Self> {
         Ok(Self {
-            state_keeper_db_block_cache_capacity_mb: load_config_or_default!(
-                general_config.db_config,
-                experimental.state_keeper_db_block_cache_capacity_mb,
-                default_state_keeper_db_block_cache_capacity_mb
-            ),
-            state_keeper_db_max_open_files: load_config!(
-                general_config.db_config,
-                experimental.state_keeper_db_max_open_files
-            ),
-            snapshots_recovery_l1_batch: load_config!(general_config.snapshot_recovery, l1_batch),
-            snapshots_recovery_tree_chunk_size: load_optional_config_or_default!(
-                general_config.snapshot_recovery,
-                tree.chunk_size,
-                default_snapshots_recovery_tree_chunk_size
-            ),
-            snapshots_recovery_tree_parallel_persistence_buffer: load_config!(
-                general_config.snapshot_recovery,
-                tree.parallel_persistence_buffer
-            ),
+            state_keeper_db_block_cache_capacity_mb: general_config
+                .db_config
+                .experimental
+                .state_keeper_db_block_cache_capacity_mb
+                .0 as usize
+                / BYTES_IN_MEGABYTE,
+            state_keeper_db_max_open_files: general_config
+                .db_config
+                .experimental
+                .state_keeper_db_max_open_files,
+            snapshots_recovery_l1_batch: general_config.snapshot_recovery.l1_batch,
+            snapshots_recovery_tree_chunk_size: general_config.snapshot_recovery.tree.chunk_size,
+            snapshots_recovery_tree_parallel_persistence_buffer: general_config
+                .snapshot_recovery
+                .tree
+                .parallel_persistence_buffer,
             snapshots_recovery_drop_storage_key_preimages: general_config
                 .snapshot_recovery
-                .as_ref()
-                .map_or(false, |config| config.drop_storage_key_preimages),
+                .drop_storage_key_preimages,
             commitment_generator_max_parallelism: general_config
                 .commitment_generator
-                .as_ref()
-                .map(|a| a.max_parallelism),
+                .max_parallelism,
         })
     }
 }
@@ -1216,30 +1077,12 @@ pub fn generate_consensus_secrets() {
     println!("node_key: {}", node_key.encode());
 }
 
-pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets>> {
-    let Ok(path) = env::var("EN_CONSENSUS_SECRETS_PATH") else {
-        return Ok(None);
-    };
-    Ok(Some(
-        read_yaml_repr::<proto::secrets::ConsensusSecrets>(&path.into())
-            .context("failed decoding YAML")?,
-    ))
-}
-
-pub(crate) fn read_consensus_config() -> anyhow::Result<Option<ConsensusConfig>> {
-    let Ok(path) = env::var("EN_CONSENSUS_CONFIG_PATH") else {
-        return Ok(None);
-    };
-    Ok(Some(
-        read_yaml_repr::<proto::consensus::Config>(&path.into()).context("failed decoding YAML")?,
-    ))
-}
-
 /// Configuration for snapshot recovery. Should be loaded optionally, only if snapshot recovery is enabled.
 pub(crate) fn snapshot_recovery_object_store_config() -> anyhow::Result<ObjectStoreConfig> {
-    envy::prefixed("EN_SNAPSHOTS_OBJECT_STORE_")
-        .from_env::<ObjectStoreConfig>()
-        .context("failed loading snapshot object store config from env variables")
+    todo!()
+    /*envy::prefixed("EN_SNAPSHOTS_OBJECT_STORE_")
+    .from_env::<ObjectStoreConfig>()
+    .context("failed loading snapshot object store config from env variables")*/
 }
 
 #[derive(Debug, Deserialize)]
@@ -1286,7 +1129,7 @@ pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub observability: ObservabilityENConfig,
     pub experimental: ExperimentalENConfig,
     pub consensus: Option<ConsensusConfig>,
-    pub consensus_secrets: Option<ConsensusSecrets>,
+    pub consensus_secrets: ConsensusSecrets,
     pub api_component: ApiComponentConfig,
     pub tree_component: TreeComponentConfig,
     pub remote: R,
@@ -1294,7 +1137,28 @@ pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
 
 impl ExternalNodeConfig<()> {
     /// Parses the local part of node configuration from the environment.
+    ///
+    /// **Important.** This method is blocking.
     pub fn new() -> anyhow::Result<Self> {
+        // Consensus and secrets are read from files even with the env-based config.
+        let mut config_sources = ConfigSources::default();
+        if let Ok(path) = env::var("EN_CONSENSUS_CONFIG_PATH") {
+            let yaml = ConfigFilePaths::read_yaml(path.as_ref())?;
+            config_sources.push(Prefixed::new(yaml, "consensus"));
+        }
+        if let Ok(path) = env::var("EN_CONSENSUS_SECRETS_PATH") {
+            let yaml = ConfigFilePaths::read_yaml(path.as_ref())?;
+            config_sources.push(Prefixed::new(yaml, "secrets.consensus"));
+        }
+
+        let mut consensus_schema = ConfigSchema::new(&ConsensusConfig::DESCRIPTION, "consensus");
+        consensus_schema
+            .insert(&ConsensusSecrets::DESCRIPTION, "secrets.consensus")
+            .context("cannot create config schema")?;
+        let repo = ConfigRepository::new(&consensus_schema).with_all(config_sources);
+        let consensus = repo.single()?.parse_opt().log_all_errors()?;
+        let consensus_secrets = repo.single()?.parse().log_all_errors()?;
+
         Ok(Self {
             required: RequiredENConfig::from_env()?,
             postgres: PostgresConfig::from_env()?,
@@ -1303,15 +1167,14 @@ impl ExternalNodeConfig<()> {
             experimental: envy::prefixed("EN_EXPERIMENTAL_")
                 .from_env::<ExperimentalENConfig>()
                 .context("could not load external node config (experimental params)")?,
-            consensus: read_consensus_config().context("read_consensus_config()")?,
+            consensus,
             api_component: envy::prefixed("EN_API_")
                 .from_env::<ApiComponentConfig>()
                 .context("could not load external node config (API component params)")?,
             tree_component: envy::prefixed("EN_TREE_")
                 .from_env::<TreeComponentConfig>()
                 .context("could not load external node config (tree component params)")?,
-            consensus_secrets: read_consensus_secrets()
-                .context("config::read_consensus_secrets()")?,
+            consensus_secrets,
             remote: (),
         })
     }
@@ -1322,18 +1185,29 @@ impl ExternalNodeConfig<()> {
         secrets_configs_path: PathBuf,
         consensus_config_path: Option<PathBuf>,
     ) -> anyhow::Result<Self> {
-        let general_config = read_yaml_repr::<proto::general::GeneralConfig>(&general_config_path)
-            .context("failed decoding general YAML config")?;
-        let external_node_config =
-            read_yaml_repr::<proto::en::ExternalNode>(&external_node_config_path)
-                .context("failed decoding external node YAML config")?;
-        let secrets_config = read_yaml_repr::<proto::secrets::Secrets>(&secrets_configs_path)
-            .context("failed decoding secrets YAML config")?;
+        let has_consensus = consensus_config_path.is_some();
+        let config_file_paths = ConfigFilePaths {
+            general: Some(general_config_path),
+            secrets: Some(secrets_configs_path),
+            external_node: Some(external_node_config_path),
+            consensus: consensus_config_path,
+            ..ConfigFilePaths::default()
+        };
+        let config_sources = config_file_paths.into_config_sources("EN_")?;
 
-        let consensus = consensus_config_path
-            .map(|path| read_yaml_repr::<proto::consensus::Config>(&path))
-            .transpose()
-            .context("failed decoding consensus YAML config")?;
+        // FIXME: observability must be initialized here
+
+        let schema = full_config_schema(true);
+        let repo = ConfigRepository::new(&schema).with_all(config_sources);
+        let general_config: GeneralConfig = repo.single()?.parse().log_all_errors()?;
+        let external_node_config: ENConfig = repo.single()?.parse().log_all_errors()?;
+        let secrets_config: Secrets = repo.single()?.parse().log_all_errors()?;
+        let consensus = if has_consensus {
+            Some(repo.single::<ConsensusConfig>()?.parse().log_all_errors()?)
+        } else {
+            None
+        };
+
         let consensus_secrets = secrets_config.consensus.clone();
         let required = RequiredENConfig::from_configs(
             &general_config,
@@ -1344,16 +1218,10 @@ impl ExternalNodeConfig<()> {
         let postgres = PostgresConfig {
             database_url: secrets_config
                 .database
-                .as_ref()
-                .context("DB secrets is required")?
                 .server_url
                 .clone()
                 .context("Server url is required")?,
-            max_connections: general_config
-                .postgres_config
-                .as_ref()
-                .context("Postgres config is required")?
-                .max_connections()?,
+            max_connections: general_config.postgres_config.max_connections()?,
         };
         let observability = ObservabilityENConfig::from_configs(&general_config)?;
         let experimental = ExperimentalENConfig::from_configs(&general_config)?;
@@ -1422,7 +1290,7 @@ impl ExternalNodeConfig {
             observability: ObservabilityENConfig::default(),
             experimental: ExperimentalENConfig::mock(),
             consensus: None,
-            consensus_secrets: None,
+            consensus_secrets: ConsensusSecrets::default(),
             api_component: ApiComponentConfig {
                 tree_api_remote_url: None,
             },

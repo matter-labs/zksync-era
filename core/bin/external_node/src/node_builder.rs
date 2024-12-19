@@ -94,23 +94,21 @@ impl ExternalNodeBuilder {
         // so we reuse the master configuration for that purpose.
         // Settings unconditionally set to `None` are either not supported by the EN configuration layer
         // or are not used in the context of the external node.
+        let default_config = PostgresConfig::default();
         let config = PostgresConfig {
             max_connections: Some(self.config.postgres.max_connections),
             max_connections_master: Some(self.config.postgres.max_connections),
-            acquire_timeout_sec: None,
-            statement_timeout_sec: None,
             long_connection_threshold_ms: self
                 .config
                 .optional
                 .long_connection_threshold()
-                .map(|d| d.as_millis() as u64),
+                .unwrap_or(default_config.long_connection_threshold_ms),
             slow_query_threshold_ms: self
                 .config
                 .optional
                 .slow_query_threshold()
-                .map(|d| d.as_millis() as u64),
-            test_server_url: None,
-            test_prover_url: None,
+                .unwrap_or(default_config.slow_query_threshold_ms),
+            ..default_config
         };
         let secrets = DatabaseSecrets {
             server_url: Some(self.config.postgres.database_url()),
@@ -153,16 +151,8 @@ impl ExternalNodeBuilder {
     fn add_healthcheck_layer(mut self) -> anyhow::Result<Self> {
         let healthcheck_config = HealthCheckConfig {
             port: self.config.required.healthcheck_port,
-            slow_time_limit_ms: self
-                .config
-                .optional
-                .healthcheck_slow_time_limit()
-                .map(|d| d.as_millis() as u64),
-            hard_time_limit_ms: self
-                .config
-                .optional
-                .healthcheck_hard_time_limit()
-                .map(|d| d.as_millis() as u64),
+            slow_time_limit_ms: self.config.optional.healthcheck_slow_time_limit(),
+            hard_time_limit_ms: self.config.optional.healthcheck_hard_time_limit(),
         };
         self.node.add_layer(HealthCheckLayer(healthcheck_config));
         Ok(self)
@@ -256,7 +246,7 @@ impl ExternalNodeBuilder {
                 .parse()
                 .context("CRATE_VERSION.parse()")?,
             config,
-            secrets,
+            secrets: Some(secrets),
         };
         self.node.add_layer(layer);
         Ok(self)

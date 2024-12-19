@@ -102,20 +102,16 @@ impl ObservabilityENConfig {
     }
 
     pub(crate) fn from_configs(general_config: &GeneralConfig) -> anyhow::Result<Self> {
-        let (sentry_url, sentry_environment, log_format, log_directives) =
-            if let Some(observability) = general_config.observability.as_ref() {
-                (
-                    observability.sentry.url.clone(),
-                    observability.sentry_environment.clone(),
-                    observability
-                        .log_format
-                        .parse()
-                        .context("Invalid log format")?,
-                    observability.log_directives.clone(),
-                )
-            } else {
-                (None, None, LogFormat::default(), None)
-            };
+        let observability = &general_config.observability;
+        let sentry = observability.sentry.as_ref();
+        let sentry_url = sentry.map(|sentry| sentry.url.clone());
+        let sentry_environment = sentry.and_then(|sentry| sentry.environment.clone());
+        let log_format = observability
+            .log_format
+            .parse()
+            .context("Invalid log format")?;
+        let log_directives = observability.log_directives.clone();
+
         let (prometheus_port, prometheus_pushgateway_url, prometheus_push_interval_ms) =
             if let Some(prometheus) = general_config.prometheus_config.as_ref() {
                 (
@@ -133,7 +129,7 @@ impl ObservabilityENConfig {
             sentry_url,
             sentry_environment,
             log_format,
-            log_directives,
+            log_directives: Some(log_directives),
         })
     }
 }
