@@ -60,11 +60,11 @@ impl Server {
             cmd!(
                 shell,
                 "cargo run --release --bin zksync_server {uring...} --
-                --genesis-path {genesis_path}
-                --wallets-path {wallets_path}
-                --config-path {general_path}
-                --secrets-path {secrets_path}
-                --contracts-config-path {contracts_path}
+                --genesis-path ../{genesis_path}
+                --wallets-path ../{wallets_path}
+                --config-path ../{general_path}
+                --secrets-path ../{secrets_path}
+                --contracts-config-path ../{contracts_path}
                 "
             )
             .args(additional_args)
