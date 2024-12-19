@@ -26,8 +26,8 @@ zksync_pk.key
 dist
 todo
 
-Cargo.lock
-!/Cargo.lock
+core/Cargo.lock
+!/core/Cargo.lock
 !/infrastructure/zksync-crypto/Cargo.lock
 !/prover/Cargo.lock
 !/zkstack_cli/Cargo.lock

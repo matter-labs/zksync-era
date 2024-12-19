@@ -1,15 +1,15 @@
 use anyhow::Context;
-use common::{
+use xshell::{cmd, Shell};
+use zkstack_common::{
     cmd::Cmd,
     config::global_config,
     logger,
     server::{Server, ServerMode},
 };
-use config::{
+use zkstack_config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
     GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
-use xshell::{cmd, Shell};
 
 use crate::{
     commands::args::{RunServerArgs, ServerArgs, ServerCommand, WaitArgs},
@@ -34,7 +34,7 @@ pub async fn run(shell: &Shell, args: ServerArgs) -> anyhow::Result<()> {
 }
 
 fn build_server(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(&chain_config.link_to_code);
+    let _dir_guard = shell.push_dir(chain_config.link_to_code.join("core"));
 
     logger::info(MSG_BUILDING_SERVER);
 

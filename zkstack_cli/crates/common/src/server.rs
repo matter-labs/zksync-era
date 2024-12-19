@@ -45,7 +45,7 @@ impl Server {
     where
         P: AsRef<OsStr>,
     {
-        let _dir_guard = shell.push_dir(&self.code_path);
+        let _dir_guard = shell.push_dir(self.code_path.join("core"));
 
         if let Some(components) = self.components() {
             additional_args.push(format!("--components={}", components))
@@ -60,11 +60,11 @@ impl Server {
             cmd!(
                 shell,
                 "cargo run --release --bin zksync_server {uring...} --
-                --genesis-path {genesis_path}
-                --wallets-path {wallets_path}
-                --config-path {general_path}
-                --secrets-path {secrets_path}
-                --contracts-config-path {contracts_path}
+                --genesis-path ../{genesis_path}
+                --wallets-path ../{wallets_path}
+                --config-path ../{general_path}
+                --secrets-path ../{secrets_path}
+                --contracts-config-path ../{contracts_path}
                 "
             )
             .args(additional_args)
@@ -84,7 +84,7 @@ impl Server {
 
     /// Builds the server.
     pub fn build(&self, shell: &Shell) -> anyhow::Result<()> {
-        let _dir_guard = shell.push_dir(&self.code_path);
+        let _dir_guard = shell.push_dir(self.code_path.join("core"));
         Cmd::new(cmd!(shell, "cargo build --release --bin zksync_server")).run()?;
         Ok(())
     }
