@@ -10,27 +10,33 @@ use zksync_da_client::{
 };
 
 use super::sdk::RawEigenClient;
-use crate::utils::to_non_retriable_da_error;
+use crate::utils::to_retriable_da_error;
 
+#[async_trait]
+pub trait GetBlobData: std::fmt::Debug + Send + Sync {
+    async fn get_blob_data(&self, input: &str) -> anyhow::Result<Option<Vec<u8>>>;
+
+    fn clone_boxed(&self) -> Box<dyn GetBlobData>;
+}
+
+/// EigenClient is a client for the Eigen DA service.
 #[derive(Debug, Clone)]
 pub struct EigenClient {
-    client: Arc<RawEigenClient>,
+    pub(crate) client: Arc<RawEigenClient>,
 }
 
 impl EigenClient {
-    pub async fn new(config: EigenConfig, secrets: EigenSecrets) -> anyhow::Result<Self> {
+    pub async fn new(
+        config: EigenConfig,
+        secrets: EigenSecrets,
+        get_blob_data: Box<dyn GetBlobData>,
+    ) -> anyhow::Result<Self> {
         let private_key = SecretKey::from_str(secrets.private_key.0.expose_secret().as_str())
             .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;
 
-        Ok(EigenClient {
-            client: Arc::new(
-                RawEigenClient::new(
-                    config.rpc_node_url,
-                    config.inclusion_polling_interval_ms,
-                    private_key,
-                )
-                .await?,
-            ),
+        let client = RawEigenClient::new(private_key, config, get_blob_data).await?;
+        Ok(Self {
+            client: Arc::new(client),
         })
     }
 }
@@ -46,13 +52,24 @@ impl DataAvailabilityClient for EigenClient {
             .client
             .dispatch_blob(data)
             .await
-            .map_err(to_non_retriable_da_error)?;
+            .map_err(to_retriable_da_error)?;
 
         Ok(DispatchResponse::from(blob_id))
     }
 
-    async fn get_inclusion_data(&self, _: &str) -> Result<Option<InclusionData>, DAError> {
-        Ok(Some(InclusionData { data: vec![] }))
+    async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError> {
+        let inclusion_data = self
+            .client
+            .get_inclusion_data(blob_id)
+            .await
+            .map_err(to_retriable_da_error)?;
+        if let Some(inclusion_data) = inclusion_data {
+            Ok(Some(InclusionData {
+                data: inclusion_data,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
     fn clone_boxed(&self) -> Box<dyn DataAvailabilityClient> {
@@ -60,6 +77,6 @@ impl DataAvailabilityClient for EigenClient {
     }
 
     fn blob_size_limit(&self) -> Option<usize> {
-        Some(1920 * 1024) // 2mb - 128kb as a buffer
+        Some(RawEigenClient::blob_size_limit())
     }
 }
