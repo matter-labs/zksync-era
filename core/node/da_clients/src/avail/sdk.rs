@@ -291,7 +291,7 @@ impl RawAvailClient {
             let status = sub.next().await.transpose()?;
 
             if status.is_some() && status.as_ref().unwrap().is_object() {
-                if let Some(block_hash) = status.unwrap().get("finalized") {
+                if let Some(block_hash) = status.unwrap().get("inBlock") {
                     break block_hash
                         .as_str()
                         .ok_or_else(|| anyhow::anyhow!("Invalid block hash"))?

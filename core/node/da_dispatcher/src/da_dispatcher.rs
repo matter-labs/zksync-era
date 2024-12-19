@@ -54,7 +54,9 @@ impl DataAvailabilityDispatcher {
             );
 
             tokio::select! {
-                _ = subtasks => {},
+                _ = subtasks => {
+                    tracing::debug!("DA dispatcher subtasks completed");
+                },
                 _ = stop_receiver.changed() => {
                     break;
                 }
