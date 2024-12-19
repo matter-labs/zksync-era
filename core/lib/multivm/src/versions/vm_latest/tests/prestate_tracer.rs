@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
-use zksync_test_account::TxType;
+use zksync_test_contracts::{TestContract, TxType};
 use zksync_types::{utils::deployed_address_create, Execute, U256};
 
 use super::TestedLatestVm;
 use crate::{
     interface::{InspectExecutionMode, TxExecutionMode, VmInterface, VmInterfaceExt},
     tracers::PrestateTracer,
-    versions::testonly::{read_simple_transfer_contract, VmTesterBuilder},
+    versions::testonly::VmTesterBuilder,
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, ToTracerPointer},
 };
 
@@ -56,9 +56,9 @@ fn test_prestate_tracer_diff_mode() {
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build::<TestedLatestVm>();
-    let contract = read_simple_transfer_contract();
+    let contract = TestContract::simple_transfer().bytecode;
     let account = &mut vm.rich_accounts[0];
-    let tx = account.get_deploy_tx(&contract, None, TxType::L2).tx;
+    let tx = account.get_deploy_tx(contract, None, TxType::L2).tx;
     let nonce = tx.nonce().unwrap().0.into();
     vm.vm.push_transaction(tx);
     vm.vm.execute(InspectExecutionMode::OneTx);
@@ -66,7 +66,7 @@ fn test_prestate_tracer_diff_mode() {
     vm.test_contract = Some(deployed_address);
 
     // Deploy a second copy of the contract to see its appearance in the pre-state
-    let tx2 = account.get_deploy_tx(&contract, None, TxType::L2).tx;
+    let tx2 = account.get_deploy_tx(contract, None, TxType::L2).tx;
     let nonce2 = tx2.nonce().unwrap().0.into();
     vm.vm.push_transaction(tx2);
     vm.vm.execute(InspectExecutionMode::OneTx);

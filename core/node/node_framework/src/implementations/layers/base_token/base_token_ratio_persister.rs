@@ -3,7 +3,7 @@ use zksync_config::{
     configs::{base_token_adjuster::BaseTokenAdjusterConfig, wallets::Wallets},
     ContractsConfig,
 };
-use zksync_contracts::{chain_admin_contract, getters_facet_contract};
+use zksync_contracts::{admin_facet_contract, chain_admin_contract, getters_facet_contract};
 use zksync_eth_client::clients::PKSigningClient;
 use zksync_types::L1ChainId;
 
@@ -106,6 +106,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                         token_multiplier_setter_account_address: tms_address,
                         chain_admin_contract: chain_admin_contract(),
                         getters_facet_contract: getters_facet_contract(),
+                        admin_facet_contract: admin_facet_contract(),
                         diamond_proxy_contract_address: self.contracts_config.diamond_proxy_addr,
                         chain_admin_contract_address: self.contracts_config.chain_admin_addr,
                         config: self.config.clone(),

@@ -22,11 +22,11 @@ use zksync_types::{
     helpers::unix_timestamp_ms,
     l2_to_l1_log::UserL2ToL1Log,
     tx::IncludedTxLocation,
+    u256_to_h256,
     utils::display_timestamp,
     Address, BloomInput, ExecuteTransactionCommon, ProtocolVersionId, StorageKey, StorageLog,
     Transaction, H256,
 };
-use zksync_utils::u256_to_h256;
 
 use crate::{
     io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess,
@@ -145,7 +145,6 @@ impl UpdatesManager {
             .mark_l1_batch_as_sealed(
                 &l1_batch,
                 &final_bootloader_memory,
-                self.pending_l1_gas_count(),
                 &finished_batch.final_execution_state.storage_refunds,
                 &finished_batch.final_execution_state.pubdata_costs,
                 self.pending_execution_metrics().circuit_statistic,

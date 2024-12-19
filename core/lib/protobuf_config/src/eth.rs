@@ -87,13 +87,6 @@ impl ProtoRepr for proto::Sender {
     type Type = configs::eth_sender::SenderConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            aggregated_proof_sizes: self
-                .aggregated_proof_sizes
-                .iter()
-                .enumerate()
-                .map(|(i, x)| (*x).try_into().context(i))
-                .collect::<Result<_, _>>()
-                .context("aggregated_proof_sizes")?,
             wait_confirmations: self.wait_confirmations,
             tx_poll_period: *required(&self.tx_poll_period).context("tx_poll_period")?,
             aggregate_tx_poll_period: *required(&self.aggregate_tx_poll_period)
@@ -142,11 +135,6 @@ impl ProtoRepr for proto::Sender {
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            aggregated_proof_sizes: this
-                .aggregated_proof_sizes
-                .iter()
-                .map(|x| (*x).try_into().unwrap())
-                .collect(),
             wait_confirmations: this.wait_confirmations,
             tx_poll_period: Some(this.tx_poll_period),
             aggregate_tx_poll_period: Some(this.aggregate_tx_poll_period),
@@ -188,9 +176,9 @@ impl ProtoRepr for proto::GasAdjuster {
                 .unwrap_or(&Self::Type::default_pricing_formula_parameter_a()),
             pricing_formula_parameter_b: *required(&self.pricing_formula_parameter_b)
                 .unwrap_or(&Self::Type::default_pricing_formula_parameter_b()),
-            internal_l1_pricing_multiplier: *required(&self.internal_l1_pricing_multiplier)
-                .context("internal_l1_pricing_multiplier")?,
-            internal_enforced_l1_gas_price: self.internal_enforced_l1_gas_price,
+            internal_sl_pricing_multiplier: *required(&self.internal_sl_pricing_multiplier)
+                .context("internal_sl_pricing_multiplier")?,
+            internal_enforced_sl_gas_price: self.internal_enforced_sl_gas_price,
             internal_enforced_pubdata_price: self.internal_enforced_pubdata_price,
             poll_period: *required(&self.poll_period).context("poll_period")?,
             max_l1_gas_price: self.max_l1_gas_price,
@@ -219,8 +207,8 @@ impl ProtoRepr for proto::GasAdjuster {
             max_base_fee_samples: Some(this.max_base_fee_samples.try_into().unwrap()),
             pricing_formula_parameter_a: Some(this.pricing_formula_parameter_a),
             pricing_formula_parameter_b: Some(this.pricing_formula_parameter_b),
-            internal_l1_pricing_multiplier: Some(this.internal_l1_pricing_multiplier),
-            internal_enforced_l1_gas_price: this.internal_enforced_l1_gas_price,
+            internal_sl_pricing_multiplier: Some(this.internal_sl_pricing_multiplier),
+            internal_enforced_sl_gas_price: this.internal_enforced_sl_gas_price,
             internal_enforced_pubdata_price: this.internal_enforced_pubdata_price,
             poll_period: Some(this.poll_period),
             max_l1_gas_price: this.max_l1_gas_price,

@@ -5,10 +5,9 @@ use zksync_system_constants::{
     L2_MESSAGE_ROOT_ADDRESS,
 };
 use zksync_types::{
-    l2_to_l1_log::CHAIN_ID_LEAF_PADDING, web3::keccak256, AccountTreeId, L2BlockNumber, StorageKey,
-    H256,
+    h256_to_u256, l2_to_l1_log::CHAIN_ID_LEAF_PADDING, u256_to_h256, web3::keccak256,
+    AccountTreeId, L2BlockNumber, StorageKey, H256,
 };
-use zksync_utils::{h256_to_u256, u256_to_h256};
 use zksync_web3_decl::error::Web3Error;
 
 pub(super) async fn get_chain_count(

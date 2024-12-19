@@ -114,14 +114,12 @@ impl Store {
     }
 
     /// Number of the next block to queue.
-    pub(crate) async fn next_block(
-        &self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::OrCanceled<Option<validator::BlockNumber>> {
+    pub(crate) async fn next_block(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::BlockNumber> {
         Ok(sync::lock(ctx, &self.block_payloads)
             .await?
             .as_ref()
-            .map(|p| p.next()))
+            .context("payload_queue not set")?
+            .next())
     }
 
     /// Queues the next block.

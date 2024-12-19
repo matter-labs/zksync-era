@@ -3,48 +3,49 @@ use std::{
         atomic::{AtomicBool, AtomicU64, Ordering},
         Arc,
     },
-    time::Instant,
+    time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
 use tokio::sync::watch;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_multivm::{
     interface::{
-        ExecutionResult, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv, TxExecutionMode,
-        VmExecutionLogs, VmExecutionResultAndLogs, VmExecutionStatistics,
+        Halt, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionLogs,
+        VmExecutionResultAndLogs, VmExecutionStatistics,
     },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_node_test_utils::create_l2_transaction;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
-    block::{BlockGasCount, L2BlockExecutionData, L2BlockHasher},
+    block::{L2BlockExecutionData, L2BlockHasher},
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
-    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, StorageKey,
-    StorageLog, StorageLogKind, StorageLogWithPreviousValue, Transaction, H256, U256,
-    ZKPORTER_IS_AVAILABLE,
+    u256_to_h256, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
+    ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
+    Transaction, H256, U256, ZKPORTER_IS_AVAILABLE,
 };
-use zksync_utils::u256_to_h256;
 
 use crate::{
     io::PendingBatchData,
     keeper::POLL_WAIT_DURATION,
-    seal_criteria::{
-        criteria::{GasCriterion, SlotsCriterion},
-        SequencerSealer, UnexecutableReason,
-    },
+    seal_criteria::{criteria::SlotsCriterion, SequencerSealer, UnexecutableReason},
     testonly::{
         successful_exec,
         test_batch_executor::{
-            random_tx, random_upgrade_tx, rejected_exec, successful_exec_with_log,
-            MockReadStorageFactory, TestBatchExecutorBuilder, TestIO, TestScenario, FEE_ACCOUNT,
+            random_tx, random_upgrade_tx, rejected_exec, MockReadStorageFactory,
+            TestBatchExecutorBuilder, TestIO, TestScenario, FEE_ACCOUNT,
         },
         BASE_SYSTEM_CONTRACTS,
     },
     updates::UpdatesManager,
-    utils::{gas_count_from_tx_and_metrics, l1_batch_base_cost},
     ZkSyncStateKeeper,
 };
+
+pub(crate) fn seconds_since_epoch() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Incorrect system time")
+        .as_secs()
+}
 
 /// Creates a mock `PendingBatchData` object containing the provided sequence of L2 blocks.
 pub(crate) fn pending_batch_data(pending_l2_blocks: Vec<L2BlockExecutionData>) -> PendingBatchData {
@@ -120,26 +121,16 @@ pub(super) fn create_execution_result(
 
     let total_log_queries = storage_logs.len() + 2;
     VmExecutionResultAndLogs {
-        result: ExecutionResult::Success { output: vec![] },
         logs: VmExecutionLogs {
-            events: vec![],
-            system_l2_to_l1_logs: vec![],
-            user_l2_to_l1_logs: vec![],
             storage_logs,
             total_log_queries_count: total_log_queries,
+            ..VmExecutionLogs::default()
         },
         statistics: VmExecutionStatistics {
-            contracts_used: 0,
-            cycles_used: 0,
-            gas_used: 0,
-            gas_remaining: 0,
-            computational_gas_used: 0,
             total_log_queries,
-            pubdata_published: 0,
-            circuit_statistic: Default::default(),
+            ..VmExecutionStatistics::default()
         },
-        refunds: Refunds::default(),
-        new_known_factory_deps: None,
+        ..VmExecutionResultAndLogs::mock_success()
     }
 }
 
@@ -188,86 +179,6 @@ async fn sealed_by_number_of_txs() {
         .next_tx("Second tx", random_tx(2), successful_exec())
         .l2_block_sealed("L2 block 2")
         .batch_sealed("Batch 1")
-        .run(sealer)
-        .await;
-}
-
-#[tokio::test]
-async fn sealed_by_gas() {
-    let first_tx = random_tx(1);
-    let execution_result = successful_exec_with_log();
-    let exec_metrics = execution_result
-        .tx_result
-        .get_execution_metrics(Some(&first_tx));
-    assert!(exec_metrics.size() > 0);
-    let l1_gas_per_tx = gas_count_from_tx_and_metrics(&first_tx, &exec_metrics);
-    assert!(l1_gas_per_tx.commit > 0);
-
-    let config = StateKeeperConfig {
-        max_single_tx_gas: 62_000 + l1_gas_per_tx.commit * 2,
-        reject_tx_at_gas_percentage: 1.0,
-        close_block_at_gas_percentage: 0.5,
-        ..StateKeeperConfig::default()
-    };
-    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(GasCriterion)]);
-
-    TestScenario::new()
-        .seal_l2_block_when(|updates| {
-            updates.l2_block.executed_transactions.len() == 1
-        })
-        .next_tx("First tx", first_tx, execution_result.clone())
-        .l2_block_sealed_with("L2 block with a single tx", move |updates| {
-            assert_eq!(
-                updates.l2_block.l1_gas_count,
-                l1_gas_per_tx,
-                "L1 gas used by a L2 block should consist of the gas used by its txs"
-            );
-        })
-        .next_tx("Second tx", random_tx(1), execution_result)
-        .l2_block_sealed("L2 block 2")
-        .batch_sealed_with("Batch sealed with both txs", move |updates| {
-            assert_eq!(
-                updates.l1_batch.l1_gas_count,
-                BlockGasCount {
-                    commit: l1_batch_base_cost(AggregatedActionType::Commit) + l1_gas_per_tx.commit * 2,
-                    prove: l1_batch_base_cost(AggregatedActionType::PublishProofOnchain),
-                    execute: l1_batch_base_cost(AggregatedActionType::Execute),
-                },
-                "L1 gas used by a batch should consist of gas used by its txs + basic block gas cost"
-            );
-        })
-        .run(sealer).await;
-}
-
-#[tokio::test]
-async fn sealed_by_gas_then_by_num_tx() {
-    let config = StateKeeperConfig {
-        max_single_tx_gas: 62_000,
-        reject_tx_at_gas_percentage: 1.0,
-        close_block_at_gas_percentage: 0.5,
-        transaction_slots: 3,
-        ..StateKeeperConfig::default()
-    };
-    let sealer = SequencerSealer::with_sealers(
-        config,
-        vec![Box::new(GasCriterion), Box::new(SlotsCriterion)],
-    );
-
-    let execution_result = successful_exec_with_log();
-
-    // 1st tx is sealed by gas sealer; 2nd, 3rd, & 4th are sealed by slots sealer.
-    TestScenario::new()
-        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
-        .next_tx("First tx", random_tx(1), execution_result)
-        .l2_block_sealed("L2 block 1")
-        .batch_sealed("Batch 1")
-        .next_tx("Second tx", random_tx(2), successful_exec())
-        .l2_block_sealed("L2 block 2")
-        .next_tx("Third tx", random_tx(3), successful_exec())
-        .l2_block_sealed("L2 block 3")
-        .next_tx("Fourth tx", random_tx(4), successful_exec())
-        .l2_block_sealed("L2 block 4")
-        .batch_sealed("Batch 2")
         .run(sealer)
         .await;
 }
@@ -421,14 +332,13 @@ async fn load_upgrade_tx() {
     let sealer = SequencerSealer::default();
     let scenario = TestScenario::new();
     let batch_executor = TestBatchExecutorBuilder::new(&scenario);
-    let (stop_sender, stop_receiver) = watch::channel(false);
+    let (stop_sender, _stop_receiver) = watch::channel(false);
 
     let (mut io, output_handler) = TestIO::new(stop_sender, scenario);
     io.add_upgrade_tx(ProtocolVersionId::latest(), random_upgrade_tx(1));
     io.add_upgrade_tx(ProtocolVersionId::next(), random_upgrade_tx(2));
 
     let mut sk = ZkSyncStateKeeper::new(
-        stop_receiver,
         Box::new(io),
         Box::new(batch_executor),
         output_handler,

@@ -410,6 +410,11 @@ impl ZkSyncTreeReader {
         &self.0.db
     }
 
+    /// Converts this reader to the underlying DB.
+    pub fn into_db(self) -> RocksDBWrapper {
+        self.0.db
+    }
+
     /// Returns the root hash and leaf count at the specified L1 batch.
     pub fn root_info(&self, l1_batch_number: L1BatchNumber) -> Option<(ValueHash, u64)> {
         let root = self.0.root(l1_batch_number.0.into())?;

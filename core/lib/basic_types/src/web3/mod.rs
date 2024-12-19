@@ -73,6 +73,14 @@ pub fn keccak256(bytes: &[u8]) -> [u8; 32] {
     output
 }
 
+/// Hashes concatenation of the two provided hashes using `keccak256`.
+pub fn keccak256_concat(hash1: H256, hash2: H256) -> H256 {
+    let mut bytes = [0_u8; 64];
+    bytes[..32].copy_from_slice(hash1.as_bytes());
+    bytes[32..].copy_from_slice(hash2.as_bytes());
+    H256(keccak256(&bytes))
+}
+
 // `Bytes`: from `web3::types::bytes`
 
 /// Raw bytes wrapper

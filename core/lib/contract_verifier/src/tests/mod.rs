@@ -1,12 +1,17 @@
 //! Tests for the contract verifier.
 
-use std::{collections::HashMap, iter};
+use std::{
+    collections::{HashMap, HashSet},
+    iter,
+};
 
 use test_casing::{test_casing, Product};
 use tokio::sync::watch;
 use zksync_dal::Connection;
 use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_types::{
+    address_to_h256,
+    bytecode::BytecodeHash,
     contract_verification_api::{CompilerVersions, SourceCodeData, VerificationIncomingRequest},
     get_code_key, get_known_code_key,
     l2::L2Tx,
@@ -14,15 +19,11 @@ use zksync_types::{
     Execute, L1BatchNumber, L2BlockNumber, ProtocolVersion, StorageLog, CONTRACT_DEPLOYER_ADDRESS,
     H256, U256,
 };
-use zksync_utils::{
-    address_to_h256,
-    bytecode::{hash_bytecode, hash_evm_bytecode},
-};
 use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics, VmEvent};
 
 use super::*;
 use crate::{
-    compilers::{SolcInput, ZkSolcInput, ZkVyperInput},
+    compilers::{SolcInput, VyperInput, ZkSolcInput},
     resolver::{Compiler, SupportedCompilerVersions},
 };
 
@@ -54,6 +55,39 @@ const COUNTER_CONTRACT_WITH_CONSTRUCTOR: &str = r#"
             value += x;
         }
     }
+"#;
+const COUNTER_CONTRACT_WITH_INTERFACE: &str = r#"
+    interface ICounter {
+        function increment(uint256 x) external;
+    }
+
+    contract Counter is ICounter {
+        uint256 value;
+
+        function increment(uint256 x) external override {
+            value += x;
+        }
+    }
+"#;
+const COUNTER_VYPER_CONTRACT: &str = r#"
+#pragma version ^0.3.10
+
+value: uint256
+
+@external
+def increment(x: uint256):
+    self.value += x
+"#;
+const EMPTY_YUL_CONTRACT: &str = r#"
+object "Empty" {
+    code {
+        mstore(0, 0)
+        return(0, 32)
+    }
+    object "Empty_deployed" {
+        code { }
+    }
+}
 "#;
 
 #[derive(Debug, Clone, Copy)]
@@ -108,7 +142,7 @@ async fn mock_deployment(
     bytecode: Vec<u8>,
     constructor_args: &[Token],
 ) {
-    let bytecode_hash = hash_bytecode(&bytecode);
+    let bytecode_hash = BytecodeHash::for_bytecode(&bytecode).value();
     let deployment = Execute::for_deploy(H256::zero(), bytecode.clone(), constructor_args);
     mock_deployment_inner(storage, address, bytecode_hash, bytecode, deployment).await;
 }
@@ -124,12 +158,12 @@ async fn mock_evm_deployment(
     calldata.extend_from_slice(&ethabi::encode(constructor_args));
     let deployment = Execute {
         contract_address: None,
-        calldata, // FIXME: check
+        calldata,
         value: 0.into(),
         factory_deps: vec![],
     };
     let bytecode = pad_evm_bytecode(deployed_bytecode);
-    let bytecode_hash = hash_evm_bytecode(&bytecode);
+    let bytecode_hash = BytecodeHash::for_evm_bytecode(&bytecode).value();
     mock_deployment_inner(storage, address, bytecode_hash, bytecode, deployment).await;
 }
 
@@ -258,10 +292,10 @@ impl Compiler<SolcInput> for MockCompilerResolver {
 impl CompilerResolver for MockCompilerResolver {
     async fn supported_versions(&self) -> anyhow::Result<SupportedCompilerVersions> {
         Ok(SupportedCompilerVersions {
-            solc: vec![SOLC_VERSION.to_owned()],
-            zksolc: vec![ZKSOLC_VERSION.to_owned()],
-            vyper: vec![],
-            zkvyper: vec![],
+            solc: [SOLC_VERSION.to_owned()].into_iter().collect(),
+            zksolc: [ZKSOLC_VERSION.to_owned()].into_iter().collect(),
+            vyper: HashSet::default(),
+            zkvyper: HashSet::default(),
         })
     }
 
@@ -280,27 +314,34 @@ impl CompilerResolver for MockCompilerResolver {
 
     async fn resolve_zksolc(
         &self,
-        versions: &CompilerVersions,
+        version: &ZkCompilerVersions,
     ) -> Result<Box<dyn Compiler<ZkSolcInput>>, ContractVerifierError> {
-        if versions.compiler_version() != SOLC_VERSION {
+        if version.base != SOLC_VERSION {
             return Err(ContractVerifierError::UnknownCompilerVersion(
                 "solc",
-                versions.compiler_version().to_owned(),
+                version.base.clone(),
             ));
         }
-        if versions.zk_compiler_version() != ZKSOLC_VERSION {
+        if version.zk != ZKSOLC_VERSION {
             return Err(ContractVerifierError::UnknownCompilerVersion(
                 "zksolc",
-                versions.zk_compiler_version().to_owned(),
+                version.zk.clone(),
             ));
         }
         Ok(Box::new(self.clone()))
     }
 
+    async fn resolve_vyper(
+        &self,
+        _version: &str,
+    ) -> Result<Box<dyn Compiler<VyperInput>>, ContractVerifierError> {
+        unreachable!("not tested")
+    }
+
     async fn resolve_zkvyper(
         &self,
-        _versions: &CompilerVersions,
-    ) -> Result<Box<dyn Compiler<ZkVyperInput>>, ContractVerifierError> {
+        _version: &ZkCompilerVersions,
+    ) -> Result<Box<dyn Compiler<VyperInput>>, ContractVerifierError> {
         unreachable!("not tested")
     }
 }
@@ -311,7 +352,7 @@ fn test_request(address: Address, source: &str) -> VerificationIncomingRequest {
         source_code_data: SourceCodeData::SolSingleFile(source.into()),
         contract_name: "Counter".to_owned(),
         compiler_versions: CompilerVersions::Solc {
-            compiler_zksolc_version: ZKSOLC_VERSION.to_owned(),
+            compiler_zksolc_version: Some(ZKSOLC_VERSION.to_owned()),
             compiler_solc_version: SOLC_VERSION.to_owned(),
         },
         optimization_used: true,
@@ -375,7 +416,7 @@ async fn contract_verifier_basics(contract: TestContract) {
     req.constructor_arguments = ethabi::encode(contract.constructor_args()).into();
     let request_id = storage
         .contract_verification_dal()
-        .add_contract_verification_request(req)
+        .add_contract_verification_request(&req)
         .await
         .unwrap();
 
@@ -445,8 +486,30 @@ async fn assert_request_success(
         .unwrap()
         .expect("no verification info");
     assert_eq!(verification_info.artifacts.bytecode, *expected_bytecode);
-    assert_eq!(verification_info.artifacts.abi, counter_contract_abi());
+    assert_eq!(
+        without_internal_types(verification_info.artifacts.abi.clone()),
+        without_internal_types(counter_contract_abi())
+    );
     verification_info
+}
+
+fn without_internal_types(mut abi: serde_json::Value) -> serde_json::Value {
+    let items = abi.as_array_mut().unwrap();
+    for item in items {
+        if let Some(inputs) = item.get_mut("inputs") {
+            let inputs = inputs.as_array_mut().unwrap();
+            for input in inputs {
+                input.as_object_mut().unwrap().remove("internalType");
+            }
+        }
+        if let Some(outputs) = item.get_mut("outputs") {
+            let outputs = outputs.as_array_mut().unwrap();
+            for output in outputs {
+                output.as_object_mut().unwrap().remove("internalType");
+            }
+        }
+    }
+    abi
 }
 
 #[test_casing(2, TestContract::ALL)]
@@ -468,10 +531,14 @@ async fn verifying_evm_bytecode(contract: TestContract) {
     )
     .await;
     let mut req = test_request(address, contract.source());
+    req.compiler_versions = CompilerVersions::Solc {
+        compiler_solc_version: SOLC_VERSION.to_owned(),
+        compiler_zksolc_version: None,
+    };
     req.constructor_arguments = ethabi::encode(contract.constructor_args()).into();
     let request_id = storage
         .contract_verification_dal()
-        .add_contract_verification_request(req)
+        .add_contract_verification_request(&req)
         .await
         .unwrap();
 
@@ -513,7 +580,7 @@ async fn bytecode_mismatch_error() {
     let req = test_request(address, COUNTER_CONTRACT);
     let request_id = storage
         .contract_verification_dal()
-        .add_contract_verification_request(req)
+        .add_contract_verification_request(&req)
         .await
         .unwrap();
 
@@ -578,6 +645,13 @@ async fn args_mismatch_error(contract: TestContract, bytecode_kind: BytecodeMark
     }
 
     let mut req = test_request(address, contract.source());
+    if matches!(bytecode_kind, BytecodeMarker::Evm) {
+        req.compiler_versions = CompilerVersions::Solc {
+            compiler_zksolc_version: None,
+            compiler_solc_version: SOLC_VERSION.to_owned(),
+        };
+    }
+
     // Intentionally encode incorrect constructor args
     req.constructor_arguments = match contract {
         TestContract::Counter => ethabi::encode(&[Token::Bool(true)]).into(),
@@ -585,7 +659,7 @@ async fn args_mismatch_error(contract: TestContract, bytecode_kind: BytecodeMark
     };
     let request_id = storage
         .contract_verification_dal()
-        .add_contract_verification_request(req)
+        .add_contract_verification_request(&req)
         .await
         .unwrap();
 
@@ -648,10 +722,14 @@ async fn creation_bytecode_mismatch() {
         &[],
     )
     .await;
-    let req = test_request(address, COUNTER_CONTRACT);
+    let mut req = test_request(address, COUNTER_CONTRACT);
+    req.compiler_versions = CompilerVersions::Solc {
+        compiler_zksolc_version: None,
+        compiler_solc_version: SOLC_VERSION.to_owned(),
+    };
     let request_id = storage
         .contract_verification_dal()
-        .add_contract_verification_request(req)
+        .add_contract_verification_request(&req)
         .await
         .unwrap();
 
@@ -696,14 +774,14 @@ async fn no_compiler_version() {
     mock_deployment(&mut storage, address, vec![0xff; 32], &[]).await;
     let req = VerificationIncomingRequest {
         compiler_versions: CompilerVersions::Solc {
-            compiler_zksolc_version: ZKSOLC_VERSION.to_owned(),
+            compiler_zksolc_version: Some(ZKSOLC_VERSION.to_owned()),
             compiler_solc_version: "1.0.0".to_owned(), // a man can dream
         },
         ..test_request(address, COUNTER_CONTRACT)
     };
     let request_id = storage
         .contract_verification_dal()
-        .add_contract_verification_request(req)
+        .add_contract_verification_request(&req)
         .await
         .unwrap();
 

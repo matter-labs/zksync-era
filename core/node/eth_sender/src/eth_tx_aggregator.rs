@@ -3,6 +3,7 @@ use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
+use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::{
         commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
@@ -14,7 +15,7 @@ use zksync_l1_contract_interface::{
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    commitment::{L1BatchWithMetadata, SerializeCommitment},
+    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, SerializeCommitment},
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
     ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
@@ -27,8 +28,9 @@ use zksync_types::{
 
 use super::aggregated_operations::AggregatedOperation;
 use crate::{
+    health::{EthTxAggregatorHealthDetails, EthTxDetails},
     metrics::{PubdataKind, METRICS},
-    utils::agg_l1_batch_base_cost,
+    publish_criterion::L1GasCriterion,
     zksync_functions::ZkSyncFunctions,
     Aggregator, EthSenderError,
 };
@@ -65,6 +67,7 @@ pub struct EthTxAggregator {
     pool: ConnectionPool<Core>,
     settlement_mode: SettlementMode,
     sl_chain_id: SLChainId,
+    health_updater: HealthUpdater,
 }
 
 struct TxData {
@@ -119,10 +122,14 @@ impl EthTxAggregator {
             pool,
             settlement_mode,
             sl_chain_id,
+            health_updater: ReactiveHealthCheck::new("eth_tx_aggregator").1,
         }
     }
 
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        self.health_updater
+            .update(Health::from(HealthStatus::Ready));
+
         let pool = self.pool.clone();
         loop {
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
@@ -423,6 +430,13 @@ impl EthTxAggregator {
             let is_gateway = self.settlement_mode.is_gateway();
             let tx = self.save_eth_tx(storage, &agg_op, is_gateway).await?;
             Self::report_eth_tx_saving(storage, &agg_op, &tx).await;
+
+            self.health_updater.update(
+                EthTxAggregatorHealthDetails {
+                    last_saved_tx: EthTxDetails::new(&tx, None),
+                }
+                .into(),
+            );
         }
         Ok(())
     }
@@ -475,9 +489,7 @@ impl EthTxAggregator {
                 let commit_data_base = commit_batches.into_tokens();
 
                 args.extend(commit_data_base);
-
                 let commit_data = args;
-
                 let encoding_fn = if is_op_pre_gateway {
                     &self.functions.post_shared_bridge_commit
                 } else {
@@ -577,12 +589,19 @@ impl EthTxAggregator {
         let encoded_aggregated_op = self.encode_aggregated_op(aggregated_op);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
 
-        let predicted_gas_for_batches = transaction
-            .blocks_dal()
-            .get_l1_batches_predicted_gas(l1_batch_number_range.clone(), op_type)
-            .await
-            .unwrap();
-        let eth_tx_predicted_gas = agg_l1_batch_base_cost(op_type) + predicted_gas_for_batches;
+        let eth_tx_predicted_gas = match (op_type, is_gateway, self.aggregator.mode()) {
+            (AggregatedActionType::Execute, false, _) => Some(
+                L1GasCriterion::total_execute_gas_amount(
+                    &mut transaction,
+                    l1_batch_number_range.clone(),
+                )
+                .await,
+            ),
+            (AggregatedActionType::Commit, false, L1BatchCommitmentMode::Validium) => Some(
+                L1GasCriterion::total_validium_commit_gas_amount(l1_batch_number_range.clone()),
+            ),
+            _ => None,
+        };
 
         let eth_tx = transaction
             .eth_sender_dal()
@@ -636,5 +655,10 @@ impl EthTxAggregator {
                     .expect("custom base nonce is expected to be initialized; qed"),
             )
         })
+    }
+
+    /// Returns the health check for eth tx aggregator.
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.health_updater.subscribe()
     }
 }

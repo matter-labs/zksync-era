@@ -21,7 +21,7 @@ import { logsTestPath } from 'utils/build/logs';
 import { sleep } from 'utils/build';
 import { killPidWithAllChilds } from 'utils/build/kill';
 import path from 'path';
-import { NodeSpawner } from '../src/utils';
+import { NodeSpawner } from 'utils';
 import { sendTransfers } from '../src/context-owner';
 import { Reporter } from '../src/reporter';
 
@@ -54,9 +54,7 @@ const L1_GAS_PRICES_TO_TEST = process.env.CI
       ];
 
 // Unless `RUN_FEE_TEST` is provided, skip the test suit
-// FIXME: restore the test for sync layer based chains
-// const testFees = process.env.RUN_FEE_TEST ? describe : describe.skip;
-const testFees = describe.skip;
+const testFees = process.env.RUN_FEE_TEST ? describe : describe.skip;
 
 testFees('Test fees', function () {
     let testMaster: TestMaster;

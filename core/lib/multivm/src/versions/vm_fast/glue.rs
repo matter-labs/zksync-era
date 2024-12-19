@@ -1,5 +1,7 @@
-use zksync_types::l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log};
-use zksync_utils::u256_to_h256;
+use zksync_types::{
+    l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log},
+    u256_to_h256,
+};
 use zksync_vm2::interface;
 
 use crate::glue::GlueFrom;

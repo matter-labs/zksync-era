@@ -1,16 +1,13 @@
-use std::{fmt, ops};
-
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{commitment::PubdataParams, Address, Bloom, BloomInput, H256, U256};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_system_constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
-use zksync_utils::concat_and_hash;
 
 use crate::{
     fee_model::BatchFeeInput,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     priority_op_onchain_data::PriorityOpOnchainData,
-    web3::keccak256,
+    web3::{keccak256, keccak256_concat},
     AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
 };
 
@@ -178,51 +175,6 @@ impl L1BatchHeader {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Default)]
-pub struct BlockGasCount {
-    pub commit: u32,
-    pub prove: u32,
-    pub execute: u32,
-}
-
-impl fmt::Debug for BlockGasCount {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            formatter,
-            "c:{}/p:{}/e:{}",
-            self.commit, self.prove, self.execute
-        )
-    }
-}
-
-impl BlockGasCount {
-    pub fn any_field_greater_than(&self, bound: u32) -> bool {
-        self.commit > bound || self.prove > bound || self.execute > bound
-    }
-}
-
-impl ops::Add for BlockGasCount {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self {
-            commit: self.commit + rhs.commit,
-            prove: self.prove + rhs.prove,
-            execute: self.execute + rhs.execute,
-        }
-    }
-}
-
-impl ops::AddAssign for BlockGasCount {
-    fn add_assign(&mut self, other: Self) {
-        *self = Self {
-            commit: self.commit + other.commit,
-            prove: self.prove + other.prove,
-            execute: self.execute + other.execute,
-        };
-    }
-}
-
 /// Hasher of L2 block contents used by the VM.
 #[derive(Debug)]
 pub struct L2BlockHasher {
@@ -253,7 +205,7 @@ impl L2BlockHasher {
     /// Updates this hasher with a transaction hash. This should be called for all transactions in the block
     /// in the order of their execution.
     pub fn push_tx_hash(&mut self, tx_hash: H256) {
-        self.txs_rolling_hash = concat_and_hash(self.txs_rolling_hash, tx_hash);
+        self.txs_rolling_hash = keccak256_concat(self.txs_rolling_hash, tx_hash);
     }
 
     /// Returns the hash of the L2 block.

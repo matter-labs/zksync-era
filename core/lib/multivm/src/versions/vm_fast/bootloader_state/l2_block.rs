@@ -1,7 +1,6 @@
 use std::cmp::Ordering;
 
-use zksync_types::{L2BlockNumber, H256};
-use zksync_utils::concat_and_hash;
+use zksync_types::{web3::keccak256_concat, L2BlockNumber, H256};
 
 use super::{snapshot::L2BlockSnapshot, tx::BootloaderTx};
 use crate::{
@@ -51,7 +50,7 @@ impl BootloaderL2Block {
     }
 
     fn update_rolling_hash(&mut self, tx_hash: H256) {
-        self.txs_rolling_hash = concat_and_hash(self.txs_rolling_hash, tx_hash)
+        self.txs_rolling_hash = keccak256_concat(self.txs_rolling_hash, tx_hash)
     }
 
     pub(crate) fn make_snapshot(&self) -> L2BlockSnapshot {

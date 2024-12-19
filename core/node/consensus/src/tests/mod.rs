@@ -11,12 +11,12 @@ use zksync_consensus_roles::{
 };
 use zksync_consensus_storage::{BlockStore, PersistentBlockStore};
 use zksync_dal::consensus_dal;
-use zksync_test_account::Account;
+use zksync_test_contracts::Account;
 use zksync_types::ProtocolVersionId;
 use zksync_web3_decl::namespaces::EnNamespaceClient as _;
 
 use crate::{
-    en::TEMPORARY_FETCHER_THRESHOLD,
+    en::FALLBACK_FETCHER_THRESHOLD,
     mn::run_main_node,
     storage::{ConnectionPool, Store},
     testonly,
@@ -665,7 +665,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool, version: ProtocolV
 // Test temporary fetcher fetching blocks if a lot of certs are missing.
 #[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
 #[tokio::test]
-async fn test_temporary_fetcher(from_snapshot: bool, version: ProtocolVersionId) {
+async fn test_fallback_fetcher(from_snapshot: bool, version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
@@ -705,7 +705,7 @@ async fn test_temporary_fetcher(from_snapshot: bool, version: ProtocolVersionId)
             s.spawn_bg(runner.run(ctx));
             s.spawn_bg(node.run_fetcher(ctx, client.clone()));
             validator
-                .push_random_blocks(rng, account, TEMPORARY_FETCHER_THRESHOLD as usize + 1)
+                .push_random_blocks(rng, account, FALLBACK_FETCHER_THRESHOLD as usize + 1)
                 .await;
             node_pool
                 .wait_for_payload(ctx, validator.last_block())
@@ -715,9 +715,7 @@ async fn test_temporary_fetcher(from_snapshot: bool, version: ProtocolVersionId)
         .await
         .unwrap();
 
-        tracing::info!(
-            "Run p2p fetcher. Blocks should be fetched by the temporary fetcher anyway."
-        );
+        tracing::info!("Run p2p fetcher. Blocks should be fetched by the fallback fetcher anyway.");
         scope::run!(ctx, |ctx, s| async {
             let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
             s.spawn_bg(runner.run(ctx));
@@ -730,61 +728,6 @@ async fn test_temporary_fetcher(from_snapshot: bool, version: ProtocolVersionId)
         })
         .await
         .unwrap();
-        Ok(())
-    })
-    .await
-    .unwrap();
-}
-
-// Test that temporary fetcher terminates once enough blocks have certs.
-#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
-#[tokio::test]
-async fn test_temporary_fetcher_termination(from_snapshot: bool, version: ProtocolVersionId) {
-    zksync_concurrency::testonly::abort_on_panic();
-    let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
-    let rng = &mut ctx.rng();
-    let setup = Setup::new(rng, 1);
-    let validator_cfg = testonly::new_configs(rng, &setup, 0)[0].clone();
-    let node_cfg = validator_cfg.new_fullnode(rng);
-    let account = &mut Account::random();
-
-    scope::run!(ctx, |ctx, s| async {
-        tracing::info!("Spawn validator.");
-        let validator_pool = ConnectionPool::test(from_snapshot, version).await;
-        let (mut validator, runner) =
-            testonly::StateKeeper::new(ctx, validator_pool.clone()).await?;
-        s.spawn_bg(runner.run(ctx));
-        s.spawn_bg(run_main_node(
-            ctx,
-            validator_cfg.config.clone(),
-            validator_cfg.secrets.clone(),
-            validator_pool.clone(),
-        ));
-        // API server needs at least 1 L1 batch to start.
-        validator.seal_batch().await;
-        let client = validator.connect(ctx).await?;
-
-        let node_pool = ConnectionPool::test(from_snapshot, version).await;
-
-        // Run the EN so the consensus is initialized on EN and wait for it to sync.
-        scope::run!(ctx, |ctx, s| async {
-            let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
-            s.spawn_bg(runner.run(ctx));
-            s.spawn_bg(node.run_consensus(ctx, client.clone(), node_cfg.clone()));
-            validator.push_random_blocks(rng, account, 5).await;
-            node_pool
-                .wait_for_payload(ctx, validator.last_block())
-                .await?;
-            Ok(())
-        })
-        .await
-        .unwrap();
-
-        // Run the temporary fetcher. It should terminate immediately, since EN is synced.
-        let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
-        s.spawn_bg(runner.run(ctx));
-        node.run_temporary_fetcher(ctx, client).await?;
-
         Ok(())
     })
     .await

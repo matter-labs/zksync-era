@@ -6,9 +6,8 @@ pub use log::*;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{web3::keccak256, L2ChainId};
 pub use zksync_system_constants::*;
-use zksync_utils::{address_to_h256, u256_to_h256};
 
-use crate::{AccountTreeId, Address, H160, H256, U256};
+use crate::{address_to_h256, u256_to_h256, AccountTreeId, Address, H160, H256, U256};
 
 pub mod log;
 pub mod witness_block_state;
@@ -104,12 +103,12 @@ pub fn get_system_context_key(key: H256) -> StorageKey {
     StorageKey::new(system_context, key)
 }
 
-fn get_message_root_log_key(key: H256) -> StorageKey {
+pub fn get_message_root_log_key(key: H256) -> StorageKey {
     let message_root = AccountTreeId::new(L2_MESSAGE_ROOT_ADDRESS);
     StorageKey::new(message_root, key)
 }
 
-fn get_immutable_simulator_log_key(key: H256) -> StorageKey {
+pub fn get_immutable_simulator_log_key(key: H256) -> StorageKey {
     let immutable_simulator = AccountTreeId::new(IMMUTABLE_SIMULATOR_STORAGE_ADDRESS);
     StorageKey::new(immutable_simulator, key)
 }

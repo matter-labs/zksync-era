@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries as sort_storage_access_queries_1_3_3;
 use itertools::Itertools;
 use zk_evm_1_3_1::aux_structures::LogQuery as LogQuery_1_3_1;
@@ -47,7 +49,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::Fi
                     circuit_statistic: Default::default(),
                 },
                 refunds: Refunds::default(),
-                new_known_factory_deps: None,
+                dynamic_factory_deps: HashMap::new(),
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
@@ -104,7 +106,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::Fi
                     circuit_statistic: Default::default(),
                 },
                 refunds: Refunds::default(),
-                new_known_factory_deps: None,
+                dynamic_factory_deps: HashMap::new(),
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
@@ -160,7 +162,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface:
                     circuit_statistic: Default::default(),
                 },
                 refunds: Refunds::default(),
-                new_known_factory_deps: None,
+                dynamic_factory_deps: HashMap::new(),
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
@@ -230,7 +232,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult>
                 circuit_statistic: Default::default(),
             },
             refunds: Refunds::default(),
-            new_known_factory_deps: None,
+            dynamic_factory_deps: HashMap::new(),
         }
     }
 }
@@ -263,7 +265,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult>
                 circuit_statistic: Default::default(),
             },
             refunds: Refunds::default(),
-            new_known_factory_deps: None,
+            dynamic_factory_deps: HashMap::new(),
         }
     }
 }
@@ -312,7 +314,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult>
                 circuit_statistic: Default::default(),
             },
             refunds: Refunds::default(),
-            new_known_factory_deps: None,
+            dynamic_factory_deps: HashMap::new(),
         }
     }
 }

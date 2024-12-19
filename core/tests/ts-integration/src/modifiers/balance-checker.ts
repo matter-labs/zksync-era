@@ -282,6 +282,8 @@ function extractRefundForL1ToL2(receipt: zksync.types.TransactionReceipt, refund
  * @param wallet Wallet to make requests from (may not represent the address to check)
  * @param address Address to check the balance
  * @param token Address of the token
+ * @param ignoreUndeployedToken Whether allow token to be not deployed.
+ *      If it's set to `true` and token is not deployed, then function returns 0.
  * @returns Token balance
  */
 async function getBalance(

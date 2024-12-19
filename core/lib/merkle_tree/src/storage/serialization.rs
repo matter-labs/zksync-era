@@ -4,6 +4,7 @@ use std::{collections::HashMap, str};
 
 use crate::{
     errors::{DeserializeError, DeserializeErrorKind, ErrorContext},
+    repair::StaleKeysRepairData,
     types::{
         ChildRef, InternalNode, Key, LeafNode, Manifest, Node, RawNode, Root, TreeTags, ValueHash,
         HASH_SIZE, KEY_SIZE,
@@ -352,6 +353,18 @@ impl Manifest {
         if let Some(tags) = &self.tags {
             tags.serialize(buffer);
         }
+    }
+}
+
+impl StaleKeysRepairData {
+    pub(super) fn deserialize(mut bytes: &[u8]) -> Result<Self, DeserializeError> {
+        let next_version =
+            leb128::read::unsigned(&mut bytes).map_err(DeserializeErrorKind::Leb128)?;
+        Ok(Self { next_version })
+    }
+
+    pub(super) fn serialize(&self, buffer: &mut Vec<u8>) {
+        leb128::write::unsigned(buffer, self.next_version).unwrap();
     }
 }
 

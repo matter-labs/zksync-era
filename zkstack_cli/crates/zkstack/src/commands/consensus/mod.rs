@@ -3,22 +3,23 @@ use std::{borrow::Borrow, collections::HashMap, path::PathBuf, sync::Arc};
 /// Consensus registry contract operations.
 /// Includes code duplicated from `zksync_node_consensus::registry::abi`.
 use anyhow::Context as _;
-use common::{logger, wallets::Wallet};
+use common::{config::global_config, logger, wallets::Wallet};
 use config::EcosystemConfig;
 use conv::*;
 use ethers::{
     abi::Detokenize,
     contract::{FunctionCall, Multicall},
     middleware::{Middleware, NonceManagerMiddleware, SignerMiddleware},
-    providers::{Http, JsonRpcClient, PendingTransaction, Provider, RawCall as _},
+    providers::{Http, JsonRpcClient, PendingTransaction, Provider, ProviderError, RawCall as _},
     signers::{LocalWallet, Signer as _},
     types::{Address, BlockId, H256},
 };
+use tokio::time::MissedTickBehavior;
 use xshell::Shell;
 use zksync_consensus_crypto::ByteFmt;
 use zksync_consensus_roles::{attester, validator};
 
-use crate::{messages, utils::consensus::parse_attester_committee};
+use crate::{commands::args::WaitArgs, messages, utils::consensus::parse_attester_committee};
 
 mod conv;
 mod proto;
@@ -92,6 +93,8 @@ pub enum Command {
     SetAttesterCommittee(SetAttesterCommitteeCommand),
     /// Fetches the attester committee from the consensus registry contract.
     GetAttesterCommittee,
+    /// Wait until the consensus registry contract is deployed to L2.
+    WaitForRegistry(WaitArgs),
 }
 
 /// Collection of sent transactions.
@@ -210,15 +213,18 @@ impl Setup {
         })
     }
 
+    fn consensus_registry_addr(&self) -> anyhow::Result<Address> {
+        self.contracts
+            .l2
+            .consensus_registry
+            .context(messages::MSG_CONSENSUS_REGISTRY_ADDRESS_NOT_CONFIGURED)
+    }
+
     fn consensus_registry<M: Middleware>(
         &self,
         m: Arc<M>,
     ) -> anyhow::Result<abi::ConsensusRegistry<M>> {
-        let addr = self
-            .contracts
-            .l2
-            .consensus_registry
-            .context(messages::MSG_CONSENSUS_REGISTRY_ADDRESS_NOT_CONFIGURED)?;
+        let addr = self.consensus_registry_addr()?;
         Ok(abi::ConsensusRegistry::new(addr, m))
     }
 
@@ -274,6 +280,58 @@ impl Setup {
         })()
         .context(messages::MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML)?;
         parse_attester_committee(attesters).context("parse_attester_committee()")
+    }
+
+    async fn wait_for_registry_contract_inner(
+        &self,
+        args: &WaitArgs,
+        verbose: bool,
+    ) -> anyhow::Result<()> {
+        let addr = self.consensus_registry_addr()?;
+        let provider = self.provider().context("provider()")?;
+        let mut interval = tokio::time::interval(args.poll_interval());
+        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+
+        if verbose {
+            logger::debug(messages::msg_wait_consensus_registry_started_polling(
+                addr,
+                provider.url(),
+            ));
+        }
+
+        loop {
+            interval.tick().await;
+
+            let code = match provider.get_code(addr, None).await {
+                Ok(code) => code,
+                Err(ProviderError::HTTPError(err)) if err.is_connect() || err.is_timeout() => {
+                    continue;
+                }
+                Err(err) => {
+                    return Err(anyhow::Error::new(err)
+                        .context(messages::MSG_CONSENSUS_REGISTRY_POLL_ERROR))
+                }
+            };
+            if !code.is_empty() {
+                logger::info(messages::msg_consensus_registry_wait_success(
+                    addr,
+                    code.len(),
+                ));
+                return Ok(());
+            }
+        }
+    }
+
+    async fn wait_for_registry_contract(
+        &self,
+        args: &WaitArgs,
+        verbose: bool,
+    ) -> anyhow::Result<()> {
+        args.poll_with_timeout(
+            messages::MSG_CONSENSUS_REGISTRY_WAIT_COMPONENT,
+            self.wait_for_registry_contract_inner(args, verbose),
+        )
+        .await
     }
 
     async fn set_attester_committee(&self, want: &attester::Committee) -> anyhow::Result<()> {
@@ -409,6 +467,10 @@ impl Command {
             Self::GetAttesterCommittee => {
                 let got = setup.get_attester_committee().await?;
                 print_attesters(&got);
+            }
+            Self::WaitForRegistry(args) => {
+                let verbose = global_config().verbose;
+                setup.wait_for_registry_contract(&args, verbose).await?;
             }
         }
         Ok(())

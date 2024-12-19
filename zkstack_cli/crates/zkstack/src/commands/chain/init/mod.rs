@@ -4,9 +4,11 @@ use common::{git, logger, spinner::Spinner};
 use config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
 use types::{BaseToken, L1BatchCommitmentMode};
 use xshell::Shell;
+use zksync_basic_types::Address;
+use zksync_config::DAClientConfig;
 
 use crate::{
-    accept_ownership::{accept_admin, set_da_validator_pair},
+    accept_ownership::{accept_admin, make_permanent_rollup, set_da_validator_pair},
     commands::chain::{
         args::init::{
             configs::{InitConfigsArgs, InitConfigsArgsFinal},
@@ -125,7 +127,10 @@ pub async fn init(
             shell,
             ecosystem_config,
             &chain_config.get_wallets_config()?.governor,
-            chain_contracts.l1.access_control_restriction_addr,
+            chain_contracts
+                .l1
+                .access_control_restriction_addr
+                .context("chain_contracts.l1.access_control_restriction_addr")?,
             chain_contracts.l1.diamond_proxy_addr,
             chain_config
                 .get_wallets_config()
@@ -147,18 +152,12 @@ pub async fn init(
         ecosystem_config,
         &mut contracts_config,
         init_args.forge_args.clone(),
+        true,
     )
     .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
-    let validium_mode =
-        chain_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium;
-
-    let l1_da_validator_addr = if validium_mode {
-        contracts_config.l1.validium_l1_da_validator_addr
-    } else {
-        contracts_config.l1.rollup_l1_da_validator_addr
-    };
+    let l1_da_validator_addr = get_l1_da_validator(chain_config);
 
     let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
     set_da_validator_pair(
@@ -167,13 +166,31 @@ pub async fn init(
         contracts_config.l1.chain_admin_addr,
         &chain_config.get_wallets_config()?.governor,
         contracts_config.l1.diamond_proxy_addr,
-        l1_da_validator_addr,
-        contracts_config.l2.da_validator_addr,
+        l1_da_validator_addr.context("l1_da_validator_addr")?,
+        contracts_config
+            .l2
+            .da_validator_addr
+            .context("da_validator_addr")?,
         &init_args.forge_args.clone(),
         init_args.l1_rpc_url.clone(),
     )
     .await?;
     spinner.finish();
+
+    if chain_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {
+        println!("Making permanent rollup!");
+        make_permanent_rollup(
+            shell,
+            ecosystem_config,
+            contracts_config.l1.chain_admin_addr,
+            &chain_config.get_wallets_config()?.governor,
+            contracts_config.l1.diamond_proxy_addr,
+            &init_args.forge_args.clone(),
+            init_args.l1_rpc_url.clone(),
+        )
+        .await?;
+        println!("Done");
+    }
 
     // Setup legacy bridge - shouldn't be used for new chains (run by L1 Governor)
     if let Some(true) = chain_config.legacy_bridge {
@@ -208,4 +225,26 @@ pub async fn init(
         .context(MSG_GENESIS_DATABASE_ERR)?;
 
     Ok(())
+}
+
+pub(crate) fn get_l1_da_validator(chain_config: &ChainConfig) -> anyhow::Result<Address> {
+    let contracts_config = chain_config.get_contracts_config()?;
+
+    let l1_da_validator_contract = match chain_config.l1_batch_commit_data_generator_mode {
+        L1BatchCommitmentMode::Rollup => contracts_config.l1.rollup_l1_da_validator_addr,
+        L1BatchCommitmentMode::Validium => {
+            let general_config = chain_config.get_general_config()?;
+            if let Some(da_client_config) = general_config.da_client_config {
+                match da_client_config {
+                    DAClientConfig::Avail(_) => contracts_config.l1.avail_l1_da_validator_addr,
+                    _ => anyhow::bail!("DA client config is not supported"),
+                }
+            } else {
+                contracts_config.l1.no_da_validium_l1_validator_addr
+            }
+        }
+    }
+    .context("l1 da validator")?;
+
+    Ok(l1_da_validator_contract)
 }

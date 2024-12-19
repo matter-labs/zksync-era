@@ -16,10 +16,9 @@ use zksync_multivm::interface::{
 };
 use zksync_types::{
     api::ApiStorageLog, fee_model::BatchFeeInput, get_intrinsic_constants,
-    transaction_request::CallRequest, vm::FastVmMode, K256PrivateKey, L2ChainId,
+    transaction_request::CallRequest, u256_to_h256, vm::FastVmMode, K256PrivateKey, L2ChainId,
     PackedEthSignature, StorageLogKind, StorageLogWithPreviousValue, Transaction, U256,
 };
-use zksync_utils::u256_to_h256;
 use zksync_vm_executor::oneshot::{
     BaseSystemContractsProvider, ContractsKind, MockOneshotExecutor, OneshotEnvParameters,
     ResolvedBlockInfo,
@@ -638,11 +637,8 @@ impl HttpTest for SendTransactionWithDetailedOutputTest {
             assert_eq!(env.l1_batch.first_l2_block.number, 1);
 
             VmExecutionResultAndLogs {
-                result: ExecutionResult::Success { output: vec![] },
                 logs: vm_execution_logs.clone(),
-                statistics: Default::default(),
-                refunds: Default::default(),
-                new_known_factory_deps: None,
+                ..VmExecutionResultAndLogs::mock_success()
             }
         });
         tx_executor

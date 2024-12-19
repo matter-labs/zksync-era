@@ -33,7 +33,7 @@ use zksync_web3_decl::client::{Client, L2};
 
 use crate::{
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
@@ -51,7 +51,7 @@ pub struct MigrateFromGatewayArgs {
 lazy_static! {
     static ref GATEWAY_PREPARATION_INTERFACE: BaseContract = BaseContract::from(
         parse_abi(&[
-            "function startMigrateChainFromGateway(address chainAdmin,address accessControlRestriction,uint256 chainId) public",
+            "function startMigrateChainFromGateway(address chainAdmin,address accessControlRestriction,address l2ChainAdmin,uint256 chainId) public",
             "function finishMigrateChainFromGateway(uint256 migratingChainId,uint256 gatewayChainId,uint256 l2BatchNumber,uint256 l2MessageIndex,uint16 l2TxNumberInBatch,bytes memory message,bytes32[] memory merkleProof) public",
         ])
         .unwrap(),
@@ -113,7 +113,10 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
                 "startMigrateChainFromGateway",
                 (
                     chain_admin_addr,
-                    chain_access_control_restriction,
+                    chain_access_control_restriction.context("chain_access_control_restriction")?,
+                    gateway_chain_chain_config
+                        .chain_admin_addr
+                        .context("l2 chain admin missing")?,
                     U256::from(chain_config.chain_id.0),
                 ),
             )
@@ -183,17 +186,12 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     )
     .await?;
 
-    gateway_chain_chain_config.settlement_layer = 0;
+    gateway_chain_chain_config.gateway_chain_id = 0u64.into();
     gateway_chain_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
     let mut general_config = chain_config.get_general_config().unwrap();
 
     let eth_config = general_config.eth.as_mut().context("eth")?;
-    let api_config = general_config.api_config.as_mut().context("api config")?;
-    let state_keeper = general_config
-        .state_keeper_config
-        .as_mut()
-        .context("state_keeper")?;
 
     eth_config
         .gas_adjuster
@@ -220,9 +218,11 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         .as_mut()
         .expect("sender")
         .max_aggregated_tx_gas = 15000000;
-    // we need to ensure that this value is lower than in blob
-    state_keeper.max_pubdata_per_batch = 500000;
-    api_config.web3_json_rpc.settlement_layer_url = Some(l1_url);
+    eth_config
+        .sender
+        .as_mut()
+        .expect("sender")
+        .max_eth_tx_data_size = 120_000;
 
     general_config.save_with_base_path(shell, chain_config.configs.clone())?;
     Ok(())
@@ -233,7 +233,8 @@ async fn await_for_tx_to_complete(
     hash: H256,
 ) -> anyhow::Result<()> {
     println!("Waiting for transaction to complete...");
-    while Middleware::get_transaction_receipt(gateway_provider, hash)
+    while gateway_provider
+        .get_transaction_receipt(hash)
         .await?
         .is_none()
     {
@@ -241,7 +242,8 @@ async fn await_for_tx_to_complete(
     }
 
     // We do not handle network errors
-    let receipt = Middleware::get_transaction_receipt(gateway_provider, hash)
+    let receipt = gateway_provider
+        .get_transaction_receipt(hash)
         .await?
         .unwrap();
 
@@ -282,7 +284,7 @@ async fn call_script(
         .with_calldata(data);
 
     // Governor private key is required for this script
-    forge = fill_forge_private_key(forge, Some(governor))?;
+    forge = fill_forge_private_key(forge, Some(governor), WalletOwner::Governor)?;
     check_the_balance(&forge).await?;
     forge.run(shell)?;
 

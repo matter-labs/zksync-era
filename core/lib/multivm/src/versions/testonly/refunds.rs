@@ -1,11 +1,8 @@
 use ethabi::Token;
-use zksync_test_account::TxType;
+use zksync_test_contracts::{TestContract, TxType};
 use zksync_types::{Address, Execute, U256};
 
-use super::{
-    default_pubdata_builder, read_expensive_contract, read_test_contract, tester::VmTesterBuilder,
-    ContractToDeploy, TestedVm,
-};
+use super::{default_pubdata_builder, tester::VmTesterBuilder, ContractToDeploy, TestedVm};
 use crate::interface::{InspectExecutionMode, TxExecutionMode, VmInterfaceExt};
 
 pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
@@ -19,10 +16,11 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
         .build::<VM>();
     let l1_batch = vm.l1_batch_env.clone();
 
-    let counter = read_test_contract();
     let account = &mut vm.rich_accounts[0];
 
-    let tx = account.get_deploy_tx(&counter, None, TxType::L2).tx;
+    let tx = account
+        .get_deploy_tx(TestContract::counter().bytecode, None, TxType::L2)
+        .tx;
     vm.vm.push_transaction(tx.clone());
     let result = vm.vm.execute(InspectExecutionMode::OneTx);
 
@@ -56,11 +54,8 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
         .build::<VM>();
     assert_eq!(account.address(), vm.rich_accounts[0].address());
 
-    vm.vm.push_transaction_with_refund_and_compression(
-        tx.clone(),
-        result.refunds.gas_refunded,
-        true,
-    );
+    vm.vm
+        .push_transaction_with_refund(tx.clone(), result.refunds.gas_refunded);
 
     let result_with_predefined_refunds = vm
         .vm
@@ -115,7 +110,7 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
 
     let changed_operator_suggested_refund = result.refunds.gas_refunded + 1000;
     vm.vm
-        .push_transaction_with_refund_and_compression(tx, changed_operator_suggested_refund, true);
+        .push_transaction_with_refund(tx, changed_operator_suggested_refund);
     let result = vm
         .vm
         .finish_batch(default_pubdata_builder())
@@ -171,16 +166,16 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
 
 pub(crate) fn test_negative_pubdata_for_transaction<VM: TestedVm>() {
     let expensive_contract_address = Address::repeat_byte(1);
-    let (expensive_contract_bytecode, expensive_contract) = read_expensive_contract();
-    let expensive_function = expensive_contract.function("expensive").unwrap();
-    let cleanup_function = expensive_contract.function("cleanUp").unwrap();
+    let expensive_contract = TestContract::expensive();
+    let expensive_function = expensive_contract.function("expensive");
+    let cleanup_function = expensive_contract.function("cleanUp");
 
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
         .with_custom_contracts(vec![ContractToDeploy::new(
-            expensive_contract_bytecode,
+            TestContract::expensive().bytecode.to_vec(),
             expensive_contract_address,
         )])
         .build::<VM>();

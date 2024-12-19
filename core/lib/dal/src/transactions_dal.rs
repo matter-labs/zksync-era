@@ -15,15 +15,15 @@ use zksync_types::{
     L1BlockNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction,
     TransactionTimeRangeConstraint, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
-use zksync_utils::u256_to_big_decimal;
 use zksync_vm_interface::{
     tracer::ValidationTraces, Call, TransactionExecutionMetrics, TransactionExecutionResult,
     TxExecutionStatus,
 };
 
 use crate::{
-    models::storage_transaction::{
-        parse_call_trace, serialize_call_into_bytes, StorageTransaction,
+    models::{
+        storage_transaction::{parse_call_trace, serialize_call_into_bytes, StorageTransaction},
+        u256_to_big_decimal,
     },
     Core, CoreDal,
 };

@@ -63,6 +63,6 @@ max_base_fee_samples = 10_000
 # To confirm, see core/bin/zksync_core/src/eth_sender/gas_adjuster/mod.rs
 pricing_formula_parameter_a = 1.5
 pricing_formula_parameter_b = 1.0005
-internal_l1_pricing_multiplier = 0.8
+internal_sl_pricing_multiplier = 0.8
 # Node polling period in seconds.
 poll_period = 5

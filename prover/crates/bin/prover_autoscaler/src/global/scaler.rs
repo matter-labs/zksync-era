@@ -73,7 +73,8 @@ pub struct Scaler {
 pub struct GpuScaler {
     /// Which cluster to use first.
     cluster_priorities: HashMap<String, u32>,
-    min_provers: HashMap<String, u32>,
+    apply_min_to_namespace: Option<String>,
+    min_provers: u32,
     max_provers: HashMap<String, HashMap<Gpu, u32>>,
     prover_speed: HashMap<Gpu, u32>,
     long_pending_duration: chrono::Duration,
@@ -84,6 +85,8 @@ pub struct SimpleScaler {
     deployment: String,
     /// Which cluster to use first.
     cluster_priorities: HashMap<String, u32>,
+    apply_min_to_namespace: Option<String>,
+    min_replicas: usize,
     max_replicas: HashMap<String, usize>,
     speed: usize,
     long_pending_duration: chrono::Duration,
@@ -126,6 +129,7 @@ impl Scaler {
             simple_scalers.push(SimpleScaler::new(
                 c,
                 config.cluster_priorities.clone(),
+                config.apply_min_to_namespace.clone(),
                 chrono::Duration::seconds(config.long_pending_duration.as_secs() as i64),
             ))
         }
@@ -144,6 +148,7 @@ impl GpuScaler {
     pub fn new(config: ProverAutoscalerScalerConfig) -> Self {
         Self {
             cluster_priorities: config.cluster_priorities,
+            apply_min_to_namespace: config.apply_min_to_namespace,
             min_provers: config.min_provers,
             max_provers: config.max_provers,
             prover_speed: config.prover_speed,
@@ -287,10 +292,12 @@ impl GpuScaler {
 
         // Increase queue size, if it's too small, to make sure that required min_provers are
         // running.
-        let queue: u64 = self.min_provers.get(namespace).map_or(queue, |min| {
+        let queue: u64 = if self.apply_min_to_namespace.as_deref() == Some(namespace.as_str()) {
             self.normalize_queue(Gpu::L4, queue)
-                .max(self.provers_to_speed(Gpu::L4, *min))
-        });
+                .max(self.provers_to_speed(Gpu::L4, self.min_provers))
+        } else {
+            queue
+        };
 
         let mut total: i64 = 0;
         let mut provers: HashMap<GPUPoolKey, u32> = HashMap::new();
@@ -424,12 +431,15 @@ impl SimpleScaler {
     pub fn new(
         config: &ScalerTarget,
         cluster_priorities: HashMap<String, u32>,
+        apply_min_to_namespace: Option<String>,
         long_pending_duration: chrono::Duration,
     ) -> Self {
         Self {
             queue_report_field: config.queue_report_field,
             deployment: config.deployment.clone(),
             cluster_priorities,
+            apply_min_to_namespace,
+            min_replicas: config.min_replicas,
             max_replicas: config.max_replicas.clone(),
             speed: config.speed,
             long_pending_duration,
@@ -520,6 +530,15 @@ impl SimpleScaler {
             namespace,
             &sorted_clusters
         );
+
+        // Increase queue size, if it's too small, to make sure that required min_provers are
+        // running.
+        let queue: u64 = if self.apply_min_to_namespace.as_deref() == Some(namespace.as_str()) {
+            self.normalize_queue(queue)
+                .max(self.pods_to_speed(self.min_replicas))
+        } else {
+            queue
+        };
 
         let mut total: i64 = 0;
         let mut pods: HashMap<String, usize> = HashMap::new();
@@ -719,7 +738,8 @@ mod tests {
     fn test_run() {
         let scaler = GpuScaler::new(ProverAutoscalerScalerConfig {
             cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
-            min_provers: [("prover-other".into(), 2)].into(),
+            apply_min_to_namespace: Some("prover-other".into()),
+            min_provers: 2,
             max_provers: [
                 ("foo".into(), [(Gpu::L4, 100)].into()),
                 ("bar".into(), [(Gpu::L4, 100)].into()),
@@ -857,7 +877,8 @@ mod tests {
     fn test_run_min_provers() {
         let scaler = GpuScaler::new(ProverAutoscalerScalerConfig {
             cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
-            min_provers: [("prover".into(), 2)].into(),
+            apply_min_to_namespace: Some("prover".into()),
+            min_provers: 2,
             max_provers: [
                 ("foo".into(), [(Gpu::L4, 100)].into()),
                 ("bar".into(), [(Gpu::L4, 100)].into()),
@@ -1052,7 +1073,8 @@ mod tests {
     fn test_run_need_move() {
         let scaler = GpuScaler::new(ProverAutoscalerScalerConfig {
             cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
-            min_provers: [("prover".into(), 2)].into(),
+            apply_min_to_namespace: Some("prover".into()),
+            min_provers: 2,
             max_provers: [
                 ("foo".into(), [(Gpu::L4, 100)].into()),
                 ("bar".into(), [(Gpu::L4, 100)].into()),

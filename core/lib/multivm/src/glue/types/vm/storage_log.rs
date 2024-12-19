@@ -1,7 +1,6 @@
 use zksync_types::{
-    zk_evm_types::LogQuery, StorageLog, StorageLogQuery, StorageLogWithPreviousValue,
+    u256_to_h256, zk_evm_types::LogQuery, StorageLog, StorageLogQuery, StorageLogWithPreviousValue,
 };
-use zksync_utils::u256_to_h256;
 
 use crate::glue::{GlueFrom, GlueInto};
 

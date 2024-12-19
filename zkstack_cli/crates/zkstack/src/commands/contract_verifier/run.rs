@@ -22,7 +22,7 @@ pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
 
     let mut cmd = Cmd::new(cmd!(
         shell,
-        "cargo run --bin zksync_contract_verifier -- --config-path={config_path} --secrets-path={secrets_path}"
+        "cargo run --release --bin zksync_contract_verifier -- --config-path={config_path} --secrets-path={secrets_path}"
     ));
     cmd = cmd.with_force_run();
     cmd.run().context(MSG_FAILED_TO_RUN_CONTRACT_VERIFIER_ERR)

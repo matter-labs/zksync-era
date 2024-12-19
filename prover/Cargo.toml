@@ -58,6 +58,7 @@ strum_macros = "0.26"
 tempfile = "3"
 tokio = "1"
 tokio-util = "0.7.11"
+tokio-stream = "0.1.16"
 toml_edit = "0.14.4"
 tracing = "0.1"
 tracing-subscriber = "0.3"
@@ -100,6 +101,8 @@ zksync_prover_fri_types = { path = "crates/lib/prover_fri_types" }
 zksync_prover_fri_utils = { path = "crates/lib/prover_fri_utils" }
 zksync_prover_keystore = { path = "crates/lib/keystore" }
 zksync_vk_setup_data_generator_server_fri = { path = "crates/bin/vk_setup_data_generator_server_fri" }
+zksync_prover_job_processor = { path = "crates/lib/prover_job_processor" }
+zksync_circuit_prover_service = { path = "crates/lib/circuit_prover_service" }
 zksync_prover_job_monitor = { path = "crates/bin/prover_job_monitor" }
 
 # for `perf` profiling

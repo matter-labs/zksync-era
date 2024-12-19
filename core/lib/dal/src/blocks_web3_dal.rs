@@ -11,12 +11,11 @@ use zksync_types::{
     web3::{BlockHeader, Bytes},
     Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H160, H256, U256, U64,
 };
-use zksync_utils::bigdecimal_to_u256;
 use zksync_vm_interface::Call;
 
 use crate::{
     models::{
-        parse_protocol_version,
+        bigdecimal_to_u256, parse_protocol_version,
         storage_block::{
             ResolvedL1BatchForL2Block, StorageBlockDetails, StorageL1BatchDetails,
             LEGACY_BLOCK_GAS_LIMIT,
@@ -680,10 +679,13 @@ impl BlocksWeb3Dal<'_, '_> {
                 miniblocks.hash AS "root_hash?",
                 commit_tx.tx_hash AS "commit_tx_hash?",
                 commit_tx.confirmed_at AS "committed_at?",
+                commit_tx_data.chain_id AS "commit_chain_id?",
                 prove_tx.tx_hash AS "prove_tx_hash?",
                 prove_tx.confirmed_at AS "proven_at?",
+                prove_tx_data.chain_id AS "prove_chain_id?",
                 execute_tx.tx_hash AS "execute_tx_hash?",
                 execute_tx.confirmed_at AS "executed_at?",
+                execute_tx_data.chain_id AS "execute_chain_id?",
                 miniblocks.l1_gas_price,
                 miniblocks.l2_fair_gas_price,
                 miniblocks.fair_pubdata_price,
@@ -709,6 +711,21 @@ impl BlocksWeb3Dal<'_, '_> {
                 ON (
                     l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
                     AND execute_tx.confirmed_at IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS commit_tx_data
+                ON (
+                    l1_batches.eth_commit_tx_id = commit_tx_data.id
+                    AND commit_tx_data.confirmed_eth_tx_history_id IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS prove_tx_data
+                ON (
+                    l1_batches.eth_prove_tx_id = prove_tx_data.id
+                    AND prove_tx_data.confirmed_eth_tx_history_id IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS execute_tx_data
+                ON (
+                    l1_batches.eth_execute_tx_id = execute_tx_data.id
+                    AND execute_tx_data.confirmed_eth_tx_history_id IS NOT NULL
                 )
             WHERE
                 miniblocks.number = $1
@@ -753,10 +770,13 @@ impl BlocksWeb3Dal<'_, '_> {
                 l1_batches.hash AS "root_hash?",
                 commit_tx.tx_hash AS "commit_tx_hash?",
                 commit_tx.confirmed_at AS "committed_at?",
+                commit_tx_data.chain_id AS "commit_chain_id?",
                 prove_tx.tx_hash AS "prove_tx_hash?",
                 prove_tx.confirmed_at AS "proven_at?",
+                prove_tx_data.chain_id AS "prove_chain_id?",
                 execute_tx.tx_hash AS "execute_tx_hash?",
                 execute_tx.confirmed_at AS "executed_at?",
+                execute_tx_data.chain_id AS "execute_chain_id?",
                 mb.l1_gas_price,
                 mb.l2_fair_gas_price,
                 mb.fair_pubdata_price,
@@ -780,6 +800,21 @@ impl BlocksWeb3Dal<'_, '_> {
                 ON (
                     l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
                     AND execute_tx.confirmed_at IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS commit_tx_data
+                ON (
+                    l1_batches.eth_commit_tx_id = commit_tx_data.id
+                    AND commit_tx_data.confirmed_eth_tx_history_id IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS prove_tx_data
+                ON (
+                    l1_batches.eth_prove_tx_id = prove_tx_data.id
+                    AND prove_tx_data.confirmed_eth_tx_history_id IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS execute_tx_data
+                ON (
+                    l1_batches.eth_execute_tx_id = execute_tx_data.id
+                    AND execute_tx_data.confirmed_eth_tx_history_id IS NOT NULL
                 )
             WHERE
                 l1_batches.number = $1
@@ -1009,7 +1044,7 @@ mod tests {
                 vec![],
                 AggregatedActionType::Commit,
                 Address::default(),
-                0,
+                None,
                 None,
                 None,
                 false,

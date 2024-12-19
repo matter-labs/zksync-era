@@ -59,8 +59,14 @@ describe('ETH token checks', () => {
 
         const gasPerPubdataByte = zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
 
-        // FIXME: restore the old logic
-        const l2GasLimit = 10_000_000;
+        const l2GasLimit = await alice.provider.estimateDefaultBridgeDepositL2Gas(
+            alice.providerL1!,
+            zksync.utils.ETH_ADDRESS,
+            amount,
+            alice.address,
+            alice.address,
+            gasPerPubdataByte
+        );
         const expectedL2Costs = await alice.getBaseCost({
             gasLimit: l2GasLimit,
             gasPerPubdataByte,

@@ -101,41 +101,11 @@ export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber
     }
 }
 
-async function getL1BatchFinalizationStatus(provider: zksync.Provider, number: number) {
-    const result = await provider.send('zks_getL1ProcessingDetails', [number]);
-
-    if (result == null) {
-        return null;
-    }
-    if (result.executedAt != null) {
-        return {
-            finalizedHash: result.executeTxHash,
-            finalizedAt: result.executedAt
-        };
-    }
-    return null;
-}
-
-export async function waitForBlockToBeFinalizedOnL1(wallet: zksync.Wallet, blockNumber: number) {
-    // Waiting for the block to be finalized on the immediate settlement layer.
+export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: number, txHash: string) {
+    // First, we wait for block to be finalized.
     await waitUntilBlockFinalized(wallet, blockNumber);
 
-    const provider = wallet.provider;
-
-    const batchNumber = (await provider.getBlockDetails(blockNumber)).l1BatchNumber;
-
-    let result = await getL1BatchFinalizationStatus(provider, batchNumber);
-
-    while (result == null) {
-        await zksync.utils.sleep(provider.pollingInterval);
-
-        result = await getL1BatchFinalizationStatus(provider, batchNumber);
-    }
-}
-
-export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: number, txHash: string) {
-    await waitForBlockToBeFinalizedOnL1(wallet, blockNumber);
-
+    // Second, we wait for the log proof.
     while ((await wallet.provider.getLogProof(txHash)) == null) {
         await zksync.utils.sleep(wallet.provider.pollingInterval);
     }
@@ -184,4 +154,8 @@ export function bigIntMax(...args: bigint[]) {
     }
 
     return args.reduce((max, current) => (current > max ? current : max), args[0]);
+}
+
+export function isLocalHost(network: string): boolean {
+    return network == 'localhost';
 }

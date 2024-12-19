@@ -48,7 +48,7 @@ use zksync_node_framework::{
         object_store::ObjectStoreLayer,
         pk_signing_eth_client::PKSigningEthClientLayer,
         pools_layer::PoolsLayerBuilder,
-        postgres_metrics::PostgresMetricsLayer,
+        postgres::PostgresLayer,
         prometheus_exporter::PrometheusExporterLayer,
         proof_data_handler::ProofDataHandlerLayer,
         query_eth_client::QueryEthClientLayer,
@@ -72,7 +72,10 @@ use zksync_node_framework::{
     service::{ZkStackService, ZkStackServiceBuilder},
 };
 use zksync_types::{
-    pubdata_da::PubdataSendingMode, settlement::SettlementMode, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+    commitment::{L1BatchCommitmentMode, PubdataType},
+    pubdata_da::PubdataSendingMode,
+    settlement::SettlementMode,
+    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
 };
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
@@ -118,6 +121,24 @@ impl MainNodeBuilder {
         self.node.runtime_handle()
     }
 
+    pub fn get_pubdata_type(&self) -> PubdataType {
+        if self.genesis_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup
+        {
+            return PubdataType::Rollup;
+        }
+
+        let Some(da_client_config) = self.configs.da_client_config.clone() else {
+            return PubdataType::NoDA;
+        };
+
+        match da_client_config {
+            DAClientConfig::Avail(_) => PubdataType::Avail,
+            DAClientConfig::Celestia(_) => PubdataType::Celestia,
+            DAClientConfig::Eigen(_) => PubdataType::Eigen,
+            DAClientConfig::ObjectStore(_) => PubdataType::ObjectStore,
+        }
+    }
+
     fn add_sigint_handler_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(SigintHandlerLayer);
         Ok(self)
@@ -141,8 +162,8 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_postgres_metrics_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(PostgresMetricsLayer);
+    fn add_postgres_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(PostgresLayer);
         Ok(self)
     }
 
@@ -153,7 +174,6 @@ impl MainNodeBuilder {
             eth_config,
             self.contracts_config.clone(),
             self.gateway_contracts_config.clone(),
-            self.genesis_config.settlement_layer_id(),
             wallets,
         ));
         Ok(self)
@@ -163,9 +183,12 @@ impl MainNodeBuilder {
         let genesis = self.genesis_config.clone();
         let eth_config = try_load_config!(self.secrets.l1);
         let query_eth_client_layer = QueryEthClientLayer::new(
-            genesis.settlement_layer_id(),
+            genesis.l1_chain_id,
             eth_config.l1_rpc_url,
-            eth_config.gateway_url,
+            self.gateway_contracts_config
+                .as_ref()
+                .map(|c| c.gateway_chain_id),
+            eth_config.gateway_rpc_url,
         );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
@@ -250,7 +273,7 @@ impl MainNodeBuilder {
             try_load_config!(self.configs.mempool_config),
             try_load_config!(wallets.state_keeper),
             self.contracts_config.l2_da_validator_addr,
-            self.genesis_config.l1_batch_commit_data_generator_mode,
+            self.get_pubdata_type(),
         );
         let db_config = try_load_config!(self.configs.db_config);
         let experimental_vm_config = self
@@ -332,7 +355,11 @@ impl MainNodeBuilder {
             latest_values_cache_size: rpc_config.latest_values_cache_size() as u64,
             latest_values_max_block_lag: rpc_config.latest_values_max_block_lag(),
         };
-        let vm_config = try_load_config!(self.configs.experimental_vm_config);
+        let vm_config = self
+            .configs
+            .experimental_vm_config
+            .clone()
+            .unwrap_or_default();
 
         // On main node we always use master pool sink.
         self.node.add_layer(MasterPoolSinkLayer);
@@ -604,7 +631,11 @@ impl MainNodeBuilder {
     }
 
     fn add_vm_playground_layer(mut self) -> anyhow::Result<Self> {
-        let vm_config = try_load_config!(self.configs.experimental_vm_config);
+        let vm_config = self
+            .configs
+            .experimental_vm_config
+            .clone()
+            .unwrap_or_default();
         self.node.add_layer(VmPlaygroundLayer::new(
             vm_config.playground,
             self.genesis_config.l2_chain_id,
@@ -759,9 +790,7 @@ impl MainNodeBuilder {
                     self = self.add_eth_tx_manager_layer()?;
                 }
                 Component::Housekeeper => {
-                    self = self
-                        .add_house_keeper_layer()?
-                        .add_postgres_metrics_layer()?;
+                    self = self.add_house_keeper_layer()?.add_postgres_layer()?;
                 }
                 Component::ProofDataHandler => {
                     self = self.add_proof_data_handler_layer()?;

@@ -5,8 +5,7 @@ use zk_evm_1_5_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
-use zksync_types::{H256, U256};
-use zksync_utils::ceil_div_u256;
+use zksync_types::{ceil_div_u256, H256, U256};
 
 use crate::{
     interface::{
@@ -17,7 +16,7 @@ use crate::{
     tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
         bootloader_state::BootloaderState,
-        constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},
+        constants::{get_operator_refunds_offset, BOOTLOADER_HEAP_PAGE, TX_GAS_LIMIT_OFFSET},
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::{
             traits::VmTracer,
@@ -25,7 +24,7 @@ use crate::{
         },
         types::internals::ZkSyncVmState,
         utils::fee::get_batch_base_fee,
-        vm::MultiVMSubversion,
+        vm::MultiVmSubversion,
     },
 };
 
@@ -51,12 +50,12 @@ pub(crate) struct RefundsTracer<S> {
     spent_pubdata_counter_before: u32,
     l1_batch: L1BatchEnv,
     pubdata_published: u32,
-    subversion: MultiVMSubversion,
+    subversion: MultiVmSubversion,
     _phantom: PhantomData<S>,
 }
 
 impl<S> RefundsTracer<S> {
-    pub(crate) fn new(l1_batch: L1BatchEnv, subversion: MultiVMSubversion) -> Self {
+    pub(crate) fn new(l1_batch: L1BatchEnv, subversion: MultiVmSubversion) -> Self {
         Self {
             pending_refund_request: None,
             refund_gas: 0,
@@ -273,7 +272,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
 
             let refund_to_propose = tx_body_refund + self.block_overhead_refund();
 
-            let refund_slot = OPERATOR_REFUNDS_OFFSET + current_tx_index;
+            let refund_slot = get_operator_refunds_offset(bootloader_state.get_vm_subversion())
+                + current_tx_index;
 
             // Writing the refund into memory
             state.memory.populate_page(

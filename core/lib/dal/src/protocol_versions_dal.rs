@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 
 use anyhow::Context as _;
-use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
+use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::{
     connection::Connection,
     error::DalResult,
@@ -190,12 +190,10 @@ impl ProtocolVersionsDal<'_, '_> {
         ProtocolVersionId::try_from(row.id as u16).map_err(|err| sqlx::Error::Decode(err.into()))
     }
 
-    /// Returns base system contracts' hashes. Prefer `load_base_system_contracts_by_version_id` if
-    /// you also want to load the contracts themselves AND expect the contracts to be in the DB
-    /// already.
+    /// Returns base system contracts' hashes.
     pub async fn get_base_system_contract_hashes_by_version_id(
         &mut self,
-        version_id: u16,
+        version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<BaseSystemContractsHashes>> {
         let row = sqlx::query!(
             r#"
@@ -208,10 +206,10 @@ impl ProtocolVersionsDal<'_, '_> {
             WHERE
                 id = $1
             "#,
-            i32::from(version_id)
+            i32::from(version_id as u16)
         )
         .instrument("get_base_system_contract_hashes_by_version_id")
-        .with_arg("version_id", &version_id)
+        .with_arg("version_id", &(version_id as u16))
         .fetch_optional(self.storage)
         .await
         .context("cannot fetch system contract hashes")?;
@@ -222,45 +220,6 @@ impl ProtocolVersionsDal<'_, '_> {
                 default_aa: H256::from_slice(&row.default_account_code_hash),
                 evm_emulator: row.evm_emulator_code_hash.as_deref().map(H256::from_slice),
             })
-        } else {
-            None
-        })
-    }
-
-    pub async fn load_base_system_contracts_by_version_id(
-        &mut self,
-        version_id: u16,
-    ) -> anyhow::Result<Option<BaseSystemContracts>> {
-        let row = sqlx::query!(
-            r#"
-            SELECT
-                bootloader_code_hash,
-                default_account_code_hash,
-                evm_emulator_code_hash
-            FROM
-                protocol_versions
-            WHERE
-                id = $1
-            "#,
-            i32::from(version_id)
-        )
-        .instrument("load_base_system_contracts_by_version_id")
-        .with_arg("version_id", &version_id)
-        .fetch_optional(self.storage)
-        .await
-        .context("cannot fetch system contract hashes")?;
-
-        Ok(if let Some(row) = row {
-            let contracts = self
-                .storage
-                .factory_deps_dal()
-                .get_base_system_contracts(
-                    H256::from_slice(&row.bootloader_code_hash),
-                    H256::from_slice(&row.default_account_code_hash),
-                    row.evm_emulator_code_hash.as_deref().map(H256::from_slice),
-                )
-                .await?;
-            Some(contracts)
         } else {
             None
         })

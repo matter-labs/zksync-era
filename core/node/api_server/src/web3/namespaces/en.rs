@@ -151,19 +151,20 @@ impl EnNamespace {
         Ok(self
             .state
             .api_config
-            .bridgehub_proxy_addr
+            .l1_bridgehub_proxy_addr
             .map(|bridgehub_proxy_addr| EcosystemContracts {
                 bridgehub_proxy_addr,
                 state_transition_proxy_addr: self
                     .state
                     .api_config
-                    .state_transition_proxy_addr
+                    .l1_state_transition_proxy_addr
                     .unwrap(),
                 transparent_proxy_admin_addr: self
                     .state
                     .api_config
-                    .transparent_proxy_admin_addr
+                    .l1_transparent_proxy_admin_addr
                     .unwrap(),
+                l1_bytecodes_supplier_addr: self.state.api_config.l1_bytecodes_supplier_addr,
             })
             .context("Shared bridge doesn't supported")?)
     }
@@ -213,7 +214,6 @@ impl EnNamespace {
                 .base_system_contracts_hashes
                 .evm_emulator,
             l1_chain_id: self.state.api_config.l1_chain_id,
-            sl_chain_id: Some(self.state.api_config.l1_chain_id.into()),
             l2_chain_id: self.state.api_config.l2_chain_id,
             snark_wrapper_vk_hash: verifier_config.snark_wrapper_vk_hash,
             fee_account,

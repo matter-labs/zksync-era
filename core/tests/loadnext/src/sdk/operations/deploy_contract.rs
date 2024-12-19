@@ -1,8 +1,8 @@
 use zksync_eth_signer::EthereumSigner;
 use zksync_types::{
-    l2::L2Tx, transaction_request::PaymasterParams, Execute, Nonce, CONTRACT_DEPLOYER_ADDRESS, U256,
+    bytecode::BytecodeHash, l2::L2Tx, transaction_request::PaymasterParams, Execute, Nonce,
+    CONTRACT_DEPLOYER_ADDRESS, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 use zksync_web3_decl::namespaces::EthNamespaceClient;
 
 use crate::sdk::{
@@ -60,7 +60,7 @@ where
             None => Nonce(self.wallet.get_nonce().await?),
         };
 
-        let main_contract_hash = hash_bytecode(&bytecode);
+        let main_contract_hash = BytecodeHash::for_bytecode(&bytecode).value();
         let execute_calldata =
             Execute::encode_deploy_params_create(Default::default(), main_contract_hash, calldata);
 
@@ -141,7 +141,7 @@ where
             .unwrap_or_default();
 
         let calldata = self.calldata.clone().unwrap_or_default();
-        let main_contract_hash = hash_bytecode(&bytecode);
+        let main_contract_hash = BytecodeHash::for_bytecode(&bytecode).value();
         let mut factory_deps = self.factory_deps.clone().unwrap_or_default();
         factory_deps.push(bytecode);
         let l2_tx = L2Tx::new(

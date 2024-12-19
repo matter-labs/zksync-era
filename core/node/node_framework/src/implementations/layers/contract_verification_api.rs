@@ -69,7 +69,7 @@ impl Task for ContractVerificationApiTask {
         zksync_contract_verification_server::start_server(
             self.master_pool,
             self.replica_pool,
-            self.config,
+            self.config.bind_addr(),
             stop_receiver.0,
         )
         .await

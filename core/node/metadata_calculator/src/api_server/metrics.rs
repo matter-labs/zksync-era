@@ -11,6 +11,7 @@ pub(super) enum MerkleTreeApiMethod {
     GetProofs,
     GetNodes,
     GetStaleKeys,
+    GetBogusStaleKeys,
 }
 
 /// Metrics for Merkle tree API.

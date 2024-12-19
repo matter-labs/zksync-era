@@ -18,7 +18,7 @@ use zksync_multivm::{
     tracers::CallTracer,
     vm_fast,
     vm_latest::HistoryEnabled,
-    FastVmInstance, LegacyVmInstance, MultiVMTracer,
+    FastVmInstance, LegacyVmInstance, MultiVmTracer,
 };
 use zksync_types::{commitment::PubdataParams, vm::FastVmMode, Transaction};
 
@@ -238,6 +238,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
             .expect("failed extracting call traces")
             .take()
             .unwrap_or_default();
+
         BatchTransactionExecutionResult {
             tx_result: Box::new(tx_result),
             compressed_bytecodes,

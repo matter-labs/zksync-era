@@ -23,7 +23,7 @@ impl FromEnv for L1Secrets {
                 .context("ETH_CLIENT_WEB3_URL")?
                 .parse()
                 .context("ETH_CLIENT_WEB3_URL")?,
-            gateway_url: std::env::var("ETH_CLIENT_GATEWAY_WEB3_URL")
+            gateway_rpc_url: std::env::var("ETH_CLIENT_GATEWAY_WEB3_URL")
                 .ok()
                 .map(|url| url.parse().expect("ETH_CLIENT_GATEWAY_WEB3_URL")),
         })
@@ -56,7 +56,6 @@ mod tests {
         (
             EthConfig {
                 sender: Some(SenderConfig {
-                    aggregated_proof_sizes: vec![1, 5],
                     aggregated_block_commit_deadline: 30,
                     aggregated_block_prove_deadline: 3_000,
                     aggregated_block_execute_deadline: 4_000,
@@ -84,8 +83,8 @@ mod tests {
                     max_base_fee_samples: 10000,
                     pricing_formula_parameter_a: 1.5,
                     pricing_formula_parameter_b: 1.0005,
-                    internal_l1_pricing_multiplier: 0.8,
-                    internal_enforced_l1_gas_price: None,
+                    internal_sl_pricing_multiplier: 0.8,
+                    internal_enforced_sl_gas_price: None,
                     internal_enforced_pubdata_price: None,
                     poll_period: 15,
                     max_l1_gas_price: Some(100000000),
@@ -101,7 +100,7 @@ mod tests {
             },
             L1Secrets {
                 l1_rpc_url: "http://127.0.0.1:8545".to_string().parse().unwrap(),
-                gateway_url: Some("http://127.0.0.1:8547".to_string().parse().unwrap()),
+                gateway_rpc_url: Some("http://127.0.0.1:8547".to_string().parse().unwrap()),
             },
         )
     }
@@ -123,13 +122,12 @@ mod tests {
             ETH_SENDER_GAS_ADJUSTER_MAX_BASE_FEE_SAMPLES="10000"
             ETH_SENDER_GAS_ADJUSTER_PRICING_FORMULA_PARAMETER_A="1.5"
             ETH_SENDER_GAS_ADJUSTER_PRICING_FORMULA_PARAMETER_B="1.0005"
-            ETH_SENDER_GAS_ADJUSTER_INTERNAL_L1_PRICING_MULTIPLIER="0.8"
+            ETH_SENDER_GAS_ADJUSTER_INTERNAL_SL_PRICING_MULTIPLIER="0.8"
             ETH_SENDER_GAS_ADJUSTER_POLL_PERIOD="15"
             ETH_SENDER_GAS_ADJUSTER_MAX_L1_GAS_PRICE="100000000"
             ETH_SENDER_GAS_ADJUSTER_MAX_BLOB_BASE_FEE_SAMPLES="10"
             ETH_SENDER_GAS_ADJUSTER_INTERNAL_PUBDATA_PRICING_MULTIPLIER="1.0"
             ETH_SENDER_WAIT_FOR_PROOFS="false"
-            ETH_SENDER_SENDER_AGGREGATED_PROOF_SIZES="1,5"
             ETH_SENDER_SENDER_MAX_AGGREGATED_BLOCKS_TO_COMMIT="3"
             ETH_SENDER_SENDER_MAX_AGGREGATED_BLOCKS_TO_EXECUTE="4"
             ETH_SENDER_SENDER_AGGREGATED_BLOCK_COMMIT_DEADLINE="30"

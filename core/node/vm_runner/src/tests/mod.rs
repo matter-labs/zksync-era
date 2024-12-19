@@ -9,17 +9,18 @@ use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_block, execute_l2_transaction,
     l1_batch_metadata_to_commitment_artifacts,
 };
-use zksync_test_account::Account;
+use zksync_test_contracts::Account;
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHasher},
+    bytecode::BytecodeHash,
     fee::Fee,
-    get_intrinsic_constants,
+    get_intrinsic_constants, h256_to_u256,
     l2::L2Tx,
+    u256_to_h256,
     utils::storage_key_for_standard_token_balance,
     AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
     StorageLog, StorageLogKind, StorageValue, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 use zksync_vm_interface::{
     tracer::ValidationTraces, L1BatchEnv, L2BlockEnv, SystemEnv, TransactionExecutionMetrics,
 };
@@ -326,7 +327,7 @@ async fn store_l1_batches(
         header.used_contract_hashes = genesis_params
             .system_contracts()
             .iter()
-            .map(|contract| hash_bytecode(&contract.bytecode))
+            .map(|contract| BytecodeHash::for_bytecode(&contract.bytecode).value())
             .chain([genesis_params.base_system_contracts().hashes().default_aa])
             .chain(genesis_params.base_system_contracts().hashes().evm_emulator)
             .map(h256_to_u256)

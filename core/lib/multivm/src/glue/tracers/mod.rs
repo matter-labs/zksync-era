@@ -7,7 +7,7 @@
 //! Different VM versions may have distinct requirements and types for Tracers. To accommodate these differences,
 //! this module defines one primary trait:
 //!
-//! - `MultiVMTracer<S, H>`: This trait represents a tracer that can be converted into a tracer for
+//! - `MultiVmTracer<S, H>`: This trait represents a tracer that can be converted into a tracer for
 //!   a specific VM version.
 //!
 //! Specific traits for each VM version, which support Custom Tracers:
@@ -19,22 +19,22 @@
 //!   into a form compatible with the vm_virtual_blocks version.
 //!   It defines a method `vm_virtual_blocks` for obtaining a boxed tracer.
 //!
-//! For `MultiVMTracer` to be implemented, the Tracer must implement all N currently
+//! For `MultiVmTracer` to be implemented, the Tracer must implement all N currently
 //! existing sub-traits.
 //!
 //! ## Adding a new VM version
 //!
-//! To add support for one more VM version to MultiVMTracer, one needs to:
+//! To add support for one more VM version to MultiVmTracer, one needs to:
 //! - Create a new trait performing conversion to the specified VM tracer, e.g., `Into<VmVersion>Tracer`.
-//! - Add this trait as a trait bound to the `MultiVMTracer`.
-//! - Add this trait as a trait bound for `T` in `MultiVMTracer` implementation.
+//! - Add this trait as a trait bound to the `MultiVmTracer`.
+//! - Add this trait as a trait bound for `T` in `MultiVmTracer` implementation.
 //! - Implement the trait for `T` with a bound to `VmTracer` for a specific version.
 
 use crate::{interface::storage::WriteStorage, tracers::old::OldTracers, HistoryMode};
 
-pub type MultiVmTracerPointer<S, H> = Box<dyn MultiVMTracer<S, H>>;
+pub type MultiVmTracerPointer<S, H> = Box<dyn MultiVmTracer<S, H>>;
 
-pub trait MultiVMTracer<S: WriteStorage, H: HistoryMode>:
+pub trait MultiVmTracer<S: WriteStorage, H: HistoryMode>:
     IntoLatestTracer<S, H>
     + IntoVmVirtualBlocksTracer<S, H>
     + IntoVmRefundsEnhancementTracer<S, H>
@@ -168,7 +168,7 @@ where
     }
 }
 
-impl<S, H, T> MultiVMTracer<S, H> for T
+impl<S, H, T> MultiVmTracer<S, H> for T
 where
     S: WriteStorage,
     H: HistoryMode,

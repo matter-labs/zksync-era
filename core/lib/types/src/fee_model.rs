@@ -1,13 +1,10 @@
-// FIXME: separate crate together with node_fee_model interfaces?
-
 use std::num::NonZeroU64;
 
 use bigdecimal::{BigDecimal, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
-use zksync_utils::ceil_div_u256;
 
-use crate::{ProtocolVersionId, U256};
+use crate::{ceil_div_u256, ProtocolVersionId, U256};
 
 /// Fee input to be provided into the VM. It contains two options:
 /// - `L1Pegged`: L1 gas price is provided to the VM, and the pubdata price is derived from it. Using this option is required for the

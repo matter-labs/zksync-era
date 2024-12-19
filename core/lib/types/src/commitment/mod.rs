@@ -8,7 +8,6 @@
 
 use std::{collections::HashMap, convert::TryFrom};
 
-use ethabi::Token;
 use serde::{Deserialize, Serialize};
 pub use zksync_basic_types::commitment::*;
 use zksync_contracts::BaseSystemContractsHashes;
@@ -18,15 +17,16 @@ use zksync_system_constants::{
     KNOWN_CODES_STORAGE_ADDRESS, L2_TO_L1_LOGS_TREE_ROOT_KEY, STATE_DIFF_HASH_KEY_PRE_GATEWAY,
     ZKPORTER_IS_AVAILABLE,
 };
-use zksync_utils::u256_to_h256;
 
 use crate::{
     blob::num_blobs_required,
     block::{L1BatchHeader, L1BatchTreeData},
+    ethabi,
     l2_to_l1_log::{
         l2_to_l1_logs_tree_size, parse_system_logs_for_blob_hashes_pre_gateway, L2ToL1Log,
         SystemL2ToL1Log, UserL2ToL1Log,
     },
+    u256_to_h256,
     web3::keccak256,
     writes::{
         compress_state_diffs, InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord,
@@ -74,6 +74,31 @@ pub fn serialize_commitments<I: SerializeCommitment>(values: &[I]) -> Vec<u8> {
     input
 }
 
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct PriorityOpsMerkleProof {
+    pub left_path: Vec<H256>,
+    pub right_path: Vec<H256>,
+    pub hashes: Vec<H256>,
+}
+
+impl PriorityOpsMerkleProof {
+    pub fn into_token(&self) -> ethabi::Token {
+        let array_into_token = |array: &[H256]| {
+            ethabi::Token::Array(
+                array
+                    .iter()
+                    .map(|hash| ethabi::Token::FixedBytes(hash.as_bytes().to_vec()))
+                    .collect(),
+            )
+        };
+        ethabi::Token::Tuple(vec![
+            array_into_token(&self.left_path),
+            array_into_token(&self.right_path),
+            array_into_token(&self.hashes),
+        ])
+    }
+}
+
 /// Precalculated data for the L1 batch that was used in commitment and L1 transaction.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct L1BatchMetadata {
@@ -105,31 +130,6 @@ pub struct L1BatchMetadata {
     pub aggregation_root: Option<H256>,
     /// Data Availability inclusion proof, that has to be verified on the settlement layer.
     pub da_inclusion_data: Option<Vec<u8>>,
-}
-
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
-pub struct PriorityOpsMerkleProof {
-    pub left_path: Vec<H256>,
-    pub right_path: Vec<H256>,
-    pub hashes: Vec<H256>,
-}
-
-impl PriorityOpsMerkleProof {
-    pub fn into_token(&self) -> Token {
-        let array_into_token = |array: &[H256]| {
-            Token::Array(
-                array
-                    .iter()
-                    .map(|hash| Token::FixedBytes(hash.as_bytes().to_vec()))
-                    .collect(),
-            )
-        };
-        Token::Tuple(vec![
-            array_into_token(&self.left_path),
-            array_into_token(&self.right_path),
-            array_into_token(&self.hashes),
-        ])
-    }
 }
 
 impl L1BatchMetadata {

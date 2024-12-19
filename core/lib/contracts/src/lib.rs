@@ -10,15 +10,16 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use ethabi::{
-    ethereum_types::{H256, U256},
-    Contract, Event, Function,
-};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, env::Workspace};
+use zksync_basic_types::{
+    bytecode::BytecodeHash,
+    ethabi::{Contract, Event, Function},
+    H256,
+};
+use zksync_utils::env::Workspace;
 
-pub mod test_contracts;
+mod serde_bytecode;
 
 #[derive(Debug, Clone)]
 pub enum ContractLanguage {
@@ -38,6 +39,8 @@ const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
     "IChainTypeManager.sol/IChainTypeManager.json",
 );
+const BYTECODE_SUPPLIER_CONTRACT_FILE: (&str, &str) =
+    ("upgrades", "BytecodesSupplier.sol/BytecodesSupplier.json");
 const ZKSYNC_HYPERCHAIN_CONTRACT_FILE: (&str, &str) = (
     "state-transition/chain-interfaces",
     "IZKChain.sol/IZKChain.json",
@@ -52,6 +55,10 @@ const GETTERS_FACET_CONTRACT_FILE: (&str, &str) = (
     "state-transition/chain-interfaces",
     "IGetters.sol/IGetters.json",
 );
+const ADMIN_FACET_CONTRACT_FILE: (&str, &str) = (
+    "state-transition/chain-interfaces",
+    "IAdmin.sol/IAdmin.json",
+);
 
 const MULTICALL3_CONTRACT_FILE: (&str, &str) = ("dev-contracts", "Multicall3.sol/Multicall3.json");
 const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
@@ -60,10 +67,6 @@ const _IERC20_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
 const _FAIL_ON_RECEIVE_CONTRACT_FILE:  &str  =
     "contracts/l1-contracts/artifacts/contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
-const LOADNEXT_CONTRACT_FILE: &str =
-    "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json";
-const LOADNEXT_SIMPLE_CONTRACT_FILE: &str =
-    "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/Foo.json";
 
 fn home_path() -> PathBuf {
     Workspace::locate().core()
@@ -153,8 +156,16 @@ pub fn getters_facet_contract() -> Contract {
     load_contract_for_both_compilers(GETTERS_FACET_CONTRACT_FILE)
 }
 
+pub fn admin_facet_contract() -> Contract {
+    load_contract_for_both_compilers(ADMIN_FACET_CONTRACT_FILE)
+}
+
 pub fn state_transition_manager_contract() -> Contract {
     load_contract_for_both_compilers(STATE_TRANSITION_CONTRACT_FILE)
+}
+
+pub fn bytecode_supplier_contract() -> Contract {
+    load_contract_for_both_compilers(BYTECODE_SUPPLIER_CONTRACT_FILE)
 }
 
 pub fn hyperchain_contract() -> Contract {
@@ -173,33 +184,6 @@ pub fn verifier_contract() -> Contract {
     load_contract_for_both_compilers(VERIFIER_CONTRACT_FILE)
 }
 
-#[derive(Debug, Clone)]
-pub struct TestContract {
-    /// Contract bytecode to be used for sending deploy transaction.
-    pub bytecode: Vec<u8>,
-    /// Contract ABI.
-    pub contract: Contract,
-
-    pub factory_deps: Vec<Vec<u8>>,
-}
-
-/// Reads test contract bytecode and its ABI.
-pub fn get_loadnext_contract() -> TestContract {
-    let bytecode = read_bytecode(LOADNEXT_CONTRACT_FILE);
-    let dep = read_bytecode(LOADNEXT_SIMPLE_CONTRACT_FILE);
-
-    TestContract {
-        bytecode,
-        contract: loadnext_contract(),
-        factory_deps: vec![dep],
-    }
-}
-
-// Returns loadnext contract and its factory dependencies
-fn loadnext_contract() -> Contract {
-    load_contract("etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json")
-}
-
 pub fn deployer_contract() -> Contract {
     load_sys_contract("ContractDeployer")
 }
@@ -209,13 +193,11 @@ pub fn l1_messenger_contract() -> Contract {
 }
 
 pub fn l2_message_root() -> Contract {
-    load_contract(
-        "contracts/l1-contracts/artifacts-zk/contracts/bridgehub/MessageRoot.sol/MessageRoot.json",
-    )
+    load_contract("contracts/l1-contracts/zkout/MessageRoot.sol/MessageRoot.json")
 }
 
 pub fn l2_rollup_da_validator_bytecode() -> Vec<u8> {
-    read_bytecode("contracts/l2-contracts/artifacts-zk/contracts/data-availability/RollupL2DAValidator.sol/RollupL2DAValidator.json")
+    read_bytecode("contracts/l2-contracts/zkout/RollupL2DAValidator.sol/RollupL2DAValidator.json")
 }
 
 /// Reads bytecode from the path RELATIVE to the Cargo workspace location.
@@ -326,21 +308,10 @@ pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
     {
         return contract;
     };
-
-    let artifacts_path =
-        Path::new(&home_path()).join("contracts/system-contracts/bootloader/build/artifacts");
-    let bytecode_path = artifacts_path.join(format!("{bootloader_type}.yul.zbin"));
-    if fs::exists(bytecode_path).unwrap_or_default() {
-        read_yul_bytecode(
-            "contracts/system-contracts/bootloader/build/artifacts",
-            bootloader_type,
-        )
-    } else {
-        read_yul_bytecode(
-            "contracts/system-contracts/bootloader/tests/artifacts",
-            bootloader_type,
-        )
-    }
+    read_yul_bytecode(
+        "contracts/system-contracts/bootloader/build/artifacts",
+        bootloader_type,
+    )
 }
 
 fn read_proved_batch_bootloader_bytecode() -> Vec<u8> {
@@ -402,7 +373,8 @@ fn read_zbin_bytecode_from_hex_file(bytecode_path: PathBuf) -> Vec<u8> {
 /// Hash of code and code which consists of 32 bytes words
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemContractCode {
-    pub code: Vec<U256>,
+    #[serde(with = "serde_bytecode")]
+    pub code: Vec<u8>,
     pub hash: H256,
 }
 
@@ -432,18 +404,16 @@ impl PartialEq for BaseSystemContracts {
 
 impl BaseSystemContracts {
     fn load_with_bootloader(bootloader_bytecode: Vec<u8>) -> Self {
-        let hash = hash_bytecode(&bootloader_bytecode);
-
+        let hash = BytecodeHash::for_bytecode(&bootloader_bytecode).value();
         let bootloader = SystemContractCode {
-            code: bytes_to_be_words(bootloader_bytecode),
+            code: bootloader_bytecode,
             hash,
         };
 
         let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
-        let hash = hash_bytecode(&bytecode);
-
+        let hash = BytecodeHash::for_bytecode(&bytecode).value();
         let default_aa = SystemContractCode {
-            code: bytes_to_be_words(bytecode),
+            code: bytecode,
             hash,
         };
 
@@ -463,9 +433,9 @@ impl BaseSystemContracts {
     /// Loads the latest EVM emulator for these base system contracts. Logically, it only makes sense to do for the latest protocol version.
     pub fn with_latest_evm_emulator(mut self) -> Self {
         let bytecode = read_sys_contract_bytecode("", "EvmEmulator", ContractLanguage::Yul);
-        let hash = hash_bytecode(&bytecode);
+        let hash = BytecodeHash::for_bytecode(&bytecode).value();
         self.evm_emulator = Some(SystemContractCode {
-            code: bytes_to_be_words(bytecode),
+            code: bytecode,
             hash,
         });
         self
@@ -540,10 +510,8 @@ impl BaseSystemContracts {
     }
 
     pub fn playground_gateway() -> Self {
-        let bootloader_bytecode = read_zbin_bytecode(
-            "contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin",
-            // "etc/multivm_bootloaders/vm_gateway/playground_batch.yul/playground_batch.yul.zbin",
-        );
+        // TODO: the value should be taken from the `multivm_bootloaders` folder
+        let bootloader_bytecode = read_bootloader_code("playground_batch");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
@@ -618,10 +586,8 @@ impl BaseSystemContracts {
     }
 
     pub fn estimate_gas_gateway() -> Self {
-        let bootloader_bytecode = read_zbin_bytecode(
-            "contracts/system-contracts/bootloader/build/artifacts/fee_estimate.yul.zbin",
-            // "etc/multivm_bootloaders/vm_gateway/fee_estimate.yul/fee_estimate.yul.zbin",
-        );
+        // TODO: the value should be taken from the `multivm_bootloaders` folder
+        let bootloader_bytecode = read_bootloader_code("fee_estimate");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
@@ -1033,6 +999,123 @@ pub static DIAMOND_CUT: Lazy<Function> = Lazy::new(|| {
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
+    }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+pub static POST_BOOJUM_COMMIT_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "batchNumber",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "batchHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "indexRepeatedStorageChanges",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "numberOfLayer1Txs",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "priorityOperationsHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "l2LogsTreeRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "timestamp",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "commitment",
+              "type": "bytes32"
+            }
+          ],
+          "internalType": "struct IExecutor.StoredBatchInfo",
+          "name": "_lastCommittedBatchData",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "batchNumber",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "timestamp",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "indexRepeatedStorageChanges",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "newStateRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "numberOfLayer1Txs",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "priorityOperationsHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "bootloaderHeapInitialContentsHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "eventsQueueStateHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes",
+              "name": "systemLogs",
+              "type": "bytes"
+            },
+            {
+              "internalType": "bytes",
+              "name": "pubdataCommitments",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct IExecutor.CommitBatchInfo[]",
+          "name": "_newBatchesData",
+          "type": "tuple[]"
+        }
+      ],
+      "name": "commitBatches",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
     }"#;
     serde_json::from_str(abi).unwrap()
 });

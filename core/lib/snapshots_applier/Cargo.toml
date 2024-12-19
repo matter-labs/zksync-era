@@ -17,7 +17,6 @@ zksync_health_check.workspace = true
 zksync_types.workspace = true
 zksync_object_store.workspace = true
 zksync_web3_decl.workspace = true
-zksync_utils.workspace = true
 
 vise.workspace = true
 
