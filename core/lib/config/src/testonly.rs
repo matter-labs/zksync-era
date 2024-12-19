@@ -267,8 +267,8 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l1_multicall3_addr: rng.gen(),
             ecosystem_contracts: self.sample(rng),
             base_token_addr: self.sample_opt(|| rng.gen()),
-            base_token_asset_id: self.sample_opt(|| rng.gen()),
-            predeployed_l2_wrapped_base_token_address: self.sample_opt(|| rng.gen()),
+            l1_base_token_asset_id: self.sample_opt(|| rng.gen()),
+            l2_predeployed_wrapped_base_token_address: self.sample_opt(|| rng.gen()),
             chain_admin_addr: self.sample_opt(|| rng.gen()),
             l2_da_validator_addr: self.sample_opt(|| rng.gen()),
         }
@@ -909,7 +909,6 @@ impl Distribution<configs::wallets::EthSender> for EncodeDist {
         configs::wallets::EthSender {
             operator: self.sample(rng),
             blob_operator: self.sample_opt(|| self.sample(rng)),
-            gateway: None,
         }
     }
 }

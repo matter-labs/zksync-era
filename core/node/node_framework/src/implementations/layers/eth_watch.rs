@@ -23,7 +23,7 @@ use crate::{
 pub struct EthWatchLayer {
     eth_watch_config: EthWatchConfig,
     contracts_config: ContractsConfig,
-    gateway_contracts_config: Option<GatewayChainConfig>,
+    gateway_chain_config: Option<GatewayChainConfig>,
     settlement_mode: SettlementMode,
     chain_id: L2ChainId,
 }
@@ -47,14 +47,14 @@ impl EthWatchLayer {
     pub fn new(
         eth_watch_config: EthWatchConfig,
         contracts_config: ContractsConfig,
-        gateway_contracts_config: Option<GatewayChainConfig>,
+        gateway_chain_config: Option<GatewayChainConfig>,
         settlement_mode: SettlementMode,
         chain_id: L2ChainId,
     ) -> Self {
         Self {
             eth_watch_config,
             contracts_config,
-            gateway_contracts_config,
+            gateway_chain_config,
             settlement_mode,
             chain_id,
         }
@@ -75,7 +75,7 @@ impl WiringLayer for EthWatchLayer {
         let client = input.eth_client.0;
 
         let sl_diamond_proxy_addr = if self.settlement_mode.is_gateway() {
-            self.gateway_contracts_config
+            self.gateway_chain_config
                 .clone()
                 .context("Lacking `gateway_contracts_config`")?
                 .diamond_proxy_addr
@@ -105,7 +105,7 @@ impl WiringLayer for EthWatchLayer {
 
         let sl_l2_client: Option<Box<dyn L2EthClient>> =
             if let Some(gateway_client) = input.gateway_client {
-                let contracts_config = self.gateway_contracts_config.unwrap();
+                let contracts_config = self.gateway_chain_config.unwrap();
                 Some(Box::new(EthHttpQueryClient::new(
                     gateway_client.0,
                     contracts_config.diamond_proxy_addr,

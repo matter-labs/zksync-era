@@ -139,7 +139,6 @@ impl TempConfigStore {
             Some(EthSender {
                 operator,
                 blob_operator,
-                gateway: None,
             })
         });
         let state_keeper = self

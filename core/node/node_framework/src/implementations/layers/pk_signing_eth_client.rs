@@ -19,7 +19,7 @@ use crate::{
 pub struct PKSigningEthClientLayer {
     eth_sender_config: EthConfig,
     contracts_config: ContractsConfig,
-    gateway_contracts_config: Option<GatewayChainConfig>,
+    gateway_chain_config: Option<GatewayChainConfig>,
     wallets: wallets::EthSender,
 }
 
@@ -43,13 +43,13 @@ impl PKSigningEthClientLayer {
     pub fn new(
         eth_sender_config: EthConfig,
         contracts_config: ContractsConfig,
-        gateway_contracts_config: Option<GatewayChainConfig>,
+        gateway_chain_config: Option<GatewayChainConfig>,
         wallets: wallets::EthSender,
     ) -> Self {
         Self {
             eth_sender_config,
             contracts_config,
-            gateway_contracts_config,
+            gateway_chain_config,
             wallets,
         }
     }
@@ -98,10 +98,9 @@ impl WiringLayer for PKSigningEthClientLayer {
             BoundEthInterfaceForBlobsResource(Box::new(signing_client_for_blobs))
         });
 
-        let signing_client_for_gateway = if let (Some(client), Some(gateway_contracts)) = (
-            &input.gateway_client,
-            self.gateway_contracts_config.as_ref(),
-        ) {
+        let signing_client_for_gateway = if let (Some(client), Some(gateway_contracts)) =
+            (&input.gateway_client, self.gateway_chain_config.as_ref())
+        {
             if gateway_contracts.gateway_chain_id.0 != 0u64 {
                 let private_key = self.wallets.operator.private_key();
                 let GatewayEthInterfaceResource(gateway_client) = client;

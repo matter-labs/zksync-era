@@ -90,7 +90,7 @@ pub struct MainNodeBuilder {
     wallets: Wallets,
     genesis_config: GenesisConfig,
     contracts_config: ContractsConfig,
-    gateway_contracts_config: Option<GatewayChainConfig>,
+    gateway_chain_config: Option<GatewayChainConfig>,
     secrets: Secrets,
 }
 
@@ -100,7 +100,7 @@ impl MainNodeBuilder {
         wallets: Wallets,
         genesis_config: GenesisConfig,
         contracts_config: ContractsConfig,
-        gateway_contracts_config: Option<GatewayChainConfig>,
+        gateway_chain_config: Option<GatewayChainConfig>,
         secrets: Secrets,
     ) -> anyhow::Result<Self> {
         Ok(Self {
@@ -109,7 +109,7 @@ impl MainNodeBuilder {
             wallets,
             genesis_config,
             contracts_config,
-            gateway_contracts_config,
+            gateway_chain_config,
             secrets,
         })
     }
@@ -152,7 +152,7 @@ impl MainNodeBuilder {
         self.node.add_layer(PKSigningEthClientLayer::new(
             eth_config,
             self.contracts_config.clone(),
-            self.gateway_contracts_config.clone(),
+            self.gateway_chain_config.clone(),
             wallets,
         ));
         Ok(self)
@@ -164,7 +164,7 @@ impl MainNodeBuilder {
         let query_eth_client_layer = QueryEthClientLayer::new(
             genesis.l1_chain_id,
             eth_config.l1_rpc_url,
-            self.gateway_contracts_config
+            self.gateway_chain_config
                 .as_ref()
                 .map(|c| c.gateway_chain_id),
             eth_config.gateway_rpc_url,
@@ -285,7 +285,7 @@ impl MainNodeBuilder {
         self.node.add_layer(EthWatchLayer::new(
             try_load_config!(eth_config.watcher),
             self.contracts_config.clone(),
-            self.gateway_contracts_config.clone(),
+            self.gateway_chain_config.clone(),
             self.configs
                 .eth
                 .as_ref()
@@ -468,7 +468,7 @@ impl MainNodeBuilder {
         self.node.add_layer(EthTxAggregatorLayer::new(
             eth_sender_config,
             self.contracts_config.clone(),
-            self.gateway_contracts_config.clone(),
+            self.gateway_chain_config.clone(),
             self.genesis_config.l2_chain_id,
             self.genesis_config.l1_batch_commit_data_generator_mode,
             self.configs

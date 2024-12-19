@@ -44,7 +44,7 @@ use crate::{
 pub struct EthTxAggregatorLayer {
     eth_sender_config: EthConfig,
     contracts_config: ContractsConfig,
-    gateway_contracts_config: Option<GatewayChainConfig>,
+    gateway_chain_config: Option<GatewayChainConfig>,
     zksync_network_id: L2ChainId,
     l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     settlement_mode: SettlementMode,
@@ -76,7 +76,7 @@ impl EthTxAggregatorLayer {
     pub fn new(
         eth_sender_config: EthConfig,
         contracts_config: ContractsConfig,
-        gateway_contracts_config: Option<GatewayChainConfig>,
+        gateway_chain_config: Option<GatewayChainConfig>,
         zksync_network_id: L2ChainId,
         l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
         settlement_mode: SettlementMode,
@@ -84,7 +84,7 @@ impl EthTxAggregatorLayer {
         Self {
             eth_sender_config,
             contracts_config,
-            gateway_contracts_config,
+            gateway_chain_config,
             zksync_network_id,
             l1_batch_commit_data_generator_mode,
             settlement_mode,
@@ -108,24 +108,19 @@ impl WiringLayer for EthTxAggregatorLayer {
             self.settlement_mode.is_gateway()
         );
         tracing::info!("Contracts: {:?}", self.contracts_config);
-        tracing::info!("Gateway contracts: {:?}", self.gateway_contracts_config);
+        tracing::info!("Gateway contracts: {:?}", self.gateway_chain_config);
         // Get resources.
 
         let (validator_timelock_addr, multicall3_addr, diamond_proxy_addr) =
             if self.settlement_mode.is_gateway() {
+                let gateway_chain_config = self
+                    .gateway_chain_config
+                    .as_ref()
+                    .context("gateway_chain_config")?;
                 (
-                    self.gateway_contracts_config
-                        .clone()
-                        .unwrap()
-                        .validator_timelock_addr,
-                    self.gateway_contracts_config
-                        .clone()
-                        .unwrap()
-                        .multicall3_addr,
-                    self.gateway_contracts_config
-                        .clone()
-                        .unwrap()
-                        .diamond_proxy_addr,
+                    gateway_chain_config.validator_timelock_addr,
+                    gateway_chain_config.multicall3_addr,
+                    gateway_chain_config.diamond_proxy_addr,
                 )
             } else {
                 (
@@ -136,9 +131,12 @@ impl WiringLayer for EthTxAggregatorLayer {
             };
 
         let eth_client = if self.settlement_mode.is_gateway() {
-            input.eth_client_gateway.unwrap().0
+            input
+                .eth_client_gateway
+                .context("eth_client_gateway missing")?
+                .0
         } else {
-            input.eth_client.unwrap().0
+            input.eth_client.context("eth_client missing")?.0
         };
         let master_pool = input.master_pool.get().await.unwrap();
         let replica_pool = input.replica_pool.get().await.unwrap();

@@ -36,7 +36,6 @@ impl FromEnv for Wallets {
             Some(EthSender {
                 operator,
                 blob_operator,
-                gateway: None,
             })
         } else {
             None

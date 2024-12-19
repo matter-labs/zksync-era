@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use once_cell::sync::OnceCell;
 use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -44,7 +43,7 @@ pub struct Aggregator {
     operate_4844_mode: bool,
     pubdata_da: PubdataSendingMode,
     commitment_mode: L1BatchCommitmentMode,
-    priority_merkle_tree: OnceCell<MiniMerkleTree<L1Tx>>,
+    priority_merkle_tree: Option<MiniMerkleTree<L1Tx>>,
 }
 
 impl Aggregator {
@@ -141,7 +140,7 @@ impl Aggregator {
             operate_4844_mode,
             pubdata_da,
             commitment_mode,
-            priority_merkle_tree: OnceCell::new(),
+            priority_merkle_tree: None,
             pool,
         })
     }
@@ -189,7 +188,7 @@ impl Aggregator {
     }
 
     async fn get_or_init_tree(&mut self) -> &mut MiniMerkleTree<L1Tx> {
-        if self.priority_merkle_tree.get().is_none() {
+        if self.priority_merkle_tree.is_none() {
             // We unwrap here since it is only invoked during initialization
             let mut connection = self.pool.connection_tagged("eth_sender").await.unwrap();
 
@@ -210,14 +209,11 @@ impl Aggregator {
                 None,
             );
 
-            // The error can only be thrown if this tree has been populated before.
-            // It is expected that this tree is populated deterministically based on config and
-            // so if some other thread populated it, the stored value should've been the same.
-            let _ = self.priority_merkle_tree.set(priority_merkle_tree);
+            self.priority_merkle_tree = Some(priority_merkle_tree);
         };
 
         // It is known that the `self.priority_merkle_tree` is initialized, so it is safe to unwrap here
-        self.priority_merkle_tree.get_mut().unwrap()
+        self.priority_merkle_tree.as_mut().unwrap()
     }
 
     async fn get_execute_operations(
@@ -243,31 +239,26 @@ impl Aggregator {
         )
         .await?;
 
-        let start_index = self.config.priority_tree_start_index;
+        let priority_tree_start_index =
+            if let Some(start_index) = self.config.priority_tree_start_index {
+                start_index
+            } else {
+                let length = l1_batches.len();
+                return Some(ExecuteBatches {
+                    l1_batches,
+                    priority_ops_proofs: vec![Default::default(); length],
+                });
+            };
         let priority_merkle_tree = self.get_or_init_tree().await;
 
         let mut priority_ops_proofs = vec![];
-        for batch in l1_batches.iter() {
-            let priority_tree_start_index = if let Some(start_index) = start_index {
-                start_index
-            } else {
-                // Start index not present, we push empty proof.
-                priority_ops_proofs.push(Default::default());
-                continue;
-            };
-
-            let first_priority_op_id_option = match storage
+        for batch in &l1_batches {
+            let first_priority_op_id_option = storage
                 .blocks_dal()
                 .get_batch_first_priority_op_id(batch.header.number)
                 .await
                 .unwrap()
-            {
-                // Batch has no priority ops, no proofs to send
-                None => None,
-                // We haven't started to use the priority tree in the contracts yet
-                Some(id) if id < priority_tree_start_index => None,
-                Some(id) => Some(id),
-            };
+                .filter(|id| *id >= priority_tree_start_index);
 
             let count = batch.header.l1_tx_count as usize;
             if let Some(first_priority_op_id_in_batch) = first_priority_op_id_option {
@@ -282,6 +273,8 @@ impl Aggregator {
                     priority_merkle_tree.push_hash(hash);
                 }
 
+                // We cache paths for priority transactions that happened in the previous batches.
+                // For this we absorb all the elements up to `first_priority_op_id_in_batch`.`
                 priority_merkle_tree.trim_start(
                     first_priority_op_id_in_batch // global index
                         - priority_tree_start_index // first index when tree is activated
