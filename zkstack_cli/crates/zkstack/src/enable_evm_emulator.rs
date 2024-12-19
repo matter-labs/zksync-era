@@ -22,7 +22,7 @@ pub async fn enable_evm_emulator(
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
     let enable_evm_emulator_contract = BaseContract::from(
-        parse_abi(&["function chainAllowEvmEmulation(address chainAdmin, address target) public",])
+        parse_abi(&["function chainAllowEvmEmulation(address chainAdmin, address target) public"])
             .unwrap(),
     );
     let calldata = enable_evm_emulator_contract
