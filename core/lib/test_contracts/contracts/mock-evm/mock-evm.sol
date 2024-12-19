@@ -38,7 +38,7 @@ contract MockKnownCodeStorage {
         evmBytecodeHash = _bytecodeHash;
     }
 
-    function publishEVMBytecode(bytes calldata _bytecode) external {
+    function publishEVMBytecode(uint256 _bytecodeLen, bytes calldata _bytecode) external {
         bytes32 hash = evmBytecodeHash;
         require(hash != bytes32(0), "EVM bytecode hash not set");
 
@@ -85,7 +85,7 @@ contract MockContractDeployer {
         bytes calldata _input
     ) external payable returns (address) {
         KNOWN_CODE_STORAGE_CONTRACT.setEVMBytecodeHash(_salt);
-        KNOWN_CODE_STORAGE_CONTRACT.publishEVMBytecode(_input);
+        KNOWN_CODE_STORAGE_CONTRACT.publishEVMBytecode(_input.length, _input);
         address newAddress = address(uint160(msg.sender) + 1);
         ACCOUNT_CODE_STORAGE_CONTRACT.storeAccountConstructedCodeHash(newAddress, _salt);
         return newAddress;
@@ -101,7 +101,7 @@ contract MockContractDeployer {
         bytes calldata _input
     ) external payable returns (address newAddress) {
         KNOWN_CODE_STORAGE_CONTRACT.setEVMBytecodeHash(_bytecodeHash);
-        KNOWN_CODE_STORAGE_CONTRACT.publishEVMBytecode(_input);
+        KNOWN_CODE_STORAGE_CONTRACT.publishEVMBytecode(_input.length, _input);
 
         bytes32 hash = keccak256(
             bytes.concat(CREATE2_PREFIX, bytes32(uint256(uint160(msg.sender))), _salt, _bytecodeHash)

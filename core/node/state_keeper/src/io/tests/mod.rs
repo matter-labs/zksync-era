@@ -447,7 +447,7 @@ async fn processing_dynamic_factory_deps_when_sealing_l2_block() {
         .map(|byte| {
             let evm_bytecode = vec![byte; 96];
             (
-                BytecodeHash::for_evm_bytecode(&evm_bytecode).value(),
+                BytecodeHash::for_raw_evm_bytecode(&evm_bytecode).value(),
                 evm_bytecode,
             )
         })

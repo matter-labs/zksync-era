@@ -14,7 +14,7 @@ use tokio::time;
 use zksync_dal::{contract_verification_dal::DeployedContractData, ConnectionPool, Core, CoreDal};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
-    bytecode::{trim_padded_evm_bytecode, BytecodeMarker},
+    bytecode::{trim_padded_evm_bytecode, BytecodeHash, BytecodeMarker},
     contract_verification_api::{
         self as api, CompilationArtifacts, VerificationIncomingRequest, VerificationInfo,
         VerificationRequest,
@@ -257,8 +257,12 @@ impl ContractVerifier {
 
         let deployed_bytecode = match bytecode_marker {
             BytecodeMarker::EraVm => deployed_contract.bytecode.as_slice(),
-            BytecodeMarker::Evm => trim_padded_evm_bytecode(&deployed_contract.bytecode)
-                .context("invalid stored EVM bytecode")?,
+            BytecodeMarker::Evm => trim_padded_evm_bytecode(
+                BytecodeHash::try_from(deployed_contract.bytecode_hash)
+                    .context("Invalid bytecode hash")?,
+                &deployed_contract.bytecode,
+            )
+            .context("invalid stored EVM bytecode")?,
         };
 
         if artifacts.deployed_bytecode() != deployed_bytecode {
