@@ -130,6 +130,7 @@ _arguments "${_arguments_options[@]}" : \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '-o+[Enable Grafana]' \
 '--observability=[Enable Grafana]' \
+'--update-submodules=[]:UPDATE_SUBMODULES:(true false)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
 '-d[]' \
@@ -284,6 +285,7 @@ _arguments "${_arguments_options[@]}" : \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '--deploy-paymaster=[]' \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
+'--update-submodules=[]:UPDATE_SUBMODULES:(true false)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
 '-d[]' \
@@ -1421,6 +1423,7 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 '--version=[]:VERSION:_default' \
 '--snark-wrapper=[]:SNARK_WRAPPER:_default' \
+'--fflonk-snark-wrapper=[]:FFLONK_SNARK_WRAPPER:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--default[]' \
 '-v[Verbose mode]' \
@@ -1882,6 +1885,7 @@ _arguments "${_arguments_options[@]}" : \
 '--bellman-cuda=[]' \
 '--setup-compressor-key=[]' \
 '--path=[]:PATH:_default' \
+'--compressor-type=[]:COMPRESSOR_TYPE:(fflonk plonk)' \
 '--region=[]:REGION:(us europe asia)' \
 '--mode=[]:MODE:(download generate)' \
 '--setup-keys=[]' \
@@ -1927,6 +1931,7 @@ _arguments "${_arguments_options[@]}" : \
 '--heavy-wvg-count=[]:HEAVY_WVG_COUNT:_default' \
 '-m+[]:MAX_ALLOCATION:_default' \
 '--max-allocation=[]:MAX_ALLOCATION:_default' \
+'--mode=[]:MODE:(fflonk plonk)' \
 '--docker=[]:DOCKER:(true false)' \
 '--tag=[]:TAG:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
@@ -1952,6 +1957,7 @@ _arguments "${_arguments_options[@]}" : \
 (compressor-keys)
 _arguments "${_arguments_options[@]}" : \
 '--path=[]:PATH:_default' \
+'--compressor-type=[]:COMPRESSOR_TYPE:(fflonk plonk)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \

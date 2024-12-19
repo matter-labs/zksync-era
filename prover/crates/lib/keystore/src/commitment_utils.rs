@@ -11,6 +11,8 @@ use zksync_prover_fri_types::circuit_definitions::{
     circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
 };
 
+#[cfg(feature = "gpu")]
+use crate::utils::calculate_fflonk_snark_vk_hash;
 use crate::{
     keystore::Keystore,
     utils::{calculate_snark_vk_hash, get_leaf_vk_params},
@@ -54,13 +56,24 @@ impl Keystore {
         let leaf_aggregation_commitment_hex = hex_concatenator(leaf_vk_commitment);
         let node_aggregation_commitment_hex = hex_concatenator(node_vk_commitment);
         let scheduler_commitment_hex = hex_concatenator(scheduler_vk_commitment);
-        let snark_vk_hash: String = calculate_snark_vk_hash(self)?.encode_hex();
+        let plonk_snark_vk_hash: String =
+            calculate_snark_vk_hash(self.load_snark_verification_key().unwrap())?.encode_hex();
+        #[cfg(feature = "gpu")]
+        let fflonk_snark_vk_hash: String =
+            calculate_fflonk_snark_vk_hash(self.load_fflonk_snark_verification_key().unwrap())?
+                .encode_hex();
+        #[cfg(not(feature = "gpu"))]
+        let fflonk_snark_vk_hash = {
+            tracing::warn!("To generate FFLONK SNARK VK hash, please enable the `gpu` feature.");
+            "0x".to_owned()
+        };
 
         let result = VkCommitments {
             leaf: leaf_aggregation_commitment_hex,
             node: node_aggregation_commitment_hex,
             scheduler: scheduler_commitment_hex,
-            snark_wrapper: format!("0x{}", snark_vk_hash),
+            snark_wrapper: format!("0x{}", plonk_snark_vk_hash),
+            fflonk_snark_wrapper: format!("0x{}", fflonk_snark_vk_hash),
         };
         tracing::info!("Commitments: {:?}", result);
         Ok(result)

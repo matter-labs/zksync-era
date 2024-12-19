@@ -50,7 +50,12 @@ impl ExternalProof {
     }
 
     pub fn verify(&self, correct: L1BatchProofForL1) -> Result<(), ProcessorError> {
-        if correct.protocol_version != self.protocol_version {
+        let protocol_version = match correct.clone() {
+            L1BatchProofForL1::Fflonk(proof) => proof.protocol_version,
+            L1BatchProofForL1::Plonk(proof) => proof.protocol_version,
+        };
+
+        if protocol_version != self.protocol_version {
             return Err(ProcessorError::InvalidProof);
         }
 
@@ -97,9 +102,14 @@ impl<S: Send + Sync> FromRequest<S> for ExternalProof {
         let serialized_proof = Self::extract_from_multipart(req, state).await?;
         let proof: L1BatchProofForL1 = bincode::deserialize(&serialized_proof)?;
 
+        let protocol_version = match proof {
+            L1BatchProofForL1::Fflonk(proof) => proof.protocol_version,
+            L1BatchProofForL1::Plonk(proof) => proof.protocol_version,
+        };
+
         Ok(Self {
             raw: serialized_proof,
-            protocol_version: proof.protocol_version,
+            protocol_version,
         })
     }
 }

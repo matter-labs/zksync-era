@@ -8,11 +8,13 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_eth_client::{
     clients::{Client, L1},
-    CallFunctionArgs,
+    CallFunctionArgs, ContractCallError,
 };
 use zksync_prover_dal::{Prover, ProverDal};
 
 use crate::helper;
+
+const FFLONK_VERIFIER_TYPE: i32 = 0;
 
 pub(crate) async fn run() -> anyhow::Result<()> {
     println!(" ====== L1 Status ====== ");
@@ -77,8 +79,27 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         .call(&query_client)
         .await?;
 
+    // We are getting function separately to get the second function with the same name, but
+    // overriden one
+    let contract = helper::verifier_contract();
+    let function = contract
+        .functions_by_name("verificationKeyHash")
+        .map_err(ContractCallError::Function)?
+        .get(1);
+
+    let fflonk_verification_key_hash: Option<H256> = if let Some(function) = function {
+        CallFunctionArgs::new("verificationKeyHash", U256::from(FFLONK_VERIFIER_TYPE))
+            .for_contract(contracts_config.verifier_addr, &helper::verifier_contract())
+            .call_with_function(&query_client, function.clone())
+            .await
+            .ok()
+    } else {
+        None
+    };
+
     let node_l1_verifier_config = L1VerifierConfig {
         snark_wrapper_vk_hash: node_verification_key_hash,
+        fflonk_snark_wrapper_vk_hash: fflonk_verification_key_hash,
     };
 
     let prover_connection_pool = ConnectionPool::<Prover>::builder(
@@ -124,7 +145,7 @@ fn pretty_print_l1_status(
     let eth_sender_lag = U256::from(last_state_keeper_l1_batch.0) - total_batches_committed;
     if eth_sender_lag > U256::zero() {
         println!(
-            "Eth sender is {} behind. Last block committed: {}. Most recent sealed state keeper batch: {}.", 
+            "Eth sender is {} behind. Last block committed: {}. Most recent sealed state keeper batch: {}.",
             eth_sender_lag,
             total_batches_committed,
             last_state_keeper_l1_batch

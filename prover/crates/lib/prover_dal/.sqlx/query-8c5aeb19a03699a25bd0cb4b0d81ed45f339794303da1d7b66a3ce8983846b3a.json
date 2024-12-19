@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                snark_wrapper_vk_hash,\n                fflonk_snark_wrapper_vk_hash\n            FROM\n                prover_fri_protocol_versions\n            WHERE\n                id = $1\n                AND protocol_version_patch = $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "snark_wrapper_vk_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "fflonk_snark_wrapper_vk_hash",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "8c5aeb19a03699a25bd0cb4b0d81ed45f339794303da1d7b66a3ce8983846b3a"
+}

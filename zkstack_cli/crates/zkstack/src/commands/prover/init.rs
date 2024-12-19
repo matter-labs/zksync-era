@@ -23,8 +23,11 @@ use super::{
     setup_keys,
 };
 use crate::{
-    commands::prover::args::init::ProofStorageFileBacked,
-    consts::{PROVER_MIGRATIONS, PROVER_STORE_MAX_RETRIES},
+    commands::prover::args::{compressor_keys::CompressorType, init::ProofStorageFileBacked},
+    consts::{
+        FFLONK_COMPACT_CRS_KEY, FFLONK_CRS_KEY, PLONK_CRS_KEY, PROVER_MIGRATIONS,
+        PROVER_STORE_MAX_RETRIES,
+    },
     messages::{
         MSG_CHAIN_NOT_FOUND_ERR, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
         MSG_GENERAL_CONFIG_NOT_FOUND_ERR, MSG_INITIALIZING_DATABASES_SPINNER,
@@ -55,8 +58,34 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     let public_object_store_config = get_object_store_config(shell, args.public_store)?;
 
     if let Some(args) = args.compressor_key_args {
-        let path = args.path.context(MSG_SETUP_KEY_PATH_ERROR)?;
-        download_compressor_key(shell, &mut general_config, &path)?;
+        match args.compressor_type {
+            CompressorType::Fflonk => {
+                let path = args.clone().path.context(MSG_SETUP_KEY_PATH_ERROR)?;
+
+                download_compressor_key(
+                    shell,
+                    &mut general_config,
+                    FFLONK_CRS_KEY,
+                    &format!("{}{}", path, FFLONK_CRS_KEY),
+                )?;
+                download_compressor_key(
+                    shell,
+                    &mut general_config,
+                    FFLONK_COMPACT_CRS_KEY,
+                    &format!("{}{}", path, FFLONK_COMPACT_CRS_KEY),
+                )?;
+            }
+            CompressorType::Plonk => {
+                let path = args.path.context(MSG_SETUP_KEY_PATH_ERROR)?;
+
+                download_compressor_key(
+                    shell,
+                    &mut general_config,
+                    PLONK_CRS_KEY,
+                    &format!("{}{}", path, PLONK_CRS_KEY),
+                )?;
+            }
+        }
     }
 
     if let Some(args) = args.setup_keys {

@@ -110,6 +110,7 @@ impl ProtoRepr for proto::Sender {
             time_in_mempool_in_l1_blocks_cap: self
                 .time_in_mempool_in_l1_blocks_cap
                 .unwrap_or(Self::Type::default_time_in_mempool_in_l1_blocks_cap()),
+            verifier_pre_fflonk: self.verifier_pre_fflonk.unwrap_or(true),
         })
     }
 
@@ -138,6 +139,7 @@ impl ProtoRepr for proto::Sender {
             tx_aggregation_only_prove_and_execute: Some(this.tx_aggregation_only_prove_and_execute),
             tx_aggregation_paused: Some(this.tx_aggregation_paused),
             time_in_mempool_in_l1_blocks_cap: Some(this.time_in_mempool_in_l1_blocks_cap),
+            verifier_pre_fflonk: Some(this.verifier_pre_fflonk),
         }
     }
 }
