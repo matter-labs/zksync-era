@@ -56,7 +56,8 @@ struct Cli {
     /// Path to the yaml with contracts. If set, it will be used instead of env vars.
     #[arg(long)]
     contracts_config_path: Option<std::path::PathBuf>,
-    /// Path to the yaml with contracts. If set, it will be used instead of env vars.
+    /// Path to the yaml with gateway contracts. Note, that at this moment,
+    /// env-based config is not supported for gateway-related functionality.
     #[arg(long)]
     gateway_contracts_config_path: Option<std::path::PathBuf>,
     /// Path to the wallets config. If set, it will be used instead of env vars.

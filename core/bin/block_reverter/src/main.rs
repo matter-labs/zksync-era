@@ -49,7 +49,7 @@ struct Cli {
     #[arg(long, global = true)]
     genesis_path: Option<PathBuf>,
     /// Path to yaml config of the chain on top of gateway.
-    /// It may be `None` in case a chain is not settling on top of Gateway.
+    /// It should be skipped in case a chain is not settling on top of Gateway.
     #[arg(long, global = true)]
     gateway_chain_path: Option<PathBuf>,
 }

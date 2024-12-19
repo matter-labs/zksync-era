@@ -83,11 +83,11 @@ impl WiringLayer for EthWatchLayer {
             self.contracts_config.diamond_proxy_addr
         };
         tracing::info!(
-            "Diamond proxy address ethereum: {}",
+            "Diamond proxy address ethereum: {:#?}",
             self.contracts_config.diamond_proxy_addr
         );
         tracing::info!(
-            "Diamond proxy address settlement_layer: {}",
+            "Diamond proxy address settlement_layer: {:#?}",
             sl_diamond_proxy_addr
         );
 

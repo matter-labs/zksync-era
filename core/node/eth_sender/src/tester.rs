@@ -416,10 +416,7 @@ impl EthSenderTester {
                 .await,
         ];
         let operation = AggregatedOperation::Execute(ExecuteBatches {
-            priority_ops_proofs: l1_batch_headers
-                .iter()
-                .map(|_| Default::default())
-                .collect(),
+            priority_ops_proofs: vec![Default::default(); l1_batch_headers.len()],
             l1_batches: l1_batch_headers
                 .into_iter()
                 .map(l1_batch_with_metadata)
