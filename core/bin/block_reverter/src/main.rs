@@ -21,6 +21,7 @@ use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
+use zksync_protobuf_config::proto;
 use zksync_types::{Address, L1BatchNumber};
 
 #[derive(Debug, Parser)]
@@ -132,19 +133,19 @@ async fn main() -> anyhow::Result<()> {
         .with_opentelemetry(opentelemetry)
         .build();
 
-    let general_config = read_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(
+    let general_config = read_yaml_repr::<proto::general::GeneralConfig>(
         &opts.config_path.context("Config path missing")?,
     )
     .context("failed decoding general YAML config")?;
 
-    let wallets_config = read_yaml_repr::<zksync_protobuf_config::proto::wallets::Wallets>(
+    let wallets_config = read_yaml_repr::<proto::wallets::Wallets>(
         &opts.wallets_path.context("Wallets path missing")?,
     )
     .context("failed decoding wallets YAML config")?;
 
-    let genesis_config: GenesisConfig = read_yaml_repr::<
-        zksync_protobuf_config::proto::genesis::Genesis,
-    >(&opts.genesis_path.context("Genesis path missing")?)
+    let genesis_config: GenesisConfig = read_yaml_repr::<proto::genesis::Genesis>(
+        &opts.genesis_path.context("Genesis path missing")?,
+    )
     .context("failed decoding genesis YAML config")?;
 
     let eth_sender = general_config
@@ -164,14 +165,14 @@ async fn main() -> anyhow::Result<()> {
         .basic_witness_input_producer_config
         .clone()
         .context("Failed to find eth config")?;
-    let contracts = read_yaml_repr::<zksync_protobuf_config::proto::contracts::Contracts>(
+    let contracts = read_yaml_repr::<proto::contracts::Contracts>(
         &opts
             .contracts_config_path
             .context("Missing contracts config")?,
     )
     .context("failed decoding contracts YAML config")?;
 
-    let secrets_config = read_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(
+    let secrets_config = read_yaml_repr::<proto::secrets::Secrets>(
         &opts.secrets_path.context("Missing secrets config")?,
     )
     .context("failed decoding secrets YAML config")?;
@@ -207,7 +208,7 @@ async fn main() -> anyhow::Result<()> {
 
     let (sl_rpc_url, sl_diamond_proxy, sl_validator_timelock) = if settlement_mode.is_gateway() {
         let gateway_chain_config: GatewayChainConfig =
-            read_yaml_repr::<zksync_protobuf_config::proto::gateway::GatewayChainConfig>(
+            read_yaml_repr::<proto::gateway::GatewayChainConfig>(
                 &opts
                     .gateway_chain_path
                     .context("Genesis config path not provided")?,

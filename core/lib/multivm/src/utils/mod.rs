@@ -535,9 +535,9 @@ pub fn get_max_new_factory_deps(version: VmVersion) -> usize {
         }
         VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::MAX_NEW_FACTORY_DEPS,
         VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::MAX_NEW_FACTORY_DEPS,
-        version @ VmVersion::Vm1_5_0SmallBootloaderMemory
-        | version @ VmVersion::Vm1_5_0IncreasedBootloaderMemory
-        | version @ VmVersion::VmGateway => {
+        version @ (VmVersion::Vm1_5_0SmallBootloaderMemory
+        | VmVersion::Vm1_5_0IncreasedBootloaderMemory
+        | VmVersion::VmGateway) => {
             crate::vm_latest::constants::get_max_new_factory_deps(version.try_into().unwrap())
         }
     }

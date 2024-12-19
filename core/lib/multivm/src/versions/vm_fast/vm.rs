@@ -364,6 +364,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
                         pubdata_builder.expect("`pubdata_builder` is required to finish batch"),
                         &pubdata_input,
                         self.system_env.version,
+                        self.vm_version.into(),
                     );
                     self.write_to_bootloader_heap(memory_to_apply);
 

@@ -1,4 +1,4 @@
-use zksync_types::{ethabi, h256_to_u256, vm::VmVersion, ProtocolVersionId, U256};
+use zksync_types::{ethabi, h256_to_u256, ProtocolVersionId, U256};
 
 use super::{l2_block::BootloaderL2Block, tx::BootloaderTx};
 use crate::{
@@ -152,8 +152,8 @@ pub(crate) fn apply_pubdata_to_memory(
     pubdata_builder: &dyn PubdataBuilder,
     pubdata_information: &PubdataInput,
     protocol_version: ProtocolVersionId,
+    subversion: MultiVmSubversion,
 ) {
-    let subversion = MultiVmSubversion::try_from(VmVersion::from(protocol_version)).unwrap();
     let (l1_messenger_pubdata_start_slot, pubdata) = match subversion {
         MultiVmSubversion::SmallBootloaderMemory | MultiVmSubversion::IncreasedBootloaderMemory => {
             // Skipping two slots as they will be filled by the bootloader itself:

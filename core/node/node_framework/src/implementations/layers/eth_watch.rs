@@ -1,3 +1,4 @@
+use anyhow::Context;
 use zksync_config::{configs::gateway::GatewayChainConfig, ContractsConfig, EthWatchConfig};
 use zksync_contracts::chain_admin_contract;
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch, L2EthClient};
@@ -76,7 +77,7 @@ impl WiringLayer for EthWatchLayer {
         let sl_diamond_proxy_addr = if self.settlement_mode.is_gateway() {
             self.gateway_contracts_config
                 .clone()
-                .unwrap()
+                .context("Lacking `gateway_contracts_config`")?
                 .diamond_proxy_addr
         } else {
             self.contracts_config.diamond_proxy_addr
