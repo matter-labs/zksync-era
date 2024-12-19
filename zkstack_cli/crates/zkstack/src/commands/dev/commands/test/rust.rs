@@ -24,7 +24,7 @@ pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
         .load_chain(Some(ecosystem.default_chain))
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let general_config = chain.get_general_config();
-    let link_to_code = ecosystem.link_to_code;
+    let link_to_code = ecosystem.link_to_code.join("core");
 
     let (test_server_url, test_prover_url) = if let Ok(general_config) = general_config {
         let postgres = general_config
