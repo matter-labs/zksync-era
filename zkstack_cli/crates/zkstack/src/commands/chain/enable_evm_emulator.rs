@@ -21,10 +21,9 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         shell,
         EcosystemConfig::default_configs_path(&chain_config.link_to_code),
     )?;
+
     let has_evm_emulation_support = default_genesis_config.evm_emulator_hash.is_some();
-    if !has_evm_emulation_support {
-        anyhow::bail!(MSG_EVM_EMULATOR_HASH_MISSING_ERR);
-    }
+    anyhow::ensure!(has_evm_emulation_support, MSG_EVM_EMULATOR_HASH_MISSING_ERR);
 
     let contracts = chain_config.get_contracts_config()?;
     let secrets = chain_config.get_secrets_config()?;
@@ -42,7 +41,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         &chain_config.get_wallets_config()?.governor,
         contracts.l1.diamond_proxy_addr,
         &args,
-        l1_rpc_url.clone(),
+        l1_rpc_url,
     )
     .await?;
     logger::success(MSG_EVM_EMULATOR_ENABLED);

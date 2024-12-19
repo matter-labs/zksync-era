@@ -110,7 +110,7 @@ pub async fn init(
         contracts_config.l1.chain_admin_addr,
         &chain_config.get_wallets_config()?.governor,
         contracts_config.l1.diamond_proxy_addr,
-        &init_args.forge_args.clone(),
+        &init_args.forge_args,
         init_args.l1_rpc_url.clone(),
     )
     .await?;
@@ -130,7 +130,7 @@ pub async fn init(
                 .token_multiplier_setter
                 .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
                 .address,
-            &init_args.forge_args.clone(),
+            &init_args.forge_args,
             init_args.l1_rpc_url.clone(),
         )
         .await?;
@@ -145,7 +145,7 @@ pub async fn init(
             contracts_config.l1.chain_admin_addr,
             &chain_config.get_wallets_config()?.governor,
             contracts_config.l1.diamond_proxy_addr,
-            &init_args.forge_args.clone(),
+            &init_args.forge_args,
             init_args.l1_rpc_url.clone(),
         )
         .await?;
