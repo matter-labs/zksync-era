@@ -49,14 +49,14 @@ jobs:
     strategy:
       matrix:
         component:
-          - witness-generator
-          - prover-gpu-fri
-          - witness-vector-generator
+          # - witness-generator
+          # - prover-gpu-fri
+          # - witness-vector-generator
           - circuit-prover-gpu
-          - prover-fri-gateway
-          - prover-job-monitor
-          - proof-fri-gpu-compressor
-          - prover-autoscaler
+          # - prover-fri-gateway
+          # - prover-job-monitor
+          # - proof-fri-gpu-compressor
+          # - prover-autoscaler
     outputs:
       protocol_version: ${{ steps.protocolversion.outputs.protocol_version }}
     steps:
