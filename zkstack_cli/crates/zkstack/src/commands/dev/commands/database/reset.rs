@@ -1,8 +1,8 @@
 use std::path::Path;
 
+use xshell::Shell;
 use zkstack_common::logger;
 use zkstack_config::EcosystemConfig;
-use xshell::Shell;
 
 use super::{args::DatabaseCommonArgs, drop::drop_database, setup::setup_database};
 use crate::commands::dev::{

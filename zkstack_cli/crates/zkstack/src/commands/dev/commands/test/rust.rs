@@ -1,10 +1,10 @@
 use std::str::FromStr;
 
 use anyhow::Context;
-use zkstack_common::{cmd::Cmd, logger};
-use zkstack_config::EcosystemConfig;
 use url::Url;
 use xshell::{cmd, Shell};
+use zkstack_common::{cmd::Cmd, logger};
+use zkstack_config::EcosystemConfig;
 
 use super::args::rust::RustArgs;
 use crate::commands::dev::{

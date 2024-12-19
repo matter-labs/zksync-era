@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use zkstack_common::{config::global_config, forge::ForgeScriptArgs, Prompt};
 use serde::{Deserialize, Serialize};
 use url::Url;
+use zkstack_common::{config::global_config, forge::ForgeScriptArgs, Prompt};
 
 use crate::{
     consts::DEFAULT_UNSIGNED_TRANSACTIONS_DIR,

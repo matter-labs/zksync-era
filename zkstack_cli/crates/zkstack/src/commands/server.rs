@@ -1,4 +1,5 @@
 use anyhow::Context;
+use xshell::{cmd, Shell};
 use zkstack_common::{
     cmd::Cmd,
     config::global_config,
@@ -9,7 +10,6 @@ use zkstack_config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
     GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
-use xshell::{cmd, Shell};
 
 use crate::{
     commands::args::{RunServerArgs, ServerArgs, ServerCommand, WaitArgs},

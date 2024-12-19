@@ -1,6 +1,7 @@
 use std::{path::PathBuf, str::FromStr};
 
 use anyhow::Context;
+use xshell::Shell;
 use zkstack_common::{
     config::global_config,
     contracts::build_system_contracts,
@@ -21,7 +22,6 @@ use zkstack_config::{
     ContractsConfig, EcosystemConfig,
 };
 use zkstack_types::L1Network;
-use xshell::Shell;
 
 use super::{
     args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},

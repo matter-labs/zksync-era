@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
-use zkstack_common::spinner::Spinner;
 use serde::Deserialize;
 use xshell::Shell;
+use zkstack_common::spinner::Spinner;
 
 use crate::messages::{MSG_INVALID_ARCH_ERR, MSG_NO_RELEASES_FOUND_ERR};
 

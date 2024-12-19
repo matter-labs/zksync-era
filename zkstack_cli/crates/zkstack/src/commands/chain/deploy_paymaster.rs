@@ -1,4 +1,5 @@
 use anyhow::Context;
+use xshell::Shell;
 use zkstack_common::forge::{Forge, ForgeScriptArgs};
 use zkstack_config::{
     forge_interface::{
@@ -8,7 +9,6 @@ use zkstack_config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use xshell::Shell;
 
 use crate::{
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},

@@ -1,4 +1,7 @@
 use anyhow::Context;
+use slugify_rs::slugify;
+use url::Url;
+use xshell::Shell;
 use zkstack_common::{config::global_config, db, logger, Prompt};
 use zkstack_config::{
     explorer::{ExplorerChainConfig, ExplorerConfig},
@@ -6,9 +9,6 @@ use zkstack_config::{
     traits::{ConfigWithL2RpcUrl, SaveConfig},
     ChainConfig, EcosystemConfig,
 };
-use slugify_rs::slugify;
-use url::Url;
-use xshell::Shell;
 
 use crate::{
     consts::L2_BASE_TOKEN_ADDRESS,

@@ -1,4 +1,5 @@
 use anyhow::Context;
+use xshell::Shell;
 use zkstack_common::{
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
@@ -10,7 +11,6 @@ use zkstack_config::{
     traits::SaveConfig,
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use xshell::Shell;
 
 use crate::{
     messages::{MSG_DEPLOYING_PAYMASTER, MSG_L1_SECRETS_MUST_BE_PRESENTED},

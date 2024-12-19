@@ -1,9 +1,9 @@
 use anyhow::Ok;
+use xshell::{cmd, Shell};
 use zkstack_common::{
     check_prerequisites, cmd::Cmd, logger, spinner::Spinner, GCLOUD_PREREQUISITE, GPU_PREREQUISITES,
 };
 use zkstack_config::{get_link_to_prover, EcosystemConfig};
-use xshell::{cmd, Shell};
 
 use crate::{
     commands::prover::args::setup_keys::{Mode, Region, SetupKeysArgs},

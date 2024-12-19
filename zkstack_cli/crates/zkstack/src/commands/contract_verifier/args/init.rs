@@ -1,7 +1,7 @@
 use anyhow::Context;
 use clap::Parser;
-use zkstack_common::PromptSelect;
 use xshell::Shell;
+use zkstack_common::PromptSelect;
 
 use super::releases::{get_releases_with_arch, Arch, Version};
 use crate::messages::{

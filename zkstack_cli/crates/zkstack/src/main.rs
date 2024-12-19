@@ -4,6 +4,7 @@ use commands::{
     contract_verifier::ContractVerifierCommands,
     dev::DevCommands,
 };
+use xshell::Shell;
 use zkstack_common::{
     check_general_prerequisites,
     config::{global_config, init_global_config, GlobalConfig},
@@ -12,7 +13,6 @@ use zkstack_common::{
     version::version_message,
 };
 use zkstack_config::EcosystemConfig;
-use xshell::Shell;
 
 use crate::commands::{
     args::ServerArgs, chain::ChainCommands, consensus, ecosystem::EcosystemCommands,

@@ -1,7 +1,7 @@
 use anyhow::Context;
+use xshell::{cmd, Shell};
 use zkstack_common::{cmd::Cmd, logger};
 use zkstack_config::EcosystemConfig;
-use xshell::{cmd, Shell};
 
 use crate::messages::{
     MSG_CHAIN_NOT_FOUND_ERR, MSG_FAILED_TO_RUN_CONTRACT_VERIFIER_ERR, MSG_RUNNING_CONTRACT_VERIFIER,

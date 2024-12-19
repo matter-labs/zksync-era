@@ -1,12 +1,14 @@
+use ethers::{abi::parse_abi, contract::BaseContract, types::Address};
+use lazy_static::lazy_static;
+use xshell::Shell;
 use zkstack_common::{
     forge::{Forge, ForgeScript, ForgeScriptArgs},
     spinner::Spinner,
     wallets::Wallet,
 };
-use zkstack_config::{forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, EcosystemConfig};
-use ethers::{abi::parse_abi, contract::BaseContract, types::Address};
-use lazy_static::lazy_static;
-use xshell::Shell;
+use zkstack_config::{
+    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, EcosystemConfig,
+};
 
 use crate::{
     messages::MSG_ACCEPTING_GOVERNANCE_SPINNER,

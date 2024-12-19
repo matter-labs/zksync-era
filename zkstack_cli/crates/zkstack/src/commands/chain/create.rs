@@ -1,13 +1,13 @@
 use std::cell::OnceCell;
 
 use anyhow::Context;
+use xshell::Shell;
 use zkstack_common::{logger, spinner::Spinner};
 use zkstack_config::{
     create_local_configs_dir, create_wallets,
     traits::{ReadConfigWithBasePath, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig, GenesisConfig,
 };
-use xshell::Shell;
 use zksync_basic_types::L2ChainId;
 
 use crate::{

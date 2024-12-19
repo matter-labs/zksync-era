@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
+use xshell::{cmd, Shell};
 use zkstack_common::{
     cmd::Cmd,
     config::global_config,
@@ -12,7 +13,6 @@ use zkstack_config::{
     copy_configs, get_link_to_prover, set_prover_database, traits::SaveConfigWithBasePath,
     EcosystemConfig,
 };
-use xshell::{cmd, Shell};
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 
 use super::{

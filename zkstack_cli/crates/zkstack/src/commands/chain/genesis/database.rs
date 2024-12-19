@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
+use xshell::Shell;
 use zkstack_common::{
     config::global_config,
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
@@ -11,7 +12,6 @@ use zkstack_config::{
     traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig, FileArtifacts,
 };
 use zkstack_types::ProverMode;
-use xshell::Shell;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
 
 use crate::{

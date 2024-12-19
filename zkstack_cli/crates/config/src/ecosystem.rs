@@ -3,11 +3,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use zkstack_common::{config::global_config, logger};
 use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
-use zkstack_types::{L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
+use zkstack_common::{config::global_config, logger};
+use zkstack_types::{L1Network, ProverMode, WalletCreation};
 use zksync_basic_types::L2ChainId;
 
 use crate::{

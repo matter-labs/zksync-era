@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use anyhow::{Context, Ok};
+use xshell::Shell;
 use zkstack_common::{
     db::migrate_db,
     git, logger,
@@ -11,7 +12,6 @@ use zkstack_config::{
     ChainConfig, EcosystemConfig, CONTRACTS_FILE, EN_CONFIG_FILE, ERA_OBSERBAVILITY_DIR,
     GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
 };
-use xshell::Shell;
 
 use super::args::UpdateArgs;
 use crate::{

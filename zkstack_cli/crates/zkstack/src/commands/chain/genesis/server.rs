@@ -1,4 +1,5 @@
 use anyhow::Context;
+use xshell::Shell;
 use zkstack_common::{
     logger,
     server::{Server, ServerMode},
@@ -8,7 +9,6 @@ use zkstack_config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
     GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
-use xshell::Shell;
 
 use crate::messages::{
     MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_GENESIS_COMPLETED,

@@ -1,9 +1,9 @@
+use xshell::Shell;
 use zkstack_common::{
     db::{drop_db_if_exists, DatabaseConfig},
     logger,
     spinner::Spinner,
 };
-use xshell::Shell;
 
 use super::args::DatabaseCommonArgs;
 use crate::commands::dev::{

@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 
 use clap::{Parser, ValueHint};
-use zkstack_common::{Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use strum::IntoEnumIterator;
-use zkstack_types::{L1Network, WalletCreation};
 use xshell::Shell;
+use zkstack_common::{Prompt, PromptConfirm, PromptSelect};
+use zkstack_types::{L1Network, WalletCreation};
 
 use crate::{
     commands::chain::{args::create::ChainCreateArgs, ChainCreateArgsFinal},

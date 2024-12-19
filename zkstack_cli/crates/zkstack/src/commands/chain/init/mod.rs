@@ -1,9 +1,9 @@
 use anyhow::Context;
 use clap::{command, Parser, Subcommand};
+use xshell::Shell;
 use zkstack_common::{git, logger, spinner::Spinner};
 use zkstack_config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
 use zkstack_types::BaseToken;
-use xshell::Shell;
 
 use crate::{
     accept_ownership::accept_admin,

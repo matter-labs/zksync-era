@@ -1,6 +1,6 @@
 use anyhow::Context as _;
-use zkstack_common::{forge::ForgeScript, wallets::Wallet};
 use ethers::types::U256;
+use zkstack_common::{forge::ForgeScript, wallets::Wallet};
 
 use crate::{
     consts::MINIMUM_BALANCE_FOR_WALLET,

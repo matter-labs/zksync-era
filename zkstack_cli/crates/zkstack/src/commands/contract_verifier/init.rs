@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
+use xshell::{cmd, Shell};
 use zkstack_common::{cmd::Cmd, logger, spinner::Spinner};
 use zkstack_config::EcosystemConfig;
-use xshell::{cmd, Shell};
 
 use super::args::{init::InitContractVerifierArgs, releases::Version};
 use crate::messages::{msg_binary_already_exists, msg_downloading_binary_spinner};

@@ -1,9 +1,9 @@
 use std::path::Path;
 
 use anyhow::Context;
+use xshell::Shell;
 use zkstack_common::{config::global_config, docker, logger};
 use zkstack_config::{explorer::*, traits::SaveConfig, AppsEcosystemConfig, EcosystemConfig};
-use xshell::Shell;
 
 use crate::{
     consts::{EXPLORER_APP_DOCKER_CONFIG_PATH, EXPLORER_APP_DOCKER_IMAGE},

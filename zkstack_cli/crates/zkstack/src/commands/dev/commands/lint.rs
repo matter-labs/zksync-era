@@ -6,9 +6,9 @@ use std::{
 
 use anyhow::{bail, Context};
 use clap::Parser;
+use xshell::{cmd, Shell};
 use zkstack_common::{cmd::Cmd, logger, spinner::Spinner};
 use zkstack_config::EcosystemConfig;
-use xshell::{cmd, Shell};
 
 use crate::commands::{
     autocomplete::{autocomplete_file_name, generate_completions},

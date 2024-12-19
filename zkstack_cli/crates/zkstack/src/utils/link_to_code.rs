@@ -4,10 +4,12 @@ use std::{
 };
 
 use anyhow::bail;
-use zkstack_common::{cmd::Cmd, git, logger, spinner::Spinner, Prompt, PromptConfirm, PromptSelect};
-use zkstack_config::ZKSYNC_ERA_GIT_REPO;
 use strum::{EnumIter, IntoEnumIterator};
 use xshell::{cmd, Shell};
+use zkstack_common::{
+    cmd::Cmd, git, logger, spinner::Spinner, Prompt, PromptConfirm, PromptSelect,
+};
+use zkstack_config::ZKSYNC_ERA_GIT_REPO;
 
 use crate::messages::{
     msg_path_to_zksync_does_not_exist_err, MSG_CLONING_ERA_REPO_SPINNER,

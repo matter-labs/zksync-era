@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use anyhow::Context;
+use xshell::Shell;
 use zkstack_common::{
     contracts::build_l2_contracts,
     forge::{Forge, ForgeScriptArgs},
@@ -20,7 +21,6 @@ use zkstack_config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use xshell::Shell;
 
 use crate::{
     messages::{

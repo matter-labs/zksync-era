@@ -1,6 +1,6 @@
-use zkstack_config::ChainConfig;
 use lazy_static::lazy_static;
 use url::Url;
+use zkstack_config::ChainConfig;
 
 lazy_static! {
     pub static ref DATABASE_SERVER_URL: Url =

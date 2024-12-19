@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use zkstack_config::RocksDbs;
 use xshell::Shell;
+use zkstack_config::RocksDbs;
 
 use crate::defaults::{
     EN_ROCKS_DB_PREFIX, MAIN_ROCKS_DB_PREFIX, ROCKS_DB_BASIC_WITNESS_INPUT_PRODUCER,

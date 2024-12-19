@@ -3,8 +3,6 @@ use std::{borrow::Borrow, collections::HashMap, path::PathBuf, sync::Arc};
 /// Consensus registry contract operations.
 /// Includes code duplicated from `zksync_node_consensus::registry::abi`.
 use anyhow::Context as _;
-use zkstack_common::{config::global_config, logger, wallets::Wallet};
-use zkstack_config::EcosystemConfig;
 use conv::*;
 use ethers::{
     abi::Detokenize,
@@ -16,6 +14,8 @@ use ethers::{
 };
 use tokio::time::MissedTickBehavior;
 use xshell::Shell;
+use zkstack_common::{config::global_config, logger, wallets::Wallet};
+use zkstack_config::EcosystemConfig;
 use zksync_consensus_crypto::ByteFmt;
 use zksync_consensus_roles::{attester, validator};
 

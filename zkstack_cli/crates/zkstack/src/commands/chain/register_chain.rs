@@ -1,4 +1,5 @@
 use anyhow::Context;
+use xshell::Shell;
 use zkstack_common::{
     forge::{Forge, ForgeScriptArgs},
     logger,
@@ -12,7 +13,6 @@ use zkstack_config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use xshell::Shell;
 
 use crate::{
     messages::{

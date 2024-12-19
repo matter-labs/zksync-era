@@ -1,11 +1,11 @@
 use clap::{Parser, ValueEnum};
-use zkstack_common::{db::DatabaseConfig, logger, Prompt, PromptConfirm, PromptSelect};
-use zkstack_config::ChainConfig;
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use strum::{EnumIter, IntoEnumIterator};
 use url::Url;
 use xshell::Shell;
+use zkstack_common::{db::DatabaseConfig, logger, Prompt, PromptConfirm, PromptSelect};
+use zkstack_config::ChainConfig;
 use zksync_config::configs::fri_prover::CloudConnectionMode;
 
 use super::{

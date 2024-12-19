@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use zkstack_common::cmd::Cmd;
 use xshell::{cmd, Shell};
+use zkstack_common::cmd::Cmd;
 
 pub(super) fn install_yarn_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code);

@@ -2,11 +2,11 @@ use std::{path::PathBuf, str::FromStr};
 
 use anyhow::{bail, Context};
 use clap::{Parser, ValueEnum, ValueHint};
-use zkstack_common::{Prompt, PromptConfirm, PromptSelect};
-use zkstack_config::forge_interface::deploy_ecosystem::output::Erc20Token;
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use strum::{Display, EnumIter, IntoEnumIterator};
+use zkstack_common::{Prompt, PromptConfirm, PromptSelect};
+use zkstack_config::forge_interface::deploy_ecosystem::output::Erc20Token;
 use zkstack_types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use zksync_basic_types::H160;
 

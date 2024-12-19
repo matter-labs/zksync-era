@@ -1,8 +1,8 @@
 use std::path::Path;
 
+use xshell::{cmd, Shell};
 use zkstack_common::{cmd::Cmd, logger, spinner::Spinner};
 use zkstack_config::EcosystemConfig;
-use xshell::{cmd, Shell};
 
 use super::args::DatabaseCommonArgs;
 use crate::commands::dev::{

@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
+use xshell::Shell;
 use zkstack_config::{
     external_node::ENConfig, traits::FileConfigWithDefaultName, ChainConfig, GeneralConfig,
     SecretsConfig,
 };
-use xshell::Shell;
 use zksync_config::configs::consensus::ConsensusConfig;
 
 use crate::messages::MSG_FAILED_TO_RUN_SERVER_ERR;

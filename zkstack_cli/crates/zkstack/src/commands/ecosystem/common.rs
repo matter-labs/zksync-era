@@ -1,4 +1,5 @@
 use anyhow::Context;
+use xshell::Shell;
 use zkstack_common::forge::{Forge, ForgeScriptArgs};
 use zkstack_config::{
     forge_interface::{
@@ -12,7 +13,6 @@ use zkstack_config::{
     ContractsConfig, EcosystemConfig, GenesisConfig,
 };
 use zkstack_types::{L1Network, ProverMode};
-use xshell::Shell;
 
 use crate::utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner};
 

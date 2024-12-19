@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
 use anyhow::Context;
-use zkstack_common::{cmd::Cmd, spinner::Spinner, wallets::Wallet};
-use zkstack_config::{ChainConfig, EcosystemConfig};
 use ethers::{
     providers::{Http, Middleware, Provider},
     utils::hex::ToHex,
 };
 use serde::Deserialize;
 use xshell::{cmd, Shell};
+use zkstack_common::{cmd::Cmd, spinner::Spinner, wallets::Wallet};
+use zkstack_config::{ChainConfig, EcosystemConfig};
 
 use crate::commands::dev::messages::{
     MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS, MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES,

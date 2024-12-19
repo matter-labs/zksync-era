@@ -4,9 +4,9 @@ use std::{
 };
 
 use anyhow::Context as _;
+use xshell::{cmd, Shell};
 use zkstack_common::logger;
 use zkstack_config::{ChainConfig, EcosystemConfig};
-use xshell::{cmd, Shell};
 
 use crate::commands::dev::messages::MSG_CHAIN_NOT_FOUND_ERR;
 

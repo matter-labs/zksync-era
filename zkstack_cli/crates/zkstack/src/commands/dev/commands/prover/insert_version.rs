@@ -1,6 +1,6 @@
+use xshell::{cmd, Shell};
 use zkstack_common::{check_prerequisites, cmd::Cmd, logger, PROVER_CLI_PREREQUISITE};
 use zkstack_config::{get_link_to_prover, EcosystemConfig};
-use xshell::{cmd, Shell};
 
 use crate::commands::dev::{
     commands::prover::{

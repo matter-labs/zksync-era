@@ -1,7 +1,7 @@
 use anyhow::Context as _;
+use xshell::Shell;
 use zkstack_common::{config::global_config, logger};
 use zkstack_config::EcosystemConfig;
-use xshell::Shell;
 
 use crate::{commands::args::WaitArgs, messages::MSG_CHAIN_NOT_FOUND_ERR};
 

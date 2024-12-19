@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 
-use zkstack_common::wallets::Wallet;
 use rand::thread_rng;
-use zkstack_types::WalletCreation;
 use xshell::Shell;
+use zkstack_common::wallets::Wallet;
+use zkstack_types::WalletCreation;
 
 use crate::{
     consts::{BASE_PATH, TEST_CONFIG_PATH},

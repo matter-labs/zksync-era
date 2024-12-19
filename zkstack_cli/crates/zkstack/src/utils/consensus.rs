@@ -1,6 +1,6 @@
 use anyhow::Context as _;
-use zkstack_config::ChainConfig;
 use secrecy::{ExposeSecret, Secret};
+use zkstack_config::ChainConfig;
 use zksync_config::configs::consensus::{
     AttesterPublicKey, AttesterSecretKey, ConsensusSecrets, GenesisSpec, NodePublicKey,
     NodeSecretKey, ProtocolVersion, ValidatorPublicKey, ValidatorSecretKey, WeightedAttester,
