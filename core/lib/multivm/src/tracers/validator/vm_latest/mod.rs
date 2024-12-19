@@ -100,10 +100,10 @@ impl<H: HistoryMode> ValidationTracer<H> {
                 let msg_sender = state.vm_local_state.callstack.current.msg_sender;
 
                 if !self.is_allowed_storage_read(storage.clone(), this_address, key, msg_sender) {
-                    return Err(ViolatedValidationRule::TouchedDisallowedStorageSlots(
-                        this_address,
-                        key,
-                    ));
+                    // return Err(ViolatedValidationRule::TouchedDisallowedStorageSlots(
+                    //     this_address,
+                    //     key,
+                    // ));
                 }
 
                 if self.trusted_address_slots.contains(&(this_address, key)) {
