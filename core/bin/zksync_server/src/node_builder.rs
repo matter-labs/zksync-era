@@ -680,6 +680,9 @@ impl MainNodeBuilder {
             contracts: self.contracts_config.clone(),
         });
         let mut layer = NodeStorageInitializerLayer::new();
+        if matches!(kind, LayerKind::TaskEndingExecution) {
+            layer = layer.stop_node_on_completion();
+        }
         if matches!(kind, LayerKind::Precondition) {
             layer = layer.as_precondition();
         }
@@ -696,7 +699,7 @@ impl MainNodeBuilder {
             .add_blob_client_layer(l1_chain_id)?
             .add_query_eth_client_layer()?
             .add_healthcheck_layer()?
-            .add_storage_initialization_layer(LayerKind::Task, false)?;
+            .add_storage_initialization_layer(LayerKind::TaskEndingExecution, false)?;
 
         Ok(self.node.build())
     }
@@ -709,7 +712,7 @@ impl MainNodeBuilder {
             .add_blob_client_layer(l1_chain_id)?
             .add_query_eth_client_layer()?
             .add_healthcheck_layer()?
-            .add_storage_initialization_layer(LayerKind::Task, true)?;
+            .add_storage_initialization_layer(LayerKind::TaskEndingExecution, true)?;
 
         Ok(self.node.build())
     }
@@ -840,4 +843,5 @@ impl MainNodeBuilder {
 enum LayerKind {
     Task,
     Precondition,
+    TaskEndingExecution,
 }

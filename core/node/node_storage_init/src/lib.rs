@@ -48,11 +48,20 @@ pub struct NodeInitializationStrategy {
 pub struct NodeStorageInitializer {
     strategy: NodeInitializationStrategy,
     pool: ConnectionPool<Core>,
+    pub stop_node_on_completion: bool,
 }
 
 impl NodeStorageInitializer {
-    pub fn new(strategy: NodeInitializationStrategy, pool: ConnectionPool<Core>) -> Self {
-        Self { strategy, pool }
+    pub fn new(
+        strategy: NodeInitializationStrategy,
+        pool: ConnectionPool<Core>,
+        stop_node_on_completion: bool,
+    ) -> Self {
+        Self {
+            strategy,
+            pool,
+            stop_node_on_completion,
+        }
     }
 
     /// Returns the preferred kind of storage initialization.

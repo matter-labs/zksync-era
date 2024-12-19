@@ -25,6 +25,7 @@ pub mod main_node_strategy;
 #[derive(Debug, Default)]
 pub struct NodeStorageInitializerLayer {
     as_precondition: bool,
+    stop_node_on_completion: bool,
 }
 
 impl NodeStorageInitializerLayer {
@@ -35,6 +36,11 @@ impl NodeStorageInitializerLayer {
     /// Changes the wiring logic to treat the initializer as a precondition.
     pub fn as_precondition(mut self) -> Self {
         self.as_precondition = true;
+        self
+    }
+
+    pub fn stop_node_on_completion(mut self) -> Self {
+        self.stop_node_on_completion = true;
         self
     }
 }
@@ -87,7 +93,7 @@ impl WiringLayer for NodeStorageInitializerLayer {
         let pool = input.master_pool.get().await?;
         let NodeInitializationStrategyResource(strategy) = input.strategy;
 
-        let initializer = NodeStorageInitializer::new(strategy, pool);
+        let initializer = NodeStorageInitializer::new(strategy, pool, self.stop_node_on_completion);
 
         // Insert either task or precondition.
         let output = if self.as_precondition {
@@ -103,7 +109,11 @@ impl WiringLayer for NodeStorageInitializerLayer {
 #[async_trait::async_trait]
 impl Task for NodeStorageInitializer {
     fn kind(&self) -> TaskKind {
-        TaskKind::UnconstrainedOneshotTask
+        if self.stop_node_on_completion {
+            TaskKind::UnconstrainedTask
+        } else {
+            TaskKind::UnconstrainedOneshotTask
+        }
     }
 
     fn id(&self) -> TaskId {
