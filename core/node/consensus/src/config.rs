@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use anyhow::Context as _;
 use secrecy::{ExposeSecret as _, Secret};
-use zksync_concurrency::{limiter, net, time};
+use zksync_concurrency::net;
 use zksync_config::{
     configs,
     configs::consensus::{ConsensusConfig, ConsensusSecrets, Host, NodePublicKey},
@@ -152,11 +152,6 @@ pub(super) fn executor(
 
     let mut rpc = executor::RpcConfig::default();
     rpc.get_block_rate = cfg.rpc().get_block_rate();
-    // Disable batch syncing, because it is not implemented.
-    rpc.get_batch_rate = limiter::Rate {
-        burst: 0,
-        refresh: time::Duration::ZERO,
-    };
 
     let debug_page = cfg.debug_page_addr.map(|addr| network::debug_page::Config {
         addr,
@@ -169,6 +164,7 @@ pub(super) fn executor(
         server_addr: cfg.server_addr,
         public_addr: net::Host(cfg.public_addr.0.clone()),
         max_payload_size: cfg.max_payload_size,
+        view_timeout: cfg.view_timeout(),
         node_key: node_key(secrets)
             .context("node_key")?
             .context("missing node_key")?,
