@@ -84,12 +84,12 @@ jobs:
   build-push-prover-images:
     name: Build and push image
     needs: [setup]
-    uses: ./.github/workflows/build-prover-template.yml
+    uses: ./.github/workflows/new-build-prover-template.yml
     if: contains(github.ref_name, 'prover')
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
-      CUDA_ARCH: "60;70;75;80;89"
+      action: "push"
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
