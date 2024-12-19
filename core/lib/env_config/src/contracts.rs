@@ -1,27 +1,15 @@
 use zksync_config::{configs::EcosystemContracts, ContractsConfig};
 
-use crate::{envy_load, FromEnv, FromEnvVariant};
+use crate::{envy_load, FromEnv};
 
 impl FromEnv for EcosystemContracts {
     fn from_env() -> anyhow::Result<Self> {
-        Self::from_env_variant("".to_string())
-    }
-}
-impl FromEnvVariant for EcosystemContracts {
-    fn from_env_variant(variant: String) -> anyhow::Result<Self> {
         Ok(Self {
-            bridgehub_proxy_addr: std::env::var(format!(
-                "{variant}CONTRACTS_BRIDGEHUB_PROXY_ADDR"
-            ))?
-            .parse()?,
-            state_transition_proxy_addr: std::env::var(format!(
-                "{variant}CONTRACTS_STATE_TRANSITION_PROXY_ADDR"
-            ))?
-            .parse()?,
-            transparent_proxy_admin_addr: std::env::var(format!(
-                "{variant}CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR"
-            ))?
-            .parse()?,
+            bridgehub_proxy_addr: std::env::var("CONTRACTS_BRIDGEHUB_PROXY_ADDR")?.parse()?,
+            state_transition_proxy_addr: std::env::var("CONTRACTS_STATE_TRANSITION_PROXY_ADDR")?
+                .parse()?,
+            transparent_proxy_admin_addr: std::env::var("CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR")?
+                .parse()?,
             // Not supported yet
             l1_bytecodes_supplier_addr: None,
         })
@@ -30,14 +18,7 @@ impl FromEnvVariant for EcosystemContracts {
 
 impl FromEnv for ContractsConfig {
     fn from_env() -> anyhow::Result<Self> {
-        Self::from_env_variant("".to_string())
-    }
-}
-
-impl FromEnvVariant for ContractsConfig {
-    fn from_env_variant(variant: String) -> anyhow::Result<Self> {
-        let mut contracts: ContractsConfig =
-            envy_load("contracts", &format!("{variant}CONTRACTS_"))?;
+        let mut contracts: ContractsConfig = envy_load("contracts", "CONTRACTS_")?;
         // Note: we are renaming the bridge, the address remains the same
         // These two config variables should always have the same value.
         // TODO(EVM-578): double check and potentially forbid both of them being `None`.
@@ -56,7 +37,7 @@ impl FromEnvVariant for ContractsConfig {
                 panic!("L2 erc20 bridge address and L2 shared bridge address are different.");
             }
         }
-        contracts.ecosystem_contracts = EcosystemContracts::from_env_variant(variant).ok();
+        contracts.ecosystem_contracts = EcosystemContracts::from_env().ok();
         Ok(contracts)
     }
 }

@@ -153,20 +153,15 @@ impl WiringLayer for EthTxAggregatorLayer {
             .map(BoundEthInterface::sender_account);
 
         let config = self.eth_sender_config.sender.context("sender")?;
-        let mut connection = replica_pool
-            .connection_tagged("eth_sender")
-            .await
-            .map_err(DalError::generalize)?;
         let aggregator = Aggregator::new(
             config.clone(),
             object_store,
             eth_client_blobs_addr,
             self.l1_batch_commit_data_generator_mode,
-            &mut connection,
+            replica_pool.clone(),
             self.settlement_mode,
         )
         .await?;
-        drop(connection);
 
         let eth_tx_aggregator = EthTxAggregator::new(
             master_pool.clone(),

@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
+use once_cell::sync::OnceCell;
 use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{Connection, Core, CoreDal, DalError};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
@@ -34,6 +35,7 @@ pub struct Aggregator {
     execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>>,
     config: SenderConfig,
     blob_store: Arc<dyn ObjectStore>,
+    pool: ConnectionPool<Core>,
     /// If we are operating in 4844 mode we need to wait for commit transaction
     /// to get included before sending the respective prove and execute transactions.
     /// In non-4844 mode of operation we operate with the single address and this
@@ -42,7 +44,7 @@ pub struct Aggregator {
     operate_4844_mode: bool,
     pubdata_da: PubdataSendingMode,
     commitment_mode: L1BatchCommitmentMode,
-    priority_merkle_tree: MiniMerkleTree<L1Tx>,
+    priority_merkle_tree: OnceCell<MiniMerkleTree<L1Tx>>,
 }
 
 impl Aggregator {
@@ -51,26 +53,12 @@ impl Aggregator {
         blob_store: Arc<dyn ObjectStore>,
         custom_commit_sender_addr: Option<Address>,
         commitment_mode: L1BatchCommitmentMode,
-        connection: &mut Connection<'_, Core>,
+        pool: ConnectionPool<Core>,
         settlement_mode: SettlementMode,
     ) -> anyhow::Result<Self> {
         let pubdata_da = config.pubdata_sending_mode;
 
-        let priority_op_hashes =
-            if let Some(priority_tree_start_index) = config.priority_tree_start_index {
-                connection
-                    .transactions_dal()
-                    .get_l1_transactions_hashes(priority_tree_start_index)
-                    .await
-                    .map_err(DalError::generalize)?
-            } else {
-                vec![]
-            };
-
-        let priority_merkle_tree =
-            MiniMerkleTree::<L1Tx>::from_hashes(KeccakHasher, priority_op_hashes.into_iter(), None);
-
-        let operate_4844_mode =
+        let operate_4844_mode: bool =
             custom_commit_sender_addr.is_some() && !settlement_mode.is_gateway();
 
         // We do not have a reliable lower bound for gas needed to execute batches on gateway so we do not aggregate.
@@ -153,7 +141,8 @@ impl Aggregator {
             operate_4844_mode,
             pubdata_da,
             commitment_mode,
-            priority_merkle_tree,
+            priority_merkle_tree: OnceCell::new(),
+            pool,
         })
     }
 
@@ -199,6 +188,38 @@ impl Aggregator {
         }
     }
 
+    async fn get_or_init_tree(&mut self) -> &mut MiniMerkleTree<L1Tx> {
+        if self.priority_merkle_tree.get().is_none() {
+            // We unwrap here since it is only invoked during initialization
+            let mut connection = self.pool.connection_tagged("eth_sender").await.unwrap();
+
+            let priority_op_hashes =
+                if let Some(priority_tree_start_index) = self.config.priority_tree_start_index {
+                    // We unwrap here since it is only invoked during initialization
+                    connection
+                        .transactions_dal()
+                        .get_l1_transactions_hashes(priority_tree_start_index)
+                        .await
+                        .unwrap()
+                } else {
+                    vec![]
+                };
+            let priority_merkle_tree = MiniMerkleTree::<L1Tx>::from_hashes(
+                KeccakHasher,
+                priority_op_hashes.into_iter(),
+                None,
+            );
+
+            // The error can only be thrown if this tree has been populated before.
+            // It is expected that this tree is populated deterministically based on config and
+            // so if some other thread populated it, the stored value should've been the same.
+            let _ = self.priority_merkle_tree.set(priority_merkle_tree);
+        };
+
+        // It is known that the `self.priority_merkle_tree` is initialized, so it is safe to unwrap here
+        self.priority_merkle_tree.get_mut().unwrap()
+    }
+
     async fn get_execute_operations(
         &mut self,
         storage: &mut Connection<'_, Core>,
@@ -222,16 +243,18 @@ impl Aggregator {
         )
         .await?;
 
+        let start_index = self.config.priority_tree_start_index.clone();
+        let priority_merkle_tree = self.get_or_init_tree().await;
+
         let mut priority_ops_proofs = vec![];
         for batch in l1_batches.iter() {
-            let priority_tree_start_index =
-                if let Some(start_index) = self.config.priority_tree_start_index {
-                    start_index
-                } else {
-                    // Start index not present, we push empty proof.
-                    priority_ops_proofs.push(Default::default());
-                    continue;
-                };
+            let priority_tree_start_index = if let Some(start_index) = start_index {
+                start_index
+            } else {
+                // Start index not present, we push empty proof.
+                priority_ops_proofs.push(Default::default());
+                continue;
+            };
 
             let first_priority_op_id_option = match storage
                 .blocks_dal()
@@ -251,23 +274,22 @@ impl Aggregator {
                 let new_l1_tx_hashes = storage
                     .transactions_dal()
                     .get_l1_transactions_hashes(
-                        priority_tree_start_index + self.priority_merkle_tree.length(),
+                        priority_tree_start_index + priority_merkle_tree.length(),
                     )
                     .await
                     .unwrap();
                 for hash in new_l1_tx_hashes {
-                    self.priority_merkle_tree.push_hash(hash);
+                    priority_merkle_tree.push_hash(hash);
                 }
 
-                self.priority_merkle_tree.trim_start(
+                priority_merkle_tree.trim_start(
                     first_priority_op_id_in_batch // global index
                         - priority_tree_start_index // first index when tree is activated
-                        - self.priority_merkle_tree.start_index(), // first index in the tree
+                        - priority_merkle_tree.start_index(), // first index in the tree
                 );
-                let (_, left, right) = self
-                    .priority_merkle_tree
-                    .merkle_root_and_paths_for_range(..count);
-                let hashes = self.priority_merkle_tree.hashes_prefix(count);
+                let (_, left, right) =
+                    priority_merkle_tree.merkle_root_and_paths_for_range(..count);
+                let hashes = priority_merkle_tree.hashes_prefix(count);
                 priority_ops_proofs.push(PriorityOpsMerkleProof {
                     left_path: left.into_iter().map(Option::unwrap_or_default).collect(),
                     right_path: right.into_iter().map(Option::unwrap_or_default).collect(),

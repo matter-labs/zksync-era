@@ -244,13 +244,12 @@ impl EthSenderTester {
                 None
             };
 
-        let mut connection = connection_pool.connection().await.unwrap();
         let aggregator = Aggregator::new(
             aggregator_config.clone(),
             MockObjectStore::arc(),
             custom_commit_sender_addr,
             commitment_mode,
-            &mut connection,
+            connection_pool.clone(),
             SettlementMode::SettlesToL1,
         )
         .await
