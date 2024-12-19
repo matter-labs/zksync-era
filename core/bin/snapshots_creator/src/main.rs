@@ -71,6 +71,7 @@ async fn main() -> anyhow::Result<()> {
     let config_file_paths = ConfigFilePaths {
         general: opt.config_path,
         secrets: opt.secrets_path,
+        ..ConfigFilePaths::default()
     };
     let config_sources =
         tokio::task::spawn_blocking(|| config_file_paths.into_config_sources("")).await??;

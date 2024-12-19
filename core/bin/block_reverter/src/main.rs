@@ -20,7 +20,7 @@ use zksync_config::{
     },
     full_config_schema,
     sources::ConfigFilePaths,
-    ConfigRepository, ContractsConfig, DBConfig, EthConfig, GenesisConfig, ParseResultExt,
+    ConfigRepository, ContractsConfig, DBConfig, EthConfig, GenesisConfigWrapper, ParseResultExt,
     PostgresConfig,
 };
 use zksync_dal::{ConnectionPool, Core};
@@ -115,6 +115,9 @@ async fn main() -> anyhow::Result<()> {
     let config_file_paths = ConfigFilePaths {
         general: opts.config_path,
         secrets: opts.secrets_path,
+        wallets: opts.wallets_path,
+        genesis: opts.genesis_path,
+        contracts: opts.contracts_config_path,
     };
     let config_sources =
         tokio::task::spawn_blocking(|| config_file_paths.into_config_sources("")).await??;
@@ -137,8 +140,12 @@ async fn main() -> anyhow::Result<()> {
 
     let schema = full_config_schema();
     let repo = ConfigRepository::new(&schema).with_all(config_sources);
-    let wallets_config: Option<Wallets> = None; // FIXME: repo.single()?.parse_opt().log_all_errors()?
-    let genesis_config: Option<GenesisConfig> = None; // FIXME: repo.single()?.parse_opt().log_all_errors()?
+    let wallets_config: Option<Wallets> = repo.single()?.parse_opt().log_all_errors()?;
+    let genesis_config = repo
+        .single::<GenesisConfigWrapper>()?
+        .parse()
+        .log_all_errors()?
+        .genesis;
     let eth_sender: EthConfig = repo.single()?.parse().log_all_errors()?;
     let db_config: DBConfig = repo.single()?.parse().log_all_errors()?;
     let protective_reads_writer_config: ProtectiveReadsWriterConfig =
@@ -204,9 +211,8 @@ async fn main() -> anyhow::Result<()> {
                 .build();
             let reverter_private_key = if let Some(wallets_config) = wallets_config {
                 wallets_config
-                    .eth_sender
-                    .unwrap()
                     .operator
+                    .context("operator private key not present")?
                     .private_key()
                     .to_owned()
             } else {

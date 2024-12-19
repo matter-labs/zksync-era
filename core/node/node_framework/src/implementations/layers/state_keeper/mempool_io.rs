@@ -38,7 +38,7 @@ pub struct MempoolIOLayer {
     zksync_network_id: L2ChainId,
     state_keeper_config: StateKeeperConfig,
     mempool_config: MempoolConfig,
-    wallets: wallets::StateKeeper,
+    fee_account: wallets::AddressWallet,
     l2_da_validator_addr: Option<Address>,
     l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
 }
@@ -64,7 +64,7 @@ impl MempoolIOLayer {
         zksync_network_id: L2ChainId,
         state_keeper_config: StateKeeperConfig,
         mempool_config: MempoolConfig,
-        wallets: wallets::StateKeeper,
+        fee_account: wallets::AddressWallet,
         l2_da_validator_addr: Option<Address>,
         l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     ) -> Self {
@@ -72,7 +72,7 @@ impl MempoolIOLayer {
             zksync_network_id,
             state_keeper_config,
             mempool_config,
-            wallets,
+            fee_account,
             l2_da_validator_addr,
             l1_batch_commit_data_generator_mode,
         }
@@ -132,7 +132,7 @@ impl WiringLayer for MempoolIOLayer {
             batch_fee_input_provider,
             mempool_db_pool,
             &self.state_keeper_config,
-            self.wallets.fee_account.address(),
+            self.fee_account.address(),
             self.mempool_config.delay_interval,
             self.zksync_network_id,
             self.l2_da_validator_addr,

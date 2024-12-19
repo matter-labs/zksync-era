@@ -1,8 +1,9 @@
-use zksync_config::{configs::EcosystemContracts, GenesisConfig};
+use zksync_config::GenesisConfig;
 use zksync_types::{api::en, tokens::TokenInfo, Address, L2BlockNumber};
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
     namespaces::EnNamespaceServer,
+    types::EcosystemContracts,
 };
 
 use crate::web3::namespaces::EnNamespace;

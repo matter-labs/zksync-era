@@ -7,7 +7,7 @@ use zksync_config::{
     configs::{wallets::Wallets, ContractsConfig, GeneralConfig, ObservabilityConfig, Secrets},
     full_config_schema,
     sources::ConfigFilePaths,
-    ConfigRepository, GenesisConfig, ParseResultExt,
+    ConfigRepository, GenesisConfigWrapper, ParseResultExt,
 };
 use zksync_core_leftovers::{Component, Components};
 
@@ -73,6 +73,9 @@ fn main() -> anyhow::Result<()> {
     let config_file_paths = ConfigFilePaths {
         general: opt.config_path,
         secrets: opt.secrets_path,
+        contracts: opt.contracts_config_path,
+        genesis: opt.genesis_path,
+        wallets: opt.wallets_path,
     };
     let config_sources = config_file_paths.into_config_sources("")?;
 
@@ -91,7 +94,12 @@ fn main() -> anyhow::Result<()> {
     let wallets: Wallets = repo.single()?.parse().log_all_errors()?;
     let secrets: Secrets = repo.single()?.parse().log_all_errors()?;
     let contracts_config: ContractsConfig = repo.single()?.parse().log_all_errors()?;
-    let genesis: GenesisConfig = repo.single()?.parse().log_all_errors()?;
+    let genesis = repo
+        .single::<GenesisConfigWrapper>()?
+        .parse()
+        .log_all_errors()?
+        .genesis
+        .context("missing genesis config")?;
 
     let node = MainNodeBuilder::new(
         runtime,

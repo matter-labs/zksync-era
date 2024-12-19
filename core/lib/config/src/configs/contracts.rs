@@ -1,11 +1,11 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use smart_config::{
     de::{Serde, WellKnown},
     DescribeConfig, DeserializeConfig,
 };
 use zksync_basic_types::Address;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, DescribeConfig, DeserializeConfig)]
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct EcosystemContracts {
     pub bridgehub_proxy_addr: Address,
     pub state_transition_proxy_addr: Address,

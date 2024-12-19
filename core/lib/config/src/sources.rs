@@ -4,13 +4,16 @@ use std::{
 };
 
 use anyhow::Context;
-use smart_config::{ConfigSources, Environment, Yaml};
+use smart_config::{ConfigSources, Environment, Prefixed, Yaml};
 
-// FIXME: wallets, consensus, genesis, contracts
+// FIXME: consensus
 #[derive(Debug, Default)]
 pub struct ConfigFilePaths {
     pub general: Option<PathBuf>,
     pub secrets: Option<PathBuf>,
+    pub contracts: Option<PathBuf>,
+    pub genesis: Option<PathBuf>,
+    pub wallets: Option<PathBuf>,
 }
 
 impl ConfigFilePaths {
@@ -35,6 +38,18 @@ impl ConfigFilePaths {
         if let Some(path) = &self.secrets {
             sources.push(Self::read_yaml(path)?);
         }
+
+        // Prefixed sources
+        if let Some(path) = &self.contracts {
+            sources.push(Prefixed::new(Self::read_yaml(path)?, "contracts"));
+        }
+        if let Some(path) = &self.genesis {
+            sources.push(Prefixed::new(Self::read_yaml(path)?, "genesis"));
+        }
+        if let Some(path) = &self.wallets {
+            sources.push(Prefixed::new(Self::read_yaml(path)?, "wallets"));
+        }
+
         Ok(sources)
     }
 }

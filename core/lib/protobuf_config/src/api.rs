@@ -1,4 +1,7 @@
-use std::num::{NonZeroU32, NonZeroUsize};
+use std::{
+    num::{NonZeroU32, NonZeroUsize},
+    time::Duration,
+};
 
 use anyhow::Context as _;
 use zksync_config::configs::{api, ApiConfig};
@@ -65,11 +68,9 @@ impl ProtoRepr for proto::Web3JsonRpc {
             http_port: required(&self.http_port)
                 .and_then(|p| Ok((*p).try_into()?))
                 .context("http_port")?,
-            http_url: required(&self.http_url).context("http_url")?.clone(),
             ws_port: required(&self.ws_port)
                 .and_then(|p| Ok((*p).try_into()?))
                 .context("ws_port")?,
-            ws_url: required(&self.ws_url).context("ws_url")?.clone(),
             req_entities_limit: self.req_entities_limit,
             filters_disabled: self.filters_disabled.unwrap_or(false),
             filters_limit: self.filters_limit,
@@ -157,9 +158,9 @@ impl ProtoRepr for proto::Web3JsonRpc {
     fn build(this: &Self::Type) -> Self {
         Self {
             http_port: Some(this.http_port.into()),
-            http_url: Some(this.http_url.clone()),
+            http_url: None,
             ws_port: Some(this.ws_port.into()),
-            ws_url: Some(this.ws_url.clone()),
+            ws_url: None,
             req_entities_limit: this.req_entities_limit,
             filters_disabled: Some(this.filters_disabled),
             mempool_cache_update_interval: this.mempool_cache_update_interval,
@@ -229,16 +230,20 @@ impl ProtoRepr for proto::HealthCheck {
             port: required(&self.port)
                 .and_then(|&port| Ok(port.try_into()?))
                 .context("port")?,
-            slow_time_limit_ms: self.slow_time_limit_ms,
-            hard_time_limit_ms: self.hard_time_limit_ms,
+            slow_time_limit_ms: self.slow_time_limit_ms.map(Duration::from_millis),
+            hard_time_limit_ms: self.hard_time_limit_ms.map(Duration::from_millis),
         })
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
             port: Some(this.port.into()),
-            slow_time_limit_ms: this.slow_time_limit_ms,
-            hard_time_limit_ms: this.hard_time_limit_ms,
+            slow_time_limit_ms: this
+                .slow_time_limit_ms
+                .map(|dur| dur.as_millis().try_into().unwrap()),
+            hard_time_limit_ms: this
+                .hard_time_limit_ms
+                .map(|dur| dur.as_millis().try_into().unwrap()),
         }
     }
 }

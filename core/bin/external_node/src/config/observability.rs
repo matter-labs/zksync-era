@@ -105,7 +105,7 @@ impl ObservabilityENConfig {
         let (sentry_url, sentry_environment, log_format, log_directives) =
             if let Some(observability) = general_config.observability.as_ref() {
                 (
-                    observability.sentry_url.clone(),
+                    observability.sentry.url.clone(),
                     observability.sentry_environment.clone(),
                     observability
                         .log_format

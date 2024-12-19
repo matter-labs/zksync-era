@@ -147,7 +147,7 @@ impl Tester {
             Arc::new(batch_fee_input_provider),
             pool,
             &config,
-            wallets.state_keeper.unwrap().fee_account.address(),
+            wallets.fee_account.unwrap().address(),
             Duration::from_secs(1),
             L2ChainId::from(270),
             Some(Default::default()),

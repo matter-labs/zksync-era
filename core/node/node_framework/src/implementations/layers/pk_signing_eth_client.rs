@@ -19,7 +19,8 @@ pub struct PKSigningEthClientLayer {
     eth_sender_config: EthConfig,
     contracts_config: ContractsConfig,
     sl_chain_id: SLChainId,
-    wallets: wallets::EthSender,
+    operator: wallets::Wallet,
+    blob_operator: Option<wallets::Wallet>,
 }
 
 #[derive(Debug, FromContext)]
@@ -41,13 +42,15 @@ impl PKSigningEthClientLayer {
         eth_sender_config: EthConfig,
         contracts_config: ContractsConfig,
         sl_chain_id: SLChainId,
-        wallets: wallets::EthSender,
+        operator: wallets::Wallet,
+        blob_operator: Option<wallets::Wallet>,
     ) -> Self {
         Self {
             eth_sender_config,
             contracts_config,
             sl_chain_id,
-            wallets,
+            operator,
+            blob_operator,
         }
     }
 }
@@ -62,7 +65,7 @@ impl WiringLayer for PKSigningEthClientLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let private_key = self.wallets.operator.private_key();
+        let private_key = self.operator.private_key();
         let gas_adjuster_config = &self.eth_sender_config.gas_adjuster;
         let EthInterfaceResource(query_client) = input.eth_client;
 
@@ -75,7 +78,7 @@ impl WiringLayer for PKSigningEthClientLayer {
         );
         let signing_client = BoundEthInterfaceResource(Box::new(signing_client));
 
-        let signing_client_for_blobs = self.wallets.blob_operator.map(|blob_operator| {
+        let signing_client_for_blobs = self.blob_operator.map(|blob_operator| {
             let private_key = blob_operator.private_key();
             let signing_client_for_blobs = PKSigningClient::new_raw(
                 private_key.clone(),

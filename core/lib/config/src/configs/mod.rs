@@ -19,7 +19,7 @@ pub use self::{
     fri_witness_generator::FriWitnessGeneratorConfig,
     fri_witness_vector_generator::FriWitnessVectorGeneratorConfig,
     general::{full_config_schema, GeneralConfig},
-    genesis::GenesisConfig,
+    genesis::{GenesisConfig, GenesisConfigWrapper},
     object_store::ObjectStoreConfig,
     observability::{ObservabilityConfig, OpentelemetryConfig},
     proof_data_handler::{ProofDataHandlerConfig, TeeConfig},

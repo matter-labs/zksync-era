@@ -6,7 +6,7 @@ pub use crate::configs::{
     full_config_schema, ApiConfig, AvailConfig, BaseTokenAdjusterConfig, CelestiaConfig,
     ContractVerifierConfig, ContractsConfig, DAClientConfig, DADispatcherConfig, DBConfig,
     EigenConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
-    GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
+    GenesisConfig, GenesisConfigWrapper, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 #[cfg(feature = "observability_ext")]
 pub use crate::observability_ext::ParseResultExt;

@@ -74,7 +74,7 @@ mod tests {
     ) -> StateKeeperConfig {
         StateKeeperConfig {
             transaction_slots: 50,
-            block_commit_deadline_ms: 2500,
+            l1_batch_commit_deadline_ms: 2500,
             l2_block_commit_deadline_ms: 1000,
             l2_block_seal_queue_capacity: 10,
             l2_block_max_payload_size: 1_000_000,

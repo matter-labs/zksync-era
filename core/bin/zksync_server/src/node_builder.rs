@@ -141,12 +141,14 @@ impl MainNodeBuilder {
 
     fn add_pk_signing_client_layer(mut self) -> anyhow::Result<Self> {
         let eth_config = try_load_config!(self.configs.eth);
-        let wallets = try_load_config!(self.wallets.eth_sender);
+        let operator = try_load_config!(self.wallets.operator);
+        let blob_operator = self.wallets.blob_operator.clone();
         self.node.add_layer(PKSigningEthClientLayer::new(
             eth_config,
             self.contracts_config.clone(),
             self.genesis_config.settlement_layer_id(),
-            wallets,
+            operator,
+            blob_operator,
         ));
         Ok(self)
     }
@@ -233,7 +235,6 @@ impl MainNodeBuilder {
         // Bytecode compression is currently mandatory for the transactions processed by the sequencer.
         const OPTIONAL_BYTECODE_COMPRESSION: bool = false;
 
-        let wallets = self.wallets.clone();
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let persistence_layer = OutputHandlerLayer::new(
             self.contracts_config.l2.legacy_shared_bridge_addr,
@@ -244,7 +245,7 @@ impl MainNodeBuilder {
             self.genesis_config.l2_chain_id,
             sk_config.clone(),
             try_load_config!(self.configs.mempool_config),
-            try_load_config!(wallets.state_keeper),
+            try_load_config!(self.wallets.fee_account),
             self.contracts_config.l2.da_validator_addr,
             self.genesis_config.l1_batch_commit_data_generator_mode,
         );
@@ -333,9 +334,7 @@ impl MainNodeBuilder {
             TxSenderConfig::new(
                 &sk_config,
                 &rpc_config,
-                try_load_config!(self.wallets.state_keeper)
-                    .fee_account
-                    .address(),
+                try_load_config!(self.wallets.fee_account).address(),
                 self.genesis_config.l2_chain_id,
                 timestamp_asserter_params,
             ),

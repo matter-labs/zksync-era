@@ -345,6 +345,14 @@ pub enum PubSubResult {
     Syncing(bool),
 }
 
+/// API representation of ecosystem contracts.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EcosystemContracts {
+    pub bridgehub_proxy_addr: Address,
+    pub state_transition_proxy_addr: Address,
+    pub transparent_proxy_admin_addr: Address,
+}
+
 #[cfg(test)]
 mod tests {
     use zksync_types::api::{BlockId, BlockIdVariant};

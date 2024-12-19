@@ -95,7 +95,7 @@ impl ProtoRepr for proto::StateKeeper {
     fn build(this: &Self::Type) -> Self {
         Self {
             transaction_slots: Some(this.transaction_slots.try_into().unwrap()),
-            block_commit_deadline_ms: Some(this.block_commit_deadline_ms),
+            block_commit_deadline_ms: Some(this.l1_batch_commit_deadline_ms),
             miniblock_commit_deadline_ms: Some(this.l2_block_commit_deadline_ms),
             miniblock_seal_queue_capacity: Some(
                 this.l2_block_seal_queue_capacity.try_into().unwrap(),

@@ -20,8 +20,9 @@ use crate::{
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
         PrometheusConfig, ProofDataHandlerConfig, Secrets,
     },
-    ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, ExternalProofIntegrationApiConfig,
-    ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
+    ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, EthConfig,
+    ExternalProofIntegrationApiConfig, GenesisConfigWrapper, ObjectStoreConfig, PostgresConfig,
+    SnapshotsCreatorConfig,
 };
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -123,6 +124,13 @@ pub fn full_config_schema() -> ConfigSchema {
     // TODO: add aliases for prover object stores in the same way
 
     schema.insert(&Secrets::DESCRIPTION, "").unwrap();
+    schema
+        .insert(&GenesisConfigWrapper::DESCRIPTION, "")
+        .unwrap();
+    schema
+        .insert(&ContractsConfig::DESCRIPTION, "contracts")
+        .unwrap();
+    // FIXME: wallets
     schema
 }
 

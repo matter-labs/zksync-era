@@ -46,7 +46,10 @@ impl FromEnv for MerkleTreeApiConfig {
 
 #[cfg(test)]
 mod tests {
-    use std::num::{NonZeroU32, NonZeroUsize};
+    use std::{
+        num::{NonZeroU32, NonZeroUsize},
+        time::Duration,
+    };
 
     use super::*;
     use crate::test_utils::{addr, EnvMutex};
@@ -57,9 +60,7 @@ mod tests {
         ApiConfig {
             web3_json_rpc: Web3JsonRpcConfig {
                 http_port: 3050,
-                http_url: "http://127.0.0.1:3050".into(),
                 ws_port: 3051,
-                ws_url: "ws://127.0.0.1:3051".into(),
                 req_entities_limit: Some(10000),
                 filters_disabled: false,
                 filters_limit: Some(10000),
@@ -105,8 +106,8 @@ mod tests {
             },
             healthcheck: HealthCheckConfig {
                 port: 8081,
-                slow_time_limit_ms: Some(250),
-                hard_time_limit_ms: Some(2_000),
+                slow_time_limit_ms: Some(Duration::from_millis(250)),
+                hard_time_limit_ms: Some(Duration::from_millis(2_000)),
             },
             merkle_tree: MerkleTreeApiConfig { port: 8082 },
         }
