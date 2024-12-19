@@ -2,11 +2,12 @@
 mod test {
     use std::{collections::HashMap, str::FromStr};
 
+    use url::Url;
     use zksync_eth_client::{clients::PKSigningClient, EnrichedClientResult};
     use zksync_types::{
         url::SensitiveUrl,
         web3::{BlockId, Bytes, CallRequest},
-        K256PrivateKey, SLChainId, H160, U64,
+        Address, K256PrivateKey, SLChainId, H160, U64,
     };
     use zksync_web3_decl::client::{Client, DynClient, L1};
 
@@ -21,10 +22,10 @@ mod test {
     fn get_verifier_config() -> VerifierConfig {
         VerifierConfig {
             rpc_url: "https://ethereum-holesky-rpc.publicnode.com".to_string(),
-            svc_manager_addr: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
+            svc_manager_addr: Address::from_str("0xD4A7E1Bd8015057293f0D0A557088c286942e84b").unwrap(),
             max_blob_size: 2 * 1024 * 1024,
-            g1_url: "https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g1.point".to_string(),
-            g2_url: "https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g2.point.powerOf2".to_string(),
+            g1_url: Url::parse("https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g1.point").unwrap(),
+            g2_url: Url::parse("https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g2.point.powerOf2").unwrap(),
             settlement_layer_confirmation_depth: 0,
             private_key: "0xd08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6"
                 .to_string(),
@@ -82,9 +83,7 @@ mod test {
             )
             .map_err(|_| VerificationError::ServiceManagerError)
             .unwrap(),
-            zksync_types::H160::from_str(&cfg.svc_manager_addr)
-                .map_err(|_| VerificationError::ServiceManagerError)
-                .unwrap(),
+            cfg.svc_manager_addr,
             Verifier::DEFAULT_PRIORITY_FEE_PER_GAS,
             SLChainId(cfg.chain_id),
             query_client,
@@ -212,7 +211,7 @@ mod test {
                 quorum_indexes: vec![0, 1],
             },
         };
-        let result = verifier.verify_merkle_proof(cert);
+        let result = verifier.verify_merkle_proof(&cert);
         assert!(result.is_ok());
     }
 
@@ -295,7 +294,7 @@ mod test {
                 quorum_indexes: vec![0, 1],
             },
         };
-        let result = verifier.verify_merkle_proof(cert);
+        let result = verifier.verify_merkle_proof(&cert);
         assert!(result.is_ok());
     }
 
@@ -332,7 +331,7 @@ mod test {
                 },
             ],
         };
-        let result = verifier.hash_encode_blob_header(blob_header);
+        let result = verifier.hash_encode_blob_header(&blob_header);
         let expected = "ba4675a31c9bf6b2f7abfdcedd34b74645cb7332b35db39bff00ae8516a67393";
         assert_eq!(result, hex::decode(expected).unwrap());
     }
@@ -371,7 +370,7 @@ mod test {
                 },
             ],
         };
-        let result = verifier.hash_encode_blob_header(blob_header);
+        let result = verifier.hash_encode_blob_header(&blob_header);
         let expected = "ba4675a31c9bf6b2f7abfdcedd34b74645cb7332b35db39bff00ae8516a67393";
         assert_eq!(result, hex::decode(expected).unwrap());
     }
@@ -495,7 +494,7 @@ mod test {
                 quorum_indexes: vec![0, 1],
             },
         };
-        let result = verifier.verify_batch(cert).await;
+        let result = verifier.verify_batch(&cert).await;
         assert!(result.is_ok());
     }
 
@@ -603,7 +602,7 @@ mod test {
                 quorum_indexes: vec![0, 1],
             },
         };
-        let result = verifier.verify_batch(cert).await;
+        let result = verifier.verify_batch(&cert).await;
         assert!(result.is_ok());
     }
 
@@ -685,7 +684,7 @@ mod test {
                 quorum_indexes: vec![0, 1],
             },
         };
-        let result = verifier.verify_security_params(cert).await;
+        let result = verifier.verify_security_params(&cert).await;
         assert!(result.is_ok());
     }
 
@@ -810,7 +809,7 @@ mod test {
                 quorum_indexes: vec![0, 1],
             },
         };
-        let result = verifier.verify_security_params(cert).await;
+        let result = verifier.verify_security_params(&cert).await;
         assert!(result.is_ok());
     }
 }

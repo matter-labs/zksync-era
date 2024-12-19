@@ -17,7 +17,7 @@ mod tests {
 
     use crate::eigen::{blob_info::BlobInfo, EigenClient, GetBlobData};
 
-    impl<T: GetBlobData> EigenClient<T> {
+    impl EigenClient {
         pub async fn get_blob_data(
             &self,
             blob_id: BlobInfo,
@@ -32,8 +32,8 @@ mod tests {
     const STATUS_QUERY_TIMEOUT: u64 = 1800000; // 30 minutes
     const STATUS_QUERY_INTERVAL: u64 = 5; // 5 ms
 
-    async fn get_blob_info<T: GetBlobData>(
-        client: &EigenClient<T>,
+    async fn get_blob_info(
+        client: &EigenClient,
         result: &DispatchResponse,
     ) -> anyhow::Result<BlobInfo> {
         let blob_info = (|| async {
@@ -59,8 +59,12 @@ mod tests {
 
     #[async_trait::async_trait]
     impl GetBlobData for MockGetBlobData {
-        async fn call(&self, _input: &'_ str) -> anyhow::Result<Option<Vec<u8>>> {
+        async fn get_blob_data(&self, _input: &'_ str) -> anyhow::Result<Option<Vec<u8>>> {
             Ok(None)
+        }
+
+        fn clone_boxed(&self) -> Box<dyn GetBlobData> {
+            Box::new(self.clone())
         }
     }
 
@@ -70,7 +74,7 @@ mod tests {
     async fn test_non_auth_dispersal() {
         let config = EigenConfig {
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
-            settlement_layer_confirmation_depth: -1,
+            settlement_layer_confirmation_depth: 0,
             eigenda_eth_rpc: Some("https://ethereum-holesky-rpc.publicnode.com".to_string()),
             eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             wait_for_finalization: false,
@@ -110,7 +114,7 @@ mod tests {
     async fn test_auth_dispersal() {
         let config = EigenConfig {
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
-            settlement_layer_confirmation_depth: -1,
+            settlement_layer_confirmation_depth: 0,
             eigenda_eth_rpc: Some("https://ethereum-holesky-rpc.publicnode.com".to_string()),
             eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
             wait_for_finalization: false,

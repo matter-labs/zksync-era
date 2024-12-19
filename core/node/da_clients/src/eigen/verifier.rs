@@ -1,15 +1,15 @@
-use std::{collections::HashMap, fs::File, io::copy, path::Path, str::FromStr};
+use std::{collections::HashMap, path::Path};
 
 use ark_bn254::{Fq, G1Affine};
 use ethabi::{encode, ParamType, Token};
 use rust_kzg_bn254::{blob::Blob, kzg::Kzg, polynomial::PolynomialFormat};
-use tiny_keccak::{Hasher, Keccak};
+use tokio::{fs::File, io::AsyncWriteExt};
 use url::Url;
 use zksync_basic_types::web3::CallRequest;
 use zksync_eth_client::{clients::PKSigningClient, EnrichedClientResult};
 use zksync_types::{
     web3::{self, BlockId, BlockNumber},
-    H160, U256, U64,
+    Address, U256, U64,
 };
 
 use super::blob_info::{BatchHeader, BlobHeader, BlobInfo, G1Commitment};
@@ -68,10 +68,10 @@ pub enum VerificationError {
 #[derive(Debug, Clone)]
 pub struct VerifierConfig {
     pub rpc_url: String,
-    pub svc_manager_addr: String,
+    pub svc_manager_addr: Address,
     pub max_blob_size: u32,
-    pub g1_url: String,
-    pub g2_url: String,
+    pub g1_url: Url,
+    pub g2_url: Url,
     pub settlement_layer_confirmation_depth: u32,
     pub private_key: String,
     pub chain_id: u64,
@@ -104,8 +104,7 @@ impl Verifier {
     pub const G2POINT: &'static str = "g2.point.powerOf2";
     pub const POINT_SIZE: u32 = 32;
 
-    async fn save_point(url: String, point: String) -> Result<(), VerificationError> {
-        let url = Url::parse(&url).map_err(|_| VerificationError::LinkError)?;
+    async fn save_point(url: Url, point: String) -> Result<(), VerificationError> {
         let response = reqwest::get(url)
             .await
             .map_err(|_| VerificationError::LinkError)?;
@@ -114,17 +113,21 @@ impl Verifier {
         }
         let path = format!("./{}", point);
         let path = Path::new(&path);
-        let mut file = File::create(path).map_err(|_| VerificationError::LinkError)?;
+        let mut file = File::create(path)
+            .await
+            .map_err(|_| VerificationError::LinkError)?;
         let content = response
             .bytes()
             .await
             .map_err(|_| VerificationError::LinkError)?;
-        copy(&mut content.as_ref(), &mut file).map_err(|_| VerificationError::LinkError)?;
+        file.write_all(&content)
+            .await
+            .map_err(|_| VerificationError::LinkError)?;
         Ok(())
     }
-    async fn save_points(url_g1: String, url_g2: String) -> Result<String, VerificationError> {
-        Self::save_point(url_g1.clone(), Self::G1POINT.to_string()).await?;
-        Self::save_point(url_g2.clone(), Self::G2POINT.to_string()).await?;
+    async fn save_points(url_g1: Url, url_g2: Url) -> Result<String, VerificationError> {
+        Self::save_point(url_g1, Self::G1POINT.to_string()).await?;
+        Self::save_point(url_g2, Self::G2POINT.to_string()).await?;
 
         Ok(".".to_string())
     }
@@ -134,18 +137,26 @@ impl Verifier {
     ) -> Result<Self, VerificationError> {
         let srs_points_to_load = cfg.max_blob_size / Self::POINT_SIZE;
         let path = Self::save_points(cfg.clone().g1_url, cfg.clone().g2_url).await?;
-        let kzg = Kzg::setup(
-            &format!("{}/{}", path, Self::G1POINT),
-            "",
-            &format!("{}/{}", path, Self::G2POINT),
-            Self::SRSORDER,
-            srs_points_to_load,
-            "".to_string(),
-        );
-        let kzg = kzg.map_err(|e| {
-            tracing::error!("Failed to setup KZG: {:?}", e);
-            VerificationError::KzgError
-        })?;
+        let kzg_handle = tokio::task::spawn_blocking(move || {
+            Kzg::setup(
+                &format!("{}/{}", path, Self::G1POINT),
+                "",
+                &format!("{}/{}", path, Self::G2POINT),
+                Self::SRSORDER,
+                srs_points_to_load,
+                "".to_string(),
+            )
+        });
+        let kzg = kzg_handle
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to setup KZG: {:?}", e);
+                VerificationError::KzgError
+            })?
+            .map_err(|e| {
+                tracing::error!("Failed to setup KZG: {:?}", e);
+                VerificationError::KzgError
+            })?;
 
         Ok(Self {
             kzg,
@@ -185,9 +196,9 @@ impl Verifier {
         Ok(())
     }
 
-    pub fn hash_encode_blob_header(&self, blob_header: BlobHeader) -> Vec<u8> {
+    pub fn hash_encode_blob_header(&self, blob_header: &BlobHeader) -> Vec<u8> {
         let mut blob_quorums = vec![];
-        for quorum in blob_header.blob_quorum_params {
+        for quorum in &blob_header.blob_quorum_params {
             let quorum = Token::Tuple(vec![
                 Token::Uint(ethabi::Uint::from(quorum.quorum_number)),
                 Token::Uint(ethabi::Uint::from(quorum.adversary_threshold_percentage)),
@@ -206,12 +217,7 @@ impl Verifier {
         ]);
 
         let encoded = encode(&[blob_header]);
-
-        let mut keccak = Keccak::v256();
-        keccak.update(&encoded);
-        let mut hash = [0u8; 32];
-        keccak.finalize(&mut hash);
-        hash.to_vec()
+        web3::keccak256(&encoded).to_vec()
     }
 
     pub fn process_inclusion_proof(
@@ -226,23 +232,15 @@ impl Verifier {
         }
         let mut computed_hash = leaf.to_vec();
         for i in 0..proof.len() / 32 {
-            let mut combined = proof[i * 32..(i + 1) * 32]
-                .iter()
-                .chain(computed_hash.iter())
-                .cloned()
-                .collect::<Vec<u8>>();
+            let mut buffer = [0u8; 64];
             if index % 2 == 0 {
-                combined = computed_hash
-                    .iter()
-                    .chain(proof[i * 32..(i + 1) * 32].iter())
-                    .cloned()
-                    .collect::<Vec<u8>>();
-            };
-            let mut keccak = Keccak::v256();
-            keccak.update(&combined);
-            let mut hash = [0u8; 32];
-            keccak.finalize(&mut hash);
-            computed_hash = hash.to_vec();
+                buffer[..32].copy_from_slice(&computed_hash);
+                buffer[32..].copy_from_slice(&proof[i * 32..(i + 1) * 32]);
+            } else {
+                buffer[..32].copy_from_slice(&proof[i * 32..(i + 1) * 32]);
+                buffer[32..].copy_from_slice(&computed_hash);
+            }
+            computed_hash = web3::keccak256(&buffer).to_vec();
             index /= 2;
         }
 
@@ -250,26 +248,23 @@ impl Verifier {
     }
 
     /// Verifies the certificate's batch root
-    pub fn verify_merkle_proof(&self, cert: BlobInfo) -> Result<(), VerificationError> {
-        let inclusion_proof = cert.blob_verification_proof.inclusion_proof;
-        let root = cert
+    pub fn verify_merkle_proof(&self, cert: &BlobInfo) -> Result<(), VerificationError> {
+        let inclusion_proof = &cert.blob_verification_proof.inclusion_proof;
+        let root = &cert
             .blob_verification_proof
             .batch_medatada
             .batch_header
             .batch_root;
         let blob_index = cert.blob_verification_proof.blob_index;
-        let blob_header = cert.blob_header;
+        let blob_header = &cert.blob_header;
 
         let blob_header_hash = self.hash_encode_blob_header(blob_header);
-        let mut keccak = Keccak::v256();
-        keccak.update(&blob_header_hash);
-        let mut leaf_hash = [0u8; 32];
-        keccak.finalize(&mut leaf_hash);
+        let leaf_hash = web3::keccak256(&blob_header_hash).to_vec();
 
         let generated_root =
-            self.process_inclusion_proof(&inclusion_proof, &leaf_hash, blob_index)?;
+            self.process_inclusion_proof(inclusion_proof, &leaf_hash, blob_index)?;
 
-        if generated_root != root {
+        if generated_root != *root {
             return Err(VerificationError::DifferentRoots);
         }
         Ok(())
@@ -277,39 +272,29 @@ impl Verifier {
 
     fn hash_batch_metadata(
         &self,
-        batch_header: BatchHeader,
-        signatory_record_hash: Vec<u8>,
+        batch_header: &BatchHeader,
+        signatory_record_hash: &[u8],
         confirmation_block_number: u32,
     ) -> Vec<u8> {
         let batch_header_token = Token::Tuple(vec![
-            Token::FixedBytes(batch_header.batch_root),
-            Token::Bytes(batch_header.quorum_numbers),
-            Token::Bytes(batch_header.quorum_signed_percentages),
+            Token::FixedBytes(batch_header.batch_root.clone()), // Clone only where necessary
+            Token::Bytes(batch_header.quorum_numbers.clone()),
+            Token::Bytes(batch_header.quorum_signed_percentages.clone()),
             Token::Uint(ethabi::Uint::from(batch_header.reference_block_number)),
         ]);
 
         let encoded = encode(&[batch_header_token]);
-
-        let mut keccak = Keccak::v256();
-        keccak.update(&encoded);
-        let mut header_hash = [0u8; 32];
-        keccak.finalize(&mut header_hash);
+        let header_hash = web3::keccak256(&encoded).to_vec();
 
         let hash_token = Token::Tuple(vec![
             Token::FixedBytes(header_hash.to_vec()),
-            Token::FixedBytes(signatory_record_hash),
+            Token::FixedBytes(signatory_record_hash.to_owned()), // Clone only if required
         ]);
 
         let mut hash_encoded = encode(&[hash_token]);
 
         hash_encoded.append(&mut confirmation_block_number.to_be_bytes().to_vec());
-
-        let mut keccak = Keccak::v256();
-        keccak.update(&hash_encoded);
-        let mut hash = [0u8; 32];
-        keccak.finalize(&mut hash);
-
-        hash.to_vec()
+        web3::keccak256(&hash_encoded).to_vec()
     }
 
     /// Retrieves the block to make the request to the service manager
@@ -322,15 +307,17 @@ impl Verifier {
             .map_err(|_| VerificationError::ServiceManagerError)?
             .as_u64();
 
-        if self.cfg.settlement_layer_confirmation_depth == 0 {
-            return Ok(latest);
-        }
-        Ok(latest - (self.cfg.settlement_layer_confirmation_depth as u64 - 1))
+        let depth = self
+            .cfg
+            .settlement_layer_confirmation_depth
+            .saturating_sub(1);
+        let block_to_return = latest.saturating_sub(depth as u64);
+        Ok(block_to_return)
     }
 
     async fn call_batch_id_to_metadata_hash(
         &self,
-        blob_info: BlobInfo,
+        blob_info: &BlobInfo,
     ) -> Result<Vec<u8>, VerificationError> {
         let context_block = self.get_context_block().await?;
 
@@ -342,10 +329,7 @@ impl Verifier {
         data.append(batch_id_vec.to_vec().as_mut());
 
         let call_request = CallRequest {
-            to: Some(
-                H160::from_str(&self.cfg.svc_manager_addr)
-                    .map_err(|_| VerificationError::ServiceManagerError)?,
-            ),
+            to: Some(self.cfg.svc_manager_addr),
             data: Some(zksync_basic_types::web3::Bytes(data)),
             ..Default::default()
         };
@@ -364,21 +348,19 @@ impl Verifier {
     }
 
     /// Verifies the certificate batch hash
-    pub async fn verify_batch(&self, blob_info: BlobInfo) -> Result<(), VerificationError> {
-        let expected_hash = self
-            .call_batch_id_to_metadata_hash(blob_info.clone())
-            .await?;
+    pub async fn verify_batch(&self, blob_info: &BlobInfo) -> Result<(), VerificationError> {
+        let expected_hash = self.call_batch_id_to_metadata_hash(blob_info).await?;
 
         if expected_hash == vec![0u8; 32] {
             return Err(VerificationError::EmptyHash);
         }
 
         let actual_hash = self.hash_batch_metadata(
-            blob_info
+            &blob_info
                 .blob_verification_proof
                 .batch_medatada
                 .batch_header,
-            blob_info
+            &blob_info
                 .blob_verification_proof
                 .batch_medatada
                 .signatory_record_hash,
@@ -394,47 +376,17 @@ impl Verifier {
         Ok(())
     }
 
-    fn decode_bytes(&self, encoded: Vec<u8>) -> Result<Vec<u8>, String> {
-        // Ensure the input has at least 64 bytes (offset + length)
-        if encoded.len() < 64 {
-            return Err("Encoded data is too short".to_string());
+    fn decode_bytes(&self, encoded: Vec<u8>) -> Result<Vec<u8>, VerificationError> {
+        let output_type = [ParamType::Bytes];
+        let tokens: Vec<Token> = ethabi::decode(&output_type, &encoded)
+            .map_err(|_| VerificationError::ServiceManagerError)?;
+        let token = tokens
+            .first()
+            .ok_or(VerificationError::ServiceManagerError)?;
+        match token {
+            Token::Bytes(data) => Ok(data.to_vec()),
+            _ => Err(VerificationError::ServiceManagerError),
         }
-
-        // Read the offset (first 32 bytes)
-        let offset = {
-            let mut offset_bytes = [0u8; 32];
-            offset_bytes.copy_from_slice(&encoded[0..32]);
-            usize::from_be_bytes(
-                offset_bytes[24..32]
-                    .try_into()
-                    .map_err(|_| "Offset is too large")?,
-            )
-        };
-
-        // Check if offset is valid
-        if offset + 32 > encoded.len() {
-            return Err("Offset points outside the encoded data".to_string());
-        }
-
-        // Read the length (32 bytes at the offset position)
-        let length = {
-            let mut length_bytes = [0u8; 32];
-            length_bytes.copy_from_slice(&encoded[offset..offset + 32]);
-            usize::from_be_bytes(
-                length_bytes[24..32]
-                    .try_into()
-                    .map_err(|_| "Offset is too large")?,
-            )
-        };
-
-        // Check if the length is valid
-        if offset + 32 + length > encoded.len() {
-            return Err("Length extends beyond the encoded data".to_string());
-        }
-
-        // Extract the bytes data
-        let data = encoded[offset + 32..offset + 32 + length].to_vec();
-        Ok(data)
     }
 
     async fn get_quorum_adversary_threshold(
@@ -445,10 +397,7 @@ impl Verifier {
         let data = func_selector.to_vec();
 
         let call_request = CallRequest {
-            to: Some(
-                H160::from_str(&self.cfg.svc_manager_addr)
-                    .map_err(|_| VerificationError::ServiceManagerError)?,
-            ),
+            to: Some(self.cfg.svc_manager_addr),
             data: Some(zksync_basic_types::web3::Bytes(data)),
             ..Default::default()
         };
@@ -460,9 +409,7 @@ impl Verifier {
             .await
             .map_err(|_| VerificationError::ServiceManagerError)?;
 
-        let percentages = self
-            .decode_bytes(res.0.to_vec())
-            .map_err(|_| VerificationError::ServiceManagerError)?;
+        let percentages = self.decode_bytes(res.0.to_vec())?;
 
         if percentages.len() > quorum_number as usize {
             return Ok(percentages[quorum_number as usize]);
@@ -474,10 +421,7 @@ impl Verifier {
         let func_selector = ethabi::short_signature("quorumNumbersRequired", &[]);
         let data = func_selector.to_vec();
         let call_request = CallRequest {
-            to: Some(
-                H160::from_str(&self.cfg.svc_manager_addr)
-                    .map_err(|_| VerificationError::ServiceManagerError)?,
-            ),
+            to: Some(self.cfg.svc_manager_addr),
             data: Some(zksync_basic_types::web3::Bytes(data)),
             ..Default::default()
         };
@@ -490,13 +434,12 @@ impl Verifier {
             .map_err(|_| VerificationError::ServiceManagerError)?;
 
         self.decode_bytes(res.0.to_vec())
-            .map_err(|_| VerificationError::ServiceManagerError)
     }
 
     /// Verifies that the certificate's blob quorum params are correct
-    pub async fn verify_security_params(&self, cert: BlobInfo) -> Result<(), VerificationError> {
-        let blob_header = cert.blob_header;
-        let batch_header = cert.blob_verification_proof.batch_medatada.batch_header;
+    pub async fn verify_security_params(&self, cert: &BlobInfo) -> Result<(), VerificationError> {
+        let blob_header = &cert.blob_header;
+        let batch_header = &cert.blob_verification_proof.batch_medatada.batch_header;
 
         let mut confirmed_quorums: HashMap<u32, bool> = HashMap::new();
         for i in 0..blob_header.blob_quorum_params.len() {
@@ -545,9 +488,9 @@ impl Verifier {
         &self,
         cert: BlobInfo,
     ) -> Result<(), VerificationError> {
-        self.verify_batch(cert.clone()).await?;
-        self.verify_merkle_proof(cert.clone())?;
-        self.verify_security_params(cert.clone()).await?;
+        self.verify_batch(&cert).await?;
+        self.verify_merkle_proof(&cert)?;
+        self.verify_security_params(&cert).await?;
         Ok(())
     }
 }

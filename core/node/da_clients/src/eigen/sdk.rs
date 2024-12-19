@@ -7,10 +7,11 @@ use tonic::{
     transport::{Channel, ClientTlsConfig, Endpoint},
     Streaming,
 };
+use url::Url;
 use zksync_config::EigenConfig;
 use zksync_da_client::types::DAError;
 use zksync_eth_client::clients::PKSigningClient;
-use zksync_types::{url::SensitiveUrl, K256PrivateKey, SLChainId, H160};
+use zksync_types::{url::SensitiveUrl, Address, K256PrivateKey, SLChainId};
 use zksync_web3_decl::client::{Client, DynClient, L1};
 
 use super::{
@@ -30,24 +31,36 @@ use crate::eigen::{
     verifier::VerificationError,
 };
 
-#[derive(Debug, Clone)]
-pub(crate) struct RawEigenClient<T: GetBlobData> {
+#[derive(Debug)]
+pub(crate) struct RawEigenClient {
     client: Arc<Mutex<DisperserClient<Channel>>>,
     private_key: SecretKey,
     pub config: EigenConfig,
     verifier: Verifier,
-    get_blob_data: Box<T>,
+    get_blob_data: Box<dyn GetBlobData>,
+}
+
+impl Clone for RawEigenClient {
+    fn clone(&self) -> Self {
+        Self {
+            client: self.client.clone(),
+            private_key: self.private_key,
+            config: self.config.clone(),
+            verifier: self.verifier.clone(),
+            get_blob_data: self.get_blob_data.clone_boxed(),
+        }
+    }
 }
 
 pub(crate) const DATA_CHUNK_SIZE: usize = 32;
 
-impl<T: GetBlobData> RawEigenClient<T> {
+impl RawEigenClient {
     const BLOB_SIZE_LIMIT: usize = 1024 * 1024 * 2; // 2 MB
 
     pub async fn new(
         private_key: SecretKey,
         config: EigenConfig,
-        get_blob_data: Box<T>,
+        get_blob_data: Box<dyn GetBlobData>,
     ) -> anyhow::Result<Self> {
         let endpoint =
             Endpoint::from_str(config.disperser_rpc.as_str())?.tls_config(ClientTlsConfig::new())?;
@@ -58,12 +71,11 @@ impl<T: GetBlobData> RawEigenClient<T> {
                 .eigenda_eth_rpc
                 .clone()
                 .ok_or(anyhow::anyhow!("EigenDA ETH RPC not set"))?,
-            svc_manager_addr: config.eigenda_svc_manager_address.clone(),
+            svc_manager_addr: Address::from_str(&config.eigenda_svc_manager_address)?,
             max_blob_size: Self::BLOB_SIZE_LIMIT as u32,
-            g1_url: config.g1_url.clone(),
-            g2_url: config.g2_url.clone(),
-            settlement_layer_confirmation_depth: config.settlement_layer_confirmation_depth.max(0)
-                as u32,
+            g1_url: Url::parse(&config.g1_url)?,
+            g2_url: Url::parse(&config.g2_url)?,
+            settlement_layer_confirmation_depth: config.settlement_layer_confirmation_depth,
             private_key: hex::encode(private_key.secret_bytes()),
             chain_id: config.chain_id,
         };
@@ -75,7 +87,7 @@ impl<T: GetBlobData> RawEigenClient<T> {
             K256PrivateKey::from_bytes(zksync_types::H256::from_str(
                 &verifier_config.private_key,
             )?)?,
-            H160::from_str(&verifier_config.svc_manager_addr)?,
+            verifier_config.svc_manager_addr,
             Verifier::DEFAULT_PRIORITY_FEE_PER_GAS,
             SLChainId(verifier_config.chain_id),
             query_client,
@@ -185,7 +197,7 @@ impl<T: GetBlobData> RawEigenClient<T> {
         let Some(data) = self.get_blob_data(blob_info.clone()).await? else {
             return Err(anyhow::anyhow!("Failed to get blob data"));
         };
-        let data_db = self.get_blob_data.call(request_id).await?;
+        let data_db = self.get_blob_data.get_blob_data(request_id).await?;
         if let Some(data_db) = data_db {
             if data_db != data {
                 return Err(anyhow::anyhow!(

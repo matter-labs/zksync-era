@@ -38,7 +38,7 @@ message CelestiaConfig {
 
 message EigenConfig {
   optional string disperser_rpc = 3;
-  optional int32 settlement_layer_confirmation_depth = 4;
+  optional uint32 settlement_layer_confirmation_depth = 4;
   optional string eigenda_eth_rpc = 5;
   optional string eigenda_svc_manager_address = 6;
   optional bool wait_for_finalization = 7;

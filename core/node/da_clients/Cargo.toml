@@ -62,7 +62,9 @@ ethabi.workspace = true
 rust-kzg-bn254.workspace = true
 ark-bn254.workspace = true
 num-bigint.workspace = true
-serial_test.workspace = true
 zksync_web3_decl.workspace = true
 zksync_eth_client.workspace = true
 url.workspace = true
+
+[dev-dependencies]
+serial_test.workspace = true
