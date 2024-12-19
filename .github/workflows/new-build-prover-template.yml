@@ -90,13 +90,13 @@ jobs:
     strategy:
       matrix:
         components:
-          - witness-generator
-          - prover-gpu-fri
-          - witness-vector-generator
-          - prover-fri-gateway
-          - prover-job-monitor
-          - proof-fri-gpu-compressor
-          - prover-autoscaler
+          # - witness-generator
+          # - prover-gpu-fri
+          # - witness-vector-generator
+          # - prover-fri-gateway
+          # - prover-job-monitor
+          # - proof-fri-gpu-compressor
+          # - prover-autoscaler
           - circuit-prover-gpu
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -209,7 +209,6 @@ jobs:
           docker buildx imagetools create \
             --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }}
-
 
       - name: Login and push to Europe GAR
         run: |
