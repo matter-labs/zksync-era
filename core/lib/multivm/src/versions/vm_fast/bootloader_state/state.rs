@@ -206,6 +206,7 @@ impl BootloaderState {
             pubdata_builder,
             pubdata_information,
             self.protocol_version,
+            self.subversion,
         );
         initial_memory
     }

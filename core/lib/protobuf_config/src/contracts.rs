@@ -117,18 +117,18 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("base_token_addr")?,
-            base_token_asset_id: l1
+            l1_base_token_asset_id: l1
                 .base_token_asset_id
                 .as_ref()
                 .map(|x| parse_h256(x))
                 .transpose()
                 .context("base_token_asset_id")?,
-            predeployed_l2_wrapped_base_token_address: l2
-                .predeployed_l2_wrapped_base_token_address
+            l2_predeployed_wrapped_base_token_address: l2
+                .predeployed_wrapped_base_token_address
                 .as_ref()
                 .map(|x| parse_h160(x))
                 .transpose()
-                .context("predeployed_l2_wrapped_base_token_address")?,
+                .context("l2 predeployed_wrapped_base_token_address")?,
             chain_admin_addr: l1
                 .chain_admin_addr
                 .as_ref()
@@ -175,7 +175,7 @@ impl ProtoRepr for proto::Contracts {
                 default_upgrade_addr: Some(format!("{:?}", this.default_upgrade_addr)),
                 multicall3_addr: Some(format!("{:?}", this.l1_multicall3_addr)),
                 base_token_addr: this.base_token_addr.map(|a| format!("{:?}", a)),
-                base_token_asset_id: this.base_token_asset_id.map(|x| format!("{:?}", x)),
+                base_token_asset_id: this.l1_base_token_asset_id.map(|x| format!("{:?}", x)),
                 chain_admin_addr: this.chain_admin_addr.map(|a| format!("{:?}", a)),
             }),
             l2: Some(proto::L2 {
@@ -184,8 +184,8 @@ impl ProtoRepr for proto::Contracts {
                 legacy_shared_bridge_addr: this
                     .l2_legacy_shared_bridge_addr
                     .map(|a| format!("{:?}", a)),
-                predeployed_l2_wrapped_base_token_address: this
-                    .predeployed_l2_wrapped_base_token_address
+                predeployed_wrapped_base_token_address: this
+                    .l2_predeployed_wrapped_base_token_address
                     .map(|x| format!("{:?}", x)),
                 timestamp_asserter_addr: this
                     .l2_timestamp_asserter_addr

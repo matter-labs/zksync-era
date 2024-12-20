@@ -1,4 +1,4 @@
-use circuit_sequencer_api_1_5_0::geometry_config::get_geometry_config;
+use circuit_sequencer_api::geometry_config::ProtocolGeometry;
 use zksync_test_contracts::TestContract;
 use zksync_types::{Address, Execute};
 
@@ -41,7 +41,9 @@ pub(crate) fn test_keccak<VM: TestedVm>() {
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
     let keccak_count = exec_result.statistics.circuit_statistic.keccak256
-        * get_geometry_config().cycles_per_keccak256_circuit as f32;
+        * ProtocolGeometry::V1_5_0
+            .config()
+            .cycles_per_keccak256_circuit as f32;
     assert!(keccak_count >= 1000.0, "{keccak_count}");
 }
 
@@ -77,7 +79,7 @@ pub(crate) fn test_sha256<VM: TestedVm>() {
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
     let sha_count = exec_result.statistics.circuit_statistic.sha256
-        * get_geometry_config().cycles_per_sha256_circuit as f32;
+        * ProtocolGeometry::V1_5_0.config().cycles_per_sha256_circuit as f32;
     assert!(sha_count >= 1000.0, "{sha_count}");
 }
 
@@ -106,6 +108,8 @@ pub(crate) fn test_ecrecover<VM: TestedVm>() {
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
     let ecrecover_count = exec_result.statistics.circuit_statistic.ecrecover
-        * get_geometry_config().cycles_per_ecrecover_circuit as f32;
+        * ProtocolGeometry::V1_5_0
+            .config()
+            .cycles_per_ecrecover_circuit as f32;
     assert!((ecrecover_count - 1.0).abs() < 1e-4, "{ecrecover_count}");
 }

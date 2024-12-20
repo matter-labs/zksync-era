@@ -10,7 +10,6 @@ use zksync_config::{
             StateKeeperConfig, TimestampAsserterConfig,
         },
         fri_prover_group::FriProverGroupConfig,
-        gateway::GatewayChainConfig,
         house_keeper::HouseKeeperConfig,
         BasicWitnessInputProducerConfig, ContractsConfig, DataAvailabilitySecrets, DatabaseSecrets,
         ExperimentalVmConfig, ExternalPriceApiClientConfig, FriProofCompressorConfig,
@@ -26,7 +25,7 @@ use zksync_core_leftovers::{
     temp_config_store::{read_yaml_repr, TempConfigStore},
     Component, Components,
 };
-use zksync_env_config::{FromEnv, FromEnvVariant};
+use zksync_env_config::FromEnv;
 
 use crate::node_builder::MainNodeBuilder;
 
@@ -57,7 +56,8 @@ struct Cli {
     /// Path to the yaml with contracts. If set, it will be used instead of env vars.
     #[arg(long)]
     contracts_config_path: Option<std::path::PathBuf>,
-    /// Path to the yaml with contracts. If set, it will be used instead of env vars.
+    /// Path to the yaml with gateway contracts. Note, that at this moment,
+    /// env-based config is not supported for gateway-related functionality.
     #[arg(long)]
     gateway_contracts_config_path: Option<std::path::PathBuf>,
     /// Path to the wallets config. If set, it will be used instead of env vars.
@@ -130,31 +130,18 @@ fn main() -> anyhow::Result<()> {
             .context("failed decoding contracts YAML config")?,
     };
 
-    let gateway_contracts_config: Option<GatewayChainConfig> = match opt
-        .gateway_contracts_config_path
+    // We support only file based config for gateway
+    let gateway_contracts_config = if let Some(gateway_config_path) =
+        opt.gateway_contracts_config_path
     {
-        None => {
-            let gateway_chain_id = std::env::var("GATEWAY_CONTRACTS_GATEWAY_CHAIN_ID")
-                .ok()
-                .and_then(|x| x.parse::<u64>().ok());
-            let contracts = ContractsConfig::from_env_variant("GATEWAY_".to_string()).ok();
-            match (gateway_chain_id, contracts) {
-                (Some(gateway_chain_id), Some(contracts)) => {
-                    Some(GatewayChainConfig::from_contracts_and_chain_id(
-                        contracts,
-                        gateway_chain_id.into(),
-                    ))
-                }
-                _ => None,
-            }
-        }
-        Some(path) => {
-            let result =
-                read_yaml_repr::<zksync_protobuf_config::proto::gateway::GatewayChainConfig>(&path)
-                    .context("failed decoding contracts YAML config")?;
+        let result = read_yaml_repr::<zksync_protobuf_config::proto::gateway::GatewayChainConfig>(
+            &gateway_config_path,
+        )
+        .context("failed decoding contracts YAML config")?;
 
-            Some(result)
-        }
+        Some(result)
+    } else {
+        None
     };
 
     let genesis = match opt.genesis_path {

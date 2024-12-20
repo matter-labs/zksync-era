@@ -1,12 +1,11 @@
 use zksync_dal::{Connection, Core, CoreDal, DalError};
-use zksync_multivm::circuit_sequencer_api_latest::boojum::ethereum_types::U256;
 use zksync_system_constants::{
     message_root::{CHAIN_COUNT_KEY, CHAIN_INDEX_TO_ID_KEY, CHAIN_TREE_KEY},
     L2_MESSAGE_ROOT_ADDRESS,
 };
 use zksync_types::{
     h256_to_u256, l2_to_l1_log::CHAIN_ID_LEAF_PADDING, u256_to_h256, web3::keccak256,
-    AccountTreeId, L2BlockNumber, StorageKey, H256,
+    AccountTreeId, L2BlockNumber, StorageKey, H256, U256,
 };
 use zksync_web3_decl::error::Web3Error;
 

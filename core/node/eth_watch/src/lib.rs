@@ -254,9 +254,9 @@ async fn get_chain_specific_upgrade_params(
     let TokenMetadata { name, symbol, .. } = l1_client.get_base_token_metadata().await?;
 
     Ok(ZkChainSpecificUpgradeData::from_partial_components(
-        contracts_config.base_token_asset_id,
+        contracts_config.l1_base_token_asset_id,
         contracts_config.l2_legacy_shared_bridge_addr,
-        contracts_config.predeployed_l2_wrapped_base_token_address,
+        contracts_config.l2_predeployed_wrapped_base_token_address,
         contracts_config.base_token_addr,
         Some(name),
         Some(symbol),

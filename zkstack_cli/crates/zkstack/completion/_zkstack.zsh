@@ -634,7 +634,7 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
 ;;
-(convert-to-gateway)
+(enable-evm-emulator)
 _arguments "${_arguments_options[@]}" : \
 '--verify=[Verify deployed contracts]' \
 '--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
@@ -644,69 +644,11 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
-'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
-&& ret=0
-;;
-(migrate-to-gateway)
-_arguments "${_arguments_options[@]}" : \
-'--verify=[Verify deployed contracts]' \
-'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
-'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
-'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
-'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'--gateway-chain-name=[]:GATEWAY_CHAIN_NAME:_default' \
-'--chain=[Chain to use]:CHAIN:_default' \
-'--resume[]' \
-'--zksync[]' \
-'-v[Verbose mode]' \
-'--verbose[Verbose mode]' \
-'--ignore-prerequisites[Ignores prerequisites checks]' \
-'-h[Print help (see more with '\''--help'\'')]' \
-'--help[Print help (see more with '\''--help'\'')]' \
-&& ret=0
-;;
-(migrate-from-gateway)
-_arguments "${_arguments_options[@]}" : \
-'--verify=[Verify deployed contracts]' \
-'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
-'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
-'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
-'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'--gateway-chain-name=[]:GATEWAY_CHAIN_NAME:_default' \
-'--chain=[Chain to use]:CHAIN:_default' \
-'--resume[]' \
-'--zksync[]' \
-'-v[Verbose mode]' \
-'--verbose[Verbose mode]' \
-'--ignore-prerequisites[Ignores prerequisites checks]' \
-'-h[Print help (see more with '\''--help'\'')]' \
-'--help[Print help (see more with '\''--help'\'')]' \
-&& ret=0
-;;
-(gateway-upgrade)
-_arguments "${_arguments_options[@]}" : \
-'--verify=[Verify deployed contracts]' \
-'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
-'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
-'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
-'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'--chain=[Chain to use]:CHAIN:_default' \
-'--resume[]' \
-'--zksync[]' \
-'-v[Verbose mode]' \
-'--verbose[Verbose mode]' \
-'--ignore-prerequisites[Ignores prerequisites checks]' \
-'-h[Print help (see more with '\''--help'\'')]' \
-'--help[Print help (see more with '\''--help'\'')]' \
-':chain_upgrade_stage:(adapt-config prepare-stage1 schedule-stage1 finalize-stage1 finalize-stage2 keep-up-stage2 set-l2weth-for-chain)' \
 && ret=0
 ;;
 (help)
@@ -809,19 +751,7 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(convert-to-gateway)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(migrate-to-gateway)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(migrate-from-gateway)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(gateway-upgrade)
+(enable-evm-emulator)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2826,19 +2756,7 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(convert-to-gateway)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(migrate-to-gateway)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(migrate-from-gateway)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(gateway-upgrade)
+(enable-evm-emulator)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -3369,10 +3287,7 @@ _zkstack__chain_commands() {
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
-'convert-to-gateway:Prepare chain to be an eligible gateway' \
-'migrate-to-gateway:Migrate chain to gateway' \
-'migrate-from-gateway:Migrate chain from gateway' \
-'gateway-upgrade:Upgrade to the protocol version that supports Gateway' \
+'enable-evm-emulator:Enable EVM emulation on chain (Not supported yet)' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack chain commands' commands "$@"
@@ -3427,10 +3342,10 @@ _zkstack__chain__deploy-upgrader_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain deploy-upgrader commands' commands "$@"
 }
-(( $+functions[_zkstack__chain__gateway-upgrade_commands] )) ||
-_zkstack__chain__gateway-upgrade_commands() {
+(( $+functions[_zkstack__chain__enable-evm-emulator_commands] )) ||
+_zkstack__chain__enable-evm-emulator_commands() {
     local commands; commands=()
-    _describe -t commands 'zkstack chain gateway-upgrade commands' commands "$@"
+    _describe -t commands 'zkstack chain enable-evm-emulator commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__genesis_commands] )) ||
 _zkstack__chain__genesis_commands() {
@@ -3491,10 +3406,7 @@ _zkstack__chain__help_commands() {
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
-'convert-to-gateway:Prepare chain to be an eligible gateway' \
-'migrate-to-gateway:Migrate chain to gateway' \
-'migrate-from-gateway:Migrate chain from gateway' \
-'gateway-upgrade:Upgrade to the protocol version that supports Gateway' \
+'enable-evm-emulator:Enable EVM emulation on chain (Not supported yet)' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack chain help commands' commands "$@"
@@ -3549,10 +3461,10 @@ _zkstack__chain__help__deploy-upgrader_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help deploy-upgrader commands' commands "$@"
 }
-(( $+functions[_zkstack__chain__help__gateway-upgrade_commands] )) ||
-_zkstack__chain__help__gateway-upgrade_commands() {
+(( $+functions[_zkstack__chain__help__enable-evm-emulator_commands] )) ||
+_zkstack__chain__help__enable-evm-emulator_commands() {
     local commands; commands=()
-    _describe -t commands 'zkstack chain help gateway-upgrade commands' commands "$@"
+    _describe -t commands 'zkstack chain help enable-evm-emulator commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__help__genesis_commands] )) ||
 _zkstack__chain__help__genesis_commands() {
@@ -4844,10 +4756,7 @@ _zkstack__help__chain_commands() {
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
-'convert-to-gateway:Prepare chain to be an eligible gateway' \
-'migrate-to-gateway:Migrate chain to gateway' \
-'migrate-from-gateway:Migrate chain from gateway' \
-'gateway-upgrade:Upgrade to the protocol version that supports Gateway' \
+'enable-evm-emulator:Enable EVM emulation on chain (Not supported yet)' \
     )
     _describe -t commands 'zkstack help chain commands' commands "$@"
 }
@@ -4901,10 +4810,10 @@ _zkstack__help__chain__deploy-upgrader_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain deploy-upgrader commands' commands "$@"
 }
-(( $+functions[_zkstack__help__chain__gateway-upgrade_commands] )) ||
-_zkstack__help__chain__gateway-upgrade_commands() {
+(( $+functions[_zkstack__help__chain__enable-evm-emulator_commands] )) ||
+_zkstack__help__chain__enable-evm-emulator_commands() {
     local commands; commands=()
-    _describe -t commands 'zkstack help chain gateway-upgrade commands' commands "$@"
+    _describe -t commands 'zkstack help chain enable-evm-emulator commands' commands "$@"
 }
 (( $+functions[_zkstack__help__chain__genesis_commands] )) ||
 _zkstack__help__chain__genesis_commands() {

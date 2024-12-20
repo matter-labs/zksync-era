@@ -88,7 +88,6 @@ pub(crate) fn test_rollup_da_output_hash_match<VM: TestedVm>() {
 
     // Firstly, deploy tx. It should publish the bytecode of the "test contract"
     let counter_bytecode = TestContract::counter().bytecode;
-
     let tx = account.get_deploy_tx(counter_bytecode, None, TxType::L2).tx;
     // We do not use compression here, to have the bytecode published in full.
     let (_, result) = vm

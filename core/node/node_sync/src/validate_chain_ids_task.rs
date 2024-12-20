@@ -48,9 +48,8 @@ impl ValidateChainIdsTask {
         l1_client: Option<Box<DynClient<L1>>>,
         expected: Option<SLChainId>,
     ) -> anyhow::Result<()> {
-        let (l1_client, expected) = match (l1_client, expected) {
-            (Some(l1_client), Some(expected)) => (l1_client, expected),
-            _ => return Ok(()),
+        let (Some(l1_client), Some(expected)) = (l1_client, expected) else {
+            return Ok(());
         };
 
         loop {
