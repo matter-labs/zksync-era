@@ -70,7 +70,7 @@ pub struct ChainCreateArgs {
     pub(crate) legacy_bridge: bool,
     #[arg(long, help = MSG_EVM_EMULATOR_HELP, default_missing_value = "true", num_args = 0..=1)]
     evm_emulator: Option<bool>,
-    #[arg(long, help = "Whether to update git submodules of repo")]
+    #[clap(long, help = "Whether to update git submodules of repo")]
     update_submodules: Option<bool>,
 }
 
@@ -117,7 +117,7 @@ impl ChainCreateArgs {
                     }
                 }),
             )
-            .ask()
+                .ask()
         };
 
         let prover_version = self.prover_mode.unwrap_or_else(|| {
@@ -130,7 +130,7 @@ impl ChainCreateArgs {
                     MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT,
                     L1BatchCommitmentModeInternal::iter(),
                 )
-                .ask()
+                    .ask()
             });
 
         let wallet_path: Option<PathBuf> = if wallet_creation == WalletCreation::InFile {
