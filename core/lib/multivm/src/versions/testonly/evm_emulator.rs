@@ -76,7 +76,8 @@ impl EvmTestBuilder {
         let mut system_env = default_system_env();
         if self.deploy_emulator {
             let evm_bytecode: Vec<_> = (0..32).collect();
-            let evm_bytecode_hash = BytecodeHash::for_evm_bytecode(&evm_bytecode).value();
+            let evm_bytecode_hash =
+                BytecodeHash::for_evm_bytecode(evm_bytecode.len(), &evm_bytecode).value();
             storage.set_value(
                 get_known_code_key(&evm_bytecode_hash),
                 H256::from_low_u64_be(1),
@@ -131,7 +132,8 @@ pub(crate) fn test_tracing_evm_contract_deployment<VM: TestedVm>() {
 
     let args = [Token::Bytes((0..32).collect())];
     let evm_bytecode = ethabi::encode(&args);
-    let expected_bytecode_hash = BytecodeHash::for_evm_bytecode(&evm_bytecode).value();
+    let expected_bytecode_hash =
+        BytecodeHash::for_evm_bytecode(evm_bytecode.len(), &evm_bytecode).value();
     let execute = Execute::for_deploy(expected_bytecode_hash, vec![0; 32], &args);
     let deploy_tx = account.get_l2_tx_for_execute(execute, None);
     let (_, vm_result) = vm
@@ -148,7 +150,8 @@ pub(crate) fn test_tracing_evm_contract_deployment<VM: TestedVm>() {
     // "Deploy" a bytecode in another transaction and check that the first tx doesn't interfere with the returned `dynamic_factory_deps`.
     let args = [Token::Bytes((0..32).rev().collect())];
     let evm_bytecode = ethabi::encode(&args);
-    let expected_bytecode_hash = BytecodeHash::for_evm_bytecode(&evm_bytecode).value();
+    let expected_bytecode_hash =
+        BytecodeHash::for_evm_bytecode(evm_bytecode.len(), &evm_bytecode).value();
     let execute = Execute::for_deploy(expected_bytecode_hash, vec![0; 32], &args);
     let deploy_tx = account.get_l2_tx_for_execute(execute, None);
     let (_, vm_result) = vm
@@ -324,7 +327,8 @@ pub(crate) fn test_mock_emulator_with_deployment<VM: TestedVm>(revert: bool) {
 
     let mock_emulator_abi = &TestContract::mock_evm_emulator().abi;
     let new_evm_bytecode = vec![0xfe; 96];
-    let new_evm_bytecode_hash = BytecodeHash::for_evm_bytecode(&new_evm_bytecode).value();
+    let new_evm_bytecode_hash =
+        BytecodeHash::for_evm_bytecode(new_evm_bytecode.len(), &new_evm_bytecode).value();
 
     let test_fn = mock_emulator_abi.function("testDeploymentAndCall").unwrap();
     let test_tx = account.get_l2_tx_for_execute(
@@ -402,7 +406,10 @@ pub(crate) fn test_mock_emulator_with_recursive_deployment<VM: TestedVm>() {
     let bytecodes: HashMap<_, _> = (0_u8..10)
         .map(|byte| {
             let bytecode = vec![byte; 32];
-            (BytecodeHash::for_evm_bytecode(&bytecode).value(), bytecode)
+            (
+                BytecodeHash::for_evm_bytecode(bytecode.len(), &bytecode).value(),
+                bytecode,
+            )
         })
         .collect();
     let test_fn = mock_emulator_abi
@@ -448,7 +455,10 @@ fn test_mock_emulator_with_partial_reverts_and_rng<VM: TestedVm>(rng: &mut impl 
     let all_bytecodes: HashMap<_, _> = (0_u8..10)
         .map(|_| {
             let bytecode = vec![rng.gen(); 32];
-            (BytecodeHash::for_evm_bytecode(&bytecode).value(), bytecode)
+            (
+                BytecodeHash::for_evm_bytecode(bytecode.len(), &bytecode).value(),
+                bytecode,
+            )
         })
         .collect();
     let should_revert: Vec<_> = (0..10).map(|_| rng.gen::<bool>()).collect();

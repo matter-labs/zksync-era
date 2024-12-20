@@ -1,17 +1,17 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use zksync_basic_types::secrets::{APIKey, SeedPhrase};
 
 pub const AVAIL_GAS_RELAY_CLIENT_NAME: &str = "GasRelay";
 pub const AVAIL_FULL_CLIENT_NAME: &str = "FullClient";
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "avail_client")]
 pub enum AvailClientConfig {
     FullClient(AvailDefaultConfig),
     GasRelay(AvailGasRelayConfig),
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AvailConfig {
     pub bridge_api_url: String,
     pub timeout_ms: usize,
@@ -19,13 +19,13 @@ pub struct AvailConfig {
     pub config: AvailClientConfig,
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AvailDefaultConfig {
     pub api_node_url: String,
     pub app_id: u32,
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AvailGasRelayConfig {
     pub gas_relay_api_url: String,
     pub max_retries: usize,

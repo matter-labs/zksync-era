@@ -32,4 +32,5 @@ message Genesis {
   optional string evm_emulator_hash = 13; // optional; h256
   optional string custom_genesis_state_path = 14; // optional;
   reserved 11; reserved "shared_bridge";
+  reserved 15; reserved "sl_chain_id";
 }
