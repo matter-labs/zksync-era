@@ -4,7 +4,6 @@ use serde::{
     Deserialize, Serialize,
 };
 use smart_config::{
-    basic_types,
     de::{Custom, WellKnown},
     DescribeConfig, DeserializeConfig, ErrorWithOrigin,
 };
@@ -183,9 +182,9 @@ impl GenesisConfig {
 }
 
 impl WellKnown for GenesisConfig {
-    type Deserializer = Custom<Self, { basic_types![object] }>;
+    type Deserializer = Custom![Self; object];
 
-    const DE: Self::Deserializer = Custom![object](|ctx, param| {
+    const DE: Self::Deserializer = Custom![_; object](|ctx, param| {
         let de = ctx.current_value_deserializer(param.name)?;
         PersistedGenesisConfig::deserialize(de)?.try_into()
     });

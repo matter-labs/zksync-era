@@ -84,11 +84,11 @@ async fn main() -> anyhow::Result<()> {
     let repo = ConfigRepository::new(&schema).with_all(config_sources);
     let database_secrets: DatabaseSecrets = repo.single()?.parse().log_all_errors()?;
     let creator_config: SnapshotsCreatorConfig = repo.single()?.parse().log_all_errors()?;
-    // FIXME: implement `parse_opt`
-    let prometheus_config: PrometheusConfig = repo.single()?.parse().log_all_errors()?;
+    let prometheus_config: Option<PrometheusConfig> =
+        repo.single()?.parse_opt().log_all_errors()?;
 
     let prometheus_exporter_task =
-        maybe_enable_prometheus_metrics(Some(prometheus_config), stop_receiver).await?;
+        maybe_enable_prometheus_metrics(prometheus_config, stop_receiver).await?;
     tracing::info!("Starting snapshots creator");
 
     let object_store_config = creator_config.object_store.clone();

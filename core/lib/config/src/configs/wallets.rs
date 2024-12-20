@@ -36,7 +36,7 @@ fn deserialize_key(
 pub struct Wallet {
     /// Address of the account. Used to validate private key integrity.
     address: Option<Address>,
-    #[config(secret, with = Custom![str](deserialize_key))]
+    #[config(secret, with = Custom![_;  str](deserialize_key))]
     private_key: K256PrivateKey,
 }
 

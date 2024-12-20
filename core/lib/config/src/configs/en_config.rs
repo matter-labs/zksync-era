@@ -60,7 +60,6 @@ mod tests {
         schema
     }
 
-    // FIXME: EN_BRIDGE_ADDRESSES_REFRESH_INTERVAL_SEC=15 doesn't work
     #[test]
     fn parsing_from_env() {
         let env = r#"

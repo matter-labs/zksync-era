@@ -33,6 +33,8 @@ serde_json.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 futures.workspace = true
+smart-config.workspace = true
+smart-config-commands.workspace = true
 
 zksync_node_framework.workspace = true
 zksync_metadata_calculator.workspace = true

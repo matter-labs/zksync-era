@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use anyhow::Context as _;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use tokio::runtime::Runtime;
 use zksync_config::{
     configs::{wallets::Wallets, ContractsConfig, GeneralConfig, ObservabilityConfig, Secrets},
@@ -18,6 +18,19 @@ mod node_builder;
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
+#[derive(Debug, Subcommand)]
+enum CliCommand {
+    /// Configuration-related tools.
+    Config {
+        /// If set, debugs configuration instead of printing help.
+        #[arg(long)]
+        debug: bool,
+        /// Allows filtering config params by path.
+        filter: Option<String>,
+    },
+}
+
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "ZKsync operator node", long_about = None)]
 struct Cli {
@@ -45,10 +58,8 @@ struct Cli {
     /// Path to the yaml with genesis. If set, it will be used instead of env vars.
     #[arg(long)]
     genesis_path: Option<std::path::PathBuf>,
-    /// Used to enable node framework.
-    /// Now the node framework is used by default and this argument is left for backward compatibility.
-    #[arg(long)]
-    use_node_framework: bool,
+    #[command(subcommand)]
+    cmd: Option<CliCommand>,
 }
 
 #[derive(Debug, Clone)]
@@ -69,6 +80,20 @@ impl FromStr for ComponentsToRun {
 
 fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
+    let schema = full_config_schema(false);
+
+    if let Some(CliCommand::Config {
+        debug: false,
+        filter,
+    }) = opt.cmd
+    {
+        smart_config_commands::Printer::stdout().print_help(&schema, |param| {
+            filter.as_ref().map_or(true, |needle| {
+                param.all_paths().any(|path| path.contains(needle))
+            })
+        })?;
+        return Ok(());
+    }
 
     let config_file_paths = ConfigFilePaths {
         general: opt.config_path,
@@ -89,8 +114,8 @@ fn main() -> anyhow::Result<()> {
         observability_config.install()?
     };
 
-    let schema = full_config_schema(false);
-    let repo = ConfigRepository::new(&schema).with_all(config_sources);
+    let mut repo = ConfigRepository::new(&schema).with_all(config_sources);
+    repo.deserializer_options().coerce_variant_names = true;
     let configs: GeneralConfig = repo.single()?.parse().log_all_errors()?;
     let wallets: Wallets = repo.single()?.parse().log_all_errors()?;
     let secrets: Secrets = repo.single()?.parse().log_all_errors()?;
@@ -101,6 +126,19 @@ fn main() -> anyhow::Result<()> {
         .log_all_errors()?
         .genesis
         .context("missing genesis config")?;
+
+    if let Some(CliCommand::Config {
+        debug: true,
+        filter,
+    }) = opt.cmd
+    {
+        smart_config_commands::Printer::stdout().print_debug(&repo, |param| {
+            filter.as_ref().map_or(true, |needle| {
+                param.all_paths().any(|path| path.contains(needle))
+            })
+        })?;
+        return Ok(());
+    }
 
     let node = MainNodeBuilder::new(
         runtime,

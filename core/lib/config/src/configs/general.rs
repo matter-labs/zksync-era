@@ -8,6 +8,7 @@ use crate::{
             TimestampAsserterConfig,
         },
         consensus::ConsensusConfig,
+        contracts::L1ContractsConfig,
         da_dispatcher::DADispatcherConfig,
         en_config::ENConfig,
         fri_prover_group::FriProverGroupConfig,
@@ -17,10 +18,10 @@ use crate::{
         snapshot_recovery::SnapshotRecoveryConfig,
         vm_runner::{BasicWitnessInputProducerConfig, ProtectiveReadsWriterConfig},
         wallets::Wallets,
-        CommitmentGeneratorConfig, ExperimentalVmConfig, ExternalPriceApiClientConfig,
-        FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
-        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
-        PrometheusConfig, ProofDataHandlerConfig, Secrets,
+        CommitmentGeneratorConfig, EcosystemContracts, ExperimentalVmConfig,
+        ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
+        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
+        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, Secrets,
     },
     ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, EthConfig,
     ExternalProofIntegrationApiConfig, GenesisConfigWrapper, ObjectStoreConfig, PostgresConfig,
@@ -59,7 +60,7 @@ pub struct GeneralConfig {
     #[config(nest, rename = "witness_generator", alias = "fri_witness")]
     pub witness_generator_config: Option<FriWitnessGeneratorConfig>,
 
-    #[config(nest)] // FIXME: also nested within API
+    #[config(nest, rename = "prometheus")] // FIXME: also nested within API?
     pub prometheus_config: Option<PrometheusConfig>,
     #[config(nest, rename = "data_handler")]
     pub proof_data_handler_config: Option<ProofDataHandlerConfig>,
@@ -103,7 +104,7 @@ pub struct GeneralConfig {
     pub timestamp_asserter_config: TimestampAsserterConfig,
 }
 
-pub fn full_config_schema(with_en: bool) -> ConfigSchema {
+pub fn full_config_schema(for_en: bool) -> ConfigSchema {
     let mut schema = ConfigSchema::new(&GeneralConfig::DESCRIPTION, "");
 
     // Add global aliases for the snapshots object store.
@@ -123,21 +124,34 @@ pub fn full_config_schema(with_en: bool) -> ConfigSchema {
         .unwrap()
         .push_alias("snapshots.object_store")
         .unwrap();
-    // TODO: add aliases for prover object stores in the same way
+    // TODO: add aliases for prover object stores in the same way and other aliases from tests
 
     // Specialized configuration that were placed in separate files.
     schema.insert(&Secrets::DESCRIPTION, "").unwrap();
-    schema
-        .insert(&GenesisConfigWrapper::DESCRIPTION, "")
-        .unwrap();
-    schema
-        .insert(&ContractsConfig::DESCRIPTION, "contracts")
-        .unwrap();
-    schema.insert(&Wallets::DESCRIPTION, "wallets").unwrap();
 
-    if with_en {
+    if for_en {
         schema
             .insert(&ENConfig::DESCRIPTION, "external_node")
+            .unwrap();
+    } else {
+        // Contracts, wallets and genesis configs are only read by the main node.
+        schema
+            .insert(&GenesisConfigWrapper::DESCRIPTION, "")
+            .unwrap();
+        schema.insert(&Wallets::DESCRIPTION, "wallets").unwrap();
+
+        schema
+            .insert(&ContractsConfig::DESCRIPTION, "contracts")
+            .unwrap();
+        schema
+            .single_mut(&L1ContractsConfig::DESCRIPTION)
+            .unwrap()
+            .push_alias("contracts")
+            .unwrap();
+        schema
+            .single_mut(&EcosystemContracts::DESCRIPTION)
+            .unwrap()
+            .push_alias("contracts")
             .unwrap();
     }
     schema
@@ -148,7 +162,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn config_schema_can_be_constructed() {
+    fn config_schema_can_be_constructed_for_main_node() {
+        full_config_schema(false);
+    }
+
+    #[test]
+    fn config_schema_can_be_constructed_for_en() {
         full_config_schema(true);
     }
 }
