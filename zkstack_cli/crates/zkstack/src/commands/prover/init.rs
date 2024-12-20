@@ -85,6 +85,28 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
                     &format!("{}{}", path, PLONK_CRS_KEY),
                 )?;
             }
+            CompressorType::All => {
+                let path = args.clone().path.context(MSG_SETUP_KEY_PATH_ERROR)?;
+
+                download_compressor_key(
+                    shell,
+                    &mut general_config,
+                    FFLONK_CRS_KEY,
+                    &format!("{}{}", path, FFLONK_CRS_KEY),
+                )?;
+                download_compressor_key(
+                    shell,
+                    &mut general_config,
+                    FFLONK_COMPACT_CRS_KEY,
+                    &format!("{}{}", path, FFLONK_COMPACT_CRS_KEY),
+                )?;
+                download_compressor_key(
+                    shell,
+                    &mut general_config,
+                    PLONK_CRS_KEY,
+                    &format!("{}{}", path, PLONK_CRS_KEY),
+                )?;
+            }
         }
     }
 
