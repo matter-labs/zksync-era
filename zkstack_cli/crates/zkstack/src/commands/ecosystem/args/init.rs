@@ -7,13 +7,13 @@ use types::L1Network;
 use url::Url;
 
 use crate::{
-    commands::chain::args::genesis::GenesisArgs,
+    commands::{args::run::Mode, chain::args::genesis::GenesisArgs},
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEV_ARG_HELP,
-        MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
-        MSG_NO_PORT_REALLOCATION_HELP, MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT,
-        MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
+        MSG_DOCKER_IMAGE_TAG_OPTION, MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR,
+        MSG_L1_RPC_URL_PROMPT, MSG_NO_PORT_REALLOCATION_HELP, MSG_OBSERVABILITY_HELP,
+        MSG_OBSERVABILITY_PROMPT, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
     },
 };
 
@@ -86,6 +86,10 @@ pub struct EcosystemInitArgs {
     /// Deploy Paymaster contract
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub deploy_paymaster: Option<bool>,
+    #[arg(long, default_value = "release")]
+    pub mode: Mode,
+    #[arg(long, help = MSG_DOCKER_IMAGE_TAG_OPTION)]
+    pub tag: Option<String>,
     #[clap(long, help = MSG_SERVER_DB_URL_HELP)]
     pub server_db_url: Option<Url>,
     #[clap(long, help = MSG_SERVER_DB_NAME_HELP)]
@@ -106,6 +110,8 @@ pub struct EcosystemInitArgs {
 impl EcosystemInitArgs {
     pub fn get_genesis_args(&self) -> GenesisArgs {
         GenesisArgs {
+            mode: self.mode.clone(),
+            tag: self.tag.clone(),
             server_db_url: self.server_db_url.clone(),
             server_db_name: self.server_db_name.clone(),
             dev: self.dev,
