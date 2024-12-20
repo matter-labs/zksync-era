@@ -21,6 +21,7 @@ use zksync_types::H256;
 use crate::utils::to_non_retriable_da_error;
 
 const PROTOCOL_VERSION: u8 = 4;
+const FINALITY_STATE: &str = "inBlock";
 
 /// An implementation of the `DataAvailabilityClient` trait that interacts with the Avail network.
 #[derive(Debug, Clone)]
@@ -291,7 +292,7 @@ impl RawAvailClient {
             let status = sub.next().await.transpose()?;
 
             if status.is_some() && status.as_ref().unwrap().is_object() {
-                if let Some(block_hash) = status.unwrap().get("finalized") {
+                if let Some(block_hash) = status.unwrap().get(FINALITY_STATE) {
                     break block_hash
                         .as_str()
                         .ok_or_else(|| anyhow::anyhow!("Invalid block hash"))?
