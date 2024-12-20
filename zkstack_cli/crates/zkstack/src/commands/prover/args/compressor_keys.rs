@@ -17,6 +17,7 @@ pub enum CompressorType {
     Fflonk,
     #[default]
     Plonk,
+    All,
 }
 
 impl CompressorKeysArgs {

@@ -1,7 +1,5 @@
-#![feature(allocator_api)]
-#![feature(generic_const_exprs)]
+#![feature(allocator_api, generic_const_exprs)]
 #![allow(incomplete_features)]
-#![allow(unused_imports)] //todo: remove after setup is generated
 
 use serde::{Deserialize, Serialize};
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]

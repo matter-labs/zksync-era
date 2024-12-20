@@ -122,7 +122,7 @@ impl ProofCompressor {
         Ok(final_proof)
     }
 
-    #[tracing::instrument(skip(proof, compression_mode))]
+    #[tracing::instrument(skip(proof, compression_mode, keystore))]
     pub fn generate_fflonk_proof(
         proof: ZkSyncRecursionLayerProof,
         compression_mode: u8,

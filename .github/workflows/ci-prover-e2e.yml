@@ -66,7 +66,7 @@ jobs:
             --ignore-prerequisites \
             --evm-emulator false \
             --update-submodules=${{matrix.compressor-mode == 'plonk'}}
-          
+
           ci_run zkstack ecosystem init --dev --update-submodules=${{matrix.compressor-mode == 'plonk'}} --verbose
 
           ci_run zkstack prover init --dev --verbose
@@ -76,8 +76,8 @@ jobs:
         working-directory: ./chains/proving_chain/configs
         if: matrix.compressor-mode == 'fflonk'
         run: |
-          sudo sed -i 's/verifier_pre_fflonk: true/verifier_pre_fflonk: false/' general.yaml
-          grep "verifier_pre_fflonk" general.yaml | awk '{ print $2 }'
+          sudo sed -i 's/is_verifier_pre_fflonk: true/is_verifier_pre_fflonk: false/' general.yaml
+          grep "is_verifier_pre_fflonk" general.yaml | awk '{ print $2 }'
 
       - name: Prepare prover subsystem
         run: |
@@ -93,6 +93,7 @@ jobs:
       - name: Run Prover Job Monitor
         run: |
           ci_run zkstack prover run --component=prover-job-monitor --docker=false &>prover_logs_${{matrix.compressor-mode}}/prover-job-monitor.log &
+          # Sleeping until the server, gateway and prover job monitor are up
           ci_run sleep 150
       - name: Wait for batch to be passed through gateway
         env:

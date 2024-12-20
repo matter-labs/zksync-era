@@ -7,7 +7,7 @@ use circuit_definitions::{
     },
 };
 #[cfg(feature = "gpu")]
-use fflonk_gpu::{bellman::bn256::Fq2, FflonkSnarkVerifierCircuitVK};
+use fflonk_gpu::FflonkSnarkVerifierCircuitVK;
 use sha3::Digest;
 use zkevm_test_harness::{
     franklin_crypto::bellman::{CurveAffine, PrimeField, PrimeFieldRepr},

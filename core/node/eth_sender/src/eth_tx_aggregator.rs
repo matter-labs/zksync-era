@@ -134,7 +134,7 @@ impl EthTxAggregator {
 
         tracing::info!(
             "Initialized eth_tx_aggregator with is_pre_fflonk_verifier: {:?}",
-            self.config.verifier_pre_fflonk
+            self.config.is_verifier_pre_fflonk
         );
 
         let pool = self.pool.clone();
@@ -550,7 +550,7 @@ impl EthTxAggregator {
                 Self::encode_commit_data(encoding_fn, &commit_data, l1_batch_for_sidecar)
             }
             AggregatedOperation::PublishProofOnchain(op) => {
-                args.extend(op.conditional_into_tokens(self.config.verifier_pre_fflonk));
+                args.extend(op.conditional_into_tokens(self.config.is_verifier_pre_fflonk));
                 let encoding_fn = if is_op_pre_gateway {
                     &self.functions.post_shared_bridge_prove
                 } else {
