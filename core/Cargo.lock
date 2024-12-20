@@ -12898,7 +12898,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_tee_prover"
-version = "25.4.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
