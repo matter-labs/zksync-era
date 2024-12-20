@@ -25,7 +25,7 @@ nixsgxLib.mkSGXContainer {
         "--env-prefix"
         "TEE_PROVER_"
         "--"
-        "${tee_prover}/bin/zksync_tee_prover"
+        "${tee_prover}/core/bin/zksync_tee_prover"
       ];
 
       log_level = "error";

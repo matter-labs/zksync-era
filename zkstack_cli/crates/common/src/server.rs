@@ -45,7 +45,7 @@ impl Server {
     where
         P: AsRef<OsStr>,
     {
-        let _dir_guard = shell.push_dir(self.code_path);
+        let _dir_guard = shell.push_dir(&self.code_path);
 
         if let Some(components) = self.components() {
             additional_args.push(format!("--components={}", components))
