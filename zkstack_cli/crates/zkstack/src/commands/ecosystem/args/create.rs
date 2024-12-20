@@ -32,6 +32,8 @@ pub struct EcosystemCreateArgs {
         long, help = MSG_START_CONTAINERS_HELP, default_missing_value = "true", num_args = 0..=1
     )]
     pub start_containers: Option<bool>,
+    #[clap(long)]
+    pub update_submodules: Option<bool>,
 }
 
 impl EcosystemCreateArgs {
