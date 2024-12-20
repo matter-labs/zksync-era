@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use circuit_sequencer_api_1_3_3::INITIAL_MONOTONIC_CYCLE_COUNTER;
+use circuit_sequencer_api::INITIAL_MONOTONIC_CYCLE_COUNTER;
 use itertools::Itertools;
 use zk_evm_1_3_3::{
     aux_structures::{MemoryPage, Timestamp},
