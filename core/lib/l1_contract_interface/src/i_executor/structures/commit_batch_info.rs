@@ -142,7 +142,8 @@ impl<'a> CommitBatchInfo<'a> {
                     self.l1_batch_with_metadata
                         .metadata
                         .bootloader_initial_content_commitment
-                        .unwrap()
+                        // TODO(zk os): temporary default to test here
+                        .unwrap_or_default()
                         .as_bytes()
                         .to_vec(),
                 ),
@@ -151,7 +152,8 @@ impl<'a> CommitBatchInfo<'a> {
                     self.l1_batch_with_metadata
                         .metadata
                         .events_queue_commitment
-                        .unwrap()
+                        // TODO(zk os): temporary default to test here
+                        .unwrap_or_default()
                         .as_bytes()
                         .to_vec(),
                 ),
