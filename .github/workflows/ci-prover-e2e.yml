@@ -64,7 +64,7 @@ jobs:
             --base-token-price-denominator 1 \
             --set-as-default true \
             --ignore-prerequisites \
-            --evm-emulator false
+            --evm-emulator false \
             --update-submodules=${{matrix.compressor-mode == 'plonk'}}
           
           ci_run zkstack ecosystem init --dev --update-submodules=${{matrix.compressor-mode == 'plonk'}} --verbose
