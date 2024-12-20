@@ -212,6 +212,13 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         .as_mut()
         .context("sender")?
         .wait_confirmations = Some(0);
+    // Undoing what was changed during migration to gateway.
+    // TODO(EVM-925): maybe remove this logic.
+    eth_config
+        .sender
+        .as_mut()
+        .expect("sender")
+        .max_aggregated_tx_gas = 15000000;
     eth_config
         .sender
         .as_mut()

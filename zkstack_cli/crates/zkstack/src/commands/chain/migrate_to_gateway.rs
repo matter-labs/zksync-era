@@ -402,6 +402,13 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .as_mut()
         .context("sender")?
         .wait_confirmations = Some(0);
+    // TODO(EVM-925): the number below may not always work, especially for large prices on
+    // top of Gateway. This field would have to be either not used on GW or transformed into u64.
+    eth_config
+        .sender
+        .as_mut()
+        .expect("sender")
+        .max_aggregated_tx_gas = 4294967295;
     eth_config
         .sender
         .as_mut()
