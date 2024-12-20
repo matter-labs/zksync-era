@@ -1,4 +1,4 @@
 [submodule "contracts"]
 path = contracts
 url = https://github.com/matter-labs/era-contracts.git
-branch = "stable/evm-emulator"
+branch = "evm-emulator/fixes"
