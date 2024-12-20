@@ -45,7 +45,7 @@ impl Server {
     where
         P: AsRef<OsStr>,
     {
-        let _dir_guard = shell.push_dir(self.code_path.join("core"));
+        let _dir_guard = shell.push_dir(self.code_path);
 
         if let Some(components) = self.components() {
             additional_args.push(format!("--components={}", components))
@@ -59,7 +59,7 @@ impl Server {
         let mut cmd = Cmd::new(
             cmd!(
                 shell,
-                "cargo run --release --bin zksync_server {uring...} --
+                "cargo run --manifest-path ./core/Cargo.toml --release --bin zksync_server {uring...} --
                 --genesis-path {genesis_path}
                 --wallets-path {wallets_path}
                 --config-path {general_path}
