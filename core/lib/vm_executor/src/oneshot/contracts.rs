@@ -106,11 +106,9 @@ impl<C: ContractsKind> MultiVmBaseSystemContracts<C> {
             ProtocolVersionId::Version21 | ProtocolVersionId::Version22 => &self.post_1_4_2,
             ProtocolVersionId::Version23 => &self.vm_1_5_0_small_memory,
             ProtocolVersionId::Version24 => &self.vm_1_5_0_increased_memory,
-            ProtocolVersionId::Version25 | ProtocolVersionId::Version26 => {
-                &self.vm_protocol_defense
-            }
+            ProtocolVersionId::Version25 => &self.vm_protocol_defense,
+            ProtocolVersionId::Version26 => &self.vm_evm_emulator,
             ProtocolVersionId::Version27 => &self.gateway,
-            ProtocolVersionId::Version28 => &self.vm_evm_emulator,
         };
         let base = base.clone();
 
