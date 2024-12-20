@@ -45,6 +45,30 @@ impl BatchFeeInput {
             fair_pubdata_price,
         })
     }
+
+    pub fn from_protocol_version(
+        protocol_version: Option<ProtocolVersionId>,
+        l1_gas_price: u64,
+        fair_l2_gas_price: u64,
+        fair_pubdata_price: Option<u64>,
+    ) -> Self {
+        protocol_version
+            .filter(|version: &ProtocolVersionId| version.is_post_1_4_1())
+            .map(|_| {
+                Self::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+                    fair_pubdata_price: fair_pubdata_price
+                        .expect("No fair pubdata price for 1.4.1"),
+                    fair_l2_gas_price,
+                    l1_gas_price,
+                })
+            })
+            .unwrap_or_else(|| {
+                Self::L1Pegged(L1PeggedBatchFeeModelInput {
+                    fair_l2_gas_price,
+                    l1_gas_price,
+                })
+            })
+    }
 }
 
 impl Default for BatchFeeInput {
