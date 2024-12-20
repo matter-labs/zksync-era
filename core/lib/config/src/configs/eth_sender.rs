@@ -43,6 +43,7 @@ impl EthConfig {
                 tx_aggregation_only_prove_and_execute: false,
                 priority_tree_start_index: Some(0),
                 time_in_mempool_in_l1_blocks_cap: 1800,
+                is_verifier_pre_fflonk: true,
             }),
             gas_adjuster: Some(GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -123,6 +124,7 @@ pub struct SenderConfig {
     /// Cap of time in mempool for price calculations
     #[serde(default = "SenderConfig::default_time_in_mempool_in_l1_blocks_cap")]
     pub time_in_mempool_in_l1_blocks_cap: u32,
+    pub is_verifier_pre_fflonk: bool,
 }
 
 impl SenderConfig {

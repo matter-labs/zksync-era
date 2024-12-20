@@ -8,6 +8,7 @@ l1_chain_id: 9
 l2_chain_id: 270
 fee_account: '0x0000000000000000000000000000000000000001'
 prover:
+  fflonk_snark_wrapper_vk_hash: 0x560b19cfd6bcf1049c6409c18d81db288ab7639db080ed3b48df17ddfbcc4666
   dummy_verifier: true
   snark_wrapper_vk_hash: 0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2
 genesis_protocol_semantic_version: 0.25.0
