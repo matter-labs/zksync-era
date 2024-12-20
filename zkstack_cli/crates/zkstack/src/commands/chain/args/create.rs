@@ -117,7 +117,7 @@ impl ChainCreateArgs {
                     }
                 }),
             )
-                .ask()
+            .ask()
         };
 
         let prover_version = self.prover_mode.unwrap_or_else(|| {
@@ -130,7 +130,7 @@ impl ChainCreateArgs {
                     MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT,
                     L1BatchCommitmentModeInternal::iter(),
                 )
-                    .ask()
+                .ask()
             });
 
         let wallet_path: Option<PathBuf> = if wallet_creation == WalletCreation::InFile {
