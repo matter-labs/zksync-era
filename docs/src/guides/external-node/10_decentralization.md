@@ -35,9 +35,9 @@ chmod 600 consensus_secrets.yaml
 ### Preparing configuration file
 
 Copy the template of the consensus configuration file (for
-[mainnet](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/prepared_configs/mainnet_consensus_config.yaml)
+[mainnet](https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/external-node/prepared_configs/mainnet_consensus_config.yaml)
 or
-[testnet](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/prepared_configs/testnet_consensus_config.yaml)
+[testnet](https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/external-node/prepared_configs/testnet_consensus_config.yaml)
 ).
 
 > [!NOTE]
