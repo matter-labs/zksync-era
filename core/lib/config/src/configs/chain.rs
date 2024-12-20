@@ -6,23 +6,6 @@ use smart_config::{
     metadata::{SizeUnit, TimeUnit},
     ByteSize, DescribeConfig, DeserializeConfig,
 };
-use zksync_basic_types::{network::Network, L2ChainId};
-
-#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
-#[config(derive(Default))]
-pub struct NetworkConfig {
-    /// Name of the used Ethereum network, e.g. `localhost` or `rinkeby`.
-    #[config(with = Serde![str], default_t = Network::Localhost)]
-    pub network: Network,
-    /// Name of current ZKsync network
-    /// Used for Sentry environment
-    #[config(default_t = "localhost".into())]
-    pub zksync_network: String,
-    /// ID of current ZKsync network treated as ETH network ID.
-    /// Used to distinguish ZKsync from other Web3-capable networks.
-    #[config(default, with = Serde![int])]
-    pub zksync_network_id: L2ChainId,
-}
 
 /// An enum that represents the version of the fee model to use.
 ///  - `V1`, the first model that was used in ZKsync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
@@ -202,29 +185,6 @@ mod tests {
     use smart_config::{testing::test_complete, Environment, Yaml};
 
     use super::*;
-
-    fn expected_network_config() -> NetworkConfig {
-        NetworkConfig {
-            network: "localhost".parse().unwrap(),
-            zksync_network: "localhost".to_string(),
-            zksync_network_id: L2ChainId::from(270),
-        }
-    }
-
-    // FIXME: is `NetworkConfig` just a legacy thing?
-    #[test]
-    fn network_from_env() {
-        let env = r#"
-            CHAIN_ETH_NETWORK="localhost"
-            CHAIN_ETH_ZKSYNC_NETWORK="localhost"
-            CHAIN_ETH_ZKSYNC_NETWORK_ID=270
-        "#;
-        let env = Environment::from_dotenv("test.env", env)
-            .unwrap()
-            .strip_prefix("CHAIN_ETH_");
-        let config: NetworkConfig = test_complete(env).unwrap();
-        assert_eq!(config, expected_network_config());
-    }
 
     fn expected_state_keeper_config() -> StateKeeperConfig {
         StateKeeperConfig {

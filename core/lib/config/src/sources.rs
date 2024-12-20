@@ -32,7 +32,6 @@ impl ConfigFilePaths {
     /// **Important.** This method is blocking.
     pub fn into_config_sources(self, env_prefix: &str) -> anyhow::Result<ConfigSources> {
         let mut sources = ConfigSources::default();
-        sources.push(Environment::prefixed(env_prefix));
 
         if let Some(path) = &self.general {
             sources.push(Self::read_yaml(path)?);
@@ -58,6 +57,7 @@ impl ConfigFilePaths {
             sources.push(Prefixed::new(Self::read_yaml(path)?, "consensus"));
         }
 
+        sources.push(Environment::prefixed(env_prefix));
         Ok(sources)
     }
 }

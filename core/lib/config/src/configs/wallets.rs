@@ -33,6 +33,7 @@ fn deserialize_key(
 }
 
 #[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
+#[config(validate("`address` should correspond to `private_key`", Self::validate_address))]
 pub struct Wallet {
     /// Address of the account. Used to validate private key integrity.
     address: Option<Address>,
@@ -41,6 +42,17 @@ pub struct Wallet {
 }
 
 impl Wallet {
+    fn validate_address(&self) -> Result<(), ErrorWithOrigin> {
+        if let Some(address) = self.address {
+            if address != self.private_key.address() {
+                return Err(ErrorWithOrigin::custom(
+                    "Malformed wallet; `address` doesn't correspond to `private_key`",
+                ));
+            }
+        }
+        Ok(())
+    }
+
     pub fn from_private_key_bytes(
         private_key_bytes: H256,
         address: Option<Address>,
@@ -97,5 +109,75 @@ impl Wallets {
                 Wallet::from_private_key_bytes(H256::repeat_byte(0x4), None).unwrap(),
             ),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use smart_config::{
+        testing::{test, test_complete},
+        Yaml,
+    };
+
+    use super::*;
+
+    #[test]
+    fn parsing_from_yaml() {
+        let yaml = r#"
+            operator:
+              address: 0xabcf96e1ee478481042a0c4e34cdceceae01b154
+              private_key: 0xf00bf4165f9e1a67841b981949033c06c1423dab34c33d6d1237ae14d85bd729
+            blob_operator:
+              address: 0x5927c313861c01b82a026e35d93cc787e5356c0f
+              private_key: 0xc9ee945b2f6d4c462a743f5af3904a4ee78aec0218f1f4f3c53d0bfbf809b520
+            fee_account:
+              address: 0x7ea53e0f1eb0b3b578aeda336b2c3a778e04eebf
+              private_key: 0xe338cadae0f665139a7a4f2b846b91e188a2d100dcd34f58771c903cd2b08cd1
+            token_multiplier_setter:
+              address: 0x1900678c093afec2558642bc4cae038254b9e664
+              private_key: 0x2137749ca460802189d3eeb9be411128c28ce67edf0d2fd750212f96a888cfa5
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+
+        let wallets: Wallets = test_complete(yaml).unwrap();
+        assert_eq!(
+            wallets.operator.unwrap().address(),
+            "0xabcf96e1ee478481042a0c4e34cdceceae01b154"
+                .parse()
+                .unwrap()
+        );
+        assert_eq!(
+            wallets.blob_operator.unwrap().address(),
+            "0x5927c313861c01b82a026e35d93cc787e5356c0f"
+                .parse()
+                .unwrap()
+        );
+        assert_eq!(
+            wallets.fee_account.unwrap().address(),
+            "0x7ea53e0f1eb0b3b578aeda336b2c3a778e04eebf"
+                .parse()
+                .unwrap()
+        );
+        assert_eq!(
+            wallets.token_multiplier_setter.unwrap().address(),
+            "0x1900678c093afec2558642bc4cae038254b9e664"
+                .parse()
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn parsing_error() {
+        let yaml = r#"
+            operator:
+              address: 0xabcf96e1ee478481042a0c4e34cdceceae01b154
+              private_key: 0xf00bf4165f9e1a67841b981949033c06c1423dab34c33d6d1237ae14d85bd728
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+
+        let err = test::<Wallets>(yaml).unwrap_err();
+        assert_eq!(err.len(), 1, "{err}");
+        let err = err.first().inner().to_string();
+        assert!(err.contains("Malformed wallet"), "{err}");
     }
 }

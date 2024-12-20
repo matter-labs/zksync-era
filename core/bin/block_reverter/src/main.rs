@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{env, path::PathBuf};
 
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
@@ -162,9 +162,10 @@ async fn main() -> anyhow::Result<()> {
 
     let zksync_network_id = match &genesis_config {
         Some(genesis_config) => genesis_config.l2_chain_id,
-        None => {
-            todo!("NetworkConfig.zksync_network_id")
-        }
+        None => env::var("CHAIN_ETH_ZKSYNC_NETWORK_ID")
+            .context("`CHAIN_ETH_ZKSYNC_NETWORK_ID` env var is not set")?
+            .parse()
+            .map_err(|_| anyhow::anyhow!("`CHAIN_ETH_ZKSYNC_NETWORK_ID` env var is invalid"))?,
     };
 
     let config = BlockReverterEthConfig::new(&eth_sender, &contracts, zksync_network_id)?;
