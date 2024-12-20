@@ -11,11 +11,9 @@ static WORKSPACE: OnceCell<Option<PathBuf>> = OnceCell::new();
 /// Represents Cargo workspaces available in the repository.
 #[derive(Debug, Clone, Copy)]
 pub enum Workspace<'a> {
-    /// Workspace was not found.
-    /// Assumes that the code is running in a binary.
-    /// Will use the current directory as a fallback.
-    None,
     /// Root folder.
+    Root,
+    /// `core` folder.
     Core(&'a Path),
     /// `prover` folder.
     Prover(&'a Path),
@@ -42,21 +40,29 @@ impl Workspace<'static> {
                 result.ok()
             })
             .as_deref();
-        path.map_or(Self::None, Self::from)
+        path.map_or(Self::Root, Self::from)
     }
 }
 
 impl<'a> Workspace<'a> {
+    const CORE_DIRECTORY_NAME: &'static str = "core";
     const PROVER_DIRECTORY_NAME: &'static str = "prover";
     const ZKSTACK_CLI_DIRECTORY_NAME: &'static str = "zkstack_cli";
 
     /// Returns the path of the core workspace.
     /// For `Workspace::None`, considers the current directory to represent core workspace.
+    pub fn root(self) -> PathBuf {
+        match self {
+            Self::Root => PathBuf::from("."),
+            Self::Core(path) | Self::Prover(path) | Self::ZkStackCli(path) => path.parent().unwrap().into(),
+        }
+    }
+
+    /// Returns the path of the `core` workspace.
     pub fn core(self) -> PathBuf {
         match self {
-            Self::None => PathBuf::from("."),
             Self::Core(path) => path.into(),
-            Self::Prover(path) | Self::ZkStackCli(path) => path.parent().unwrap().into(),
+            _ => self.root().join(Self::CORE_DIRECTORY_NAME),
         }
     }
 
@@ -64,7 +70,7 @@ impl<'a> Workspace<'a> {
     pub fn prover(self) -> PathBuf {
         match self {
             Self::Prover(path) => path.into(),
-            _ => self.core().join(Self::PROVER_DIRECTORY_NAME),
+            _ => self.root().join(Self::PROVER_DIRECTORY_NAME),
         }
     }
 
@@ -72,7 +78,7 @@ impl<'a> Workspace<'a> {
     pub fn zkstack_cli(self) -> PathBuf {
         match self {
             Self::ZkStackCli(path) => path.into(),
-            _ => self.core().join(Self::ZKSTACK_CLI_DIRECTORY_NAME),
+            _ => self.root().join(Self::ZKSTACK_CLI_DIRECTORY_NAME),
         }
     }
 }
@@ -83,8 +89,10 @@ impl<'a> From<&'a Path> for Workspace<'a> {
             Self::Prover(path)
         } else if path.ends_with(Self::ZKSTACK_CLI_DIRECTORY_NAME) {
             Self::ZkStackCli(path)
-        } else {
+        } else if path.ends_with(Self::CORE_DIRECTORY_NAME) {
             Self::Core(path)
+        } else {
+            Self::Root
         }
     }
 }
@@ -145,61 +153,61 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn test_workspace_locate() {
-    //     let _pwd_protector = PwdProtector::new();
-    //
-    //     // Core.
-    //     let workspace = Workspace::locate();
-    //     assert_matches!(workspace, Workspace::Core(_));
-    //     let core_path = workspace.core();
-    //     // Check if prover and ZK Stack CLI directories exist.
-    //     assert!(workspace.prover().exists());
-    //     assert_matches!(
-    //         Workspace::from(workspace.prover().as_path()),
-    //         Workspace::Prover(_)
-    //     );
-    //     assert!(workspace.zkstack_cli().exists());
-    //     assert_matches!(
-    //         Workspace::from(workspace.zkstack_cli().as_path()),
-    //         Workspace::ZkStackCli(_)
-    //     );
-    //
-    //     // Prover.
-    //
-    //     // We use `cargo-nextest` for running tests, which runs each test in parallel,
-    //     // so we can safely alter the global env, assuming that we will restore it after
-    //     // the test.
-    //     std::env::set_current_dir(workspace.prover()).unwrap();
-    //     let workspace_path = locate_workspace_inner().unwrap();
-    //     let workspace = Workspace::from(workspace_path.as_path());
-    //     assert_matches!(workspace, Workspace::Prover(_));
-    //     let prover_path = workspace.prover();
-    //     assert_eq!(workspace.core(), core_path);
-    //     assert_matches!(
-    //         Workspace::from(workspace.core().as_path()),
-    //         Workspace::Core(_)
-    //     );
-    //     assert!(workspace.zkstack_cli().exists());
-    //     assert_matches!(
-    //         Workspace::from(workspace.zkstack_cli().as_path()),
-    //         Workspace::ZkStackCli(_)
-    //     );
-    //
-    //     // ZK Stack CLI
-    //     std::env::set_current_dir(workspace.zkstack_cli()).unwrap();
-    //     let workspace_path = locate_workspace_inner().unwrap();
-    //     let workspace = Workspace::from(workspace_path.as_path());
-    //     assert_matches!(workspace, Workspace::ZkStackCli(_));
-    //     assert_eq!(workspace.core(), core_path);
-    //     assert_matches!(
-    //         Workspace::from(workspace.core().as_path()),
-    //         Workspace::Core(_)
-    //     );
-    //     assert_eq!(workspace.prover(), prover_path);
-    //     assert_matches!(
-    //         Workspace::from(workspace.prover().as_path()),
-    //         Workspace::Prover(_)
-    //     );
-    // }
+    #[test]
+    fn test_workspace_locate() {
+        let _pwd_protector = PwdProtector::new();
+
+        // Core.
+        let workspace = Workspace::locate();
+        assert_matches!(workspace, Workspace::Core(_));
+        let core_path = workspace.core();
+        // Check if prover and ZK Stack CLI directories exist.
+        assert!(workspace.prover().exists());
+        assert_matches!(
+            Workspace::from(workspace.prover().as_path()),
+            Workspace::Prover(_)
+        );
+        assert!(workspace.zkstack_cli().exists());
+        assert_matches!(
+            Workspace::from(workspace.zkstack_cli().as_path()),
+            Workspace::ZkStackCli(_)
+        );
+
+        // Prover.
+
+        // We use `cargo-nextest` for running tests, which runs each test in parallel,
+        // so we can safely alter the global env, assuming that we will restore it after
+        // the test.
+        std::env::set_current_dir(workspace.prover()).unwrap();
+        let workspace_path = locate_workspace_inner().unwrap();
+        let workspace = Workspace::from(workspace_path.as_path());
+        assert_matches!(workspace, Workspace::Prover(_));
+        let prover_path = workspace.prover();
+        assert_eq!(workspace.core(), core_path);
+        assert_matches!(
+            Workspace::from(workspace.core().as_path()),
+            Workspace::Core(_)
+        );
+        assert!(workspace.zkstack_cli().exists());
+        assert_matches!(
+            Workspace::from(workspace.zkstack_cli().as_path()),
+            Workspace::ZkStackCli(_)
+        );
+
+        // ZK Stack CLI
+        std::env::set_current_dir(workspace.zkstack_cli()).unwrap();
+        let workspace_path = locate_workspace_inner().unwrap();
+        let workspace = Workspace::from(workspace_path.as_path());
+        assert_matches!(workspace, Workspace::ZkStackCli(_));
+        assert_eq!(workspace.core(), core_path);
+        assert_matches!(
+            Workspace::from(workspace.core().as_path()),
+            Workspace::Core(_)
+        );
+        assert_eq!(workspace.prover(), prover_path);
+        assert_matches!(
+            Workspace::from(workspace.prover().as_path()),
+            Workspace::Prover(_)
+        );
+    }
 }
