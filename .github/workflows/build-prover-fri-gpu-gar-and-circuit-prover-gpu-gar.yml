@@ -2,7 +2,6 @@ name: Build Prover FRI GPU & Circuit Prover GPU with builtin setup data
 
 on:
   workflow_call:
-    secrets:
     inputs:
       image_tag_suffix:
         description: "Commit sha or git tag for Docker tag"
