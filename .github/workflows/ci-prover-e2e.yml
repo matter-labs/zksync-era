@@ -74,7 +74,7 @@ jobs:
         working-directory: ./chains/proving_chain/configs
         if: matrix.compressor-mode == 'fflonk'
         run: |
-          sed -i 's/verifier_pre_fflonk: true/verifier_pre_fflonk: false/' general.yaml
+          sudo sed -i 's/verifier_pre_fflonk: true/verifier_pre_fflonk: false/' general.yaml
 
       - name: Prepare prover subsystem
         run: |
