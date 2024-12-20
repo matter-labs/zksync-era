@@ -12,9 +12,10 @@ use crate::{
     block::DeployedContract, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
     COMPLEX_UPGRADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS, ECRECOVER_PRECOMPILE_ADDRESS,
     EC_ADD_PRECOMPILE_ADDRESS, EC_MUL_PRECOMPILE_ADDRESS, EC_PAIRING_PRECOMPILE_ADDRESS,
-    IMMUTABLE_SIMULATOR_STORAGE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS,
-    L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, NONCE_HOLDER_ADDRESS,
-    SHA256_PRECOMPILE_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
+    IDENTITY_ADDRESS, IMMUTABLE_SIMULATOR_STORAGE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS,
+    KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS,
+    MSG_VALUE_SIMULATOR_ADDRESS, NONCE_HOLDER_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
+    SYSTEM_CONTEXT_ADDRESS,
 };
 
 // Note, that in the `NONCE_HOLDER_ADDRESS` storage the nonces of accounts
@@ -25,7 +26,7 @@ use crate::{
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
 pub const DEPLOYMENT_NONCE_INCREMENT: U256 = U256([0, 0, 1, 0]); // 2^128
 
-static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 26] = [
+static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 27] = [
     (
         "",
         "AccountCodeStorage",
@@ -123,6 +124,12 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 26] = [
         ContractLanguage::Yul,
     ),
     (
+        "precompiles/",
+        "Identity",
+        IDENTITY_ADDRESS,
+        ContractLanguage::Yul,
+    ),
+    (
         "",
         "SystemContext",
         SYSTEM_CONTEXT_ADDRESS,
@@ -181,7 +188,7 @@ pub fn get_system_smart_contracts(use_evm_emulator: bool) -> Vec<DeployedContrac
     SYSTEM_CONTRACT_LIST
         .iter()
         .filter_map(|(path, name, address, contract_lang)| {
-            if *name == "EvmGasManager" && !use_evm_emulator {
+            if (*name == "EvmGasManager" || *name == "Identity") && !use_evm_emulator {
                 None
             } else {
                 Some(DeployedContract {
@@ -202,7 +209,7 @@ pub fn get_system_smart_contracts_from_dir(
     SYSTEM_CONTRACT_LIST
         .iter()
         .filter_map(|(path, name, address, contract_lang)| {
-            if *name == "EvmGasManager" && !use_evm_emulator {
+            if (*name == "EvmGasManager" || *name == "Identity") && !use_evm_emulator {
                 None
             } else {
                 Some(DeployedContract {
