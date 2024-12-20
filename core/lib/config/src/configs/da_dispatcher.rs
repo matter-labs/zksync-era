@@ -3,7 +3,7 @@ use std::time::Duration;
 use serde::Deserialize;
 
 pub const DEFAULT_POLLING_INTERVAL_MS: u32 = 5000;
-pub const DEFAULT_MAX_ROWS_TO_DISPATCH: u32 = 100;
+pub const DEFAULT_MAX_ROWS_TO_DISPATCH: u32 = 3;
 pub const DEFAULT_MAX_RETRIES: u16 = 5;
 pub const DEFAULT_USE_DUMMY_INCLUSION_DATA: bool = false;
 

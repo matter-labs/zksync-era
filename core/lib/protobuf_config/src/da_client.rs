@@ -5,7 +5,7 @@ use zksync_config::configs::{
         avail::{AvailClientConfig, AvailConfig, AvailDefaultConfig, AvailGasRelayConfig},
         celestia::CelestiaConfig,
         eigen::EigenConfig,
-        DAClientConfig::{Avail, Celestia, Eigen, ObjectStore},
+        DAClientConfig::{Avail, Celestia, Eigen, NoDA, ObjectStore},
     },
 };
 use zksync_protobuf::{required, ProtoRepr};
@@ -62,6 +62,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
             }
+            proto::data_availability_client::Config::NoDa(_) => NoDA,
         };
 
         Ok(client)
@@ -102,6 +103,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
             ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
                 object_store_proto::ObjectStore::build(config),
             ),
+            NoDA => proto::data_availability_client::Config::NoDa(proto::NoDaConfig {}),
         };
 
         Self {
