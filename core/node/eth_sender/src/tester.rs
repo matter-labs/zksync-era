@@ -244,6 +244,17 @@ impl EthSenderTester {
                 None
             };
 
+        let aggregator = Aggregator::new(
+            aggregator_config.clone(),
+            MockObjectStore::arc(),
+            custom_commit_sender_addr,
+            commitment_mode,
+            connection_pool.clone(),
+            SettlementMode::SettlesToL1,
+        )
+        .await
+        .unwrap();
+
         let aggregator = EthTxAggregator::new(
             connection_pool.clone(),
             SenderConfig {
@@ -252,13 +263,7 @@ impl EthSenderTester {
                 ..eth_sender.clone()
             },
             // Aggregator - unused
-            Aggregator::new(
-                aggregator_config.clone(),
-                MockObjectStore::arc(),
-                custom_commit_sender_addr,
-                commitment_mode,
-                SettlementMode::SettlesToL1,
-            ),
+            aggregator,
             gateway.clone(),
             // ZKsync contract address
             Address::random(),
@@ -406,15 +411,16 @@ impl EthSenderTester {
 
     pub async fn save_execute_tx(&mut self, l1_batch_number: L1BatchNumber) -> EthTx {
         assert_eq!(l1_batch_number, self.next_l1_batch_number_to_execute);
+        let l1_batch_headers = vec![
+            self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_execute)
+                .await,
+        ];
         let operation = AggregatedOperation::Execute(ExecuteBatches {
-            l1_batches: vec![
-                self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_execute)
-                    .await,
-            ]
-            .into_iter()
-            .map(l1_batch_with_metadata)
-            .collect(),
-            priority_ops_proofs: Vec::new(),
+            priority_ops_proofs: vec![Default::default(); l1_batch_headers.len()],
+            l1_batches: l1_batch_headers
+                .into_iter()
+                .map(l1_batch_with_metadata)
+                .collect(),
         });
         self.next_l1_batch_number_to_execute += 1;
         self.save_operation(operation).await
