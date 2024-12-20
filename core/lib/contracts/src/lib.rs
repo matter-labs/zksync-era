@@ -489,6 +489,14 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
+    pub fn playground_post_evm_emulator() -> Self {
+      let bootloader_bytecode = read_yul_bytecode(
+          "etc/multivm_bootloaders/vm_evm_emulator",
+          "playground_batch",
+      );
+      BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+  }
+
     pub fn playground_gateway() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_gateway/playground_batch.yul/playground_batch.yul.zbin",
@@ -567,6 +575,14 @@ impl BaseSystemContracts {
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
+
+    pub fn estimate_gas_post_evm_emulator() -> Self {
+      let bootloader_bytecode = read_yul_bytecode(
+          "etc/multivm_bootloaders/vm_evm_emulator",
+          "fee_estimate",
+      );
+      BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+  }
 
     pub fn estimate_gas_gateway() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
