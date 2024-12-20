@@ -17,7 +17,7 @@ use zksync_types::{
 
 use crate::{
     i_executor::structures::{StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
-    Tokenizable, Tokenize,
+    Tokenizable,
 };
 
 /// Input required to encode `proveBatches` call.

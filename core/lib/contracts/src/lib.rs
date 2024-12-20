@@ -171,10 +171,7 @@ pub fn multicall_contract() -> Contract {
 }
 
 pub fn verifier_contract() -> Contract {
-    let path = format!(
-        "{}/{}/{}",
-        FORGE_PATH_PREFIX, DUAL_VERIFIER_CONTRACT_FILE.0, DUAL_VERIFIER_CONTRACT_FILE.1
-    );
+    let path = format!("{}/{}", FORGE_PATH_PREFIX, DUAL_VERIFIER_CONTRACT_FILE.1);
     let zksync_home = home_path();
     let path = Path::new(&zksync_home).join(path);
 

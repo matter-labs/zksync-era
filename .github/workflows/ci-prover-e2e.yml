@@ -44,6 +44,7 @@ jobs:
           git fetch
           git checkout b4d5b984
           git submodule update --init --recursive
+          git rev-parse HEAD
 
       - name: Init
         run: |

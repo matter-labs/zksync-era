@@ -132,6 +132,11 @@ impl EthTxAggregator {
         self.health_updater
             .update(Health::from(HealthStatus::Ready));
 
+        tracing::info!(
+            "Initialized eth_tx_aggregator with is_pre_fflonk_verifier: {:?}",
+            self.config.verifier_pre_fflonk
+        );
+
         let pool = self.pool.clone();
         loop {
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
