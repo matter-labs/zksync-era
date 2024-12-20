@@ -8,14 +8,14 @@ use zksync_vm2::interface::{
     CallframeInterface, CallingMode, GlobalStateInterface, Opcode, OpcodeType, ShouldStop, Tracer,
 };
 
-use super::utils::read_fat_pointer;
+use crate::vm_fast::utils::read_fat_pointer;
 
 /// Container for dynamic bytecodes added by [`EvmDeployTracer`].
 #[derive(Debug, Clone, Default)]
-pub(super) struct DynamicBytecodes(Rc<RefCell<HashMap<U256, Vec<u8>>>>);
+pub(crate) struct DynamicBytecodes(Rc<RefCell<HashMap<U256, Vec<u8>>>>);
 
 impl DynamicBytecodes {
-    pub(super) fn map<R>(&self, hash: U256, f: impl FnOnce(&[u8]) -> R) -> Option<R> {
+    pub(crate) fn map<R>(&self, hash: U256, f: impl FnOnce(&[u8]) -> R) -> Option<R> {
         self.0.borrow().get(&hash).map(|code| f(code))
     }
 
@@ -37,8 +37,10 @@ pub(super) struct EvmDeployTracer {
 
 impl EvmDeployTracer {
     pub(super) fn new(bytecodes: DynamicBytecodes) -> Self {
-        let tracked_signature =
-            ethabi::short_signature("publishEVMBytecode", &[ethabi::ParamType::Bytes]);
+        let tracked_signature = ethabi::short_signature(
+            "publishEVMBytecode",
+            &[ethabi::ParamType::Uint(256), ethabi::ParamType::Bytes],
+        );
         Self {
             tracked_signature,
             bytecodes,
@@ -61,13 +63,26 @@ impl EvmDeployTracer {
             return;
         }
 
-        match ethabi::decode(&[ethabi::ParamType::Bytes], data) {
+        match ethabi::decode(
+            &[ethabi::ParamType::Uint(256), ethabi::ParamType::Bytes],
+            data,
+        ) {
             Ok(decoded) => {
                 // `unwrap`s should be safe since the function signature is checked above.
-                let published_bytecode = decoded.into_iter().next().unwrap().into_bytes().unwrap();
-                let bytecode_hash =
-                    BytecodeHash::for_evm_bytecode(&published_bytecode).value_u256();
-                self.bytecodes.insert(bytecode_hash, published_bytecode);
+                let mut decoded_iter = decoded.into_iter();
+                let raw_bytecode_len = decoded_iter.next().unwrap().into_uint().unwrap().try_into();
+                match raw_bytecode_len {
+                    Ok(raw_bytecode_len) => {
+                        let published_bytecode = decoded_iter.next().unwrap().into_bytes().unwrap();
+                        let bytecode_hash =
+                            BytecodeHash::for_evm_bytecode(raw_bytecode_len, &published_bytecode)
+                                .value_u256();
+                        self.bytecodes.insert(bytecode_hash, published_bytecode);
+                    }
+                    Err(err) => {
+                        tracing::error!("Invalid bytecode len in `publishEVMBytecode` call: {err}")
+                    }
+                }
             }
             Err(err) => tracing::error!("Unable to decode `publishEVMBytecode` call: {err}"),
         }

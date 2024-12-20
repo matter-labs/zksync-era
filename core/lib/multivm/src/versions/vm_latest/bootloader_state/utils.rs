@@ -155,8 +155,8 @@ pub(crate) fn apply_pubdata_to_memory(
     pubdata_builder: &dyn PubdataBuilder,
     pubdata_information: &PubdataInput,
     protocol_version: ProtocolVersionId,
+    subversion: MultiVmSubversion,
 ) {
-    let subversion = MultiVmSubversion::try_from(VmVersion::from(protocol_version)).unwrap();
     let (l1_messenger_pubdata_start_slot, pubdata) = match subversion {
         MultiVmSubversion::SmallBootloaderMemory | MultiVmSubversion::IncreasedBootloaderMemory => {
             // Skipping two slots as they will be filled by the bootloader itself:

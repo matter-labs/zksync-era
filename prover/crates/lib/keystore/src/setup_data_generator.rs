@@ -5,13 +5,17 @@ use std::collections::HashMap;
 
 use anyhow::Context as _;
 use zkevm_test_harness::{
-    compute_setups::{generate_circuit_setup_data, CircuitSetupData},
+    compute_setups::{
+        generate_circuit_setup_data, light::generate_light_circuit_setup_data, CircuitSetupData,
+    },
     data_source::SetupDataSource,
 };
 use zksync_prover_fri_types::ProverServiceDataKey;
 #[cfg(feature = "gpu")]
 use {
-    crate::GpuProverSetupData, shivini::cs::setup::GpuSetup, shivini::ProverContext,
+    crate::GpuProverSetupData,
+    boojum_cuda::poseidon2::GLHasher,
+    shivini::{cs::gpu_setup_and_vk_from_base_setup_vk_params_and_hints, ProverContext},
     zksync_prover_fri_types::circuit_definitions::boojum::worker::Worker,
 };
 
@@ -25,7 +29,7 @@ pub fn generate_setup_data_common(
 ) -> anyhow::Result<CircuitSetupData> {
     let mut data_source = keystore.load_keys_to_data_source()?;
     let circuit_setup_data = generate_circuit_setup_data(
-        circuit.is_base_layer(),
+        circuit.round as u8, // TODO: Actually it's called "ProvingStage" now
         circuit.circuit_id,
         &mut data_source,
     )
@@ -151,20 +155,29 @@ impl SetupDataGenerator for GPUSetupDataGenerator {
         {
             let _context =
                 ProverContext::create().context("failed initializing gpu prover context")?;
-            let circuit_setup_data = generate_setup_data_common(&self.keystore, circuit)?;
+
+            let mut data_source = self.keystore.load_keys_to_data_source()?;
+            let circuit_setup_data = generate_light_circuit_setup_data(
+                circuit.round as u8,
+                circuit.circuit_id,
+                &mut data_source,
+            )
+            .unwrap();
 
             let worker = Worker::new();
-            let gpu_setup_data = GpuSetup::from_setup_and_hints(
-                circuit_setup_data.setup_base,
-                circuit_setup_data.setup_tree,
-                circuit_setup_data.vars_hint.clone(),
-                circuit_setup_data.wits_hint,
-                &worker,
-            )
-            .context("failed creating GPU base layer setup data")?;
+            // TODO: add required assertions
+            let (gpu_setup_data, vk) =
+                gpu_setup_and_vk_from_base_setup_vk_params_and_hints::<GLHasher, _>(
+                    circuit_setup_data.setup_base,
+                    circuit_setup_data.vk_geometry,
+                    circuit_setup_data.vars_hint.clone(),
+                    circuit_setup_data.wits_hint,
+                    &worker,
+                )
+                .context("failed creating GPU base layer setup data")?;
             let gpu_prover_setup_data = GpuProverSetupData {
                 setup: gpu_setup_data,
-                vk: circuit_setup_data.vk,
+                vk: vk.clone(),
                 finalization_hint: circuit_setup_data.finalization_hint,
             };
             // Serialization should always succeed.

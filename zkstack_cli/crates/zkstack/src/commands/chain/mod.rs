@@ -21,6 +21,7 @@ pub mod convert_to_gateway;
 pub mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
+mod enable_evm_emulator;
 pub mod gateway_upgrade;
 pub mod genesis;
 pub mod init;
@@ -79,6 +80,8 @@ pub enum ChainCommands {
     MigrateFromGateway(MigrateFromGatewayArgs),
     /// Upgrade to the protocol version that supports Gateway
     GatewayUpgrade(GatewayUpgradeArgs),
+    /// Enable EVM emulation on chain (Not supported yet)
+    EnableEvmEmulator(ForgeScriptArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
@@ -112,5 +115,6 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::MigrateToGateway(args) => migrate_to_gateway::run(args, shell).await,
         ChainCommands::MigrateFromGateway(args) => migrate_from_gateway::run(args, shell).await,
         ChainCommands::GatewayUpgrade(args) => gateway_upgrade::run(args, shell).await,
+        ChainCommands::EnableEvmEmulator(args) => enable_evm_emulator::run(args, shell).await,
     }
 }

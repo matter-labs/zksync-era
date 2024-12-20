@@ -1,6 +1,6 @@
 use std::{collections::HashMap, rc::Rc};
 
-use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
+use circuit_sequencer_api::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
     h256_to_u256,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
@@ -124,7 +124,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 
         let storage_log_queries = self.state.storage.get_final_log_queries();
         let deduped_storage_log_queries =
-            sort_storage_access_queries(storage_log_queries.iter().map(|log| &log.log_query)).1;
+            sort_storage_access_queries(storage_log_queries.iter().map(|log| log.log_query)).1;
 
         CurrentExecutionState {
             events,
