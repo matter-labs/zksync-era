@@ -54,7 +54,9 @@ impl<'a> Workspace<'a> {
     pub fn root(self) -> PathBuf {
         match self {
             Self::Root => PathBuf::from("."),
-            Self::Core(path) | Self::Prover(path) | Self::ZkStackCli(path) => path.parent().unwrap().into(),
+            Self::Core(path) | Self::Prover(path) | Self::ZkStackCli(path) => {
+                path.parent().unwrap().into()
+            }
         }
     }
 
