@@ -17,7 +17,7 @@ pub struct Token {
 }
 
 pub fn read_tokens(network: Network) -> anyhow::Result<Vec<Token>> {
-    let home = Workspace::locate().core();
+    let home = Workspace::locate().root();
     let path = home.join(format!("etc/tokens/{network}.json"));
     let file = File::open(path)?;
     let reader = BufReader::new(file);

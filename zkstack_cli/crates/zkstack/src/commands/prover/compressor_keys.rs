@@ -1,7 +1,7 @@
 use anyhow::Context;
-use common::spinner::Spinner;
-use config::{get_link_to_prover, EcosystemConfig, GeneralConfig};
 use xshell::Shell;
+use zkstack_common::spinner::Spinner;
+use zkstack_config::{get_link_to_prover, EcosystemConfig, GeneralConfig};
 
 use super::args::compressor_keys::CompressorKeysArgs;
 use crate::messages::{

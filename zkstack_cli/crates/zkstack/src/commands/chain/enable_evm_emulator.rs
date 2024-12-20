@@ -1,7 +1,7 @@
 use anyhow::Context;
-use common::{forge::ForgeScriptArgs, logger};
-use config::{traits::ReadConfigWithBasePath, EcosystemConfig, GenesisConfig};
 use xshell::Shell;
+use zkstack_common::{forge::ForgeScriptArgs, logger};
+use zkstack_config::{traits::ReadConfigWithBasePath, EcosystemConfig, GenesisConfig};
 
 use crate::{
     enable_evm_emulator::enable_evm_emulator,

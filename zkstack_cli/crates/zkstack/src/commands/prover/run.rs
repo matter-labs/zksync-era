@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context};
-use common::{check_prerequisites, cmd::Cmd, logger, GPU_PREREQUISITES};
-use config::{get_link_to_prover, ChainConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
+use zkstack_common::{check_prerequisites, cmd::Cmd, logger, GPU_PREREQUISITES};
+use zkstack_config::{get_link_to_prover, ChainConfig, EcosystemConfig};
 
 use super::args::run::{ProverComponent, ProverRunArgs};
 use crate::messages::{
@@ -96,6 +96,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
         update_setup_data_path(&chain, "data/keys".to_string())?;
         run_binary_component(
             shell,
+            "prover/Cargo.toml",
             component.binary_name(),
             &application_args,
             &additional_args,
@@ -135,6 +136,7 @@ fn run_dockerized_component(
 
 fn run_binary_component(
     shell: &Shell,
+    manifest: &str,
     binary_name: &str,
     application_args: &[String],
     args: &[String],
@@ -145,7 +147,7 @@ fn run_binary_component(
 
     let mut cmd = Cmd::new(cmd!(
         shell,
-        "cargo run {application_args...} --release --bin {binary_name} -- {args...}"
+        "cargo run --manifest-path {manifest} {application_args...} --release --bin {binary_name} -- {args...}"
     ));
     cmd = cmd.with_force_run();
     cmd.run().context(error)

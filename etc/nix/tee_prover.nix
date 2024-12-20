@@ -3,7 +3,7 @@
 }:
 let
   pname = "zksync_tee_prover";
-  cargoExtraArgs = "--locked -p zksync_tee_prover";
+  cargoExtraArgs = "--manifest-path ./core/Cargo.toml --locked -p zksync_tee_prover";
 in
 craneLib.buildPackage (commonArgs // {
   inherit pname;
