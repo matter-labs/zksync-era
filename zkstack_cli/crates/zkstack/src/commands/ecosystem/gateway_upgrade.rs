@@ -117,7 +117,6 @@ async fn no_governance_prepare(
         &initial_deployment_config,
         &wallets_config,
         ecosystem_config.era_chain_id,
-        // FIXME: provide correct era diamond proxy
         era_config.get_contracts_config()?.l1.diamond_proxy_addr,
         ecosystem_config.prover_version == ProverMode::NoProofs,
     );

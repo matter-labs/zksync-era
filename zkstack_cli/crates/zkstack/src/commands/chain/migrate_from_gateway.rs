@@ -69,7 +69,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     let gateway_chain_config = ecosystem_config
         .load_chain(Some(args.gateway_chain_name.clone()))
         .context("Gateway not present")?;
-    let gateway_chain_id = gateway_chain_config.chain_id.0;
+    let gateway_chain_id = gateway_chain_config.chain_id.as_u64();
     let gateway_gateway_config = gateway_chain_config
         .get_gateway_config()
         .context("Gateway config not present")?;
@@ -117,7 +117,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
                     gateway_chain_chain_config
                         .chain_admin_addr
                         .context("l2 chain admin missing")?,
-                    U256::from(chain_config.chain_id.0),
+                    U256::from(chain_config.chain_id.as_u64()),
                 ),
             )
             .unwrap(),
@@ -148,7 +148,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
             .parse()
             .unwrap(),
     )?
-    .for_network(L2::from(L2ChainId(gateway_chain_id)))
+    .for_network(L2::from(L2ChainId::new(gateway_chain_id).unwrap()))
     .build();
 
     if hash == H256::zero() {
@@ -170,7 +170,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
             .encode(
                 "finishMigrateChainFromGateway",
                 (
-                    U256::from(chain_config.chain_id.0),
+                    U256::from(chain_config.chain_id.as_u64()),
                     U256::from(gateway_chain_id),
                     U256::from(params.l2_batch_number.0[0]),
                     U256::from(params.l2_message_index.0[0]),
@@ -212,7 +212,8 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         .as_mut()
         .context("sender")?
         .wait_confirmations = Some(0);
-    // FIXME: do we need to move the following to be u64?
+    // Undoing what was changed during migration to gateway.
+    // TODO(EVM-925): maybe remove this logic.
     eth_config
         .sender
         .as_mut()

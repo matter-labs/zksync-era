@@ -138,6 +138,7 @@ pub async fn init(
                 .token_multiplier_setter
                 .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
                 .address,
+            chain_contracts.l1.chain_admin_addr,
             &init_args.forge_args.clone(),
             init_args.l1_rpc_url.clone(),
         )

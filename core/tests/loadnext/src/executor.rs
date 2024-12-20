@@ -414,9 +414,6 @@ impl Executor {
                     eth_txs.push(res);
                 }
 
-                println!("{:#?} -- ", self.config.main_token);
-                println!("{:#?} -- ", self.l2_main_token);
-
                 let ethereum_erc20_balance = ethereum
                     .erc20_balance(target_address, self.config.main_token)
                     .await?;
