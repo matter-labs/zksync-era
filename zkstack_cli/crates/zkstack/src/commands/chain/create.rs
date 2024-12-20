@@ -62,7 +62,6 @@ pub(crate) fn create_chain_inner(
     args: ChainCreateArgsFinal,
     ecosystem_config: &EcosystemConfig,
     shell: &Shell,
-    update_submodules: Option<bool>,
 ) -> anyhow::Result<()> {
     if args.legacy_bridge {
         logger::warn("WARNING!!! You are creating a chain with legacy bridge, use it only for testing compatibility")
