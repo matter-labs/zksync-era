@@ -38,6 +38,7 @@ impl DataAvailabilityDispatcher {
         let self_arc = Arc::new(self.clone());
 
         let mut stop_receiver_dispatch = stop_receiver.clone();
+        let mut stop_receiver_poll_for_inclusion = stop_receiver.clone();
 
         let dispatch_task = tokio::spawn(async move {
             loop {
@@ -63,7 +64,7 @@ impl DataAvailabilityDispatcher {
 
         let inclusion_task = tokio::spawn(async move {
             loop {
-                if *stop_receiver.borrow() {
+                if *stop_receiver_poll_for_inclusion.borrow() {
                     break;
                 }
 
@@ -71,9 +72,12 @@ impl DataAvailabilityDispatcher {
                     tracing::error!("poll_for_inclusion error {err:?}");
                 }
 
-                if tokio::time::timeout(self.config.polling_interval(), stop_receiver.changed())
-                    .await
-                    .is_ok()
+                if tokio::time::timeout(
+                    self.config.polling_interval(),
+                    stop_receiver_poll_for_inclusion.changed(),
+                )
+                .await
+                .is_ok()
                 {
                     break;
                 }
