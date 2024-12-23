@@ -1,8 +1,11 @@
+mod blob_info;
 mod client;
+mod client_tests;
 mod sdk;
+mod verifier;
+mod verifier_tests;
 
-pub use self::client::EigenClient;
-
+pub use self::client::{EigenClient, GetBlobData};
 #[allow(clippy::all)]
 pub(crate) mod disperser {
     include!("generated/disperser.rs");
