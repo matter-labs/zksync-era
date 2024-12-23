@@ -79,7 +79,7 @@ only if someone has first called `signup_open()` on chain A.
 ```solidity
 // Contract deployed on chain A.
 contract SignupManager {
-  public bytes32 sigup_open_msg_hash;
+  public bytes32 signup_open_msg_hash;
   function signup_open() onlyOwner {
     // We are open for business
     signup_open_msg_hash = InteropCenter(INTEROP_CENTER_ADDRESS).sendInteropMessage("We are open");
