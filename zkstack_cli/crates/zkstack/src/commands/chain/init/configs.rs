@@ -30,7 +30,7 @@ pub async fn run(args: InitConfigsArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    let args = args.fill_values_with_prompt(&chain_config);
+    let args = args.fill_values_with_prompt(&chain_config).await;
 
     init_configs(&args, shell, &ecosystem_config, &chain_config).await?;
     logger::outro(MSG_CHAIN_CONFIGS_INITIALIZED);

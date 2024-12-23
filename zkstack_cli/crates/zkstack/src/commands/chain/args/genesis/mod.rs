@@ -1,21 +1,29 @@
 use anyhow::Context;
 use clap::Parser;
-use common::{db::DatabaseConfig, Prompt};
+use common::{db::DatabaseConfig, server::ExecutionMode, Prompt};
 use config::ChainConfig;
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use url::Url;
 
 use crate::{
+    commands::args::run::Mode,
     defaults::{generate_db_names, DBNames, DATABASE_SERVER_URL},
     messages::{
-        msg_server_db_name_prompt, msg_server_db_url_prompt, MSG_SERVER_DB_NAME_HELP,
-        MSG_SERVER_DB_URL_HELP, MSG_USE_DEFAULT_DATABASES_HELP,
+        msg_server_db_name_prompt, msg_server_db_url_prompt, MSG_DOCKER_IMAGE_TAG_OPTION,
+        MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP, MSG_USE_DEFAULT_DATABASES_HELP,
     },
+    utils::docker::select_tag,
 };
+
+pub mod server;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser, Default)]
 pub struct GenesisArgs {
+    #[arg(long, default_value = "release")]
+    pub mode: Mode,
+    #[arg(long, help = MSG_DOCKER_IMAGE_TAG_OPTION)]
+    pub tag: Option<String>,
     #[clap(long, help = MSG_SERVER_DB_URL_HELP)]
     pub server_db_url: Option<Url>,
     #[clap(long, help = MSG_SERVER_DB_NAME_HELP)]
@@ -27,13 +35,21 @@ pub struct GenesisArgs {
 }
 
 impl GenesisArgs {
-    pub fn fill_values_with_prompt(self, config: &ChainConfig) -> GenesisArgsFinal {
+    pub async fn fill_values_with_prompt(self, config: &ChainConfig) -> GenesisArgsFinal {
+        let tag = if let Mode::Docker = self.mode {
+            self.tag
+                .or(select_tag().await.ok().or(Some("latest".to_string())))
+        } else {
+            None
+        };
+
         let DBNames { server_name, .. } = generate_db_names(config);
         let chain_name = config.name.clone();
         if self.dev {
             GenesisArgsFinal {
                 server_db: DatabaseConfig::new(DATABASE_SERVER_URL.clone(), server_name),
                 dont_drop: self.dont_drop,
+                mode: self.mode.as_execution_mode(tag),
             }
         } else {
             let server_db_url = self.server_db_url.unwrap_or_else(|| {
@@ -49,14 +65,16 @@ impl GenesisArgs {
                 }),
                 separator = "_"
             );
+
             GenesisArgsFinal {
                 server_db: DatabaseConfig::new(server_db_url, server_db_name),
                 dont_drop: self.dont_drop,
+                mode: self.mode.as_execution_mode(tag),
             }
         }
     }
 
-    pub fn fill_values_with_secrets(
+    pub async fn fill_values_with_secrets(
         mut self,
         chain_config: &ChainConfig,
     ) -> anyhow::Result<GenesisArgsFinal> {
@@ -76,7 +94,7 @@ impl GenesisArgs {
         self.server_db_url = self.server_db_url.or(server_db_url);
         self.server_db_name = self.server_db_name.or(server_db_name);
 
-        Ok(self.fill_values_with_prompt(chain_config))
+        Ok(self.fill_values_with_prompt(chain_config).await)
     }
 
     pub fn reset_db_names(&mut self) {
@@ -85,8 +103,9 @@ impl GenesisArgs {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct GenesisArgsFinal {
     pub server_db: DatabaseConfig,
     pub dont_drop: bool,
+    pub mode: ExecutionMode,
 }

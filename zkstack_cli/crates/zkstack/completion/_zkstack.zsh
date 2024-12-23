@@ -126,6 +126,8 @@ _arguments "${_arguments_options[@]}" : \
 '*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--deploy-paymaster=[Deploy Paymaster contract]' \
+'--mode=[]:MODE:(release debug docker)' \
+'--tag=[Select a specific Docker image tag]:TAG:_default' \
 '--server-db-url=[Server database url without database name]:SERVER_DB_URL:_default' \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '-o+[Enable Grafana]' \
@@ -280,6 +282,8 @@ _arguments "${_arguments_options[@]}" : \
 '--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
 '*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--mode=[]:MODE:(release debug docker)' \
+'--tag=[Select a specific Docker image tag]:TAG:_default' \
 '--server-db-url=[Server database url without database name]:SERVER_DB_URL:_default' \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '--deploy-paymaster=[]' \
@@ -307,6 +311,8 @@ _arguments "${_arguments_options[@]}" : \
         case $line[1] in
             (configs)
 _arguments "${_arguments_options[@]}" : \
+'--mode=[]:MODE:(release debug docker)' \
+'--tag=[Select a specific Docker image tag]:TAG:_default' \
 '--server-db-url=[Server database url without database name]:SERVER_DB_URL:_default' \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
@@ -353,6 +359,8 @@ esac
 ;;
 (genesis)
 _arguments "${_arguments_options[@]}" : \
+'--mode=[]:MODE:(release debug docker)' \
+'--tag=[Select a specific Docker image tag]:TAG:_default' \
 '--server-db-url=[Server database url without database name]:SERVER_DB_URL:_default' \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
@@ -377,6 +385,8 @@ _arguments "${_arguments_options[@]}" : \
         case $line[1] in
             (init-database)
 _arguments "${_arguments_options[@]}" : \
+'--mode=[]:MODE:(release debug docker)' \
+'--tag=[Select a specific Docker image tag]:TAG:_default' \
 '--server-db-url=[Server database url without database name]:SERVER_DB_URL:_default' \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
@@ -393,6 +403,8 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (server)
 _arguments "${_arguments_options[@]}" : \
+'--mode=[]:MODE:(release debug docker)' \
+'--tag=[Select a specific Docker image tag]:TAG:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
@@ -1949,7 +1961,7 @@ _arguments "${_arguments_options[@]}" : \
 '-m+[]:MAX_ALLOCATION:_default' \
 '--max-allocation=[]:MAX_ALLOCATION:_default' \
 '--docker=[]:DOCKER:(true false)' \
-'--tag=[]:TAG:_default' \
+'--tag=[Select a specific Docker image tag]:TAG:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
@@ -2027,6 +2039,8 @@ esac
 ;;
 (server)
 _arguments "${_arguments_options[@]}" : \
+'--mode=[]:MODE:(release debug docker)' \
+'--tag=[Select a specific Docker image tag]:TAG:_default' \
 '*--components=[Components of server to run]:COMPONENTS:_default' \
 '*-a+[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '*--additional-args=[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
@@ -2060,6 +2074,8 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (run)
 _arguments "${_arguments_options[@]}" : \
+'--mode=[]:MODE:(release debug docker)' \
+'--tag=[Select a specific Docker image tag]:TAG:_default' \
 '*--components=[Components of server to run]:COMPONENTS:_default' \
 '*-a+[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '*--additional-args=[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \

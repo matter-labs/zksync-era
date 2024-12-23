@@ -16,8 +16,8 @@ use crate::{
         WITNESS_VECTOR_GENERATOR_DOCKER_IMAGE,
     },
     messages::{
-        MSG_ROUND_SELECT_PROMPT, MSG_RUN_COMPONENT_PROMPT, MSG_THREADS_PROMPT,
-        MSG_WITNESS_GENERATOR_ROUND_ERR,
+        MSG_DOCKER_IMAGE_TAG_OPTION, MSG_ROUND_SELECT_PROMPT, MSG_RUN_COMPONENT_PROMPT,
+        MSG_THREADS_PROMPT, MSG_WITNESS_GENERATOR_ROUND_ERR,
     },
 };
 
@@ -35,7 +35,7 @@ pub struct ProverRunArgs {
     pub circuit_prover_args: CircuitProverArgs,
     #[clap(long)]
     pub docker: Option<bool>,
-    #[clap(long)]
+    #[arg(long, help = MSG_DOCKER_IMAGE_TAG_OPTION)]
     pub tag: Option<String>,
 }
 

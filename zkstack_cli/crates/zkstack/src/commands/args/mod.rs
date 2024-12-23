@@ -1,7 +1,7 @@
-pub use self::{autocomplete::*, containers::*, run_server::*, update::*, wait::*};
+pub use self::{autocomplete::*, containers::*, server::*, update::*, wait::*};
 
 mod autocomplete;
 mod containers;
-mod run_server;
+mod server;
 mod update;
 mod wait;

@@ -30,3 +30,5 @@ xshell.workspace = true
 thiserror.workspace = true
 strum.workspace = true
 git_version_macro.workspace = true
+reqwest.workspace = true
+semver.workspace = true

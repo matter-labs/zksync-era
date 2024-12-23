@@ -4,6 +4,7 @@ use common::{logger, spinner::Spinner};
 use config::{ChainConfig, EcosystemConfig};
 use xshell::Shell;
 
+use super::args::genesis::server::GenesisServerArgs;
 use crate::{
     commands::chain::{
         args::genesis::{GenesisArgs, GenesisArgsFinal},
@@ -25,7 +26,7 @@ pub enum GenesisSubcommands {
     #[command(alias = "database")]
     InitDatabase(Box<GenesisArgs>),
     /// Runs server genesis
-    Server,
+    Server(GenesisServerArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -40,7 +41,7 @@ pub struct GenesisCommand {
 pub(crate) async fn run(args: GenesisCommand, shell: &Shell) -> anyhow::Result<()> {
     match args.command {
         Some(GenesisSubcommands::InitDatabase(args)) => database::run(*args, shell).await,
-        Some(GenesisSubcommands::Server) => server::run(shell).await,
+        Some(GenesisSubcommands::Server(args)) => server::run(args, shell).await,
         None => run_genesis(args.args, shell).await,
     }
 }
@@ -50,7 +51,7 @@ pub async fn run_genesis(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()>
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
-    let args = args.fill_values_with_prompt(&chain_config);
+    let args = args.fill_values_with_prompt(&chain_config).await;
 
     genesis(args, shell, &chain_config).await?;
     logger::outro(MSG_GENESIS_COMPLETED);
@@ -85,7 +86,7 @@ pub async fn genesis(
     spinner.finish();
 
     let spinner = Spinner::new(MSG_STARTING_GENESIS_SPINNER);
-    run_server_genesis(config, shell)?;
+    run_server_genesis(config, shell, args.mode).await?;
     spinner.finish();
 
     Ok(())
