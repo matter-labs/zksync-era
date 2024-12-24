@@ -37,6 +37,19 @@ impl FromEnv for ContractsForGenesis {
     }
 }
 
+// For initializing genesis file from  env it's required to have an additional struct,
+// because these data is not present in any other structs
+#[derive(Deserialize, Serialize, Debug, Clone)]
+struct CustomGenesisState {
+    pub path: Option<String>,
+}
+
+impl FromEnv for CustomGenesisState {
+    fn from_env() -> anyhow::Result<Self> {
+        envy_load("custom_genesis_state", "CUSTOM_GENESIS_STATE_")
+    }
+}
+
 impl FromEnv for GenesisConfig {
     fn from_env() -> anyhow::Result<Self> {
         // Getting genesis from environmental variables is a temporary measure, that will be
@@ -44,6 +57,7 @@ impl FromEnv for GenesisConfig {
         // #PLA-811
         let network_config = &NetworkConfig::from_env()?;
         let contracts_config = &ContractsForGenesis::from_env()?;
+        let custom_genesis_state_config = CustomGenesisState::from_env()?;
         let state_keeper = StateKeeperConfig::from_env()?;
 
         // This is needed for backward compatibility, so if the new variable `genesis_protocol_semantic_version`
@@ -71,7 +85,6 @@ impl FromEnv for GenesisConfig {
             evm_emulator_hash: state_keeper.evm_emulator_hash,
             // TODO(EVM-676): for now, the settlement layer is always the same as the L1 network
             l1_chain_id: L1ChainId(network_config.network.chain_id().0),
-            sl_chain_id: Some(network_config.network.chain_id()),
             l2_chain_id: network_config.zksync_network_id,
             snark_wrapper_vk_hash: contracts_config.snark_wrapper_vk_hash,
             fee_account: state_keeper
@@ -79,6 +92,7 @@ impl FromEnv for GenesisConfig {
                 .context("Fee account required for genesis")?,
             dummy_verifier: false,
             l1_batch_commit_data_generator_mode: state_keeper.l1_batch_commit_data_generator_mode,
+            custom_genesis_state_path: custom_genesis_state_config.path,
         })
     }
 }

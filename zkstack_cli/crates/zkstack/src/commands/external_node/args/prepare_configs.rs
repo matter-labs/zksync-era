@@ -21,6 +21,8 @@ pub struct PrepareConfigArgs {
     pub db_name: Option<String>,
     #[clap(long)]
     pub l1_rpc_url: Option<String>,
+    #[clap(long)]
+    pub gateway_rpc_url: Option<String>,
     #[clap(long, short, help = MSG_USE_DEFAULT_DATABASES_HELP)]
     pub use_default: bool,
 }
@@ -33,6 +35,7 @@ impl PrepareConfigArgs {
             PrepareConfigFinal {
                 db: DatabaseConfig::new(DATABASE_SERVER_URL.clone(), db_name),
                 l1_rpc_url: LOCAL_RPC_URL.to_string(),
+                gateway_rpc_url: None,
             }
         } else {
             let db_url = self.db_url.unwrap_or_else(|| {
@@ -57,6 +60,7 @@ impl PrepareConfigArgs {
             PrepareConfigFinal {
                 db: DatabaseConfig::new(db_url, db_name),
                 l1_rpc_url,
+                gateway_rpc_url: self.gateway_rpc_url,
             }
         }
     }
@@ -66,4 +70,5 @@ impl PrepareConfigArgs {
 pub struct PrepareConfigFinal {
     pub db: DatabaseConfig,
     pub l1_rpc_url: String,
+    pub gateway_rpc_url: Option<String>,
 }

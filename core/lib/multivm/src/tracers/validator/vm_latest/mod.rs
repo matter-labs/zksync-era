@@ -1,6 +1,6 @@
 use zk_evm_1_5_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
-    zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode},
+    zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode, RetOpcode},
 };
 use zksync_system_constants::KECCAK256_PRECOMPILE_ADDRESS;
 use zksync_types::{
@@ -116,8 +116,7 @@ impl<H: HistoryMode> ValidationTracer<H> {
                                 // using self.l1_batch_env.timestamp is ok here because the tracer is always
                                 // used in a oneshot execution mode
                                 if end
-                                    < self.l1_batch_env.timestamp
-                                        + params.min_time_till_end.as_secs()
+                                    < self.l1_batch_timestamp + params.min_time_till_end.as_secs()
                                 {
                                     return Err(
                                         ViolatedValidationRule::TimestampAssertionCloseToRangeEnd,
@@ -167,6 +166,13 @@ impl<H: HistoryMode> ValidationTracer<H> {
                         ..Default::default()
                     });
                 }
+            }
+
+            Opcode::Ret(RetOpcode::Panic)
+                if state.vm_local_state.callstack.current.ergs_remaining == 0 =>
+            {
+                // Actual gas limit was reached, not the validation gas limit.
+                return Err(ViolatedValidationRule::TookTooManyComputationalGas(0));
             }
             _ => {}
         }

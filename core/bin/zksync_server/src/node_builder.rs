@@ -6,8 +6,8 @@ use std::time::Duration;
 use anyhow::{bail, Context};
 use zksync_config::{
     configs::{
-        da_client::DAClientConfig, secrets::DataAvailabilitySecrets, wallets::Wallets,
-        GeneralConfig, Secrets,
+        da_client::DAClientConfig, gateway::GatewayChainConfig, secrets::DataAvailabilitySecrets,
+        wallets::Wallets, GeneralConfig, Secrets,
     },
     ContractsConfig, GenesisConfig,
 };
@@ -48,7 +48,7 @@ use zksync_node_framework::{
         object_store::ObjectStoreLayer,
         pk_signing_eth_client::PKSigningEthClientLayer,
         pools_layer::PoolsLayerBuilder,
-        postgres_metrics::PostgresMetricsLayer,
+        postgres::PostgresLayer,
         prometheus_exporter::PrometheusExporterLayer,
         proof_data_handler::ProofDataHandlerLayer,
         query_eth_client::QueryEthClientLayer,
@@ -90,6 +90,7 @@ pub struct MainNodeBuilder {
     wallets: Wallets,
     genesis_config: GenesisConfig,
     contracts_config: ContractsConfig,
+    gateway_chain_config: Option<GatewayChainConfig>,
     secrets: Secrets,
 }
 
@@ -99,6 +100,7 @@ impl MainNodeBuilder {
         wallets: Wallets,
         genesis_config: GenesisConfig,
         contracts_config: ContractsConfig,
+        gateway_chain_config: Option<GatewayChainConfig>,
         secrets: Secrets,
     ) -> anyhow::Result<Self> {
         Ok(Self {
@@ -107,6 +109,7 @@ impl MainNodeBuilder {
             wallets,
             genesis_config,
             contracts_config,
+            gateway_chain_config,
             secrets,
         })
     }
@@ -138,8 +141,8 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_postgres_metrics_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(PostgresMetricsLayer);
+    fn add_postgres_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(PostgresLayer);
         Ok(self)
     }
 
@@ -149,7 +152,7 @@ impl MainNodeBuilder {
         self.node.add_layer(PKSigningEthClientLayer::new(
             eth_config,
             self.contracts_config.clone(),
-            self.genesis_config.settlement_layer_id(),
+            self.gateway_chain_config.clone(),
             wallets,
         ));
         Ok(self)
@@ -159,13 +162,12 @@ impl MainNodeBuilder {
         let genesis = self.genesis_config.clone();
         let eth_config = try_load_config!(self.secrets.l1);
         let query_eth_client_layer = QueryEthClientLayer::new(
-            genesis.settlement_layer_id(),
+            genesis.l1_chain_id,
             eth_config.l1_rpc_url,
-            self.configs
-                .eth
+            self.gateway_chain_config
                 .as_ref()
-                .and_then(|x| Some(x.gas_adjuster?.settlement_mode))
-                .unwrap_or(SettlementMode::SettlesToL1),
+                .map(|c| c.gateway_chain_id),
+            eth_config.gateway_rpc_url,
         );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
@@ -283,6 +285,13 @@ impl MainNodeBuilder {
         self.node.add_layer(EthWatchLayer::new(
             try_load_config!(eth_config.watcher),
             self.contracts_config.clone(),
+            self.gateway_chain_config.clone(),
+            self.configs
+                .eth
+                .as_ref()
+                .and_then(|x| Some(x.gas_adjuster?.settlement_mode))
+                .unwrap_or(SettlementMode::SettlesToL1),
+            self.genesis_config.l2_chain_id,
         ));
         Ok(self)
     }
@@ -456,10 +465,10 @@ impl MainNodeBuilder {
 
     fn add_eth_tx_aggregator_layer(mut self) -> anyhow::Result<Self> {
         let eth_sender_config = try_load_config!(self.configs.eth);
-
         self.node.add_layer(EthTxAggregatorLayer::new(
             eth_sender_config,
             self.contracts_config.clone(),
+            self.gateway_chain_config.clone(),
             self.genesis_config.l2_chain_id,
             self.genesis_config.l1_batch_commit_data_generator_mode,
             self.configs
@@ -760,9 +769,7 @@ impl MainNodeBuilder {
                     self = self.add_eth_tx_manager_layer()?;
                 }
                 Component::Housekeeper => {
-                    self = self
-                        .add_house_keeper_layer()?
-                        .add_postgres_metrics_layer()?;
+                    self = self.add_house_keeper_layer()?.add_postgres_layer()?;
                 }
                 Component::ProofDataHandler => {
                     self = self.add_proof_data_handler_layer()?;

@@ -386,8 +386,8 @@ mod tests {
     use zksync_multivm::interface::{FinishedL1Batch, VmExecutionMetrics};
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{
-        api::TransactionStatus, block::BlockGasCount, h256_to_u256, writes::StateDiffRecord,
-        L1BatchNumber, L2BlockNumber, StorageLogKind, H256, U256,
+        api::TransactionStatus, h256_to_u256, writes::StateDiffRecord, L1BatchNumber,
+        L2BlockNumber, StorageLogKind, H256, U256,
     };
 
     use super::*;
@@ -508,7 +508,6 @@ mod tests {
             tx,
             tx_result,
             vec![],
-            BlockGasCount::default(),
             VmExecutionMetrics::default(),
             vec![],
         );

@@ -115,6 +115,12 @@ impl TestContract {
         &CONTRACT
     }
 
+    pub fn validation_test() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::custom_account::ValidationRuleBreaker));
+        &CONTRACT
+    }
+
     /// Returns a contract testing precompiles.
     pub fn precompiles_test() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
@@ -168,6 +174,13 @@ impl TestContract {
     pub fn transfer_recipient() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
             Lazy::new(|| TestContract::new(raw::transfer::Recipient));
+        &CONTRACT
+    }
+
+    /// Returns a test ERC20 token implementation.
+    pub fn test_erc20() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::transfer::TestERC20));
         &CONTRACT
     }
 

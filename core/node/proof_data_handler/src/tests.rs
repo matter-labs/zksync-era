@@ -112,7 +112,7 @@ async fn submit_tee_proof() {
         .await
         .expect("Failed to save attestation");
 
-    // resend the same request; this time, it should be successful.
+    // resend the same request; this time, it should be successful
 
     let response = send_submit_tee_proof_request(&app, &uri, &tee_proof_request).await;
     assert_eq!(response.status(), StatusCode::OK);

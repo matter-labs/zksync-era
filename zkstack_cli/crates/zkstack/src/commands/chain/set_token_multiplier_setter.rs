@@ -17,7 +17,7 @@ use crate::{
         MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO, MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
         MSG_WALLETS_CONFIG_MUST_BE_PRESENT, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 lazy_static! {
@@ -109,7 +109,7 @@ async fn update_token_multiplier_setter(
     governor: &Wallet,
     mut forge: ForgeScript,
 ) -> anyhow::Result<()> {
-    forge = fill_forge_private_key(forge, Some(governor))?;
+    forge = fill_forge_private_key(forge, Some(governor), WalletOwner::Governor)?;
     check_the_balance(&forge).await?;
     forge.run(shell)?;
     Ok(())

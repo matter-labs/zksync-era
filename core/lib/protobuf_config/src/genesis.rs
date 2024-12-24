@@ -84,7 +84,6 @@ impl ProtoRepr for proto::Genesis {
             l1_chain_id: required(&self.l1_chain_id)
                 .map(|x| L1ChainId(*x))
                 .context("l1_chain_id")?,
-            sl_chain_id: None,
             l2_chain_id: required(&self.l2_chain_id)
                 .and_then(|x| L2ChainId::try_from(*x).map_err(|a| anyhow::anyhow!(a)))
                 .context("l2_chain_id")?,
@@ -99,6 +98,7 @@ impl ProtoRepr for proto::Genesis {
             .and_then(|x| Ok(proto::L1BatchCommitDataGeneratorMode::try_from(*x)?))
             .context("l1_batch_commit_data_generator_mode")?
             .parse(),
+            custom_genesis_state_path: self.custom_genesis_state_path.clone(),
         })
     }
 
@@ -126,6 +126,7 @@ impl ProtoRepr for proto::Genesis {
                 )
                 .into(),
             ),
+            custom_genesis_state_path: this.custom_genesis_state_path.clone(),
         }
     }
 }

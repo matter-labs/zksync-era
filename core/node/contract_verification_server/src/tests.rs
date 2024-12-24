@@ -54,7 +54,7 @@ async fn mock_deploy_contract(
 ) {
     let bytecode_hash = match kind {
         BytecodeMarker::EraVm => BytecodeHash::for_bytecode(&[0; 32]).value(),
-        BytecodeMarker::Evm => BytecodeHash::for_evm_bytecode(&[0; 96]).value(),
+        BytecodeMarker::Evm => BytecodeHash::for_evm_bytecode(0, &[0; 96]).value(),
     };
     let deploy_log = StorageLog::new_write_log(get_code_key(&address), bytecode_hash);
     storage
