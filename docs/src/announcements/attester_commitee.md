@@ -11,7 +11,7 @@ ended up with the same state root hash.
 
 ## Current State
 
-Before starting the L1 integration, we want to ensure that we can to consistently reach the quorum and collect the
+Before starting the L1 integration, we want to ensure that we can consistently reach the quorum and collect the
 signatures in a timely manner. Currently the main node just stores the signatures in the local DB
 (`l1_batches_consensus` table).
 
