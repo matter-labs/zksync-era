@@ -163,7 +163,7 @@ Finally, even within the same level, there may be different circuit types. Under
 different parts of computations. From a purely applied point of view, it mostly means that initially we receive X jobs
 of N types, which cause Y jobs of M types, and so on.
 
-So, in addition to the aggregation layer, we also have a circuit ID. A tuple of aggregation round and circuit ID form an
+So, in addition to the aggregation layer, we also have a circuit ID. A tuple of aggregation round and circuit ID form a
 unique job identifier, which allows us to understand which inputs we should receive, what processing logic we should
 run, and which outputs we should produce.
 
