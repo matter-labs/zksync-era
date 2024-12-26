@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use num_enum::TryFromPrimitive;
 use serde::{Deserialize, Serialize};
 
-use crate::L1BatchNumber;
+use crate::{commitment::PubdataType, L1BatchNumber};
 
 /// Enum holding the current values used for DA Layers.
 #[repr(u8)]
@@ -26,6 +26,15 @@ pub enum PubdataSendingMode {
 pub struct DataAvailabilityBlob {
     pub l1_batch_number: L1BatchNumber,
     pub blob_id: String,
+    pub inclusion_data: Option<Vec<u8>>,
+    pub sent_at: DateTime<Utc>,
+}
+
+/// Represents the data availability details of a certain batch.
+#[derive(Debug, Clone)]
+pub struct DataAvailabilityDetails {
+    pub blob_id: String,
+    pub pubdata_type: PubdataType,
     pub inclusion_data: Option<Vec<u8>>,
     pub sent_at: DateTime<Utc>,
 }

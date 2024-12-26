@@ -3,7 +3,11 @@ use zksync_db_connection::{
     error::DalResult,
     instrument::{InstrumentExt, Instrumented},
 };
-use zksync_types::{pubdata_da::DataAvailabilityBlob, L1BatchNumber};
+use zksync_types::{
+    commitment::PubdataType,
+    pubdata_da::{DataAvailabilityBlob, DataAvailabilityDetails},
+    L1BatchNumber,
+};
 
 use crate::{
     models::storage_data_availability::{L1BatchDA, StorageDABlob},
@@ -24,17 +28,21 @@ impl DataAvailabilityDal<'_, '_> {
         number: L1BatchNumber,
         blob_id: &str,
         sent_at: chrono::NaiveDateTime,
+        pubdata_type: PubdataType,
     ) -> DalResult<()> {
         let update_result = sqlx::query!(
             r#"
             INSERT INTO
-            data_availability (l1_batch_number, blob_id, sent_at, created_at, updated_at)
+            data_availability (
+                l1_batch_number, blob_id, client_type, sent_at, created_at, updated_at
+            )
             VALUES
-            ($1, $2, $3, NOW(), NOW())
+            ($1, $2, $3, $4, NOW(), NOW())
             ON CONFLICT DO NOTHING
             "#,
             i64::from(number.0),
             blob_id,
+            pubdata_type.to_string(),
             sent_at,
         )
         .instrument("insert_l1_batch_da")
@@ -215,5 +223,31 @@ impl DataAvailabilityDal<'_, '_> {
                 l1_batch_number: L1BatchNumber(row.number as u32),
             })
             .collect())
+    }
+
+    pub async fn get_da_details_by_batch_number(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<DataAvailabilityDetails>> {
+        Ok(sqlx::query_as!(
+            StorageDABlob,
+            r#"
+            SELECT
+                l1_batch_number,
+                blob_id,
+                inclusion_data,
+                sent_at
+            FROM
+                data_availability
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(number.0),
+        )
+        .instrument("get_da_details_by_batch_number")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
+        .await?
+        .map(DataAvailabilityBlob::from))
     }
 }

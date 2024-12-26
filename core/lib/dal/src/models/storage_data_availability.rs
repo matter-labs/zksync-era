@@ -1,5 +1,11 @@
+use std::str::FromStr;
+
 use chrono::NaiveDateTime;
-use zksync_types::{pubdata_da::DataAvailabilityBlob, L1BatchNumber};
+use zksync_types::{
+    commitment::PubdataType,
+    pubdata_da::{DataAvailabilityBlob, DataAvailabilityDetails},
+    L1BatchNumber,
+};
 
 /// Represents a blob in the data availability layer.
 #[derive(Debug, Clone)]
@@ -15,6 +21,26 @@ impl From<StorageDABlob> for DataAvailabilityBlob {
         DataAvailabilityBlob {
             l1_batch_number: L1BatchNumber(blob.l1_batch_number as u32),
             blob_id: blob.blob_id,
+            inclusion_data: blob.inclusion_data,
+            sent_at: blob.sent_at.and_utc(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StorageDADetails {
+    pub blob_id: String,
+    pub client_type: String,
+    pub inclusion_data: Option<Vec<u8>>,
+    pub sent_at: NaiveDateTime,
+}
+
+impl From<StorageDADetails> for DataAvailabilityDetails {
+    fn from(blob: StorageDADetails) -> DataAvailabilityDetails {
+        DataAvailabilityDetails {
+            blob_id: blob.blob_id,
+            // safe to unwrap because the value in the database is assumed to be always correct
+            pubdata_type: PubdataType::from_str(blob.client_type.as_str()).unwrap(),
             inclusion_data: blob.inclusion_data,
             sent_at: blob.sent_at.and_utc(),
         }
