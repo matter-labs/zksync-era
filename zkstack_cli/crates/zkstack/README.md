@@ -545,7 +545,7 @@ Setup keys
 
 - `--mode`
 
-  Possible valuess: `download`, `generate`
+  Possible values: `download`, `generate`
 
 - `--region`
 
