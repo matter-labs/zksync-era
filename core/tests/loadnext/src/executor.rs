@@ -49,8 +49,6 @@ pub struct Executor {
     pool: AccountPool,
 }
 
-const L2_SHARED_BRIDGE_ABI: &str = include_str!("sdk/abi/IL2SharedBridge.json");
-
 impl Executor {
     /// Creates a new Executor entity.
     pub async fn new(
@@ -60,19 +58,14 @@ impl Executor {
         let pool = AccountPool::new(&config).await?;
 
         // derive L2 main token address
-        let l2_shared_default_bridge = pool
+        let l2_main_token = pool
             .master_wallet
-            .provider
-            .get_bridge_contracts()
-            .await?
-            .l2_shared_default_bridge
+            .ethereum(&config.l1_rpc_address)
+            .await
+            .expect("Can't get Ethereum client")
+            .l2_token_address(config.main_token, None)
+            .await
             .unwrap();
-        let abi = load_contract(L2_SHARED_BRIDGE_ABI);
-        let query_client: Client<L2> = Client::http(config.l2_rpc_address.parse()?)?.build();
-        let l2_main_token = CallFunctionArgs::new("l2TokenAddress", (config.main_token,))
-            .for_contract(l2_shared_default_bridge, &abi)
-            .call(&query_client)
-            .await?;
 
         Ok(Self {
             config,

@@ -122,20 +122,6 @@ impl EN {
                 }
             });
 
-            // Run the temporary fetcher until the certificates are backfilled.
-            // Temporary fetcher should be removed once json RPC syncing is fully deprecated.
-            s.spawn_bg({
-                let store = store.clone();
-                async {
-                    let store = store;
-                    self.fallback_block_fetcher(ctx, &store).await?;
-                    tracing::info!(
-                        "temporary block fetcher finished, switching to p2p fetching only"
-                    );
-                    Ok(())
-                }
-            });
-
             let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone()))
                 .await
                 .wrap("BlockStore::new()")?;
