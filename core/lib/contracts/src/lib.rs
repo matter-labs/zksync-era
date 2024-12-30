@@ -50,7 +50,11 @@ const DIAMOND_INIT_CONTRACT_FILE: (&str, &str) = (
     "chain-interfaces/IDiamondInit.sol/IDiamondInit.json",
 );
 const GOVERNANCE_CONTRACT_FILE: (&str, &str) = ("governance", "IGovernance.sol/IGovernance.json");
-const CHAIN_ADMIN_CONTRACT_FILE: (&str, &str) = ("governance", "IChainAdmin.sol/IChainAdmin.json");
+// TODO(EVM-924): We currently only support the "SingleOwner" chain admin.
+const CHAIN_ADMIN_CONTRACT_FILE: (&str, &str) = (
+    "governance",
+    "IChainAdminSingleOwner.sol/IChainAdminSingleOwner.json",
+);
 const GETTERS_FACET_CONTRACT_FILE: (&str, &str) = (
     "state-transition/chain-interfaces",
     "IGetters.sol/IGetters.json",
