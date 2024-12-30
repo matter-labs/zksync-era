@@ -17,7 +17,7 @@ use xshell::{cmd, Shell};
 
 use crate::{
     cmd::{Cmd, CmdResult},
-    ethereum::create_ethers_client,
+    ethereum::create_ethers_client, logger,
 };
 
 /// Forge is a wrapper around the forge binary.
@@ -69,9 +69,19 @@ impl ForgeScript {
                 return Ok(res?);
             }
         }
+
+        let command = format!(
+            "forge script {} --legacy {}",
+            script_path.to_str().unwrap(),
+            args_no_resume.join(" ")
+        );
+
+        // Displaying the command for debugging purposes
+        logger::debug(format!("Forge command: {}", command));
+
         let mut cmd = Cmd::new(cmd!(
             shell,
-            "forge script {script_path} --legacy {args_no_resume...}"
+            "{command}"
         ));
 
         if self.args.resume {
@@ -121,10 +131,20 @@ impl ForgeScript {
         self
     }
 
+    pub fn with_zksync(mut self) -> Self {
+        self.args.add_arg(ForgeScriptArg::Zksync);
+        self
+    }
+
     pub fn with_calldata(mut self, calldata: &Bytes) -> Self {
         self.args.add_arg(ForgeScriptArg::Sig {
             sig: hex::encode(calldata),
         });
+        self
+    }
+
+    pub fn with_gas_limit(mut self, gas_limit: u64) -> Self {
+        self.args.add_arg(ForgeScriptArg::GasLimit { gas_limit });
         self
     }
 
@@ -253,6 +273,11 @@ pub enum ForgeScriptArg {
     Sender {
         address: String,
     },
+    #[strum(to_string = "gas-limit={gas_limit}")]
+    GasLimit {
+        gas_limit: u64,
+    },
+    Zksync,
 }
 
 /// ForgeScriptArgs is a set of arguments that can be passed to the forge script command.
@@ -276,6 +301,8 @@ pub struct ForgeScriptArgs {
     pub verifier_api_key: Option<String>,
     #[clap(long)]
     pub resume: bool,
+    #[clap(long)]
+    pub zksync: bool,
     /// List of additional arguments that can be passed through the CLI.
     ///
     /// e.g.: `zkstack init -a --private-key=<PRIVATE_KEY>`
@@ -289,6 +316,9 @@ impl ForgeScriptArgs {
     pub fn build(&mut self) -> Vec<String> {
         self.add_verify_args();
         self.cleanup_contract_args();
+        if self.zksync {
+            self.add_arg(ForgeScriptArg::Zksync);
+        }
         self.args
             .iter()
             .map(|arg| arg.to_string())
@@ -383,6 +413,10 @@ impl ForgeScriptArgs {
         self.additional_args
             .iter()
             .any(|arg| WALLET_ARGS.contains(&arg.as_ref()))
+    }
+
+    pub fn with_zksync(&mut self) {
+        self.zksync = true;
     }
 }
 
