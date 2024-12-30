@@ -1,4 +1,4 @@
-use zksync_types::{ethabi, h256_to_u256, vm::VmVersion, ProtocolVersionId, U256};
+use zksync_types::{ethabi, h256_to_u256, ProtocolVersionId, U256};
 
 use super::tx::BootloaderTx;
 use crate::{

@@ -16,7 +16,7 @@ use config::{
     ChainConfig, EcosystemConfig,
 };
 use ethers::{
-    abi::{decode, encode, parse_abi, ParamType},
+    abi::{encode, parse_abi},
     contract::BaseContract,
     utils::hex,
 };
@@ -26,12 +26,7 @@ use strum::EnumIter;
 use types::L1BatchCommitmentMode;
 use xshell::Shell;
 use zksync_basic_types::{H256, U256};
-use zksync_eth_client::EthInterface;
-use zksync_types::{
-    web3::{keccak256, CallRequest},
-    Address, L2_NATIVE_TOKEN_VAULT_ADDRESS,
-};
-use zksync_web3_decl::client::{Client, L1};
+use zksync_types::{web3::keccak256, Address, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 
 use crate::{
     accept_ownership::{
