@@ -28,7 +28,7 @@ pub struct GatewayChainConfig {
     pub validator_timelock_addr: Address,
     pub multicall3_addr: Address,
     pub diamond_proxy_addr: Address,
-    // FIXME: there is no "governnace" for a chain, only an admin, we
+    // TODO: there is no "governace" for a chain, only an admin, we
     // need to figure out what we mean here
     pub chain_admin_addr: Option<Address>,
     pub governance_addr: Address,
