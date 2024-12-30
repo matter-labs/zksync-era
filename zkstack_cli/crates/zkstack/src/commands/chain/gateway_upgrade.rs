@@ -311,7 +311,6 @@ async fn finalize_stage1(
 ) -> anyhow::Result<()> {
     println!("Finalizing stage1 of chain upgrade!");
 
-    let genesis_config = chain_config.get_genesis_config()?;
     let mut contracts_config = chain_config.get_contracts_config()?;
     let gateway_ecosystem_preparation_output =
         GatewayEcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;
