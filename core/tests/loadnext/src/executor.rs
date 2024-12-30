@@ -2,14 +2,13 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use futures::{channel::mpsc, future, SinkExt};
-use zksync_eth_client::{clients::Client, CallFunctionArgs, Options};
+use zksync_eth_client::Options;
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
     api::BlockNumber, tokens::ETHEREUM_ADDRESS, Address, Nonce,
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
-use zksync_web3_decl::client::L2;
 
 use crate::{
     account::AccountLifespan,
@@ -23,7 +22,6 @@ use crate::{
         ethereum::{PriorityOpHolder, DEFAULT_PRIORITY_FEE},
         utils::{
             get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
-            load_contract,
         },
         web3::TransactionReceipt,
         EthNamespaceClient, EthereumProvider, ZksNamespaceClient,
