@@ -18,7 +18,6 @@ use xshell::{cmd, Shell};
 use crate::{
     cmd::{Cmd, CmdResult},
     ethereum::create_ethers_client,
-    logger,
 };
 
 /// Forge is a wrapper around the forge binary.
