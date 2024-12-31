@@ -12,7 +12,7 @@ use zksync_config::configs::{GatewayChainConfig, GatewayConfig};
 use crate::{
     consts::{
         CONFIG_NAME, CONTRACTS_FILE, EN_CONFIG_FILE, GENERAL_FILE, GENESIS_FILE,
-        L1_CONTRACTS_FOUNDRY, SECRETS_FILE, WALLETS_FILE
+        L1_CONTRACTS_FOUNDRY, SECRETS_FILE, WALLETS_FILE,
     },
     create_localhost_wallets,
     traits::{

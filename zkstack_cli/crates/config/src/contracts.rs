@@ -191,7 +191,7 @@ pub struct L1Contracts {
     // `Option` to be able to parse configs from pre-gateway protocol version.
     // TODO(EVM-927): not used without gateway version.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub chain_proxy_admin_addr: Option<Address>,    
+    pub chain_proxy_admin_addr: Option<Address>,
     pub multicall3_addr: Address,
     pub verifier_addr: Address,
     pub validator_timelock_addr: Address,
@@ -237,5 +237,5 @@ pub struct L2Contracts {
     // `Option` to be able to parse configs from pre-gateway protocol version.
     // TODO(EVM-927): not used without gateway version.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub predeployed_l2_wrapped_base_token_address: Option<Address>,    
+    pub predeployed_l2_wrapped_base_token_address: Option<Address>,
 }

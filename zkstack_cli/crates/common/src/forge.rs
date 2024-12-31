@@ -17,7 +17,8 @@ use xshell::{cmd, Shell};
 
 use crate::{
     cmd::{Cmd, CmdResult},
-    ethereum::create_ethers_client, logger,
+    ethereum::create_ethers_client,
+    logger,
 };
 
 /// Forge is a wrapper around the forge binary.
@@ -79,10 +80,7 @@ impl ForgeScript {
         // Displaying the command for debugging purposes
         logger::debug(format!("Forge command: {}", command));
 
-        let mut cmd = Cmd::new(cmd!(
-            shell,
-            "{command}"
-        ));
+        let mut cmd = Cmd::new(cmd!(shell, "{command}"));
 
         if self.args.resume {
             cmd = cmd.with_piped_std_err();

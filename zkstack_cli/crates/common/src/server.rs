@@ -58,14 +58,14 @@ impl Server {
         let uring = self.uring.then_some("--features=rocksdb/io-uring");
 
         let (gateway_config_param, gateway_config_path) =
-        if let Some(gateway_contracts_config_path) = gateway_contracts_config_path {
-            (
-                Some("--gateway-contracts-config-path"),
-                Some(gateway_contracts_config_path),
-            )
-        } else {
-            (None, None)
-        };
+            if let Some(gateway_contracts_config_path) = gateway_contracts_config_path {
+                (
+                    Some("--gateway-contracts-config-path"),
+                    Some(gateway_contracts_config_path),
+                )
+            } else {
+                (None, None)
+            };
 
         let mut cmd = Cmd::new(
             cmd!(
