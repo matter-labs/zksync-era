@@ -143,10 +143,10 @@ describe('Tests for L1 behavior', () => {
         const msgProof = await alice.provider.getLogProof(tx.hash, l2ToL1LogIndex);
         expect(msgProof).toBeTruthy();
 
-        // Ensure that received proof matches the provided root hash.
-        const { id, proof, root } = msgProof!;
-        const accumulatedRoot = calculateAccumulatedRoot(alice.address, message, receipt.l1BatchTxIndex!, id, proof);
-        expect(accumulatedRoot).toBe(root);
+        // Note, that if a chain uses gateway, its `root` will correspond to the root of the messages from the batch,
+        // while the `proof` would contain both the proof for the leaf belonging to the batch and the batch belonging
+        // to the gateway.
+        const { id, proof } = msgProof!;
 
         // Ensure that provided proof is accepted by the main ZKsync contract.
         const chainContract = await alice.getMainContract();
@@ -368,31 +368,6 @@ describe('Tests for L1 behavior', () => {
         await testMaster.deinitialize();
     });
 });
-
-/**
- * Recreates the root hash of the merkle tree based on the provided proof.
- */
-function calculateAccumulatedRoot(
-    address: string,
-    message: Uint8Array,
-    l1BatchTxIndex: number,
-    id: number,
-    proof: string[]
-): string {
-    let accumutatedRoot = getHashedL2ToL1Msg(address, message, l1BatchTxIndex);
-
-    let idCopy = id;
-    for (const elem of proof) {
-        const bytes =
-            (idCopy & 1) == 0
-                ? new Uint8Array([...ethers.getBytes(accumutatedRoot), ...ethers.getBytes(elem)])
-                : new Uint8Array([...ethers.getBytes(elem), ...ethers.getBytes(accumutatedRoot)]);
-
-        accumutatedRoot = ethers.keccak256(bytes);
-        idCopy /= 2;
-    }
-    return accumutatedRoot;
-}
 
 function maxL2GasLimitForPriorityTxs(maxGasBodyLimit: bigint): bigint {
     // Find maximum `gasLimit` that satisfies `txBodyGasLimit <= CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT`

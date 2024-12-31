@@ -1,12 +1,11 @@
+import { killPidWithAllChilds } from './kill';
 import { spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions } from 'child_process';
-import { assert } from 'chai';
-import { FileConfig, getConfigPath } from 'utils/build/file-configs';
-import { killPidWithAllChilds } from 'utils/build/kill';
-import * as utils from 'utils';
+import { exec, sleep } from './index';
 import fs from 'node:fs/promises';
 import * as zksync from 'zksync-ethers';
 import * as fsSync from 'fs';
 import YAML from 'yaml';
+import { FileConfig, getConfigPath } from './file-configs';
 
 // executes a command in background and returns a child process handle
 // by default pipes data to parent's stdio but this can be overridden
@@ -23,8 +22,6 @@ export function runServerInBackground({
     cwd?: ProcessEnvOptions['cwd'];
     env?: ProcessEnvOptions['env'];
     useZkStack?: boolean;
-    newL1GasPrice?: string;
-    newPubdataPrice?: string;
     chain?: string;
 }): ChildProcessWithoutNullStreams {
     let command = '';
@@ -78,7 +75,7 @@ export class Node<TYPE extends NodeType> {
      */
     public static async killAll(type: NodeType) {
         try {
-            await utils.exec(`killall -KILL ${type}`);
+            await exec(`killall -KILL ${type}`);
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
@@ -92,7 +89,7 @@ export class Node<TYPE extends NodeType> {
             try {
                 let provider = new zksync.Provider(this.l2NodeUrl);
                 await provider.getBlockNumber();
-                await utils.sleep(2);
+                await sleep(2);
                 iter += 1;
             } catch (_) {
                 // When exception happens, we assume that server died.
@@ -255,7 +252,7 @@ export class NodeSpawner {
             }
         }
 
-        let components = 'api,tree,eth,state_keeper,da_dispatcher,vm_runner_protective_reads';
+        let components = 'api,tree,eth,state_keeper,da_dispatcher,commitment_generator,vm_runner_protective_reads';
         if (options.enableConsensus) {
             components += ',consensus';
         }
@@ -308,10 +305,10 @@ async function waitForNodeToStart(proc: ChildProcessWithoutNullStreams, l2Url: s
             }
         } catch (err) {
             if (proc.exitCode != null) {
-                assert.fail(`server failed to start, exitCode = ${proc.exitCode}`);
+                throw new Error(`server failed to start, exitCode = ${proc.exitCode}`);
             }
             console.log(`Node waiting for API on ${l2Url}`);
-            await utils.sleep(1);
+            await sleep(1);
         }
     }
 }
