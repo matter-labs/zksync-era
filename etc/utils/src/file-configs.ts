@@ -130,15 +130,10 @@ export function getConfigsFolderPath({
     return path.join(pathToHome, 'chains', chain, configsFolder ?? 'configs', configsFolderSuffix ?? '');
 }
 
-export function replaceL1BatchMinAgeBeforeExecuteSeconds(pathToHome: string, fileConfig: any, value: number) {
+export function replaceAggregatedBlockExecuteDeadline(pathToHome: string, fileConfig: any, value: number) {
     const generalConfigPath = getConfigPath({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
-    const generalConfig = fsSync.readFileSync(generalConfigPath, 'utf8');
-    const generalConfigObject = yaml.parse(generalConfig);
-    if (value == 0) {
-        delete generalConfigObject['eth']['sender']['l1_batch_min_age_before_execute_seconds'];
-    } else {
-        generalConfigObject['eth']['sender']['l1_batch_min_age_before_execute_seconds'] = value;
-    }
-    const newGeneralConfig = yaml.stringify(generalConfigObject);
+    const generalConfig = fs.readFileSync(generalConfigPath, 'utf8');
+    const regex = /aggregated_block_execute_deadline:\s*\d+/g;
+    const newGeneralConfig = generalConfig.replace(regex, `aggregated_block_execute_deadline: ${value}`);
     fs.writeFileSync(generalConfigPath, newGeneralConfig, 'utf8');
 }
