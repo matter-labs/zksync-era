@@ -74,6 +74,7 @@ pub const ENABLE_EVM_EMULATOR_PARAMS: ForgeScriptParams = ForgeScriptParams {
     script_path: "deploy-scripts/EnableEvmEmulator.s.sol",
 };
 
+// TODO(EVM-927): the following script does not work without gateway contracts.
 pub const DEPLOY_GATEWAY_CTM: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/config-deploy-gateway-ctm.toml",
     output: "script-out/output-deploy-gateway-ctm.toml",

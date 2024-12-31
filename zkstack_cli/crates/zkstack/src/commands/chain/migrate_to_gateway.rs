@@ -46,7 +46,6 @@ pub struct MigrateToGatewayArgs {
     pub gateway_chain_name: String,
 }
 
-// TODO: use a different script here (i.e. make it have a different file)
 lazy_static! {
     static ref GATEWAY_PREPARATION_INTERFACE: BaseContract = BaseContract::from(
         parse_abi(&[
@@ -71,7 +70,7 @@ lazy_static! {
 // TODO(EVM-927): merge gateway contracts
 #[allow(unused)]
 pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
-    // TODO(EVM-927): this function does not work with the Gateway contracts.
+    // TODO(EVM-927): this function does not work without the Gateway contracts.
     return anyhow::bail!("Gateway upgrade not supported yet!");
 
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
