@@ -1,5 +1,4 @@
 /// TODO(EVM-927): Note that the contents of this file are not useable without Gateway contracts.
-
 use anyhow::Context;
 use clap::Parser;
 use common::{

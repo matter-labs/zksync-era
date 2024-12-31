@@ -1,5 +1,4 @@
 /// TODO(EVM-927): Note that the contents of this file are not useable without Gateway contracts.
-
 use ethers::utils::hex;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{web3::Bytes, Address};
