@@ -70,17 +70,10 @@ impl ForgeScript {
                 return Ok(res?);
             }
         }
-
-        let command = format!(
-            "forge script {} --legacy {}",
-            script_path.to_str().unwrap(),
-            args_no_resume.join(" ")
-        );
-
-        // Displaying the command for debugging purposes
-        logger::debug(format!("Forge command: {}", command));
-
-        let mut cmd = Cmd::new(cmd!(shell, "{command}"));
+        let mut cmd = Cmd::new(cmd!(
+            shell,
+            "forge script {script_path} --legacy {args_no_resume...}"
+        ));
 
         if self.args.resume {
             cmd = cmd.with_piped_std_err();
