@@ -419,7 +419,6 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             pubdata_sending_mode: PubdataSendingMode::Calldata,
             tx_aggregation_paused: false,
             tx_aggregation_only_prove_and_execute: false,
-            priority_tree_start_index: self.sample(rng),
             time_in_mempool_in_l1_blocks_cap: self.sample(rng),
         }
     }

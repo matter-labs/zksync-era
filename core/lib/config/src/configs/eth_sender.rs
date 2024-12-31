@@ -41,7 +41,6 @@ impl EthConfig {
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
                 tx_aggregation_paused: false,
                 tx_aggregation_only_prove_and_execute: false,
-                priority_tree_start_index: Some(0),
                 time_in_mempool_in_l1_blocks_cap: 1800,
             }),
             gas_adjuster: Some(GasAdjusterConfig {
@@ -118,8 +117,6 @@ pub struct SenderConfig {
     /// special mode specifically for gateway migration to decrease number of non-executed batches
     #[serde(default = "SenderConfig::default_tx_aggregation_only_prove_and_execute")]
     pub tx_aggregation_only_prove_and_execute: bool,
-    /// Index of the priority operation to start building the `PriorityMerkleTree` from.
-    pub priority_tree_start_index: Option<usize>,
     /// Cap of time in mempool for price calculations
     #[serde(default = "SenderConfig::default_time_in_mempool_in_l1_blocks_cap")]
     pub time_in_mempool_in_l1_blocks_cap: u32,
