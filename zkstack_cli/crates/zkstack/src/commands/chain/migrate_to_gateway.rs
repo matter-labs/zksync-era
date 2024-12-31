@@ -71,6 +71,9 @@ lazy_static! {
 // TODO(EVM-927): merge gateway contracts
 #[allow(unused)]
 pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
+    // TODO(EVM-927): this function does not work with the Gateway contracts.
+    return anyhow::bail!("Gateway upgrade not supported yet!");
+
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     let chain_name = global_config().chain_name.clone();

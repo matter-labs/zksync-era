@@ -1,3 +1,5 @@
+/// TODO(EVM-927): Note that the contents of this file are not useable without Gateway contracts.
+
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
 use common::{
@@ -92,6 +94,9 @@ lazy_static! {
 
 #[allow(unused)]
 pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> {
+    // TODO(EVM-927): this function does not work with the Gateway contracts.
+    return anyhow::bail!("Gateway upgrade not supported yet!");
+
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     let chain_name = global_config().chain_name.clone();
@@ -130,7 +135,7 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
     }
 }
 
-pub fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
+fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
     let encoded_data = encode(&[
         ethers::abi::Token::Uint(l1_chain_id),
         ethers::abi::Token::Address(L2_NATIVE_TOKEN_VAULT_ADDRESS),

@@ -1,3 +1,5 @@
+/// TODO(EVM-927): Note that the contents of this file are not useable without Gateway contracts.
+
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 use types::L1BatchCommitmentMode;
