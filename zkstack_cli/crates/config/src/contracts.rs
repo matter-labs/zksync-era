@@ -89,6 +89,10 @@ impl ContractsConfig {
         Ok(())
     }
 
+    pub fn set_transaction_filterer(&mut self, transaction_filterer_addr: Address) {
+        self.l1.transaction_filterer_addr = Some(transaction_filterer_addr);
+    }
+
     pub fn set_consensus_registry(
         &mut self,
         consensus_registry_output: &ConsensusRegistryOutput,
