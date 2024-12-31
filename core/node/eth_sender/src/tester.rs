@@ -244,13 +244,13 @@ impl EthSenderTester {
                 None
             };
 
-        let mut connection = connection_pool.connection().await.unwrap();
         let aggregator = Aggregator::new(
             aggregator_config.clone(),
             MockObjectStore::arc(),
             custom_commit_sender_addr,
             commitment_mode,
-            &mut connection,
+            connection_pool.clone(),
+            gateway.clone(),
             SettlementMode::SettlesToL1,
         )
         .await
@@ -417,10 +417,7 @@ impl EthSenderTester {
                 .await,
         ];
         let operation = AggregatedOperation::Execute(ExecuteBatches {
-            priority_ops_proofs: l1_batch_headers
-                .iter()
-                .map(|_| Default::default())
-                .collect(),
+            priority_ops_proofs: vec![Default::default(); l1_batch_headers.len()],
             l1_batches: l1_batch_headers
                 .into_iter()
                 .map(l1_batch_with_metadata)

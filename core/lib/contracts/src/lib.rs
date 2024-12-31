@@ -50,10 +50,10 @@ const DIAMOND_INIT_CONTRACT_FILE: (&str, &str) = (
     "chain-interfaces/IDiamondInit.sol/IDiamondInit.json",
 );
 const GOVERNANCE_CONTRACT_FILE: (&str, &str) = ("governance", "IGovernance.sol/IGovernance.json");
-// TODO(EVM-924): We currently only support the "SingleOwner" chain admin.
+// TODO(EVM-924): We currently only support the "Ownable" chain admin.
 const CHAIN_ADMIN_CONTRACT_FILE: (&str, &str) = (
     "governance",
-    "IChainAdminSingleOwner.sol/IChainAdminSingleOwner.json",
+    "IChainAdminOwnable.sol/IChainAdminOwnable.json",
 );
 const GETTERS_FACET_CONTRACT_FILE: (&str, &str) = (
     "state-transition/chain-interfaces",
@@ -206,7 +206,7 @@ pub fn l2_rollup_da_validator_bytecode() -> Vec<u8> {
 
 /// Reads bytecode from the path RELATIVE to the Cargo workspace location.
 pub fn read_bytecode(relative_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u8> {
-    read_bytecode_from_path(relative_path).expect("Exists")
+    read_bytecode_from_path(relative_path).expect("Failed to open file")
 }
 
 pub fn eth_contract() -> Contract {

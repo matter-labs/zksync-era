@@ -16,7 +16,7 @@ use config::{
     ChainConfig, EcosystemConfig,
 };
 use ethers::{
-    abi::{decode, encode, parse_abi, ParamType},
+    abi::{encode, parse_abi},
     contract::BaseContract,
     utils::hex,
 };
@@ -26,12 +26,7 @@ use strum::EnumIter;
 use types::L1BatchCommitmentMode;
 use xshell::Shell;
 use zksync_basic_types::{H256, U256};
-use zksync_eth_client::EthInterface;
-use zksync_types::{
-    web3::{keccak256, CallRequest},
-    Address, L2_NATIVE_TOKEN_VAULT_ADDRESS,
-};
-use zksync_web3_decl::client::{Client, L1};
+use zksync_types::{web3::keccak256, Address, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 
 use crate::{
     accept_ownership::{
@@ -316,10 +311,7 @@ async fn finalize_stage1(
 ) -> anyhow::Result<()> {
     println!("Finalizing stage1 of chain upgrade!");
 
-    let mut geneal_config = chain_config.get_general_config()?;
-    let genesis_config = chain_config.get_genesis_config()?;
     let mut contracts_config = chain_config.get_contracts_config()?;
-    let secrets_config = chain_config.get_secrets_config()?;
     let gateway_ecosystem_preparation_output =
         GatewayEcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;
 
@@ -414,40 +406,7 @@ async fn finalize_stage1(
     )
     .await?;
 
-    let client = Box::new(
-        Client::<L1>::http(secrets_config.l1.clone().context("l1 secrets")?.l1_rpc_url)
-            .context("Client::new()")?
-            .for_network(genesis_config.l1_chain_id.into())
-            .build(),
-    );
-    let request = CallRequest {
-        to: Some(contracts_config.l1.diamond_proxy_addr),
-        data: Some(
-            zksync_types::ethabi::short_signature("getPriorityTreeStartIndex", &[])
-                .to_vec()
-                .into(),
-        ),
-        ..Default::default()
-    };
-    let result = client.call_contract_function(request, None).await?;
-
-    let priority_tree_start_index = decode(&[ParamType::Uint(32)], &result.0)?
-        .pop()
-        .unwrap()
-        .into_uint()
-        .unwrap();
-
-    geneal_config
-        .eth
-        .as_mut()
-        .context("general_config_eth")?
-        .sender
-        .as_mut()
-        .context("eth sender")?
-        .priority_tree_start_index = Some(priority_tree_start_index.as_usize());
-
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
-    geneal_config.save_with_base_path(shell, &chain_config.configs)?;
 
     println!("done!");
 

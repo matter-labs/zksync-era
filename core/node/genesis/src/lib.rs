@@ -98,17 +98,6 @@ impl GenesisParams {
         base_system_contracts: BaseSystemContracts,
         system_contracts: Vec<DeployedContract>,
     ) -> Result<GenesisParams, GenesisError> {
-        println!(
-            "
-            bootloader_hash: {:?}
-            default_aa_hash: {:?}
-            genesis_protocol_semantic_version: 0.{:?}.{:?} 
-            ",
-            base_system_contracts.hashes().bootloader,
-            base_system_contracts.hashes().default_aa,
-            config.protocol_version.unwrap().minor,
-            config.protocol_version.unwrap().patch,
-        );
         let base_system_contracts_hashes = BaseSystemContractsHashes {
             bootloader: config
                 .bootloader_hash

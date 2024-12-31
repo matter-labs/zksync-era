@@ -231,6 +231,7 @@ describe('web3 API compatibility tests', () => {
         expect(tx1.chainId).toEqual(chainId);
         expect(tx1.type).toEqual(EIP712_TX_TYPE);
 
+        const EIP1559_TX_TYPE = 2;
         expect(receipt!.l1BatchNumber).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
         expect(receipt!.l1BatchTxIndex).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
         expect(receipt!.logs[0].l1BatchNumber).toEqual(receipt!.l1BatchNumber);
@@ -240,7 +241,6 @@ describe('web3 API compatibility tests', () => {
         expect(blockWithTransactions.l1BatchNumber).toEqual(receipt!.l1BatchNumber);
         expect(blockWithTransactions.l1BatchTimestamp).toEqual(expect.anything());
 
-        const EIP1559_TX_TYPE = 2;
         for (const tx of blockWithTransactions.prefetchedTransactions) {
             expect(tx.l1BatchNumber).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
             expect(tx.l1BatchTxIndex).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
