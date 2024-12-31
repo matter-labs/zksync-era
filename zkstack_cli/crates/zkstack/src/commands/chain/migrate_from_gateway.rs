@@ -58,6 +58,7 @@ lazy_static! {
     );
 }
 
+#[allow(unused)]
 pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 

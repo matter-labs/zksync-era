@@ -12,7 +12,7 @@ use zksync_config::configs::{GatewayChainConfig, GatewayConfig};
 use crate::{
     consts::{
         CONFIG_NAME, CONTRACTS_FILE, EN_CONFIG_FILE, GENERAL_FILE, GENESIS_FILE,
-        L1_CONTRACTS_FOUNDRY, SECRETS_FILE, WALLETS_FILE, GATEWAY_FILE
+        L1_CONTRACTS_FOUNDRY, SECRETS_FILE, WALLETS_FILE
     },
     create_localhost_wallets,
     traits::{
@@ -116,7 +116,6 @@ impl ChainConfig {
     pub fn get_gateway_chain_config(&self) -> anyhow::Result<GatewayChainConfig> {
         GatewayChainConfig::read_with_base_path(self.get_shell(), &self.configs)
     }
-
 
     pub fn path_to_general_config(&self) -> PathBuf {
         self.configs.join(GENERAL_FILE)

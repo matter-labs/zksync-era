@@ -85,6 +85,8 @@ pub async fn accept_owner(
     accept_ownership(shell, governor, forge).await
 }
 
+// TODO(EVM-927): this function does not work with the Gateway contracts.
+#[allow(unused)]
 #[allow(clippy::too_many_arguments)]
 pub async fn set_da_validator_pair(
     shell: &Shell,
@@ -128,6 +130,8 @@ pub async fn set_da_validator_pair(
     accept_ownership(shell, governor, forge).await
 }
 
+// TODO(EVM-927): this function does not work with the Gateway contracts.
+#[allow(unused)]
 #[allow(clippy::too_many_arguments)]
 pub async fn make_permanent_rollup(
     shell: &Shell,
@@ -164,6 +168,8 @@ pub async fn make_permanent_rollup(
     accept_ownership(shell, governor, forge).await
 }
 
+// TODO(EVM-927): this function does not work with the Gateway contracts.
+#[allow(unused)]
 #[allow(clippy::too_many_arguments)]
 pub async fn governance_execute_calls(
     shell: &Shell,
@@ -201,6 +207,8 @@ pub async fn governance_execute_calls(
     accept_ownership(shell, governor, forge).await
 }
 
+// TODO(EVM-927): this function does not work with the Gateway contracts.
+#[allow(unused)]
 #[allow(clippy::too_many_arguments)]
 pub async fn admin_execute_upgrade(
     shell: &Shell,
@@ -249,6 +257,8 @@ pub async fn admin_execute_upgrade(
     accept_ownership(shell, governor, forge).await
 }
 
+// TODO(EVM-927): this function does not work with the Gateway contracts.
+#[allow(unused)]
 #[allow(clippy::too_many_arguments)]
 pub async fn admin_schedule_upgrade(
     shell: &Shell,
@@ -297,6 +307,8 @@ pub async fn admin_schedule_upgrade(
     accept_ownership(shell, governor, forge).await
 }
 
+// TODO(EVM-927): this function does not work with the Gateway contracts.
+#[allow(unused)]
 #[allow(clippy::too_many_arguments)]
 pub async fn admin_update_validator(
     shell: &Shell,

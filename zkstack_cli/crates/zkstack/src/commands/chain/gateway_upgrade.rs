@@ -90,6 +90,7 @@ lazy_static! {
     );
 }
 
+#[allow(unused)]
 pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
