@@ -1,6 +1,6 @@
 use std::fmt;
 
-use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1};
+use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, SECP256K1};
 use zksync_basic_types::H256;
 use zksync_node_framework::{
     service::StopReceiver,
@@ -67,10 +67,24 @@ impl fmt::Debug for TeeProver {
 }
 
 impl TeeProver {
+    /// Signs the message in Ethereum-compatible format for on-chain verification.
+    pub fn sign_message(sec: &SecretKey, message: Message) -> Result<[u8; 65], TeeProverError> {
+        let s = SECP256K1.sign_ecdsa_recoverable(&message, sec);
+        let (rec_id, data) = s.serialize_compact();
+
+        let mut signature = [0u8; 65];
+        signature[..64].copy_from_slice(&data);
+        // as defined in the Ethereum Yellow Paper (Appendix F)
+        // https://ethereum.github.io/yellowpaper/paper.pdf
+        signature[64] = 27 + rec_id.to_i32() as u8;
+
+        Ok(signature)
+    }
+
     fn verify(
         &self,
         tvi: TeeVerifierInput,
-    ) -> Result<(Signature, L1BatchNumber, H256), TeeProverError> {
+    ) -> Result<([u8; 65], L1BatchNumber, H256), TeeProverError> {
         match tvi {
             TeeVerifierInput::V1(tvi) => {
                 let observer = METRICS.proof_generation_time.start();
@@ -79,7 +93,7 @@ impl TeeProver {
                 let batch_number = verification_result.batch_number;
                 let msg_to_sign = Message::from_slice(root_hash_bytes)
                     .map_err(|e| TeeProverError::Verification(e.into()))?;
-                let signature = self.config.signing_key.sign_ecdsa(msg_to_sign);
+                let signature = TeeProver::sign_message(&self.config.signing_key, msg_to_sign)?;
                 let duration = observer.observe();
                 tracing::info!(
                     proof_generation_time = duration.as_secs_f64(),
@@ -180,5 +194,67 @@ impl Task for TeeProver {
                     .ok();
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use secp256k1::ecdsa::{RecoverableSignature, RecoveryId};
+    use sha3::{Digest, Keccak256};
+
+    use super::*;
+
+    /// Converts a public key into an Ethereum address by hashing the encoded public key with Keccak256.
+    pub fn public_key_to_ethereum_address(public: &PublicKey) -> [u8; 20] {
+        let public_key_bytes = public.serialize_uncompressed();
+
+        // Skip the first byte (0x04) which indicates uncompressed key
+        let hash: [u8; 32] = Keccak256::digest(&public_key_bytes[1..]).into();
+
+        // Take the last 20 bytes of the hash to get the Ethereum address
+        let mut address = [0u8; 20];
+        address.copy_from_slice(&hash[12..]);
+        address
+    }
+
+    /// Equivalent to the ecrecover precompile, ensuring that the signatures we produce off-chain
+    /// can be recovered on-chain.
+    pub fn recover_signer(sig: &[u8; 65], msg: &Message) -> Result<[u8; 20]> {
+        let sig = RecoverableSignature::from_compact(
+            &sig[0..64],
+            RecoveryId::from_i32(sig[64] as i32 - 27)?,
+        )?;
+        let public = SECP256K1.recover_ecdsa(msg, &sig)?;
+        Ok(public_key_to_ethereum_address(&public))
+    }
+
+    #[test]
+    fn recover() {
+        // Decode the sample secret key, generate the public key, and derive the Ethereum address
+        // from the public key
+        let secp = Secp256k1::new();
+        let secret_key_bytes =
+            hex::decode("c87509a1c067bbde78beb793e6fa76530b6382a4c0241e5e4a9ec0a0f44dc0d3")
+                .unwrap();
+        let secret_key = SecretKey::from_slice(&secret_key_bytes).unwrap();
+        let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+        let expected_address = hex::decode("627306090abaB3A6e1400e9345bC60c78a8BEf57").unwrap();
+        let address = public_key_to_ethereum_address(&public_key);
+
+        assert_eq!(address, expected_address.as_slice());
+
+        // Generate a random root hash, create a message from the hash, and sign the message using
+        // the secret key
+        let root_hash = H256::random();
+        let root_hash_bytes = root_hash.as_bytes();
+        let msg_to_sign = Message::from_slice(root_hash_bytes).unwrap();
+        let signature = TeeProver::sign_message(&secret_key, msg_to_sign).unwrap();
+
+        // Recover the signer's Ethereum address from the signature and the message, and verify it
+        // matches the expected address
+        let proof_addr = recover_signer(&signature, &msg_to_sign).unwrap();
+
+        assert_eq!(proof_addr, expected_address.as_slice());
     }
 }

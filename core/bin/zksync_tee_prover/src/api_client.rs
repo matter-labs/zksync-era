@@ -1,5 +1,5 @@
 use reqwest::{Client, Response, StatusCode};
-use secp256k1::{ecdsa::Signature, PublicKey};
+use secp256k1::PublicKey;
 use serde::Serialize;
 use url::Url;
 use zksync_basic_types::H256;
@@ -87,13 +87,13 @@ impl TeeApiClient {
     pub async fn submit_proof(
         &self,
         batch_number: L1BatchNumber,
-        signature: Signature,
+        signature: [u8; 65],
         pubkey: &PublicKey,
         root_hash: H256,
         tee_type: TeeType,
     ) -> Result<(), TeeProverError> {
         let request = SubmitTeeProofRequest(Box::new(L1BatchTeeProofForL1 {
-            signature: signature.serialize_compact().into(),
+            signature: signature.into(),
             pubkey: pubkey.serialize().into(),
             proof: root_hash.as_bytes().into(),
             tee_type,
