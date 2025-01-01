@@ -4,6 +4,11 @@
         "module": "commonjs",
         "strict": true,
         "esModuleInterop": true,
-        "skipLibCheck": true
+        "skipLibCheck": true,
+        "baseUrl": "../../..",
+        "paths": {
+            "utils/*": ["core/lib/utils/*"]
+        },
+        "typeRoots": ["./node_modules/@types", "../../node_modules/@types"]
     }
 }
