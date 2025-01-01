@@ -48,6 +48,7 @@ zksync_contract_verification_server.workspace = true
 zksync_queued_job_processor.workspace = true
 zksync_reorg_detector.workspace = true
 zksync_vm_runner.workspace = true
+zksync_mini_merkle_tree.workspace = true
 zksync_node_db_pruner.workspace = true
 zksync_base_token_adjuster.workspace = true
 zksync_node_storage_init.workspace = true

@@ -23,6 +23,7 @@ pub mod accept_ownership;
 mod commands;
 mod consts;
 mod defaults;
+pub mod enable_evm_emulator;
 pub mod external_node;
 mod messages;
 mod utils;

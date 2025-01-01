@@ -5,11 +5,26 @@ use zksync_types::{
 };
 
 pub use self::deduplicator::{ModifiedSlot, StorageWritesDeduplicator};
-use crate::interface::L1BatchEnv;
+use crate::{
+    glue::{GlueFrom, GlueInto},
+    interface::L1BatchEnv,
+};
 
 pub(crate) mod bytecode;
 mod deduplicator;
 pub(crate) mod events;
+
+/// Allows to convert `LogQuery` between two different versions, even if they don't provide
+/// direct conversion between each other.
+/// It transforms the input query to the `LogQuery` from `zksync_types` (for which most of the
+/// `zk_evm` versions provide conversion) and then converts it to the target version.
+pub fn glue_log_query<L, R>(l: L) -> R
+where
+    L: GlueInto<zksync_types::zk_evm_types::LogQuery>,
+    R: GlueFrom<zksync_types::zk_evm_types::LogQuery>,
+{
+    R::glue_from(l.glue_into())
+}
 
 /// Calculates the base fee and gas per pubdata for the given L1 gas price.
 pub fn derive_base_fee_and_gas_per_pubdata(
@@ -514,6 +529,32 @@ pub fn get_max_batch_base_layer_circuits(version: VmVersion) -> usize {
         VmVersion::Vm1_5_0SmallBootloaderMemory
         | VmVersion::Vm1_5_0IncreasedBootloaderMemory
         | VmVersion::VmGateway => crate::vm_latest::constants::MAX_BASE_LAYER_CIRCUITS,
+    }
+}
+
+pub fn get_max_new_factory_deps(version: VmVersion) -> usize {
+    match version {
+        VmVersion::M5WithRefunds | VmVersion::M5WithoutRefunds => {
+            crate::vm_m5::vm_with_bootloader::MAX_NEW_FACTORY_DEPS
+        }
+        VmVersion::M6Initial | VmVersion::M6BugWithCompressionFixed => {
+            crate::vm_m6::vm_with_bootloader::MAX_NEW_FACTORY_DEPS
+        }
+        VmVersion::Vm1_3_2 => crate::vm_1_3_2::vm_with_bootloader::MAX_NEW_FACTORY_DEPS,
+        VmVersion::VmVirtualBlocks => crate::vm_virtual_blocks::constants::MAX_NEW_FACTORY_DEPS,
+        VmVersion::VmVirtualBlocksRefundsEnhancement => {
+            crate::vm_refunds_enhancement::constants::MAX_NEW_FACTORY_DEPS
+        }
+        VmVersion::VmBoojumIntegration => {
+            crate::vm_boojum_integration::constants::MAX_NEW_FACTORY_DEPS
+        }
+        VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::MAX_NEW_FACTORY_DEPS,
+        VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::MAX_NEW_FACTORY_DEPS,
+        version @ (VmVersion::Vm1_5_0SmallBootloaderMemory
+        | VmVersion::Vm1_5_0IncreasedBootloaderMemory
+        | VmVersion::VmGateway) => {
+            crate::vm_latest::constants::get_max_new_factory_deps(version.try_into().unwrap())
+        }
     }
 }
 
