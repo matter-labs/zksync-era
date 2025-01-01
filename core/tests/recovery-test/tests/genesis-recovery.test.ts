@@ -19,6 +19,13 @@ async function logsPath(name: string): Promise<string> {
 /**
  * Tests recovery of an external node from scratch.
  *
+ * This test verifies that an external node can:
+ * 1. Start from genesis with no existing tree
+ * 2. Successfully fetch and validate tree data
+ * 3. Process multiple L1 batches
+ * 4. Maintain consistency after restart
+ * 5. Properly handle reorg detection
+ *
  * Assumptions:
  *
  * - Main node is run for the duration of the test.
