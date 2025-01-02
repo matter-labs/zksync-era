@@ -9,12 +9,7 @@ import { TestMaster } from '../src';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { bigIntMax, deployContract, getTestContract, scaledGasPrice, waitForNewL1Batch } from '../src/helpers';
-import {
-    getHashedL2ToL1Msg,
-    L1_MESSENGER,
-    L1_MESSENGER_ADDRESS,
-    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT
-} from 'zksync-ethers/build/utils';
+import { L1_MESSENGER, L1_MESSENGER_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT } from 'zksync-ethers/build/utils';
 
 const contracts = {
     counter: getTestContract('Counter'),
