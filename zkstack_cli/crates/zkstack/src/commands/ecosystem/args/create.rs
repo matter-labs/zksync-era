@@ -32,6 +32,8 @@ pub struct EcosystemCreateArgs {
         long, help = MSG_START_CONTAINERS_HELP, default_missing_value = "true", num_args = 0..=1
     )]
     pub start_containers: Option<bool>,
+    #[clap(long)]
+    pub update_submodules: Option<bool>,
 }
 
 impl EcosystemCreateArgs {
@@ -70,6 +72,7 @@ impl EcosystemCreateArgs {
             wallet_path: chain.wallet_path.clone(),
             chain_args: chain,
             start_containers,
+            update_submodules: self.update_submodules,
         })
     }
 }
@@ -83,6 +86,7 @@ pub struct EcosystemCreateArgsFinal {
     pub wallet_path: Option<PathBuf>,
     pub chain_args: ChainCreateArgsFinal,
     pub start_containers: bool,
+    pub update_submodules: Option<bool>,
 }
 
 impl EcosystemCreateArgsFinal {

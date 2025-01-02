@@ -49,7 +49,9 @@ use crate::{
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
+    if args.update_submodules.is_none() || args.update_submodules == Some(true) {
+        git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
+    }
 
     let initial_deployment_config = match ecosystem_config.get_initial_deployment_config() {
         Ok(config) => config,
@@ -369,6 +371,7 @@ async fn init_chains(
             deploy_paymaster,
             l1_rpc_url: Some(final_init_args.ecosystem.l1_rpc_url.clone()),
             no_port_reallocation: final_init_args.no_port_reallocation,
+            update_submodules: init_args.update_submodules,
             dev: final_init_args.dev,
         };
         let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);

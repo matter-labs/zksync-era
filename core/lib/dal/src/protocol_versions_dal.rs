@@ -76,14 +76,24 @@ impl ProtocolVersionsDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-            protocol_patches (minor, patch, snark_wrapper_vk_hash, created_at)
+            protocol_patches (
+                minor,
+                patch,
+                snark_wrapper_vk_hash,
+                fflonk_snark_wrapper_vk_hash,
+                created_at
+            )
             VALUES
-            ($1, $2, $3, NOW())
+            ($1, $2, $3, $4, NOW())
             ON CONFLICT DO NOTHING
             "#,
             version.minor as i32,
             version.patch.0 as i32,
             l1_verifier_config.snark_wrapper_vk_hash.as_bytes(),
+            l1_verifier_config
+                .fflonk_snark_wrapper_vk_hash
+                .as_ref()
+                .map(|x| x.as_bytes()),
         )
         .instrument("save_protocol_version#patch")
         .with_arg("version", &version)
@@ -280,7 +290,8 @@ impl ProtocolVersionsDal<'_, '_> {
                 protocol_versions.default_account_code_hash,
                 protocol_versions.evm_emulator_code_hash,
                 protocol_patches.patch,
-                protocol_patches.snark_wrapper_vk_hash
+                protocol_patches.snark_wrapper_vk_hash,
+                protocol_patches.fflonk_snark_wrapper_vk_hash
             FROM
                 protocol_versions
             JOIN protocol_patches ON protocol_patches.minor = protocol_versions.id
@@ -313,7 +324,8 @@ impl ProtocolVersionsDal<'_, '_> {
         let row = sqlx::query!(
             r#"
             SELECT
-                snark_wrapper_vk_hash
+                snark_wrapper_vk_hash,
+                fflonk_snark_wrapper_vk_hash
             FROM
                 protocol_patches
             WHERE
@@ -328,6 +340,10 @@ impl ProtocolVersionsDal<'_, '_> {
         .unwrap()?;
         Some(L1VerifierConfig {
             snark_wrapper_vk_hash: H256::from_slice(&row.snark_wrapper_vk_hash),
+            fflonk_snark_wrapper_vk_hash: row
+                .fflonk_snark_wrapper_vk_hash
+                .as_ref()
+                .map(|x| H256::from_slice(x)),
         })
     }
 
