@@ -32,6 +32,7 @@ pub struct LintArgs {
 }
 
 pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
+    shell.set_var("ZKSYNC_USE_CUDA_STUBS", "true");
     let targets = if args.targets.is_empty() {
         vec![
             Target::Rs,
