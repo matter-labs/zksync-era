@@ -42,6 +42,7 @@ jobs:
         if: matrix.compressor-mode == 'fflonk'
         run: |
           git fetch
+          # Checkout the commit with the DualVerifier contract to test FFLONK interface
           git checkout b4d5b984
           git submodule update --init --recursive
           git rev-parse HEAD
@@ -93,14 +94,12 @@ jobs:
       - name: Run Prover Job Monitor
         run: |
           ci_run zkstack prover run --component=prover-job-monitor --docker=false &>prover_logs_${{matrix.compressor-mode}}/prover-job-monitor.log &
-          # Sleeping until the server, gateway and prover job monitor are up
-          ci_run sleep 150
       - name: Wait for batch to be passed through gateway
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
           BATCH_NUMBER: 1
           INTERVAL: 30
-          TIMEOUT: 300
+          TIMEOUT: 450
         run: |
           PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \
           ci_run ./bin/prover_checkers/batch_availability_checker
