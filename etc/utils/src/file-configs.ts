@@ -1,7 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as yaml from 'yaml';
-import fsSync from 'fs';
 
 export type FileConfig = { loadFromFile: false; chain?: undefined } | { loadFromFile: true; chain: string };
 
