@@ -161,16 +161,17 @@ fn setup_crs_keys(config: &FriProofCompressorConfig, is_fflonk: bool) {
                 FFLONK_COMPACT_CRS_KEY
             ),
         );
-    } else {
-        let crs_path = format!("{}{}", config.universal_setup_path.clone(), PLONK_CRS_KEY);
-
-        let crs_download_url = format!(
-            "{}{}",
-            config.universal_setup_download_url.clone(),
-            PLONK_CRS_KEY
-        );
-
-        download_initial_setup_keys_if_not_present(&crs_path, &crs_download_url);
-        env::set_var("CRS_FILE", crs_path);
+        return;
     }
+
+    let crs_path = format!("{}{}", config.universal_setup_path.clone(), PLONK_CRS_KEY);
+
+    let crs_download_url = format!(
+        "{}{}",
+        config.universal_setup_download_url.clone(),
+        PLONK_CRS_KEY
+    );
+
+    download_initial_setup_keys_if_not_present(&crs_path, &crs_download_url);
+    env::set_var("CRS_FILE", crs_path);
 }

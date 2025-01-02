@@ -8835,6 +8835,7 @@ dependencies = [
  "boojum-cuda",
  "byteorder",
  "circuit_definitions",
+ "fflonk",
  "fflonk-cuda",
  "futures 0.3.31",
  "hex",

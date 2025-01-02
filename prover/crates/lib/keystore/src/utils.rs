@@ -1,13 +1,14 @@
 use anyhow::Context as _;
 use circuit_definitions::{
-    circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuit,
+    circuit_definitions::aux_layer::{
+        ZkSyncSnarkWrapperCircuit, ZkSyncSnarkWrapperCircuitNoLookupCustomGate,
+    },
     snark_wrapper::franklin_crypto::bellman::{
         compact_bn256::Fq, pairing::bn256::Bn256,
         plonk::better_better_cs::setup::VerificationKey as SnarkVK,
     },
 };
-#[cfg(feature = "gpu")]
-use fflonk_gpu::FflonkSnarkVerifierCircuitVK;
+use fflonk::FflonkVerificationKey;
 use sha3::Digest;
 use zkevm_test_harness::{
     franklin_crypto::bellman::{CurveAffine, PrimeField, PrimeFieldRepr},
@@ -118,7 +119,10 @@ pub fn calculate_snark_vk_hash(verification_key: String) -> anyhow::Result<H256>
 
 #[cfg(feature = "gpu")]
 pub fn calculate_fflonk_snark_vk_hash(verification_key: String) -> anyhow::Result<H256> {
-    let verification_key: FflonkSnarkVerifierCircuitVK = serde_json::from_str(&verification_key)?;
+    let verification_key: FflonkVerificationKey<
+        Bn256,
+        ZkSyncSnarkWrapperCircuitNoLookupCustomGate,
+    > = serde_json::from_str(&verification_key)?;
 
     let mut res = vec![0u8; 32];
 

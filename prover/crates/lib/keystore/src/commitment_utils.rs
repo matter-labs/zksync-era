@@ -58,15 +58,9 @@ impl Keystore {
         let scheduler_commitment_hex = hex_concatenator(scheduler_vk_commitment);
         let plonk_snark_vk_hash: String =
             calculate_snark_vk_hash(self.load_snark_verification_key().unwrap())?.encode_hex();
-        #[cfg(feature = "gpu")]
         let fflonk_snark_vk_hash: String =
             calculate_fflonk_snark_vk_hash(self.load_fflonk_snark_verification_key().unwrap())?
                 .encode_hex();
-        #[cfg(not(feature = "gpu"))]
-        let fflonk_snark_vk_hash = {
-            tracing::warn!("To generate FFLONK SNARK VK hash, please enable the `gpu` feature.");
-            "0x".to_owned()
-        };
 
         let result = VkCommitments {
             leaf: leaf_aggregation_commitment_hex,

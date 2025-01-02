@@ -73,6 +73,7 @@ circuit_sequencer_api = "=0.150.19"
 zkevm_test_harness = "=0.150.19"
 proof-compression-gpu = { package = "proof-compression", version = "=0.152.10"}
 fflonk-gpu = { package = "fflonk-cuda", version = "=0.152.10"}
+fflonk = "0.30.12"
 franklin-crypto = "0.30.12"
 
 # GPU proving dependencies
