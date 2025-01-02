@@ -1909,7 +1909,7 @@ _arguments "${_arguments_options[@]}" : \
 '--bellman-cuda=[]' \
 '--setup-compressor-key=[]' \
 '--path=[]:PATH:_default' \
-'--compressor-type=[]:COMPRESSOR_TYPE:(fflonk plonk)' \
+'--compressor-type=[]:COMPRESSOR_TYPE:(fflonk plonk all)' \
 '--region=[]:REGION:(us europe asia)' \
 '--mode=[]:MODE:(download generate)' \
 '--setup-keys=[]' \
@@ -1981,7 +1981,7 @@ _arguments "${_arguments_options[@]}" : \
 (compressor-keys)
 _arguments "${_arguments_options[@]}" : \
 '--path=[]:PATH:_default' \
-'--compressor-type=[]:COMPRESSOR_TYPE:(fflonk plonk)' \
+'--compressor-type=[]:COMPRESSOR_TYPE:(fflonk plonk all)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \

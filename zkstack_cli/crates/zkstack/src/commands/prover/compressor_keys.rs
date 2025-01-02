@@ -5,7 +5,7 @@ use xshell::Shell;
 
 use super::args::compressor_keys::{CompressorKeysArgs, CompressorType};
 use crate::{
-    consts::{FFLONK_COMPACT_CRS_KEY, FFLONK_CRS_KEY, PLONK_CRS_KEY},
+    consts::{FFLONK_COMPACT_CRS_KEY, PLONK_CRS_KEY},
     messages::{
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER,
         MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR, MSG_SETUP_KEY_PATH_ERROR,
@@ -29,12 +29,6 @@ pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Resu
             download_compressor_key(
                 shell,
                 &mut general_config,
-                FFLONK_CRS_KEY,
-                &format!("{}{}", path, FFLONK_CRS_KEY),
-            )?;
-            download_compressor_key(
-                shell,
-                &mut general_config,
                 FFLONK_COMPACT_CRS_KEY,
                 &format!("{}{}", path, FFLONK_COMPACT_CRS_KEY),
             )?;
@@ -52,12 +46,6 @@ pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Resu
         CompressorType::All => {
             let path = args.clone().path.context(MSG_SETUP_KEY_PATH_ERROR)?;
 
-            download_compressor_key(
-                shell,
-                &mut general_config,
-                FFLONK_CRS_KEY,
-                &format!("{}{}", path, FFLONK_CRS_KEY),
-            )?;
             download_compressor_key(
                 shell,
                 &mut general_config,

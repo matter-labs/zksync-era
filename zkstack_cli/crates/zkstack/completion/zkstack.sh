@@ -7180,7 +7180,7 @@ _zkstack() {
                     return 0
                     ;;
                 --compressor-type)
-                    COMPREPLY=($(compgen -W "fflonk plonk" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "fflonk plonk all" -- "${cur}"))
                     return 0
                     ;;
                 --chain)
@@ -7368,7 +7368,7 @@ _zkstack() {
                     return 0
                     ;;
                 --compressor-type)
-                    COMPREPLY=($(compgen -W "fflonk plonk" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "fflonk plonk all" -- "${cur}"))
                     return 0
                     ;;
                 --region)

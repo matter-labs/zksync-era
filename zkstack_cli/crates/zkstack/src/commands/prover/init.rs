@@ -24,10 +24,7 @@ use super::{
 };
 use crate::{
     commands::prover::args::{compressor_keys::CompressorType, init::ProofStorageFileBacked},
-    consts::{
-        FFLONK_COMPACT_CRS_KEY, FFLONK_CRS_KEY, PLONK_CRS_KEY, PROVER_MIGRATIONS,
-        PROVER_STORE_MAX_RETRIES,
-    },
+    consts::{FFLONK_COMPACT_CRS_KEY, PLONK_CRS_KEY, PROVER_MIGRATIONS, PROVER_STORE_MAX_RETRIES},
     messages::{
         MSG_CHAIN_NOT_FOUND_ERR, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
         MSG_GENERAL_CONFIG_NOT_FOUND_ERR, MSG_INITIALIZING_DATABASES_SPINNER,
@@ -65,12 +62,6 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
                 download_compressor_key(
                     shell,
                     &mut general_config,
-                    FFLONK_CRS_KEY,
-                    &format!("{}{}", path, FFLONK_CRS_KEY),
-                )?;
-                download_compressor_key(
-                    shell,
-                    &mut general_config,
                     FFLONK_COMPACT_CRS_KEY,
                     &format!("{}{}", path, FFLONK_COMPACT_CRS_KEY),
                 )?;
@@ -88,12 +79,6 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
             CompressorType::All => {
                 let path = args.clone().path.context(MSG_SETUP_KEY_PATH_ERROR)?;
 
-                download_compressor_key(
-                    shell,
-                    &mut general_config,
-                    FFLONK_CRS_KEY,
-                    &format!("{}{}", path, FFLONK_CRS_KEY),
-                )?;
                 download_compressor_key(
                     shell,
                     &mut general_config,
