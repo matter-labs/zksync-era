@@ -11,11 +11,9 @@ use zksync_prover_fri_types::circuit_definitions::{
     circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
 };
 
-#[cfg(feature = "gpu")]
-use crate::utils::calculate_fflonk_snark_vk_hash;
 use crate::{
     keystore::Keystore,
-    utils::{calculate_snark_vk_hash, get_leaf_vk_params},
+    utils::{calculate_fflonk_snark_vk_hash, calculate_snark_vk_hash, get_leaf_vk_params},
     VkCommitments,
 };
 

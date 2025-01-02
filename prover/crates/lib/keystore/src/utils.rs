@@ -14,9 +14,7 @@ use zkevm_test_harness::{
     franklin_crypto::bellman::{CurveAffine, PrimeField, PrimeFieldRepr},
     witness::recursive_aggregation::compute_leaf_params,
 };
-use zksync_basic_types::H256;
-#[cfg(feature = "gpu")]
-use zksync_basic_types::U256;
+use zksync_basic_types::{H256, U256};
 use zksync_prover_fri_types::circuit_definitions::{
     boojum::field::goldilocks::GoldilocksField,
     circuit_definitions::recursion_layer::base_circuit_type_into_recursive_leaf_circuit_type,
@@ -117,7 +115,6 @@ pub fn calculate_snark_vk_hash(verification_key: String) -> anyhow::Result<H256>
     Ok(H256::from_slice(&computed_vk_hash))
 }
 
-#[cfg(feature = "gpu")]
 pub fn calculate_fflonk_snark_vk_hash(verification_key: String) -> anyhow::Result<H256> {
     let verification_key: FflonkVerificationKey<
         Bn256,
@@ -161,12 +158,21 @@ pub fn calculate_fflonk_snark_vk_hash(verification_key: String) -> anyhow::Resul
 mod tests {
     use std::str::FromStr;
 
+    use serde::{Deserialize, Serialize};
     use zksync_utils::env::Workspace;
 
     use super::*;
 
-    // todo: test is ignored due to serialization issues for now
-    #[ignore]
+    // Helper type, since the interface of VK commitments is changed with FFLONK
+    #[derive(Serialize, Deserialize)]
+    pub struct VkCommitmentsLegacy {
+        pub leaf: String,
+        pub node: String,
+        pub scheduler: String,
+        // Hash computed over Snark verification key fields.
+        pub snark_wrapper: String,
+    }
+
     #[test]
     fn test_keyhash_generation() {
         let path_to_input = Workspace::locate().prover().join("data/historical_data");
@@ -174,15 +180,28 @@ mod tests {
         for entry in std::fs::read_dir(path_to_input.clone()).unwrap().flatten() {
             if entry.metadata().unwrap().is_dir() {
                 let basepath = path_to_input.join(entry.file_name());
-                let keystore = Keystore::new(basepath.clone());
+                let filepath = basepath.join("commitments.json");
 
-                let expected =
-                    H256::from_str(&keystore.load_commitments().unwrap().snark_wrapper).unwrap();
+                let text = std::fs::read_to_string(&filepath)
+                    .expect(format!("File at {:?} should be read", filepath).as_str());
+
+                let commitments = serde_json::from_str::<VkCommitmentsLegacy>(&text)
+                    .expect("Vk commitments should be deserialized correctly");
+
+                let expected = H256::from_str(&commitments.snark_wrapper).unwrap();
+
+                let key = if std::fs::exists(basepath.join("verification_snark_key.json")).unwrap()
+                {
+                    std::fs::read_to_string(basepath.join("verification_snark_key.json")).unwrap()
+                } else {
+                    std::fs::read_to_string(basepath.join("snark_verification_scheduler_key.json"))
+                        .unwrap()
+                };
+
+                let calculated = calculate_snark_vk_hash(key).unwrap();
 
                 assert_eq!(
-                    expected,
-                    calculate_snark_vk_hash(keystore.load_snark_verification_key().unwrap())
-                        .unwrap(),
+                    expected, calculated,
                     "VK computation failed for {:?}",
                     basepath
                 );
