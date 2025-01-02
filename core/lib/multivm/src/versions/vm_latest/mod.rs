@@ -17,7 +17,7 @@ pub use self::{
     vm::Vm,
 };
 
-mod bootloader_state;
+pub mod bootloader_state;
 pub mod constants;
 mod implementation;
 mod old_vm;

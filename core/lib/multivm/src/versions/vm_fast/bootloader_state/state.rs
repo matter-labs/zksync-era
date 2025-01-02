@@ -1,12 +1,12 @@
 use std::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
-use zksync_types::{vm::VmVersion, L2ChainId, ProtocolVersionId, U256};
+use zksync_types::{vm::VmVersion, L2ChainId, ProtocolVersionId, H256, U256};
 
 use super::{
     l2_block::BootloaderL2Block,
     tx::BootloaderTx,
-    utils::{apply_l2_block, apply_pubdata_to_memory, apply_tx_to_memory},
+    utils::{apply_l2_block, apply_pubdata_to_memory, apply_tx_to_memory, apply_message_root},
     BootloaderStateSnapshot,
 };
 use crate::{
@@ -16,6 +16,7 @@ use crate::{
     },
     versions::vm_fast::transaction_data::TransactionData,
     vm_latest::{
+        bootloader_state::message_root::MessageRoot,
         constants::get_tx_description_offset, utils::l2_blocks::assert_next_block,
         MultiVmSubversion,
     },
@@ -52,6 +53,8 @@ pub struct BootloaderState {
     protocol_version: ProtocolVersionId,
     /// Protocol subversion
     subversion: MultiVmSubversion,
+    /// Message roots
+    msg_roots: Vec<MessageRoot>,
 }
 
 impl BootloaderState {
@@ -62,10 +65,12 @@ impl BootloaderState {
         protocol_version: ProtocolVersionId,
     ) -> Self {
         let l2_block = BootloaderL2Block::new(first_l2_block, 0);
+        let msg_root: MessageRoot = MessageRoot::new(1, 2, H256::from([1; 32]));
         Self {
             tx_to_execute: 0,
             compressed_bytecodes_encoding: 0,
             l2_blocks: vec![l2_block],
+            msg_roots: vec![msg_root],
             initial_memory,
             execution_mode,
             free_tx_offset: 0,
@@ -194,6 +199,10 @@ impl BootloaderState {
             if l2_block.txs.is_empty() {
                 apply_l2_block(&mut initial_memory, l2_block, tx_index, self.subversion)
             }
+        }
+
+        for (msg_root_offset, msg_root) in self.msg_roots.iter().enumerate() {
+            apply_message_root(&mut initial_memory, msg_root_offset, msg_root, self.subversion);
         }
 
         let pubdata_information = self

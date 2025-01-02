@@ -2150,6 +2150,33 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn set_message_root(
+        &mut self,
+        number: L1BatchNumber,
+        chain_id: SLChainId,
+        message_root: H256,
+        // proof: BatchAndChainMerklePath,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO message_roots (chain_id, block_number, message_root_hash)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (chain_id, block_number) DO UPDATE SET message_root_hash = $3
+            "#,
+            chain_id.0 as i64,
+            number.0 as i64,
+            message_root.as_bytes()
+        )
+        .instrument("set_message_root")
+        .with_arg("chain_id", &chain_id)
+        .with_arg("number", &number)
+        .with_arg("message_root", &message_root)
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
+    }
+
     pub async fn get_l1_batch_metadata(
         &mut self,
         number: L1BatchNumber,
