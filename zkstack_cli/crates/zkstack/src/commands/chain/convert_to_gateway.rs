@@ -52,7 +52,7 @@ lazy_static! {
 #[allow(unused)]
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     // TODO(EVM-927): this function does not work without the Gateway contracts.
-    return anyhow::bail!("Gateway upgrade not supported yet!");
+    anyhow::bail!("Gateway upgrade not supported yet!");
 
     let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;

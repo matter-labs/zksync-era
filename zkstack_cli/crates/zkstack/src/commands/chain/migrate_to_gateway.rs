@@ -71,7 +71,7 @@ lazy_static! {
 #[allow(unused)]
 pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
     // TODO(EVM-927): this function does not work without the Gateway contracts.
-    return anyhow::bail!("Gateway upgrade not supported yet!");
+    anyhow::bail!("Gateway upgrade not supported yet!");
 
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 

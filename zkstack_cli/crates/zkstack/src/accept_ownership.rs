@@ -107,7 +107,7 @@ pub async fn set_da_validator_pair(
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
     // TODO(EVM-927): this function does not work without the Gateway contracts.
-    return anyhow::bail!("Gateway upgrade not supported yet!");
+    anyhow::bail!("Gateway upgrade not supported yet!");
 
     // resume doesn't properly work here.
     let mut forge_args = forge_args.clone();
@@ -150,7 +150,7 @@ pub async fn make_permanent_rollup(
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
     // TODO(EVM-927): this function does not work without the Gateway contracts.
-    return anyhow::bail!("Gateway upgrade not supported yet!");
+    anyhow::bail!("Gateway upgrade not supported yet!");
 
     // resume doesn't properly work here.
     let mut forge_args = forge_args.clone();
@@ -187,7 +187,7 @@ pub async fn governance_execute_calls(
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
     // TODO(EVM-927): this function does not work without the Gateway contracts.
-    return anyhow::bail!("Gateway upgrade not supported yet!");
+    anyhow::bail!("Gateway upgrade not supported yet!");
 
     // resume doesn't properly work here.
     let mut forge_args = forge_args.clone();
@@ -227,7 +227,7 @@ pub async fn admin_execute_upgrade(
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
     // TODO(EVM-927): this function does not work without the Gateway contracts.
-    return anyhow::bail!("Gateway upgrade not supported yet!");
+    anyhow::bail!("Gateway upgrade not supported yet!");
 
     // resume doesn't properly work here.
     let mut forge_args = forge_args.clone();
@@ -278,7 +278,7 @@ pub async fn admin_schedule_upgrade(
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
     // TODO(EVM-927): this function does not work without the Gateway contracts.
-    return anyhow::bail!("Gateway upgrade not supported yet!");
+    anyhow::bail!("Gateway upgrade not supported yet!");
 
     // resume doesn't properly work here.
     let mut forge_args = forge_args.clone();
@@ -329,7 +329,7 @@ pub async fn admin_update_validator(
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
     // TODO(EVM-927): this function does not work without the Gateway contracts.
-    return anyhow::bail!("Gateway upgrade not supported yet!");
+    anyhow::bail!("Gateway upgrade not supported yet!");
 
     // resume doesn't properly work here.
     let mut forge_args = forge_args.clone();
