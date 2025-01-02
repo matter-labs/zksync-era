@@ -10,6 +10,7 @@ use config::{
     GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
 use xshell::{cmd, Shell};
+use zksync_config::configs::gateway::GatewayChainConfig;
 
 use crate::{
     commands::args::{RunServerArgs, ServerArgs, ServerCommand, WaitArgs},
@@ -60,6 +61,19 @@ fn run_server(
     } else {
         ServerMode::Normal
     };
+
+    let gateway_config = chain_config.get_gateway_chain_config().ok();
+    let mut gateway_contracts = None;
+    if let Some(gateway_config) = gateway_config {
+        gateway_contracts = if gateway_config.gateway_chain_id.0 != 0_u64 {
+            Some(GatewayChainConfig::get_path_with_base_path(
+                &chain_config.configs,
+            ))
+        } else {
+            None
+        };
+    }
+
     server
         .run(
             shell,
@@ -69,6 +83,7 @@ fn run_server(
             GeneralConfig::get_path_with_base_path(&chain_config.configs),
             SecretsConfig::get_path_with_base_path(&chain_config.configs),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
+            gateway_contracts,
             vec![],
         )
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)

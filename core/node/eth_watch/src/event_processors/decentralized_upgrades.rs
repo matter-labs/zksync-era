@@ -3,8 +3,9 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_types::{
-    api::Log, ethabi::Contract, protocol_version::ProtocolSemanticVersion, ProtocolUpgrade, H256,
-    U256,
+    abi::ZkChainSpecificUpgradeData, api::Log, ethabi::Contract,
+    protocol_upgrade::ProtocolUpgradePreimageOracle, protocol_version::ProtocolSemanticVersion,
+    ProtocolUpgrade, H256, U256,
 };
 
 use crate::{
@@ -19,14 +20,18 @@ pub struct DecentralizedUpgradesEventProcessor {
     /// Last protocol version seen. Used to skip events for already known upgrade proposals.
     last_seen_protocol_version: ProtocolSemanticVersion,
     update_upgrade_timestamp_signature: H256,
+    chain_specific_data: Option<ZkChainSpecificUpgradeData>,
     sl_client: Arc<dyn EthClient>,
+    l1_client: Arc<dyn EthClient>,
 }
 
 impl DecentralizedUpgradesEventProcessor {
     pub fn new(
         last_seen_protocol_version: ProtocolSemanticVersion,
         chain_admin_contract: &Contract,
+        chain_specific_data: Option<ZkChainSpecificUpgradeData>,
         sl_client: Arc<dyn EthClient>,
+        l1_client: Arc<dyn EthClient>,
     ) -> Self {
         Self {
             last_seen_protocol_version,
@@ -35,8 +40,30 @@ impl DecentralizedUpgradesEventProcessor {
                 .context("UpdateUpgradeTimestamp event is missing in ABI")
                 .unwrap()
                 .signature(),
+            chain_specific_data,
             sl_client,
+            l1_client,
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl ProtocolUpgradePreimageOracle for &dyn EthClient {
+    async fn get_protocol_upgrade_preimages(
+        &self,
+        hashes: Vec<H256>,
+    ) -> anyhow::Result<Vec<Vec<u8>>> {
+        let preimages = self.get_published_preimages(hashes.clone()).await?;
+
+        let mut result = vec![];
+        for (i, preimage) in preimages.into_iter().enumerate() {
+            let preimage = preimage.with_context(|| {
+                format!("Protocol upgrade preimage for {:#?} is missing", hashes[i])
+            })?;
+            result.push(preimage);
+        }
+
+        Ok(result)
     }
 }
 
@@ -63,7 +90,12 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
 
             let upgrade = ProtocolUpgrade {
                 timestamp,
-                ..ProtocolUpgrade::try_from_diamond_cut(&diamond_cut)?
+                ..ProtocolUpgrade::try_from_diamond_cut(
+                    &diamond_cut,
+                    self.l1_client.as_ref(),
+                    self.chain_specific_data.clone(),
+                )
+                .await?
             };
             // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
             let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {

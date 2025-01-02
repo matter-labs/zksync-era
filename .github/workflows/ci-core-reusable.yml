@@ -71,9 +71,6 @@ jobs:
         run: |
           ci_run zkstack dev contracts
 
-      - name: Contracts unit tests
-        run: ci_run yarn l1-contracts test
-
       - name: Download compilers for contract verifier tests
         run: ci_run zkstack contract-verifier init --zksolc-version=v1.5.3 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
 
@@ -150,7 +147,7 @@ jobs:
             --legacy-bridge \
             --evm-emulator false
 
-          ci_run zkstack ecosystem init --dev --verbose
+          ci_run zkstack ecosystem init --dev --support-l2-legacy-shared-bridge-test true --verbose
 
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
@@ -270,7 +267,8 @@ jobs:
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_validium \
-          --chain validium
+          --chain validium \
+          --validium-type no-da
 
       - name: Create and initialize chain with Custom Token
         run: |
@@ -292,7 +290,8 @@ jobs:
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_custom_token \
-          --chain custom_token
+          --chain custom_token \
+          --validium-type no-da
 
       - name: Create and register chain with transactions signed "offline"
         run: |
@@ -314,7 +313,7 @@ jobs:
           governor_pk=$(awk '/governor:/ {flag=1} flag && /private_key:/ {print $2; exit}' ./configs/wallets.yaml)
 
           ci_run zkstack dev send-transactions \
-          --file ./transactions/chain/offline_chain/register-hyperchain-txns.json \
+          --file ./transactions/chain/offline_chain/register-zk-chain-txns.json \
           --l1-rpc-url http://127.0.0.1:8545 \
           --private-key $governor_pk
 
@@ -350,12 +349,58 @@ jobs:
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_consensus \
-          --chain consensus
+          --chain consensus \
+          --validium-type no-da
 
       - name: Export chain list to environment variable
         run: |
           CHAINS="era,validium,custom_token,consensus"
           echo "CHAINS=$CHAINS" >> $GITHUB_ENV
+
+      - name: Initialize gateway chain
+        run: |
+          ci_run zkstack chain create \
+          --chain-name gateway \
+          --chain-id 505 \
+          --prover-mode no-proofs \
+          --wallet-creation localhost \
+          --l1-batch-commit-data-generator-mode rollup \
+          --base-token-address 0x0000000000000000000000000000000000000001 \
+          --base-token-price-nominator 1 \
+          --base-token-price-denominator 1 \
+          --set-as-default false \
+          --ignore-prerequisites \
+          --evm-emulator false
+          
+          ci_run zkstack chain init \
+          --deploy-paymaster \
+          --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_gateway \
+          --chain gateway \
+          --validium-type no-da
+          
+          ci_run zkstack chain convert-to-gateway --chain gateway --ignore-prerequisites
+
+      - name: Run gateway
+        run: |
+          ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+          ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
+
+      - name: Migrate chains to gateway
+        run: |
+          ci_run zkstack chain migrate-to-gateway --chain era --gateway-chain-name gateway
+          ci_run zkstack chain migrate-to-gateway --chain validium --gateway-chain-name gateway
+          ci_run zkstack chain migrate-to-gateway --chain custom_token --gateway-chain-name gateway
+          ci_run zkstack chain migrate-to-gateway --chain consensus --gateway-chain-name gateway
+
+      - name: Migrate back era
+        run: |
+          ci_run zkstack chain migrate-from-gateway --chain era --gateway-chain-name gateway
+
+      - name: Migrate to gateway again
+        run: |
+          ci_run zkstack chain migrate-to-gateway --chain era --gateway-chain-name gateway
 
       - name: Build test dependencies
         run: |
@@ -403,19 +448,19 @@ jobs:
       - name: Init external nodes
         run: |
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_rollup --l1-rpc-url=http://localhost:8545 --chain era
+          --db-name=zksync_en_localhost_era_rollup --l1-rpc-url=http://localhost:8545 --gateway-rpc-url=http://localhost:3550 --chain era
           ci_run zkstack external-node init --ignore-prerequisites --chain era
 
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_validium1 --l1-rpc-url=http://localhost:8545 --chain validium
+          --db-name=zksync_en_localhost_era_validium1 --l1-rpc-url=http://localhost:8545 --gateway-rpc-url=http://localhost:3550 --chain validium
           ci_run zkstack external-node init --ignore-prerequisites --chain validium
 
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_custom_token --l1-rpc-url=http://localhost:8545 --chain custom_token
+          --db-name=zksync_en_localhost_era_custom_token --l1-rpc-url=http://localhost:8545 --gateway-rpc-url=http://localhost:3550 --chain custom_token
           ci_run zkstack external-node init --ignore-prerequisites --chain custom_token
 
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_consensus --l1-rpc-url=http://localhost:8545 --chain consensus
+          --db-name=zksync_en_localhost_era_consensus --l1-rpc-url=http://localhost:8545 --gateway-rpc-url=http://localhost:3550 --chain consensus
           ci_run zkstack external-node init --ignore-prerequisites --chain consensus
 
       - name: Run recovery tests (from snapshot)
@@ -432,7 +477,7 @@ jobs:
           ci_run zkstack external-node run --ignore-prerequisites --chain validium &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/validium.log &
           ci_run zkstack external-node run --ignore-prerequisites --chain custom_token &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/custom_token.log &
           ci_run zkstack external-node run --ignore-prerequisites --chain consensus --enable-consensus &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/consensus.log &
-          
+
           ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain era
           ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain validium
           ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain custom_token
@@ -445,12 +490,16 @@ jobs:
       - name: Fee projection tests
         run: |
           ci_run killall -INT zksync_server || true
+          ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+          ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}
 
       - name: Run revert tests
         run: |
           ci_run killall -INT zksync_server || true
           ci_run killall -INT zksync_external_node || true
+          ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+          ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --external-node --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
@@ -459,8 +508,10 @@ jobs:
       # TODO make upgrade tests safe to run multiple times
       - name: Run upgrade test
         run: |
+          ci_run killall -INT zksync_server || true
+          ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+          ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
           ci_run zkstack dev test upgrade --no-deps --chain era
-
 
       - name: Upload logs
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0

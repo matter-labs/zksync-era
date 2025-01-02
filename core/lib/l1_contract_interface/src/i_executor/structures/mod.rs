@@ -3,6 +3,8 @@
 mod commit_batch_info;
 mod stored_batch_info;
 
+pub const SUPPORTED_ENCODING_VERSION: u8 = 0;
+
 #[cfg(test)]
 mod tests;
 
@@ -13,5 +15,3 @@ pub use self::{
     },
     stored_batch_info::StoredBatchInfo,
 };
-
-pub const SUPPORTED_ENCODING_VERSION: u8 = 0;

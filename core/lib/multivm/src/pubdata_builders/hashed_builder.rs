@@ -13,17 +13,17 @@ use super::utils::{
 use crate::interface::pubdata::{PubdataBuilder, PubdataInput};
 
 #[derive(Debug, Clone, Copy)]
-pub struct ValidiumPubdataBuilder {
+pub struct HashedPubdataBuilder {
     pub l2_da_validator: Address,
 }
 
-impl ValidiumPubdataBuilder {
+impl HashedPubdataBuilder {
     pub fn new(l2_da_validator: Address) -> Self {
         Self { l2_da_validator }
     }
 }
 
-impl PubdataBuilder for ValidiumPubdataBuilder {
+impl PubdataBuilder for HashedPubdataBuilder {
     fn l2_da_validator(&self) -> Address {
         self.l2_da_validator
     }
@@ -35,7 +35,7 @@ impl PubdataBuilder for ValidiumPubdataBuilder {
     ) -> Vec<u8> {
         assert!(
             !protocol_version.is_pre_gateway(),
-            "ValidiumPubdataBuilder must not be called for pre gateway"
+            "HashedPubdataBuilder must not be called for pre gateway"
         );
 
         let mut pubdata = vec![];
@@ -79,7 +79,7 @@ impl PubdataBuilder for ValidiumPubdataBuilder {
     ) -> Vec<u8> {
         assert!(
             !protocol_version.is_pre_gateway(),
-            "ValidiumPubdataBuilder must not be called for pre gateway"
+            "HashedPubdataBuilder must not be called for pre gateway"
         );
 
         let state_diffs_packed = input

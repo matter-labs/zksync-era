@@ -11,6 +11,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zksync_multivm.workspace = true
 zksync_config.workspace = true
 zksync_concurrency.workspace = true
 zksync_consensus_crypto.workspace = true
@@ -52,3 +53,4 @@ zksync_test_contracts.workspace = true
 
 test-casing.workspace = true
 rand.workspace = true
+hex = "0.4"

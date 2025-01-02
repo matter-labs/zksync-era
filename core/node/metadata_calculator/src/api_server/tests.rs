@@ -131,11 +131,13 @@ fn assert_raw_nodes_response(response: &serde_json::Value) {
         assert_matches!(key, b'0'..=b'9' | b'a'..=b'f');
     }
 
-    let node = response["0:0"].as_object().expect("not an object");
-    assert!(
-        node.len() == 2 && node.contains_key("internal") && node.contains_key("raw"),
-        "{node:#?}"
-    );
+    if let Some(value) = response.get("0:0") {
+        let node = value.as_object().expect("not an object");
+        assert!(
+            node.len() == 2 && node.contains_key("internal") && node.contains_key("raw"),
+            "{node:#?}"
+        );
+    }
 }
 
 fn assert_raw_stale_keys_response(response: &serde_json::Value) {

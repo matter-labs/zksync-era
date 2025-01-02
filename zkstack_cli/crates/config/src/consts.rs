@@ -20,12 +20,16 @@ pub(crate) const INITIAL_DEPLOYMENT_FILE: &str = "initial_deployments.yaml";
 pub(crate) const ERC20_DEPLOYMENT_FILE: &str = "erc20_deployments.yaml";
 /// Name of the contracts file
 pub const CONTRACTS_FILE: &str = "contracts.yaml";
+/// Name of the gateway contracts file
+pub const GATEWAY_FILE: &str = "gateway.yaml";
+/// Name of the gateway contracts file
+pub const GATEWAY_CHAIN_FILE: &str = "gateway_chain.yaml";
 /// Main repository for the ZKsync project
 pub const ZKSYNC_ERA_GIT_REPO: &str = "https://github.com/matter-labs/zksync-era";
 /// Name of the docker-compose file inside zksync repository
 pub const DOCKER_COMPOSE_FILE: &str = "docker-compose.yml";
 /// Path to the config file with mnemonic for localhost wallets
-pub(crate) const CONFIGS_PATH: &str = "etc/env/file_based";
+pub const CONFIGS_PATH: &str = "etc/env/file_based";
 /// Path to the docker-compose file for grafana
 pub const ERA_OBSERVABILITY_COMPOSE_FILE: &str = "era-observability/docker-compose.yml";
 /// Path to era observability repository

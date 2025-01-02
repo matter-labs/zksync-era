@@ -53,7 +53,12 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
 
     let configs_path = create_local_configs_dir(shell, ".")?;
 
-    let link_to_code = resolve_link_to_code(shell, shell.current_dir(), args.link_to_code.clone())?;
+    let link_to_code = resolve_link_to_code(
+        shell,
+        shell.current_dir(),
+        args.link_to_code.clone(),
+        args.skip_submodules_checkout,
+    )?;
 
     let spinner = Spinner::new(MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER);
     let chain_config = args.chain_config();

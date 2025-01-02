@@ -28,7 +28,7 @@ pub async fn enable_evm_emulator(
     let calldata = enable_evm_emulator_contract
         .encode("chainAllowEvmEmulation", (admin, target_address))
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_foundry();
+    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
     let forge = Forge::new(&foundry_contracts_path)
         .script(&ENABLE_EVM_EMULATOR_PARAMS.script(), forge_args.clone())
         .with_ffi()

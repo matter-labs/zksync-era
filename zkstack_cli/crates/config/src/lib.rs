@@ -18,6 +18,7 @@ mod consts;
 mod contracts;
 mod ecosystem;
 mod file_config;
+mod gateway;
 mod general;
 mod genesis;
 mod manipulations;

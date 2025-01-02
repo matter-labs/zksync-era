@@ -69,7 +69,7 @@ pub async fn register_chain(
     let deploy_config = RegisterChainL1Config::new(chain_config, contracts)?;
     deploy_config.save(shell, deploy_config_path)?;
 
-    let mut forge = Forge::new(&config.path_to_foundry())
+    let mut forge = Forge::new(&config.path_to_l1_foundry())
         .script(&REGISTER_CHAIN_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url);

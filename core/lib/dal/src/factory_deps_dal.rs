@@ -89,39 +89,36 @@ impl FactoryDepsDal<'_, '_> {
         .map(|row| row.bytecode))
     }
 
-    pub async fn get_base_system_contracts(
+    pub async fn get_base_system_contracts_from_factory_deps(
         &mut self,
         bootloader_hash: H256,
         default_aa_hash: H256,
         evm_emulator_hash: Option<H256>,
-    ) -> anyhow::Result<BaseSystemContracts> {
+    ) -> anyhow::Result<Option<BaseSystemContracts>> {
         let bootloader_bytecode = self
             .get_sealed_factory_dep(bootloader_hash)
             .await
-            .context("failed loading bootloader code")?
-            .with_context(|| format!("bootloader code with hash {bootloader_hash:?} should be present in the database"))?;
-        let bootloader_code = SystemContractCode {
-            code: bootloader_bytecode,
-            hash: bootloader_hash,
-        };
+            .context("failed loading bootloader code")?;
 
         let default_aa_bytecode = self
             .get_sealed_factory_dep(default_aa_hash)
             .await
-            .context("failed loading default account code")?
-            .with_context(|| format!("default account code with hash {default_aa_hash:?} should be present in the database"))?;
+            .context("failed loading default account code")?;
 
-        let default_aa_code = SystemContractCode {
-            code: default_aa_bytecode,
-            hash: default_aa_hash,
+        let (Some(bootloader_bytecode), Some(default_aa_bytecode)) =
+            (bootloader_bytecode, default_aa_bytecode)
+        else {
+            return Ok(None);
         };
 
         let evm_emulator_code = if let Some(evm_emulator_hash) = evm_emulator_hash {
             let evm_emulator_bytecode = self
                 .get_sealed_factory_dep(evm_emulator_hash)
                 .await
-                .context("failed loading EVM emulator code")?
-                .with_context(|| format!("EVM emulator code with hash {evm_emulator_hash:?} should be present in the database"))?;
+                .context("failed loading EVM emulator code")?;
+            let Some(evm_emulator_bytecode) = evm_emulator_bytecode else {
+                return Ok(None);
+            };
 
             Some(SystemContractCode {
                 code: evm_emulator_bytecode,
@@ -131,11 +128,20 @@ impl FactoryDepsDal<'_, '_> {
             None
         };
 
-        Ok(BaseSystemContracts {
+        let bootloader_code = SystemContractCode {
+            code: bootloader_bytecode,
+            hash: bootloader_hash,
+        };
+
+        let default_aa_code = SystemContractCode {
+            code: default_aa_bytecode,
+            hash: default_aa_hash,
+        };
+        Ok(Some(BaseSystemContracts {
             bootloader: bootloader_code,
             default_aa: default_aa_code,
             evm_emulator: evm_emulator_code,
-        })
+        }))
     }
 
     /// Returns bytecodes for factory deps with the specified `hashes`.

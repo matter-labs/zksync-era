@@ -4,9 +4,13 @@ use config::ChainConfig;
 use serde::{Deserialize, Serialize};
 use types::L1Network;
 use url::Url;
+use zksync_basic_types::commitment::L1BatchCommitmentMode;
 
 use crate::{
-    commands::chain::args::genesis::{GenesisArgs, GenesisArgsFinal},
+    commands::chain::args::{
+        genesis::{GenesisArgs, GenesisArgsFinal},
+        init::da_configs::ValidiumType,
+    },
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_DEPLOY_PAYMASTER_PROMPT, MSG_DEV_ARG_HELP, MSG_L1_RPC_URL_HELP,
@@ -16,6 +20,7 @@ use crate::{
 };
 
 pub mod configs;
+pub(crate) mod da_configs;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct InitArgs {
@@ -37,6 +42,14 @@ pub struct InitArgs {
     pub no_port_reallocation: bool,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
+    #[clap(
+        long,
+        help = "Skip submodules checkout",
+        default_missing_value = "true"
+    )]
+    pub skip_submodules_checkout: bool,
+    #[clap(flatten)]
+    pub validium_args: da_configs::ValidiumTypeArgs,
 }
 
 impl InitArgs {
@@ -80,23 +93,36 @@ impl InitArgs {
             })
         };
 
+        let validium_config = match config.l1_batch_commit_data_generator_mode {
+            L1BatchCommitmentMode::Validium => match self.validium_args.validium_type {
+                None => Some(ValidiumType::read()),
+                Some(da_configs::ValidiumTypeInternal::NoDA) => Some(ValidiumType::NoDA),
+                Some(da_configs::ValidiumTypeInternal::Avail) => panic!(
+                    "Avail is not supported via CLI args, use interactive mode" // TODO: Add support for configuration via CLI args
+                ),
+            },
+            _ => None,
+        };
+
         InitArgsFinal {
             forge_args: self.forge_args,
             genesis_args: genesis.fill_values_with_prompt(config),
             deploy_paymaster,
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
-            dev: self.dev,
+            skip_submodules_checkout: self.skip_submodules_checkout,
+            validium_config,
         }
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone)]
 pub struct InitArgsFinal {
     pub forge_args: ForgeScriptArgs,
     pub genesis_args: GenesisArgsFinal,
     pub deploy_paymaster: bool,
     pub l1_rpc_url: String,
     pub no_port_reallocation: bool,
-    pub dev: bool,
+    pub skip_submodules_checkout: bool,
+    pub validium_config: Option<ValidiumType>,
 }

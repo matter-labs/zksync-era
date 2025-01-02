@@ -110,9 +110,11 @@ pub(super) const MSG_NOTHING_TO_BUILD_MSG: &str = "Nothing to build!";
 pub(super) const MSG_BUILDING_CONTRACTS: &str = "Building contracts";
 pub(super) const MSG_BUILDING_L2_CONTRACTS_SPINNER: &str = "Building L2 contracts..";
 pub(super) const MSG_BUILDING_L1_CONTRACTS_SPINNER: &str = "Building L1 contracts..";
+pub(super) const MSG_BUILDING_L1_DA_CONTRACTS_SPINNER: &str = "Building L1 DA contracts..";
 pub(super) const MSG_BUILDING_SYSTEM_CONTRACTS_SPINNER: &str = "Building system contracts..";
 pub(super) const MSG_BUILDING_CONTRACTS_SUCCESS: &str = "Contracts built successfully";
 pub(super) const MSG_BUILD_L1_CONTRACTS_HELP: &str = "Build L1 contracts";
+pub(super) const MSG_BUILD_L1_DA_CONTRACTS_HELP: &str = "Build L1 DA contracts";
 pub(super) const MSG_BUILD_L2_CONTRACTS_HELP: &str = "Build L2 contracts";
 pub(super) const MSG_BUILD_SYSTEM_CONTRACTS_HELP: &str = "Build system contracts";
 

@@ -1,9 +1,9 @@
-use std::{fmt, sync::Arc};
+use std::{collections::HashMap, fmt, sync::Arc};
 
 use anyhow::Context;
 use zksync_contracts::{
-    getters_facet_contract, state_transition_manager_contract, verifier_contract,
-    MESSAGE_ROOT_CONTRACT,
+    bytecode_supplier_contract, getters_facet_contract, l2_message_root,
+    state_transition_manager_contract, verifier_contract,
 };
 use zksync_eth_client::{
     clients::{DynClient, L1},
@@ -13,9 +13,11 @@ use zksync_eth_client::{
 use zksync_system_constants::L2_MESSAGE_ROOT_ADDRESS;
 use zksync_types::{
     api::{ChainAggProof, Log},
-    ethabi::Contract,
-    web3::{BlockId, BlockNumber, Filter, FilterBuilder},
-    Address, L1BatchNumber, L2ChainId, SLChainId, H256, U256, U64,
+    ethabi::{decode, Contract, ParamType},
+    tokens::TokenMetadata,
+    web3::{BlockId, BlockNumber, CallRequest, Filter, FilterBuilder},
+    Address, L1BatchNumber, L2ChainId, SLChainId, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256,
+    U64,
 };
 use zksync_web3_decl::{
     client::{Network, L2},
@@ -51,6 +53,13 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         packed_version: H256,
     ) -> EnrichedClientResult<Option<Vec<u8>>>;
 
+    async fn get_published_preimages(
+        &self,
+        hashes: Vec<H256>,
+    ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>>;
+
+    async fn get_base_token_metadata(&self) -> Result<TokenMetadata, ContractCallError>;
+
     /// Returns ID of the chain.
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId>;
 
@@ -64,6 +73,8 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     ) -> Result<H256, ContractCallError>;
 }
 
+// This constant is used for reading auxilary events
+const LOOK_BACK_BLOCK_RANGE: u64 = 1_000_000;
 pub const RETRY_LIMIT: usize = 5;
 const TOO_MANY_RESULTS_INFURA: &str = "query returned more than";
 const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
@@ -78,6 +89,8 @@ pub struct EthHttpQueryClient<Net: Network> {
     diamond_proxy_addr: Address,
     governance_address: Address,
     new_upgrade_cut_data_signature: H256,
+    bytecode_published_signature: H256,
+    bytecode_supplier_addr: Option<Address>,
     // Only present for post-shared bridge chains.
     state_transition_manager_address: Option<Address>,
     chain_admin_address: Option<Address>,
@@ -94,6 +107,7 @@ where
     pub fn new(
         client: Box<DynClient<Net>>,
         diamond_proxy_addr: Address,
+        bytecode_supplier_addr: Option<Address>,
         state_transition_manager_address: Option<Address>,
         chain_admin_address: Option<Address>,
         governance_address: Address,
@@ -110,14 +124,20 @@ where
             state_transition_manager_address,
             chain_admin_address,
             governance_address,
+            bytecode_supplier_addr,
             new_upgrade_cut_data_signature: state_transition_manager_contract()
                 .event("NewUpgradeCutData")
                 .context("NewUpgradeCutData event is missing in ABI")
                 .unwrap()
                 .signature(),
+            bytecode_published_signature: bytecode_supplier_contract()
+                .event("BytecodePublished")
+                .context("BytecodePublished event is missing in ABI")
+                .unwrap()
+                .signature(),
             verifier_contract_abi: verifier_contract(),
             getters_facet_contract_abi: getters_facet_contract(),
-            message_root_abi: MESSAGE_ROOT_CONTRACT.clone(),
+            message_root_abi: l2_message_root(),
             confirmations_for_eth_event,
         }
     }
@@ -262,8 +282,6 @@ where
         &self,
         packed_version: H256,
     ) -> EnrichedClientResult<Option<Vec<u8>>> {
-        const LOOK_BACK_BLOCK_RANGE: u64 = 1_000_000;
-
         let Some(state_transition_manager_address) = self.state_transition_manager_address else {
             return Ok(None);
         };
@@ -283,6 +301,43 @@ where
             .await?;
 
         Ok(logs.into_iter().next().map(|log| log.data.0))
+    }
+
+    async fn get_published_preimages(
+        &self,
+        hashes: Vec<H256>,
+    ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>> {
+        let Some(bytecode_supplier_addr) = self.bytecode_supplier_addr else {
+            return Ok(vec![None; hashes.len()]);
+        };
+
+        let to_block = self.client.block_number().await?;
+        let from_block = to_block.saturating_sub((LOOK_BACK_BLOCK_RANGE - 1).into());
+
+        let logs = self
+            .get_events_inner(
+                from_block.into(),
+                to_block.into(),
+                Some(vec![self.bytecode_published_signature]),
+                Some(hashes.clone()),
+                Some(vec![bytecode_supplier_addr]),
+                RETRY_LIMIT,
+            )
+            .await?;
+
+        let mut preimages = HashMap::new();
+        for log in logs {
+            let hash = log.topics[1];
+            let preimage = decode(&[ParamType::Bytes], &log.data.0).expect("Invalid encoding");
+            assert_eq!(preimage.len(), 1);
+            let preimage = preimage[0].clone().into_bytes().unwrap();
+            preimages.insert(hash, preimage);
+        }
+
+        Ok(hashes
+            .into_iter()
+            .map(|hash| preimages.get(&hash).cloned())
+            .collect())
     }
 
     async fn get_events(
@@ -351,6 +406,52 @@ where
             .for_contract(L2_MESSAGE_ROOT_ADDRESS, &self.message_root_abi)
             .call(&self.client)
             .await
+    }
+
+    async fn get_base_token_metadata(&self) -> Result<TokenMetadata, ContractCallError> {
+        let base_token_addr: Address = CallFunctionArgs::new("getBaseToken", ())
+            .for_contract(self.diamond_proxy_addr, &self.getters_facet_contract_abi)
+            .call(&self.client)
+            .await?;
+
+        if base_token_addr == SHARED_BRIDGE_ETHER_TOKEN_ADDRESS {
+            return Ok(TokenMetadata {
+                name: String::from("Ether"),
+                symbol: String::from("ETH"),
+                decimals: 18,
+            });
+        }
+
+        let selectors: [[u8; 4]; 3] = [
+            zksync_types::ethabi::short_signature("name", &[]),
+            zksync_types::ethabi::short_signature("symbol", &[]),
+            zksync_types::ethabi::short_signature("decimals", &[]),
+        ];
+        let types: [ParamType; 3] = [ParamType::String, ParamType::String, ParamType::Uint(32)];
+
+        let mut decoded_result = vec![];
+        for (selector, param_type) in selectors.into_iter().zip(types.into_iter()) {
+            let request = CallRequest {
+                to: Some(base_token_addr),
+                data: Some(selector.into()),
+                ..Default::default()
+            };
+            let result = self.client.call_contract_function(request, None).await?;
+            // Base tokens are expected to support erc20 metadata
+            let mut token = zksync_types::ethabi::decode(&[param_type], &result.0)
+                .expect("base token does not support erc20 metadata");
+            decoded_result.push(token.pop().unwrap());
+        }
+
+        Ok(TokenMetadata {
+            name: decoded_result[0].to_string(),
+            symbol: decoded_result[1].to_string(),
+            decimals: decoded_result[2]
+                .clone()
+                .into_uint()
+                .expect("decimals not supported")
+                .as_u32() as u8,
+        })
     }
 }
 
@@ -490,5 +591,16 @@ impl EthClient for L2EthClientW {
         l2_chain_id: L2ChainId,
     ) -> Result<H256, ContractCallError> {
         self.0.get_chain_root(block_number, l2_chain_id).await
+    }
+
+    async fn get_base_token_metadata(&self) -> Result<TokenMetadata, ContractCallError> {
+        self.0.get_base_token_metadata().await
+    }
+
+    async fn get_published_preimages(
+        &self,
+        hashes: Vec<H256>,
+    ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>> {
+        self.0.get_published_preimages(hashes).await
     }
 }

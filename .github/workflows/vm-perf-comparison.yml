@@ -47,12 +47,12 @@ jobs:
         run: |
           run_retried docker compose pull zk
           docker compose up -d zk
-  
+
       - name: run benchmarks on base branch
         shell: bash
         run: |
           ci_run zkstackup -g --local
-          ci_run zkstack dev contracts --system-contracts
+          ci_run zkstack dev contracts
           ci_run cargo bench --package vm-benchmark --bench instructions -- --verbose || echo "Instructions benchmark is missing"
           ci_run cargo run --package vm-benchmark --release --bin instruction_counts | tee base-opcodes
 
@@ -65,7 +65,7 @@ jobs:
         id: comparison
         run: |
           ci_run zkstackup -g --local
-          ci_run zkstack dev contracts --system-contracts
+          ci_run zkstack dev contracts
           ci_run cargo bench --package vm-benchmark --bench instructions -- --verbose
 
           ci_run cargo bench --package vm-benchmark --bench instructions -- --print > instructions.log 2>/dev/null

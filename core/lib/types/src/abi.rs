@@ -58,7 +58,7 @@ impl L2CanonicalTransaction {
     pub fn decode(token: Token) -> anyhow::Result<Self> {
         let tokens = token.into_tuple().context("not a tuple")?;
         anyhow::ensure!(tokens.len() == 16);
-        let mut t = tokens.into_iter();
+        let mut t: std::vec::IntoIter<Token> = tokens.into_iter();
         let mut next = || t.next().unwrap();
         Ok(Self {
             tx_type: next().into_uint().context("tx_type")?,
@@ -195,7 +195,6 @@ pub struct VerifierParams {
 /// `ProposedUpgrade` from, `l1-contracts/contracts/upgrades/BazeZkSyncUpgrade.sol`.
 pub struct ProposedUpgrade {
     pub l2_protocol_upgrade_tx: Box<L2CanonicalTransaction>,
-    pub factory_deps: Vec<Vec<u8>>,
     pub bootloader_hash: [u8; 32],
     pub default_account_hash: [u8; 32],
     pub verifier: Address,
@@ -253,16 +252,15 @@ impl ProposedUpgrade {
     /// RLP schema of the `ProposedUpgrade`.
     pub fn schema() -> ParamType {
         ParamType::Tuple(vec![
-            L2CanonicalTransaction::schema(),          // transaction data
-            ParamType::Array(ParamType::Bytes.into()), // factory deps
-            ParamType::FixedBytes(32),                 // bootloader code hash
-            ParamType::FixedBytes(32),                 // default account code hash
-            ParamType::Address,                        // verifier address
-            VerifierParams::schema(),                  // verifier params
-            ParamType::Bytes,                          // l1 custom data
-            ParamType::Bytes,                          // l1 post-upgrade custom data
-            ParamType::Uint(256),                      // timestamp
-            ParamType::Uint(256),                      // version id
+            L2CanonicalTransaction::schema(), // transaction data
+            ParamType::FixedBytes(32),        // bootloader code hash
+            ParamType::FixedBytes(32),        // default account code hash
+            ParamType::Address,               // verifier address
+            VerifierParams::schema(),         // verifier params
+            ParamType::Bytes,                 // l1 custom data
+            ParamType::Bytes,                 // l1 post-upgrade custom data
+            ParamType::Uint(256),             // timestamp
+            ParamType::Uint(256),             // version id
         ])
     }
 
@@ -270,12 +268,6 @@ impl ProposedUpgrade {
     pub fn encode(&self) -> Token {
         Token::Tuple(vec![
             self.l2_protocol_upgrade_tx.encode(),
-            Token::Array(
-                self.factory_deps
-                    .iter()
-                    .map(|b| Token::Bytes(b.clone()))
-                    .collect(),
-            ),
             Token::FixedBytes(self.bootloader_hash.into()),
             Token::FixedBytes(self.default_account_hash.into()),
             Token::Address(self.verifier),
@@ -291,21 +283,13 @@ impl ProposedUpgrade {
     /// Returns an error if token doesn't match the `schema()`.
     pub fn decode(token: Token) -> anyhow::Result<Self> {
         let tokens = token.into_tuple().context("not a tuple")?;
-        anyhow::ensure!(tokens.len() == 10);
+        anyhow::ensure!(tokens.len() == 9);
         let mut t = tokens.into_iter();
         let mut next = || t.next().unwrap();
         Ok(Self {
             l2_protocol_upgrade_tx: L2CanonicalTransaction::decode(next())
                 .context("l2_protocol_upgrade_tx")?
                 .into(),
-            factory_deps: next()
-                .into_array()
-                .context("factory_deps")?
-                .into_iter()
-                .enumerate()
-                .map(|(i, b)| b.into_bytes().context(i))
-                .collect::<Result<_, _>>()
-                .context("factory_deps")?,
             bootloader_hash: next()
                 .into_fixed_bytes()
                 .and_then(|b| b.try_into().ok())
@@ -363,5 +347,168 @@ impl Transaction {
             }
             Self::L2(raw) => TransactionRequest::from_bytes_unverified(raw)?.1,
         })
+    }
+}
+
+pub struct ForceDeployment {
+    pub bytecode_hash: H256,
+    pub new_address: Address,
+    pub call_constructor: bool,
+    pub value: U256,
+    pub input: Vec<u8>,
+}
+
+impl ForceDeployment {
+    /// ABI schema of the `ForceDeployment`.
+    pub fn schema() -> ParamType {
+        ParamType::Tuple(vec![
+            ParamType::FixedBytes(32),
+            ParamType::Address,
+            ParamType::Bool,
+            ParamType::Uint(256),
+            ParamType::Bytes,
+        ])
+    }
+
+    /// Encodes `ForceDeployment` to a RLP token.
+    pub fn encode(&self) -> Token {
+        Token::Tuple(vec![
+            Token::FixedBytes(self.bytecode_hash.0.to_vec()),
+            Token::Address(self.new_address),
+            Token::Bool(self.call_constructor),
+            Token::Uint(self.value),
+            Token::Bytes(self.input.clone()),
+        ])
+    }
+
+    /// Decodes `ForceDeployment` from a RLP token.
+    /// Returns an error if token doesn't match the `schema()`.
+    pub fn decode(token: Token) -> anyhow::Result<Self> {
+        let tokens = token.into_tuple().context("not a tuple")?;
+        anyhow::ensure!(tokens.len() == 5);
+        let mut t = tokens.into_iter();
+        let mut next = || t.next().unwrap();
+        Ok(Self {
+            bytecode_hash: next()
+                .into_fixed_bytes()
+                .and_then(|b| Some(H256(b.try_into().ok()?)))
+                .context("bytecode_hash")?,
+            new_address: next().into_address().context("new_address")?,
+            call_constructor: next().into_bool().context("call_constructor")?,
+            value: next().into_uint().context("value")?,
+            input: next().into_bytes().context("input")?,
+        })
+    }
+}
+
+pub struct GatewayUpgradeEncodedInput {
+    pub force_deployments: Vec<ForceDeployment>,
+    pub l2_gateway_upgrade_position: usize,
+    pub fixed_force_deployments_data: Vec<u8>,
+    pub ctm_deployer: Address,
+    pub old_validator_timelock: Address,
+    pub new_validator_timelock: Address,
+    pub wrapped_base_token_store: Address,
+}
+
+impl GatewayUpgradeEncodedInput {
+    /// ABI schema of the `GatewayUpgradeEncodedInput`.
+    pub fn schema() -> ParamType {
+        ParamType::Tuple(vec![
+            ParamType::Array(Box::new(ForceDeployment::schema())),
+            ParamType::Uint(256),
+            ParamType::Bytes,
+            ParamType::Address,
+            ParamType::Address,
+            ParamType::Address,
+            ParamType::Address,
+        ])
+    }
+
+    /// Decodes `GatewayUpgradeEncodedInput` from a RLP token.
+    /// Returns an error if token doesn't match the `schema()`.
+    pub fn decode(token: Token) -> anyhow::Result<Self> {
+        let tokens = token.into_tuple().context("not a tuple")?;
+        anyhow::ensure!(tokens.len() == 7);
+        let mut t = tokens.into_iter();
+        let mut next = || t.next().unwrap();
+
+        let force_deployments_array = next().into_array().context("force_deployments_array")?;
+        let mut force_deployments = vec![];
+        for token in force_deployments_array {
+            force_deployments.push(ForceDeployment::decode(token)?);
+        }
+
+        Ok(Self {
+            force_deployments,
+            l2_gateway_upgrade_position: next()
+                .into_uint()
+                .context("l2_gateway_upgrade_position")?
+                .as_usize(),
+            fixed_force_deployments_data: next()
+                .into_bytes()
+                .context("fixed_force_deployments_data")?,
+            ctm_deployer: next().into_address().context("ctm_deployer")?,
+            old_validator_timelock: next().into_address().context("old_validator_timelock")?,
+            new_validator_timelock: next().into_address().context("new_validator_timelock")?,
+            wrapped_base_token_store: next().into_address().context("wrapped_base_token_store")?,
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ZkChainSpecificUpgradeData {
+    pub base_token_asset_id: H256,
+    pub l2_legacy_shared_bridge: Address,
+    pub predeployed_l2_weth_address: Address,
+    pub base_token_l1_address: Address,
+    pub base_token_name: String,
+    pub base_token_symbol: String,
+}
+
+impl ZkChainSpecificUpgradeData {
+    pub fn from_partial_components(
+        base_token_asset_id: Option<H256>,
+        l2_legacy_shared_bridge: Option<Address>,
+        predeployed_l2_weth_address: Option<Address>,
+        base_token_l1_address: Option<Address>,
+        base_token_name: Option<String>,
+        base_token_symbol: Option<String>,
+    ) -> Option<Self> {
+        Some(Self {
+            base_token_asset_id: base_token_asset_id?,
+            l2_legacy_shared_bridge: l2_legacy_shared_bridge?,
+            // Note, that some chains may not contain previous deployment of L2 wrapped base
+            // token. For those, zero address is used.
+            predeployed_l2_weth_address: predeployed_l2_weth_address.unwrap_or_default(),
+            base_token_l1_address: base_token_l1_address?,
+            base_token_name: base_token_name?,
+            base_token_symbol: base_token_symbol?,
+        })
+    }
+
+    /// ABI schema of the `ZkChainSpecificUpgradeData`.
+    pub fn schema() -> ParamType {
+        ParamType::Tuple(vec![
+            ParamType::FixedBytes(32),
+            ParamType::Address,
+            ParamType::Address,
+        ])
+    }
+
+    /// Encodes `ZkChainSpecificUpgradeData` to a RLP token.
+    pub fn encode(&self) -> Token {
+        Token::Tuple(vec![
+            Token::FixedBytes(self.base_token_asset_id.0.to_vec()),
+            Token::Address(self.l2_legacy_shared_bridge),
+            Token::Address(self.predeployed_l2_weth_address),
+            Token::Address(self.base_token_l1_address),
+            Token::String(self.base_token_name.clone()),
+            Token::String(self.base_token_symbol.clone()),
+        ])
+    }
+
+    pub fn encode_bytes(&self) -> Vec<u8> {
+        ethabi::encode(&[self.encode()])
     }
 }

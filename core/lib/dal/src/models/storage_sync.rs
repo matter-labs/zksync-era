@@ -4,7 +4,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::error::SqlxContext;
 use zksync_types::{
     api::en,
-    commitment::{L1BatchCommitmentMode, PubdataParams},
+    commitment::{PubdataParams, PubdataType},
     parse_h160, parse_h256, parse_h256_opt, Address, L1BatchNumber, L2BlockNumber,
     ProtocolVersionId, Transaction, H256,
 };
@@ -97,7 +97,7 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
             hash: parse_h256(&block.hash).decode_column("hash")?,
             protocol_version: parse_protocol_version(block.protocol_version)?,
             pubdata_params: PubdataParams {
-                pubdata_type: L1BatchCommitmentMode::from_str(&block.pubdata_type)
+                pubdata_type: PubdataType::from_str(&block.pubdata_type)
                     .decode_column("Invalid pubdata type")?,
                 l2_da_validator_address: parse_h160(&block.l2_da_validator_address)
                     .decode_column("l2_da_validator_address")?,

@@ -31,6 +31,14 @@ pub async fn setup_legacy_bridge(
         transparent_proxy_admin: contracts_config
             .ecosystem_contracts
             .transparent_proxy_admin_addr,
+        l1_nullifier_proxy: contracts_config
+            .bridges
+            .l1_nullifier_addr
+            .context("`l1_nullifier` missing")?,
+        l1_native_token_vault: contracts_config
+            .ecosystem_contracts
+            .native_token_vault_addr
+            .context("`native_token_vault` missing")?,
         erc20bridge_proxy: contracts_config.bridges.erc20.l1_address,
         token_weth_address: Default::default(),
         chain_id: chain_config.chain_id,

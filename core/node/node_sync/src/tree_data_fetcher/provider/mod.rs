@@ -144,17 +144,11 @@ impl L1DataProvider {
             diamond_proxy_addr: l1_diamond_proxy_addr,
         };
         let gateway_chain_data = if let Some(client) = gateway_client {
-            let contract = bridgehub_contract();
-            let function_name = if contract.function("getZKChain").is_ok() {
-                "getZKChain"
-            } else {
-                "getHyperchain"
-            };
             let gateway_diamond_proxy = CallFunctionArgs::new(
-                function_name,
+                "getZKChain",
                 zksync_types::ethabi::Token::Uint(l2_chain_id.as_u64().into()),
             )
-            .for_contract(L2_BRIDGEHUB_ADDRESS, &contract)
+            .for_contract(L2_BRIDGEHUB_ADDRESS, &bridgehub_contract())
             .call(&client)
             .await?;
             let chain_id = client.fetch_chain_id().await?;

@@ -11767,6 +11767,7 @@ dependencies = [
  "tokio-stream",
  "tonic 0.11.0",
  "tracing",
+ "url",
  "zksync_basic_types",
  "zksync_config",
  "zksync_da_client",
@@ -11888,7 +11889,6 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "chrono",
- "once_cell",
  "serde",
  "test-casing",
  "test-log",
@@ -11938,6 +11938,7 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_concurrency",
+ "zksync_config",
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
@@ -12132,6 +12133,7 @@ dependencies = [
  "zksync_kzg",
  "zksync_prover_interface",
  "zksync_solidity_vk_codegen",
+ "zksync_system_constants",
  "zksync_types",
 ]
 
@@ -12223,6 +12225,7 @@ name = "zksync_mini_merkle_tree"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "hex",
  "once_cell",
  "zksync_basic_types",
  "zksync_crypto_primitives",
@@ -12320,6 +12323,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "hex",
  "rand 0.8.5",
  "secrecy 0.8.0",
  "semver 1.0.23",
@@ -12343,6 +12347,7 @@ dependencies = [
  "zksync_l1_contract_interface",
  "zksync_merkle_tree",
  "zksync_metadata_calculator",
+ "zksync_multivm",
  "zksync_node_api_server",
  "zksync_node_genesis",
  "zksync_node_sync",
@@ -12537,6 +12542,7 @@ dependencies = [
  "zksync_dal",
  "zksync_eth_client",
  "zksync_health_check",
+ "zksync_multivm",
  "zksync_node_genesis",
  "zksync_node_test_utils",
  "zksync_shared_metrics",
@@ -12961,11 +12967,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_matches",
+ "async-trait",
  "bigdecimal",
  "bincode",
  "blake2 0.10.6",
  "chrono",
  "derive_more 1.0.0",
+ "ethabi",
  "hex",
  "itertools 0.10.5",
  "num",

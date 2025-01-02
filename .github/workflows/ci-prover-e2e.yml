@@ -67,13 +67,13 @@ jobs:
       - name: Run server
         run: |
           ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs/server.log &
-      - name: Run Gateway
+      - name: Run prover gateway
         run: |
           ci_run zkstack prover run --component=gateway --docker=false &>prover_logs/gateway.log &
       - name: Run Prover Job Monitor
         run: |
           ci_run zkstack prover run --component=prover-job-monitor --docker=false &>prover_logs/prover-job-monitor.log &
-      - name: Wait for batch to be passed through gateway
+      - name: Wait for batch to be passed through prover gateway
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
           BATCH_NUMBER: 1
@@ -105,10 +105,10 @@ jobs:
           ci_run zkstack prover run --component=compressor --docker=false &>prover_logs/compressor.log &
       - name: Wait for batch to be executed on L1
         env:
-            DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
-            BATCH_NUMBER: 1
-            INTERVAL: 30
-            TIMEOUT: 600
+          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
+          BATCH_NUMBER: 1
+          INTERVAL: 30
+          TIMEOUT: 600
         run: |
           PASSED_ENV_VARS="BATCH_NUMBER,DATABASE_URL,URL,INTERVAL,TIMEOUT" \
           ci_run ./bin/prover_checkers/batch_l1_status_checker

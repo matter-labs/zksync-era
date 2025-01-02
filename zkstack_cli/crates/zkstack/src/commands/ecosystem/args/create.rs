@@ -68,8 +68,9 @@ impl EcosystemCreateArgs {
             link_to_code,
             wallet_creation: chain.wallet_creation,
             wallet_path: chain.wallet_path.clone(),
-            chain_args: chain,
+            chain_args: chain.clone(),
             start_containers,
+            skip_submodules_checkout: chain.skip_submodules_checkout,
         })
     }
 }
@@ -83,6 +84,7 @@ pub struct EcosystemCreateArgsFinal {
     pub wallet_path: Option<PathBuf>,
     pub chain_args: ChainCreateArgsFinal,
     pub start_containers: bool,
+    pub skip_submodules_checkout: bool,
 }
 
 impl EcosystemCreateArgsFinal {

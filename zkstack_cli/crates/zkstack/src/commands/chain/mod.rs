@@ -3,6 +3,9 @@ use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
+use gateway_upgrade::GatewayUpgradeArgs;
+use migrate_from_gateway::MigrateFromGatewayArgs;
+use migrate_to_gateway::MigrateToGatewayArgs;
 use xshell::Shell;
 
 use crate::commands::chain::{
@@ -12,14 +15,18 @@ use crate::commands::chain::{
 
 mod accept_chain_ownership;
 pub(crate) mod args;
-mod build_transactions;
-mod common;
-mod create;
+pub mod build_transactions;
+pub mod common;
+pub mod convert_to_gateway;
+pub mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
 mod enable_evm_emulator;
+pub mod gateway_upgrade;
 pub mod genesis;
 pub mod init;
+mod migrate_from_gateway;
+mod migrate_to_gateway;
 pub mod register_chain;
 mod set_token_multiplier_setter;
 mod setup_legacy_bridge;
@@ -48,9 +55,6 @@ pub enum ChainCommands {
     /// DiamondProxy contract.
     #[command(alias = "accept-ownership")]
     AcceptChainOwnership(ForgeScriptArgs),
-    /// Initialize bridges on L2
-    #[command(alias = "bridge")]
-    InitializeBridges(ForgeScriptArgs),
     /// Deploy L2 consensus registry
     #[command(alias = "consensus")]
     DeployConsensusRegistry(ForgeScriptArgs),
@@ -68,6 +72,14 @@ pub enum ChainCommands {
     DeployPaymaster(ForgeScriptArgs),
     /// Update Token Multiplier Setter address on L1
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
+    /// Prepare chain to be an eligible gateway
+    ConvertToGateway(ForgeScriptArgs),
+    /// Migrate chain to gateway
+    MigrateToGateway(MigrateToGatewayArgs),
+    /// Migrate chain from gateway
+    MigrateFromGateway(MigrateFromGatewayArgs),
+    /// Upgrade to the protocol version that supports Gateway
+    GatewayUpgrade(GatewayUpgradeArgs),
     /// Enable EVM emulation on chain (Not supported yet)
     EnableEvmEmulator(ForgeScriptArgs),
 }
@@ -95,13 +107,14 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::DeployUpgrader(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Upgrader).await
         }
-        ChainCommands::InitializeBridges(args) => {
-            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::InitiailizeBridges).await
-        }
         ChainCommands::DeployPaymaster(args) => deploy_paymaster::run(args, shell).await,
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
             set_token_multiplier_setter::run(args, shell).await
         }
+        ChainCommands::ConvertToGateway(args) => convert_to_gateway::run(args, shell).await,
+        ChainCommands::MigrateToGateway(args) => migrate_to_gateway::run(args, shell).await,
+        ChainCommands::MigrateFromGateway(args) => migrate_from_gateway::run(args, shell).await,
+        ChainCommands::GatewayUpgrade(args) => gateway_upgrade::run(args, shell).await,
         ChainCommands::EnableEvmEmulator(args) => enable_evm_emulator::run(args, shell).await,
     }
 }

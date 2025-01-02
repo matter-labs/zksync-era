@@ -29,6 +29,10 @@ export function getContractSource(relativePath: string): string {
     return source;
 }
 
+export function readContract(path: string, fileName: string) {
+    return JSON.parse(fs.readFileSync(`${path}/${fileName}.sol/${fileName}.json`, { encoding: 'utf-8' }));
+}
+
 /**
  * Performs a contract deployment
  *
@@ -97,6 +101,16 @@ export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber
     }
 }
 
+export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: number, txHash: string) {
+    // First, we wait for block to be finalized.
+    await waitUntilBlockFinalized(wallet, blockNumber);
+
+    // Second, we wait for the log proof.
+    while ((await wallet.provider.getLogProof(txHash)) == null) {
+        await zksync.utils.sleep(wallet.provider.pollingInterval);
+    }
+}
+
 /**
  * Returns an increased gas price to decrease chances of L1 transactions being stuck
  *
@@ -140,4 +154,8 @@ export function bigIntMax(...args: bigint[]) {
     }
 
     return args.reduce((max, current) => (current > max ? current : max), args[0]);
+}
+
+export function isLocalHost(network: string): boolean {
+    return network == 'localhost';
 }

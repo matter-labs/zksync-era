@@ -49,6 +49,7 @@ pub async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<(
         &args.l1_rpc_url,
         Some(args.sender),
         false,
+        false,
     )
     .await?;
 

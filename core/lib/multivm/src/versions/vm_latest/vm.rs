@@ -47,7 +47,7 @@ pub(crate) enum MultiVmSubversion {
 impl MultiVmSubversion {
     #[cfg(test)]
     pub(crate) fn latest() -> Self {
-        Self::IncreasedBootloaderMemory
+        Self::Gateway
     }
 }
 

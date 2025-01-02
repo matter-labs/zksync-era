@@ -9,7 +9,7 @@
 use std::{collections::HashMap, convert::TryFrom};
 
 use serde::{Deserialize, Serialize};
-pub use zksync_basic_types::commitment::{L1BatchCommitmentMode, PubdataParams};
+pub use zksync_basic_types::commitment::*;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_mini_merkle_tree::MiniMerkleTree;
@@ -112,6 +112,7 @@ pub struct L1BatchMetadata {
     pub aux_data_hash: H256,
     pub meta_parameters_hash: H256,
     pub pass_through_data_hash: H256,
+
     /// The commitment to the final events queue state after the batch is committed.
     /// Practically, it is a commitment to all events that happened on L2 during the batch execution.
     pub events_queue_commitment: Option<H256>,

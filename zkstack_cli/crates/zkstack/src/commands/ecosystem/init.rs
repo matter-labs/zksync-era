@@ -3,7 +3,7 @@ use std::{path::PathBuf, str::FromStr};
 use anyhow::Context;
 use common::{
     config::global_config,
-    contracts::build_system_contracts,
+    contracts::{build_l1_contracts, build_l2_contracts, build_system_contracts},
     forge::{Forge, ForgeScriptArgs},
     git, logger,
     spinner::Spinner,
@@ -27,6 +27,7 @@ use super::{
     args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
     common::deploy_l1,
     setup_observability,
+    utils::{build_da_contracts, install_yarn_dependencies},
 };
 use crate::{
     accept_ownership::{accept_admin, accept_owner},
@@ -49,7 +50,10 @@ use crate::{
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
+    if !args.skip_submodules_checkout {
+        println!("Checking out submodules");
+        git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
+    }
 
     let initial_deployment_config = match ecosystem_config.get_initial_deployment_config() {
         Ok(config) => config,
@@ -108,7 +112,13 @@ async fn init_ecosystem(
     initial_deployment_config: &InitialDeploymentConfig,
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
-    build_system_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
+    install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
+    if !init_args.skip_contract_compilation_override {
+        build_da_contracts(shell, &ecosystem_config.link_to_code)?;
+        build_l1_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
+        build_system_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
+        build_l2_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
+    }
     spinner.finish();
 
     let contracts = deploy_ecosystem(
@@ -117,6 +127,7 @@ async fn init_ecosystem(
         init_args.forge_args.clone(),
         ecosystem_config,
         initial_deployment_config,
+        init_args.support_l2_legacy_shared_bridge_test,
     )
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -144,7 +155,7 @@ async fn deploy_erc20(
     )
     .save(shell, deploy_config_path)?;
 
-    let mut forge = Forge::new(&ecosystem_config.path_to_foundry())
+    let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
         .script(&DEPLOY_ERC20_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
@@ -175,6 +186,7 @@ async fn deploy_ecosystem(
     forge_args: ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
+    support_l2_legacy_shared_bridge_test: bool,
 ) -> anyhow::Result<ContractsConfig> {
     if ecosystem.deploy_ecosystem {
         return deploy_ecosystem_inner(
@@ -183,6 +195,7 @@ async fn deploy_ecosystem(
             ecosystem_config,
             initial_deployment_config,
             ecosystem.l1_rpc_url.clone(),
+            support_l2_legacy_shared_bridge_test,
         )
         .await;
     }
@@ -244,6 +257,7 @@ async fn deploy_ecosystem_inner(
     config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
     l1_rpc_url: String,
+    support_l2_legacy_shared_bridge_test: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
     let contracts_config = deploy_l1(
@@ -254,6 +268,7 @@ async fn deploy_ecosystem_inner(
         &l1_rpc_url,
         None,
         true,
+        support_l2_legacy_shared_bridge_test,
     )
     .await?;
     spinner.finish();
@@ -291,16 +306,8 @@ async fn deploy_ecosystem_inner(
     )
     .await?;
 
-    accept_admin(
-        shell,
-        config,
-        contracts_config.l1.chain_admin_addr,
-        &config.get_wallets()?.governor,
-        contracts_config.bridges.shared.l1_address,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
+    // Note, that there is no admin in L1 asset router, so we do
+    // need to accept it
 
     accept_owner(
         shell,
@@ -323,6 +330,20 @@ async fn deploy_ecosystem_inner(
         contracts_config
             .ecosystem_contracts
             .state_transition_proxy_addr,
+        &forge_args,
+        l1_rpc_url.clone(),
+    )
+    .await?;
+
+    accept_owner(
+        shell,
+        config,
+        contracts_config.l1.governance_addr,
+        &config.get_wallets()?.governor,
+        contracts_config
+            .ecosystem_contracts
+            .stm_deployment_tracker_proxy_addr
+            .context("stm_deployment_tracker_proxy_addr")?,
         &forge_args,
         l1_rpc_url.clone(),
     )
@@ -369,7 +390,9 @@ async fn init_chains(
             deploy_paymaster,
             l1_rpc_url: Some(final_init_args.ecosystem.l1_rpc_url.clone()),
             no_port_reallocation: final_init_args.no_port_reallocation,
+            skip_submodules_checkout: final_init_args.skip_submodules_checkout,
             dev: final_init_args.dev,
+            validium_args: final_init_args.validium_args.clone(),
         };
         let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
 

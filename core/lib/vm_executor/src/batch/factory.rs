@@ -238,6 +238,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
             .expect("failed extracting call traces")
             .take()
             .unwrap_or_default();
+
         BatchTransactionExecutionResult {
             tx_result: Box::new(tx_result),
             compressed_bytecodes,

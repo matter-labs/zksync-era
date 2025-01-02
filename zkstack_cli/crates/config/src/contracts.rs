@@ -1,5 +1,6 @@
 use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
+use zksync_system_constants::{L2_ASSET_ROUTER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 
 use crate::{
     consts::CONTRACTS_FILE,
@@ -38,6 +39,12 @@ impl ContractsConfig {
             .deployed_addresses
             .bridges
             .shared_bridge_proxy_addr;
+        self.bridges.l1_nullifier_addr = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .bridges
+                .l1_nullifier_proxy_addr,
+        );
         self.ecosystem_contracts.bridgehub_proxy_addr = deploy_l1_output
             .deployed_addresses
             .bridgehub
@@ -49,6 +56,26 @@ impl ContractsConfig {
         self.ecosystem_contracts.transparent_proxy_admin_addr = deploy_l1_output
             .deployed_addresses
             .transparent_proxy_admin_addr;
+        self.ecosystem_contracts.l1_bytecodes_supplier_addr = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .state_transition
+                .bytecodes_supplier_addr,
+        );
+        self.ecosystem_contracts.stm_deployment_tracker_proxy_addr = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .bridgehub
+                .ctm_deployment_tracker_proxy_addr,
+        );
+        self.ecosystem_contracts.force_deployments_data = Some(
+            deploy_l1_output
+                .contracts_config
+                .force_deployments_data
+                .clone(),
+        );
+        self.ecosystem_contracts.expected_rollup_l2_da_validator =
+            Some(deploy_l1_output.expected_rollup_l2_da_validator_addr);
         self.l1.default_upgrade_addr = deploy_l1_output
             .deployed_addresses
             .state_transition
@@ -61,6 +88,8 @@ impl ContractsConfig {
         self.l1.multicall3_addr = deploy_l1_output.multicall3_addr;
         self.ecosystem_contracts.validator_timelock_addr =
             deploy_l1_output.deployed_addresses.validator_timelock_addr;
+        self.ecosystem_contracts.native_token_vault_addr =
+            Some(deploy_l1_output.deployed_addresses.native_token_vault_addr);
         self.l1.verifier_addr = deploy_l1_output
             .deployed_addresses
             .state_transition
@@ -70,6 +99,21 @@ impl ContractsConfig {
         self.ecosystem_contracts
             .diamond_cut_data
             .clone_from(&deploy_l1_output.contracts_config.diamond_cut_data);
+        self.l1.rollup_l1_da_validator_addr = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .rollup_l1_da_validator_addr,
+        );
+        self.l1.no_da_validium_l1_validator_addr = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .no_da_validium_l1_validator_addr,
+        );
+        self.l1.avail_l1_da_validator_addr = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .avail_l1_da_validator_addr,
+        );
         self.l1.chain_admin_addr = deploy_l1_output.deployed_addresses.chain_admin;
     }
 
@@ -77,16 +121,25 @@ impl ContractsConfig {
         self.l1.diamond_proxy_addr = register_chain_output.diamond_proxy_addr;
         self.l1.governance_addr = register_chain_output.governance_addr;
         self.l1.chain_admin_addr = register_chain_output.chain_admin_addr;
+        self.l1.access_control_restriction_addr =
+            Some(register_chain_output.access_control_restriction_addr);
+        self.l1.chain_proxy_admin_addr = Some(register_chain_output.chain_proxy_admin_addr);
+        self.l2.legacy_shared_bridge_addr = register_chain_output.l2_legacy_shared_bridge_addr;
     }
 
     pub fn set_l2_shared_bridge(
         &mut self,
         initialize_bridges_output: &InitializeBridgeOutput,
     ) -> anyhow::Result<()> {
-        self.bridges.shared.l2_address = Some(initialize_bridges_output.l2_shared_bridge_proxy);
-        self.bridges.erc20.l2_address = Some(initialize_bridges_output.l2_shared_bridge_proxy);
-        self.l2.legacy_shared_bridge_addr = Some(initialize_bridges_output.l2_shared_bridge_proxy);
+        self.bridges.shared.l2_address = Some(L2_ASSET_ROUTER_ADDRESS);
+        self.bridges.erc20.l2_address = Some(L2_ASSET_ROUTER_ADDRESS);
+        self.l2.l2_native_token_vault_proxy_addr = Some(L2_NATIVE_TOKEN_VAULT_ADDRESS);
+        self.l2.da_validator_addr = Some(initialize_bridges_output.l2_da_validator_address);
         Ok(())
+    }
+
+    pub fn set_transaction_filterer(&mut self, transaction_filterer_addr: Address) {
+        self.l1.transaction_filterer_addr = Some(transaction_filterer_addr);
     }
 
     pub fn set_consensus_registry(
@@ -130,8 +183,22 @@ pub struct EcosystemContracts {
     pub bridgehub_proxy_addr: Address,
     pub state_transition_proxy_addr: Address,
     pub transparent_proxy_admin_addr: Address,
+    // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stm_deployment_tracker_proxy_addr: Option<Address>,
     pub validator_timelock_addr: Address,
     pub diamond_cut_data: String,
+    // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub force_deployments_data: Option<String>,
+    // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub native_token_vault_addr: Option<Address>,
+    // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub l1_bytecodes_supplier_addr: Option<Address>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_rollup_l2_da_validator: Option<Address>,
 }
 
 impl ZkStackConfig for EcosystemContracts {}
@@ -140,6 +207,8 @@ impl ZkStackConfig for EcosystemContracts {}
 pub struct BridgesContracts {
     pub erc20: BridgeContractsDefinition,
     pub shared: BridgeContractsDefinition,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub l1_nullifier_addr: Option<Address>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -156,18 +225,50 @@ pub struct L1Contracts {
     pub governance_addr: Address,
     #[serde(default)]
     pub chain_admin_addr: Address,
+    // Option to be able to parse old configs
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_control_restriction_addr: Option<Address>,
+    // Option to be able to parse old configs
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chain_proxy_admin_addr: Option<Address>,
     pub multicall3_addr: Address,
     pub verifier_addr: Address,
     pub validator_timelock_addr: Address,
     pub base_token_addr: Address,
+    // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_token_asset_id: Option<H256>,
+    // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rollup_l1_da_validator_addr: Option<Address>,
+    // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avail_l1_da_validator_addr: Option<Address>,
+    // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub no_da_validium_l1_validator_addr: Option<Address>,
+    // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transaction_filterer_addr: Option<Address>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct L2Contracts {
     pub testnet_paymaster_addr: Address,
     pub default_l2_upgrader: Address,
+    // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub da_validator_addr: Option<Address>,
+    // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub l2_native_token_vault_proxy_addr: Option<Address>,
+    // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub legacy_shared_bridge_addr: Option<Address>,
     pub consensus_registry: Option<Address>,
     pub multicall3: Option<Address>,
-    pub legacy_shared_bridge_addr: Option<Address>,
     pub timestamp_asserter_addr: Option<Address>,
+    // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub predeployed_l2_wrapped_base_token_address: Option<Address>,
 }

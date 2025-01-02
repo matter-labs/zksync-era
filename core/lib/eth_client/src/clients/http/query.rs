@@ -366,6 +366,7 @@ where
         for (base, blob) in fee_history
             .base_fee_per_gas
             .into_iter()
+            .take(chunk_size)
             .zip(fee_history.base_fee_per_blob_gas)
             .take(chunk_size)
         {

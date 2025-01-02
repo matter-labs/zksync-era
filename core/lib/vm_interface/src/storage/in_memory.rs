@@ -2,7 +2,7 @@ use std::collections::{hash_map::Entry, BTreeMap, HashMap};
 
 use zksync_types::{
     block::DeployedContract, bytecode::BytecodeHash, get_code_key, get_known_code_key,
-    get_system_context_init_logs, system_contracts::get_system_smart_contracts, L2ChainId,
+    get_system_contracts_init_logs, system_contracts::get_system_smart_contracts, L2ChainId,
     StorageKey, StorageLog, StorageValue, H256,
 };
 
@@ -37,7 +37,7 @@ impl InMemoryStorage {
         chain_id: L2ChainId,
         contracts: Vec<DeployedContract>,
     ) -> Self {
-        let system_context_init_log = get_system_context_init_logs(chain_id);
+        let system_context_init_log = get_system_contracts_init_logs(chain_id);
 
         let state_without_indices: BTreeMap<_, _> = contracts
             .iter()

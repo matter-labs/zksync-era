@@ -113,7 +113,7 @@ impl ExternalIO {
             .connection_tagged("sync_layer")
             .await?
             .protocol_versions_dal()
-            .get_base_system_contract_hashes_by_version_id(protocol_version as u16)
+            .get_base_system_contract_hashes_by_version_id(protocol_version)
             .await?;
         if base_system_contract_hashes.is_some() {
             return Ok(());
@@ -410,7 +410,7 @@ impl StateKeeperIO for ExternalIO {
             .connection_tagged("sync_layer")
             .await?
             .protocol_versions_dal()
-            .get_base_system_contract_hashes_by_version_id(protocol_version as u16)
+            .get_base_system_contract_hashes_by_version_id(protocol_version)
             .await?
             .with_context(|| {
                 format!("Cannot load base system contracts' hashes for {protocol_version:?}. They should already be present")

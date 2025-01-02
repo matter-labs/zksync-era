@@ -85,6 +85,8 @@ in-file\:"Specify file with wallets"))' \
 '--start-containers=[Start reth and postgres containers after creation]' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--legacy-bridge[]' \
+'--skip-submodules-checkout[Skip submodules checkout]' \
+'--skip-contract-compilation-override[Skip contract compilation override]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -106,6 +108,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -130,13 +133,18 @@ _arguments "${_arguments_options[@]}" : \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '-o+[Enable Grafana]' \
 '--observability=[Enable Grafana]' \
+'--validium-type=[Type of the Validium network]:VALIDIUM_TYPE:(no-da avail)' \
+'--support-l2-legacy-shared-bridge-test=[]' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-d[]' \
 '--dont-drop[]' \
 '--ecosystem-only[Initialize ecosystem only and skip chain initialization (chain can be initialized later with \`chain init\` subcommand)]' \
 '--dev[Use defaults for all options and flags. Suitable for local development]' \
 '--no-port-reallocation[Do not reallocate ports]' \
+'--skip-submodules-checkout[Skip submodules checkout]' \
+'--skip-contract-compilation-override[Skip contract compilation override]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -163,6 +171,27 @@ _arguments "${_arguments_options[@]}" : \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
 '-h[Print help]' \
 '--help[Print help]' \
+&& ret=0
+;;
+(gateway-upgrade)
+_arguments "${_arguments_options[@]}" : \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--ecosystem-upgrade-stage=[]:ECOSYSTEM_UPGRADE_STAGE:(no-governance-prepare governance-stage1 governance-stage2 no-governance-stage2 governance-stage3 no-governance-stage3)' \
+'--ecosystem-contracts-path=[Path to ecosystem contracts]:ECOSYSTEM_CONTRACTS_PATH:_files' \
+'--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'--zksync[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
 ;;
 (help)
@@ -194,6 +223,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (setup-observability)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(gateway-upgrade)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -245,6 +278,8 @@ in-file\:"Specify file with wallets"))' \
 '--evm-emulator=[Enable EVM emulator]' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--legacy-bridge[]' \
+'--skip-submodules-checkout[Skip submodules checkout]' \
+'--skip-contract-compilation-override[Skip contract compilation override]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -265,6 +300,7 @@ _arguments "${_arguments_options[@]}" : \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -284,12 +320,15 @@ _arguments "${_arguments_options[@]}" : \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '--deploy-paymaster=[]' \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
+'--validium-type=[Type of the Validium network]:VALIDIUM_TYPE:(no-da avail)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-d[]' \
 '--dont-drop[]' \
 '--no-port-reallocation[Do not reallocate ports]' \
 '--dev[Use defaults for all options and flags. Suitable for local development]' \
+'--skip-submodules-checkout[Skip submodules checkout]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -443,6 +482,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -460,6 +500,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -477,23 +518,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
-'-v[Verbose mode]' \
-'--verbose[Verbose mode]' \
-'--ignore-prerequisites[Ignores prerequisites checks]' \
-'-h[Print help (see more with '\''--help'\'')]' \
-'--help[Print help (see more with '\''--help'\'')]' \
-&& ret=0
-;;
-(initialize-bridges)
-_arguments "${_arguments_options[@]}" : \
-'--verify=[Verify deployed contracts]' \
-'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
-'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
-'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
-'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'--chain=[Chain to use]:CHAIN:_default' \
-'--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -511,6 +536,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -528,6 +554,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -545,6 +572,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -562,6 +590,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -579,6 +608,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -596,11 +626,87 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(convert-to-gateway)
+_arguments "${_arguments_options[@]}" : \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'--zksync[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(migrate-to-gateway)
+_arguments "${_arguments_options[@]}" : \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--gateway-chain-name=[]:GATEWAY_CHAIN_NAME:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'--zksync[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(migrate-from-gateway)
+_arguments "${_arguments_options[@]}" : \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--gateway-chain-name=[]:GATEWAY_CHAIN_NAME:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'--zksync[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(gateway-upgrade)
+_arguments "${_arguments_options[@]}" : \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'--zksync[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+':chain_upgrade_stage:(adapt-config prepare-stage1 schedule-stage1 finalize-stage1 finalize-stage2 keep-up-stage2 set-l2weth-for-chain)' \
 && ret=0
 ;;
 (enable-evm-emulator)
@@ -613,6 +719,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -696,10 +803,6 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(initialize-bridges)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
 (deploy-consensus-registry)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -721,6 +824,22 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (update-token-multiplier-setter)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(convert-to-gateway)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(migrate-to-gateway)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(migrate-from-gateway)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(gateway-upgrade)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -1490,6 +1609,7 @@ esac
 (contracts)
 _arguments "${_arguments_options[@]}" : \
 '--l1-contracts=[Build L1 contracts]' \
+'--l1-da-contracts=[Build L1 DA contracts]' \
 '--l2-contracts=[Build L2 contracts]' \
 '--system-contracts=[Build system contracts]' \
 '--chain=[Chain to use]:CHAIN:_default' \
@@ -2620,6 +2740,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(gateway-upgrade)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
         esac
     ;;
 esac
@@ -2700,10 +2824,6 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(initialize-bridges)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
 (deploy-consensus-registry)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -2725,6 +2845,22 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (update-token-multiplier-setter)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(convert-to-gateway)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(migrate-to-gateway)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(migrate-from-gateway)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(gateway-upgrade)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -3253,13 +3389,16 @@ _zkstack__chain_commands() {
 'register-chain:Register a new chain on L1 (executed by L1 governor). This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts, registers chain with BridgeHub and sets pending admin for DiamondProxy. Note\: After completion, L2 governor can accept ownership by running \`accept-chain-ownership\`' \
 'deploy-l2-contracts:Deploy all L2 contracts (executed by L1 governor)' \
 'accept-chain-ownership:Accept ownership of L2 chain (executed by L2 governor). This command should be run after \`register-chain\` to accept ownership of newly created DiamondProxy contract' \
-'initialize-bridges:Initialize bridges on L2' \
 'deploy-consensus-registry:Deploy L2 consensus registry' \
 'deploy-multicall3:Deploy L2 multicall3' \
 'deploy-timestamp-asserter:Deploy L2 TimestampAsserter' \
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
+'convert-to-gateway:Prepare chain to be an eligible gateway' \
+'migrate-to-gateway:Migrate chain to gateway' \
+'migrate-from-gateway:Migrate chain from gateway' \
+'gateway-upgrade:Upgrade to the protocol version that supports Gateway' \
 'enable-evm-emulator:Enable EVM emulation on chain (Not supported yet)' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
@@ -3274,6 +3413,11 @@ _zkstack__chain__accept-chain-ownership_commands() {
 _zkstack__chain__build-transactions_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain build-transactions commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__convert-to-gateway_commands] )) ||
+_zkstack__chain__convert-to-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain convert-to-gateway commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__create_commands] )) ||
 _zkstack__chain__create_commands() {
@@ -3314,6 +3458,11 @@ _zkstack__chain__deploy-upgrader_commands() {
 _zkstack__chain__enable-evm-emulator_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain enable-evm-emulator commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway-upgrade_commands] )) ||
+_zkstack__chain__gateway-upgrade_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway-upgrade commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__genesis_commands] )) ||
 _zkstack__chain__genesis_commands() {
@@ -3368,13 +3517,16 @@ _zkstack__chain__help_commands() {
 'register-chain:Register a new chain on L1 (executed by L1 governor). This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts, registers chain with BridgeHub and sets pending admin for DiamondProxy. Note\: After completion, L2 governor can accept ownership by running \`accept-chain-ownership\`' \
 'deploy-l2-contracts:Deploy all L2 contracts (executed by L1 governor)' \
 'accept-chain-ownership:Accept ownership of L2 chain (executed by L2 governor). This command should be run after \`register-chain\` to accept ownership of newly created DiamondProxy contract' \
-'initialize-bridges:Initialize bridges on L2' \
 'deploy-consensus-registry:Deploy L2 consensus registry' \
 'deploy-multicall3:Deploy L2 multicall3' \
 'deploy-timestamp-asserter:Deploy L2 TimestampAsserter' \
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
+'convert-to-gateway:Prepare chain to be an eligible gateway' \
+'migrate-to-gateway:Migrate chain to gateway' \
+'migrate-from-gateway:Migrate chain from gateway' \
+'gateway-upgrade:Upgrade to the protocol version that supports Gateway' \
 'enable-evm-emulator:Enable EVM emulation on chain (Not supported yet)' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
@@ -3389,6 +3541,11 @@ _zkstack__chain__help__accept-chain-ownership_commands() {
 _zkstack__chain__help__build-transactions_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help build-transactions commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__convert-to-gateway_commands] )) ||
+_zkstack__chain__help__convert-to-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help convert-to-gateway commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__help__create_commands] )) ||
 _zkstack__chain__help__create_commands() {
@@ -3430,6 +3587,11 @@ _zkstack__chain__help__enable-evm-emulator_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help enable-evm-emulator commands' commands "$@"
 }
+(( $+functions[_zkstack__chain__help__gateway-upgrade_commands] )) ||
+_zkstack__chain__help__gateway-upgrade_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help gateway-upgrade commands' commands "$@"
+}
 (( $+functions[_zkstack__chain__help__genesis_commands] )) ||
 _zkstack__chain__help__genesis_commands() {
     local commands; commands=(
@@ -3465,10 +3627,15 @@ _zkstack__chain__help__init__configs_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help init configs commands' commands "$@"
 }
-(( $+functions[_zkstack__chain__help__initialize-bridges_commands] )) ||
-_zkstack__chain__help__initialize-bridges_commands() {
+(( $+functions[_zkstack__chain__help__migrate-from-gateway_commands] )) ||
+_zkstack__chain__help__migrate-from-gateway_commands() {
     local commands; commands=()
-    _describe -t commands 'zkstack chain help initialize-bridges commands' commands "$@"
+    _describe -t commands 'zkstack chain help migrate-from-gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__migrate-to-gateway_commands] )) ||
+_zkstack__chain__help__migrate-to-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help migrate-to-gateway commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__help__register-chain_commands] )) ||
 _zkstack__chain__help__register-chain_commands() {
@@ -3511,10 +3678,15 @@ _zkstack__chain__init__help__help_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain init help help commands' commands "$@"
 }
-(( $+functions[_zkstack__chain__initialize-bridges_commands] )) ||
-_zkstack__chain__initialize-bridges_commands() {
+(( $+functions[_zkstack__chain__migrate-from-gateway_commands] )) ||
+_zkstack__chain__migrate-from-gateway_commands() {
     local commands; commands=()
-    _describe -t commands 'zkstack chain initialize-bridges commands' commands "$@"
+    _describe -t commands 'zkstack chain migrate-from-gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__migrate-to-gateway_commands] )) ||
+_zkstack__chain__migrate-to-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain migrate-to-gateway commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__register-chain_commands] )) ||
 _zkstack__chain__register-chain_commands() {
@@ -4451,6 +4623,7 @@ _zkstack__ecosystem_commands() {
 'init:Initialize ecosystem and chain, deploying necessary contracts and performing on-chain operations' \
 'change-default-chain:Change the default chain' \
 'setup-observability:Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo' \
+'gateway-upgrade:Gateway version upgrade' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack ecosystem commands' commands "$@"
@@ -4470,6 +4643,11 @@ _zkstack__ecosystem__create_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack ecosystem create commands' commands "$@"
 }
+(( $+functions[_zkstack__ecosystem__gateway-upgrade_commands] )) ||
+_zkstack__ecosystem__gateway-upgrade_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack ecosystem gateway-upgrade commands' commands "$@"
+}
 (( $+functions[_zkstack__ecosystem__help_commands] )) ||
 _zkstack__ecosystem__help_commands() {
     local commands; commands=(
@@ -4478,6 +4656,7 @@ _zkstack__ecosystem__help_commands() {
 'init:Initialize ecosystem and chain, deploying necessary contracts and performing on-chain operations' \
 'change-default-chain:Change the default chain' \
 'setup-observability:Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo' \
+'gateway-upgrade:Gateway version upgrade' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack ecosystem help commands' commands "$@"
@@ -4496,6 +4675,11 @@ _zkstack__ecosystem__help__change-default-chain_commands() {
 _zkstack__ecosystem__help__create_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack ecosystem help create commands' commands "$@"
+}
+(( $+functions[_zkstack__ecosystem__help__gateway-upgrade_commands] )) ||
+_zkstack__ecosystem__help__gateway-upgrade_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack ecosystem help gateway-upgrade commands' commands "$@"
 }
 (( $+functions[_zkstack__ecosystem__help__help_commands] )) ||
 _zkstack__ecosystem__help__help_commands() {
@@ -4692,13 +4876,16 @@ _zkstack__help__chain_commands() {
 'register-chain:Register a new chain on L1 (executed by L1 governor). This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts, registers chain with BridgeHub and sets pending admin for DiamondProxy. Note\: After completion, L2 governor can accept ownership by running \`accept-chain-ownership\`' \
 'deploy-l2-contracts:Deploy all L2 contracts (executed by L1 governor)' \
 'accept-chain-ownership:Accept ownership of L2 chain (executed by L2 governor). This command should be run after \`register-chain\` to accept ownership of newly created DiamondProxy contract' \
-'initialize-bridges:Initialize bridges on L2' \
 'deploy-consensus-registry:Deploy L2 consensus registry' \
 'deploy-multicall3:Deploy L2 multicall3' \
 'deploy-timestamp-asserter:Deploy L2 TimestampAsserter' \
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
+'convert-to-gateway:Prepare chain to be an eligible gateway' \
+'migrate-to-gateway:Migrate chain to gateway' \
+'migrate-from-gateway:Migrate chain from gateway' \
+'gateway-upgrade:Upgrade to the protocol version that supports Gateway' \
 'enable-evm-emulator:Enable EVM emulation on chain (Not supported yet)' \
     )
     _describe -t commands 'zkstack help chain commands' commands "$@"
@@ -4712,6 +4899,11 @@ _zkstack__help__chain__accept-chain-ownership_commands() {
 _zkstack__help__chain__build-transactions_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain build-transactions commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__convert-to-gateway_commands] )) ||
+_zkstack__help__chain__convert-to-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain convert-to-gateway commands' commands "$@"
 }
 (( $+functions[_zkstack__help__chain__create_commands] )) ||
 _zkstack__help__chain__create_commands() {
@@ -4753,6 +4945,11 @@ _zkstack__help__chain__enable-evm-emulator_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain enable-evm-emulator commands' commands "$@"
 }
+(( $+functions[_zkstack__help__chain__gateway-upgrade_commands] )) ||
+_zkstack__help__chain__gateway-upgrade_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain gateway-upgrade commands' commands "$@"
+}
 (( $+functions[_zkstack__help__chain__genesis_commands] )) ||
 _zkstack__help__chain__genesis_commands() {
     local commands; commands=(
@@ -4783,10 +4980,15 @@ _zkstack__help__chain__init__configs_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain init configs commands' commands "$@"
 }
-(( $+functions[_zkstack__help__chain__initialize-bridges_commands] )) ||
-_zkstack__help__chain__initialize-bridges_commands() {
+(( $+functions[_zkstack__help__chain__migrate-from-gateway_commands] )) ||
+_zkstack__help__chain__migrate-from-gateway_commands() {
     local commands; commands=()
-    _describe -t commands 'zkstack help chain initialize-bridges commands' commands "$@"
+    _describe -t commands 'zkstack help chain migrate-from-gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__migrate-to-gateway_commands] )) ||
+_zkstack__help__chain__migrate-to-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain migrate-to-gateway commands' commands "$@"
 }
 (( $+functions[_zkstack__help__chain__register-chain_commands] )) ||
 _zkstack__help__chain__register-chain_commands() {
@@ -5124,6 +5326,7 @@ _zkstack__help__ecosystem_commands() {
 'init:Initialize ecosystem and chain, deploying necessary contracts and performing on-chain operations' \
 'change-default-chain:Change the default chain' \
 'setup-observability:Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo' \
+'gateway-upgrade:Gateway version upgrade' \
     )
     _describe -t commands 'zkstack help ecosystem commands' commands "$@"
 }
@@ -5141,6 +5344,11 @@ _zkstack__help__ecosystem__change-default-chain_commands() {
 _zkstack__help__ecosystem__create_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help ecosystem create commands' commands "$@"
+}
+(( $+functions[_zkstack__help__ecosystem__gateway-upgrade_commands] )) ||
+_zkstack__help__ecosystem__gateway-upgrade_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help ecosystem gateway-upgrade commands' commands "$@"
 }
 (( $+functions[_zkstack__help__ecosystem__init_commands] )) ||
 _zkstack__help__ecosystem__init_commands() {

@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import fs from 'fs';
 import readline from 'readline';
 import chalk from 'chalk';
+export * from './node-spawner';
 
 export type { ChildProcess } from 'child_process';
 
@@ -45,6 +46,7 @@ export function exec(command: string) {
 // but pipes data to parent's stdout/stderr
 export function spawn(command: string) {
     command = command.replace(/\n/g, ' ');
+    console.log(`+ ${command}`);
     const child = _spawn(command, { stdio: 'inherit', shell: true });
     return new Promise((resolve, reject) => {
         child.on('error', reject);
