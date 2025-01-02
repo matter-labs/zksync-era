@@ -10,7 +10,7 @@ use zksync_basic_types::{
     pubdata_da::PubdataSendingMode,
     secrets::{APIKey, SeedPhrase},
     vm::FastVmMode,
-    L1BatchNumber, L1ChainId, L2ChainId,
+    L1BatchNumber, L1ChainId, L2ChainId, SLChainId,
 };
 use zksync_consensus_utils::EncodeDist;
 use zksync_crypto_primitives::K256PrivateKey;
@@ -267,6 +267,8 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l1_multicall3_addr: rng.gen(),
             ecosystem_contracts: self.sample(rng),
             base_token_addr: self.sample_opt(|| rng.gen()),
+            l1_base_token_asset_id: self.sample_opt(|| rng.gen()),
+            l2_predeployed_wrapped_base_token_address: self.sample_opt(|| rng.gen()),
             chain_admin_addr: self.sample_opt(|| rng.gen()),
             l2_da_validator_addr: self.sample_opt(|| rng.gen()),
         }
@@ -417,6 +419,7 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             pubdata_sending_mode: PubdataSendingMode::Calldata,
             tx_aggregation_paused: false,
             tx_aggregation_only_prove_and_execute: false,
+            priority_tree_start_index: self.sample(rng),
             time_in_mempool_in_l1_blocks_cap: self.sample(rng),
         }
     }
@@ -738,7 +741,6 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             evm_emulator_hash: Some(rng.gen()),
             fee_account: rng.gen(),
             l1_chain_id: L1ChainId(self.sample(rng)),
-            sl_chain_id: None,
             l2_chain_id: L2ChainId::default(),
             snark_wrapper_vk_hash: rng.gen(),
             dummy_verifier: rng.gen(),
@@ -746,6 +748,7 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
                 0 => L1BatchCommitmentMode::Rollup,
                 _ => L1BatchCommitmentMode::Validium,
             },
+            custom_genesis_state_path: None,
         }
     }
 }
@@ -756,6 +759,7 @@ impl Distribution<configs::EcosystemContracts> for EncodeDist {
             bridgehub_proxy_addr: rng.gen(),
             state_transition_proxy_addr: rng.gen(),
             transparent_proxy_admin_addr: rng.gen(),
+            l1_bytecodes_supplier_addr: rng.gen(),
         }
     }
 }
@@ -808,6 +812,7 @@ impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
             server_addr: self.sample(rng),
             public_addr: Host(self.sample(rng)),
             max_payload_size: self.sample(rng),
+            view_timeout: self.sample(rng),
             max_batch_size: self.sample(rng),
             gossip_dynamic_inbound_limit: self.sample(rng),
             gossip_static_inbound: self
@@ -931,7 +936,6 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
         configs::en_config::ENConfig {
             l2_chain_id: L2ChainId::default(),
             l1_chain_id: L1ChainId(rng.gen()),
-            sl_chain_id: None,
             main_node_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
             l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
                 0 => L1BatchCommitmentMode::Rollup,
@@ -939,6 +943,7 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
             },
             main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
             bridge_addresses_refresh_interval_sec: self.sample_opt(|| rng.gen()),
+            gateway_chain_id: self.sample_opt(|| SLChainId(rng.gen())),
         }
     }
 }

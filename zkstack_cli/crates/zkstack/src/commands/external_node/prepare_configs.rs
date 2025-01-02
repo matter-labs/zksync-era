@@ -63,7 +63,6 @@ fn prepare_configs(
     let en_config = ENConfig {
         l2_chain_id: genesis.l2_chain_id,
         l1_chain_id: genesis.l1_chain_id,
-        sl_chain_id: genesis.sl_chain_id,
         l1_batch_commit_data_generator_mode: genesis.l1_batch_commit_data_generator_mode,
         main_node_url: SensitiveUrl::from_str(
             &general
@@ -75,6 +74,7 @@ fn prepare_configs(
         )?,
         main_node_rate_limit_rps: None,
         bridge_addresses_refresh_interval_sec: None,
+        gateway_chain_id: None,
     };
     let mut general_en = general.clone();
     general_en.consensus_config = None;
@@ -102,6 +102,12 @@ fn prepare_configs(
         attester_key: None,
         node_key: Some(NodeSecretKey(Secret::new(node_key))),
     };
+
+    let gateway_rpc_url = if let Some(url) = args.gateway_rpc_url {
+        Some(SensitiveUrl::from_str(&url).context("gateway_url")?)
+    } else {
+        None
+    };
     let secrets = SecretsConfig {
         consensus: Some(consensus_secrets),
         database: Some(DatabaseSecrets {
@@ -111,7 +117,7 @@ fn prepare_configs(
         }),
         l1: Some(L1Secrets {
             l1_rpc_url: SensitiveUrl::from_str(&args.l1_rpc_url).context("l1_rpc_url")?,
-            gateway_rpc_url: None,
+            gateway_rpc_url,
         }),
         data_availability: None,
     };
