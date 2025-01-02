@@ -468,6 +468,8 @@ impl Distribution<configs::FriProofCompressorConfig> for EncodeDist {
             universal_setup_path: self.sample(rng),
             universal_setup_download_url: self.sample(rng),
             verify_wrapper_proof: self.sample(rng),
+            universal_fflonk_setup_path: self.sample(rng),
+            universal_fflonk_setup_download_url: self.sample(rng),
         }
     }
 }

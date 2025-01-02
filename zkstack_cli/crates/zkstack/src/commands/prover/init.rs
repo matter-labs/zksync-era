@@ -17,14 +17,19 @@ use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 
 use super::{
     args::init::{ProofStorageConfig, ProverInitArgs},
-    compressor_keys::{download_compressor_key, get_default_compressor_keys_path},
+    compressor_keys::download_compressor_key,
     gcs::create_gcs_bucket,
     init_bellman_cuda::run as init_bellman_cuda,
     setup_keys,
 };
 use crate::{
-    commands::prover::args::{compressor_keys::CompressorType, init::ProofStorageFileBacked},
-    consts::{FFLONK_COMPACT_CRS_KEY, PLONK_CRS_KEY, PROVER_MIGRATIONS, PROVER_STORE_MAX_RETRIES},
+    commands::prover::{
+        args::{compressor_keys::CompressorType, init::ProofStorageFileBacked},
+        compressor_keys::{
+            get_default_fflonk_compressor_keys_path, get_default_plonk_compressor_keys_path,
+        },
+    },
+    consts::{PROVER_MIGRATIONS, PROVER_STORE_MAX_RETRIES},
     messages::{
         MSG_CHAIN_NOT_FOUND_ERR, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
         MSG_GENERAL_CONFIG_NOT_FOUND_ERR, MSG_INITIALIZING_DATABASES_SPINNER,
@@ -36,12 +41,18 @@ use crate::{
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    let default_compressor_key_path = get_default_compressor_keys_path(&ecosystem_config)?;
+    let default_plonk_key_path = get_default_plonk_compressor_keys_path(&ecosystem_config)?;
+    let default_fflonk_key_path = get_default_fflonk_compressor_keys_path(&ecosystem_config)?;
 
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    let args = args.fill_values_with_prompt(shell, &default_compressor_key_path, &chain_config)?;
+    let args = args.fill_values_with_prompt(
+        shell,
+        &default_plonk_key_path,
+        &default_fflonk_key_path,
+        &chain_config,
+    )?;
 
     if chain_config.get_general_config().is_err() || chain_config.get_secrets_config().is_err() {
         copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
@@ -57,39 +68,30 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     if let Some(args) = args.compressor_key_args {
         match args.compressor_type {
             CompressorType::Fflonk => {
-                let path = args.clone().path.context(MSG_SETUP_KEY_PATH_ERROR)?;
+                let path = args.clone().fflonk_path.context(MSG_SETUP_KEY_PATH_ERROR)?;
 
-                download_compressor_key(
-                    shell,
-                    &mut general_config,
-                    FFLONK_COMPACT_CRS_KEY,
-                    &format!("{}{}", path, FFLONK_COMPACT_CRS_KEY),
-                )?;
+                download_compressor_key(shell, &mut general_config, CompressorType::Fflonk, &path)?;
             }
             CompressorType::Plonk => {
-                let path = args.path.context(MSG_SETUP_KEY_PATH_ERROR)?;
+                let path = args.plonk_path.context(MSG_SETUP_KEY_PATH_ERROR)?;
 
-                download_compressor_key(
-                    shell,
-                    &mut general_config,
-                    PLONK_CRS_KEY,
-                    &format!("{}{}", path, PLONK_CRS_KEY),
-                )?;
+                download_compressor_key(shell, &mut general_config, CompressorType::Plonk, &path)?;
             }
             CompressorType::All => {
-                let path = args.clone().path.context(MSG_SETUP_KEY_PATH_ERROR)?;
+                let fflonk_path = args.clone().fflonk_path.context(MSG_SETUP_KEY_PATH_ERROR)?;
+                let plonk_path = args.clone().plonk_path.context(MSG_SETUP_KEY_PATH_ERROR)?;
 
                 download_compressor_key(
                     shell,
                     &mut general_config,
-                    FFLONK_COMPACT_CRS_KEY,
-                    &format!("{}{}", path, FFLONK_COMPACT_CRS_KEY),
+                    CompressorType::Fflonk,
+                    &fflonk_path,
                 )?;
                 download_compressor_key(
                     shell,
                     &mut general_config,
-                    PLONK_CRS_KEY,
-                    &format!("{}{}", path, PLONK_CRS_KEY),
+                    CompressorType::Plonk,
+                    &plonk_path,
                 )?;
             }
         }

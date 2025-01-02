@@ -4,12 +4,9 @@ use config::{get_link_to_prover, EcosystemConfig, GeneralConfig};
 use xshell::Shell;
 
 use super::args::compressor_keys::{CompressorKeysArgs, CompressorType};
-use crate::{
-    consts::{FFLONK_COMPACT_CRS_KEY, PLONK_CRS_KEY},
-    messages::{
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER,
-        MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR, MSG_SETUP_KEY_PATH_ERROR,
-    },
+use crate::messages::{
+    MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER,
+    MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR, MSG_SETUP_KEY_PATH_ERROR,
 };
 
 pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Result<()> {
@@ -19,44 +16,36 @@ pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Resu
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let mut general_config = chain_config.get_general_config()?;
 
-    let default_path = get_default_compressor_keys_path(&ecosystem_config)?;
-    let args = args.fill_values_with_prompt(&default_path);
+    let default_plonk_path = get_default_plonk_compressor_keys_path(&ecosystem_config)?;
+    let default_fflonk_path = get_default_fflonk_compressor_keys_path(&ecosystem_config)?;
+    let args = args.fill_values_with_prompt(&default_plonk_path, &default_fflonk_path);
 
     match args.compressor_type {
         CompressorType::Fflonk => {
-            let path = args.clone().path.context(MSG_SETUP_KEY_PATH_ERROR)?;
+            let path = args.clone().fflonk_path.context(MSG_SETUP_KEY_PATH_ERROR)?;
 
-            download_compressor_key(
-                shell,
-                &mut general_config,
-                FFLONK_COMPACT_CRS_KEY,
-                &format!("{}{}", path, FFLONK_COMPACT_CRS_KEY),
-            )?;
+            download_compressor_key(shell, &mut general_config, CompressorType::Fflonk, &path)?;
         }
         CompressorType::Plonk => {
-            let path = args.path.context(MSG_SETUP_KEY_PATH_ERROR)?;
+            let path = args.plonk_path.context(MSG_SETUP_KEY_PATH_ERROR)?;
 
-            download_compressor_key(
-                shell,
-                &mut general_config,
-                PLONK_CRS_KEY,
-                &format!("{}{}", path, PLONK_CRS_KEY),
-            )?;
+            download_compressor_key(shell, &mut general_config, CompressorType::Plonk, &path)?;
         }
         CompressorType::All => {
-            let path = args.clone().path.context(MSG_SETUP_KEY_PATH_ERROR)?;
+            let plonk_path = args.clone().plonk_path.context(MSG_SETUP_KEY_PATH_ERROR)?;
+            let fflonk_path = args.clone().fflonk_path.context(MSG_SETUP_KEY_PATH_ERROR)?;
 
             download_compressor_key(
                 shell,
                 &mut general_config,
-                FFLONK_COMPACT_CRS_KEY,
-                &format!("{}{}", path, FFLONK_COMPACT_CRS_KEY),
+                CompressorType::Fflonk,
+                &fflonk_path,
             )?;
             download_compressor_key(
                 shell,
                 &mut general_config,
-                PLONK_CRS_KEY,
-                &format!("{}{}", path, PLONK_CRS_KEY),
+                CompressorType::Plonk,
+                &plonk_path,
             )?;
         }
     }
@@ -69,7 +58,7 @@ pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Resu
 pub(crate) fn download_compressor_key(
     shell: &Shell,
     general_config: &mut GeneralConfig,
-    key: &str,
+    r#type: CompressorType,
     path: &str,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER);
@@ -79,15 +68,23 @@ pub(crate) fn download_compressor_key(
         .expect(MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR)
         .clone();
 
-    compressor_config.universal_setup_path = path.to_string();
-    general_config.proof_compressor_config = Some(compressor_config.clone());
-
-    let mut url = compressor_config.universal_setup_download_url;
-    url.push_str(key);
+    let url = match r#type {
+        CompressorType::Fflonk => {
+            compressor_config.universal_fflonk_setup_path = path.to_string();
+            general_config.proof_compressor_config = Some(compressor_config.clone());
+            compressor_config.universal_fflonk_setup_download_url
+        }
+        CompressorType::Plonk => {
+            compressor_config.universal_setup_path = path.to_string();
+            general_config.proof_compressor_config = Some(compressor_config.clone());
+            compressor_config.universal_setup_download_url
+        }
+        _ => unreachable!("Invalid compressor type"),
+    };
 
     let path = std::path::Path::new(path);
 
-    logger::info(format!("Downloading setup key {} by URL: {}", key, url));
+    logger::info(format!("Downloading setup key by URL: {}", url));
 
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(600))
@@ -100,11 +97,21 @@ pub(crate) fn download_compressor_key(
     Ok(())
 }
 
-pub fn get_default_compressor_keys_path(
+pub fn get_default_plonk_compressor_keys_path(
     ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<String> {
     let link_to_prover = get_link_to_prover(ecosystem_config);
-    let path = link_to_prover.join("keys/setup/");
+    let path = link_to_prover.join("keys/setup/setup_2^24.key");
+    let string = path.to_str().unwrap();
+
+    Ok(String::from(string))
+}
+
+pub fn get_default_fflonk_compressor_keys_path(
+    ecosystem_config: &EcosystemConfig,
+) -> anyhow::Result<String> {
+    let link_to_prover = get_link_to_prover(ecosystem_config);
+    let path = link_to_prover.join("keys/setup/setup_fflonk_compact.key");
     let string = path.to_str().unwrap();
 
     Ok(String::from(string))

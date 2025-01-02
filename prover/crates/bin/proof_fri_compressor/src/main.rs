@@ -25,10 +25,6 @@ mod compressor;
 mod initial_setup_keys;
 mod metrics;
 
-pub const PLONK_CRS_KEY: &str = "setup_2^24.key";
-pub const FFLONK_CRS_KEY: &str = "setup_fflonk.key";
-pub const FFLONK_COMPACT_CRS_KEY: &str = "setup_fflonk_compact.key";
-
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
 struct Cli {
@@ -146,32 +142,17 @@ async fn main() -> anyhow::Result<()> {
 fn setup_crs_keys(config: &FriProofCompressorConfig, is_fflonk: bool) {
     if is_fflonk {
         download_initial_setup_keys_if_not_present(
-            &format!("{}{}", config.universal_setup_path, FFLONK_COMPACT_CRS_KEY),
-            &format!(
-                "{}{}",
-                config.universal_setup_download_url, FFLONK_COMPACT_CRS_KEY
-            ),
+            &config.universal_fflonk_setup_path,
+            &config.universal_fflonk_setup_download_url,
         );
 
-        env::set_var(
-            "COMPACT_CRS_FILE",
-            format!(
-                "{}{}",
-                config.universal_setup_path.clone(),
-                FFLONK_COMPACT_CRS_KEY
-            ),
-        );
+        env::set_var("COMPACT_CRS_FILE", &config.universal_fflonk_setup_path);
         return;
     }
 
-    let crs_path = format!("{}{}", config.universal_setup_path.clone(), PLONK_CRS_KEY);
-
-    let crs_download_url = format!(
-        "{}{}",
-        config.universal_setup_download_url.clone(),
-        PLONK_CRS_KEY
+    download_initial_setup_keys_if_not_present(
+        &config.universal_setup_path,
+        &config.universal_setup_download_url,
     );
-
-    download_initial_setup_keys_if_not_present(&crs_path, &crs_download_url);
-    env::set_var("CRS_FILE", crs_path);
+    env::set_var("CRS_FILE", &config.universal_setup_path);
 }
