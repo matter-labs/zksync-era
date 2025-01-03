@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use zksync_types::{StorageKey, StorageValue, H256};
+use zksync_types::{StorageKey, StorageValue, H256, SLChainId, L2BlockNumber};
 use zksync_vm_interface::storage::ReadStorage;
 
 use crate::RocksdbStorage;
@@ -71,5 +71,9 @@ impl ReadStorage for RocksdbWithMemory {
             None => self.rocksdb.get_enumeration_index(key),
             Some(value) => Some(*value),
         }
+    }
+
+    fn get_message_root(&mut self, chain_id: SLChainId, block_number: L2BlockNumber) -> Option<H256> {
+        None // kl todo 
     }
 }

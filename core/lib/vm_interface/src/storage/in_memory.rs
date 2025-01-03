@@ -3,7 +3,7 @@ use std::collections::{hash_map::Entry, BTreeMap, HashMap};
 use zksync_types::{
     block::DeployedContract, bytecode::BytecodeHash, get_code_key, get_known_code_key,
     get_system_contracts_init_logs, system_contracts::get_system_smart_contracts, L2ChainId,
-    StorageKey, StorageLog, StorageValue, H256,
+    L2BlockNumber, SLChainId, StorageKey, StorageLog, StorageValue, H256,
 };
 
 use super::ReadStorage;
@@ -130,6 +130,10 @@ impl ReadStorage for &InMemoryStorage {
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
         self.state.get(&key.hashed_key()).map(|(_, idx)| *idx)
     }
+
+    fn get_message_root(&mut self, chain_id: SLChainId, block_number: L2BlockNumber) -> Option<H256> {
+        None // kl todo
+    }
 }
 
 impl ReadStorage for InMemoryStorage {
@@ -147,5 +151,9 @@ impl ReadStorage for InMemoryStorage {
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
         (&*self).get_enumeration_index(key)
+    }
+
+    fn get_message_root(&mut self, chain_id: SLChainId, block_number: L2BlockNumber) -> Option<H256> {
+        None // kl todo
     }
 }

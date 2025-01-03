@@ -107,7 +107,6 @@ pub(crate) fn resolve_link_to_code(
         if !skip_submodules_checkout {
             git::submodule_update(shell, path.clone())?;
         }
-
         Ok(path)
     }
 }

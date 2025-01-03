@@ -108,8 +108,16 @@ pub(crate) const TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO: usize = 4;
 pub(crate) const TX_OPERATOR_L2_BLOCK_INFO_SLOTS: usize =
     (MAX_TXS_IN_BATCH + 1) * TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO;
 
-pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversion) -> usize {
+pub(crate) const fn get_message_root_offset(subversion: MultiVmSubversion) -> usize {
     get_tx_operator_l2_block_info_offset(subversion) + TX_OPERATOR_L2_BLOCK_INFO_SLOTS
+}
+
+pub(crate) const MESSAGE_ROOT_SLOTS_SIZE: usize = 3;
+pub(crate) const MESSAGE_ROOT_SLOTS: usize =
+    (MAX_TXS_IN_BATCH + 1) * MESSAGE_ROOT_SLOTS_SIZE;
+
+pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversion) -> usize {
+    get_message_root_offset(subversion) + MESSAGE_ROOT_SLOTS
 }
 
 pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 196608;

@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use zksync_types::{StorageKey, StorageValue, H256};
+use zksync_types::{L2BlockNumber, SLChainId, StorageKey, StorageValue, H256};
 
 use super::{ReadStorage, StoragePtr, WriteStorage};
 
@@ -137,6 +137,10 @@ where
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
         (**self).get_enumeration_index(key)
     }
+
+    fn get_message_root(&mut self, chain_id: SLChainId, block_number: L2BlockNumber) -> Option<H256> {
+        (**self).get_message_root(chain_id, block_number)
+    }
 }
 
 impl<S: ReadStorage> StorageView<S> {
@@ -226,6 +230,10 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
         self.storage_handle.get_enumeration_index(key)
     }
+
+    fn get_message_root(&mut self, chain_id: SLChainId, block_number: L2BlockNumber) -> Option<H256> {
+        self.storage_handle.get_message_root(chain_id, block_number)
+    }
 }
 
 impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
@@ -298,6 +306,10 @@ impl<S: ReadStorage> ReadStorage for ImmutableStorageView<S> {
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
         self.0.borrow_mut().get_enumeration_index(key)
+    }
+
+    fn get_message_root(&mut self, chain_id: SLChainId, block_number: L2BlockNumber) -> Option<H256> {
+        self.0.borrow_mut().get_message_root(chain_id, block_number)
     }
 }
 

@@ -83,7 +83,9 @@ members = [
 ]
 resolver = "2"
 
-exclude = []
+exclude = [
+    "contracts/system-contracts/bootloader/test_infra",
+]
 
 # for `perf` profiling
 [profile.perf]
