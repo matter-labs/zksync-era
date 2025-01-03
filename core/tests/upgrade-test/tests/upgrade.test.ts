@@ -180,7 +180,7 @@ describe('Upgrade test', function () {
 
         const l1CtmContract = new ethers.Contract(
             contractsConfig.ecosystem_contracts.state_transition_proxy_addr,
-            contracts.chainTypeManager,
+            contracts.stateTransitionManager,
             tester.syncWallet.providerL1
         );
         ecosystemGovernance = await l1CtmContract.owner();
@@ -622,7 +622,7 @@ async function prepareUpgradeCalldata(
         const zksyncAddress = await l2Provider.getMainContractAddress();
         settlementLayerDiamondProxy = new ethers.Contract(zksyncAddress, ZK_CHAIN_INTERFACE, l1Provider);
     }
-    const settlementLayerCTMAddress = await settlementLayerDiamondProxy.getChainTypeManager();
+    const settlementLayerCTMAddress = await settlementLayerDiamondProxy.getStateTransitionManager();
 
     const oldProtocolVersion = Number(await settlementLayerDiamondProxy.getProtocolVersion());
     const newProtocolVersion = addToProtocolVersion(oldProtocolVersion, 1, 1);
@@ -650,7 +650,7 @@ async function prepareUpgradeCalldata(
     };
 
     // Prepare calldata for upgrading STM
-    const stmUpgradeCalldata = contracts.chainTypeManager.encodeFunctionData('setNewVersionUpgrade', [
+    const stmUpgradeCalldata = contracts.stateTransitionManager.encodeFunctionData('setNewVersionUpgrade', [
         upgradeParam,
         oldProtocolVersion,
         // The protocol version will not have any deadline in this upgrade
