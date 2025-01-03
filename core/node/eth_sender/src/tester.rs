@@ -268,6 +268,7 @@ impl EthSenderTester {
             gateway.clone(),
             // ZKsync contract address
             Address::random(),
+            Address::random(),
             contracts_config.l1_multicall3_addr,
             STATE_TRANSITION_CONTRACT_ADDRESS,
             Default::default(),
@@ -522,6 +523,7 @@ impl EthSenderTester {
             .save_eth_tx(
                 &mut self.conn.connection().await.unwrap(),
                 &aggregated_operation,
+                Address::random(),
                 self.is_l2,
             )
             .await

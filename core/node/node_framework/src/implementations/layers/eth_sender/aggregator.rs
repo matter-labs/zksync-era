@@ -111,24 +111,33 @@ impl WiringLayer for EthTxAggregatorLayer {
         tracing::info!("Gateway contracts: {:?}", self.gateway_chain_config);
         // Get resources.
 
-        let (validator_timelock_addr, multicall3_addr, diamond_proxy_addr) =
-            if self.settlement_mode.is_gateway() {
-                let gateway_chain_config = self
-                    .gateway_chain_config
-                    .as_ref()
-                    .context("gateway_chain_config")?;
-                (
-                    gateway_chain_config.validator_timelock_addr,
-                    gateway_chain_config.multicall3_addr,
-                    gateway_chain_config.diamond_proxy_addr,
-                )
-            } else {
-                (
-                    self.contracts_config.validator_timelock_addr,
-                    self.contracts_config.l1_multicall3_addr,
-                    self.contracts_config.diamond_proxy_addr,
-                )
-            };
+        let (
+            validator_timelock_addr,
+            multicall3_addr,
+            diamond_proxy_addr,
+            state_transition_manager_address,
+        ) = if self.settlement_mode.is_gateway() {
+            let gateway_chain_config = self
+                .gateway_chain_config
+                .as_ref()
+                .context("gateway_chain_config")?;
+            (
+                gateway_chain_config.validator_timelock_addr,
+                gateway_chain_config.multicall3_addr,
+                gateway_chain_config.diamond_proxy_addr,
+                gateway_chain_config.state_transition_proxy_addr,
+            )
+        } else {
+            (
+                self.contracts_config.validator_timelock_addr,
+                self.contracts_config.l1_multicall3_addr,
+                self.contracts_config.diamond_proxy_addr,
+                self.contracts_config
+                    .ecosystem_contracts
+                    .context("Missing ecosystem contracts")?
+                    .state_transition_proxy_addr,
+            )
+        };
 
         let eth_client = if self.settlement_mode.is_gateway() {
             input
@@ -167,6 +176,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             aggregator,
             eth_client,
             validator_timelock_addr,
+            state_transition_manager_address,
             multicall3_addr,
             diamond_proxy_addr,
             self.zksync_network_id,

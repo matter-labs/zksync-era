@@ -62,4 +62,8 @@ impl AggregatedOperation {
         self.get_action_type() == AggregatedActionType::PublishProofOnchain
             || self.get_action_type() == AggregatedActionType::Execute
     }
+
+    pub fn is_execute(&self) -> bool {
+        self.get_action_type() == AggregatedActionType::Execute
+    }
 }

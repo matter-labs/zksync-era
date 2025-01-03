@@ -232,6 +232,10 @@ impl BridgeAddressesHandle {
         *self.0.write().await = bridge_addresses;
     }
 
+    pub async fn update_l1_shared_bridge(&self, l1_shared_bridge: Address) {
+        self.0.write().await.l1_shared_default_bridge = Some(l1_shared_bridge);
+    }
+
     pub async fn read(&self) -> api::BridgeAddresses {
         self.0.read().await.clone()
     }
