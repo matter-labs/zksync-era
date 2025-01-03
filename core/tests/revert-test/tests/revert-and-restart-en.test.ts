@@ -306,7 +306,7 @@ export function getGatewayInfo(pathToHome: string, chain: string): GatewayInfo |
         config: 'gateway_chain.yaml'
     });
 
-    if(!gatewayChainConfig) {
+    if (!gatewayChainConfig) {
         return null;
     }
 
