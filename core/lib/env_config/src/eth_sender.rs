@@ -74,8 +74,6 @@ mod tests {
                     pubdata_sending_mode: PubdataSendingMode::Calldata,
                     tx_aggregation_only_prove_and_execute: false,
                     tx_aggregation_paused: false,
-                    ignore_db_nonce: None,
-                    priority_tree_start_index: None,
                     time_in_mempool_in_l1_blocks_cap: 2000,
                 }),
                 gas_adjuster: Some(GasAdjusterConfig {
@@ -83,8 +81,8 @@ mod tests {
                     max_base_fee_samples: 10000,
                     pricing_formula_parameter_a: 1.5,
                     pricing_formula_parameter_b: 1.0005,
-                    internal_sl_pricing_multiplier: 0.8,
-                    internal_enforced_sl_gas_price: None,
+                    internal_l1_pricing_multiplier: 0.8,
+                    internal_enforced_l1_gas_price: None,
                     internal_enforced_pubdata_price: None,
                     poll_period: 15,
                     max_l1_gas_price: Some(100000000),
@@ -122,7 +120,7 @@ mod tests {
             ETH_SENDER_GAS_ADJUSTER_MAX_BASE_FEE_SAMPLES="10000"
             ETH_SENDER_GAS_ADJUSTER_PRICING_FORMULA_PARAMETER_A="1.5"
             ETH_SENDER_GAS_ADJUSTER_PRICING_FORMULA_PARAMETER_B="1.0005"
-            ETH_SENDER_GAS_ADJUSTER_INTERNAL_SL_PRICING_MULTIPLIER="0.8"
+            ETH_SENDER_GAS_ADJUSTER_INTERNAL_L1_PRICING_MULTIPLIER="0.8"
             ETH_SENDER_GAS_ADJUSTER_POLL_PERIOD="15"
             ETH_SENDER_GAS_ADJUSTER_MAX_L1_GAS_PRICE="100000000"
             ETH_SENDER_GAS_ADJUSTER_MAX_BLOB_BASE_FEE_SAMPLES="10"

@@ -1,5 +1,3 @@
-use std::io::Write;
-
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
 use common::{
@@ -18,7 +16,7 @@ use config::{
     ChainConfig, EcosystemConfig,
 };
 use ethers::{
-    abi::{decode, encode, parse_abi, ParamType},
+    abi::{encode, parse_abi},
     contract::BaseContract,
     utils::hex,
 };
@@ -28,12 +26,7 @@ use strum::EnumIter;
 use types::L1BatchCommitmentMode;
 use xshell::Shell;
 use zksync_basic_types::{H256, U256};
-use zksync_eth_client::EthInterface;
-use zksync_types::{
-    web3::{keccak256, CallRequest},
-    Address, L2_NATIVE_TOKEN_VAULT_ADDRESS,
-};
-use zksync_web3_decl::client::{Client, L1};
+use zksync_types::{web3::keccak256, Address, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 
 use crate::{
     accept_ownership::{
@@ -146,23 +139,6 @@ pub fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
     H256(keccak256(&encoded_data))
 }
 
-fn replace_in_file(file_path: &str, target: &str, replacement: &str) -> std::io::Result<()> {
-    // Read the file content
-    let content = std::fs::read_to_string(file_path)?;
-
-    // Replace all occurrences of the target substring
-    let modified_content = content.replace(target, replacement);
-
-    // Write the modified content back to the file
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .truncate(true) // Clear the file before writing
-        .open(file_path)?;
-
-    file.write_all(modified_content.as_bytes())?;
-    Ok(())
-}
-
 async fn adapt_config(shell: &Shell, chain_config: ChainConfig) -> anyhow::Result<()> {
     println!("Adapting config");
     let mut contracts_config = chain_config.get_contracts_config()?;
@@ -175,15 +151,6 @@ async fn adapt_config(shell: &Shell, chain_config: ChainConfig) -> anyhow::Resul
     ));
 
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
-
-    replace_in_file(
-        chain_config
-            .path_to_general_config()
-            .to_str()
-            .context("failed to get general config path")?,
-        "internal_l1_pricing_multiplier",
-        "internal_sl_pricing_multiplier",
-    )?;
     println!("Done");
 
     Ok(())
@@ -344,10 +311,7 @@ async fn finalize_stage1(
 ) -> anyhow::Result<()> {
     println!("Finalizing stage1 of chain upgrade!");
 
-    let mut geneal_config = chain_config.get_general_config()?;
-    let genesis_config = chain_config.get_genesis_config()?;
     let mut contracts_config = chain_config.get_contracts_config()?;
-    let secrets_config = chain_config.get_secrets_config()?;
     let gateway_ecosystem_preparation_output =
         GatewayEcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;
 
@@ -442,40 +406,7 @@ async fn finalize_stage1(
     )
     .await?;
 
-    let client = Box::new(
-        Client::<L1>::http(secrets_config.l1.clone().context("l1 secrets")?.l1_rpc_url)
-            .context("Client::new()")?
-            .for_network(genesis_config.l1_chain_id.into())
-            .build(),
-    );
-    let request = CallRequest {
-        to: Some(contracts_config.l1.diamond_proxy_addr),
-        data: Some(
-            zksync_types::ethabi::short_signature("getPriorityTreeStartIndex", &[])
-                .to_vec()
-                .into(),
-        ),
-        ..Default::default()
-    };
-    let result = client.call_contract_function(request, None).await?;
-
-    let priority_tree_start_index = decode(&[ParamType::Uint(32)], &result.0)?
-        .pop()
-        .unwrap()
-        .into_uint()
-        .unwrap();
-
-    geneal_config
-        .eth
-        .as_mut()
-        .context("general_config_eth")?
-        .sender
-        .as_mut()
-        .context("eth sender")?
-        .priority_tree_start_index = Some(priority_tree_start_index.as_usize());
-
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
-    geneal_config.save_with_base_path(shell, &chain_config.configs)?;
 
     println!("done!");
 
@@ -538,7 +469,7 @@ async fn set_weth_for_chain(
                     .expect("get_contracts_config()")
                     .l1
                     .chain_admin_addr,
-                chain_config.chain_id.0,
+                chain_config.chain_id.as_u64(),
                 contracts_config
                     .l2
                     .predeployed_l2_wrapped_base_token_address

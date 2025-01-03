@@ -50,7 +50,11 @@ const DIAMOND_INIT_CONTRACT_FILE: (&str, &str) = (
     "chain-interfaces/IDiamondInit.sol/IDiamondInit.json",
 );
 const GOVERNANCE_CONTRACT_FILE: (&str, &str) = ("governance", "IGovernance.sol/IGovernance.json");
-const CHAIN_ADMIN_CONTRACT_FILE: (&str, &str) = ("governance", "IChainAdmin.sol/IChainAdmin.json");
+// TODO(EVM-924): We currently only support the "Ownable" chain admin.
+const CHAIN_ADMIN_CONTRACT_FILE: (&str, &str) = (
+    "governance",
+    "IChainAdminOwnable.sol/IChainAdminOwnable.json",
+);
 const GETTERS_FACET_CONTRACT_FILE: (&str, &str) = (
     "state-transition/chain-interfaces",
     "IGetters.sol/IGetters.json",
@@ -202,7 +206,7 @@ pub fn l2_rollup_da_validator_bytecode() -> Vec<u8> {
 
 /// Reads bytecode from the path RELATIVE to the Cargo workspace location.
 pub fn read_bytecode(relative_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u8> {
-    read_bytecode_from_path(relative_path).expect("Exists")
+    read_bytecode_from_path(relative_path).expect("Failed to open file")
 }
 
 pub fn eth_contract() -> Contract {
@@ -510,8 +514,9 @@ impl BaseSystemContracts {
     }
 
     pub fn playground_gateway() -> Self {
-        // TODO: the value should be taken from the `multivm_bootloaders` folder
-        let bootloader_bytecode = read_bootloader_code("playground_batch");
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_gateway/playground_batch.yul/playground_batch.yul.zbin",
+        );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
@@ -586,8 +591,9 @@ impl BaseSystemContracts {
     }
 
     pub fn estimate_gas_gateway() -> Self {
-        // TODO: the value should be taken from the `multivm_bootloaders` folder
-        let bootloader_bytecode = read_bootloader_code("fee_estimate");
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_gateway/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 

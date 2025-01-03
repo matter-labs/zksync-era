@@ -267,8 +267,8 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l1_multicall3_addr: rng.gen(),
             ecosystem_contracts: self.sample(rng),
             base_token_addr: self.sample_opt(|| rng.gen()),
-            base_token_asset_id: self.sample_opt(|| rng.gen()),
-            predeployed_l2_wrapped_base_token_address: self.sample_opt(|| rng.gen()),
+            l1_base_token_asset_id: self.sample_opt(|| rng.gen()),
+            l2_predeployed_wrapped_base_token_address: self.sample_opt(|| rng.gen()),
             chain_admin_addr: self.sample_opt(|| rng.gen()),
             l2_da_validator_addr: self.sample_opt(|| rng.gen()),
         }
@@ -419,8 +419,6 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             pubdata_sending_mode: PubdataSendingMode::Calldata,
             tx_aggregation_paused: false,
             tx_aggregation_only_prove_and_execute: false,
-            ignore_db_nonce: None,
-            priority_tree_start_index: self.sample(rng),
             time_in_mempool_in_l1_blocks_cap: self.sample(rng),
         }
     }
@@ -433,8 +431,8 @@ impl Distribution<configs::eth_sender::GasAdjusterConfig> for EncodeDist {
             max_base_fee_samples: self.sample(rng),
             pricing_formula_parameter_a: self.sample(rng),
             pricing_formula_parameter_b: self.sample(rng),
-            internal_sl_pricing_multiplier: self.sample(rng),
-            internal_enforced_sl_gas_price: self.sample(rng),
+            internal_l1_pricing_multiplier: self.sample(rng),
+            internal_enforced_l1_gas_price: self.sample(rng),
             internal_enforced_pubdata_price: self.sample(rng),
             poll_period: self.sample(rng),
             max_l1_gas_price: self.sample(rng),
@@ -749,6 +747,7 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
                 0 => L1BatchCommitmentMode::Rollup,
                 _ => L1BatchCommitmentMode::Validium,
             },
+            custom_genesis_state_path: None,
         }
     }
 }
@@ -812,6 +811,7 @@ impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
             server_addr: self.sample(rng),
             public_addr: Host(self.sample(rng)),
             max_payload_size: self.sample(rng),
+            view_timeout: self.sample(rng),
             max_batch_size: self.sample(rng),
             gossip_dynamic_inbound_limit: self.sample(rng),
             gossip_static_inbound: self
