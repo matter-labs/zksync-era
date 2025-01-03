@@ -1,5 +1,3 @@
-use std::ops::Add;
-
 use chrono::Utc;
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
@@ -491,7 +489,7 @@ impl EthTxAggregator {
             return false;
         }
 
-        return chain_protocol_version < ProtocolVersionId::gateway_upgrade();
+        chain_protocol_version < ProtocolVersionId::gateway_upgrade()
     }
 
     async fn get_fflonk_snark_wrapper_vk_hash(

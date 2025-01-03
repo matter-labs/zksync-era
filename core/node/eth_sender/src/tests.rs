@@ -1,5 +1,3 @@
-use std::ops::Add;
-
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use zksync_dal::{ConnectionPool, Core, CoreDal};

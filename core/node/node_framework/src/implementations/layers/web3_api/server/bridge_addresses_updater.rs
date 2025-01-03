@@ -1,8 +1,5 @@
 use std::time::Duration;
 
-use anyhow::Result;
-use async_trait::async_trait;
-use zksync_contracts::bridgehub_contract;
 use zksync_eth_client::{EnrichedClientResult, EthInterface};
 use zksync_node_api_server::web3::state::BridgeAddressesHandle;
 use zksync_types::{

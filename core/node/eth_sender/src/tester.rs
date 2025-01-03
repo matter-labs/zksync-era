@@ -1,4 +1,4 @@
-use std::{ops::Add, sync::Arc};
+use std::sync::Arc;
 
 use zksync_config::{
     configs::eth_sender::{ProofSendingMode, SenderConfig},
