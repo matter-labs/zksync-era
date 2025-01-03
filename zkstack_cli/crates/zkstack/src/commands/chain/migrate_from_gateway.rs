@@ -5,7 +5,7 @@ use common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     wallets::Wallet,
-    withdraw::ZKSProvider,
+    zks_provider::ZKSProvider,
 };
 use config::{
     forge_interface::{
