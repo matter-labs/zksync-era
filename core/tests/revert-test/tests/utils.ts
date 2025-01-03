@@ -1,7 +1,7 @@
 import { exec as _exec, spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions } from 'child_process';
 import { promisify } from 'util';
 import { assert, expect } from 'chai';
-import { FileConfig, getAllConfigsPath, replaceAggregatedBlockExecuteDeadline } from 'utils/build/file-configs';
+import { FileConfig, getAllConfigsPath, replaceL1BatchMinAgeBeforeExecuteSeconds } from 'utils/build/file-configs';
 import { IZkSyncHyperchain } from 'zksync-ethers/build/typechain';
 import { Tester } from './tester';
 import { killPidWithAllChilds } from 'utils/build/kill';
@@ -319,7 +319,7 @@ export class NodeSpawner {
         const { fileConfig, pathToHome, options, logs } = this;
 
         if (fileConfig.loadFromFile) {
-            replaceAggregatedBlockExecuteDeadline(pathToHome, fileConfig, enableExecute ? 1 : 10000);
+            replaceL1BatchMinAgeBeforeExecuteSeconds(pathToHome, fileConfig, enableExecute ? 1 : 10000);
         }
 
         let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher,vm_runner_protective_reads';
