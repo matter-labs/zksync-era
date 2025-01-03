@@ -1,3 +1,7 @@
+#![feature(allocator_api)]
+#![allow(dead_code)] // todo: remove after setup is generated
+#![allow(unused_imports)] // todo: remove after setup is generated
+
 //! Tool to generate different types of keys used by the proving system.
 //!
 //! It can generate verification keys, setup keys, and also commitments.
@@ -7,8 +11,11 @@ use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
 use indicatif::{ProgressBar, ProgressStyle};
+#[cfg(feature = "gpu")]
+use shivini::ProverContext;
 use tracing::level_filters::LevelFilter;
 use zkevm_test_harness::{
+    boojum::worker::Worker,
     compute_setups::{
         basic_vk_count, generate_base_layer_vks, generate_recursive_layer_vks,
         recursive_layer_vk_count,
@@ -23,17 +30,25 @@ use zksync_prover_fri_types::{
     circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
     ProverServiceDataKey,
 };
+#[cfg(feature = "gpu")]
+use zksync_prover_keystore::setup_data_generator::get_fflonk_snark_verifier_setup_and_vk;
 use zksync_prover_keystore::{
     keystore::Keystore,
     setup_data_generator::{CPUSetupDataGenerator, GPUSetupDataGenerator, SetupDataGenerator},
 };
 
+#[cfg(feature = "gpu")]
+use crate::utils::{
+    generate_compression_for_wrapper_vks, generate_compression_vks,
+    get_plonk_wrapper_setup_and_vk_from_scheduler_vk,
+};
+
 mod commitment_generator;
+mod utils;
 mod vk_commitment_helper;
 
 #[cfg(test)]
 mod tests;
-
 /// Generates new verification keys, and stores them in `keystore`.
 /// Jobs describe how many generators can run in parallel (each one is around 30 GB).
 /// If quiet is true, it doesn't display any progress bar.
@@ -46,7 +61,7 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
     let progress_bar = if quiet {
         None
     } else {
-        let count = basic_vk_count() + recursive_layer_vk_count() + 1;
+        let count = basic_vk_count() + recursive_layer_vk_count() + 2;
         let progress_bar = ProgressBar::new(count as u64);
         progress_bar.set_style(ProgressStyle::default_bar()
         .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos:>7}/{len:7} ({eta})")
@@ -74,7 +89,23 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
     })
     .map_err(|err| anyhow::anyhow!("Failed generating recursive vk's: {err}"))?;
 
-    tracing::info!("Saving keys & hints");
+    #[cfg(feature = "gpu")]
+    {
+        let config = WrapperConfig::new(5);
+        let worker = Worker::new();
+
+        tracing::info!("Creating prover context");
+
+        let _context = ProverContext::create().context("failed initializing gpu prover context")?;
+        tracing::info!("Generating verification keys for compression layers.");
+        generate_compression_vks(config, &mut in_memory_source, &worker);
+
+        tracing::info!("Generating verification keys for compression for wrapper.");
+
+        generate_compression_for_wrapper_vks(config, &mut in_memory_source, &worker);
+
+        tracing::info!("Saving keys & hints");
+    }
 
     keystore.save_keys_from_data_source(&in_memory_source)?;
 
@@ -82,18 +113,37 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
     let scheduler_vk = in_memory_source
         .get_recursion_layer_vk(ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8)
         .map_err(|err| anyhow::anyhow!("Failed to get scheduler vk: {err}"))?;
-    tracing::info!("Generating verification keys for snark wrapper.");
 
-    // Compression mode is 1
-    let config = WrapperConfig::new(1);
+    tracing::info!("Generating PLONK verification keys for snark wrapper.");
 
-    let (_, vk) = get_wrapper_setup_and_vk_from_scheduler_vk(scheduler_vk, config);
+    let (_, plonk_vk) =
+        get_wrapper_setup_and_vk_from_scheduler_vk(scheduler_vk.clone(), WrapperConfig::new(1));
+
     keystore
-        .save_snark_verification_key(vk)
-        .context("save_snark_vk")?;
+        .save_snark_verification_key(plonk_vk)
+        .context("save_plonk_snark_vk")?;
 
     if let Some(p) = pb.lock().unwrap().as_ref() {
         p.inc(1)
+    }
+
+    tracing::info!("PLONK vk is generated");
+
+    #[cfg(feature = "gpu")]
+    {
+        tracing::info!("Generating FFLONK verification keys for snark wrapper.");
+
+        let (_, fflonk_vk) = get_fflonk_snark_verifier_setup_and_vk(&mut in_memory_source);
+
+        keystore
+            .save_fflonk_snark_verification_key(fflonk_vk)
+            .context("save_fflonk_snark_vk")?;
+
+        if let Some(p) = pb.lock().unwrap().as_ref() {
+            p.inc(1)
+        }
+
+        tracing::info!("FFLONK vk is generated");
     }
 
     // Let's also update the commitments file.
@@ -121,6 +171,9 @@ enum CircuitSelector {
     Recursive,
     /// Select circuits from basic group.
     Basic,
+    Compression,
+    CompressionWrapper,
+    Snark,
 }
 
 #[derive(Debug, Parser)]
@@ -227,6 +280,17 @@ fn generate_setup_keys(
                 .numeric_circuit
                 .expect("--numeric-circuit must be provided"),
         ),
+        CircuitSelector::Compression => ProverServiceDataKey::new_compression(
+            options
+                .numeric_circuit
+                .expect("--numeric-circuit must be provided"),
+        ),
+        CircuitSelector::CompressionWrapper => ProverServiceDataKey::new_compression_wrapper(
+            options
+                .numeric_circuit
+                .expect("--numeric-circuit must be provided"),
+        ),
+        CircuitSelector::Snark => ProverServiceDataKey::snark(),
     };
 
     let digest = generator
