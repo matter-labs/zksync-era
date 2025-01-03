@@ -1,3 +1,5 @@
+use std::ops::Add;
+
 use chrono::Utc;
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
@@ -42,7 +44,13 @@ use crate::{
 pub struct MulticallData {
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub verifier_address: Address,
-    pub protocol_version_id: ProtocolVersionId,
+    pub chain_protocol_version_id: ProtocolVersionId,
+    /// The latest validator timelock that is stored on the StateTransitionManager (ChainTypeManager).
+    /// For a smoother upgrade process, if the `stm_protocol_version_id` is the same as `chain_protocol_version_id`,
+    /// we will use the validator timelock from the CTM. This removes the need to immediately set the correct
+    /// validator timelock in the config. However, it is expected that it will be done eventually.
+    pub stm_validator_timelock_address: Address,
+    pub stm_protocol_version_id: ProtocolVersionId,
 }
 
 /// The component is responsible for aggregating l1 batches into eth_txs:
@@ -53,9 +61,15 @@ pub struct EthTxAggregator {
     aggregator: Aggregator,
     eth_client: Box<dyn BoundEthInterface>,
     config: SenderConfig,
-    timelock_contract_address: Address,
+    // The validator timelock address provided in the config.
+    // If the contracts have the same protocol version as the state transition manager, the validator timelock
+    // from the state transition manager will be used.
+    // The address provided from the config is only used when there is a discrepancy between the two.
+    // TODO(EVM-932): always fetch the validator timelock from L1, but it requires a protocol change.
+    config_timelock_contract_address: Address,
     l1_multicall3_address: Address,
     pub(super) state_transition_chain_contract: Address,
+    state_transition_manager_address: Address,
     functions: ZkSyncFunctions,
     base_nonce: u64,
     base_nonce_custom_commit_sender: Option<u64>,
@@ -85,7 +99,8 @@ impl EthTxAggregator {
         config: SenderConfig,
         aggregator: Aggregator,
         eth_client: Box<dyn BoundEthInterface>,
-        timelock_contract_address: Address,
+        config_timelock_contract_address: Address,
+        state_transition_manager_address: Address,
         l1_multicall3_address: Address,
         state_transition_chain_contract: Address,
         rollup_chain_id: L2ChainId,
@@ -114,7 +129,8 @@ impl EthTxAggregator {
             config,
             aggregator,
             eth_client,
-            timelock_contract_address,
+            config_timelock_contract_address,
+            state_transition_manager_address,
             l1_multicall3_address,
             state_transition_chain_contract,
             functions,
@@ -230,12 +246,40 @@ impl EthTxAggregator {
             calldata: get_protocol_version_input,
         };
 
+        let get_stm_protocol_version_input = self
+            .functions
+            .state_transition_manager_contract
+            .function("protocolVersion")
+            .unwrap()
+            .encode_input(&[])
+            .unwrap();
+        let get_stm_protocol_version_call = Multicall3Call {
+            target: self.state_transition_manager_address,
+            allow_failure: ALLOW_FAILURE,
+            calldata: get_stm_protocol_version_input,
+        };
+
+        let get_stm_validator_timelock_input = self
+            .functions
+            .state_transition_manager_contract
+            .function("validatorTimelock")
+            .unwrap()
+            .encode_input(&[])
+            .unwrap();
+        let get_stm_validator_timelock_call = Multicall3Call {
+            target: self.state_transition_manager_address,
+            allow_failure: ALLOW_FAILURE,
+            calldata: get_stm_validator_timelock_input,
+        };
+
         let mut token_vec = vec![
             get_bootloader_hash_call.into_token(),
             get_default_aa_hash_call.into_token(),
             get_verifier_params_call.into_token(),
             get_verifier_call.into_token(),
             get_protocol_version_call.into_token(),
+            get_stm_protocol_version_call.into_token(),
+            get_stm_validator_timelock_call.into_token(),
         ];
 
         let mut evm_emulator_hash_requested = false;
@@ -328,45 +372,84 @@ impl EthTxAggregator {
 
             call_results_iterator.next().unwrap(); // FIXME: why is this value requested?
 
-            let multicall3_verifier_address =
-                Multicall3Result::from_token(call_results_iterator.next().unwrap())?.return_data;
-            if multicall3_verifier_address.len() != 32 {
-                return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
-                    format!(
-                        "multicall3 verifier address data is not of the len of 32: {:?}",
-                        multicall3_verifier_address
-                    ),
-                )));
-            }
-            let verifier_address = Address::from_slice(&multicall3_verifier_address[12..]);
+            let verifier_address =
+                Self::parse_address(call_results_iterator.next().unwrap(), "verifier address")?;
 
-            let multicall3_protocol_version =
-                Multicall3Result::from_token(call_results_iterator.next().unwrap())?.return_data;
-            if multicall3_protocol_version.len() != 32 {
-                return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
-                    format!(
-                        "multicall3 protocol version data is not of the len of 32: {:?}",
-                        multicall3_protocol_version
-                    ),
-                )));
-            }
-
-            let protocol_version = U256::from_big_endian(&multicall3_protocol_version);
-            // In case the protocol version is smaller than `PACKED_SEMVER_MINOR_MASK`, it will mean that it is
-            // equal to the `protocol_version_id` value, since it the interface from before the semver was supported.
-            let protocol_version_id = if protocol_version < U256::from(PACKED_SEMVER_MINOR_MASK) {
-                ProtocolVersionId::try_from(protocol_version.as_u32() as u16).unwrap()
-            } else {
-                ProtocolVersionId::try_from_packed_semver(protocol_version).unwrap()
-            };
+            let chain_protocol_version_id = Self::parse_protocol_version(
+                call_results_iterator.next().unwrap(),
+                "contract protocol version",
+            )?;
+            let stm_protocol_version_id = Self::parse_protocol_version(
+                call_results_iterator.next().unwrap(),
+                "STM protocol version",
+            )?;
+            let stm_validator_timelock_address = Self::parse_address(
+                call_results_iterator.next().unwrap(),
+                "STM validator timelock address",
+            )?;
 
             return Ok(MulticallData {
                 base_system_contracts_hashes,
                 verifier_address,
-                protocol_version_id,
+                chain_protocol_version_id,
+                stm_protocol_version_id,
+                stm_validator_timelock_address,
             });
         }
         parse_error(&[token])
+    }
+
+    fn parse_protocol_version(
+        data: Token,
+        name: &'static str,
+    ) -> Result<ProtocolVersionId, EthSenderError> {
+        let multicall_data = Multicall3Result::from_token(data)?.return_data;
+        if multicall_data.len() != 32 {
+            return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                format!(
+                    "multicall3 {name} data is not of the len of 32: {:?}",
+                    multicall_data
+                ),
+            )));
+        }
+
+        let protocol_version = U256::from_big_endian(&multicall_data);
+        // In case the protocol version is smaller than `PACKED_SEMVER_MINOR_MASK`, it will mean that it is
+        // equal to the `protocol_version_id` value, since it the interface from before the semver was supported.
+        let protocol_version_id = if protocol_version < U256::from(PACKED_SEMVER_MINOR_MASK) {
+            ProtocolVersionId::try_from(protocol_version.as_u32() as u16).unwrap()
+        } else {
+            ProtocolVersionId::try_from_packed_semver(protocol_version).unwrap()
+        };
+
+        Ok(protocol_version_id)
+    }
+
+    fn parse_address(data: Token, name: &'static str) -> Result<Address, EthSenderError> {
+        let multicall_data = Multicall3Result::from_token(data)?.return_data;
+        if multicall_data.len() != 32 {
+            return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                format!(
+                    "multicall3 {name} data is not of the len of 32: {:?}",
+                    multicall_data
+                ),
+            )));
+        }
+
+        Ok(Address::from_slice(&multicall_data[12..]))
+    }
+
+    fn timelock_contract_address(
+        &self,
+        chain_protocol_version_id: ProtocolVersionId,
+        stm_protocol_version_id: ProtocolVersionId,
+        stm_validator_timelock_address: Address,
+    ) -> Address {
+        if chain_protocol_version_id == stm_protocol_version_id {
+            stm_validator_timelock_address
+        } else {
+            self.config_timelock_contract_address
+        }
     }
 
     /// Loads current verifier config on L1
@@ -389,7 +472,7 @@ impl EthTxAggregator {
     /// will fail, which we want to avoid.
     async fn is_pending_gateway_upgrade(
         storage: &mut Connection<'_, Core>,
-        contracts_protocol_version: ProtocolVersionId,
+        chain_protocol_version: ProtocolVersionId,
     ) -> bool {
         // If the gateway protocol version is present in the DB, and its timestamp is larger than `now`, it means that
         // the upgrade process on the server has begun.
@@ -408,7 +491,7 @@ impl EthTxAggregator {
             return false;
         }
 
-        return contracts_protocol_version < ProtocolVersionId::gateway_upgrade();
+        return chain_protocol_version < ProtocolVersionId::gateway_upgrade();
     }
 
     async fn get_fflonk_snark_wrapper_vk_hash(
@@ -446,7 +529,9 @@ impl EthTxAggregator {
         let MulticallData {
             base_system_contracts_hashes,
             verifier_address,
-            protocol_version_id,
+            chain_protocol_version_id,
+            stm_protocol_version_id,
+            stm_validator_timelock_address,
         } = self.get_multicall_data().await.map_err(|err| {
             tracing::error!("Failed to get multicall data {err:?}");
             err
@@ -476,7 +561,7 @@ impl EthTxAggregator {
             .get_next_ready_operation(
                 storage,
                 base_system_contracts_hashes,
-                protocol_version_id,
+                chain_protocol_version_id,
                 l1_verifier_config,
             )
             .await
@@ -501,7 +586,7 @@ impl EthTxAggregator {
                 return Ok(());
             }
 
-            if Self::is_pending_gateway_upgrade(storage, protocol_version_id).await
+            if Self::is_pending_gateway_upgrade(storage, chain_protocol_version_id).await
                 && agg_op.is_execute()
             {
                 tracing::info!(
@@ -514,7 +599,18 @@ impl EthTxAggregator {
             }
 
             let is_gateway = self.settlement_mode.is_gateway();
-            let tx = self.save_eth_tx(storage, &agg_op, is_gateway).await?;
+            let tx = self
+                .save_eth_tx(
+                    storage,
+                    &agg_op,
+                    self.timelock_contract_address(
+                        chain_protocol_version_id,
+                        stm_protocol_version_id,
+                        stm_validator_timelock_address,
+                    ),
+                    is_gateway,
+                )
+                .await?;
             Self::report_eth_tx_saving(storage, &agg_op, &tx).await;
 
             self.health_updater.update(
@@ -660,6 +756,7 @@ impl EthTxAggregator {
         &self,
         storage: &mut Connection<'_, Core>,
         aggregated_op: &AggregatedOperation,
+        timelock_contract_address: Address,
         is_gateway: bool,
     ) -> Result<EthTx, EthSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
@@ -695,7 +792,7 @@ impl EthTxAggregator {
                 nonce,
                 encoded_aggregated_op.calldata,
                 op_type,
-                self.timelock_contract_address,
+                timelock_contract_address,
                 eth_tx_predicted_gas,
                 sender_addr,
                 encoded_aggregated_op.sidecar,

@@ -1,3 +1,5 @@
+use std::ops::Add;
+
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
@@ -208,6 +210,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
         .save_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
             &get_dummy_operation(0),
+            Address::random(),
             false,
         )
         .await?;
@@ -756,7 +759,10 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
         expected_evm_emulator_hash
     );
     assert_eq!(parsed.verifier_address, Address::repeat_byte(5));
-    assert_eq!(parsed.protocol_version_id, ProtocolVersionId::latest());
+    assert_eq!(
+        parsed.chain_protocol_version_id,
+        ProtocolVersionId::latest()
+    );
 }
 
 #[test_log::test(tokio::test)]
@@ -848,5 +854,5 @@ async fn get_multicall_data(commitment_mode: L1BatchCommitmentMode) {
     );
     assert_eq!(data.base_system_contracts_hashes.evm_emulator, None);
     assert_eq!(data.verifier_address, Address::repeat_byte(5));
-    assert_eq!(data.protocol_version_id, ProtocolVersionId::latest());
+    assert_eq!(data.chain_protocol_version_id, ProtocolVersionId::latest());
 }

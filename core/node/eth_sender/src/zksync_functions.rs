@@ -1,7 +1,7 @@
 use zksync_contracts::{
-    chain_admin_contract, hyperchain_contract, multicall_contract, verifier_contract,
-    POST_SHARED_BRIDGE_COMMIT_FUNCTION, POST_SHARED_BRIDGE_EXECUTE_FUNCTION,
-    POST_SHARED_BRIDGE_PROVE_FUNCTION,
+    chain_admin_contract, hyperchain_contract, multicall_contract,
+    state_transition_manager_contract, verifier_contract, POST_SHARED_BRIDGE_COMMIT_FUNCTION,
+    POST_SHARED_BRIDGE_EXECUTE_FUNCTION, POST_SHARED_BRIDGE_PROVE_FUNCTION,
 };
 use zksync_types::ethabi::{Contract, Function};
 
@@ -28,7 +28,7 @@ pub(super) struct ZkSyncFunctions {
     pub(super) multicall_contract: Contract,
     pub(super) aggregate3: Function,
 
-    pub(super) chain_admin_contract: Contract,
+    pub(super) state_transition_manager_contract: Contract,
 }
 
 fn get_function(contract: &Contract, name: &str) -> Function {
@@ -54,7 +54,7 @@ impl Default for ZkSyncFunctions {
         let zksync_contract = hyperchain_contract();
         let verifier_contract = verifier_contract();
         let multicall_contract = multicall_contract();
-        let chain_admin_contract = chain_admin_contract();
+        let state_transition_manager_contract = state_transition_manager_contract();
 
         let post_shared_bridge_commit = POST_SHARED_BRIDGE_COMMIT_FUNCTION.clone();
         let post_shared_bridge_prove = POST_SHARED_BRIDGE_PROVE_FUNCTION.clone();
@@ -93,7 +93,7 @@ impl Default for ZkSyncFunctions {
             verification_key_hash,
             multicall_contract,
             aggregate3,
-            chain_admin_contract,
+            state_transition_manager_contract,
         }
     }
 }
