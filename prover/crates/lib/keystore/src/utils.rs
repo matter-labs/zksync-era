@@ -183,7 +183,7 @@ mod tests {
                 let filepath = basepath.join("commitments.json");
 
                 let text = std::fs::read_to_string(&filepath)
-                    .expect(format!("File at {:?} should be read", filepath).as_str());
+                    .unwrap_or_else(|_| panic!("File at {:?} should be read", filepath));
 
                 let commitments = serde_json::from_str::<VkCommitmentsLegacy>(&text)
                     .expect("Vk commitments should be deserialized correctly");

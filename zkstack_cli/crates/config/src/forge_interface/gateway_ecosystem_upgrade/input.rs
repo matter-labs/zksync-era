@@ -5,7 +5,7 @@ use zksync_basic_types::L2ChainId;
 
 use crate::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig, traits::ZkStackConfig,
-    ContractsConfig, GenesisConfig, WalletsConfig,
+    ContractsConfig, GenesisConfig,
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -25,7 +25,6 @@ impl GatewayEcosystemUpgradeInput {
         current_contracts_config: &ContractsConfig,
         // It is expected to not change between the versions
         initial_deployment_config: &InitialDeploymentConfig,
-        wallets_config: &WalletsConfig,
         era_chain_id: L2ChainId,
         era_diamond_proxy: Address,
         testnet_verifier: bool,
