@@ -26,7 +26,7 @@ use zksync_vm_interface::{
 
 pub(super) use self::tester::{TestedVm, VmTester, VmTesterBuilder};
 use crate::{
-    interface::storage::InMemoryStorage, pubdata_builders::RollupPubdataBuilder,
+    interface::storage::InMemoryStorage, pubdata_builders::FullPubdataBuilder,
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
@@ -120,7 +120,7 @@ pub(super) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
 }
 
 pub(super) fn default_pubdata_builder() -> Rc<dyn PubdataBuilder> {
-    Rc::new(RollupPubdataBuilder::new(Address::zero()))
+    Rc::new(FullPubdataBuilder::new(Address::zero()))
 }
 
 pub(super) fn make_address_rich(storage: &mut InMemoryStorage, address: Address) {

@@ -25,7 +25,7 @@ pub fn run(args: ChainCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     create(args, &mut ecosystem_config, shell)
 }
 
-fn create(
+pub fn create(
     args: ChainCreateArgs,
     ecosystem_config: &mut EcosystemConfig,
     shell: &Shell,

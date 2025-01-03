@@ -57,7 +57,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         shell,
         shell.current_dir(),
         args.link_to_code.clone(),
-        args.chain_args.skip_submodules_checkout,
+        args.skip_submodules_checkout,
     )?;
 
     let spinner = Spinner::new(MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER);

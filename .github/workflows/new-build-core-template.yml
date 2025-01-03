@@ -8,9 +8,6 @@ on:
       DOCKERHUB_TOKEN:
         description: "DOCKERHUB_TOKEN"
         required: true
-      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE:
-        description: "Token which will be provided to checkout action to be able to clone private submodules"
-        required: true
     inputs:
       image_tag_suffix:
         description: "Optional suffix to override tag name generation"
@@ -38,7 +35,6 @@ jobs:
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
-          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
           submodules: "recursive"
 
       - name: Prepare ENV
@@ -109,7 +105,7 @@ jobs:
         if: env.BUILD_CONTRACTS == 'true'
         run: |
           mkdir ./foundry-zksync
-          curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/nightly-15bec2f861b3b4c71e58f85e2b2c9dd722585aa8/foundry_nightly_linux_amd64.tar.gz
+          curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/nightly-27360d4c8d12beddbb730dae07ad33a206b38f4b/foundry_nightly_linux_amd64.tar.gz
           tar zxf foundry_nightly_linux_amd64.tar.gz -C ./foundry-zksync
           chmod +x ./foundry-zksync/forge ./foundry-zksync/cast
           echo "$PWD/foundry-zksync" >> $GITHUB_PATH
@@ -174,7 +170,6 @@ jobs:
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
-          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
           submodules: "recursive"
 
       - name: Set up Docker Buildx
@@ -202,10 +197,8 @@ jobs:
         shell: bash
         run: |
           echo PLATFORM=$(echo ${{ matrix.platforms }} | tr '/' '-') >> $GITHUB_ENV
-          echo IMAGE_TAG_SHA=$(git rev-parse --short HEAD) >> $GITHUB_ENV
-          # Support for custom tag suffix
           if [ -n "${{ inputs.image_tag_suffix }}" ]; then
-            echo IMAGE_TAG_SHA_TS="${{ inputs.image_tag_suffix }}" >> $GITHUB_ENV
+            echo IMAGE_TAG_SHA_TS="${{ env.IMAGE_TAG_SUFFIX }}" >> $GITHUB_ENV
           else
             echo IMAGE_TAG_SHA_TS=$(git rev-parse --short HEAD)-$(date +%s) >> $GITHUB_ENV
           fi
@@ -265,8 +258,6 @@ jobs:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.component.name == 'external-node') && '-alpha' || '' }}
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
-        with:
-          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
       - name: login to Docker registries
         run: |

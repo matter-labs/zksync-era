@@ -149,7 +149,7 @@ impl<'de> Deserialize<'de> for L2ChainId {
 }
 
 impl L2ChainId {
-    fn new(number: u64) -> Result<Self, String> {
+    pub fn new(number: u64) -> Result<Self, String> {
         if number > L2ChainId::max().0 {
             return Err(format!(
                 "Cannot convert given value {} into L2ChainId. It's greater than MAX: {}",

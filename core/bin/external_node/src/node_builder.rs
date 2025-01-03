@@ -33,7 +33,7 @@ use zksync_node_framework::{
             NodeStorageInitializerLayer,
         },
         pools_layer::PoolsLayerBuilder,
-        postgres_metrics::PostgresMetricsLayer,
+        postgres::PostgresLayer,
         prometheus_exporter::PrometheusExporterLayer,
         pruning::PruningLayer,
         query_eth_client::QueryEthClientLayer,
@@ -125,15 +125,19 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
-    fn add_postgres_metrics_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(PostgresMetricsLayer);
+    fn add_postgres_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(PostgresLayer);
         Ok(self)
     }
 
     fn add_external_node_metrics_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(ExternalNodeMetricsLayer {
             l1_chain_id: self.config.required.l1_chain_id,
-            sl_chain_id: self.config.required.settlement_layer_id(),
+            sl_chain_id: self
+                .config
+                .required
+                .gateway_chain_id
+                .unwrap_or(self.config.required.l1_chain_id.into()),
             l2_chain_id: self.config.required.l2_chain_id,
             postgres_pool_size: self.config.postgres.max_connections,
         });
@@ -179,8 +183,9 @@ impl ExternalNodeBuilder {
 
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
         let query_eth_client_layer = QueryEthClientLayer::new(
-            self.config.required.settlement_layer_id(),
+            self.config.required.l1_chain_id,
             self.config.required.eth_client_url.clone(),
+            self.config.required.gateway_chain_id,
             self.config.optional.gateway_url.clone(),
         );
         self.node.add_layer(query_eth_client_layer);
@@ -285,8 +290,9 @@ impl ExternalNodeBuilder {
 
     fn add_validate_chain_ids_layer(mut self) -> anyhow::Result<Self> {
         let layer = ValidateChainIdsLayer::new(
-            self.config.required.settlement_layer_id(),
+            self.config.required.l1_chain_id,
             self.config.required.l2_chain_id,
+            self.config.required.gateway_chain_id,
         );
         self.node.add_layer(layer);
         Ok(self)
@@ -584,7 +590,7 @@ impl ExternalNodeBuilder {
             // so until we have a dedicated component for "auxiliary" tasks,
             // it's responsible for things like metrics.
             self = self
-                .add_postgres_metrics_layer()?
+                .add_postgres_layer()?
                 .add_external_node_metrics_layer()?;
             // We assign the storage initialization to the core, as it's considered to be
             // the "main" component.

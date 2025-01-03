@@ -1,5 +1,3 @@
-use std::{fmt, ops};
-
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{commitment::PubdataParams, Address, Bloom, BloomInput, H256, U256};
 use zksync_contracts::BaseSystemContractsHashes;
@@ -174,51 +172,6 @@ impl L1BatchHeader {
 
     pub fn tx_count(&self) -> usize {
         (self.l1_tx_count + self.l2_tx_count) as usize
-    }
-}
-
-#[derive(Clone, Copy, Eq, PartialEq, Default)]
-pub struct BlockGasCount {
-    pub commit: u32,
-    pub prove: u32,
-    pub execute: u32,
-}
-
-impl fmt::Debug for BlockGasCount {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            formatter,
-            "c:{}/p:{}/e:{}",
-            self.commit, self.prove, self.execute
-        )
-    }
-}
-
-impl BlockGasCount {
-    pub fn any_field_greater_than(&self, bound: u32) -> bool {
-        self.commit > bound || self.prove > bound || self.execute > bound
-    }
-}
-
-impl ops::Add for BlockGasCount {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self {
-            commit: self.commit + rhs.commit,
-            prove: self.prove + rhs.prove,
-            execute: self.execute + rhs.execute,
-        }
-    }
-}
-
-impl ops::AddAssign for BlockGasCount {
-    fn add_assign(&mut self, other: Self) {
-        *self = Self {
-            commit: self.commit + other.commit,
-            prove: self.prove + other.prove,
-            execute: self.execute + other.execute,
-        };
     }
 }
 

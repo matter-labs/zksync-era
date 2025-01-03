@@ -8,9 +8,6 @@ on:
       DOCKERHUB_TOKEN:
         description: "DOCKERHUB_TOKEN"
         required: true
-      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE:
-        description: "Token which will be provided to checkout action to be able to clone private submodules"
-        required: true
     inputs:
       ERA_BELLMAN_CUDA_RELEASE:
         description: "ERA_BELLMAN_CUDA_RELEASE"
@@ -33,8 +30,12 @@ on:
       CUDA_ARCH:
         description: "CUDA Arch to build"
         type: string
-        default: "89"
+        default: "75;80;89"
         required: false
+        # Details: https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards/
+        # L4: 89
+        # T4: 75
+        # A100: 80
     outputs:
       protocol_version:
         description: "Protocol version of the binary"
@@ -49,7 +50,6 @@ jobs:
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
-          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
           submodules: "recursive"
 
       - name: setup-env
@@ -105,7 +105,6 @@ jobs:
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
-          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
           submodules: "recursive"
 
       - name: Set up Docker Buildx
@@ -214,7 +213,6 @@ jobs:
           docker buildx imagetools create \
             --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }}
-
 
       - name: Login and push to Europe GAR
         run: |

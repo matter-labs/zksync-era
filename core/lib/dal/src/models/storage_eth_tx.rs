@@ -3,7 +3,7 @@ use std::str::FromStr;
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    eth_sender::{BatchSettlementInfo, EthTx, TxHistory, TxHistoryToSend},
+    eth_sender::{EthTx, TxHistory, TxHistoryToSend},
     Address, L1BatchNumber, Nonce, SLChainId, H256,
 };
 
@@ -17,7 +17,7 @@ pub struct StorageEthTx {
     pub has_failed: bool,
     pub confirmed_eth_tx_history_id: Option<i32>,
     pub gas_used: Option<i64>,
-    pub predicted_gas_cost: i64,
+    pub predicted_gas_cost: Option<i64>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
     // TODO (SMA-1614): remove the field
@@ -80,7 +80,7 @@ impl From<StorageEthTx> for EthTx {
             raw_tx: tx.raw_tx.clone(),
             tx_type: AggregatedActionType::from_str(&tx.tx_type).expect("Wrong agg type"),
             created_at_timestamp: tx.created_at.and_utc().timestamp() as u64,
-            predicted_gas_cost: tx.predicted_gas_cost as u64,
+            predicted_gas_cost: tx.predicted_gas_cost.map(|c| c as u64),
             from_addr: tx.from_addr.map(|f| Address::from_slice(&f)),
             blob_sidecar: tx.blob_sidecar.map(|b| {
                 bincode::deserialize(&b).expect("EthTxBlobSidecar is encoded correctly; qed")
@@ -124,26 +124,5 @@ impl From<StorageTxHistoryToSend> for TxHistoryToSend {
                 .expect("Should rely only on the new txs"),
             nonce: Nonce(history.nonce as u32),
         }
-    }
-}
-
-#[derive(Debug)]
-pub struct StoredBatchSettlementInfo {
-    pub batch_number: i64,
-    pub settlement_layer_id: Option<i64>,
-    pub settlement_layer_tx_hash: Option<String>,
-}
-
-impl From<StoredBatchSettlementInfo> for Option<BatchSettlementInfo> {
-    fn from(info: StoredBatchSettlementInfo) -> Option<BatchSettlementInfo> {
-        let settlement_layer_id = info.settlement_layer_id?;
-        let settlement_layer_tx_hash = info.settlement_layer_tx_hash?;
-
-        Some(BatchSettlementInfo {
-            batch_number: info.batch_number as u32,
-            settlement_layer_id: SLChainId(settlement_layer_id as u64),
-            settlement_layer_tx_hash: H256::from_str(&settlement_layer_tx_hash)
-                .expect("Incorrect hash"),
-        })
     }
 }

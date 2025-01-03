@@ -136,9 +136,21 @@ fn main() -> anyhow::Result<()> {
     let gateway_contracts_config: Option<GatewayChainConfig> = match opt
         .gateway_contracts_config_path
     {
-        None => ContractsConfig::from_env_variant("GATEWAY_".to_string())
-            .ok()
-            .map(Into::into),
+        None => {
+            let gateway_chain_id = std::env::var("GATEWAY_CONTRACTS_GATEWAY_CHAIN_ID")
+                .ok()
+                .and_then(|x| x.parse::<u64>().ok());
+            let contracts = ContractsConfig::from_env_variant("GATEWAY_".to_string()).ok();
+            match (gateway_chain_id, contracts) {
+                (Some(gateway_chain_id), Some(contracts)) => {
+                    Some(GatewayChainConfig::from_contracts_and_chain_id(
+                        contracts,
+                        gateway_chain_id.into(),
+                    ))
+                }
+                _ => None,
+            }
+        }
         Some(path) => {
             let result =
                 read_yaml_repr::<zksync_protobuf_config::proto::gateway::GatewayChainConfig>(&path)

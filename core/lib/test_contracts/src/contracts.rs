@@ -171,6 +171,13 @@ impl TestContract {
         &CONTRACT
     }
 
+    /// Returns a test ERC20 token implementation.
+    pub fn test_erc20() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::transfer::TestERC20));
+        &CONTRACT
+    }
+
     /// Returns a mock version of `ContractDeployer`.
     pub fn mock_deployer() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =

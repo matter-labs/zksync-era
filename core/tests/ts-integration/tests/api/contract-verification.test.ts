@@ -20,7 +20,7 @@ const VYPER_VERSION = '0.3.10';
 
 type HttpMethod = 'POST' | 'GET';
 
-describe.skip('Tests for the contract verification API', () => {
+describe('Tests for the contract verification API', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
 

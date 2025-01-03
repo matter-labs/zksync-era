@@ -7,8 +7,8 @@ use zksync_multivm::{
     utils::{get_batch_base_fee, StorageWritesDeduplicator},
 };
 use zksync_types::{
-    block::BlockGasCount, commitment::PubdataParams, fee_model::BatchFeeInput, Address,
-    L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
+    commitment::PubdataParams, fee_model::BatchFeeInput, Address, L1BatchNumber, L2BlockNumber,
+    ProtocolVersionId, Transaction,
 };
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, l2_block_updates::L2BlockUpdates};
@@ -16,7 +16,6 @@ use super::{
     io::{IoCursor, L2BlockParams},
     metrics::{BATCH_TIP_METRICS, UPDATES_MANAGER_METRICS},
 };
-use crate::types::ExecutionMetricsForCriteria;
 
 pub mod l1_batch_updates;
 pub mod l2_block_updates;
@@ -117,7 +116,6 @@ impl UpdatesManager {
         tx: Transaction,
         tx_execution_result: VmExecutionResultAndLogs,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
-        tx_l1_gas_this_tx: BlockGasCount,
         execution_metrics: VmExecutionMetrics,
         call_traces: Vec<Call>,
     ) {
@@ -129,7 +127,6 @@ impl UpdatesManager {
         self.l2_block.extend_from_executed_transaction(
             tx,
             tx_execution_result,
-            tx_l1_gas_this_tx,
             execution_metrics,
             compressed_bytecodes,
             call_traces,
@@ -145,7 +142,7 @@ impl UpdatesManager {
         );
 
         let result = &finished_batch.block_tip_execution_result;
-        let batch_tip_metrics = ExecutionMetricsForCriteria::new(None, result);
+        let batch_tip_execution_metrics = result.get_execution_metrics(None);
 
         let before = self.storage_writes_deduplicator.metrics();
         self.storage_writes_deduplicator
@@ -153,11 +150,8 @@ impl UpdatesManager {
         let after = self.storage_writes_deduplicator.metrics();
         BATCH_TIP_METRICS.observe_writes_metrics(&before, &after, self.protocol_version());
 
-        self.l2_block.extend_from_fictive_transaction(
-            result.clone(),
-            batch_tip_metrics.l1_gas,
-            batch_tip_metrics.execution_metrics,
-        );
+        self.l2_block
+            .extend_from_fictive_transaction(result.clone(), batch_tip_execution_metrics);
         self.l1_batch.finished = Some(finished_batch);
 
         latency.observe();
@@ -190,8 +184,8 @@ impl UpdatesManager {
         self.l1_batch.executed_transactions.len() + self.l2_block.executed_transactions.len()
     }
 
-    pub(crate) fn pending_l1_gas_count(&self) -> BlockGasCount {
-        self.l1_batch.l1_gas_count + self.l2_block.l1_gas_count
+    pub(crate) fn pending_l1_transactions_len(&self) -> usize {
+        self.l1_batch.l1_tx_count + self.l2_block.l1_tx_count
     }
 
     pub(crate) fn pending_execution_metrics(&self) -> VmExecutionMetrics {
@@ -225,10 +219,7 @@ pub struct L2BlockSealCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        tests::{create_execution_result, create_transaction, create_updates_manager},
-        utils::new_block_gas_count,
-    };
+    use crate::tests::{create_execution_result, create_transaction, create_updates_manager};
 
     #[test]
     fn apply_l2_block() {
@@ -242,7 +233,6 @@ mod tests {
             tx,
             create_execution_result([]),
             vec![],
-            new_block_gas_count(),
             VmExecutionMetrics::default(),
             vec![],
         );

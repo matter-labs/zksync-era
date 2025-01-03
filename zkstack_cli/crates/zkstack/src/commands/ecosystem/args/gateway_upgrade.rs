@@ -26,6 +26,10 @@ pub enum GatewayUpgradeStage {
     GovernanceStage2,
     // Finish finalizing tokens, chains, etc
     NoGovernanceStage2,
+    // Registering and setting up gateway chain
+    GovernanceStage3,
+    // Deploy CTM
+    NoGovernanceStage3,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]

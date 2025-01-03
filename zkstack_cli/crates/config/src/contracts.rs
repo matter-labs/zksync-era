@@ -104,10 +104,15 @@ impl ContractsConfig {
                 .deployed_addresses
                 .rollup_l1_da_validator_addr,
         );
-        self.l1.validium_l1_da_validator_addr = Some(
+        self.l1.no_da_validium_l1_validator_addr = Some(
             deploy_l1_output
                 .deployed_addresses
-                .validium_l1_da_validator_addr,
+                .no_da_validium_l1_validator_addr,
+        );
+        self.l1.avail_l1_da_validator_addr = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .avail_l1_da_validator_addr,
         );
         self.l1.chain_admin_addr = deploy_l1_output.deployed_addresses.chain_admin;
     }
@@ -179,16 +184,20 @@ pub struct EcosystemContracts {
     pub state_transition_proxy_addr: Address,
     pub transparent_proxy_admin_addr: Address,
     // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub stm_deployment_tracker_proxy_addr: Option<Address>,
     pub validator_timelock_addr: Address,
     pub diamond_cut_data: String,
     // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub force_deployments_data: Option<String>,
     // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub native_token_vault_addr: Option<Address>,
     // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub l1_bytecodes_supplier_addr: Option<Address>,
-
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub expected_rollup_l2_da_validator: Option<Address>,
 }
 
@@ -198,6 +207,7 @@ impl ZkStackConfig for EcosystemContracts {}
 pub struct BridgesContracts {
     pub erc20: BridgeContractsDefinition,
     pub shared: BridgeContractsDefinition,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub l1_nullifier_addr: Option<Address>,
 }
 
@@ -216,8 +226,10 @@ pub struct L1Contracts {
     #[serde(default)]
     pub chain_admin_addr: Address,
     // Option to be able to parse old configs
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub access_control_restriction_addr: Option<Address>,
     // Option to be able to parse old configs
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub chain_proxy_admin_addr: Option<Address>,
     pub multicall3_addr: Address,
     pub verifier_addr: Address,
@@ -231,7 +243,10 @@ pub struct L1Contracts {
     pub rollup_l1_da_validator_addr: Option<Address>,
     // `Option` to be able to parse configs from previous protocol version
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub validium_l1_da_validator_addr: Option<Address>,
+    pub avail_l1_da_validator_addr: Option<Address>,
+    // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub no_da_validium_l1_validator_addr: Option<Address>,
     // `Option` to be able to parse configs from previous protocol version
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_filterer_addr: Option<Address>,
@@ -253,4 +268,7 @@ pub struct L2Contracts {
     pub consensus_registry: Option<Address>,
     pub multicall3: Option<Address>,
     pub timestamp_asserter_addr: Option<Address>,
+    // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub predeployed_l2_wrapped_base_token_address: Option<Address>,
 }

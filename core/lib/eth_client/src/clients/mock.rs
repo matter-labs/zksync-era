@@ -475,7 +475,7 @@ impl SupportedMockSLNetwork for L2 {
     fn build_client(builder: MockSettlementLayerBuilder<Self>) -> MockClient<Self> {
         let base_fee_history = builder.base_fee_history.clone();
         let chain_id = builder.chain_id;
-        let net = L2ChainId(builder.chain_id).into();
+        let net = L2ChainId::new(builder.chain_id).unwrap().into();
 
         builder
             .build_client_inner(chain_id, net)

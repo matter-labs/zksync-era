@@ -8,6 +8,7 @@ use zksync_eth_client::{ContractCallError, EnrichedClientResult};
 use zksync_types::{
     abi::{self, ProposedUpgrade},
     api::{ChainAggProof, Log},
+    bytecode::BytecodeHash,
     ethabi::{self, Token},
     l1::L1Tx,
     protocol_upgrade::ProtocolUpgradeTx,
@@ -16,7 +17,6 @@ use zksync_types::{
     web3::{contract::Tokenizable, BlockNumber},
     Address, L1BatchNumber, L2ChainId, ProtocolUpgrade, SLChainId, Transaction, H256, U256, U64,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 use crate::client::{EthClient, L2EthClient, RETRY_LIMIT};
 
@@ -116,7 +116,7 @@ impl FakeEthClientData {
 
         for dep in tx.execute.factory_deps.iter() {
             self.bytecode_preimages
-                .insert(hash_bytecode(dep), dep.clone());
+                .insert(BytecodeHash::for_bytecode(dep).value(), dep.clone());
         }
     }
 }
@@ -503,7 +503,7 @@ fn batch_root_to_log(sl_block_number: u64, l2_batch_number: u64, batch_root: H25
             ethabi::ParamType::FixedBytes(32),
         ],
     );
-    let topic2 = u256_to_h256(L2ChainId::default().0.into());
+    let topic2 = u256_to_h256(L2ChainId::default().as_u64().into());
     let topic3 = u256_to_h256(l2_batch_number.into());
     let data = ethabi::encode(&[batch_root.into_token()]);
 

@@ -38,7 +38,6 @@ jobs:
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
-          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
           submodules: "recursive"
 
       - name: Get changed files
@@ -65,7 +64,6 @@ jobs:
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
-          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
           submodules: "recursive"
       - name: Set short SHA
         id: set_short_sha
@@ -92,7 +90,6 @@ jobs:
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
-          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
           submodules: "recursive"
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@aa33708b10e362ff993539393ff100fa93ed6a27 # v3.5.0
@@ -131,8 +128,7 @@ jobs:
           push: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch') }}
 
   zk_environment_multiarch_manifest:
-    # We'll update the 'latest' tag, only on environments generated from 'main'.
-    if: needs.changed_files.outputs.zk_environment == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: ${{ (needs.changed_files.outputs.zk_environment == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch') }}
     # Needed to push to Gihub Package Registry
     permissions:
       packages: write

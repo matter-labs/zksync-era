@@ -12,11 +12,11 @@ use zksync_types::{
     bytecode::BytecodeHash, writes::StateDiffRecord, StorageKey, StorageValue, Transaction, H256,
     U256,
 };
-use zksync_vm_interface::pubdata::{PubdataBuilder, PubdataInput};
 
 use super::{HistoryEnabled, Vm};
 use crate::{
     interface::{
+        pubdata::{PubdataBuilder, PubdataInput},
         storage::{InMemoryStorage, ReadStorage, StorageView, WriteStorage},
         CurrentExecutionState, L2BlockEnv, VmExecutionMode, VmExecutionResultAndLogs,
     },
@@ -184,15 +184,10 @@ impl TestedVm for TestedLatestVm {
         self.bootloader_state.push_l2_block(block);
     }
 
-    fn push_transaction_with_refund_and_compression(
-        &mut self,
-        tx: Transaction,
-        refund: u64,
-        compression: bool,
-    ) {
+    fn push_transaction_with_refund(&mut self, tx: Transaction, refund: u64) {
         let tx = TransactionData::new(tx, false);
         let overhead = tx.overhead_gas();
-        self.push_raw_transaction(tx, overhead, refund, compression)
+        self.push_raw_transaction(tx, overhead, refund, true)
     }
 
     fn pubdata_input(&self) -> PubdataInput {

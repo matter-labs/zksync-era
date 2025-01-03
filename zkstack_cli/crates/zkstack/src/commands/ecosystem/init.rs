@@ -44,7 +44,7 @@ use crate::{
         MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT, MSG_INITIALIZING_ECOSYSTEM,
         MSG_INTALLING_DEPS_SPINNER,
     },
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -127,6 +127,7 @@ async fn init_ecosystem(
         init_args.forge_args.clone(),
         ecosystem_config,
         initial_deployment_config,
+        init_args.support_l2_legacy_shared_bridge_test,
     )
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -160,7 +161,11 @@ async fn deploy_erc20(
         .with_rpc_url(l1_rpc_url)
         .with_broadcast();
 
-    forge = fill_forge_private_key(forge, ecosystem_config.get_wallets()?.deployer.as_ref())?;
+    forge = fill_forge_private_key(
+        forge,
+        ecosystem_config.get_wallets()?.deployer.as_ref(),
+        WalletOwner::Deployer,
+    )?;
 
     let spinner = Spinner::new(MSG_DEPLOYING_ERC20_SPINNER);
     check_the_balance(&forge).await?;
@@ -181,6 +186,7 @@ async fn deploy_ecosystem(
     forge_args: ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
+    support_l2_legacy_shared_bridge_test: bool,
 ) -> anyhow::Result<ContractsConfig> {
     if ecosystem.deploy_ecosystem {
         return deploy_ecosystem_inner(
@@ -189,6 +195,7 @@ async fn deploy_ecosystem(
             ecosystem_config,
             initial_deployment_config,
             ecosystem.l1_rpc_url.clone(),
+            support_l2_legacy_shared_bridge_test,
         )
         .await;
     }
@@ -250,6 +257,7 @@ async fn deploy_ecosystem_inner(
     config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
     l1_rpc_url: String,
+    support_l2_legacy_shared_bridge_test: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
     let contracts_config = deploy_l1(
@@ -260,6 +268,7 @@ async fn deploy_ecosystem_inner(
         &l1_rpc_url,
         None,
         true,
+        support_l2_legacy_shared_bridge_test,
     )
     .await?;
     spinner.finish();
@@ -383,6 +392,7 @@ async fn init_chains(
             no_port_reallocation: final_init_args.no_port_reallocation,
             skip_submodules_checkout: final_init_args.skip_submodules_checkout,
             dev: final_init_args.dev,
+            validium_args: final_init_args.validium_args.clone(),
         };
         let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
 

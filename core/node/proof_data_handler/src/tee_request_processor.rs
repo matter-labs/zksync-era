@@ -1,9 +1,12 @@
 use std::sync::Arc;
 
 use axum::{extract::Path, Json};
-use chrono::Utc;
+use chrono::{Duration as ChronoDuration, Utc};
 use zksync_config::configs::ProofDataHandlerConfig;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{
+    tee_proof_generation_dal::{LockedBatch, TeeProofGenerationJobStatus},
+    ConnectionPool, Core, CoreDal,
+};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::{
     api::{
@@ -48,49 +51,62 @@ impl TeeRequestProcessor {
     ) -> Result<Option<Json<TeeProofGenerationDataResponse>>, RequestProcessorError> {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
-        let mut min_batch_number = self.config.tee_config.first_tee_processed_batch;
-        let mut missing_range: Option<(L1BatchNumber, L1BatchNumber)> = None;
+        let batch_ignored_timeout = ChronoDuration::from_std(
+            self.config
+                .tee_config
+                .tee_batch_permanently_ignored_timeout(),
+        )
+        .map_err(|err| {
+            RequestProcessorError::GeneralError(format!(
+                "Failed to convert batch_ignored_timeout: {}",
+                err
+            ))
+        })?;
+        let min_batch_number = self.config.tee_config.first_tee_processed_batch;
 
-        let result = loop {
-            let Some(l1_batch_number) = self
+        loop {
+            let Some(locked_batch) = self
                 .lock_batch_for_proving(request.tee_type, min_batch_number)
                 .await?
             else {
-                // No job available
-                return Ok(None);
+                break Ok(None); // no job available
             };
+            let batch_number = locked_batch.l1_batch_number;
 
             match self
-                .tee_verifier_input_for_existing_batch(l1_batch_number)
+                .tee_verifier_input_for_existing_batch(batch_number)
                 .await
             {
                 Ok(input) => {
                     break Ok(Some(Json(TeeProofGenerationDataResponse(Box::new(input)))));
                 }
                 Err(RequestProcessorError::ObjectStore(ObjectStoreError::KeyNotFound(_))) => {
-                    missing_range = match missing_range {
-                        Some((start, _)) => Some((start, l1_batch_number)),
-                        None => Some((l1_batch_number, l1_batch_number)),
+                    let duration = Utc::now().signed_duration_since(locked_batch.created_at);
+                    let status = if duration > batch_ignored_timeout {
+                        TeeProofGenerationJobStatus::PermanentlyIgnored
+                    } else {
+                        TeeProofGenerationJobStatus::Failed
                     };
-                    self.unlock_batch(l1_batch_number, request.tee_type).await?;
-                    min_batch_number = l1_batch_number + 1;
+                    self.unlock_batch(batch_number, request.tee_type, status)
+                        .await?;
+                    tracing::warn!(
+                        "Assigned status {} to batch {} created at {}",
+                        status,
+                        batch_number,
+                        locked_batch.created_at
+                    );
                 }
                 Err(err) => {
-                    self.unlock_batch(l1_batch_number, request.tee_type).await?;
+                    self.unlock_batch(
+                        batch_number,
+                        request.tee_type,
+                        TeeProofGenerationJobStatus::Failed,
+                    )
+                    .await?;
                     break Err(err);
                 }
             }
-        };
-
-        if let Some((start, end)) = missing_range {
-            tracing::warn!(
-                "Blobs for batch numbers {} to {} not found in the object store. Marked as unpicked.",
-                start,
-                end
-            );
         }
-
-        result
     }
 
     #[tracing::instrument(skip(self))]
@@ -158,7 +174,7 @@ impl TeeRequestProcessor {
         &self,
         tee_type: TeeType,
         min_batch_number: L1BatchNumber,
-    ) -> Result<Option<L1BatchNumber>, RequestProcessorError> {
+    ) -> Result<Option<LockedBatch>, RequestProcessorError> {
         self.pool
             .connection_tagged("tee_request_processor")
             .await?
@@ -176,12 +192,13 @@ impl TeeRequestProcessor {
         &self,
         l1_batch_number: L1BatchNumber,
         tee_type: TeeType,
+        status: TeeProofGenerationJobStatus,
     ) -> Result<(), RequestProcessorError> {
         self.pool
             .connection_tagged("tee_request_processor")
             .await?
             .tee_proof_generation_dal()
-            .unlock_batch(l1_batch_number, tee_type)
+            .unlock_batch(l1_batch_number, tee_type, status)
             .await?;
         Ok(())
     }

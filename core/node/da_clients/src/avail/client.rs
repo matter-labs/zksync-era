@@ -2,9 +2,11 @@ use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use http::StatusCode;
 use jsonrpsee::ws_client::WsClientBuilder;
 use serde::{Deserialize, Serialize};
 use subxt_signer::ExposeSecret;
+use url::Url;
 use zksync_config::configs::da_client::avail::{AvailClientConfig, AvailConfig, AvailSecrets};
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
@@ -40,10 +42,10 @@ pub struct AvailClient {
 pub struct BridgeAPIResponse {
     blob_root: Option<H256>,
     bridge_root: Option<H256>,
-    data_root_index: Option<U256>,
+    data_root_index: Option<u64>,
     data_root_proof: Option<Vec<H256>>,
     leaf: Option<H256>,
-    leaf_index: Option<U256>,
+    leaf_index: Option<u64>,
     leaf_proof: Option<Vec<H256>>,
     range_hash: Option<H256>,
     error: Option<String>,
@@ -187,18 +189,29 @@ impl DataAvailabilityClient for AvailClient {
             error: anyhow!("Invalid blob ID format"),
             is_retriable: false,
         })?;
-        let url = format!(
-            "{}/eth/proof/{}?index={}",
-            self.config.bridge_api_url, block_hash, tx_idx
-        );
+        let url = Url::parse(&self.config.bridge_api_url)
+            .map_err(|_| DAError {
+                error: anyhow!("Invalid URL"),
+                is_retriable: false,
+            })?
+            .join(format!("/eth/proof/{}?index={}", block_hash, tx_idx).as_str())
+            .map_err(|_| DAError {
+                error: anyhow!("Unable to join to URL"),
+                is_retriable: false,
+            })?;
 
         let response = self
             .api_client
-            .get(&url)
+            .get(url)
             .timeout(Duration::from_millis(self.config.timeout_ms as u64))
             .send()
             .await
             .map_err(to_retriable_da_error)?;
+
+        // 404 means that the blob is not included in the bridge yet
+        if response.status() == StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
 
         let bridge_api_data = response
             .json::<BridgeAPIResponse>()
@@ -209,12 +222,13 @@ impl DataAvailabilityClient for AvailClient {
             data_root_proof: bridge_api_data.data_root_proof.unwrap(),
             leaf_proof: bridge_api_data.leaf_proof.unwrap(),
             range_hash: bridge_api_data.range_hash.unwrap(),
-            data_root_index: bridge_api_data.data_root_index.unwrap(),
+            data_root_index: bridge_api_data.data_root_index.unwrap().into(),
             blob_root: bridge_api_data.blob_root.unwrap(),
             bridge_root: bridge_api_data.bridge_root.unwrap(),
             leaf: bridge_api_data.leaf.unwrap(),
-            leaf_index: bridge_api_data.leaf_index.unwrap(),
+            leaf_index: bridge_api_data.leaf_index.unwrap().into(),
         };
+
         Ok(Some(InclusionData {
             data: ethabi::encode(&attestation_data.into_tokens()),
         }))

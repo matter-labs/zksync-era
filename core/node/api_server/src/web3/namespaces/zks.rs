@@ -11,8 +11,7 @@ use zksync_types::{
     address_to_h256,
     api::{
         state_override::StateOverride, BlockDetails, BridgeAddresses, GetLogsFilter,
-        L1BatchDetails, L1ProcessingDetails, L2ToL1LogProof, Proof, ProtocolVersion, StorageProof,
-        TransactionDetails,
+        L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion, StorageProof, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -24,14 +23,12 @@ use zksync_types::{
     transaction_request::CallRequest,
     utils::storage_key_for_standard_token_balance,
     web3::Bytes,
-    AccountTreeId, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, StorageKey,
-    Transaction, L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS,
-    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+    AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction,
+    L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_web3_decl::{
-    client::{Client, L2},
     error::{ClientRpcContext, Web3Error},
-    namespaces::{EthNamespaceClient, ZksNamespaceClient},
+    namespaces::ZksNamespaceClient,
     types::{Address, Token, H256},
 };
 
@@ -334,16 +331,7 @@ impl ZksNamespace {
             return Ok(None);
         };
 
-        let Some(batch) = storage
-            .blocks_dal()
-            .get_l1_batch_header(l1_batch_number)
-            .await
-            .map_err(DalError::generalize)?
-        else {
-            return Ok(None);
-        };
-
-        let Some(batch_meta) = storage
+        let Some(batch_with_metadata) = storage
             .blocks_dal()
             .get_l1_batch_metadata(l1_batch_number)
             .await
@@ -354,7 +342,8 @@ impl ZksNamespace {
 
         let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
 
-        let protocol_version = batch
+        let protocol_version = batch_with_metadata
+            .header
             .protocol_version
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
         let tree_size = l2_to_l1_logs_tree_size(protocol_version);
@@ -370,7 +359,7 @@ impl ZksNamespace {
             }));
         }
 
-        let aggregated_root = batch_meta
+        let aggregated_root = batch_with_metadata
             .metadata
             .aggregation_root
             .expect("`aggregation_root` must be present for post-gateway branch");
@@ -379,29 +368,41 @@ impl ZksNamespace {
         let mut log_leaf_proof = proof;
         log_leaf_proof.push(aggregated_root);
 
-        let settlement_layer_chain_id = self.state.api_config.sl_chain_id.0;
-        let l1_chain_id = self.state.api_config.l1_chain_id.0;
-
-        let (batch_proof_len, batch_chain_proof) = if settlement_layer_chain_id != l1_chain_id {
-            let Some(batch_chain_proof) = storage
-                .blocks_dal()
-                .get_l1_batch_chain_merkle_path(l1_batch_number)
-                .await
-                .map_err(DalError::generalize)?
-            else {
-                return Ok(None);
-            };
-
-            (batch_chain_proof.batch_proof_len, batch_chain_proof.proof)
-        } else {
-            (0, Vec::new())
+        let Some(sl_chain_id) = storage
+            .eth_sender_dal()
+            .get_batch_execute_chain_id(l1_batch_number)
+            .await
+            .map_err(DalError::generalize)?
+        else {
+            return Ok(None);
         };
+
+        let (batch_proof_len, batch_chain_proof, is_final_node) =
+            if sl_chain_id.0 != self.state.api_config.l1_chain_id.0 {
+                let Some(batch_chain_proof) = storage
+                    .blocks_dal()
+                    .get_l1_batch_chain_merkle_path(l1_batch_number)
+                    .await
+                    .map_err(DalError::generalize)?
+                else {
+                    return Ok(None);
+                };
+
+                (
+                    batch_chain_proof.batch_proof_len,
+                    batch_chain_proof.proof,
+                    false,
+                )
+            } else {
+                (0, Vec::new(), true)
+            };
 
         let proof = {
             let mut metadata = [0u8; 32];
             metadata[0] = LOG_PROOF_SUPPORTED_METADATA_VERSION;
             metadata[1] = log_leaf_proof.len() as u8;
             metadata[2] = batch_proof_len as u8;
+            metadata[3] = if is_final_node { 1 } else { 0 };
 
             let mut result = vec![H256(metadata)];
 
@@ -557,96 +558,6 @@ impl ZksNamespace {
             .get_l1_batch_details(batch_number)
             .await
             .map_err(DalError::generalize)?)
-    }
-
-    pub async fn get_l1_processing_details_impl(
-        &self,
-        batch_number: L1BatchNumber,
-    ) -> Result<Option<L1ProcessingDetails>, Web3Error> {
-        let mut storage = self.state.acquire_connection().await?;
-        self.state
-            .start_info
-            .ensure_not_pruned(batch_number, &mut storage)
-            .await?;
-
-        let batch_details = storage
-            .blocks_web3_dal()
-            .get_l1_batch_details(batch_number)
-            .await
-            .map_err(DalError::generalize)?;
-
-        let Some(batch_details) = batch_details else {
-            return Ok(None);
-        };
-
-        let settlement_info = storage
-            .eth_sender_dal()
-            .get_batch_finalization_info(batch_number)
-            .await
-            .map_err(DalError::generalize)?;
-
-        let Some(info) = settlement_info else {
-            return Ok(None);
-        };
-
-        // FIXME: this method should eventually also provide data about L1 commit and L1 prove.
-
-        let (execute_tx_hash, executed_at) =
-            if info.settlement_layer_id.0 == self.state.api_config.l1_chain_id.0 {
-                (
-                    batch_details.base.execute_tx_hash,
-                    batch_details.base.executed_at,
-                )
-            } else {
-                // It is sl-based chain, we need to query the batch info from the SL
-                // Create a client for pinging the RPC.
-                let client: Client<L2> = Client::http(
-                    self.state
-                        .api_config
-                        .settlement_layer_url
-                        .clone()
-                        .unwrap()
-                        .parse()
-                        .unwrap(),
-                )?
-                .for_network(L2::from(L2ChainId(self.state.api_config.l1_chain_id.0)))
-                .build();
-
-                let info = client
-                    .get_transaction_receipt(info.settlement_layer_tx_hash)
-                    .await
-                    .expect("Failed to query the SL");
-                let Some(info) = info else {
-                    return Ok(None);
-                };
-                let sl_l1_batch_number = info.l1_batch_number;
-                let Some(sl_l1_batch_number) = sl_l1_batch_number else {
-                    return Ok(None);
-                };
-                let batch_details = client
-                    .get_l1_batch_details(L1BatchNumber(sl_l1_batch_number.as_u32()))
-                    .await
-                    .expect("Failed to query the SL2");
-                let Some(batch_details) = batch_details else {
-                    return Ok(None);
-                };
-
-                (
-                    batch_details.base.execute_tx_hash,
-                    batch_details.base.executed_at,
-                )
-            };
-
-        let details = L1ProcessingDetails {
-            commit_tx_hash: None,
-            committed_at: None,
-            prove_tx_hash: None,
-            proven_at: None,
-            execute_tx_hash,
-            executed_at,
-        };
-
-        Ok(Some(details))
     }
 
     pub async fn get_bytecode_by_hash_impl(

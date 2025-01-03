@@ -16,7 +16,7 @@ use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
-    block::{BlockGasCount, DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader},
+    block::{DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader},
     bytecode::BytecodeHash,
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
@@ -190,7 +190,6 @@ pub fn mock_genesis_config() -> GenesisConfig {
         default_aa_hash: Some(base_system_contracts_hashes.default_aa),
         evm_emulator_hash: base_system_contracts_hashes.evm_emulator,
         l1_chain_id: L1ChainId(9),
-        sl_chain_id: None,
         l2_chain_id: L2ChainId::default(),
         snark_wrapper_vk_hash: first_l1_verifier_config.snark_wrapper_vk_hash,
         fee_account: Default::default(),
@@ -443,14 +442,7 @@ pub async fn create_genesis_l1_batch(
         .await?;
     transaction
         .blocks_dal()
-        .mark_l1_batch_as_sealed(
-            &genesis_l1_batch_header,
-            &[],
-            BlockGasCount::default(),
-            &[],
-            &[],
-            Default::default(),
-        )
+        .mark_l1_batch_as_sealed(&genesis_l1_batch_header, &[], &[], &[], Default::default())
         .await?;
     transaction
         .blocks_dal()

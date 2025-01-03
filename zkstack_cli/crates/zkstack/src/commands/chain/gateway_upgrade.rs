@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
 use common::{
@@ -10,7 +12,7 @@ use config::{
             input::GatewayChainUpgradeInput, output::GatewayChainUpgradeOutput,
         },
         gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput,
-        script_params::GATEWAY_UPGRADE_CHAIN_PARAMS,
+        script_params::{GATEWAY_UPGRADE_CHAIN_PARAMS, GATEWAY_UPGRADE_ECOSYSTEM_PARAMS},
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig,
@@ -39,7 +41,7 @@ use crate::{
         set_da_validator_pair,
     },
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
-    utils::forge::fill_forge_private_key,
+    utils::forge::{fill_forge_private_key, WalletOwner},
 };
 
 lazy_static! {
@@ -69,6 +71,9 @@ pub enum GatewayChainUpgradeStage {
     // For tests in case a chain missed the correct window for the upgrade
     // and needs to execute after Stage2
     KeepUpStage2,
+
+    // Set L2 WETH address for chain in store
+    SetL2WETHForChain,
 }
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
@@ -125,6 +130,9 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
         GatewayChainUpgradeStage::KeepUpStage2 => {
             panic!("Not supported");
         }
+        GatewayChainUpgradeStage::SetL2WETHForChain => {
+            set_weth_for_chain(shell, args, ecosystem_config, chain_config, l1_url).await
+        }
     }
 }
 
@@ -136,6 +144,23 @@ pub fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
     ]);
 
     H256(keccak256(&encoded_data))
+}
+
+fn replace_in_file(file_path: &str, target: &str, replacement: &str) -> std::io::Result<()> {
+    // Read the file content
+    let content = std::fs::read_to_string(file_path)?;
+
+    // Replace all occurrences of the target substring
+    let modified_content = content.replace(target, replacement);
+
+    // Write the modified content back to the file
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .truncate(true) // Clear the file before writing
+        .open(file_path)?;
+
+    file.write_all(modified_content.as_bytes())?;
+    Ok(())
 }
 
 async fn adapt_config(shell: &Shell, chain_config: ChainConfig) -> anyhow::Result<()> {
@@ -150,6 +175,15 @@ async fn adapt_config(shell: &Shell, chain_config: ChainConfig) -> anyhow::Resul
     ));
 
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+
+    replace_in_file(
+        chain_config
+            .path_to_general_config()
+            .to_str()
+            .context("failed to get general config path")?,
+        "internal_l1_pricing_multiplier",
+        "internal_sl_pricing_multiplier",
+    )?;
     println!("Done");
 
     Ok(())
@@ -178,7 +212,11 @@ async fn prepare_stage1(
         .with_slow()
         .with_broadcast();
 
-    forge = fill_forge_private_key(forge, Some(&chain_config.get_wallets_config()?.governor))?;
+    forge = fill_forge_private_key(
+        forge,
+        Some(&chain_config.get_wallets_config()?.governor),
+        WalletOwner::Governor,
+    )?;
 
     println!("Preparing the chain for the upgrade!");
 
@@ -234,7 +272,7 @@ async fn prepare_stage1(
             .deployed_addresses
             .rollup_l1_da_validator_addr,
     );
-    contracts_config.l1.validium_l1_da_validator_addr = Some(
+    contracts_config.l1.no_da_validium_l1_validator_addr = Some(
         gateway_ecosystem_preparation_output
             .deployed_addresses
             .validium_l1_da_validator_addr,
@@ -267,6 +305,8 @@ async fn prepare_stage1(
     Ok(())
 }
 
+const NEW_PROTOCOL_VERSION: u64 = 0x1b00000000;
+
 async fn schedule_stage1(
     shell: &Shell,
     args: GatewayUpgradeArgs,
@@ -281,7 +321,7 @@ async fn schedule_stage1(
         &ecosystem_config,
         &chain_config.get_contracts_config()?,
         // For now it is hardcoded both in scripts and here
-        U256::from(0x1900000000_u64),
+        U256::from(NEW_PROTOCOL_VERSION),
         // We only do instant upgrades for now
         U256::zero(),
         &chain_config.get_wallets_config()?.governor,
@@ -382,7 +422,7 @@ async fn finalize_stage1(
         ecosystem_config
             .get_contracts_config()?
             .l1
-            .validium_l1_da_validator_addr
+            .no_da_validium_l1_validator_addr
     }
     .context("l1 da validator")?;
 
@@ -459,6 +499,72 @@ async fn finalize_stage2(
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     println!("done!");
+
+    Ok(())
+}
+
+async fn set_weth_for_chain(
+    shell: &Shell,
+    args: GatewayUpgradeArgs,
+    ecosystem_config: EcosystemConfig,
+    chain_config: ChainConfig,
+    l1_url: String,
+) -> anyhow::Result<()> {
+    println!("Adding l2 weth to store!");
+
+    let forge_args = args.forge_args.clone();
+    let l1_rpc_url = l1_url;
+
+    let previous_output = GatewayEcosystemUpgradeOutput::read(
+        shell,
+        GATEWAY_UPGRADE_ECOSYSTEM_PARAMS.output(&ecosystem_config.link_to_code),
+    )?;
+    let contract: BaseContract = BaseContract::from(
+        parse_abi(&[
+            "function addL2WethToStore(address storeAddress, address chainAdmin, uint256 chainId, address l2WBaseToken) public",
+        ])
+            .unwrap(),
+    );
+    let contracts_config = chain_config.get_contracts_config()?;
+    let calldata = contract
+        .encode(
+            "addL2WethToStore",
+            (
+                previous_output
+                    .deployed_addresses
+                    .l2_wrapped_base_token_store_addr,
+                ecosystem_config
+                    .get_contracts_config()
+                    .expect("get_contracts_config()")
+                    .l1
+                    .chain_admin_addr,
+                chain_config.chain_id.0,
+                contracts_config
+                    .l2
+                    .predeployed_l2_wrapped_base_token_address
+                    .expect("No predeployed_l2_wrapped_base_token_address"),
+            ),
+        )
+        .unwrap();
+
+    let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
+        .script(
+            &GATEWAY_UPGRADE_ECOSYSTEM_PARAMS.script(),
+            forge_args.clone(),
+        )
+        .with_ffi()
+        .with_rpc_url(l1_rpc_url)
+        .with_slow()
+        .with_gas_limit(1_000_000_000_000)
+        .with_calldata(&calldata)
+        .with_broadcast();
+
+    forge = fill_forge_private_key(
+        forge,
+        Some(&ecosystem_config.get_wallets()?.governor),
+        WalletOwner::Governor,
+    )?;
+    forge.run(shell)?;
 
     Ok(())
 }

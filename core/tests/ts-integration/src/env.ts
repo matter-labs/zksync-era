@@ -8,7 +8,7 @@ import { Reporter } from './reporter';
 import * as yaml from 'yaml';
 import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/utils';
 import { FileConfig, loadConfig, loadEcosystem, shouldLoadConfigFromFile } from 'utils/build/file-configs';
-import { NodeSpawner } from './utils';
+import { NodeSpawner } from 'utils';
 import { logsTestPath } from 'utils/build/logs';
 import * as nodefs from 'node:fs/promises';
 import { exec } from 'utils';
@@ -31,7 +31,7 @@ export async function waitForServer(l2NodeUrl: string) {
     const reporter = new Reporter();
     // Server startup may take a lot of time on the staging.
     const attemptIntervalMs = 1000;
-    const maxAttempts = 3 * 60; // 20 minutes
+    const maxAttempts = 20 * 60; // 20 minutes
 
     const l2Provider = new zksync.Provider(l2NodeUrl);
 
@@ -169,6 +169,7 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
     const healthcheckPort = generalConfig.api.healthcheck.port;
     const timestampAsserterAddress = contracts.l2.timestamp_asserter_addr;
     const timestampAsserterMinTimeTillEndSec = parseInt(generalConfig.timestamp_asserter.min_time_till_end_sec);
+    const l2WETHAddress = contracts.l2.predeployed_l2_wrapped_base_token_address;
     return {
         maxLogsLimit,
         pathToHome,
@@ -201,7 +202,8 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
             l2Address: baseTokenAddressL2
         },
         timestampAsserterAddress,
-        timestampAsserterMinTimeTillEndSec
+        timestampAsserterMinTimeTillEndSec,
+        l2WETHAddress
     };
 }
 
@@ -232,11 +234,7 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     const l2Provider = new zksync.Provider(l2NodeUrl);
     const baseTokenAddress = await l2Provider.getBaseTokenContractAddress();
 
-    const l1NodeUrl = ensureVariable(
-        process.env.BRIDGE_LAYER_WEB3_URL || process.env.L1_RPC_ADDRESS || process.env.ETH_CLIENT_WEB3_URL,
-        'L1 node URL'
-    );
-    console.log('l1NodeUrl', l1NodeUrl);
+    const l1NodeUrl = ensureVariable(process.env.L1_RPC_ADDRESS || process.env.ETH_CLIENT_WEB3_URL, 'L1 node URL');
     const wsL2NodeUrl = ensureVariable(
         process.env.ZKSYNC_WEB3_WS_API_URL || process.env.API_WEB3_JSON_RPC_WS_URL,
         'WS L2 node URL'
@@ -331,7 +329,8 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
             l2Address: baseTokenAddressL2
         },
         timestampAsserterAddress,
-        timestampAsserterMinTimeTillEndSec
+        timestampAsserterMinTimeTillEndSec,
+        l2WETHAddress: undefined
     };
 }
 

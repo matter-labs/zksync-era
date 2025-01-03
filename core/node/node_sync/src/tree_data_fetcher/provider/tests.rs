@@ -317,7 +317,7 @@ async fn create_l1_data_provider(
         L1_DIAMOND_PROXY_ADDRESS,
         None,
         pool,
-        L2ChainId(ERA_CHAIN_ID),
+        L2ChainId::new(ERA_CHAIN_ID).unwrap(),
     )
     .await
     .unwrap()
@@ -403,7 +403,7 @@ async fn using_different_settlement_layers() {
         L1_DIAMOND_PROXY_ADDRESS,
         Some(Box::new(params_array[1].client())),
         pool,
-        L2ChainId(ERA_CHAIN_ID),
+        L2ChainId::new(ERA_CHAIN_ID).unwrap(),
     )
     .await
     .unwrap();

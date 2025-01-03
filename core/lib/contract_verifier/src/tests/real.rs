@@ -28,16 +28,16 @@ struct TestCompilerVersions {
 }
 
 impl TestCompilerVersions {
-    fn new(mut versions: SupportedCompilerVersions) -> Option<Self> {
+    fn new(versions: SupportedCompilerVersions) -> Option<Self> {
         let solc = versions
             .solc
             .into_iter()
             .find(|ver| !ver.starts_with("zkVM"))?;
         Some(Self {
             solc,
-            zksolc: versions.zksolc.pop()?,
-            vyper: versions.vyper.pop()?,
-            zkvyper: versions.zkvyper.pop()?,
+            zksolc: versions.zksolc.into_iter().next()?,
+            vyper: versions.vyper.into_iter().next()?,
+            zkvyper: versions.zkvyper.into_iter().next()?,
         })
     }
 

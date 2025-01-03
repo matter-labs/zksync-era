@@ -14,12 +14,9 @@ use zksync_eth_client::{
 };
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
-    i_executor::{
-        commit::kzg::ZK_SYNC_BYTES_PER_BLOB,
-        structures::{
-            CommitBatchInfo, StoredBatchInfo, PUBDATA_SOURCE_BLOBS, PUBDATA_SOURCE_CALLDATA,
-            PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY, SUPPORTED_ENCODING_VERSION,
-        },
+    i_executor::structures::{
+        CommitBatchInfo, StoredBatchInfo, PUBDATA_SOURCE_BLOBS, PUBDATA_SOURCE_CALLDATA,
+        PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY, SUPPORTED_ENCODING_VERSION,
     },
     Tokenizable,
 };
@@ -231,31 +228,19 @@ impl LocalL1BatchCommitData {
     }
 
     /// All returned errors are validation errors.
-    fn verify_commitment(&self, reference: &ethabi::Token) -> anyhow::Result<()> {
+    fn verify_commitment(&self, reference: &ethabi::Token, is_gateway: bool) -> anyhow::Result<()> {
         let protocol_version = self
             .l1_batch
             .header
             .protocol_version
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
-        let da = detect_da(protocol_version, reference, self.commitment_mode)
-            .context("cannot detect DA source from reference commitment token")?;
-
-        // For rollups with `PubdataSendingMode::Calldata`, it's required that the pubdata fits into a single blob.
-        if matches!(self.commitment_mode, L1BatchCommitmentMode::Rollup)
-            && matches!(da, PubdataSendingMode::Calldata)
-        {
-            let pubdata_len = self
-                .l1_batch
-                .header
-                .pubdata_input
-                .as_ref()
-                .map_or_else(|| self.l1_batch.construct_pubdata().len(), Vec::len);
-            anyhow::ensure!(
-                pubdata_len <= ZK_SYNC_BYTES_PER_BLOB,
-                "pubdata size is too large when using calldata DA source: expected <={ZK_SYNC_BYTES_PER_BLOB} bytes, \
-                 got {pubdata_len} bytes"
-            );
-        }
+        let da = detect_da(
+            protocol_version,
+            reference,
+            self.commitment_mode,
+            is_gateway,
+        )
+        .context("cannot detect DA source from reference commitment token")?;
 
         let local_token =
             CommitBatchInfo::new(self.commitment_mode, &self.l1_batch, da).into_token();
@@ -278,6 +263,7 @@ pub fn detect_da(
     protocol_version: ProtocolVersionId,
     reference: &Token,
     commitment_mode: L1BatchCommitmentMode,
+    is_gateway: bool,
 ) -> Result<PubdataSendingMode, ethabi::Error> {
     fn parse_error(message: impl Into<Cow<'static, str>>) -> ethabi::Error {
         ethabi::Error::Other(message.into())
@@ -351,7 +337,11 @@ pub fn detect_da(
             })? as usize;
 
             match last_reference_token.get(65 + 32 * number_of_blobs) {
-                Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => Ok(PubdataSendingMode::Calldata),
+                Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => if is_gateway {
+                    Ok(PubdataSendingMode::RelayedL2Calldata)
+                } else {
+                    Ok(PubdataSendingMode::Calldata)
+                },
                 Some(&byte) if byte == PUBDATA_SOURCE_BLOBS => Ok(PubdataSendingMode::Blobs),
                 Some(&byte) => Err(parse_error(format!(
                     "unexpected first byte of the last reference token for rollup; expected one of [{PUBDATA_SOURCE_CALLDATA}, {PUBDATA_SOURCE_BLOBS}], \
@@ -364,7 +354,7 @@ pub fn detect_da(
 }
 
 #[derive(Debug)]
-pub struct SLChainData {
+pub struct SLChainAccess {
     client: Box<DynClient<L1>>,
     chain_id: SLChainId,
     diamond_proxy_addr: Option<Address>,
@@ -377,8 +367,8 @@ pub struct ConsistencyChecker {
     /// How many past batches to check when starting
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
-    l1_chain_data: SLChainData,
-    gateway_chain_data: Option<SLChainData>,
+    l1_chain_data: SLChainAccess,
+    gateway_chain_data: Option<SLChainAccess>,
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool<Core>,
@@ -399,7 +389,7 @@ impl ConsistencyChecker {
     ) -> anyhow::Result<Self> {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         let l1_chain_id = l1_client.fetch_chain_id().await?;
-        let l1_chain_data = SLChainData {
+        let l1_chain_data = SLChainAccess {
             client: l1_client.for_component("consistency_checker"),
             chain_id: l1_chain_id,
             diamond_proxy_addr: None,
@@ -412,7 +402,7 @@ impl ConsistencyChecker {
                     .call(&client)
                     .await?;
             let chain_id = client.fetch_chain_id().await?;
-            Some(SLChainData {
+            Some(SLChainAccess {
                 client: client.for_component("consistency_checker"),
                 chain_id,
                 diamond_proxy_addr: Some(gateway_diamond_proxy),
@@ -559,8 +549,10 @@ impl ConsistencyChecker {
             format!("failed extracting commit data for transaction {commit_tx_hash:?}")
         })
         .map_err(CheckError::Validation)?;
+
+        let is_gateway = chain_data.chain_id != self.l1_chain_data.chain_id;
         local
-            .verify_commitment(&commitment)
+            .verify_commitment(&commitment, is_gateway)
             .map_err(CheckError::Validation)
     }
 
@@ -607,7 +599,7 @@ impl ConsistencyChecker {
             let decoded_data = ethabi::decode(
                 &[
                     StoredBatchInfo::schema(),
-                    ParamType::Array(Box::new(CommitBatchInfo::schema())),
+                    ParamType::Array(Box::new(CommitBatchInfo::post_gateway_schema())),
                 ],
                 encoded_data,
             )
@@ -820,7 +812,7 @@ impl ConsistencyChecker {
         Ok(())
     }
 
-    fn chain_data_by_id(&self, searched_chain_id: SLChainId) -> Option<&SLChainData> {
+    fn chain_data_by_id(&self, searched_chain_id: SLChainId) -> Option<&SLChainAccess> {
         if searched_chain_id == self.l1_chain_data.chain_id {
             Some(&self.l1_chain_data)
         } else if Some(searched_chain_id) == self.gateway_chain_data.as_ref().map(|d| d.chain_id) {

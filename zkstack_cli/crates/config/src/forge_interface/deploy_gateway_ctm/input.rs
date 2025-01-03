@@ -77,9 +77,13 @@ impl DeployGatewayCTMInput {
                 .ecosystem_contracts
                 .state_transition_proxy_addr,
             shared_bridge_proxy_addr: contracts_config.bridges.shared.l1_address,
-            governance: contracts_config.l1.governance_addr,
+            governance: ecosystem_config
+                .get_contracts_config()
+                .unwrap()
+                .l1
+                .governance_addr,
 
-            base_token: contracts_config.l1.base_token_addr,
+            base_token: chain_config.base_token.address,
 
             chain_chain_id: U256::from(chain_config.chain_id.0),
             era_chain_id: U256::from(ecosystem_config.era_chain_id.0),

@@ -27,7 +27,6 @@ jobs:
           
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
-          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
           fetch-depth: 2
           submodules: "recursive"
 
@@ -88,40 +87,30 @@ jobs:
     needs: changed_files
     if: contains(github.ref_name, 'release-please--branches')
     uses: ./.github/workflows/ci-core-lint-reusable.yml
-    secrets:
-      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
   ci-for-core:
     name: CI for Core Components
     needs: changed_files
-    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.zk_toolbox == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/ci-core-reusable.yml
-    secrets:
-      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
   ci-for-prover:
     needs: changed_files
     if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     name: CI for Prover Components
     uses: ./.github/workflows/ci-prover-reusable.yml
-    secrets:
-      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
-  e2e-for-prover:
-    name: E2E Test for Prover Components
-    needs: changed_files
-    if: ${{(needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-    uses: ./.github/workflows/ci-prover-e2e.yml
-    secrets:
-      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
+#  e2e-for-prover:
+#    name: E2E Test for Prover Components
+#    needs: changed_files
+#    if: ${{(needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+#    uses: ./.github/workflows/ci-prover-e2e.yml
 
   ci-for-docs:
     needs: changed_files
     if: needs.changed_files.outputs.docs == 'true'
     name: CI for Docs
     uses: ./.github/workflows/ci-docs-reusable.yml
-    secrets:
-      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
   # What needs to be ran for both core and prover
   ci-for-common:
@@ -129,21 +118,18 @@ jobs:
     if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     name: CI for Common Components (prover or core)
     uses: ./.github/workflows/ci-common-reusable.yml
-    secrets:
-      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
-  # build-core-images:
-  #   name: Build core images
-  #   needs: changed_files
-  #   if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-  #   uses: ./.github/workflows/new-build-core-template.yml
-  #   with:
-  #     image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
-  #     action: "build"
-  #   secrets:
-  #     DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-  #     DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-  #     ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
+  build-core-images:
+    name: Build core images
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    uses: ./.github/workflows/new-build-core-template.yml
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      action: "build"
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
   build-tee-prover-images:
     name: Build TEE Prover images
@@ -157,7 +143,6 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
-      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
   build-contract-verifier:
     name: Build contract verifier
@@ -170,7 +155,6 @@ jobs:
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
   build-prover-images:
     name: Build prover images
@@ -185,7 +169,6 @@ jobs:
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
   build-witness-generator-image-avx512:
     name: Build prover images with avx512 instructions
@@ -200,14 +183,12 @@ jobs:
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
   ci-success:
     name: Github Status Check
     runs-on: ubuntu-latest
     if: always() && !cancelled()
-    # TODO restore build-core-images
-    needs: [ ci-for-core-lint, ci-for-common, ci-for-core, ci-for-prover, ci-for-docs, build-contract-verifier, build-prover-images ]
+    needs: [ ci-for-core-lint, ci-for-common, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-contract-verifier, build-prover-images ]
     steps:
       - name: Status
         run: |

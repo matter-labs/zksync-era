@@ -8,9 +8,6 @@ on:
       DOCKERHUB_TOKEN:
         description: "DOCKERHUB_TOKEN"
         required: true
-      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE:
-        description: "Token which will be provided to checkout action to be able to clone private submodules"
-        required: true
     inputs:
       ERA_BELLMAN_CUDA_RELEASE:
         description: "ERA_BELLMAN_CUDA_RELEASE"
@@ -30,11 +27,6 @@ on:
         type: boolean
         default: false
         required: false
-      CUDA_ARCH:
-        description: "CUDA Arch to build"
-        type: string
-        default: "89"
-        required: false
       WITNESS_GENERATOR_RUST_FLAGS:
         description: "Rust flags for witness_generator compilation"
         type: string
@@ -52,10 +44,9 @@ jobs:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
       RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
       ERA_BELLMAN_CUDA_RELEASE: ${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
-      CUDA_ARCH: ${{ inputs.CUDA_ARCH }}
       WITNESS_GENERATOR_RUST_FLAGS: ${{ inputs.WITNESS_GENERATOR_RUST_FLAGS }}
       ZKSYNC_USE_CUDA_STUBS: true
-    runs-on: [ matterlabs-ci-runner-c3d ]
+    runs-on: [matterlabs-ci-runner-c3d]
     strategy:
       matrix:
         component:
@@ -65,7 +56,6 @@ jobs:
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
-          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
           submodules: "recursive"
 
       - name: setup-env
@@ -94,7 +84,6 @@ jobs:
         if: matrix.component == 'proof-fri-gpu-compressor'
         run: |
           ci_run run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
-
 
       - name: login to Docker registries
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
@@ -166,7 +155,7 @@ jobs:
           DOCKER_ACTION: ${{ inputs.action }}
           COMPONENT: ${{ matrix.component }}
         run: |
-          PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE,CUDA_ARCH,PROTOCOL_VERSION,RUST_FLAGS" \
+          PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE,PROTOCOL_VERSION,RUST_FLAGS" \
           ci_run zk docker $DOCKER_ACTION $COMPONENT
 
       - name: Show sccache stats

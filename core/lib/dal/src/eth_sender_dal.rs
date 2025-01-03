@@ -8,14 +8,13 @@ use zksync_db_connection::{
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    eth_sender::{BatchSettlementInfo, EthTx, EthTxBlobSidecar, TxHistory, TxHistoryToSend},
+    eth_sender::{EthTx, EthTxBlobSidecar, TxHistory, TxHistoryToSend},
     Address, L1BatchNumber, SLChainId, H256, U256,
 };
 
 use crate::{
     models::storage_eth_tx::{
         L1BatchEthSenderStats, StorageEthTx, StorageTxHistory, StorageTxHistoryToSend,
-        StoredBatchSettlementInfo,
     },
     Core,
 };
@@ -232,7 +231,7 @@ impl EthSenderDal<'_, '_> {
         raw_tx: Vec<u8>,
         tx_type: AggregatedActionType,
         contract_address: Address,
-        predicted_gas_cost: u32,
+        predicted_gas_cost: Option<u32>,
         from_address: Option<Address>,
         blob_sidecar: Option<EthTxBlobSidecar>,
         is_gateway: bool,
@@ -263,7 +262,7 @@ impl EthSenderDal<'_, '_> {
             nonce as i64,
             tx_type.to_string(),
             address,
-            i64::from(predicted_gas_cost),
+            predicted_gas_cost.map(|c| i64::from(c)),
             from_address.as_ref().map(Address::as_bytes),
             blob_sidecar.map(|sidecar| bincode::serialize(&sidecar)
                 .expect("can always bincode serialize EthTxBlobSidecar; qed")),
@@ -446,6 +445,27 @@ impl EthSenderDal<'_, '_> {
         Ok(row.and_then(|r| r.chain_id).map(|id| SLChainId(id as u64)))
     }
 
+    pub async fn get_batch_execute_chain_id(
+        &mut self,
+        batch_number: L1BatchNumber,
+    ) -> DalResult<Option<SLChainId>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT eth_txs.chain_id
+            FROM l1_batches
+            JOIN eth_txs ON eth_txs.id = l1_batches.eth_execute_tx_id
+            WHERE
+                number = $1
+            "#,
+            i64::from(batch_number.0),
+        )
+        .instrument("get_batch_execute_chain_id")
+        .with_arg("batch_number", &batch_number)
+        .fetch_optional(self.storage)
+        .await?;
+        Ok(row.and_then(|r| r.chain_id).map(|id| SLChainId(id as u64)))
+    }
+
     pub async fn get_confirmed_tx_hash_by_eth_tx_id(
         &mut self,
         eth_tx_id: u32,
@@ -516,7 +536,7 @@ impl EthSenderDal<'_, '_> {
             // Insert general tx descriptor.
             let eth_tx_id = sqlx::query_scalar!(
                 "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, chain_id, created_at, updated_at) \
-                VALUES ('\\x00', 0, $1, '', 0, $2, now(), now()) \
+                VALUES ('\\x00', 0, $1, '', NULL, $2, now(), now()) \
                 RETURNING id",
                 tx_type.to_string(),
                 sl_chain_id.map(|chain_id| chain_id.0 as i64)
@@ -696,7 +716,7 @@ impl EthSenderDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_number_of_failed_transactions(&mut self) -> anyhow::Result<i64> {
+    pub async fn get_number_of_failed_transactions(&mut self) -> anyhow::Result<u64> {
         sqlx::query!(
             r#"
             SELECT
@@ -710,6 +730,7 @@ impl EthSenderDal<'_, '_> {
         .fetch_one(self.storage.conn())
         .await?
         .count
+        .map(|c| c as u64)
         .context("count field is missing")
     }
 
@@ -773,44 +794,6 @@ impl EthSenderDal<'_, '_> {
         .await?;
 
         Ok(())
-    }
-
-    pub async fn get_batch_finalization_info(
-        &mut self,
-        batch_number: L1BatchNumber,
-    ) -> DalResult<Option<BatchSettlementInfo>> {
-        let mut info = sqlx::query_as!(
-            StoredBatchSettlementInfo,
-            r#"
-            SELECT
-                number AS batch_number,
-                eth_txs.chain_id AS settlement_layer_id,
-                eth_txs_history.tx_hash AS settlement_layer_tx_hash
-            FROM
-                l1_batches
-            JOIN eth_txs ON l1_batches.eth_execute_tx_id = eth_txs.id
-            JOIN eth_txs_history
-                ON (
-                    eth_txs.id = eth_txs_history.eth_tx_id
-                    AND eth_txs_history.confirmed_at IS NOT NULL
-                )
-            WHERE
-                l1_batches.number = $1
-            "#,
-            i64::from(batch_number.0)
-        )
-        .instrument("get_batch_finalization_info")
-        .with_arg("batch_number", &batch_number)
-        .fetch_all(self.storage)
-        .await?;
-
-        assert!(
-            info.len() <= 1,
-            "Batch number must be unique in the database {:#?}",
-            info
-        );
-
-        Ok(info.pop().and_then(Into::into))
     }
 }
 

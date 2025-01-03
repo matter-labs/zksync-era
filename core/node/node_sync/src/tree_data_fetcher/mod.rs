@@ -132,7 +132,6 @@ impl TreeDataFetcher {
         l1_client: Box<DynClient<L1>>,
         l1_diamond_proxy_addr: Address,
         gateway_client: Option<Box<DynClient<L1>>>,
-        pool: ConnectionPool<Core>,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         anyhow::ensure!(
@@ -144,7 +143,7 @@ impl TreeDataFetcher {
             l1_client.for_component("tree_data_fetcher"),
             l1_diamond_proxy_addr,
             gateway_client.map(|c| c.for_component("tree_data_fetcher")),
-            pool,
+            self.pool.clone(),
             l2_chain_id,
         )
         .await?;

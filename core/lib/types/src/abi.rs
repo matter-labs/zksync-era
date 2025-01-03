@@ -478,7 +478,9 @@ impl ZkChainSpecificUpgradeData {
         Some(Self {
             base_token_asset_id: base_token_asset_id?,
             l2_legacy_shared_bridge: l2_legacy_shared_bridge?,
-            predeployed_l2_weth_address: predeployed_l2_weth_address?,
+            // Note, that some chains may not contain previous deployment of L2 wrapped base
+            // token. For those, zero address is used.
+            predeployed_l2_weth_address: predeployed_l2_weth_address.unwrap_or_default(),
             base_token_l1_address: base_token_l1_address?,
             base_token_name: base_token_name?,
             base_token_symbol: base_token_symbol?,

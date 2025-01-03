@@ -166,13 +166,8 @@ impl TestedVm for Vm<ImmutableStorageView<InMemoryStorage>> {
         self.bootloader_state.push_l2_block(block);
     }
 
-    fn push_transaction_with_refund_and_compression(
-        &mut self,
-        tx: Transaction,
-        refund: u64,
-        compression: bool,
-    ) {
-        self.push_transaction_inner(tx, refund, compression);
+    fn push_transaction_with_refund(&mut self, tx: Transaction, refund: u64) {
+        self.push_transaction_inner(tx, refund, true);
     }
 
     fn pubdata_input(&self) -> PubdataInput {

@@ -135,7 +135,6 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("chain_admin_addr")?,
-            settlement_layer: self.settlement_layer,
             l2_da_validator_addr: l2
                 .da_validator_addr
                 .as_ref()
@@ -206,7 +205,6 @@ impl ProtoRepr for proto::Contracts {
                     l2_address: this.l2_weth_bridge_addr.map(|a| format!("{:?}", a)),
                 }),
             }),
-            settlement_layer: this.settlement_layer,
         }
     }
 }
