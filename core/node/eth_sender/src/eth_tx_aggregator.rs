@@ -1,3 +1,4 @@
+use chrono::Utc;
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
@@ -382,6 +383,34 @@ impl EthTxAggregator {
         Ok(vk_hash)
     }
 
+    /// Returns whether there is a pending gateway upgrade.
+    /// During gateway upgrade, the signature of the `executeBatches` function on `ValidatorTimelock` will change.
+    /// This means that transactions that were created before the upgrade but were sent right after it
+    /// will fail, which we want to avoid.
+    async fn is_pending_gateway_upgrade(
+        storage: &mut Connection<'_, Core>,
+        contracts_protocol_version: ProtocolVersionId,
+    ) -> bool {
+        // If the gateway protocol version is present in the DB, and its timestamp is larger than `now`, it means that
+        // the upgrade process on the server has begun.
+        // However, if the protocol version on the contract is lower than the `gateway_upgrade`, it means that the upgrade has
+        // not yet completed.
+        let Some(gateway_protocol_version) = storage
+            .protocol_versions_dal()
+            .get_protocol_version_with_latest_patch(ProtocolVersionId::gateway_upgrade())
+            .await
+            .unwrap()
+        else {
+            return false;
+        };
+
+        if gateway_protocol_version.timestamp < Utc::now().timestamp() as u64 {
+            return false;
+        }
+
+        return contracts_protocol_version < ProtocolVersionId::gateway_upgrade();
+    }
+
     async fn get_fflonk_snark_wrapper_vk_hash(
         &mut self,
         verifier_address: Address,
@@ -471,6 +500,19 @@ impl EthTxAggregator {
                 );
                 return Ok(());
             }
+
+            if Self::is_pending_gateway_upgrade(storage, protocol_version_id).await
+                && agg_op.is_execute()
+            {
+                tracing::info!(
+                    "Skipping sending execute operation for batches {}-{} \
+                as there is a pending gateway upgrade",
+                    agg_op.l1_batch_range().start(),
+                    agg_op.l1_batch_range().end()
+                );
+                return Ok(());
+            }
+
             let is_gateway = self.settlement_mode.is_gateway();
             let tx = self.save_eth_tx(storage, &agg_op, is_gateway).await?;
             Self::report_eth_tx_saving(storage, &agg_op, &tx).await;
