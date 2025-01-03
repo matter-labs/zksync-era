@@ -69,7 +69,9 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
                 `${pathToHome}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`
             ).deployedBytecode,
             stateTransitionManager: new ethers.Interface(
-                require(`${CONTRACTS_FOLDER}/l1-contracts/out/StateTransitionManager.sol/StateTransitionManager.json`).abi
+                require(
+                    `${CONTRACTS_FOLDER}/l1-contracts/out/StateTransitionManager.sol/StateTransitionManager.json`
+                ).abi
             )
         };
     } else {
@@ -98,7 +100,9 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
             counterBytecode: require(`${pathToHome}/core/tests/ts-integration/zkout/counter.sol/Counter.json`)
                 .deployedBytecode,
             stateTransitionManager: new ethers.Interface(
-                require(`${L1_CONTRACTS_FOLDER}/state-transition/StateTransitionManager.sol/StateTransitionManager.json`).abi
+                require(
+                    `${L1_CONTRACTS_FOLDER}/state-transition/StateTransitionManager.sol/StateTransitionManager.json`
+                ).abi
             )
         };
     }
