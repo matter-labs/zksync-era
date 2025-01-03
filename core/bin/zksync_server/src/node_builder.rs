@@ -530,10 +530,16 @@ impl MainNodeBuilder {
     }
 
     fn add_da_client_layer(mut self) -> anyhow::Result<Self> {
+        let eth_sender_config = try_load_config!(self.configs.eth);
+        if let Some(sender_config) = eth_sender_config.sender {
+            if sender_config.pubdata_sending_mode != PubdataSendingMode::Custom {
+                tracing::warn!("DA dispatcher is enabled, but the pubdata sending mode is not `Custom`. DA client will not be started.");
+                return Ok(self);
+            }
+        }
+
         let Some(da_client_config) = self.configs.da_client_config.clone() else {
-            tracing::warn!("No config for DA client, using the NoDA client");
-            self.node.add_layer(NoDAClientWiringLayer);
-            return Ok(self);
+            bail!("No config for DA client");
         };
 
         let secrets = try_load_config!(self.secrets.data_availability);
@@ -554,6 +560,9 @@ impl MainNodeBuilder {
             (DAClientConfig::ObjectStore(config), _) => {
                 self.node
                     .add_layer(ObjectStorageClientWiringLayer::new(config));
+            }
+            (DAClientConfig::NoDA, _) => {
+                self.node.add_layer(NoDAClientWiringLayer);
             }
             _ => bail!("invalid pair of da_client and da_secrets"),
         }

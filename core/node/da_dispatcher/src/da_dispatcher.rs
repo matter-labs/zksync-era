@@ -1,4 +1,4 @@
-use std::{future::Future, time::Duration};
+use std::{future::Future, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use chrono::Utc;
@@ -14,7 +14,7 @@ use zksync_types::L1BatchNumber;
 
 use crate::metrics::METRICS;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DataAvailabilityDispatcher {
     client: Box<dyn DataAvailabilityClient>,
     pool: ConnectionPool<Core>,
@@ -35,37 +35,59 @@ impl DataAvailabilityDispatcher {
     }
 
     pub async fn run(self, mut stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
-        loop {
-            if *stop_receiver.borrow() {
-                break;
-            }
+        let self_arc = Arc::new(self.clone());
 
-            let subtasks = futures::future::join(
-                async {
-                    if let Err(err) = self.dispatch().await {
-                        tracing::error!("dispatch error {err:?}");
-                    }
-                },
-                async {
-                    if let Err(err) = self.poll_for_inclusion().await {
-                        tracing::error!("poll_for_inclusion error {err:?}");
-                    }
-                },
-            );
+        let mut stop_receiver_dispatch = stop_receiver.clone();
+        let mut stop_receiver_poll_for_inclusion = stop_receiver.clone();
 
-            tokio::select! {
-                _ = subtasks => {},
-                _ = stop_receiver.changed() => {
+        let dispatch_task = tokio::spawn(async move {
+            loop {
+                if *stop_receiver_dispatch.borrow() {
+                    break;
+                }
+
+                if let Err(err) = self_arc.dispatch().await {
+                    tracing::error!("dispatch error {err:?}");
+                }
+
+                if tokio::time::timeout(
+                    self_arc.config.polling_interval(),
+                    stop_receiver_dispatch.changed(),
+                )
+                .await
+                .is_ok()
+                {
                     break;
                 }
             }
+        });
 
-            if tokio::time::timeout(self.config.polling_interval(), stop_receiver.changed())
+        let inclusion_task = tokio::spawn(async move {
+            loop {
+                if *stop_receiver_poll_for_inclusion.borrow() {
+                    break;
+                }
+
+                if let Err(err) = self.poll_for_inclusion().await {
+                    tracing::error!("poll_for_inclusion error {err:?}");
+                }
+
+                if tokio::time::timeout(
+                    self.config.polling_interval(),
+                    stop_receiver_poll_for_inclusion.changed(),
+                )
                 .await
                 .is_ok()
-            {
-                break;
+                {
+                    break;
+                }
             }
+        });
+
+        tokio::select! {
+            _ = dispatch_task => {},
+            _ = inclusion_task => {},
+            _ = stop_receiver.changed() => {},
         }
 
         tracing::info!("Stop signal received, da_dispatcher is shutting down");
