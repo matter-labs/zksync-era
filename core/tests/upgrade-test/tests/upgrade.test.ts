@@ -24,7 +24,6 @@ async function logsPath(name: string): Promise<string> {
     return await logsTestPath(fileConfig.chain, 'logs/upgrade/', name);
 }
 
-const L2_BRIDGEHUB_ADDRESS = '0x0000000000000000000000000000000000010002';
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
 
@@ -669,25 +668,6 @@ async function prepareUpgradeCalldata(
         chainUpgradeCalldata,
         setTimestampCalldata
     };
-}
-
-async function pauseMigrationsCalldata(
-    l1Provider: ethers.Provider,
-    l2Provider: zksync.Provider,
-    gatewayInfo: GatewayInfo | null
-) {
-    const l1BridgehubAddr = await l2Provider.getBridgehubContractAddress();
-    const to = gatewayInfo ? L2_BRIDGEHUB_ADDRESS : l1BridgehubAddr;
-
-    const iface = new ethers.Interface(['function pauseMigration() external']);
-
-    return prepareGovernanceCalldata(
-        to,
-        iface.encodeFunctionData('pauseMigration', []),
-        l1BridgehubAddr,
-        l1Provider,
-        gatewayInfo
-    );
 }
 
 interface UpgradeCalldata {
