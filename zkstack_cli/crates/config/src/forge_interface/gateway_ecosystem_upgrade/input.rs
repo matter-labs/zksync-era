@@ -37,8 +37,6 @@ impl GatewayEcosystemUpgradeInput {
             contracts: GatewayUpgradeContractsConfig {
                 create2_factory_addr: initial_deployment_config.create2_factory_addr,
                 create2_factory_salt: initial_deployment_config.create2_factory_salt,
-                // TODO verify correctnesss
-                governance_security_council_address: wallets_config.governor.address,
                 governance_min_delay: initial_deployment_config.governance_min_delay,
                 max_number_of_chains: initial_deployment_config.max_number_of_chains,
                 diamond_init_batch_overhead_l1_gas: initial_deployment_config
@@ -91,7 +89,6 @@ impl GatewayEcosystemUpgradeInput {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GatewayUpgradeContractsConfig {
-    pub governance_security_council_address: Address,
     pub governance_min_delay: u64,
     pub max_number_of_chains: u64,
     pub create2_factory_salt: H256,

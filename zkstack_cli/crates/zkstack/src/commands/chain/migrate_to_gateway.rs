@@ -201,7 +201,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     // After the migration is done, there are a few things left to do:
     // Let's grab the new diamond proxy address
 
-    // TODO: maybe move to using a precalculated address, just like for EN
+    // TODO(EVM-929): maybe move to using a precalculated address, just like for EN
     let chain_id = U256::from(chain_config.chain_id.as_u64());
     let contract = BRIDGEHUB_INTERFACE
         .clone()
