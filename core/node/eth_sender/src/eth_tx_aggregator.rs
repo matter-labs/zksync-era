@@ -562,7 +562,7 @@ impl EthTxAggregator {
                 chain_protocol_version_id,
                 l1_verifier_config,
             )
-            .await
+            .await?
         {
             if self.config.tx_aggregation_paused {
                 tracing::info!(

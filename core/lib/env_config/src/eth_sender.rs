@@ -76,7 +76,6 @@ mod tests {
                     tx_aggregation_only_prove_and_execute: false,
                     tx_aggregation_paused: false,
                     time_in_mempool_in_l1_blocks_cap: 2000,
-                    priority_tree_start_index: None,
                     is_verifier_pre_fflonk: true,
                 }),
                 gas_adjuster: Some(GasAdjusterConfig {

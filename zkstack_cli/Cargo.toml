@@ -30,6 +30,10 @@ git_version_macro = { path = "crates/git_version_macro" }
 zksync_config = { path = "../core/lib/config" }
 zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
 zksync_basic_types = { path = "../core/lib/basic_types" }
+zksync_system_constants = { path = "../core/lib/constants" }
+zksync_types = { path = "../core/lib/types" }
+zksync_web3_decl = { path = "../core/lib/web3_decl" }
+zksync_eth_client = { path = "../core/lib/eth_client" }
 zksync_consensus_roles = "=0.7.0"
 zksync_consensus_crypto = "=0.7.0"
 zksync_consensus_utils = "=0.7.0"
@@ -68,3 +72,4 @@ url = { version = "2.5.0", features = ["serde"] }
 xshell = "0.2.6"
 clap-markdown = "0.1.4"
 secrecy = "0.8.0"
+async-trait = "0.1.68"
