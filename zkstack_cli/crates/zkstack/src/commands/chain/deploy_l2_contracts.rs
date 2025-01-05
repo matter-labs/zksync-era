@@ -262,12 +262,10 @@ async fn call_forge(
 ) -> anyhow::Result<()> {
     let input = DeployL2ContractsInput::new(
         chain_config,
-        &ecosystem_config
-            .get_contracts_config()
-            .expect("contracts config"),
+        &ecosystem_config.get_contracts_config()?,
         ecosystem_config.era_chain_id,
     )?;
-    let foundry_contracts_path = chain_config.path_to_foundry();
+    let foundry_contracts_path = chain_config.path_to_l1_foundry();
     let secrets = chain_config.get_secrets_config()?;
     input.save(
         shell,

@@ -476,7 +476,10 @@ describe('Upgrade test', function () {
             ? pathToHome + '/contracts/l1-contracts/zkout/DefaultUpgrade.sol/DefaultUpgrade.json'
             : pathToHome + '/contracts/l1-contracts/out/DefaultUpgrade.sol/DefaultUpgrade.json';
 
-        const bytecode = '0x' + JSON.parse(readFileSync(bytecodePath).toString()).bytecode.object;
+        let bytecode = JSON.parse(readFileSync(bytecodePath).toString()).bytecode.object;
+        if (!bytecode.startsWith('0x')) {
+            bytecode = '0x' + bytecode;
+        }
 
         if (gatewayInfo) {
             const factory = new zksync.ContractFactory([], bytecode, runner);
@@ -842,6 +845,9 @@ export function getGatewayInfo(pathToHome: string, chain: string): GatewayInfo |
         chain,
         config: 'gateway_chain.yaml'
     });
+    if (!gatewayChainConfig) {
+        return null;
+    }
 
     if (gatewayChainConfig.gateway_chain_id) {
         const secretsConfig = loadConfig({

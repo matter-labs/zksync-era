@@ -82,7 +82,9 @@ in-file\:"Specify file with wallets"))' \
 '--base-token-price-denominator=[Base token denominator]:BASE_TOKEN_PRICE_DENOMINATOR:_default' \
 '--set-as-default=[Set as default chain]' \
 '--evm-emulator=[Enable EVM emulator]' \
+'--update-submodules=[Whether to update git submodules of repo]:UPDATE_SUBMODULES:(true false)' \
 '--start-containers=[Start reth and postgres containers after creation]' \
+'--update-submodules=[]:UPDATE_SUBMODULES:(true false)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--legacy-bridge[]' \
 '--skip-submodules-checkout[Skip submodules checkout]' \
@@ -276,6 +278,7 @@ in-file\:"Specify file with wallets"))' \
 '--base-token-price-denominator=[Base token denominator]:BASE_TOKEN_PRICE_DENOMINATOR:_default' \
 '--set-as-default=[Set as default chain]' \
 '--evm-emulator=[Enable EVM emulator]' \
+'--update-submodules=[Whether to update git submodules of repo]:UPDATE_SUBMODULES:(true false)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--legacy-bridge[]' \
 '--skip-submodules-checkout[Skip submodules checkout]' \
@@ -1561,6 +1564,7 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 '--version=[]:VERSION:_default' \
 '--snark-wrapper=[]:SNARK_WRAPPER:_default' \
+'--fflonk-snark-wrapper=[]:FFLONK_SNARK_WRAPPER:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--default[]' \
 '-v[Verbose mode]' \
@@ -2022,7 +2026,9 @@ _arguments "${_arguments_options[@]}" : \
 '(--clone)--bellman-cuda-dir=[]:BELLMAN_CUDA_DIR:_default' \
 '--bellman-cuda=[]' \
 '--setup-compressor-key=[]' \
-'--path=[]:PATH:_default' \
+'--plonk-path=[]:PLONK_PATH:_default' \
+'--fflonk-path=[]:FFLONK_PATH:_default' \
+'--compressor-type=[]:COMPRESSOR_TYPE:(fflonk plonk all)' \
 '--region=[]:REGION:(us europe asia)' \
 '--mode=[]:MODE:(download generate)' \
 '--setup-keys=[]' \
@@ -2068,6 +2074,7 @@ _arguments "${_arguments_options[@]}" : \
 '--heavy-wvg-count=[]:HEAVY_WVG_COUNT:_default' \
 '-m+[]:MAX_ALLOCATION:_default' \
 '--max-allocation=[]:MAX_ALLOCATION:_default' \
+'--mode=[]:MODE:(fflonk plonk)' \
 '--docker=[]:DOCKER:(true false)' \
 '--tag=[]:TAG:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
@@ -2092,7 +2099,9 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (compressor-keys)
 _arguments "${_arguments_options[@]}" : \
-'--path=[]:PATH:_default' \
+'--plonk-path=[]:PLONK_PATH:_default' \
+'--fflonk-path=[]:FFLONK_PATH:_default' \
+'--compressor-type=[]:COMPRESSOR_TYPE:(fflonk plonk all)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \

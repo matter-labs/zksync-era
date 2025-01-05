@@ -15,14 +15,14 @@ use crate::commands::chain::{
 
 mod accept_chain_ownership;
 pub(crate) mod args;
-pub mod build_transactions;
-pub mod common;
-pub mod convert_to_gateway;
-pub mod create;
+mod build_transactions;
+pub(crate) mod common;
+pub(crate) mod convert_to_gateway;
+pub(crate) mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
 mod enable_evm_emulator;
-pub mod gateway_upgrade;
+mod gateway_upgrade;
 pub mod genesis;
 pub mod init;
 mod migrate_from_gateway;

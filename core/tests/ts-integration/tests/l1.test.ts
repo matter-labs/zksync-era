@@ -8,14 +8,7 @@
 import { TestMaster } from '../src';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import {
-    bigIntMax,
-    deployContract,
-    getTestContract,
-    scaledGasPrice,
-    waitForL2ToL1LogProof,
-    waitForNewL1Batch
-} from '../src/helpers';
+import { bigIntMax, deployContract, getTestContract, scaledGasPrice, waitForNewL1Batch } from '../src/helpers';
 import { L1_MESSENGER, L1_MESSENGER_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT } from 'zksync-ethers/build/utils';
 
 const contracts = {
@@ -146,7 +139,9 @@ describe('Tests for L1 behavior', () => {
         const msgProof = await alice.provider.getLogProof(tx.hash, l2ToL1LogIndex);
         expect(msgProof).toBeTruthy();
 
-        // Ensure that received proof matches the provided root hash.
+        // Note, that if a chain uses gateway, its `root` will correspond to the root of the messages from the batch,
+        // while the `proof` would contain both the proof for the leaf belonging to the batch and the batch belonging
+        // to the gateway.
         const { id, proof } = msgProof!;
 
         // Ensure that provided proof is accepted by the main ZKsync contract.

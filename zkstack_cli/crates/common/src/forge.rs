@@ -144,14 +144,14 @@ impl ForgeScript {
         self
     }
 
-    /// Makes sure a transaction is sent, only after its previous one has been confirmed and succeeded.
-    pub fn with_slow(mut self) -> Self {
-        self.args.add_arg(ForgeScriptArg::Slow);
+    pub fn with_gas_limit(mut self, gas_limit: u64) -> Self {
+        self.args.add_arg(ForgeScriptArg::GasLimit { gas_limit });
         self
     }
 
-    pub fn with_gas_limit(mut self, gas_limit: u64) -> Self {
-        self.args.add_arg(ForgeScriptArg::GasLimit { gas_limit });
+    /// Makes sure a transaction is sent, only after its previous one has been confirmed and succeeded.
+    pub fn with_slow(mut self) -> Self {
+        self.args.add_arg(ForgeScriptArg::Slow);
         self
     }
 

@@ -79,7 +79,6 @@ pub struct GatewayUpgradeArgs {
     chain_upgrade_stage: GatewayChainUpgradeStage,
 }
 
-// TODO: use a different script here (i.e. make it have a different file)
 lazy_static! {
     static ref GATEWAY_PREPARATION_INTERFACE: BaseContract = BaseContract::from(
         parse_abi(&[
