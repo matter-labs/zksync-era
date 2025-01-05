@@ -13,7 +13,6 @@ use zksync_types::{
     },
     ethabi::{self, Token},
     helpers::unix_timestamp_ms,
-    settlement,
     web3::{self, contract::Error},
     Address, ProtocolVersionId, H256,
 };

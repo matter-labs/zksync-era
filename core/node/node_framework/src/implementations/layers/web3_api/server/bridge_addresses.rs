@@ -1,11 +1,8 @@
 use std::time::Duration;
 
-use zksync_eth_client::{CallFunctionArgs, ContractCallError, EnrichedClientResult, EthInterface};
+use zksync_eth_client::CallFunctionArgs;
 use zksync_node_api_server::web3::state::BridgeAddressesHandle;
-use zksync_types::{
-    ethabi::{decode, Contract, ParamType},
-    web3, Address,
-};
+use zksync_types::{ethabi::Contract, Address};
 use zksync_web3_decl::{
     client::{DynClient, L1, L2},
     namespaces::ZksNamespaceClient,
