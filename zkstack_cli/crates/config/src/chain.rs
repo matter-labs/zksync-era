@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize, Serializer};
 use types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
 use zksync_basic_types::L2ChainId;
+use zksync_config::configs::{GatewayChainConfig, GatewayConfig};
 
 use crate::{
     consts::{
@@ -108,6 +109,14 @@ impl ChainConfig {
         SecretsConfig::read_with_base_path(self.get_shell(), &self.configs)
     }
 
+    pub fn get_gateway_config(&self) -> anyhow::Result<GatewayConfig> {
+        GatewayConfig::read_with_base_path(self.get_shell(), &self.configs)
+    }
+
+    pub fn get_gateway_chain_config(&self) -> anyhow::Result<GatewayChainConfig> {
+        GatewayChainConfig::read_with_base_path(self.get_shell(), &self.configs)
+    }
+
     pub fn path_to_general_config(&self) -> PathBuf {
         self.configs.join(GENERAL_FILE)
     }
@@ -132,7 +141,7 @@ impl ChainConfig {
         general_config.save_with_base_path(self.get_shell(), &self.configs)
     }
 
-    pub fn path_to_foundry(&self) -> PathBuf {
+    pub fn path_to_l1_foundry(&self) -> PathBuf {
         self.link_to_code.join(L1_CONTRACTS_FOUNDRY)
     }
 

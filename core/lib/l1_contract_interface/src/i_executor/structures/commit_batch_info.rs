@@ -291,10 +291,7 @@ impl Tokenizable for CommitBatchInfo<'_> {
                 (L1BatchCommitmentMode::Rollup, PubdataSendingMode::Custom) => {
                     panic!("Custom pubdata DA is incompatible with Rollup mode")
                 }
-                (
-                    L1BatchCommitmentMode::Rollup,
-                    PubdataSendingMode::Calldata | PubdataSendingMode::RelayedL2Calldata,
-                ) => {
+                (L1BatchCommitmentMode::Rollup, PubdataSendingMode::Calldata) => {
                     let pubdata = self.pubdata_input();
 
                     let header =
@@ -308,6 +305,40 @@ impl Tokenizable for CommitBatchInfo<'_> {
                         .chain([PUBDATA_SOURCE_CALLDATA])
                         .chain(pubdata)
                         .chain(blob_commitment)
+                        .collect()
+                }
+                (L1BatchCommitmentMode::Rollup, PubdataSendingMode::RelayedL2Calldata) => {
+                    let pubdata = self.pubdata_input();
+
+                    let header =
+                        compose_header_for_l1_commit_rollup(state_diff_hash, pubdata.clone());
+
+                    // We compute and add the blob commitment to the pubdata payload so that we can verify the proof
+                    // even if we are not using blobs.
+                    // Note, that the only difference from the `PubdataSendingMode::Calldata` is that mutliple
+                    // commitments can be provided as the size of a transaction on top of Gateway can exceed 120kb.
+                    let blob_commitments: Vec<u8> = if pubdata.is_empty() {
+                        // For consistency with `Calldata` sending mode we provide some non-empty commitments
+                        // even when pubdata is zero. Note, that this will never actually happen in production,
+                        // but this helps for easier testing.
+                        KzgInfo::new(&pubdata).to_blob_commitment().to_vec()
+                    } else {
+                        pubdata
+                            .chunks(ZK_SYNC_BYTES_PER_BLOB)
+                            .flat_map(|blob| {
+                                let blob_commitment = KzgInfo::new(blob).to_blob_commitment();
+
+                                // We also append 0s to show that we do not reuse previously published blobs.
+                                blob_commitment.into_iter().collect::<Vec<u8>>()
+                            })
+                            .collect()
+                    };
+
+                    header
+                        .into_iter()
+                        .chain([PUBDATA_SOURCE_CALLDATA])
+                        .chain(pubdata)
+                        .chain(blob_commitments)
                         .collect()
                 }
                 (L1BatchCommitmentMode::Rollup, PubdataSendingMode::Blobs) => {
