@@ -313,8 +313,8 @@ impl EthTxAggregator {
         };
 
         if let Token::Array(call_results) = token {
-            let number_of_calls = if evm_emulator_hash_requested { 6 } else { 5 };
-            // 5 or 6 calls are aggregated in multicall
+            let number_of_calls = if evm_emulator_hash_requested { 8 } else { 7 };
+            // 7 or 8 calls are aggregated in multicall
             if call_results.len() != number_of_calls {
                 return parse_error(&call_results);
             }

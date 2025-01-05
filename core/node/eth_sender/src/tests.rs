@@ -11,18 +11,20 @@ use zksync_types::{
     commitment::{
         L1BatchCommitmentMode, L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata,
     },
-    ethabi,
-    ethabi::Token,
+    ethabi::{self, Token},
     helpers::unix_timestamp_ms,
-    web3,
-    web3::contract::Error,
+    settlement,
+    web3::{self, contract::Error},
     Address, ProtocolVersionId, H256,
 };
 
 use crate::{
     abstract_l1_interface::OperatorType,
     aggregated_operations::AggregatedOperation,
-    tester::{EthSenderTester, TestL1Batch, STATE_TRANSITION_CONTRACT_ADDRESS},
+    tester::{
+        EthSenderTester, TestL1Batch, STATE_TRANSITION_CONTRACT_ADDRESS,
+        STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS,
+    },
     zksync_functions::ZkSyncFunctions,
     EthSenderError,
 };
@@ -66,27 +68,53 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
         panic!("Unexpected input: {tokens:?}");
     };
 
+    let validator_timelock_short_selector = functions
+        .state_transition_manager_contract
+        .function("validatorTimelock")
+        .unwrap()
+        .short_signature();
+    let prototol_version_short_selector = functions
+        .state_transition_manager_contract
+        .function("protocolVersion")
+        .unwrap()
+        .short_signature();
+
     let calls = tokens.into_iter().map(Multicall3Call::from_token);
     let response = calls.map(|call| {
         let call = call.unwrap();
-        assert_eq!(call.target, STATE_TRANSITION_CONTRACT_ADDRESS);
         let output = match &call.calldata[..4] {
             selector if selector == bootloader_signature => {
+                assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
                 vec![1u8; 32]
             }
             selector if selector == default_aa_signature => {
+                assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
                 vec![2u8; 32]
             }
             selector if Some(selector) == evm_emulator_getter_signature => {
+                assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
                 vec![3u8; 32]
             }
             selector if selector == functions.get_verifier_params.short_signature() => {
+                assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
                 vec![4u8; 96]
             }
             selector if selector == functions.get_verifier.short_signature() => {
+                assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
                 vec![5u8; 32]
             }
             selector if selector == functions.get_protocol_version.short_signature() => {
+                assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
+                H256::from_low_u64_be(ProtocolVersionId::default() as u64)
+                    .0
+                    .to_vec()
+            }
+            selector if selector == validator_timelock_short_selector => {
+                assert!(call.target == STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS);
+                vec![6u8; 32]
+            }
+            selector if selector == prototol_version_short_selector => {
+                assert!(call.target == STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS);
                 H256::from_low_u64_be(ProtocolVersionId::default() as u64)
                     .0
                     .to_vec()
@@ -730,6 +758,15 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
                     .to_vec(),
             ),
         ]),
+        Token::Tuple(vec![
+            Token::Bool(true),
+            Token::Bytes(
+                H256::from_low_u64_be(ProtocolVersionId::latest() as u64)
+                    .0
+                    .to_vec(),
+            ),
+        ]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![6u8; 32])]),
     ];
     if with_evm_emulator {
         mock_response.insert(
@@ -761,6 +798,11 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
         parsed.chain_protocol_version_id,
         ProtocolVersionId::latest()
     );
+    assert_eq!(
+        parsed.stm_validator_timelock_address,
+        Address::repeat_byte(6)
+    );
+    assert_eq!(parsed.stm_protocol_version_id, ProtocolVersionId::latest());
 }
 
 #[test_log::test(tokio::test)]
