@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use zksync_eth_client::{EnrichedClientResult, EthInterface};
+use zksync_eth_client::{CallFunctionArgs, ContractCallError, EnrichedClientResult, EthInterface};
 use zksync_node_api_server::web3::state::BridgeAddressesHandle;
 use zksync_types::{
     ethabi::{decode, Contract, ParamType},
@@ -43,46 +43,20 @@ pub struct L1UpdaterInner {
 }
 
 impl L1UpdaterInner {
-    async fn fetch_shared_bridge(&self) -> EnrichedClientResult<Address> {
-        let data = self
-            .bridgehub_abi
-            .function("sharedBridge")
-            .unwrap()
-            .encode_input(&[])
-            .unwrap();
-        self.l1_eth_client
-            .call_contract_function(
-                web3::CallRequest {
-                    to: Some(self.bridgehub_addr),
-                    data: Some(data.into()),
-                    ..Default::default()
-                },
-                None,
-            )
-            .await
-            .map(|bytes| {
-                decode(&[ParamType::Address], &bytes.0)
-                    .ok()
-                    .and_then(|mut tokens| tokens.pop())
-                    .and_then(|token| token.into_address())
-                    .expect("Invalid bridgehub configuration")
-            })
-    }
-}
-
-impl L1UpdaterInner {
     async fn loop_iteration(&self) {
-        match self.fetch_shared_bridge().await {
-            Ok(bridge_addresses) => {
+        let call_result = CallFunctionArgs::new("sharedBridge", ())
+            .for_contract(self.bridgehub_addr, &self.bridgehub_abi)
+            .call(&self.l1_eth_client)
+            .await;
+
+        match call_result {
+            Ok(shared_bridge_address) => {
                 self.bridge_address_updater
-                    .update_l1_shared_bridge(bridge_addresses)
+                    .update_l1_shared_bridge(shared_bridge_address)
                     .await;
             }
             Err(err) => {
-                tracing::error!(
-                    "Failed to query `shared_bridge` from Bridgehub, error: {:?}",
-                    err
-                );
+                tracing::error!("Failed to query shared bridge address, error: {err:?}");
             }
         }
     }

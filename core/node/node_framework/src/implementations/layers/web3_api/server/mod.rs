@@ -1,7 +1,7 @@
 use std::{num::NonZeroU32, time::Duration};
 
 use anyhow::Context;
-use bridge_addresses_updater::{L1UpdaterInner, MainNodeUpdaterInner};
+use bridge_addresses::{L1UpdaterInner, MainNodeUpdaterInner};
 use tokio::{sync::oneshot, task::JoinHandle};
 use zksync_circuit_breaker::replication_lag::ReplicationLagChecker;
 use zksync_config::configs::api::MaxResponseSize;
@@ -14,8 +14,7 @@ use zksync_node_api_server::web3::{
 use crate::{
     implementations::{
         layers::web3_api::server::{
-            bridge_addresses_updater::BridgeAddressesUpdaterTask,
-            sealed_l2_block::SealedL2BlockUpdaterTask,
+            bridge_addresses::BridgeAddressesUpdaterTask, sealed_l2_block::SealedL2BlockUpdaterTask,
         },
         resources::{
             circuit_breakers::CircuitBreakersResource,
@@ -33,7 +32,7 @@ use crate::{
     FromContext, IntoContext,
 };
 
-mod bridge_addresses_updater;
+mod bridge_addresses;
 mod sealed_l2_block;
 
 /// Set of optional variables that can be altered to modify the behavior of API builder.
