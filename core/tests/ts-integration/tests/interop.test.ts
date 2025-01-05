@@ -528,9 +528,7 @@ describe('Interop checks', () => {
                     to: L2_BRIDGEHUB_ADDRESS,
                     from: ethers.ZeroAddress,
                     data: await getRequestL2TransactionTwoBridgesData(
-                        (
-                            await interop1_wallet.provider.getNetwork()
-                        ).chainId,
+                        (await interop1_wallet.provider.getNetwork()).chainId,
                         mintValue,
                         0n,
                         getTokenTransferSecondBridgeData(tokenB_details.assetId!, swapAmount, interop1_wallet.address),

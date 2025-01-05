@@ -24,6 +24,7 @@ export const L2_LOG_STRING =
 export const ARTIFACTS_PATH = '../../../contracts/l1-contracts/out/';
 
 // struct InteropTrigger {
+// struct InteropTrigger {
 //     uint256 destinationChainId;
 //     address sender;
 //     bytes32 feeBundleHash;
