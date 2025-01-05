@@ -912,7 +912,6 @@ impl Distribution<configs::wallets::EthSender> for EncodeDist {
         configs::wallets::EthSender {
             operator: self.sample(rng),
             blob_operator: self.sample_opt(|| self.sample(rng)),
-            gateway: None,
         }
     }
 }
