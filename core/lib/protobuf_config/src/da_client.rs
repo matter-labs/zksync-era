@@ -16,8 +16,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
     type Type = configs::DAClientConfig;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
-        let config = required(&self.config).context("config")?;
-
+        let config = required(&self.config).context("da_client config")?;
         let client = match config {
             proto::data_availability_client::Config::Avail(conf) => Avail(AvailConfig {
                 bridge_api_url: required(&conf.bridge_api_url)

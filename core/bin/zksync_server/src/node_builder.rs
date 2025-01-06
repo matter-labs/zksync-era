@@ -542,6 +542,11 @@ impl MainNodeBuilder {
             bail!("No config for DA client");
         };
 
+        if let DAClientConfig::NoDA = da_client_config {
+            self.node.add_layer(NoDAClientWiringLayer);
+            return Ok(self);
+        }
+
         let secrets = try_load_config!(self.secrets.data_availability);
         match (da_client_config, secrets) {
             (DAClientConfig::Avail(config), DataAvailabilitySecrets::Avail(secret)) => {
@@ -560,9 +565,6 @@ impl MainNodeBuilder {
             (DAClientConfig::ObjectStore(config), _) => {
                 self.node
                     .add_layer(ObjectStorageClientWiringLayer::new(config));
-            }
-            (DAClientConfig::NoDA, _) => {
-                self.node.add_layer(NoDAClientWiringLayer);
             }
             _ => bail!("invalid pair of da_client and da_secrets"),
         }
