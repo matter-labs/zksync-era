@@ -72,9 +72,9 @@ impl OperationSkippingRestrictions {
                 agg_op.l1_batch_range().end(),
                 reason
             );
-            true
-        } else {
             false
+        } else {
+            true
         }
     }
 
