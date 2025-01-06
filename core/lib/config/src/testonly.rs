@@ -419,8 +419,8 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             pubdata_sending_mode: PubdataSendingMode::Calldata,
             tx_aggregation_paused: false,
             tx_aggregation_only_prove_and_execute: false,
-            priority_tree_start_index: self.sample(rng),
             time_in_mempool_in_l1_blocks_cap: self.sample(rng),
+            is_verifier_pre_fflonk: self.sample(rng),
         }
     }
 }
@@ -467,6 +467,8 @@ impl Distribution<configs::FriProofCompressorConfig> for EncodeDist {
             universal_setup_path: self.sample(rng),
             universal_setup_download_url: self.sample(rng),
             verify_wrapper_proof: self.sample(rng),
+            universal_fflonk_setup_path: self.sample(rng),
+            universal_fflonk_setup_download_url: self.sample(rng),
         }
     }
 }
@@ -743,6 +745,7 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             l1_chain_id: L1ChainId(self.sample(rng)),
             l2_chain_id: L2ChainId::default(),
             snark_wrapper_vk_hash: rng.gen(),
+            fflonk_snark_wrapper_vk_hash: Some(rng.gen()),
             dummy_verifier: rng.gen(),
             l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
                 0 => L1BatchCommitmentMode::Rollup,

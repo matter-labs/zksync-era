@@ -266,7 +266,7 @@ mod tests {
     #[test]
     fn preparing_evm_bytecode() {
         let bytecode_hash =
-            BytecodeHash::for_evm_bytecode(PROCESSED_EVM_BYTECODE.len(), &PADDED_EVM_BYTECODE);
+            BytecodeHash::for_evm_bytecode(PROCESSED_EVM_BYTECODE.len(), PADDED_EVM_BYTECODE);
         let prepared = trim_padded_evm_bytecode(bytecode_hash, PADDED_EVM_BYTECODE).unwrap();
         assert_eq!(prepared, PROCESSED_EVM_BYTECODE);
     }

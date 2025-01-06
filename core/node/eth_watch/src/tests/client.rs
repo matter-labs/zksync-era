@@ -272,6 +272,13 @@ impl EthClient for MockEthClient {
     ) -> Result<H256, ContractCallError> {
         unimplemented!()
     }
+
+    async fn fflonk_scheduler_vk_hash(
+        &self,
+        _verifier_address: Address,
+    ) -> Result<Option<H256>, ContractCallError> {
+        Ok(Some(H256::zero()))
+    }
 }
 
 #[async_trait::async_trait]

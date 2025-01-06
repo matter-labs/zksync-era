@@ -33,6 +33,14 @@ impl ProtoRepr for proto::ProofCompressor {
                 .clone(),
             verify_wrapper_proof: *required(&self.verify_wrapper_proof)
                 .context("verify_wrapper_proof")?,
+            universal_fflonk_setup_path: required(&self.universal_fflonk_setup_path)
+                .context("universal_setup_path")?
+                .clone(),
+            universal_fflonk_setup_download_url: required(
+                &self.universal_fflonk_setup_download_url,
+            )
+            .context("universal_setup_download_url")?
+            .clone(),
         })
     }
 
@@ -47,6 +55,10 @@ impl ProtoRepr for proto::ProofCompressor {
             universal_setup_path: Some(this.universal_setup_path.clone()),
             universal_setup_download_url: Some(this.universal_setup_download_url.clone()),
             verify_wrapper_proof: Some(this.verify_wrapper_proof),
+            universal_fflonk_setup_path: Some(this.universal_fflonk_setup_path.clone()),
+            universal_fflonk_setup_download_url: Some(
+                this.universal_fflonk_setup_download_url.clone(),
+            ),
         }
     }
 }
