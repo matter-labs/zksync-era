@@ -4,7 +4,7 @@ use zksync_config::configs::{
     wallets,
 };
 use zksync_state_keeper::{MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer};
-use zksync_types::{commitment::PubdataType, Address, L2ChainId};
+use zksync_types::{commitment::L1BatchCommitmentMode, Address, L2ChainId};
 
 use crate::{
     implementations::resources::{
@@ -40,7 +40,7 @@ pub struct MempoolIOLayer {
     mempool_config: MempoolConfig,
     wallets: wallets::StateKeeper,
     l2_da_validator_addr: Option<Address>,
-    pubdata_type: PubdataType,
+    l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
 }
 
 #[derive(Debug, FromContext)]
@@ -66,7 +66,7 @@ impl MempoolIOLayer {
         mempool_config: MempoolConfig,
         wallets: wallets::StateKeeper,
         l2_da_validator_addr: Option<Address>,
-        pubdata_type: PubdataType,
+        l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
             zksync_network_id,
@@ -74,7 +74,7 @@ impl MempoolIOLayer {
             mempool_config,
             wallets,
             l2_da_validator_addr,
-            pubdata_type,
+            l1_batch_commit_data_generator_mode,
         }
     }
 
@@ -136,7 +136,7 @@ impl WiringLayer for MempoolIOLayer {
             self.mempool_config.delay_interval(),
             self.zksync_network_id,
             self.l2_da_validator_addr,
-            self.pubdata_type,
+            self.l1_batch_commit_data_generator_mode,
         )?;
 
         // Create sealer.

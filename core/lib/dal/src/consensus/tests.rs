@@ -9,7 +9,7 @@ use zksync_protobuf::{
 };
 use zksync_test_contracts::Account;
 use zksync_types::{
-    commitment::{PubdataParams, PubdataType},
+    commitment::{L1BatchCommitmentMode, PubdataParams},
     web3::Bytes,
     Execute, ExecuteTransactionCommon, L1BatchNumber, ProtocolVersionId, Transaction,
 };
@@ -58,12 +58,8 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
         } else {
             PubdataParams {
                 pubdata_type: match rng.gen_range(0..2) {
-                    0 => PubdataType::Rollup,
-                    1 => PubdataType::NoDA,
-                    2 => PubdataType::Avail,
-                    3 => PubdataType::Celestia,
-                    4 => PubdataType::Eigen,
-                    _ => PubdataType::ObjectStore,
+                    0 => L1BatchCommitmentMode::Rollup,
+                    _ => L1BatchCommitmentMode::Validium,
                 },
                 l2_da_validator_address: rng.gen(),
             }
