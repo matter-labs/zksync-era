@@ -1,29 +1,21 @@
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
 use circuit_sequencer_api::proof::FinalProof;
 use fflonk_gpu::{FflonkSnarkVerifierCircuit, FflonkSnarkVerifierCircuitProof};
-use tokio::task::JoinHandle;
+use tokio::{sync::watch, task::JoinHandle};
+use vise::{Buckets, Counter, Histogram, LabeledFamily, Metrics};
 use wrapper_prover::{GPUWrapperConfigs, WrapperProver};
 use zkevm_test_harness::proof_wrapper_utils::{get_trusted_setup, DEFAULT_WRAPPER_CONFIG};
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
-    circuit_definitions::{
-        boojum::field::goldilocks::GoldilocksField,
-        circuit_definitions::{
-            aux_layer::{
-                wrapper::ZkSyncCompressionWrapper, ZkSyncCompressionForWrapperCircuit,
-                ZkSyncCompressionLayerCircuit, ZkSyncCompressionProof,
-                ZkSyncCompressionProofForWrapper, ZkSyncCompressionVerificationKeyForWrapper,
-            },
-            recursion_layer::{
-                ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
-                ZkSyncRecursionVerificationKey,
-            },
-        },
-        zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
+    circuit_definitions::circuit_definitions::recursion_layer::{
+        ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
     },
     get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper,
 };
@@ -31,10 +23,17 @@ use zksync_prover_interface::outputs::{
     FflonkL1BatchProofForL1, L1BatchProofForL1, PlonkL1BatchProofForL1,
 };
 use zksync_prover_keystore::keystore::Keystore;
-use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
+use zksync_utils::panic_extractor::try_extract_panic_message;
 
-use crate::metrics::METRICS;
+use crate::{
+    fflonk,
+    fflonk::generate_fflonk_proof,
+    metrics::METRICS,
+    plonk::generate_plonk_proof,
+    traits::{Compressor, CrsLoader, SnarkProver, SnarkSetupDataLoader},
+    utils::aux_output_witness_to_array,
+};
 
 pub struct ProofCompressor {
     blob_store: Arc<dyn ObjectStore>,
@@ -52,6 +51,11 @@ pub enum Proof {
 }
 
 impl ProofCompressor {
+    const SERVICE_NAME: &'static str = "ProofCompressor";
+    const POLLING_INTERVAL_MS: u64 = 1000;
+    const MAX_BACKOFF_MS: u64 = 60_000;
+    const BACKOFF_MULTIPLIER: u64 = 2;
+
     pub fn new(
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Prover>,
@@ -72,176 +76,9 @@ impl ProofCompressor {
         }
     }
 
-    fn aux_output_witness_to_array(
-        aux_output_witness: BlockAuxilaryOutputWitness<GoldilocksField>,
-    ) -> [[u8; 32]; 4] {
-        let mut array: [[u8; 32]; 4] = [[0; 32]; 4];
-
-        for i in 0..32 {
-            array[0][i] = aux_output_witness.l1_messages_linear_hash[i];
-            array[1][i] = aux_output_witness.rollup_state_diff_for_compression[i];
-            array[2][i] = aux_output_witness.bootloader_heap_initial_content[i];
-            array[3][i] = aux_output_witness.events_queue_state[i];
-        }
-        array
-    }
-
-    #[tracing::instrument(skip(proof, _compression_mode))]
-    pub fn generate_plonk_proof(
-        proof: ZkSyncRecursionLayerProof,
-        _compression_mode: u8,
-        keystore: Keystore,
-    ) -> anyhow::Result<FinalProof> {
-        let scheduler_vk = keystore
-            .load_recursive_layer_verification_key(
-                ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
-            )
-            .context("get_recursiver_layer_vk_for_circuit_type()")?;
-
-        let wrapper_proof = {
-            let crs = get_trusted_setup();
-            let wrapper_config = DEFAULT_WRAPPER_CONFIG;
-            let mut prover = WrapperProver::<GPUWrapperConfigs>::new(&crs, wrapper_config).unwrap();
-
-            prover
-                .generate_setup_data(scheduler_vk.into_inner())
-                .unwrap();
-            prover.generate_proofs(proof.into_inner()).unwrap();
-
-            prover.get_wrapper_proof().unwrap()
-        };
-
-        // (Re)serialization should always succeed.
-        let serialized = bincode::serialize(&wrapper_proof)
-            .expect("Failed to serialize proof with ZkSyncSnarkWrapperCircuit");
-
-        // For sending to L1, we can use the `FinalProof` type, that has a generic circuit inside, that is not used for serialization.
-        // So `FinalProof` and `Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>` are compatible on serialization bytecode level.
-        let final_proof: FinalProof =
-            bincode::deserialize(&serialized).expect("Failed to deserialize final proof");
-        Ok(final_proof)
-    }
-
-    #[tracing::instrument(skip(proof, compression_mode, keystore))]
-    pub fn generate_fflonk_proof(
-        proof: ZkSyncRecursionLayerProof,
-        compression_mode: u8,
-        keystore: Keystore,
-    ) -> anyhow::Result<FflonkSnarkVerifierCircuitProof> {
-        let scheduler_vk = keystore
-            .load_recursive_layer_verification_key(
-                ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
-            )
-            .context("get_recursiver_layer_vk_for_circuit_type()")?;
-
-        // compress proof step by step: 1 -> 2 -> 3 -> 4 -> 5(wrapper)
-        let (compression_wrapper_proof, compression_wrapper_vk) = Self::compress_proof(
-            &keystore,
-            proof.into_inner(),
-            scheduler_vk.into_inner(),
-            compression_mode,
-        )?;
-
-        // construct fflonk snark verifier circuit
-        let wrapper_function =
-            ZkSyncCompressionWrapper::from_numeric_circuit_type(compression_mode);
-        let fixed_parameters = compression_wrapper_vk.fixed_parameters.clone();
-        let circuit = FflonkSnarkVerifierCircuit {
-            witness: Some(compression_wrapper_proof),
-            vk: compression_wrapper_vk,
-            fixed_parameters,
-            transcript_params: (),
-            wrapper_function,
-        };
-
-        tracing::info!("Proving FFLONK snark verifier");
-
-        let setup = keystore.load_fflonk_snark_verifier_setup_data()?;
-
-        tracing::info!("Loaded setup data for FFLONK verification");
-
-        let proof = fflonk_gpu::gpu_prove_fflonk_snark_verifier_circuit_with_precomputation(
-            &circuit,
-            &setup,
-            &setup.get_verification_key(),
-        );
-        tracing::info!("Finished proof generation");
-        Ok(proof)
-    }
-
-    pub fn compress_proof(
-        keystore: &Keystore,
-        proof: ZkSyncCompressionProof,
-        vk: ZkSyncRecursionVerificationKey,
-        compression_steps: u8,
-    ) -> anyhow::Result<(
-        ZkSyncCompressionProofForWrapper,
-        ZkSyncCompressionVerificationKeyForWrapper,
-    )> {
-        let worker = franklin_crypto::boojum::worker::Worker::new();
-        let mut compression_circuit =
-            ZkSyncCompressionLayerCircuit::from_witness_and_vk(Some(proof), vk.clone(), 1);
-        let mut compression_wrapper_circuit = None;
-
-        for step_idx in 1..compression_steps {
-            tracing::info!("Proving compression {:?}", step_idx);
-            let setup_data = keystore.load_compression_setup_data(step_idx)?;
-            let (proof, vk) =
-                proof_compression_gpu::prove_compression_layer_circuit_with_precomputations(
-                    compression_circuit.clone(),
-                    &setup_data.setup,
-                    setup_data.finalization_hint,
-                    setup_data.vk,
-                    &worker,
-                );
-            tracing::info!("Proof for compression {:?} is generated!", step_idx);
-
-            if step_idx + 1 == compression_steps {
-                compression_wrapper_circuit =
-                    Some(ZkSyncCompressionForWrapperCircuit::from_witness_and_vk(
-                        Some(proof),
-                        vk,
-                        compression_steps,
-                    ));
-            } else {
-                compression_circuit = ZkSyncCompressionLayerCircuit::from_witness_and_vk(
-                    Some(proof),
-                    vk,
-                    step_idx + 1,
-                );
-            }
-        }
-
-        // last wrapping step
-        tracing::info!("Proving compression {} for wrapper", compression_steps);
-
-        let setup_data = keystore.load_compression_wrapper_setup_data(compression_steps)?;
-        let (proof, vk) =
-            proof_compression_gpu::prove_compression_wrapper_circuit_with_precomputations(
-                compression_wrapper_circuit.unwrap(),
-                &setup_data.setup,
-                setup_data.finalization_hint,
-                setup_data.vk,
-                &worker,
-            );
-        tracing::info!(
-            "Proof for compression wrapper {} is generated!",
-            compression_steps
-        );
-        Ok((proof, vk))
-    }
-}
-
-#[async_trait]
-impl JobProcessor for ProofCompressor {
-    type Job = ZkSyncRecursionLayerProof;
-    type JobId = L1BatchNumber;
-
-    type JobArtifacts = Proof;
-
-    const SERVICE_NAME: &'static str = "ProofCompressor";
-
-    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+    async fn get_next_job(
+        &self,
+    ) -> anyhow::Result<Option<(L1BatchNumber, ZkSyncRecursionLayerProof)>> {
         let mut conn = self.pool.connection().await.unwrap();
         let pod_name = get_current_pod_name();
         let Some(l1_batch_number) = conn
@@ -276,7 +113,7 @@ impl JobProcessor for ProofCompressor {
         Ok(Some((l1_batch_number, scheduler_proof)))
     }
 
-    async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
+    async fn save_failure(&self, job_id: L1BatchNumber, _started_at: Instant, error: String) {
         self.pool
             .connection()
             .await
@@ -286,37 +123,93 @@ impl JobProcessor for ProofCompressor {
             .await;
     }
 
-    async fn process_job(
-        &self,
-        _job_id: &L1BatchNumber,
-        job: ZkSyncRecursionLayerProof,
-        _started_at: Instant,
-    ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
-        let compression_mode = self.compression_mode;
-        let keystore = self.keystore.clone();
-        let is_fflonk = self.is_fflonk;
-        tokio::task::spawn_blocking(move || {
-            if !is_fflonk {
-                Ok(Proof::Plonk(Box::new(Self::generate_plonk_proof(
-                    job,
-                    compression_mode,
-                    keystore,
-                )?)))
-            } else {
-                Ok(Proof::Fflonk(Self::generate_fflonk_proof(
-                    job,
-                    compression_mode,
-                    keystore,
-                )?))
+    fn max_attempts(&self) -> u32 {
+        self.max_attempts
+    }
+
+    async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
+        let mut prover_storage = self
+            .pool
+            .connection()
+            .await
+            .context("failed to acquire DB connection for ProofCompressor")?;
+        prover_storage
+            .fri_proof_compressor_dal()
+            .get_proof_compression_job_attempts(*job_id)
+            .await
+            .map(|attempts| attempts.unwrap_or(0))
+            .context("failed to get job attempts for ProofCompressor")
+    }
+
+    pub async fn run(
+        self,
+        mut stop_receiver: watch::Receiver<bool>,
+        mut iterations_left: Option<usize>,
+    ) -> anyhow::Result<()>
+    where
+        Self: Sized,
+    {
+        let mut backoff: u64 = Self::POLLING_INTERVAL_MS;
+        while iterations_left.map_or(true, |i| i > 0) {
+            if *stop_receiver.borrow() {
+                tracing::warn!(
+                    "Stop signal received, shutting down {} component while waiting for a new job",
+                    Self::SERVICE_NAME
+                );
+                return Ok(());
             }
-        })
+            if let Some((job_id, job)) =
+                Self::get_next_job(&self).await.context("get_next_job()")?
+            {
+                let started_at = Instant::now();
+                backoff = Self::POLLING_INTERVAL_MS;
+                iterations_left = iterations_left.map(|i| i - 1);
+
+                tracing::debug!(
+                    "Spawning thread processing {:?} job with id {:?}",
+                    Self::SERVICE_NAME,
+                    job_id
+                );
+
+                if self.is_fflonk {
+                    let started_at = Instant::now();
+                    let task = self.generate_fflonk_proof(job).await?;
+                    let proof = Proof::Fflonk(task);
+                    tracing::info!(
+                        "Compression&Proof generation took: {:?}",
+                        started_at.elapsed()
+                    );
+
+                    self.save_result(job_id, started_at, proof).await?;
+                }
+                // else{
+                //      let task = tokio::task::spawn_blocking(async ||{generate_plonk_proof(job, self.keystore.clone()).await});
+                //
+                //      self.wait_for_task(job_id, started_at, task, &mut stop_receiver)
+                //          .await
+                //          .context("wait_for_task")?;
+                // }
+            } else if iterations_left.is_some() {
+                tracing::info!("No more jobs to process. Server can stop now.");
+                return Ok(());
+            } else {
+                tracing::trace!("Backing off for {} ms", backoff);
+                // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
+                tokio::time::timeout(Duration::from_millis(backoff), stop_receiver.changed())
+                    .await
+                    .ok();
+                backoff = (backoff * Self::BACKOFF_MULTIPLIER).min(Self::MAX_BACKOFF_MS);
+            }
+        }
+        tracing::info!("Requested number of jobs is processed. Server can stop now.");
+        Ok(())
     }
 
     async fn save_result(
         &self,
-        job_id: Self::JobId,
+        job_id: L1BatchNumber,
         started_at: Instant,
-        artifacts: Self::JobArtifacts,
+        artifacts: Proof,
     ) -> anyhow::Result<()> {
         METRICS.compression_time.observe(started_at.elapsed());
         tracing::info!(
@@ -329,8 +222,7 @@ impl JobProcessor for ProofCompressor {
             .get(job_id)
             .await
             .context("Failed to get aggregation result coords from blob store")?;
-        let aggregation_result_coords =
-            Self::aux_output_witness_to_array(aux_output_witness_wrapper.0);
+        let aggregation_result_coords = aux_output_witness_to_array(aux_output_witness_wrapper.0);
 
         let l1_batch_proof = match artifacts {
             Proof::Plonk(proof) => L1BatchProofForL1::Plonk(PlonkL1BatchProofForL1 {
@@ -365,21 +257,116 @@ impl JobProcessor for ProofCompressor {
         Ok(())
     }
 
-    fn max_attempts(&self) -> u32 {
-        self.max_attempts
+    async fn wait_for_task(
+        &self,
+        job_id: L1BatchNumber,
+        started_at: Instant,
+        task: JoinHandle<anyhow::Result<Proof>>,
+        stop_receiver: &mut watch::Receiver<bool>,
+    ) -> anyhow::Result<()> {
+        let attempts = self.get_job_attempts(&job_id).await?;
+        let max_attempts = self.max_attempts();
+        if attempts == max_attempts {
+            METRICS.max_attempts_reached[&(Self::SERVICE_NAME, format!("{job_id:?}"))].inc();
+            tracing::error!(
+                "Max attempts ({max_attempts}) reached for {} job {:?}",
+                Self::SERVICE_NAME,
+                job_id,
+            );
+        }
+
+        let result = loop {
+            tracing::trace!(
+                "Polling {} task with id {:?}. Is finished: {}",
+                Self::SERVICE_NAME,
+                job_id,
+                task.is_finished()
+            );
+            if task.is_finished() {
+                break task.await;
+            }
+            if tokio::time::timeout(
+                Duration::from_millis(Self::POLLING_INTERVAL_MS),
+                stop_receiver.changed(),
+            )
+            .await
+            .is_ok()
+            {
+                // Stop signal received, return early.
+                // Exit will be processed/reported by the main loop.
+                return Ok(());
+            }
+        };
+        let error_message = match result {
+            Ok(Ok(data)) => {
+                tracing::debug!(
+                    "{} Job {:?} finished successfully",
+                    Self::SERVICE_NAME,
+                    job_id
+                );
+                METRICS.attempts[&Self::SERVICE_NAME].observe(attempts as usize);
+                return self
+                    .save_result(job_id, started_at, data)
+                    .await
+                    .context("save_result()");
+            }
+            Ok(Err(error)) => error.to_string(),
+            Err(error) => try_extract_panic_message(error),
+        };
+        tracing::error!(
+            "Error occurred while processing {} job {:?}: {:?}",
+            Self::SERVICE_NAME,
+            job_id,
+            error_message
+        );
+
+        self.save_failure(job_id, started_at, error_message).await;
+        Ok(())
     }
 
-    async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
-        let mut prover_storage = self
-            .pool
-            .connection()
-            .await
-            .context("failed to acquire DB connection for ProofCompressor")?;
-        prover_storage
-            .fri_proof_compressor_dal()
-            .get_proof_compression_job_attempts(*job_id)
-            .await
-            .map(|attempts| attempts.unwrap_or(0))
-            .context("failed to get job attempts for ProofCompressor")
+    async fn generate_fflonk_proof(
+        &self,
+        job: ZkSyncRecursionLayerProof,
+    ) -> anyhow::Result<FflonkSnarkVerifierCircuitProof> {
+        let (setup_data_sender, setup_data_receiver) = tokio::sync::mpsc::channel(1);
+        let (crs_sender, crs_receiver) = tokio::sync::mpsc::channel(1);
+        let (compression_data_sender, compression_data_receiver) = tokio::sync::mpsc::channel(1);
+
+        let setup_data_loader = SnarkSetupDataLoader::new(self.keystore.clone(), setup_data_sender);
+        let crs_loader = CrsLoader::new(String::new(), crs_sender);
+
+        let scheduler_vk = self
+            .keystore
+            .load_recursive_layer_verification_key(
+                ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
+            )
+            .context("get_recursiver_layer_vk_for_circuit_type()")?;
+
+        let compressor = Compressor::new(
+            self.keystore.clone(),
+            self.compression_mode,
+            job,
+            scheduler_vk,
+            compression_data_sender,
+        );
+        let mut snark_prover = SnarkProver::new(
+            setup_data_receiver,
+            crs_receiver,
+            compression_data_receiver,
+            self.compression_mode,
+        );
+
+        let setup_data_task = setup_data_loader.run();
+        let crs_data_task = crs_loader.run();
+        let compressor_task = compressor.run();
+        let snark_prover_task = snark_prover.run();
+
+        let (_, _, _, proof) = tokio::join!(
+            tokio::spawn(setup_data_task),
+            tokio::spawn(crs_data_task),
+            tokio::spawn(compressor_task),
+            tokio::spawn(snark_prover_task)
+        );
+        proof?
     }
 }

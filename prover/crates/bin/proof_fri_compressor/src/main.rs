@@ -13,17 +13,17 @@ use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::keystore::Keystore;
-use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
-use crate::{
-    compressor::ProofCompressor, initial_setup_keys::download_initial_setup_keys_if_not_present,
-};
+use crate::{compressor::ProofCompressor, utils::setup_crs_keys};
 
 mod compressor;
-mod initial_setup_keys;
+mod fflonk;
 mod metrics;
+mod plonk;
+mod traits;
+mod utils;
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
@@ -137,22 +137,4 @@ async fn main() -> anyhow::Result<()> {
     stop_sender.send_replace(true);
     tasks.complete(Duration::from_secs(5)).await;
     Ok(())
-}
-
-fn setup_crs_keys(config: &FriProofCompressorConfig, is_fflonk: bool) {
-    if is_fflonk {
-        download_initial_setup_keys_if_not_present(
-            &config.universal_fflonk_setup_path,
-            &config.universal_fflonk_setup_download_url,
-        );
-
-        env::set_var("COMPACT_CRS_FILE", &config.universal_fflonk_setup_path);
-        return;
-    }
-
-    download_initial_setup_keys_if_not_present(
-        &config.universal_setup_path,
-        &config.universal_setup_download_url,
-    );
-    env::set_var("CRS_FILE", &config.universal_setup_path);
 }
