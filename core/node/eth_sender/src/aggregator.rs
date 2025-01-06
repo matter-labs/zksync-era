@@ -62,7 +62,11 @@ pub(crate) struct OperationSkippingRestrictions {
 }
 
 impl OperationSkippingRestrictions {
-    fn skip_and_log(&self, agg_op: &AggregatedOperation, reason: Option<&'static str>) -> bool {
+    fn check_for_continuation(
+        &self,
+        agg_op: &AggregatedOperation,
+        reason: Option<&'static str>,
+    ) -> bool {
         if let Some(reason) = reason {
             tracing::info!(
                 "Skipping sending commit operation of type {} for batches {}-{} \
@@ -85,19 +89,19 @@ impl OperationSkippingRestrictions {
         commit_op: Option<AggregatedOperation>,
     ) -> Option<AggregatedOperation> {
         let commit_op = commit_op?;
-        self.skip_and_log(&commit_op, self.commit_restriction)
+        self.check_for_continuation(&commit_op, self.commit_restriction)
             .then_some(commit_op)
     }
 
     fn filter_prove_op(&self, prove_op: Option<ProveBatches>) -> Option<AggregatedOperation> {
         let op = AggregatedOperation::PublishProofOnchain(prove_op?);
-        self.skip_and_log(&op, self.commit_restriction)
+        self.check_for_continuation(&op, self.commit_restriction)
             .then_some(op)
     }
 
     fn filter_execute_op(&self, execute_op: Option<ExecuteBatches>) -> Option<AggregatedOperation> {
         let op = AggregatedOperation::Execute(execute_op?);
-        self.skip_and_log(&op, self.commit_restriction)
+        self.check_for_continuation(&op, self.commit_restriction)
             .then_some(op)
     }
 }
