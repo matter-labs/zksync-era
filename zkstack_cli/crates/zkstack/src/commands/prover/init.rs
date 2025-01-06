@@ -7,7 +7,7 @@ use common::{
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     logger,
     spinner::Spinner,
-    yaml::ConfigPatch,
+    yaml::PatchedConfig,
 };
 use config::{copy_configs, get_link_to_prover, set_prover_database, EcosystemConfig};
 use xshell::{cmd, Shell};
@@ -55,7 +55,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
     }
 
-    let mut general_config = ConfigPatch::new(chain_config.path_to_general_config());
+    let mut general_config = PatchedConfig::read(chain_config.path_to_general_config()).await?;
 
     let proof_object_store_config =
         get_object_store_config(shell, Some(args.proof_store))?.unwrap();
@@ -122,7 +122,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     if let Some(prover_db) = &args.database_config {
         let spinner = Spinner::new(MSG_INITIALIZING_DATABASES_SPINNER);
 
-        let mut secrets = ConfigPatch::new(chain_config.path_to_secrets_config());
+        let mut secrets = PatchedConfig::read(chain_config.path_to_secrets_config()).await?;
         set_prover_database(&mut secrets, &prover_db.database_config)?;
         secrets.save().await?;
         initialize_prover_database(
@@ -168,7 +168,7 @@ fn get_object_store_config(
 }
 
 fn set_object_store(
-    patch: &mut ConfigPatch,
+    patch: &mut PatchedConfig,
     prefix: &str,
     config: &ObjectStoreConfig,
 ) -> anyhow::Result<()> {

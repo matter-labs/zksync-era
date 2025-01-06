@@ -368,9 +368,6 @@ pub(super) fn msg_preparing_en_config_is_done(path: &Path) -> String {
 
 pub(super) const MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED: &str =
     "External node is not initialized";
-pub(super) const MSG_CONSENSUS_CONFIG_MISSING_ERR: &str = "Consensus config is missing";
-pub(super) const MSG_CONSENSUS_SECRETS_MISSING_ERR: &str = "Consensus secrets config is missing";
-pub(super) const MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR: &str = "Consensus node key is missing";
 
 pub(super) const MSG_BUILDING_EN: &str = "Building external node";
 pub(super) const MSG_FAILED_TO_BUILD_EN_ERR: &str = "Failed to build external node";
@@ -563,7 +560,6 @@ pub(super) fn msg_updating_chain(chain: &str) -> String {
 pub(super) const MSG_RECEIPT_MISSING: &str = "receipt missing";
 pub(super) const MSG_STATUS_MISSING: &str = "status missing";
 pub(super) const MSG_TRANSACTION_FAILED: &str = "transaction failed";
-pub(super) const MSG_API_CONFIG_MISSING: &str = "api config missing";
 pub(super) const MSG_MULTICALL3_CONTRACT_NOT_CONFIGURED: &str =
     "multicall3 contract not configured";
 pub(super) const MSG_GOVERNOR_PRIVATE_KEY_NOT_SET: &str = "governor private key not set";

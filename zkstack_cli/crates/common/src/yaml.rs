@@ -4,7 +4,8 @@ use std::{
 };
 
 use anyhow::Context;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
+use tokio::fs;
 
 use crate::logger;
 
@@ -95,19 +96,77 @@ pub fn merge_yaml(
 }
 
 #[derive(Debug)]
-#[must_use = "Must be persisted"]
-pub struct ConfigPatch {
-    #[allow(dead_code)] // FIXME
+pub struct RawConfig {
     path: PathBuf,
+    inner: serde_yaml::Value,
+}
+
+impl RawConfig {
+    pub async fn read(path: PathBuf) -> anyhow::Result<Self> {
+        let raw = fs::read_to_string(&path)
+            .await
+            .with_context(|| format!("failed reading config at `{path:?}`"))?;
+        Ok(Self {
+            inner: serde_yaml::from_str(&raw)
+                .with_context(|| format!("failed deserializing config at `{path:?}` as YAML"))?,
+            path,
+        })
+    }
+
+    pub fn get_raw(&self, path: &str) -> Option<&serde_yaml::Value> {
+        path.split('.')
+            .try_fold(&self.inner, |ptr, segment| match ptr {
+                serde_yaml::Value::Mapping(map) => map.get(segment),
+                _ => None,
+            })
+    }
+
+    pub fn get_opt<T: DeserializeOwned>(&self, path: &str) -> anyhow::Result<Option<T>> {
+        let Some(raw) = self.get_raw(path) else {
+            return Ok(None);
+        };
+        serde_yaml::from_value(raw.clone()).with_context(|| {
+            format!(
+                "failed deserializing config param `{path}` in `{:?}`",
+                self.path
+            )
+        })
+    }
+
+    pub fn get<T: DeserializeOwned>(&self, path: &str) -> anyhow::Result<T> {
+        self.get_opt(path)?
+            .with_context(|| format!("config param `{path}` is missing in {:?}", self.path))
+    }
+}
+
+// FIXME: to `config` crate?
+#[derive(Debug)]
+#[must_use = "Must be persisted"]
+pub struct PatchedConfig {
+    base: RawConfig,
     overrides: HashMap<String, serde_yaml::Value>,
 }
 
-impl ConfigPatch {
-    pub fn new(path: PathBuf) -> Self {
+impl PatchedConfig {
+    pub async fn read(path: PathBuf) -> anyhow::Result<Self> {
+        Ok(Self {
+            base: RawConfig::read(path).await?,
+            overrides: HashMap::new(),
+        })
+    }
+
+    pub fn empty(path: PathBuf) -> Self {
         Self {
-            path,
+            base: RawConfig {
+                path,
+                inner: serde_yaml::Value::Mapping(serde_yaml::Mapping::default()),
+            },
             overrides: HashMap::new(),
         }
+    }
+
+    pub fn base(&self) -> &RawConfig {
+        &self.base
     }
 
     pub fn insert(&mut self, key: &str, value: impl Into<serde_yaml::Value>) {
@@ -125,6 +184,22 @@ impl ConfigPatch {
             .to_str()
             .with_context(|| format!("path at `{key}` is not UTF-8"))?;
         self.insert(key, value);
+        Ok(())
+    }
+
+    pub fn extend(&mut self, source: serde_yaml::Mapping) -> anyhow::Result<()> {
+        self.overrides.reserve(source.len());
+        for (key, value) in source {
+            match key {
+                serde_yaml::Value::String(key) => {
+                    self.overrides.insert(key, value);
+                }
+                serde_yaml::Value::Number(key) => {
+                    self.overrides.insert(key.to_string(), value);
+                }
+                _ => anyhow::bail!("unsupported key type: {key:?}"),
+            }
+        }
         Ok(())
     }
 

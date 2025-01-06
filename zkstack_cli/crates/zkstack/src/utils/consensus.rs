@@ -1,29 +1,9 @@
 use anyhow::Context as _;
-use common::yaml::ConfigPatch;
+use common::yaml::PatchedConfig;
 use config::ChainConfig;
-use secrecy::{ExposeSecret, Secret};
-use serde::Serialize;
-use zksync_config::configs::consensus::{ConsensusSecrets, NodePublicKey, WeightedAttester};
+use serde::{Deserialize, Serialize};
 use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_roles::{attester, node, validator};
-
-// FIXME: remove
-pub(crate) fn parse_attester_committee(
-    attesters: &[WeightedAttester],
-) -> anyhow::Result<attester::Committee> {
-    let attesters: Vec<_> = attesters
-        .iter()
-        .enumerate()
-        .map(|(i, v)| {
-            Ok(attester::WeightedAttester {
-                key: Text::new(&v.key.0).decode().context("key").context(i)?,
-                weight: v.weight,
-            })
-        })
-        .collect::<anyhow::Result<_>>()
-        .context("attesters")?;
-    attester::Committee::new(attesters).context("Committee::new()")
-}
 
 #[derive(Debug, Clone)]
 pub struct ConsensusSecretKeys {
@@ -52,7 +32,14 @@ fn get_consensus_public_keys(consensus_keys: &ConsensusSecretKeys) -> ConsensusP
     }
 }
 
+/// Mirrors key–address pair used in the consensus config.
 #[derive(Debug, Serialize)]
+pub(crate) struct KeyAndAddress {
+    pub key: String,
+    pub addr: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct Weighted {
     key: String,
     weight: u64,
@@ -64,8 +51,33 @@ impl Weighted {
     }
 }
 
+pub(crate) fn read_attester_committee_yaml(
+    raw_yaml: serde_yaml::Value,
+) -> anyhow::Result<attester::Committee> {
+    #[derive(Debug, Deserialize)]
+    struct SetAttesterCommitteeFile {
+        attesters: Vec<Weighted>,
+    }
+
+    let file: SetAttesterCommitteeFile =
+        serde_yaml::from_value(raw_yaml).context("invalid attester committee format")?;
+    let attesters: Vec<_> = file
+        .attesters
+        .iter()
+        .enumerate()
+        .map(|(i, v)| {
+            Ok(attester::WeightedAttester {
+                key: Text::new(&v.key).decode().context("key").context(i)?,
+                weight: v.weight,
+            })
+        })
+        .collect::<anyhow::Result<_>>()
+        .context("attesters")?;
+    attester::Committee::new(attesters).context("Committee::new()")
+}
+
 pub fn set_genesis_specs(
-    general: &mut ConfigPatch,
+    general: &mut PatchedConfig,
     chain_config: &ChainConfig,
     consensus_keys: &ConsensusSecretKeys,
 ) {
@@ -90,7 +102,10 @@ pub fn set_genesis_specs(
     general.insert("consensus.genesis_spec.leader", leader);
 }
 
-pub fn set_consensus_secrets(secrets: &mut ConfigPatch, consensus_keys: &ConsensusSecretKeys) {
+pub(crate) fn set_consensus_secrets(
+    secrets: &mut PatchedConfig,
+    consensus_keys: &ConsensusSecretKeys,
+) {
     let validator_key = consensus_keys.validator_key.encode();
     let attester_key = consensus_keys.attester_key.encode();
     let node_key = consensus_keys.node_key.encode();
@@ -99,16 +114,9 @@ pub fn set_consensus_secrets(secrets: &mut ConfigPatch, consensus_keys: &Consens
     secrets.insert("consensus.node_key", node_key);
 }
 
-pub fn node_public_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<NodePublicKey>> {
-    Ok(node_key(secrets)?.map(|node_secret_key| NodePublicKey(node_secret_key.public().encode())))
-}
-
-fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<node::SecretKey>> {
-    read_secret_text(secrets.node_key.as_ref().map(|x| &x.0))
-}
-
-fn read_secret_text<T: TextFmt>(text: Option<&Secret<String>>) -> anyhow::Result<Option<T>> {
-    text.map(|text| Text::new(text.expose_secret()).decode())
-        .transpose()
-        .map_err(|_| anyhow::format_err!("invalid format"))
+pub fn node_public_key(secret_key: &str) -> anyhow::Result<String> {
+    let secret_key: node::SecretKey = Text::new(secret_key)
+        .decode()
+        .context("invalid node key format")?;
+    Ok(secret_key.public().encode())
 }

@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use common::{logger, spinner::Spinner, yaml::ConfigPatch};
+use common::{logger, spinner::Spinner, yaml::PatchedConfig};
 use config::{get_link_to_prover, EcosystemConfig};
 use xshell::Shell;
 
@@ -15,7 +15,7 @@ pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Resu
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    let mut general_config = ConfigPatch::new(chain_config.path_to_general_config());
+    let mut general_config = PatchedConfig::read(chain_config.path_to_general_config()).await?;
 
     let default_plonk_path = get_default_plonk_compressor_keys_path(&ecosystem_config)?;
     let default_fflonk_path = get_default_fflonk_compressor_keys_path(&ecosystem_config)?;
@@ -57,7 +57,7 @@ pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Resu
 
 pub(crate) fn download_compressor_key(
     shell: &Shell,
-    general_config: &mut ConfigPatch,
+    general_config: &mut PatchedConfig,
     ty: CompressorType,
     path: &Path,
 ) -> anyhow::Result<()> {

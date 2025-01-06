@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use common::yaml::ConfigPatch;
+use common::yaml::PatchedConfig;
 use xshell::Shell;
 pub use zksync_config::GenesisConfig;
 
@@ -11,7 +11,7 @@ use crate::{
 };
 
 pub fn update_from_chain_config(
-    genesis: &mut ConfigPatch,
+    genesis: &mut PatchedConfig,
     config: &ChainConfig,
 ) -> anyhow::Result<()> {
     genesis.insert("l2_chain_id", config.chain_id.as_u64());

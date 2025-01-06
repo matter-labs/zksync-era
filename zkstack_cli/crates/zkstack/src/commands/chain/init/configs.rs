@@ -1,5 +1,5 @@
 use anyhow::Context;
-use common::{logger, yaml::ConfigPatch};
+use common::{logger, yaml::PatchedConfig};
 use config::{
     copy_configs, set_l1_rpc_url, traits::SaveConfigWithBasePath, update_from_chain_config,
     ChainConfig, ContractsConfig, EcosystemConfig,
@@ -56,27 +56,20 @@ pub async fn init_configs(
         )?;
     }
 
-    let mut general_config = ConfigPatch::new(chain_config.path_to_general_config());
-
-    /* FIXME
-    if general_config.proof_data_handler_config.is_some() && general_config.prover_gateway.is_some()
-    {
-        let proof_data_handler_config = general_config.proof_data_handler_config.clone().unwrap();
-        let mut prover_gateway = general_config.prover_gateway.clone().unwrap();
-
-        prover_gateway.api_url =
-            format!("http://127.0.0.1:{}", proof_data_handler_config.http_port);
-
-        general_config.prover_gateway = Some(prover_gateway);
+    let mut general_config = PatchedConfig::read(chain_config.path_to_general_config()).await?;
+    let prover_data_handler_port = general_config
+        .base()
+        .get_opt::<u16>("proof_data_handler.http_port")?;
+    if let Some(port) = prover_data_handler_port {
+        general_config.insert("rover_gateway.api_url", format!("http://127.0.0.1:{port}"));
     }
-     */
 
     let consensus_keys = generate_consensus_keys();
     set_genesis_specs(&mut general_config, chain_config, &consensus_keys);
     general_config.save().await?;
 
     // Initialize genesis config
-    let mut genesis_config = ConfigPatch::new(chain_config.path_to_genesis_config());
+    let mut genesis_config = PatchedConfig::read(chain_config.path_to_genesis_config()).await?;
     update_from_chain_config(&mut genesis_config, chain_config)?;
     genesis_config.save().await?;
 
@@ -89,7 +82,7 @@ pub async fn init_configs(
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     // Initialize secrets config
-    let mut secrets = ConfigPatch::new(chain_config.path_to_secrets_config());
+    let mut secrets = PatchedConfig::read(chain_config.path_to_secrets_config()).await?;
     set_l1_rpc_url(&mut secrets, init_args.l1_rpc_url.clone())?;
     set_consensus_secrets(&mut secrets, &consensus_keys);
     secrets.save().await?;

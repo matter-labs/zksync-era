@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use common::yaml::{merge_yaml, ConfigPatch};
+use common::yaml::{merge_yaml, PatchedConfig};
 use url::Url;
 use xshell::Shell;
 pub use zksync_config::configs::GeneralConfig;
@@ -38,7 +38,7 @@ impl FileArtifacts {
     }
 }
 
-pub fn set_rocks_db_config(config: &mut ConfigPatch, rocks_dbs: RocksDbs) -> anyhow::Result<()> {
+pub fn set_rocks_db_config(config: &mut PatchedConfig, rocks_dbs: RocksDbs) -> anyhow::Result<()> {
     config.insert_path("db.state_keeper_db_path", &rocks_dbs.state_keeper)?;
     config.insert_path("db.merkle_tree.path", &rocks_dbs.merkle_tree)?;
     config.insert_path(
@@ -53,7 +53,7 @@ pub fn set_rocks_db_config(config: &mut ConfigPatch, rocks_dbs: RocksDbs) -> any
 }
 
 pub fn set_file_artifacts(
-    config: &mut ConfigPatch,
+    config: &mut PatchedConfig,
     file_artifacts: FileArtifacts,
 ) -> anyhow::Result<()> {
     // FIXME: won't work w/o migrating object store configs

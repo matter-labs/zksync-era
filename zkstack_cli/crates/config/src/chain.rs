@@ -3,6 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use common::yaml::RawConfig;
 use serde::{Deserialize, Serialize, Serializer};
 use types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
@@ -81,12 +82,22 @@ impl ChainConfig {
         self.shell.get().expect("Not initialized")
     }
 
+    // FIXME: remove
     pub fn get_genesis_config(&self) -> anyhow::Result<GenesisConfig> {
         GenesisConfig::read_with_base_path(self.get_shell(), &self.configs)
     }
 
+    pub async fn get_raw_genesis_config(&self) -> anyhow::Result<RawConfig> {
+        RawConfig::read(self.path_to_genesis_config()).await
+    }
+
+    // FIXME: remove
     pub fn get_general_config(&self) -> anyhow::Result<GeneralConfig> {
         GeneralConfig::read_with_base_path(self.get_shell(), &self.configs)
+    }
+
+    pub async fn get_raw_general_config(&self) -> anyhow::Result<RawConfig> {
+        RawConfig::read(self.path_to_general_config()).await
     }
 
     pub fn get_wallets_config(&self) -> anyhow::Result<WalletsConfig> {
@@ -105,8 +116,13 @@ impl ChainConfig {
         ContractsConfig::read_with_base_path(self.get_shell(), &self.configs)
     }
 
+    // FIXME: remove
     pub fn get_secrets_config(&self) -> anyhow::Result<SecretsConfig> {
         SecretsConfig::read_with_base_path(self.get_shell(), &self.configs)
+    }
+
+    pub async fn get_raw_secrets_config(&self) -> anyhow::Result<RawConfig> {
+        RawConfig::read(self.path_to_secrets_config()).await
     }
 
     pub fn get_gateway_config(&self) -> anyhow::Result<GatewayConfig> {

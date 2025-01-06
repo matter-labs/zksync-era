@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use common::{db::DatabaseConfig, yaml::ConfigPatch};
+use common::{db::DatabaseConfig, yaml::PatchedConfig};
 use xshell::Shell;
 pub use zksync_config::configs::Secrets as SecretsConfig;
 
@@ -10,7 +10,7 @@ use crate::{
 };
 
 pub fn set_server_database(
-    secrets: &mut ConfigPatch,
+    secrets: &mut PatchedConfig,
     server_db_config: &DatabaseConfig,
 ) -> anyhow::Result<()> {
     secrets.insert(
@@ -21,7 +21,7 @@ pub fn set_server_database(
 }
 
 pub fn set_prover_database(
-    secrets: &mut ConfigPatch,
+    secrets: &mut PatchedConfig,
     prover_db_config: &DatabaseConfig,
 ) -> anyhow::Result<()> {
     secrets.insert(
@@ -31,7 +31,7 @@ pub fn set_prover_database(
     Ok(())
 }
 
-pub fn set_l1_rpc_url(secrets: &mut ConfigPatch, l1_rpc_url: String) -> anyhow::Result<()> {
+pub fn set_l1_rpc_url(secrets: &mut PatchedConfig, l1_rpc_url: String) -> anyhow::Result<()> {
     secrets.insert("l1.l1_rpc_url", l1_rpc_url);
     Ok(())
 }

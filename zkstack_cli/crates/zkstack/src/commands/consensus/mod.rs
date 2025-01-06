@@ -5,7 +5,6 @@ use std::{borrow::Borrow, collections::HashMap, path::PathBuf, sync::Arc};
 use anyhow::Context as _;
 use common::{config::global_config, logger, wallets::Wallet};
 use config::EcosystemConfig;
-use conv::*;
 use ethers::{
     abi::Detokenize,
     contract::{FunctionCall, Multicall},
@@ -16,15 +15,11 @@ use ethers::{
 };
 use tokio::time::MissedTickBehavior;
 use xshell::Shell;
+use zksync_basic_types::L2ChainId;
 use zksync_consensus_crypto::ByteFmt;
 use zksync_consensus_roles::{attester, validator};
 
-use crate::{commands::args::WaitArgs, messages, utils::consensus::parse_attester_committee};
-
-mod conv;
-mod proto;
-#[cfg(test)]
-mod tests;
+use crate::{commands::args::WaitArgs, messages, utils::consensus::read_attester_committee_yaml};
 
 #[allow(warnings)]
 mod abi {
@@ -146,19 +141,14 @@ fn print_attesters(committee: &attester::Committee) {
 struct Setup {
     chain: config::ChainConfig,
     contracts: config::ContractsConfig,
-    general: config::GeneralConfig,
-    genesis: config::GenesisConfig,
+    l2_chain_id: L2ChainId,
+    l2_http_url: String,
+    genesis_attesters: attester::Committee,
 }
 
 impl Setup {
     fn provider(&self) -> anyhow::Result<Provider<Http>> {
-        let l2_url = &self
-            .general
-            .api_config
-            .as_ref()
-            .context(messages::MSG_API_CONFIG_MISSING)?
-            .web3_json_rpc
-            .http_url;
+        let l2_url = &self.l2_http_url;
         Provider::try_from(l2_url).with_context(|| format!("Provider::try_from({l2_url})"))
     }
 
@@ -173,7 +163,7 @@ impl Setup {
                     .multicall3
                     .context(messages::MSG_MULTICALL3_CONTRACT_NOT_CONFIGURED)?,
             ),
-            Some(self.genesis.l2_chain_id.as_u64()),
+            Some(self.l2_chain_id.as_u64()),
         )?)
     }
 
@@ -186,7 +176,7 @@ impl Setup {
     }
 
     fn signer(&self, wallet: LocalWallet) -> anyhow::Result<Arc<impl Middleware>> {
-        let wallet = wallet.with_chain_id(self.genesis.l2_chain_id.as_u64());
+        let wallet = wallet.with_chain_id(self.l2_chain_id.as_u64());
         let provider = self.provider().context("provider()")?;
         let signer = SignerMiddleware::new(provider, wallet.clone());
         // Allows us to send next transaction without waiting for the previous to complete.
@@ -194,7 +184,7 @@ impl Setup {
         Ok(Arc::new(signer))
     }
 
-    fn new(shell: &Shell) -> anyhow::Result<Self> {
+    async fn new(shell: &Shell) -> anyhow::Result<Self> {
         let ecosystem_config =
             EcosystemConfig::from_file(shell).context("EcosystemConfig::from_file()")?;
         let chain = ecosystem_config
@@ -203,13 +193,28 @@ impl Setup {
         let contracts = chain
             .get_contracts_config()
             .context("get_contracts_config()")?;
-        let genesis = chain.get_genesis_config().context("get_genesis_config()")?;
-        let general = chain.get_general_config().context("get_general_config()")?;
+        let l2_chain_id = chain
+            .get_raw_genesis_config()
+            .await
+            .context("get_genesis_config()")?
+            .get("l2_chain_id")?;
+
+        let general = chain
+            .get_raw_general_config()
+            .await
+            .context("get_general_config()")?;
+        let genesis_attesters = general
+            .get_raw("genesis_spec.attesters")
+            .context(messages::MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML)?
+            .clone();
+        let genesis_attesters = read_attester_committee_yaml(genesis_attesters)?;
+
         Ok(Self {
             chain,
             contracts,
-            general,
-            genesis,
+            l2_chain_id,
+            l2_http_url: general.get("api.web3_json_rpc.http_url")?,
+            genesis_attesters,
         })
     }
 
@@ -260,26 +265,10 @@ impl Setup {
         // Fetch the desired state.
         if let Some(path) = &opts.from_file {
             let yaml = std::fs::read_to_string(path).context("read_to_string()")?;
-            let file: SetAttesterCommitteeFile = zksync_protobuf::serde::Deserialize {
-                deny_unknown_fields: true,
-            }
-            .proto_fmt_from_yaml(&yaml)
-            .context("proto_fmt_from_yaml()")?;
-            return Ok(file.attesters);
+            let yaml = serde_yaml::from_str(&yaml).context("parse YAML")?;
+            return read_attester_committee_yaml(yaml);
         }
-        let attesters = (|| {
-            Some(
-                &self
-                    .general
-                    .consensus_config
-                    .as_ref()?
-                    .genesis_spec
-                    .as_ref()?
-                    .attesters,
-            )
-        })()
-        .context(messages::MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML)?;
-        parse_attester_committee(attesters).context("parse_attester_committee()")
+        Ok(self.genesis_attesters.clone())
     }
 
     async fn wait_for_registry_contract_inner(
@@ -450,7 +439,7 @@ impl Setup {
 
 impl Command {
     pub(crate) async fn run(self, shell: &Shell) -> anyhow::Result<()> {
-        let setup = Setup::new(shell).context("Setup::new()")?;
+        let setup = Setup::new(shell).await?;
         match self {
             Self::SetAttesterCommittee(opts) => {
                 let want = setup
