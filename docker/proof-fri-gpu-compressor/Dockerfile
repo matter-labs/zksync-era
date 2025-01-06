@@ -61,8 +61,9 @@ RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /
 COPY prover/data/keys/ /prover/data/keys
 
 COPY setup_2\^24.key /setup_2\^24.key
+COPY setup_fflonk_compact.key /setup_fflonk_compact.key
 
-ENV CRS_FILE=/setup_2\^24.key
+ENV CRS_FILE=/setup_fflonk_compact.key
 
 COPY --from=builder /usr/src/zksync/prover/target/release/zksync_proof_fri_compressor /usr/bin/
 
