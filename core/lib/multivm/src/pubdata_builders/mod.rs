@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 pub use full_builder::FullPubdataBuilder;
 pub use hashed_builder::HashedPubdataBuilder;
-use zksync_types::commitment::{PubdataParams, PubdataType};
+use zksync_types::commitment::{L1BatchCommitmentMode, PubdataParams};
 
 use crate::interface::pubdata::PubdataBuilder;
 
@@ -14,12 +14,10 @@ mod utils;
 
 pub fn pubdata_params_to_builder(params: PubdataParams) -> Rc<dyn PubdataBuilder> {
     match params.pubdata_type {
-        PubdataType::NoDA => Rc::new(HashedPubdataBuilder::new(params.l2_da_validator_address)),
-        PubdataType::Rollup
-        | PubdataType::Avail
-        | PubdataType::Celestia
-        | PubdataType::Eigen
-        | PubdataType::ObjectStore => {
+        // hashed builder can only be used in NoDA validium, but with
+        // `pubdata_type: L1BatchCommitmentMode` we have no way of knowing which type of Validium
+        // is used, so let's use `FullPubdataBuilder` for all cases here
+        L1BatchCommitmentMode::Rollup | L1BatchCommitmentMode::Validium => {
             Rc::new(FullPubdataBuilder::new(params.l2_da_validator_address))
         }
     }
