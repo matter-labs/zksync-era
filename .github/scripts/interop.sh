@@ -6,7 +6,7 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
             --server-db-name=zksync_server_localhost_era \
             --ignore-prerequisites --observability=false \
             --chain era \
-            --skip-submodules-checkout 
+            --update-submodules false 
             # --no-port-reallocation 
         #     --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
         #     --prover-db-name=zksync_prover_localhost_era \
@@ -23,14 +23,14 @@ zkstack chain create \
         --base-token-price-denominator 1 \
         --set-as-default false \
         --evm-emulator false \
-        --ignore-prerequisites --skip-submodules-checkout --skip-contract-compilation-override
+        --ignore-prerequisites --update-submodules false --skip-contract-compilation-override
 
 zkstack chain init \
             --deploy-paymaster \
             --l1-rpc-url=http://localhost:8545 \
             --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
             --server-db-name=zksync_server_localhost_gateway \
-            --chain second --skip-submodules-checkout --no-port-reallocation
+            --chain second --update-submodules false --no-port-reallocation
         #     --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
         #     --prover-db-name=zksync_prover_localhost_gateway \
 

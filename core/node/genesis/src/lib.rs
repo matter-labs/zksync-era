@@ -108,6 +108,14 @@ impl GenesisParams {
                 .ok_or(GenesisError::MalformedConfig("default_aa_hash"))?,
             evm_emulator: config.evm_emulator_hash,
         };
+        println!(
+            "default_aa_hash: {:?}",
+            base_system_contracts_hashes.default_aa
+        );
+        println!(
+            "bootloader_hash: {:?}",
+            base_system_contracts_hashes.bootloader
+        );
         if base_system_contracts_hashes != base_system_contracts.hashes() {
             return Err(GenesisError::BaseSystemContractsHashes(Box::new(
                 BaseContractsHashError {
@@ -431,8 +439,8 @@ pub async fn ensure_genesis_state(
     )
     .await?;
 
-    println!("root_hash: {:?}", root_hash);
-    println!("commitment: {:?}", commitment);
+    println!("genesis_root: {:?}", root_hash);
+    println!("genesis_batch_commitment: {:?}", commitment);
 
     let expected_root_hash = genesis_params
         .config

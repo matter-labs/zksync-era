@@ -220,19 +220,19 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 37] = [
         ContractLanguage::Sol,
     ),
     (
-        "../../../l1-contracts/artifacts-zk/contracts/bridgehub/",
+        "../../../l1-contracts/zkout/",
         "InteropHandler",
         L2_INTEROP_HANDLER_ADDRESS,
         ContractLanguage::Sol,
     ),
     (
-        "../../../l1-contracts/artifacts-zk/contracts/bridgehub/",
+        "../../../l1-contracts/zkout/",
         "InteropCenter",
         L2_INTEROP_CENTER_ADDRESS,
         ContractLanguage::Sol,
     ),
     (
-        "../../../l1-contracts/artifacts-zk/contracts/bridgehub/",
+        "../../../l1-contracts/zkout/",
         "InteropAccount",
         INTEROP_ACCOUNT_ADDRESS,
         ContractLanguage::Sol,
