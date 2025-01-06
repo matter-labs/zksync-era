@@ -12683,6 +12683,7 @@ dependencies = [
  "zksync_config",
  "zksync_consensus_roles",
  "zksync_contracts",
+ "zksync_da_client",
  "zksync_dal",
  "zksync_eth_client",
  "zksync_health_check",

@@ -10,6 +10,7 @@ use celestia_types::{blob::Commitment, nmt::Namespace, Blob};
 use serde::{Deserialize, Serialize};
 use subxt_signer::ExposeSecret;
 use tonic::transport::Endpoint;
+use zksync_basic_types::commitment::PubdataType;
 use zksync_config::configs::da_client::celestia::{CelestiaConfig, CelestiaSecrets};
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
@@ -96,6 +97,10 @@ impl DataAvailabilityClient for CelestiaClient {
 
     fn blob_size_limit(&self) -> Option<usize> {
         Some(1973786) // almost 2MB
+    }
+
+    fn name(&self) -> String {
+        PubdataType::Celestia.to_string()
     }
 }
 

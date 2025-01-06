@@ -5,6 +5,7 @@ use std::{
 
 use async_trait::async_trait;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
+use zksync_basic_types::commitment::PubdataType;
 use zksync_config::ObjectStoreConfig;
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
@@ -86,6 +87,10 @@ impl DataAvailabilityClient for ObjectStoreDAClient {
 
     fn blob_size_limit(&self) -> Option<usize> {
         None
+    }
+
+    fn name(&self) -> String {
+        PubdataType::ObjectStore.to_string()
     }
 }
 

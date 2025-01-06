@@ -22,6 +22,7 @@ use zksync_node_framework::{
         commitment_generator::CommitmentGeneratorLayer,
         consensus::ExternalNodeConsensusLayer,
         consistency_checker::ConsistencyCheckerLayer,
+        data_availability_fetcher::DataAvailabilityFetcherLayer,
         healtcheck_server::HealthCheckLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         logs_bloom_backfill::LogsBloomBackfillLayer,
@@ -334,6 +335,13 @@ impl ExternalNodeBuilder {
             self.config.required.l2_chain_id,
         );
         self.node.add_layer(layer);
+        Ok(self)
+    }
+
+    fn add_data_availability_fetcher_layer(mut self) -> anyhow::Result<Self> {
+        let layer = DataAvailabilityFetcherLayer::new();
+        self.node.add_layer(layer);
+
         Ok(self)
     }
 
@@ -653,6 +661,9 @@ impl ExternalNodeBuilder {
                 }
                 Component::TreeFetcher => {
                     self = self.add_tree_data_fetcher_layer()?;
+                }
+                Component::DataAvailabilityFetcher => {
+                    self = self.add_data_availability_fetcher_layer()?;
                 }
                 Component::Core => {
                     // Main tasks

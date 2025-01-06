@@ -29,19 +29,27 @@ impl DataAvailabilityDal<'_, '_> {
         blob_id: &str,
         sent_at: chrono::NaiveDateTime,
         pubdata_type: PubdataType,
+        da_inclusion_data: Option<&[u8]>,
     ) -> DalResult<()> {
         let update_result = sqlx::query!(
             r#"
             INSERT INTO
             data_availability (
-                l1_batch_number, blob_id, client_type, sent_at, created_at, updated_at
+                l1_batch_number,
+                blob_id,
+                inclusion_data,
+                client_type,
+                sent_at,
+                created_at,
+                updated_at
             )
             VALUES
-            ($1, $2, $3, $4, NOW(), NOW())
+            ($1, $2, $3, $4, $5, NOW(), NOW())
             ON CONFLICT DO NOTHING
             "#,
             i64::from(number.0),
             blob_id,
+            da_inclusion_data,
             pubdata_type.to_string(),
             sent_at,
         )
@@ -249,5 +257,30 @@ impl DataAvailabilityDal<'_, '_> {
         .fetch_optional(self.storage)
         .await?
         .map(DataAvailabilityBlob::from))
+    }
+
+    pub async fn get_latest_batch_with_inclusion_data(
+        &mut self,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                l1_batch_number
+            FROM
+                data_availability
+            WHERE
+                inclusion_data IS NOT NULL
+            ORDER BY
+                l1_batch_number DESC
+            LIMIT
+                1
+            "#,
+        )
+        .instrument("get_latest_batch_with_inclusion_data")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| L1BatchNumber(row.l1_batch_number as u32)))
     }
 }

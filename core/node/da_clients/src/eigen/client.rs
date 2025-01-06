@@ -3,6 +3,7 @@ use std::{str::FromStr, sync::Arc};
 use async_trait::async_trait;
 use secp256k1::SecretKey;
 use subxt_signer::ExposeSecret;
+use zksync_basic_types::commitment::PubdataType;
 use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
@@ -61,5 +62,9 @@ impl DataAvailabilityClient for EigenClient {
 
     fn blob_size_limit(&self) -> Option<usize> {
         Some(1920 * 1024) // 2mb - 128kb as a buffer
+    }
+
+    fn name(&self) -> String {
+        PubdataType::Eigen.to_string()
     }
 }

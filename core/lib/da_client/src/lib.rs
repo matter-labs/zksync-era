@@ -23,6 +23,11 @@ pub trait DataAvailabilityClient: Sync + Send + fmt::Debug {
 
     /// Returns the maximum size of the blob (in bytes) that can be dispatched. None means no limit.
     fn blob_size_limit(&self) -> Option<usize>;
+
+    /// Returns the name of the client. It is expected that names are `.to_string()` of
+    /// PubdataType enum, but String is used here to keep the interface more generic and make this
+    /// crate independent of the workspace.
+    fn name(&self) -> String;
 }
 
 impl Clone for Box<dyn DataAvailabilityClient> {

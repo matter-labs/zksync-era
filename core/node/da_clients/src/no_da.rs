@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use zksync_basic_types::commitment::PubdataType;
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
@@ -24,5 +25,9 @@ impl DataAvailabilityClient for NoDAClient {
 
     fn blob_size_limit(&self) -> Option<usize> {
         None
+    }
+
+    fn name(&self) -> String {
+        PubdataType::NoDA.to_string()
     }
 }
