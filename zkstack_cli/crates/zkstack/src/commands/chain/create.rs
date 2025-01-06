@@ -80,7 +80,7 @@ pub(crate) fn create_chain_inner(
         shell,
         chain_path.clone(),
         args.link_to_code.clone(),
-        args.skip_submodules_checkout,
+        args.update_submodules,
     )?;
     let default_genesis_config = GenesisConfig::read_with_base_path(
         shell,

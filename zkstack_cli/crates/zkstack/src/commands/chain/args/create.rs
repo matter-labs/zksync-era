@@ -68,20 +68,10 @@ pub struct ChainCreateArgs {
     pub(crate) set_as_default: Option<bool>,
     #[clap(long, default_value = "false")]
     pub(crate) legacy_bridge: bool,
-    #[clap(
-        long,
-        help = "Skip submodules checkout",
-        default_missing_value = "true"
-    )]
-    pub skip_submodules_checkout: bool,
-    #[clap(
-        long,
-        help = "Skip contract compilation override",
-        default_missing_value = "true"
-    )]
-    pub skip_contract_compilation_override: bool,
     #[arg(long, help = MSG_EVM_EMULATOR_HELP, default_missing_value = "true", num_args = 0..=1)]
     evm_emulator: Option<bool>,
+    #[clap(long, help = "Whether to update git submodules of repo")]
+    update_submodules: Option<bool>,
 }
 
 impl ChainCreateArgs {
@@ -249,10 +239,9 @@ impl ChainCreateArgs {
             base_token,
             set_as_default,
             legacy_bridge: self.legacy_bridge,
-            skip_submodules_checkout: self.skip_submodules_checkout,
-            skip_contract_compilation_override: self.skip_contract_compilation_override,
             evm_emulator,
             link_to_code,
+            update_submodules: self.update_submodules,
         })
     }
 }
@@ -268,10 +257,9 @@ pub struct ChainCreateArgsFinal {
     pub base_token: BaseToken,
     pub set_as_default: bool,
     pub legacy_bridge: bool,
-    pub skip_submodules_checkout: bool,
-    pub skip_contract_compilation_override: bool,
     pub evm_emulator: bool,
     pub link_to_code: String,
+    pub update_submodules: Option<bool>,
 }
 
 #[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]

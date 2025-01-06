@@ -169,7 +169,7 @@ impl ChainConfig {
         general_config.save_with_base_path(self.get_shell(), &self.configs)
     }
 
-    pub fn path_to_foundry(&self) -> PathBuf {
+    pub fn path_to_l1_foundry(&self) -> PathBuf {
         self.link_to_code.join(L1_CONTRACTS_FOUNDRY)
     }
 

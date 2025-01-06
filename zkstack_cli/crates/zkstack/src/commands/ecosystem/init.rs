@@ -50,8 +50,7 @@ use crate::{
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    if !args.skip_submodules_checkout {
-        println!("Checking out submodules");
+    if args.update_submodules.is_none() || args.update_submodules == Some(true) {
         git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
     }
 
@@ -390,7 +389,7 @@ async fn init_chains(
             deploy_paymaster,
             l1_rpc_url: Some(final_init_args.ecosystem.l1_rpc_url.clone()),
             no_port_reallocation: final_init_args.no_port_reallocation,
-            skip_submodules_checkout: final_init_args.skip_submodules_checkout,
+            update_submodules: init_args.update_submodules,
             dev: final_init_args.dev,
             validium_args: final_init_args.validium_args.clone(),
         };
