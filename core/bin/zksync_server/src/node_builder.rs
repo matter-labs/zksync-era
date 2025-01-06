@@ -274,7 +274,7 @@ impl MainNodeBuilder {
             try_load_config!(self.configs.mempool_config),
             try_load_config!(wallets.state_keeper),
             self.contracts_config.l2_da_validator_addr,
-            self.get_pubdata_type(),
+            self.get_pubdata_type()?,
         );
         let db_config = try_load_config!(self.configs.db_config);
         let experimental_vm_config = self
