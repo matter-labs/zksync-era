@@ -2144,8 +2144,8 @@ impl BlocksDal<'_, '_> {
 
     pub async fn set_message_root(
         &mut self,
-        number: L1BatchNumber,
         chain_id: SLChainId,
+        number: L1BatchNumber,
         message_root: H256,
         // proof: BatchAndChainMerklePath,
     ) -> DalResult<()> {

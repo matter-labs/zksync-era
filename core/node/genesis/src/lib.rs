@@ -394,6 +394,9 @@ pub async fn ensure_genesis_state(
     )
     .await?;
 
+    println!("root_hash: {:?}", root_hash);
+    println!("commitment: {:?}", commitment);
+
     let expected_root_hash = genesis_params
         .config
         .genesis_root_hash

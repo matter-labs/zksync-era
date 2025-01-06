@@ -53,10 +53,16 @@ impl EventProcessor for GlobalMessageRootProcessor {
             assert_eq!(event.topics[0], self.appended_message_root_signature); // guaranteed by the watcher
             tracing::info!(%root, "Saving global message root");
             let block_number = event.topics[2]; // kl todo
+            let block_number = block_number.0[15] as u64;
             let chain_id = event.topics[3]; // kl todo
+            let chain_id = chain_id.0[15] as u64;
             transaction
                 .blocks_dal()
-                .set_message_root(root, L1BatchNumber(block_number), SLChainId(chain_id))
+                .set_message_root(
+                    SLChainId(chain_id),
+                    L1BatchNumber(block_number as u32),
+                    root,
+                )
                 .await
                 .map_err(DalError::generalize)?;
         }
