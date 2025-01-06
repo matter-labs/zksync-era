@@ -68,7 +68,11 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageWithOverrides<S> {
         self.storage_handle.get_enumeration_index(key)
     }
 
-    fn get_message_root(&mut self, chain_id: SLChainId, block_number: L2BlockNumber) -> Option<H256> {
+    fn get_message_root(
+        &mut self,
+        chain_id: SLChainId,
+        block_number: L2BlockNumber,
+    ) -> Option<H256> {
         None // kl todo
     }
 }

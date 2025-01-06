@@ -1,7 +1,7 @@
 use std::fmt;
 
 use vise::{Counter, Metrics};
-use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256, SLChainId, L2BlockNumber};
+use zksync_types::{L1BatchNumber, L2BlockNumber, SLChainId, StorageKey, StorageValue, H256};
 use zksync_vm_interface::storage::ReadStorage;
 
 #[derive(Debug, Metrics)]
@@ -125,7 +125,11 @@ impl<Ref: ReadStorage, Check: ReadStorage> ReadStorage for ShadowStorage<Ref, Ch
         source_value
     }
 
-    fn get_message_root(&mut self, chain_id: SLChainId, block_number: L2BlockNumber) -> Option<H256> {
-        None // kl todo 
+    fn get_message_root(
+        &mut self,
+        chain_id: SLChainId,
+        block_number: L2BlockNumber,
+    ) -> Option<H256> {
+        None // kl todo
     }
 }

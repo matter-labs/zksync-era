@@ -1,4 +1,3 @@
-
 use zksync_types::H256;
 
 #[derive(Debug)]

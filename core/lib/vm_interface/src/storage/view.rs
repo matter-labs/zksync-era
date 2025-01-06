@@ -138,7 +138,11 @@ where
         (**self).get_enumeration_index(key)
     }
 
-    fn get_message_root(&mut self, chain_id: SLChainId, block_number: L2BlockNumber) -> Option<H256> {
+    fn get_message_root(
+        &mut self,
+        chain_id: SLChainId,
+        block_number: L2BlockNumber,
+    ) -> Option<H256> {
         (**self).get_message_root(chain_id, block_number)
     }
 }
@@ -231,7 +235,11 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
         self.storage_handle.get_enumeration_index(key)
     }
 
-    fn get_message_root(&mut self, chain_id: SLChainId, block_number: L2BlockNumber) -> Option<H256> {
+    fn get_message_root(
+        &mut self,
+        chain_id: SLChainId,
+        block_number: L2BlockNumber,
+    ) -> Option<H256> {
         self.storage_handle.get_message_root(chain_id, block_number)
     }
 }
@@ -308,7 +316,11 @@ impl<S: ReadStorage> ReadStorage for ImmutableStorageView<S> {
         self.0.borrow_mut().get_enumeration_index(key)
     }
 
-    fn get_message_root(&mut self, chain_id: SLChainId, block_number: L2BlockNumber) -> Option<H256> {
+    fn get_message_root(
+        &mut self,
+        chain_id: SLChainId,
+        block_number: L2BlockNumber,
+    ) -> Option<H256> {
         self.0.borrow_mut().get_message_root(chain_id, block_number)
     }
 }

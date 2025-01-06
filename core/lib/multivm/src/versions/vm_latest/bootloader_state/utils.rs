@@ -11,11 +11,11 @@ use crate::{
         bootloader_state::l2_block::BootloaderL2Block,
         constants::{
             get_bootloader_tx_description_offset, get_compressed_bytecodes_offset,
-            get_operator_provided_l1_messenger_pubdata_offset, get_operator_refunds_offset,
-            get_tx_description_offset, get_tx_operator_l2_block_info_offset,
-            get_message_root_offset, MESSAGE_ROOT_SLOTS_SIZE,
-            get_tx_overhead_offset, get_tx_trusted_gas_limit_offset,
-            BOOTLOADER_TX_DESCRIPTION_SIZE, OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS,
+            get_message_root_offset, get_operator_provided_l1_messenger_pubdata_offset,
+            get_operator_refunds_offset, get_tx_description_offset,
+            get_tx_operator_l2_block_info_offset, get_tx_overhead_offset,
+            get_tx_trusted_gas_limit_offset, BOOTLOADER_TX_DESCRIPTION_SIZE,
+            MESSAGE_ROOT_SLOTS_SIZE, OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS,
             TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
         },
         MultiVmSubversion,
@@ -141,7 +141,7 @@ pub(crate) fn apply_message_root(
     memory: &mut BootloaderMemory,
     message_root_offset: usize,
     message_root: &MessageRoot,
-    subversion: MultiVmSubversion
+    subversion: MultiVmSubversion,
 ) {
     apply_message_root_inner(memory, message_root_offset, message_root, subversion)
 }
@@ -150,7 +150,7 @@ fn apply_message_root_inner(
     memory: &mut BootloaderMemory,
     message_root_offset: usize,
     message_root: &MessageRoot,
-    subversion: MultiVmSubversion
+    subversion: MultiVmSubversion,
 ) {
     let msg_root_slot = get_message_root_offset(subversion);
     println!("msg_root_slot: {}", msg_root_slot);

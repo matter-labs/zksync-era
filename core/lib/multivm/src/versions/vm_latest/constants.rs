@@ -113,8 +113,7 @@ pub(crate) const fn get_message_root_offset(subversion: MultiVmSubversion) -> us
 }
 
 pub(crate) const MESSAGE_ROOT_SLOTS_SIZE: usize = 3;
-pub(crate) const MESSAGE_ROOT_SLOTS: usize =
-    (MAX_TXS_IN_BATCH + 1) * MESSAGE_ROOT_SLOTS_SIZE;
+pub(crate) const MESSAGE_ROOT_SLOTS: usize = (MAX_TXS_IN_BATCH + 1) * MESSAGE_ROOT_SLOTS_SIZE;
 
 pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversion) -> usize {
     get_message_root_offset(subversion) + MESSAGE_ROOT_SLOTS

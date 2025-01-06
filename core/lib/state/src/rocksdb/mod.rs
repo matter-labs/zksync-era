@@ -657,7 +657,11 @@ impl ReadStorage for RocksdbStorage {
             .map(|state_value| state_value.enum_index.unwrap())
     }
 
-    fn get_message_root(&mut self, chain_id: SLChainId, block_number: L2BlockNumber) -> Option<H256> { 
-        None // kl todo 
+    fn get_message_root(
+        &mut self,
+        chain_id: SLChainId,
+        block_number: L2BlockNumber,
+    ) -> Option<H256> {
+        None // kl todo
     }
 }

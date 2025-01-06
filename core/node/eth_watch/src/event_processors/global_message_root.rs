@@ -25,15 +25,12 @@ pub struct GlobalMessageRootProcessor {
 }
 
 impl GlobalMessageRootProcessor {
-    pub fn new(
-    ) -> Self {
+    pub fn new() -> Self {
         Self {
             appended_message_root_signature: ethabi::long_signature(
                 "NewGlobalMessageRoot",
-                &[
-                    ethabi::ParamType::FixedBytes(32),
-                ],
-            )
+                &[ethabi::ParamType::FixedBytes(32)],
+            ),
         }
     }
 }

@@ -1,8 +1,8 @@
 mod l2_block;
+pub mod message_root;
 mod snapshot;
 mod state;
 mod tx;
-pub mod message_root;
 
 pub(crate) mod utils;
 pub(crate) use snapshot::BootloaderStateSnapshot;

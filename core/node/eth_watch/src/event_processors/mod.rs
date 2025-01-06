@@ -12,8 +12,8 @@ pub(crate) use self::{
 
 mod appended_chain_batch_root;
 mod decentralized_upgrades;
-mod priority_ops;
 mod global_message_root;
+mod priority_ops;
 
 /// Errors issued by an [`EventProcessor`].
 #[derive(Debug, thiserror::Error)]

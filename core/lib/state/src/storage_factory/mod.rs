@@ -5,7 +5,9 @@ use async_trait::async_trait;
 use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_storage::RocksDB;
-use zksync_types::{u256_to_h256, L1BatchNumber, StorageKey, StorageValue, H256, SLChainId, L2BlockNumber};
+use zksync_types::{
+    u256_to_h256, L1BatchNumber, L2BlockNumber, SLChainId, StorageKey, StorageValue, H256,
+};
 use zksync_vm_interface::storage::{ReadStorage, StorageSnapshot};
 
 use self::metrics::{SnapshotStage, SNAPSHOT_METRICS};
@@ -261,11 +263,17 @@ impl ReadStorage for CommonStorage<'_> {
         }
     }
 
-    fn get_message_root(&mut self, chain_id: SLChainId, block_number: L2BlockNumber) -> Option<H256> {
+    fn get_message_root(
+        &mut self,
+        chain_id: SLChainId,
+        block_number: L2BlockNumber,
+    ) -> Option<H256> {
         match self {
             Self::Postgres(postgres) => postgres.get_message_root(chain_id, block_number),
             Self::Rocksdb(rocksdb) => rocksdb.get_message_root(chain_id, block_number),
-            Self::RocksdbWithMemory(rocksdb_mem) => rocksdb_mem.get_message_root(chain_id, block_number),
+            Self::RocksdbWithMemory(rocksdb_mem) => {
+                rocksdb_mem.get_message_root(chain_id, block_number)
+            }
             Self::Snapshot(snapshot) => snapshot.get_message_root(chain_id, block_number),
             Self::Boxed(storage) => storage.get_message_root(chain_id, block_number),
         }

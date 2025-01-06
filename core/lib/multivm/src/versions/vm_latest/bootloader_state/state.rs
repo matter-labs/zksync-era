@@ -15,7 +15,7 @@ use crate::{
             l2_block::BootloaderL2Block,
             message_root::MessageRoot,
             snapshot::BootloaderStateSnapshot,
-            utils::{apply_l2_block, apply_tx_to_memory, apply_message_root},
+            utils::{apply_l2_block, apply_message_root, apply_tx_to_memory},
         },
         constants::get_tx_description_offset,
         types::internals::TransactionData,
@@ -212,7 +212,12 @@ impl BootloaderState {
         }
 
         for (msg_root_offset, msg_root) in self.msg_roots.iter().enumerate() {
-            apply_message_root(&mut initial_memory, msg_root_offset, msg_root, self.subversion)
+            apply_message_root(
+                &mut initial_memory,
+                msg_root_offset,
+                msg_root,
+                self.subversion,
+            )
         }
 
         let pubdata_information = self

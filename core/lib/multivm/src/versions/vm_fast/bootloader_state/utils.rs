@@ -8,16 +8,16 @@ use crate::{
     },
     utils::bytecode,
     vm_latest::{
+        bootloader_state::message_root::MessageRoot,
         constants::{
             get_bootloader_tx_description_offset, get_compressed_bytecodes_offset,
-            get_operator_provided_l1_messenger_pubdata_offset, get_operator_refunds_offset,
-            get_tx_description_offset, get_tx_operator_l2_block_info_offset,
-            get_message_root_offset, MESSAGE_ROOT_SLOTS_SIZE,
-            get_tx_overhead_offset, get_tx_trusted_gas_limit_offset,
-            BOOTLOADER_TX_DESCRIPTION_SIZE, OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS,
+            get_message_root_offset, get_operator_provided_l1_messenger_pubdata_offset,
+            get_operator_refunds_offset, get_tx_description_offset,
+            get_tx_operator_l2_block_info_offset, get_tx_overhead_offset,
+            get_tx_trusted_gas_limit_offset, BOOTLOADER_TX_DESCRIPTION_SIZE,
+            MESSAGE_ROOT_SLOTS_SIZE, OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS,
             TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
         },
-        bootloader_state::message_root::MessageRoot,
         MultiVmSubversion,
     },
 };
@@ -140,7 +140,7 @@ pub(crate) fn apply_message_root(
     memory: &mut BootloaderMemory,
     message_root_offset: usize,
     message_root: &MessageRoot,
-    subversion: MultiVmSubversion
+    subversion: MultiVmSubversion,
 ) {
     let msg_root_slot = get_message_root_offset(subversion);
     println!("msg_root_slot 2: {}", msg_root_slot);
@@ -154,15 +154,27 @@ pub(crate) fn apply_message_root(
     ]
     .to_vec();
     println!("u256_words: {:?}", u256_words);
-    println!("zipped 0 {:?}", (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
-        ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
-        .zip(u256_words.clone()).collect::<Vec<_>>()[0]);
-    println!("zipped 1 {:?}", (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
-        ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
-        .zip(u256_words.clone()).collect::<Vec<_>>()[1]);
-    println!("zipped 2 {:?}", (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
-        ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
-        .zip(u256_words.clone()).collect::<Vec<_>>()[2]);    // Map the U256 words into memory slots
+    println!(
+        "zipped 0 {:?}",
+        (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
+            ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
+            .zip(u256_words.clone())
+            .collect::<Vec<_>>()[0]
+    );
+    println!(
+        "zipped 1 {:?}",
+        (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
+            ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
+            .zip(u256_words.clone())
+            .collect::<Vec<_>>()[1]
+    );
+    println!(
+        "zipped 2 {:?}",
+        (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
+            ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
+            .zip(u256_words.clone())
+            .collect::<Vec<_>>()[2]
+    ); // Map the U256 words into memory slots
     memory.extend(
         (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
             ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())

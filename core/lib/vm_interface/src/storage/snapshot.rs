@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt};
 
 use serde::{Deserialize, Serialize};
-use zksync_types::{L2BlockNumber, SLChainId, web3, StorageKey, StorageValue, H256};
+use zksync_types::{web3, L2BlockNumber, SLChainId, StorageKey, StorageValue, H256};
 
 use super::ReadStorage;
 
@@ -89,7 +89,11 @@ impl ReadStorage for StorageSnapshot {
         entry.map(|(_, idx)| idx)
     }
 
-    fn get_message_root(&mut self, chain_id: SLChainId, block_number: L2BlockNumber) -> Option<H256> {
+    fn get_message_root(
+        &mut self,
+        chain_id: SLChainId,
+        block_number: L2BlockNumber,
+    ) -> Option<H256> {
         None // kl todo
     }
 }
@@ -178,7 +182,11 @@ impl<S: ReadStorage> ReadStorage for StorageWithSnapshot<S> {
         )
     }
 
-    fn get_message_root(&mut self, chain_id: SLChainId, block_number: L2BlockNumber) -> Option<H256> {
+    fn get_message_root(
+        &mut self,
+        chain_id: SLChainId,
+        block_number: L2BlockNumber,
+    ) -> Option<H256> {
         None // kl todo
     }
 }

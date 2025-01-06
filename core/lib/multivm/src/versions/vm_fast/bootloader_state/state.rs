@@ -6,7 +6,7 @@ use zksync_types::{vm::VmVersion, L2ChainId, ProtocolVersionId, H256, U256};
 use super::{
     l2_block::BootloaderL2Block,
     tx::BootloaderTx,
-    utils::{apply_l2_block, apply_pubdata_to_memory, apply_tx_to_memory, apply_message_root},
+    utils::{apply_l2_block, apply_message_root, apply_pubdata_to_memory, apply_tx_to_memory},
     BootloaderStateSnapshot,
 };
 use crate::{
@@ -16,9 +16,8 @@ use crate::{
     },
     versions::vm_fast::transaction_data::TransactionData,
     vm_latest::{
-        bootloader_state::message_root::MessageRoot,
-        constants::get_tx_description_offset, utils::l2_blocks::assert_next_block,
-        MultiVmSubversion,
+        bootloader_state::message_root::MessageRoot, constants::get_tx_description_offset,
+        utils::l2_blocks::assert_next_block, MultiVmSubversion,
     },
 };
 
@@ -202,7 +201,12 @@ impl BootloaderState {
         }
 
         for (msg_root_offset, msg_root) in self.msg_roots.iter().enumerate() {
-            apply_message_root(&mut initial_memory, msg_root_offset, msg_root, self.subversion);
+            apply_message_root(
+                &mut initial_memory,
+                msg_root_offset,
+                msg_root,
+                self.subversion,
+            );
         }
 
         let pubdata_information = self
