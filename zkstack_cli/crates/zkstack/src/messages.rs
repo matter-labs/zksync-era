@@ -411,8 +411,6 @@ pub(super) const MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_ERR: &str =
     "Bucket base URL should start with gs://";
 pub(super) const MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT: &str =
     "Provide the path to the GCS credentials file:";
-pub(super) const MSG_GENERAL_CONFIG_NOT_FOUND_ERR: &str = "General config not found";
-pub(super) const MSG_PROVER_CONFIG_NOT_FOUND_ERR: &str = "Prover config not found";
 pub(super) const MSG_PROVER_INITIALIZED: &str = "Prover has been initialized successfully";
 pub(super) const MSG_CREATE_GCS_BUCKET_PROMPT: &str = "Do you want to create a new GCS bucket?";
 pub(super) const MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT: &str = "Select the project ID:";
@@ -420,8 +418,6 @@ pub(super) const MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT: &str =
     "Provide a project ID:";
 pub(super) const MSG_CREATE_GCS_BUCKET_NAME_PROMTP: &str = "What do you want to name the bucket?";
 pub(super) const MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT: &str = "What location do you want to use? Find available locations at https://cloud.google.com/storage/docs/locations";
-pub(super) const MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR: &str =
-    "Proof compressor config not found";
 pub(super) const MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER: &str =
     "Downloading compressor setup key...";
 pub(super) const MSG_DOWNLOAD_SETUP_COMPRESSOR_KEY_PROMPT: &str =

@@ -5,6 +5,7 @@ use common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     wallets::Wallet,
+    yaml::ConfigPatch,
     zks_provider::ZKSProvider,
 };
 use config::{
@@ -193,43 +194,21 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     gateway_chain_chain_config.gateway_chain_id = 0u64.into();
     gateway_chain_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
-    let mut general_config = chain_config.get_general_config().unwrap();
-
-    let eth_config = general_config.eth.as_mut().context("eth")?;
-
-    eth_config
-        .gas_adjuster
-        .as_mut()
-        .expect("gas_adjuster")
-        .settlement_mode = SettlementMode::SettlesToL1;
+    let mut general_config = ConfigPatch::new(chain_config.path_to_general_config());
+    general_config.insert_yaml(
+        "eth.gas_adjuster.settlement_mode",
+        SettlementMode::SettlesToL1,
+    );
     if is_rollup {
-        // For rollups, new type of commitment should be used, but
-        // not for validium.
-        eth_config
-            .sender
-            .as_mut()
-            .expect("sender")
-            .pubdata_sending_mode = PubdataSendingMode::Blobs;
+        general_config.insert_yaml("eth.sender.pubdata_sending_mode", PubdataSendingMode::Blobs);
     }
-    eth_config
-        .sender
-        .as_mut()
-        .context("sender")?
-        .wait_confirmations = Some(0);
+    general_config.insert("eth.sender.wait_confirmations", 0);
+
     // Undoing what was changed during migration to gateway.
     // TODO(EVM-925): maybe remove this logic.
-    eth_config
-        .sender
-        .as_mut()
-        .expect("sender")
-        .max_aggregated_tx_gas = 15000000;
-    eth_config
-        .sender
-        .as_mut()
-        .expect("sender")
-        .max_eth_tx_data_size = 120_000;
-
-    general_config.save_with_base_path(shell, chain_config.configs.clone())?;
+    general_config.insert("eth.sender.max_aggregated_tx_gas", 15000000);
+    general_config.insert("eth.sender.max_eth_tx_data_size", 120_000);
+    general_config.save().await?;
     Ok(())
 }
 

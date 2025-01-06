@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use clap::{Parser, ValueEnum};
 use common::{db::DatabaseConfig, logger, Prompt, PromptConfirm, PromptSelect};
 use config::ChainConfig;
@@ -202,8 +204,8 @@ impl ProverInitArgs {
     pub(crate) fn fill_values_with_prompt(
         &self,
         shell: &Shell,
-        default_plonk_key_path: &str,
-        default_fflonk_key_path: &str,
+        default_plonk_key_path: &Path,
+        default_fflonk_key_path: &Path,
         chain_config: &ChainConfig,
     ) -> anyhow::Result<ProverInitArgsFinal> {
         let proof_store = self.fill_proof_storage_values_with_prompt(shell)?;
@@ -358,13 +360,13 @@ impl ProverInitArgs {
 
     fn fill_setup_compressor_key_values_with_prompt(
         &self,
-        default_plonk_path: &str,
-        default_fflonk_path: &str,
+        default_plonk_path: &Path,
+        default_fflonk_path: &Path,
     ) -> Option<CompressorKeysArgs> {
         if self.dev {
             return Some(CompressorKeysArgs {
-                plonk_path: Some(default_plonk_path.to_string()),
-                fflonk_path: Some(default_fflonk_path.to_string()),
+                plonk_path: Some(default_plonk_path.to_owned()),
+                fflonk_path: Some(default_fflonk_path.to_owned()),
                 ..self.compressor_keys_args.clone()
             });
         }

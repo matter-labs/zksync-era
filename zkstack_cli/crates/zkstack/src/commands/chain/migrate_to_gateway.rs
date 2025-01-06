@@ -4,6 +4,7 @@ use common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     wallets::Wallet,
+    yaml::ConfigPatch,
 };
 use config::{
     forge_interface::{
@@ -71,7 +72,7 @@ lazy_static! {
 #[allow(unused)]
 pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
     // TODO(EVM-927): this function does not work without the Gateway contracts.
-    anyhow::bail!("Gateway upgrade not supported yet!");
+    //anyhow::bail!("Gateway upgrade not supported yet!");
 
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
@@ -370,10 +371,9 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .http_url
         .clone();
 
-    let mut chain_secrets_config = chain_config.get_secrets_config().unwrap();
-    chain_secrets_config.l1.as_mut().unwrap().gateway_rpc_url =
-        Some(url::Url::parse(&gateway_url).unwrap().into());
-    chain_secrets_config.save_with_base_path(shell, chain_config.configs.clone())?;
+    let mut chain_secrets_config = ConfigPatch::new(chain_config.path_to_secrets_config());
+    chain_secrets_config.insert("l1.gateway_rpc_url", gateway_url);
+    chain_secrets_config.save().await?;
 
     let gateway_chain_config = GatewayChainConfig::from_gateway_and_chain_data(
         &gateway_gateway_config,
@@ -383,43 +383,23 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     );
     gateway_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
-    let mut general_config = chain_config.get_general_config().unwrap();
+    let mut general_config = ConfigPatch::new(chain_config.path_to_general_config());
+    general_config.insert_yaml("eth.gas_adjuster.settlement_mode", SettlementMode::Gateway);
 
-    let eth_config = general_config.eth.as_mut().context("eth")?;
-
-    eth_config
-        .gas_adjuster
-        .as_mut()
-        .expect("gas_adjuster")
-        .settlement_mode = SettlementMode::Gateway;
     if is_rollup {
         // For rollups, new type of commitment should be used, but
         // not for validium.
-        eth_config
-            .sender
-            .as_mut()
-            .expect("sender")
-            .pubdata_sending_mode = PubdataSendingMode::RelayedL2Calldata;
+        general_config.insert_yaml(
+            "eth.sender.pubdata_sending_mode",
+            PubdataSendingMode::RelayedL2Calldata,
+        );
     }
-    eth_config
-        .sender
-        .as_mut()
-        .context("sender")?
-        .wait_confirmations = Some(0);
+    general_config.insert("eth.sender.wait_confirmations", 0);
     // TODO(EVM-925): the number below may not always work, especially for large prices on
     // top of Gateway. This field would have to be either not used on GW or transformed into u64.
-    eth_config
-        .sender
-        .as_mut()
-        .expect("sender")
-        .max_aggregated_tx_gas = 4294967295;
-    eth_config
-        .sender
-        .as_mut()
-        .expect("sender")
-        .max_eth_tx_data_size = 550_000;
-
-    general_config.save_with_base_path(shell, chain_config.configs.clone())?;
+    general_config.insert("eth.sender.max_aggregated_tx_gas", 4294967295_u64);
+    general_config.insert("eth.sender.max_eth_tx_data_size", 550_000);
+    general_config.save().await?;
 
     Ok(())
 }

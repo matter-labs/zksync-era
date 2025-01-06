@@ -1,4 +1,10 @@
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
+
 use anyhow::Context;
+use serde::Serialize;
 
 use crate::logger;
 
@@ -86,6 +92,45 @@ pub fn merge_yaml(
     let mut diff = ConfigDiff::default();
     merge_yaml_internal(a, b, "".into(), &mut diff, override_values)?;
     Ok(diff)
+}
+
+#[derive(Debug)]
+#[must_use = "Must be persisted"]
+pub struct ConfigPatch {
+    #[allow(dead_code)] // FIXME
+    path: PathBuf,
+    overrides: HashMap<String, serde_yaml::Value>,
+}
+
+impl ConfigPatch {
+    pub fn new(path: PathBuf) -> Self {
+        Self {
+            path,
+            overrides: HashMap::new(),
+        }
+    }
+
+    pub fn insert(&mut self, key: &str, value: impl Into<serde_yaml::Value>) {
+        self.overrides.insert(key.to_owned(), value.into());
+    }
+
+    pub fn insert_yaml(&mut self, key: &str, value: impl Serialize) {
+        let value = serde_yaml::to_value(value)
+            .unwrap_or_else(|err| panic!("failed serializing config value at `{key}`: {err}"));
+        self.insert(key, value);
+    }
+
+    pub fn insert_path(&mut self, key: &str, value: &Path) -> anyhow::Result<()> {
+        let value = value
+            .to_str()
+            .with_context(|| format!("path at `{key}` is not UTF-8"))?;
+        self.insert(key, value);
+        Ok(())
+    }
+
+    pub async fn save(self) -> anyhow::Result<()> {
+        todo!()
+    }
 }
 
 #[cfg(test)]

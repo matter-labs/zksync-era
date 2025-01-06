@@ -1,12 +1,13 @@
+use std::path::{Path, PathBuf};
+
 use anyhow::Context;
-use common::{logger, spinner::Spinner};
-use config::{get_link_to_prover, EcosystemConfig, GeneralConfig};
+use common::{logger, spinner::Spinner, yaml::ConfigPatch};
+use config::{get_link_to_prover, EcosystemConfig};
 use xshell::Shell;
 
 use super::args::compressor_keys::{CompressorKeysArgs, CompressorType};
 use crate::messages::{
-    MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER,
-    MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR, MSG_SETUP_KEY_PATH_ERROR,
+    MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER, MSG_SETUP_KEY_PATH_ERROR,
 };
 
 pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Result<()> {
@@ -14,7 +15,7 @@ pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Resu
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    let mut general_config = chain_config.get_general_config()?;
+    let mut general_config = ConfigPatch::new(chain_config.path_to_general_config());
 
     let default_plonk_path = get_default_plonk_compressor_keys_path(&ecosystem_config)?;
     let default_fflonk_path = get_default_fflonk_compressor_keys_path(&ecosystem_config)?;
@@ -50,40 +51,30 @@ pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Resu
         }
     }
 
-    chain_config.save_general_config(&general_config)?;
-
+    general_config.save().await?;
     Ok(())
 }
 
 pub(crate) fn download_compressor_key(
     shell: &Shell,
-    general_config: &mut GeneralConfig,
-    r#type: CompressorType,
-    path: &str,
+    general_config: &mut ConfigPatch,
+    ty: CompressorType,
+    path: &Path,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER);
-    let mut compressor_config: zksync_config::configs::FriProofCompressorConfig = general_config
-        .proof_compressor_config
-        .as_ref()
-        .expect(MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR)
-        .clone();
 
-    let url = match r#type {
-        CompressorType::Fflonk => {
-            compressor_config.universal_fflonk_setup_path = path.to_string();
-            general_config.proof_compressor_config = Some(compressor_config.clone());
-            compressor_config.universal_fflonk_setup_download_url
-        }
+    let url_path = match ty {
         CompressorType::Plonk => {
-            compressor_config.universal_setup_path = path.to_string();
-            general_config.proof_compressor_config = Some(compressor_config.clone());
-            compressor_config.universal_setup_download_url
+            general_config.insert_path("proof_compressor.universal_setup_path", path)?;
+            "proof_compressor.universal_setup_download_url"
         }
-        _ => unreachable!("Invalid compressor type"),
+        CompressorType::Fflonk => {
+            general_config.insert_path("proof_compressor.universal_fflonk_setup_path", path)?;
+            "proof_compressor.universal_fflonk_setup_download_url"
+        }
+        CompressorType::All => unreachable!(),
     };
-
-    let path = std::path::Path::new(path);
-
+    let url = url_path; // FIXME: get from config
     logger::info(format!("Downloading setup key by URL: {}", url));
 
     let client = reqwest::blocking::Client::builder()
@@ -99,20 +90,14 @@ pub(crate) fn download_compressor_key(
 
 pub fn get_default_plonk_compressor_keys_path(
     ecosystem_config: &EcosystemConfig,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<PathBuf> {
     let link_to_prover = get_link_to_prover(ecosystem_config);
-    let path = link_to_prover.join("keys/setup/setup_2^24.key");
-    let string = path.to_str().unwrap();
-
-    Ok(String::from(string))
+    Ok(link_to_prover.join("keys/setup/setup_2^24.key"))
 }
 
 pub fn get_default_fflonk_compressor_keys_path(
     ecosystem_config: &EcosystemConfig,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<PathBuf> {
     let link_to_prover = get_link_to_prover(ecosystem_config);
-    let path = link_to_prover.join("keys/setup/setup_fflonk_compact.key");
-    let string = path.to_str().unwrap();
-
-    Ok(String::from(string))
+    Ok(link_to_prover.join("keys/setup/setup_fflonk_compact.key"))
 }

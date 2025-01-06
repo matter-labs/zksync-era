@@ -1,16 +1,14 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use common::yaml::merge_yaml;
+use common::yaml::{merge_yaml, ConfigPatch};
 use url::Url;
 use xshell::Shell;
-use zksync_config::configs::object_store::ObjectStoreMode;
 pub use zksync_config::configs::GeneralConfig;
-use zksync_protobuf_config::{encode_yaml_repr, read_yaml_repr};
 
 use crate::{
     consts::GENERAL_FILE,
-    traits::{ConfigWithL2RpcUrl, FileConfigWithDefaultName, ReadConfig, SaveConfig},
+    traits::{ConfigWithL2RpcUrl, FileConfigWithDefaultName, ReadConfig},
     ChainConfig,
 };
 
@@ -40,77 +38,46 @@ impl FileArtifacts {
     }
 }
 
-pub fn set_rocks_db_config(config: &mut GeneralConfig, rocks_dbs: RocksDbs) -> anyhow::Result<()> {
-    config
-        .db_config
-        .as_mut()
-        .context("DB config is not presented")?
-        .state_keeper_db_path = rocks_dbs.state_keeper.to_str().unwrap().to_string();
-    config
-        .db_config
-        .as_mut()
-        .context("DB config is not presented")?
-        .merkle_tree
-        .path = rocks_dbs.merkle_tree.to_str().unwrap().to_string();
-    config
-        .protective_reads_writer_config
-        .as_mut()
-        .context("Protective reads config is not presented")?
-        .db_path = rocks_dbs.protective_reads.to_str().unwrap().to_string();
-    config
-        .basic_witness_input_producer_config
-        .as_mut()
-        .context("Basic witness input producer config is not presented")?
-        .db_path = rocks_dbs
-        .basic_witness_input_producer
-        .to_str()
-        .unwrap()
-        .to_string();
+pub fn set_rocks_db_config(config: &mut ConfigPatch, rocks_dbs: RocksDbs) -> anyhow::Result<()> {
+    config.insert_path("db.state_keeper_db_path", &rocks_dbs.state_keeper)?;
+    config.insert_path("db.merkle_tree.path", &rocks_dbs.merkle_tree)?;
+    config.insert_path(
+        "protective_reads_writer.db_path",
+        &rocks_dbs.protective_reads,
+    )?;
+    config.insert_path(
+        "basic_witness_input_producer.db_path",
+        &rocks_dbs.basic_witness_input_producer,
+    )?;
     Ok(())
 }
 
-pub fn set_file_artifacts(config: &mut GeneralConfig, file_artifacts: FileArtifacts) {
-    macro_rules! set_artifact_path {
-        ($config:expr, $name:ident, $value:expr) => {
-            $config
-                .as_mut()
-                .map(|a| set_artifact_path!(a.$name, $value))
-        };
-
-        ($config:expr, $value:expr) => {
-            $config.as_mut().map(|a| {
-                if let ObjectStoreMode::FileBacked {
-                    ref mut file_backed_base_path,
-                } = &mut a.mode
-                {
-                    *file_backed_base_path = $value.to_str().unwrap().to_string()
-                }
-            })
-        };
-    }
-
-    set_artifact_path!(
-        config.prover_config,
-        prover_object_store,
-        file_artifacts.prover_object_store
-    );
-    set_artifact_path!(
-        config.prover_config,
-        public_object_store,
-        file_artifacts.public_object_store
-    );
-    set_artifact_path!(
-        config.snapshot_creator,
-        object_store,
-        file_artifacts.snapshot
-    );
-    set_artifact_path!(
-        config.snapshot_recovery,
-        object_store,
-        file_artifacts.snapshot
-    );
-
-    set_artifact_path!(config.core_object_store, file_artifacts.core_object_store);
+pub fn set_file_artifacts(
+    config: &mut ConfigPatch,
+    file_artifacts: FileArtifacts,
+) -> anyhow::Result<()> {
+    // FIXME: won't work w/o migrating object store configs
+    config.insert_path(
+        "prover.prover_object_store.file_backed_base_path",
+        &file_artifacts.prover_object_store,
+    )?;
+    config.insert_path(
+        "prover.public_object_store.file_backed_base_path",
+        &file_artifacts.public_object_store,
+    )?;
+    config.insert_path(
+        "snapshot_creator.object_store.file_backed_base_path",
+        &file_artifacts.snapshot,
+    )?;
+    config.insert_path(
+        "snapshot_recovery.object_store.file_backed_base_path",
+        &file_artifacts.snapshot,
+    )?;
+    config.insert_path(
+        "core_object_store.file_backed_base_path",
+        &file_artifacts.core_object_store,
+    )?;
+    Ok(())
 }
 
 pub fn override_config(shell: &Shell, path: PathBuf, chain: &ChainConfig) -> anyhow::Result<()> {
@@ -126,18 +93,9 @@ impl FileConfigWithDefaultName for GeneralConfig {
     const FILE_NAME: &'static str = GENERAL_FILE;
 }
 
-impl SaveConfig for GeneralConfig {
-    fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
-        let bytes =
-            encode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(self)?;
-        Ok(shell.write_file(path, bytes)?)
-    }
-}
-
 impl ReadConfig for GeneralConfig {
-    fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
-        let path = shell.current_dir().join(path);
-        read_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&path, false)
+    fn read(_shell: &Shell, _path: impl AsRef<Path>) -> anyhow::Result<Self> {
+        todo!("remove")
     }
 }
 

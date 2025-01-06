@@ -5,10 +5,11 @@ use common::{
     config::global_config,
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     logger,
+    yaml::ConfigPatch,
 };
 use config::{
-    override_config, set_file_artifacts, set_rocks_db_config, set_server_database,
-    traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig, FileArtifacts,
+    override_config, set_file_artifacts, set_rocks_db_config, set_server_database, ChainConfig,
+    EcosystemConfig, FileArtifacts,
 };
 use types::ProverMode;
 use xshell::Shell;
@@ -34,10 +35,10 @@ pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
-    let mut secrets = chain_config.get_secrets_config()?;
+    let mut secrets = ConfigPatch::new(chain_config.path_to_secrets_config());
     let args = args.fill_values_with_secrets(&chain_config)?;
     set_server_database(&mut secrets, &args.server_db)?;
-    secrets.save_with_base_path(shell, &chain_config.configs)?;
+    secrets.save().await?;
 
     initialize_server_database(
         shell,
@@ -78,7 +79,7 @@ pub async fn initialize_server_database(
     Ok(())
 }
 
-pub fn update_configs(
+pub async fn update_configs(
     args: GenesisArgsFinal,
     shell: &Shell,
     config: &ChainConfig,
@@ -86,18 +87,18 @@ pub fn update_configs(
     shell.create_dir(&config.rocks_db_path)?;
 
     // Update secrets configs
-    let mut secrets = config.get_secrets_config()?;
+    let mut secrets = ConfigPatch::new(config.path_to_secrets_config());
     set_server_database(&mut secrets, &args.server_db)?;
-    secrets.save_with_base_path(shell, &config.configs)?;
+    secrets.save().await?;
 
     // Update general config
-    let mut general = config.get_general_config()?;
+    let mut general = ConfigPatch::new(config.path_to_general_config());
     let rocks_db = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::Main)
         .context(MSG_RECREATE_ROCKS_DB_ERRROR)?;
     let file_artifacts = FileArtifacts::new(config.artifacts.clone());
     set_rocks_db_config(&mut general, rocks_db)?;
-    set_file_artifacts(&mut general, file_artifacts);
-    general.save_with_base_path(shell, &config.configs)?;
+    set_file_artifacts(&mut general, file_artifacts)?;
+    general.save().await?;
 
     let link_to_code = config.link_to_code.clone();
     if config.prover_version != ProverMode::NoProofs {
