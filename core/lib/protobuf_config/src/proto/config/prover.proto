@@ -14,6 +14,8 @@ message ProofCompressor {
   optional string universal_setup_path = 7; // required; fs path
   optional string universal_setup_download_url = 8; // required
   optional bool verify_wrapper_proof = 9; // required
+  optional string universal_fflonk_setup_path = 10; // required
+  optional string universal_fflonk_setup_download_url = 11; // required
 }
 
 enum SetupLoadMode {

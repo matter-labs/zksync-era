@@ -24,12 +24,15 @@ use zksync_vm_interface::{
     pubdata::PubdataBuilder, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
 };
 
-pub(super) use self::tester::{TestedVm, VmTester, VmTesterBuilder};
+pub(super) use self::tester::{
+    validation_params, TestedVm, TestedVmForValidation, VmTester, VmTesterBuilder,
+};
 use crate::{
     interface::storage::InMemoryStorage, pubdata_builders::RollupPubdataBuilder,
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
+pub(super) mod account_validation_rules;
 pub(super) mod block_tip;
 pub(super) mod bootloader;
 pub(super) mod bytecode_publishing;

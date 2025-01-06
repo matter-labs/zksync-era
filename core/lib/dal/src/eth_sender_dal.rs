@@ -445,6 +445,27 @@ impl EthSenderDal<'_, '_> {
         Ok(row.and_then(|r| r.chain_id).map(|id| SLChainId(id as u64)))
     }
 
+    pub async fn get_batch_execute_chain_id(
+        &mut self,
+        batch_number: L1BatchNumber,
+    ) -> DalResult<Option<SLChainId>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT eth_txs.chain_id
+            FROM l1_batches
+            JOIN eth_txs ON eth_txs.id = l1_batches.eth_execute_tx_id
+            WHERE
+                number = $1
+            "#,
+            i64::from(batch_number.0),
+        )
+        .instrument("get_batch_execute_chain_id")
+        .with_arg("batch_number", &batch_number)
+        .fetch_optional(self.storage)
+        .await?;
+        Ok(row.and_then(|r| r.chain_id).map(|id| SLChainId(id as u64)))
+    }
+
     pub async fn get_confirmed_tx_hash_by_eth_tx_id(
         &mut self,
         eth_tx_id: u32,

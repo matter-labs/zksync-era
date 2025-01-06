@@ -171,24 +171,32 @@ fn pretty_print_proof(result: &FriProofWrapper) {
 fn pretty_print_l1_proof(result: &L1BatchProofForL1) {
     println!("{}", "== Snark wrapped L1 proof ==".to_string().bold());
     println!("AUX info:");
+
+    let aggregation_result_coords = result.aggregation_result_coords();
+
     println!(
         "  L1 msg linear hash: 0x{}",
-        hex::encode(result.aggregation_result_coords[0])
+        hex::encode(aggregation_result_coords[0])
     );
     println!(
         "  Rollup_state_diff_for_compression: 0x{}",
-        hex::encode(result.aggregation_result_coords[1])
+        hex::encode(aggregation_result_coords[1])
     );
     println!(
         "  bootloader_heap_initial_content: 0x{}",
-        hex::encode(result.aggregation_result_coords[2])
+        hex::encode(aggregation_result_coords[2])
     );
     println!(
         "  events_queue_state: 0x{}",
-        hex::encode(result.aggregation_result_coords[3])
+        hex::encode(aggregation_result_coords[3])
     );
 
-    println!("Inputs: {:?}", result.scheduler_proof.inputs);
+    let inputs = match result {
+        L1BatchProofForL1::Fflonk(proof) => &proof.scheduler_proof.inputs,
+        L1BatchProofForL1::Plonk(proof) => &proof.scheduler_proof.inputs,
+    };
+
+    println!("Inputs: {:?}", inputs);
     println!("  This proof will pass on L1, if L1 executor computes the block commitment that is matching exactly the Inputs value above");
 }
 
