@@ -29,6 +29,7 @@ use zksync_types::{
 
 use super::aggregated_operations::AggregatedOperation;
 use crate::{
+    aggregator::OperationSkippingRestrictions,
     health::{EthTxAggregatorHealthDetails, EthTxDetails},
     metrics::{PubdataKind, METRICS},
     publish_criterion::L1GasCriterion,
@@ -476,16 +477,14 @@ impl EthTxAggregator {
         // the upgrade process on the server has begun.
         // However, if the protocol version on the contract is lower than the `gateway_upgrade`, it means that the upgrade has
         // not yet completed.
-        let Some(gateway_protocol_version) = storage
-            .protocol_versions_dal()
-            .get_protocol_version_with_latest_patch(ProtocolVersionId::gateway_upgrade())
+
+        if storage
+            .blocks_dal()
+            .pending_protocol_version()
             .await
             .unwrap()
-        else {
-            return false;
-        };
-
-        if gateway_protocol_version.timestamp < Utc::now().timestamp() as u64 {
+            < ProtocolVersionId::gateway_upgrade()
+        {
             return false;
         }
 
@@ -554,6 +553,27 @@ impl EthTxAggregator {
             snark_wrapper_vk_hash,
             fflonk_snark_wrapper_vk_hash,
         };
+
+        let mut op_restrictions = OperationSkippingRestrictions {
+            commit_restriction: self
+                .config
+                .tx_aggregation_only_prove_and_execute
+                .then_some("tx_aggregation_only_prove_and_execute=true"),
+            prove_restriction: None,
+            execute_restriction: Self::is_pending_gateway_upgrade(
+                storage,
+                chain_protocol_version_id,
+            )
+            .await
+            .then_some("there is a pending gateway upgrade"),
+        };
+        if self.config.tx_aggregation_paused {
+            let reason = Some("tx aggregation is paused");
+            op_restrictions.commit_restriction = reason;
+            op_restrictions.prove_restriction = reason;
+            op_restrictions.execute_restriction = reason;
+        }
+
         if let Some(agg_op) = self
             .aggregator
             .get_next_ready_operation(
@@ -561,41 +581,10 @@ impl EthTxAggregator {
                 base_system_contracts_hashes,
                 chain_protocol_version_id,
                 l1_verifier_config,
+                op_restrictions,
             )
             .await?
         {
-            if self.config.tx_aggregation_paused {
-                tracing::info!(
-                    "Skipping sending operation of type {} for batches {}-{} \
-                as tx_aggregation_paused=true",
-                    agg_op.get_action_type(),
-                    agg_op.l1_batch_range().start(),
-                    agg_op.l1_batch_range().end()
-                );
-                return Ok(());
-            }
-            if self.config.tx_aggregation_only_prove_and_execute && !agg_op.is_prove_or_execute() {
-                tracing::info!(
-                    "Skipping sending commit operation for batches {}-{} \
-                as tx_aggregation_only_prove_and_execute=true",
-                    agg_op.l1_batch_range().start(),
-                    agg_op.l1_batch_range().end()
-                );
-                return Ok(());
-            }
-
-            if Self::is_pending_gateway_upgrade(storage, chain_protocol_version_id).await
-                && agg_op.is_execute()
-            {
-                tracing::info!(
-                    "Skipping sending execute operation for batches {}-{} \
-                as there is a pending gateway upgrade",
-                    agg_op.l1_batch_range().start(),
-                    agg_op.l1_batch_range().end()
-                );
-                return Ok(());
-            }
-
             let is_gateway = self.settlement_mode.is_gateway();
             let tx = self
                 .save_eth_tx(
