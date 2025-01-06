@@ -112,7 +112,7 @@ pub fn get_is_account_key(account: &Address) -> StorageKey {
 
 pub type StorageValue = H256;
 
-fn get_system_context_init_logs(chain_id: L2ChainId) -> Vec<StorageLog> {
+pub fn get_system_context_init_logs(chain_id: L2ChainId) -> Vec<StorageLog> {
     vec![
         StorageLog::new_write_log(
             get_system_context_key(SYSTEM_CONTEXT_CHAIN_ID_POSITION),
@@ -131,8 +131,4 @@ fn get_system_context_init_logs(chain_id: L2ChainId) -> Vec<StorageLog> {
             SYSTEM_CONTEXT_DIFFICULTY,
         ),
     ]
-}
-
-pub fn get_system_contracts_init_logs(chain_id: L2ChainId) -> Vec<StorageLog> {
-    get_system_context_init_logs(chain_id)
 }
