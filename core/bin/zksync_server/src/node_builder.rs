@@ -121,22 +121,23 @@ impl MainNodeBuilder {
         self.node.runtime_handle()
     }
 
-    pub fn get_pubdata_type(&self) -> PubdataType {
+    pub fn get_pubdata_type(&self) -> anyhow::Result<PubdataType> {
         if self.genesis_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup
         {
-            return PubdataType::Rollup;
+            return Ok(PubdataType::Rollup);
         }
 
         let Some(da_client_config) = self.configs.da_client_config.clone() else {
-            return PubdataType::NoDA;
+            bail!("No config for DA client");
         };
 
-        match da_client_config {
+        Ok(match da_client_config {
             DAClientConfig::Avail(_) => PubdataType::Avail,
             DAClientConfig::Celestia(_) => PubdataType::Celestia,
             DAClientConfig::Eigen(_) => PubdataType::Eigen,
             DAClientConfig::ObjectStore(_) => PubdataType::ObjectStore,
-        }
+            DAClientConfig::NoDA => PubdataType::NoDA,
+        })
     }
 
     fn add_sigint_handler_layer(mut self) -> anyhow::Result<Self> {
