@@ -426,8 +426,7 @@ async fn get_base_system_contracts(
     );
 
     if evm_simulator_hash.is_some() {
-        // For now, it is not yet decided whether Gateway upgrade will happen before
-        // or after the EVM equivalence upgrade.
+        // TODO(EVM-933): support EVM emulator.
         panic!("EVM simulator not supported as part of gateway upgrade");
     }
 
@@ -444,7 +443,7 @@ async fn get_base_system_contracts(
     })
 }
 
-pub async fn get_base_system_contracts_hashes_by_version_id(
+pub async fn get_base_system_contracts_by_version_id(
     storage: &mut Connection<'_, Core>,
     version_id: ProtocolVersionId,
 ) -> anyhow::Result<Option<BaseSystemContracts>> {

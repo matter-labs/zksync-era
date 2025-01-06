@@ -51,6 +51,61 @@ pub struct Aggregator {
     priority_tree_start_index: Option<usize>,
 }
 
+/// Denotes whether there are any restrictions on sending either
+/// commit, prove or execute operations. If there is one, the reason for it
+/// is stored to be logged.
+#[derive(Debug, Default)]
+pub(crate) struct OperationSkippingRestrictions {
+    pub(crate) commit_restriction: Option<&'static str>,
+    pub(crate) prove_restriction: Option<&'static str>,
+    pub(crate) execute_restriction: Option<&'static str>,
+}
+
+impl OperationSkippingRestrictions {
+    fn check_for_continuation(
+        &self,
+        agg_op: &AggregatedOperation,
+        reason: Option<&'static str>,
+    ) -> bool {
+        if let Some(reason) = reason {
+            tracing::info!(
+                "Skipping sending commit operation of type {} for batches {}-{} \
+            since {}",
+                agg_op.get_action_type(),
+                agg_op.l1_batch_range().start(),
+                agg_op.l1_batch_range().end(),
+                reason
+            );
+            false
+        } else {
+            true
+        }
+    }
+
+    // Unlike other funcitons `filter_commit_op` accepts an already prepared `AggregatedOperation` for
+    // easier compatibility with other interfaces in the file.
+    fn filter_commit_op(
+        &self,
+        commit_op: Option<AggregatedOperation>,
+    ) -> Option<AggregatedOperation> {
+        let commit_op = commit_op?;
+        self.check_for_continuation(&commit_op, self.commit_restriction)
+            .then_some(commit_op)
+    }
+
+    fn filter_prove_op(&self, prove_op: Option<ProveBatches>) -> Option<AggregatedOperation> {
+        let op = AggregatedOperation::PublishProofOnchain(prove_op?);
+        self.check_for_continuation(&op, self.commit_restriction)
+            .then_some(op)
+    }
+
+    fn filter_execute_op(&self, execute_op: Option<ExecuteBatches>) -> Option<AggregatedOperation> {
+        let op = AggregatedOperation::Execute(execute_op?);
+        self.check_for_continuation(&op, self.commit_restriction)
+            .then_some(op)
+    }
+}
+
 impl Aggregator {
     pub async fn new(
         config: SenderConfig,
@@ -153,12 +208,13 @@ impl Aggregator {
         })
     }
 
-    pub async fn get_next_ready_operation(
+    pub(crate) async fn get_next_ready_operation(
         &mut self,
         storage: &mut Connection<'_, Core>,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version_id: ProtocolVersionId,
         l1_verifier_config: L1VerifierConfig,
+        restrictions: OperationSkippingRestrictions,
     ) -> Result<Option<AggregatedOperation>, EthSenderError> {
         let Some(last_sealed_l1_batch_number) = storage
             .blocks_dal()
@@ -169,30 +225,31 @@ impl Aggregator {
             return Ok(None); // No L1 batches in Postgres; no operations are ready yet
         };
 
-        if let Some(op) = self
-            .get_execute_operations(
+        if let Some(op) = restrictions.filter_execute_op(
+            self.get_execute_operations(
                 storage,
                 self.config.max_aggregated_blocks_to_execute as usize,
                 last_sealed_l1_batch_number,
             )
-            .await?
-        {
-            Ok(Some(AggregatedOperation::Execute(op)))
-        } else if let Some(op) = self
-            .get_proof_operation(storage, last_sealed_l1_batch_number, l1_verifier_config)
-            .await
-        {
-            Ok(Some(AggregatedOperation::PublishProofOnchain(op)))
+            .await?,
+        ) {
+            Ok(Some(op))
+        } else if let Some(op) = restrictions.filter_prove_op(
+            self.get_proof_operation(storage, last_sealed_l1_batch_number, l1_verifier_config)
+                .await,
+        ) {
+            Ok(Some(op))
         } else {
-            Ok(self
-                .get_commit_operation(
+            Ok(restrictions.filter_commit_op(
+                self.get_commit_operation(
                     storage,
                     self.config.max_aggregated_blocks_to_commit as usize,
                     last_sealed_l1_batch_number,
                     base_system_contracts_hashes,
                     protocol_version_id,
                 )
-                .await)
+                .await,
+            ))
         }
     }
 

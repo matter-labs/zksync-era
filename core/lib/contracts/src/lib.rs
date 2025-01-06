@@ -37,7 +37,7 @@ const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts/out";
 const BRIDGEHUB_CONTRACT_FILE: (&str, &str) = ("bridgehub", "IBridgehub.sol/IBridgehub.json");
 const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
-    "IChainTypeManager.sol/IChainTypeManager.json",
+    "ChainTypeManager.sol/ChainTypeManager.json",
 );
 const BYTECODE_SUPPLIER_CONTRACT_FILE: (&str, &str) =
     ("upgrades", "BytecodesSupplier.sol/BytecodesSupplier.json");
