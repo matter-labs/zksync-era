@@ -24,6 +24,8 @@ use zksync_web3_decl::{
     namespaces::{EthNamespaceClient, UnstableNamespaceClient, ZksNamespaceClient},
 };
 
+const FFLONK_VERIFIER_TYPE: i32 = 0;
+
 /// Common L1 and L2 client functionality used by [`EthWatch`](crate::EthWatch) and constituent event processors.
 #[async_trait::async_trait]
 pub trait EthClient: 'static + fmt::Debug + Send + Sync {
@@ -47,6 +49,10 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     /// Returns scheduler verification key hash by verifier address.
     async fn scheduler_vk_hash(&self, verifier_address: Address)
         -> Result<H256, ContractCallError>;
+    async fn fflonk_scheduler_vk_hash(
+        &self,
+        verifier_address: Address,
+    ) -> Result<Option<H256>, ContractCallError>;
     /// Returns upgrade diamond cut by packed protocol version.
     async fn diamond_cut_by_version(
         &self,
@@ -278,31 +284,6 @@ where
             .await
     }
 
-    async fn diamond_cut_by_version(
-        &self,
-        packed_version: H256,
-    ) -> EnrichedClientResult<Option<Vec<u8>>> {
-        let Some(state_transition_manager_address) = self.state_transition_manager_address else {
-            return Ok(None);
-        };
-
-        let to_block = self.client.block_number().await?;
-        let from_block = to_block.saturating_sub((LOOK_BACK_BLOCK_RANGE - 1).into());
-
-        let logs = self
-            .get_events_inner(
-                from_block.into(),
-                to_block.into(),
-                Some(vec![self.new_upgrade_cut_data_signature]),
-                Some(vec![packed_version]),
-                Some(vec![state_transition_manager_address]),
-                RETRY_LIMIT,
-            )
-            .await?;
-
-        Ok(logs.into_iter().next().map(|log| log.data.0))
-    }
-
     async fn get_published_preimages(
         &self,
         hashes: Vec<H256>,
@@ -390,6 +371,57 @@ where
             .call(&self.client)
             .await
             .map(|x: U256| x.try_into().unwrap())
+    }
+
+    async fn fflonk_scheduler_vk_hash(
+        &self,
+        verifier_address: Address,
+    ) -> Result<Option<H256>, ContractCallError> {
+        // New verifier returns the hash of the verification key.
+        // We are getting function separately to get the second function with the same name, but
+        // overriden one
+        let function = self
+            .verifier_contract_abi
+            .functions_by_name("verificationKeyHash")
+            .map_err(ContractCallError::Function)?
+            .get(1);
+
+        if let Some(function) = function {
+            Ok(
+                CallFunctionArgs::new("verificationKeyHash", U256::from(FFLONK_VERIFIER_TYPE))
+                    .for_contract(verifier_address, &self.verifier_contract_abi)
+                    .call_with_function(&self.client, function.clone())
+                    .await
+                    .ok(),
+            )
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn diamond_cut_by_version(
+        &self,
+        packed_version: H256,
+    ) -> EnrichedClientResult<Option<Vec<u8>>> {
+        let Some(state_transition_manager_address) = self.state_transition_manager_address else {
+            return Ok(None);
+        };
+
+        let to_block = self.client.block_number().await?;
+        let from_block = to_block.saturating_sub((LOOK_BACK_BLOCK_RANGE - 1).into());
+
+        let logs = self
+            .get_events_inner(
+                from_block.into(),
+                to_block.into(),
+                Some(vec![self.new_upgrade_cut_data_signature]),
+                Some(vec![packed_version]),
+                Some(vec![state_transition_manager_address]),
+                RETRY_LIMIT,
+            )
+            .await?;
+
+        Ok(logs.into_iter().next().map(|log| log.data.0))
     }
 
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId> {
@@ -572,6 +604,13 @@ impl EthClient for L2EthClientW {
         verifier_address: Address,
     ) -> Result<H256, ContractCallError> {
         self.0.scheduler_vk_hash(verifier_address).await
+    }
+
+    async fn fflonk_scheduler_vk_hash(
+        &self,
+        verifier_address: Address,
+    ) -> Result<Option<H256>, ContractCallError> {
+        self.0.fflonk_scheduler_vk_hash(verifier_address).await
     }
 
     async fn diamond_cut_by_version(

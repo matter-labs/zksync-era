@@ -65,7 +65,7 @@ export function loadConfig({
         config
     );
     if (!fs.existsSync(configPath)) {
-        return [];
+        return null;
     }
     return yaml.parse(
         fs.readFileSync(configPath, {

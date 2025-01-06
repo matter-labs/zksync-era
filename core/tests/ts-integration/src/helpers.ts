@@ -190,5 +190,5 @@ export function bigIntMax(...args: bigint[]) {
 }
 
 export function isLocalHost(network: string): boolean {
-    return network == 'localhost';
+    return network.toLowerCase() == 'localhost';
 }

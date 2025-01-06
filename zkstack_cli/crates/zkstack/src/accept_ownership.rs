@@ -15,7 +15,7 @@ use ethers::{
 };
 use lazy_static::lazy_static;
 use xshell::Shell;
-use zksync_types::U256;
+use zksync_basic_types::U256;
 
 use crate::{
     messages::MSG_ACCEPTING_GOVERNANCE_SPINNER,

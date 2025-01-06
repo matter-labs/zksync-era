@@ -8,11 +8,14 @@ pub struct InsertVersionArgs {
     pub version: Option<String>,
     #[clap(long)]
     pub snark_wrapper: Option<String>,
+    #[clap(long)]
+    pub fflonk_snark_wrapper: Option<String>,
 }
 
 #[derive(Debug)]
 pub struct InsertVersionArgsFinal {
     pub snark_wrapper: String,
+    pub fflonk_snark_wrapper: String,
     pub version: String,
 }
 
@@ -21,10 +24,12 @@ impl InsertVersionArgs {
         self,
         era_version: String,
         snark_wrapper: String,
+        fflonk_snark_wrapper: String,
     ) -> InsertVersionArgsFinal {
         if self.default {
             return InsertVersionArgsFinal {
                 snark_wrapper,
+                fflonk_snark_wrapper,
                 version: era_version,
             };
         }
@@ -41,8 +46,15 @@ impl InsertVersionArgs {
                 .ask()
         });
 
+        let fflonk_snark_wrapper = self.fflonk_snark_wrapper.unwrap_or_else(|| {
+            common::Prompt::new("Enter the fflonk snark wrapper of the protocol to insert")
+                .default(&fflonk_snark_wrapper)
+                .ask()
+        });
+
         InsertVersionArgsFinal {
             snark_wrapper,
+            fflonk_snark_wrapper,
             version,
         }
     }

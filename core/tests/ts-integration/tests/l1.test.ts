@@ -147,7 +147,9 @@ describe('Tests for L1 behavior', () => {
         const msgProof = await alice.provider.getLogProof(tx.hash, l2ToL1LogIndex);
         expect(msgProof).toBeTruthy();
 
-        // Ensure that received proof matches the provided root hash.
+        // Note, that if a chain uses gateway, its `root` will correspond to the root of the messages from the batch,
+        // while the `proof` would contain both the proof for the leaf belonging to the batch and the batch belonging
+        // to the gateway.
         const { id, proof } = msgProof!;
 
         // Ensure that provided proof is accepted by the main ZKsync contract.

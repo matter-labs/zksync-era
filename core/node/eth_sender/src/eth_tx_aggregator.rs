@@ -2,7 +2,7 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
+use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, ContractCallError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::{
@@ -75,6 +75,8 @@ struct TxData {
     sidecar: Option<EthTxBlobSidecar>,
 }
 
+const FFLONK_VERIFIER_TYPE: i32 = 1;
+
 impl EthTxAggregator {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
@@ -129,6 +131,11 @@ impl EthTxAggregator {
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         self.health_updater
             .update(Health::from(HealthStatus::Ready));
+
+        tracing::info!(
+            "Initialized eth_tx_aggregator with is_pre_fflonk_verifier: {:?}",
+            self.config.is_verifier_pre_fflonk
+        );
 
         let pool = self.pool.clone();
         loop {
@@ -367,11 +374,39 @@ impl EthTxAggregator {
         verifier_address: Address,
     ) -> Result<H256, EthSenderError> {
         let get_vk_hash = &self.functions.verification_key_hash;
+
         let vk_hash: H256 = CallFunctionArgs::new(&get_vk_hash.name, ())
             .for_contract(verifier_address, &self.functions.verifier_contract)
             .call((*self.eth_client).as_ref())
             .await?;
         Ok(vk_hash)
+    }
+
+    async fn get_fflonk_snark_wrapper_vk_hash(
+        &mut self,
+        verifier_address: Address,
+    ) -> Result<Option<H256>, EthSenderError> {
+        let get_vk_hash = &self.functions.verification_key_hash;
+        // We are getting function separately to get the second function with the same name, but
+        // overriden one
+        let function = self
+            .functions
+            .verifier_contract
+            .functions_by_name(&get_vk_hash.name)
+            .map_err(|x| EthSenderError::ContractCall(ContractCallError::Function(x)))?
+            .get(1);
+
+        if let Some(function) = function {
+            let vk_hash: Option<H256> =
+                CallFunctionArgs::new(&get_vk_hash.name, U256::from(FFLONK_VERIFIER_TYPE))
+                    .for_contract(verifier_address, &self.functions.verifier_contract)
+                    .call_with_function((*self.eth_client).as_ref(), function.clone())
+                    .await
+                    .ok();
+            Ok(vk_hash)
+        } else {
+            Ok(None)
+        }
     }
 
     #[tracing::instrument(skip_all, name = "EthTxAggregator::loop_iteration")]
@@ -395,8 +430,17 @@ impl EthTxAggregator {
                 tracing::error!("Failed to get VK hash from the Verifier {err:?}");
                 err
             })?;
+        let fflonk_snark_wrapper_vk_hash = self
+            .get_fflonk_snark_wrapper_vk_hash(verifier_address)
+            .await
+            .map_err(|err| {
+                tracing::error!("Failed to get FFLONK VK hash from the Verifier {err:?}");
+                err
+            })?;
+
         let l1_verifier_config = L1VerifierConfig {
             snark_wrapper_vk_hash,
+            fflonk_snark_wrapper_vk_hash,
         };
         if let Some(agg_op) = self
             .aggregator
@@ -506,7 +550,7 @@ impl EthTxAggregator {
                 Self::encode_commit_data(encoding_fn, &commit_data, l1_batch_for_sidecar)
             }
             AggregatedOperation::PublishProofOnchain(op) => {
-                args.extend(op.into_tokens());
+                args.extend(op.conditional_into_tokens(self.config.is_verifier_pre_fflonk));
                 let encoding_fn = if is_op_pre_gateway {
                     &self.functions.post_shared_bridge_prove
                 } else {

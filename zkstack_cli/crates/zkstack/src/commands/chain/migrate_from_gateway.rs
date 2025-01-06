@@ -4,7 +4,7 @@ use common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     wallets::Wallet,
-    withdraw::ZKSProvider,
+    zks_provider::ZKSProvider,
 };
 use config::{
     forge_interface::{
@@ -47,7 +47,6 @@ pub struct MigrateFromGatewayArgs {
     pub gateway_chain_name: String,
 }
 
-// TODO: use a different script here (i.e. make it have a different file)
 lazy_static! {
     static ref GATEWAY_PREPARATION_INTERFACE: BaseContract = BaseContract::from(
         parse_abi(&[

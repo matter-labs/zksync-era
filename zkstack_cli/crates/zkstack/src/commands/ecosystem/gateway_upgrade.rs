@@ -99,7 +99,6 @@ async fn no_governance_prepare(
     let new_genesis_config = GenesisConfig::read_with_base_path(shell, CONFIGS_PATH)?;
     let current_contracts_config = ecosystem_config.get_contracts_config()?;
     let initial_deployment_config = ecosystem_config.get_initial_deployment_config()?;
-    let wallets_config = ecosystem_config.get_wallets()?;
 
     let ecosystem_upgrade_config_path =
         GATEWAY_UPGRADE_ECOSYSTEM_PARAMS.input(&ecosystem_config.link_to_code);
@@ -115,7 +114,6 @@ async fn no_governance_prepare(
         &new_genesis_config,
         &current_contracts_config,
         &initial_deployment_config,
-        &wallets_config,
         ecosystem_config.era_chain_id,
         era_config.get_contracts_config()?.l1.diamond_proxy_addr,
         ecosystem_config.prover_version == ProverMode::NoProofs,
@@ -224,9 +222,8 @@ async fn no_governance_prepare_gateway(
         base_token: BaseToken::eth(),
         set_as_default: false,
         legacy_bridge: false,
-        skip_submodules_checkout: false,
-        skip_contract_compilation_override: false,
         evm_emulator: false,
+        update_submodules: Some(false),
         link_to_code: ecosystem_config.link_to_code.clone().display().to_string(),
     };
     chain::create::create_chain_inner(chain_create_args, ecosystem_config, shell)?;
