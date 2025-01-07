@@ -1,5 +1,6 @@
 use std::convert::TryInto;
 
+use zksync_config::ContractsConfig;
 use zksync_contracts::chain_admin_contract;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{
@@ -56,18 +57,22 @@ fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
     tx.try_into().unwrap()
 }
 
-fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx {
+fn dummy_bytecode() -> Vec<u8> {
+    vec![0u8; 32]
+}
+
+fn build_upgrade_tx(id: ProtocolVersionId) -> ProtocolUpgradeTx {
     let tx = ProtocolUpgradeTx {
         execute: Execute {
             contract_address: Some(Address::repeat_byte(0x11)),
             calldata: vec![1, 2, 3],
-            factory_deps: vec![],
+            factory_deps: vec![dummy_bytecode(), dummy_bytecode()],
             value: U256::zero(),
         },
         common_data: ProtocolUpgradeTxCommonData {
             upgrade_id: id,
             sender: [1u8; 20].into(),
-            eth_block,
+            eth_block: 0,
             gas_limit: Default::default(),
             max_fee_per_gas: Default::default(),
             gas_per_pubdata_limit: 1u32.into(),
@@ -104,6 +109,7 @@ async fn create_test_watcher(
         sl_l2_client,
         connection_pool,
         std::time::Duration::from_nanos(1),
+        &ContractsConfig::for_tests(),
         L2ChainId::default(),
     )
     .await
@@ -210,10 +216,13 @@ async fn test_normal_operation_upgrade_timestamp() {
         None,
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
+        &ContractsConfig::for_tests(),
         L2ChainId::default(),
     )
     .await
     .unwrap();
+
+    let expected_upgrade_tx = build_upgrade_tx(ProtocolVersionId::Version28);
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -228,10 +237,10 @@ async fn test_normal_operation_upgrade_timestamp() {
             (
                 ProtocolUpgrade {
                     version: ProtocolSemanticVersion {
-                        minor: ProtocolVersionId::next(),
+                        minor: ProtocolVersionId::Version28,
                         patch: 0.into(),
                     },
-                    tx: Some(build_upgrade_tx(ProtocolVersionId::next(), 18)),
+                    tx: Some(expected_upgrade_tx.clone()),
                     ..Default::default()
                 },
                 18,
@@ -239,7 +248,7 @@ async fn test_normal_operation_upgrade_timestamp() {
             (
                 ProtocolUpgrade {
                     version: ProtocolSemanticVersion {
-                        minor: ProtocolVersionId::next(),
+                        minor: ProtocolVersionId::Version28,
                         patch: 1.into(),
                     },
                     tx: None,
@@ -263,7 +272,7 @@ async fn test_normal_operation_upgrade_timestamp() {
     watcher.loop_iteration(&mut storage).await.unwrap();
     let db_versions = storage.protocol_versions_dal().all_versions().await;
     let mut expected_version = ProtocolSemanticVersion {
-        minor: ProtocolVersionId::next(),
+        minor: ProtocolVersionId::Version28,
         patch: 0.into(),
     };
     assert_eq!(db_versions.len(), 4);
@@ -274,11 +283,24 @@ async fn test_normal_operation_upgrade_timestamp() {
     // Check that tx was saved with the second upgrade.
     let tx = storage
         .protocol_versions_dal()
-        .get_protocol_upgrade_tx(ProtocolVersionId::next())
+        .get_protocol_upgrade_tx(ProtocolVersionId::Version28)
         .await
         .unwrap()
         .expect("no protocol upgrade transaction");
-    assert_eq!(tx.common_data.upgrade_id, ProtocolVersionId::next());
+
+    let ProtocolUpgradeTx {
+        execute: expected_execute,
+        common_data: expected_common_data,
+        ..
+    } = expected_upgrade_tx;
+
+    let ProtocolUpgradeTx {
+        execute,
+        common_data,
+        ..
+    } = tx;
+    assert_eq!(expected_execute, execute);
+    assert_eq!(expected_common_data, common_data);
 }
 
 #[test_log::test(tokio::test)]
