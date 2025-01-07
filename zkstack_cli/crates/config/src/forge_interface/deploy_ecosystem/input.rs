@@ -11,7 +11,7 @@ use zksync_basic_types::L2ChainId;
 use crate::{
     consts::INITIAL_DEPLOYMENT_FILE,
     traits::{FileConfigWithDefaultName, ZkStackConfig},
-    ContractsConfig, GenesisConfig, WalletsConfig,
+    ContractsConfig, GenesisConfig, WalletsConfig, ERC20_DEPLOYMENT_FILE,
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -69,7 +69,7 @@ pub struct Erc20DeploymentConfig {
 }
 
 impl FileConfigWithDefaultName for Erc20DeploymentConfig {
-    const FILE_NAME: &'static str = INITIAL_DEPLOYMENT_FILE;
+    const FILE_NAME: &'static str = ERC20_DEPLOYMENT_FILE;
 }
 
 impl ZkStackConfig for Erc20DeploymentConfig {}

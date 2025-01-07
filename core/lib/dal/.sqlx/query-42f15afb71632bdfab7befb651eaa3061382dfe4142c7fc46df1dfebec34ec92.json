@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH latest_storage_logs AS (\n                SELECT DISTINCT ON (hashed_key)\n                    hashed_key,\n                    address,\n                    key,\n                    value\n                FROM storage_logs\n                ORDER BY hashed_key, miniblock_number DESC, operation_number DESC\n            )\n            \n            SELECT\n                lsl.address,\n                lsl.key,\n                lsl.value\n            FROM\n                initial_writes iw\n            JOIN\n                latest_storage_logs lsl ON iw.hashed_key = lsl.hashed_key\n            WHERE\n                lsl.value\n                <> '\\x0000000000000000000000000000000000000000000000000000000000000000'::bytea\n                AND (\n                    lsl.address <> '\\x000000000000000000000000000000000000800b'::bytea OR\n                    lsl.key IN (\n                        '\\x0000000000000000000000000000000000000000000000000000000000000000'::bytea,\n                        '\\x0000000000000000000000000000000000000000000000000000000000000003'::bytea,\n                        '\\x0000000000000000000000000000000000000000000000000000000000000004'::bytea,\n                        '\\x0000000000000000000000000000000000000000000000000000000000000005'::bytea\n                    )\n                );\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "address",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "key",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "value",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "42f15afb71632bdfab7befb651eaa3061382dfe4142c7fc46df1dfebec34ec92"
+}

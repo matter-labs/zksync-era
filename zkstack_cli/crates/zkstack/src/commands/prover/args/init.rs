@@ -202,13 +202,16 @@ impl ProverInitArgs {
     pub(crate) fn fill_values_with_prompt(
         &self,
         shell: &Shell,
-        default_compressor_key_path: &str,
+        default_plonk_key_path: &str,
+        default_fflonk_key_path: &str,
         chain_config: &ChainConfig,
     ) -> anyhow::Result<ProverInitArgsFinal> {
         let proof_store = self.fill_proof_storage_values_with_prompt(shell)?;
         let public_store = self.fill_public_storage_values_with_prompt(shell)?;
-        let compressor_key_args =
-            self.fill_setup_compressor_key_values_with_prompt(default_compressor_key_path);
+        let compressor_key_args = self.fill_setup_compressor_key_values_with_prompt(
+            default_plonk_key_path,
+            default_fflonk_key_path,
+        );
         let bellman_cuda_config = self.fill_bellman_cuda_values_with_prompt();
         let cloud_type = self.get_cloud_type_with_prompt();
         let database_config = self.fill_database_values_with_prompt(chain_config);
@@ -355,11 +358,14 @@ impl ProverInitArgs {
 
     fn fill_setup_compressor_key_values_with_prompt(
         &self,
-        default_path: &str,
+        default_plonk_path: &str,
+        default_fflonk_path: &str,
     ) -> Option<CompressorKeysArgs> {
         if self.dev {
             return Some(CompressorKeysArgs {
-                path: Some(default_path.to_string()),
+                plonk_path: Some(default_plonk_path.to_string()),
+                fflonk_path: Some(default_fflonk_path.to_string()),
+                ..self.compressor_keys_args.clone()
             });
         }
 
@@ -373,7 +379,7 @@ impl ProverInitArgs {
             Some(
                 self.compressor_keys_args
                     .clone()
-                    .fill_values_with_prompt(default_path),
+                    .fill_values_with_prompt(default_plonk_path, default_fflonk_path),
             )
         } else {
             None

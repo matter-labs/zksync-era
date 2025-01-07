@@ -34,7 +34,7 @@ use zksync_types::{
     api,
     block::{pack_block_info, L2BlockHasher, L2BlockHeader, UnsealedL1BatchHeader},
     bytecode::{
-        testonly::{PROCESSED_EVM_BYTECODE, RAW_EVM_BYTECODE},
+        testonly::{PADDED_EVM_BYTECODE, PROCESSED_EVM_BYTECODE},
         BytecodeHash,
     },
     fee_model::{BatchFeeInput, FeeParams},
@@ -1183,14 +1183,16 @@ impl GetBytecodeTest {
         at_block: L2BlockNumber,
         address: Address,
     ) -> anyhow::Result<()> {
-        let evm_bytecode_hash = BytecodeHash::for_evm_bytecode(RAW_EVM_BYTECODE).value();
+        let evm_bytecode_hash =
+            BytecodeHash::for_evm_bytecode(PROCESSED_EVM_BYTECODE.len(), PADDED_EVM_BYTECODE)
+                .value();
         let code_log = StorageLog::new_write_log(get_code_key(&address), evm_bytecode_hash);
         connection
             .storage_logs_dal()
             .append_storage_logs(at_block, &[code_log])
             .await?;
 
-        let factory_deps = HashMap::from([(evm_bytecode_hash, RAW_EVM_BYTECODE.to_vec())]);
+        let factory_deps = HashMap::from([(evm_bytecode_hash, PADDED_EVM_BYTECODE.to_vec())]);
         connection
             .factory_deps_dal()
             .insert_factory_deps(at_block, &factory_deps)
