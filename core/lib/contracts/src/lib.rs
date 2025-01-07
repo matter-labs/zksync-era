@@ -209,7 +209,7 @@ pub fn l1_messenger_contract() -> Contract {
 }
 
 pub fn l2_message_root() -> Contract {
-    load_contract("contracts/l1-contracts/zkout/MessageRoot.sol/MessageRoot.json")
+    load_contract("contracts/l1-contracts/out/MessageRoot.sol/MessageRoot.json")
 }
 
 pub fn l2_rollup_da_validator_bytecode() -> Vec<u8> {
