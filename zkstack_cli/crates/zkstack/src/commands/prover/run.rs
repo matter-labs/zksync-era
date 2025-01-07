@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context};
-use common::{check_prerequisites, cmd::Cmd, logger, yaml::PatchedConfig, GPU_PREREQUISITES};
+use common::{check_prerequisites, cmd::Cmd, logger, GPU_PREREQUISITES};
 use config::{get_link_to_prover, ChainConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
 
@@ -152,7 +152,7 @@ fn run_binary_component(
 }
 
 async fn update_setup_data_path(chain: &ChainConfig, path: &str) -> anyhow::Result<()> {
-    let mut general_config = PatchedConfig::read(chain.path_to_general_config()).await?;
+    let mut general_config = chain.get_general_config().await?.patched();
     general_config.insert_path("prover.setup_data_path", path.as_ref())?;
     general_config.save().await
 }

@@ -1,6 +1,5 @@
 use std::{collections::HashMap, str::FromStr};
 
-use common::yaml::RawConfig;
 use ethers::{
     prelude::U256,
     types::{Address, H256},
@@ -11,6 +10,7 @@ use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, L2ChainId};
 
 use crate::{
     consts::INITIAL_DEPLOYMENT_FILE,
+    raw::RawConfig,
     traits::{FileConfigWithDefaultName, ZkStackConfig},
     ContractsConfig, WalletsConfig, ERC20_DEPLOYMENT_FILE,
 };

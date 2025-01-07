@@ -1,4 +1,6 @@
-use common::{db::DatabaseConfig, yaml::PatchedConfig};
+use common::db::DatabaseConfig;
+
+use crate::raw::PatchedConfig;
 
 pub fn set_server_database(
     secrets: &mut PatchedConfig,
@@ -7,8 +9,7 @@ pub fn set_server_database(
     secrets.insert(
         "database.server_url",
         server_db_config.full_url().to_string(),
-    );
-    Ok(())
+    )
 }
 
 pub fn set_prover_database(
@@ -18,11 +19,9 @@ pub fn set_prover_database(
     secrets.insert(
         "database.prover_url",
         prover_db_config.full_url().to_string(),
-    );
-    Ok(())
+    )
 }
 
 pub fn set_l1_rpc_url(secrets: &mut PatchedConfig, l1_rpc_url: String) -> anyhow::Result<()> {
-    secrets.insert("l1.l1_rpc_url", l1_rpc_url);
-    Ok(())
+    secrets.insert("l1.l1_rpc_url", l1_rpc_url)
 }

@@ -1,6 +1,5 @@
 use anyhow::Context as _;
-use common::yaml::PatchedConfig;
-use config::ChainConfig;
+use config::{raw::PatchedConfig, ChainConfig};
 use serde::{Deserialize, Serialize};
 use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_roles::{attester, node, validator};
@@ -80,7 +79,7 @@ pub fn set_genesis_specs(
     general: &mut PatchedConfig,
     chain_config: &ChainConfig,
     consensus_keys: &ConsensusSecretKeys,
-) {
+) -> anyhow::Result<()> {
     let public_keys = get_consensus_public_keys(consensus_keys);
     let validator_key = public_keys.validator_key.encode();
     let attester_key = public_keys.attester_key.encode();
@@ -89,29 +88,31 @@ pub fn set_genesis_specs(
     general.insert(
         "consensus.genesis_spec.chain_id",
         chain_config.chain_id.as_u64(),
-    );
-    general.insert("consensus.genesis_spec.protocol_version", 1_u64);
+    )?;
+    general.insert("consensus.genesis_spec.protocol_version", 1_u64)?;
     general.insert_yaml(
         "consensus.genesis_spec.validators",
         [Weighted::new(validator_key, 1)],
-    );
+    )?;
     general.insert_yaml(
         "consensus.genesis_spec.attesters",
         [Weighted::new(attester_key, 1)],
-    );
-    general.insert("consensus.genesis_spec.leader", leader);
+    )?;
+    general.insert("consensus.genesis_spec.leader", leader)?;
+    Ok(())
 }
 
 pub(crate) fn set_consensus_secrets(
     secrets: &mut PatchedConfig,
     consensus_keys: &ConsensusSecretKeys,
-) {
+) -> anyhow::Result<()> {
     let validator_key = consensus_keys.validator_key.encode();
     let attester_key = consensus_keys.attester_key.encode();
     let node_key = consensus_keys.node_key.encode();
-    secrets.insert("consensus.validator_key", validator_key);
-    secrets.insert("consensus.attester_key", attester_key);
-    secrets.insert("consensus.node_key", node_key);
+    secrets.insert("consensus.validator_key", validator_key)?;
+    secrets.insert("consensus.attester_key", attester_key)?;
+    secrets.insert("consensus.node_key", node_key)?;
+    Ok(())
 }
 
 pub fn node_public_key(secret_key: &str) -> anyhow::Result<String> {

@@ -3,7 +3,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use common::yaml::RawConfig;
 use serde::{Deserialize, Serialize, Serializer};
 use types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
@@ -16,6 +15,7 @@ use crate::{
         L1_CONTRACTS_FOUNDRY, SECRETS_FILE, WALLETS_FILE,
     },
     create_localhost_wallets,
+    raw::RawConfig,
     traits::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
         SaveConfigWithBasePath, ZkStackConfig,
@@ -83,11 +83,11 @@ impl ChainConfig {
     }
 
     pub async fn get_genesis_config(&self) -> anyhow::Result<RawConfig> {
-        RawConfig::read(self.path_to_genesis_config()).await
+        RawConfig::read(self.get_shell(), self.path_to_genesis_config()).await
     }
 
     pub async fn get_general_config(&self) -> anyhow::Result<RawConfig> {
-        RawConfig::read(self.path_to_general_config()).await
+        RawConfig::read(self.get_shell(), self.path_to_general_config()).await
     }
 
     // FIXME: make async
@@ -110,7 +110,7 @@ impl ChainConfig {
     }
 
     pub async fn get_secrets_config(&self) -> anyhow::Result<RawConfig> {
-        RawConfig::read(self.path_to_secrets_config()).await
+        RawConfig::read(self.get_shell(), self.path_to_secrets_config()).await
     }
 
     pub fn get_gateway_config(&self) -> anyhow::Result<GatewayConfig> {

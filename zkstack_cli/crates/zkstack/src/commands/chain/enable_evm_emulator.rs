@@ -1,6 +1,6 @@
 use anyhow::Context;
-use common::{forge::ForgeScriptArgs, logger, yaml::RawConfig};
-use config::EcosystemConfig;
+use common::{forge::ForgeScriptArgs, logger};
+use config::{raw::RawConfig, EcosystemConfig, GENESIS_FILE};
 use xshell::Shell;
 use zksync_types::H256;
 
@@ -17,10 +17,9 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
-    let default_genesis_config = RawConfig::read(EcosystemConfig::default_configs_path(
-        &chain_config.link_to_code,
-    ))
-    .await?;
+    let genesis_config_path =
+        EcosystemConfig::default_configs_path(&chain_config.link_to_code).join(GENESIS_FILE);
+    let default_genesis_config = RawConfig::read(shell, genesis_config_path).await?;
 
     let has_evm_emulation_support = default_genesis_config
         .get_opt::<H256>("evm_emulator_hash")?

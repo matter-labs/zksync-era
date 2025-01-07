@@ -1,6 +1,5 @@
 use anyhow::Context as _;
-use common::yaml::RawConfig;
-use config::EcosystemConfig;
+use config::{raw::RawConfig, EcosystemConfig};
 use url::Url;
 use xshell::Shell;
 

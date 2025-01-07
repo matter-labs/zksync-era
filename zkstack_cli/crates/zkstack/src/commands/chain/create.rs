@@ -1,10 +1,10 @@
 use std::cell::OnceCell;
 
 use anyhow::Context;
-use common::{logger, spinner::Spinner, yaml::RawConfig};
+use common::{logger, spinner::Spinner};
 use config::{
-    create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
-    EcosystemConfig,
+    create_local_configs_dir, create_wallets, raw::RawConfig, traits::SaveConfigWithBasePath,
+    ChainConfig, EcosystemConfig, GENESIS_FILE,
 };
 use xshell::Shell;
 use zksync_basic_types::L2ChainId;
@@ -82,8 +82,9 @@ pub(crate) async fn create_chain_inner(
         args.link_to_code.clone(),
         args.update_submodules,
     )?;
-    let default_genesis_config =
-        RawConfig::read(EcosystemConfig::default_configs_path(&link_to_code)).await?;
+    let genesis_config_path =
+        EcosystemConfig::default_configs_path(&link_to_code).join(GENESIS_FILE);
+    let default_genesis_config = RawConfig::read(shell, genesis_config_path).await?;
     let has_evm_emulation_support = default_genesis_config
         .get_opt::<H256>("evm_emulator_hash")?
         .is_some();

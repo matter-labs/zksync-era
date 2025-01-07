@@ -1,6 +1,6 @@
 use anyhow::Context as _;
-use common::{config::global_config, logger, yaml::RawConfig};
-use config::{EcosystemConfig, GENERAL_FILE};
+use common::{config::global_config, logger};
+use config::{raw::RawConfig, EcosystemConfig, GENERAL_FILE};
 use xshell::Shell;
 
 use crate::{
@@ -19,7 +19,7 @@ pub async fn wait(shell: &Shell, args: WaitArgs) -> anyhow::Result<()> {
         .external_node_config_path
         .clone()
         .context("External node is not initialized")?;
-    let general_config = RawConfig::read(en_path.join(GENERAL_FILE)).await?;
+    let general_config = RawConfig::read(shell, en_path.join(GENERAL_FILE)).await?;
     let health_check_port = general_config.get("api.healthcheck.port")?;
 
     logger::info(MSG_WAITING_FOR_EN);

@@ -7,9 +7,10 @@ use common::{
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     logger,
     spinner::Spinner,
-    yaml::PatchedConfig,
 };
-use config::{copy_configs, get_link_to_prover, set_prover_database, EcosystemConfig};
+use config::{
+    copy_configs, get_link_to_prover, raw::PatchedConfig, set_prover_database, EcosystemConfig,
+};
 use xshell::{cmd, Shell};
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 
@@ -57,7 +58,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
     }
 
-    let mut general_config = PatchedConfig::read(chain_config.path_to_general_config()).await?;
+    let mut general_config = chain_config.get_general_config().await?.patched();
 
     let proof_object_store_config =
         get_object_store_config(shell, Some(args.proof_store))?.unwrap();
@@ -105,16 +106,16 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         &proof_object_store_config,
     )?;
     if let Some(public_object_store_config) = public_object_store_config {
-        general_config.insert("prover.shall_save_to_public_bucket", true);
+        general_config.insert("prover.shall_save_to_public_bucket", true)?;
         set_object_store(
             &mut general_config,
             "prover.public_object_store",
             &public_object_store_config,
         )?;
     } else {
-        general_config.insert("prover.shall_save_to_public_bucket", false);
+        general_config.insert("prover.shall_save_to_public_bucket", false)?;
     }
-    general_config.insert_yaml("prover.cloud_type", args.cloud_type);
+    general_config.insert_yaml("prover.cloud_type", args.cloud_type)?;
     general_config.save().await?;
 
     if let Some(args) = args.bellman_cuda_config {
@@ -124,7 +125,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     if let Some(prover_db) = &args.database_config {
         let spinner = Spinner::new(MSG_INITIALIZING_DATABASES_SPINNER);
 
-        let mut secrets = PatchedConfig::read(chain_config.path_to_secrets_config()).await?;
+        let mut secrets = chain_config.get_secrets_config().await?.patched();
         set_prover_database(&mut secrets, &prover_db.database_config)?;
         secrets.save().await?;
         initialize_prover_database(
@@ -174,7 +175,7 @@ fn set_object_store(
     prefix: &str,
     config: &ObjectStoreConfig,
 ) -> anyhow::Result<()> {
-    patch.insert(&format!("{prefix}.max_retries"), config.max_retries);
+    patch.insert(&format!("{prefix}.max_retries"), config.max_retries)?;
     match &config.mode {
         ObjectStoreMode::FileBacked {
             file_backed_base_path,
@@ -182,13 +183,13 @@ fn set_object_store(
             patch.insert_yaml(
                 &format!("{prefix}.file_backed.file_backed_base_path"),
                 file_backed_base_path,
-            );
+            )?;
         }
         ObjectStoreMode::GCS { bucket_base_url } => {
             patch.insert(
                 &format!("{prefix}.gcs.bucket_base_url"),
                 bucket_base_url.clone(),
-            );
+            )?;
         }
         ObjectStoreMode::GCSWithCredentialFile {
             bucket_base_url,
@@ -197,17 +198,17 @@ fn set_object_store(
             patch.insert(
                 &format!("{prefix}.gcs_with_credential_file.bucket_base_url"),
                 bucket_base_url.clone(),
-            );
+            )?;
             patch.insert(
                 &format!("{prefix}.gcs_with_credential_file.gcs_credential_file_path"),
                 gcs_credential_file_path.clone(),
-            );
+            )?;
         }
         ObjectStoreMode::GCSAnonymousReadOnly { bucket_base_url } => {
             patch.insert(
                 &format!("{prefix}.gcs_anonymous_read_only.bucket_base_url"),
                 bucket_base_url.clone(),
-            );
+            )?;
         }
     }
     Ok(())

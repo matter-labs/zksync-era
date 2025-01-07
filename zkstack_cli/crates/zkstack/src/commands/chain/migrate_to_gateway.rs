@@ -4,7 +4,6 @@ use common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     wallets::Wallet,
-    yaml::PatchedConfig,
 };
 use config::{
     forge_interface::{
@@ -354,8 +353,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     );
 
     let gateway_url = l2_rpc_url;
-    let mut chain_secrets_config =
-        PatchedConfig::read(chain_config.path_to_secrets_config()).await?;
+    let mut chain_secrets_config = chain_config.get_secrets_config().await?.patched();
     chain_secrets_config.insert("l1.gateway_rpc_url", gateway_url);
     chain_secrets_config.save().await?;
 
@@ -367,7 +365,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     );
     gateway_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
-    let mut general_config = PatchedConfig::read(chain_config.path_to_general_config()).await?;
+    let mut general_config = chain_config.get_general_config().await?.patched();
     general_config.insert_yaml("eth.gas_adjuster.settlement_mode", SettlementMode::Gateway);
 
     if is_rollup {

@@ -1,12 +1,12 @@
 use std::path::Path;
 
 use anyhow::Context;
-use common::{logger, yaml::PatchedConfig};
+use common::logger;
 use config::{
+    raw::{PatchedConfig, RawConfig},
     set_rocks_db_config, ChainConfig, EcosystemConfig, CONSENSUS_CONFIG_FILE, EN_CONFIG_FILE,
     GENERAL_FILE, SECRETS_FILE,
 };
-use tokio::fs;
 use xshell::Shell;
 use zksync_basic_types::{L1ChainId, L2ChainId};
 use zksync_consensus_crypto::TextFmt;
@@ -55,30 +55,33 @@ async fn prepare_configs(
     let general = config.get_general_config().await?;
     let l2_rpc_port = general.get::<u16>("api.web3_json_rpc.http_port")?;
 
-    let mut en_config = PatchedConfig::empty(en_configs_path.join(EN_CONFIG_FILE));
+    let mut en_config = PatchedConfig::empty(shell, en_configs_path.join(EN_CONFIG_FILE));
     en_config.insert(
         "l2_chain_id",
         genesis.get::<L2ChainId>("l2_chain_id")?.as_u64(),
-    );
-    en_config.insert("l1_chain_id", genesis.get::<L1ChainId>("l1_chain_id")?.0);
+    )?;
+    en_config.insert("l1_chain_id", genesis.get::<L1ChainId>("l1_chain_id")?.0)?;
     en_config.insert_yaml(
         "l1_batch_commit_data_generator_mode",
         genesis.get::<String>("l1_batch_commit_data_generator_mode")?,
-    );
-    en_config.insert("main_node_url", format!("http://127.0.0.1:{l2_rpc_port}"));
+    )?;
+    en_config.insert("main_node_url", format!("http://127.0.0.1:{l2_rpc_port}"))?;
     en_config.save().await?;
 
     // Copy and modify the general config
     let general_config_path = en_configs_path.join(GENERAL_FILE);
-    fs::copy(config.path_to_general_config(), &general_config_path).await?;
-    let mut general_en = PatchedConfig::read(general_config_path.clone()).await?;
+    shell.copy_file(config.path_to_general_config(), &general_config_path)?;
+    let mut general_en = RawConfig::read(shell, general_config_path.clone())
+        .await?
+        .patched();
     let main_node_public_addr: String = general_en.base().get("consensus.public_addr")?;
     // FIXME: remove consensus config?
     let raw_consensus = general_en.base().get("consensus")?;
 
     // Copy and modify the consensus config
-    let mut en_consensus_config = PatchedConfig::empty(en_configs_path.join(CONSENSUS_CONFIG_FILE));
-    en_consensus_config.extend(raw_consensus)?;
+    let mut en_consensus_config =
+        PatchedConfig::empty(shell, en_configs_path.join(CONSENSUS_CONFIG_FILE));
+    en_consensus_config.extend(raw_consensus);
     let main_node_public_key = node_public_key(
         &config
             .get_secrets_config()
@@ -89,15 +92,15 @@ async fn prepare_configs(
         key: main_node_public_key,
         addr: main_node_public_addr,
     }];
-    en_consensus_config.insert_yaml("gossip_static_outbound", gossip_static_outbound);
+    en_consensus_config.insert_yaml("gossip_static_outbound", gossip_static_outbound)?;
     en_consensus_config.save().await?;
 
     // Set secrets config
-    let mut secrets = PatchedConfig::empty(en_configs_path.join(SECRETS_FILE));
+    let mut secrets = PatchedConfig::empty(shell, en_configs_path.join(SECRETS_FILE));
     let node_key = roles::node::SecretKey::generate().encode();
-    secrets.insert("consensus.node_key", node_key);
-    secrets.insert("database.server_url", args.db.full_url().to_string());
-    secrets.insert("l1.l1_rpc_url", args.l1_rpc_url);
+    secrets.insert("consensus.node_key", node_key)?;
+    secrets.insert("database.server_url", args.db.full_url().to_string())?;
+    secrets.insert("l1.l1_rpc_url", args.l1_rpc_url)?;
     secrets.save().await?;
 
     let dirs = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::ExternalNode)?;

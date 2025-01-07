@@ -1,5 +1,5 @@
 use anyhow::Context;
-use common::{git, logger, spinner::Spinner, yaml::PatchedConfig};
+use common::{git, logger, spinner::Spinner};
 use config::{
     copy_configs, traits::SaveConfigWithBasePath, update_from_chain_config, EcosystemConfig,
 };
@@ -41,7 +41,7 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));
 
-    let mut genesis_config = PatchedConfig::read(chain_config.path_to_genesis_config()).await?;
+    let mut genesis_config = chain_config.get_genesis_config().await?.patched();
     update_from_chain_config(&mut genesis_config, &chain_config)?;
     // FIXME: config isn't saved; why?
 

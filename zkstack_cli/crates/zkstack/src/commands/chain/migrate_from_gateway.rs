@@ -5,7 +5,6 @@ use common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     wallets::Wallet,
-    yaml::PatchedConfig,
     zks_provider::ZKSProvider,
 };
 use config::{
@@ -175,7 +174,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     gateway_chain_chain_config.gateway_chain_id = 0u64.into();
     gateway_chain_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
-    let mut general_config = PatchedConfig::read(chain_config.path_to_general_config()).await?;
+    let mut general_config = chain_config.get_general_config().await?.patched();
     general_config.insert_yaml(
         "eth.gas_adjuster.settlement_mode",
         SettlementMode::SettlesToL1,

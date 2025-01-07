@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
-use common::yaml::{merge_yaml, PatchedConfig};
+use common::yaml::merge_yaml;
 use xshell::Shell;
 
-use crate::ChainConfig;
+use crate::{raw::PatchedConfig, ChainConfig};
 
 pub struct RocksDbs {
     pub state_keeper: PathBuf,

@@ -10,25 +10,24 @@ pub use manipulations::*;
 pub use secrets::*;
 pub use wallet_creation::*;
 pub use wallets::*;
-pub use zksync_protobuf_config::{encode_yaml_repr, read_yaml_repr}; // FIXME: remove
 
 mod apps;
 mod chain;
 mod consts;
 mod contracts;
+pub mod docker_compose;
 mod ecosystem;
+pub mod explorer;
+pub mod explorer_compose;
 mod file_config;
+pub mod forge_interface;
 mod gateway;
 mod general;
 mod genesis;
 mod manipulations;
+pub mod portal;
+pub mod raw;
 mod secrets;
+pub mod traits;
 mod wallet_creation;
 mod wallets;
-
-pub mod docker_compose;
-pub mod explorer;
-pub mod explorer_compose;
-pub mod forge_interface;
-pub mod portal;
-pub mod traits;

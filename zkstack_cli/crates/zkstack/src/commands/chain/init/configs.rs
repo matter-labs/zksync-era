@@ -1,5 +1,5 @@
 use anyhow::Context;
-use common::{logger, yaml::PatchedConfig};
+use common::logger;
 use config::{
     copy_configs, set_l1_rpc_url, traits::SaveConfigWithBasePath, update_from_chain_config,
     ChainConfig, ContractsConfig, EcosystemConfig,
@@ -56,20 +56,20 @@ pub async fn init_configs(
         )?;
     }
 
-    let mut general_config = PatchedConfig::read(chain_config.path_to_general_config()).await?;
+    let mut general_config = chain_config.get_general_config().await?.patched();
     let prover_data_handler_port = general_config
         .base()
         .get_opt::<u16>("proof_data_handler.http_port")?;
     if let Some(port) = prover_data_handler_port {
-        general_config.insert("rover_gateway.api_url", format!("http://127.0.0.1:{port}"));
+        general_config.insert("rover_gateway.api_url", format!("http://127.0.0.1:{port}"))?;
     }
 
     let consensus_keys = generate_consensus_keys();
-    set_genesis_specs(&mut general_config, chain_config, &consensus_keys);
+    set_genesis_specs(&mut general_config, chain_config, &consensus_keys)?;
     general_config.save().await?;
 
     // Initialize genesis config
-    let mut genesis_config = PatchedConfig::read(chain_config.path_to_genesis_config()).await?;
+    let mut genesis_config = chain_config.get_genesis_config().await?.patched();
     update_from_chain_config(&mut genesis_config, chain_config)?;
     genesis_config.save().await?;
 
@@ -82,9 +82,9 @@ pub async fn init_configs(
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     // Initialize secrets config
-    let mut secrets = PatchedConfig::read(chain_config.path_to_secrets_config()).await?;
+    let mut secrets = chain_config.get_secrets_config().await?.patched();
     set_l1_rpc_url(&mut secrets, init_args.l1_rpc_url.clone())?;
-    set_consensus_secrets(&mut secrets, &consensus_keys);
+    set_consensus_secrets(&mut secrets, &consensus_keys)?;
     secrets.save().await?;
 
     genesis::database::update_configs(init_args.genesis_args.clone(), shell, chain_config).await?;

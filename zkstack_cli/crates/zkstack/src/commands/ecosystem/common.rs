@@ -1,7 +1,4 @@
-use common::{
-    forge::{Forge, ForgeScriptArgs},
-    yaml::RawConfig,
-};
+use common::forge::{Forge, ForgeScriptArgs};
 use config::{
     forge_interface::{
         deploy_ecosystem::{
@@ -10,6 +7,7 @@ use config::{
         },
         script_params::DEPLOY_ECOSYSTEM_SCRIPT_PARAMS,
     },
+    raw::RawConfig,
     traits::{ReadConfig, SaveConfig},
     ContractsConfig, EcosystemConfig,
 };
@@ -28,7 +26,7 @@ pub async fn deploy_l1(
     broadcast: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.link_to_code);
-    let default_genesis_config = RawConfig::read(config.get_default_configs_path()).await?;
+    let default_genesis_config = RawConfig::read(shell, config.get_default_configs_path()).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
 
     let wallets_config = config.get_wallets()?;

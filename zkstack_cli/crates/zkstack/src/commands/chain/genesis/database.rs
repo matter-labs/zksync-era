@@ -5,7 +5,6 @@ use common::{
     config::global_config,
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     logger,
-    yaml::PatchedConfig,
 };
 use config::{
     override_config, set_file_artifacts, set_rocks_db_config, set_server_database, ChainConfig,
@@ -35,7 +34,7 @@ pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
-    let mut secrets = PatchedConfig::read(chain_config.path_to_secrets_config()).await?;
+    let mut secrets = chain_config.get_secrets_config().await?.patched();
     let args = args.fill_values_with_secrets(&chain_config).await?;
     set_server_database(&mut secrets, &args.server_db)?;
     secrets.save().await?;
@@ -87,12 +86,12 @@ pub async fn update_configs(
     shell.create_dir(&config.rocks_db_path)?;
 
     // Update secrets configs
-    let mut secrets = PatchedConfig::read(config.path_to_secrets_config()).await?;
+    let mut secrets = config.get_secrets_config().await?.patched();
     set_server_database(&mut secrets, &args.server_db)?;
     secrets.save().await?;
 
     // Update general config
-    let mut general = PatchedConfig::read(config.path_to_general_config()).await?;
+    let mut general = config.get_general_config().await?.patched();
     let rocks_db = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::Main)
         .context(MSG_RECREATE_ROCKS_DB_ERRROR)?;
     let file_artifacts = FileArtifacts::new(config.artifacts.clone());
