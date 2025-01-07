@@ -72,7 +72,6 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/zksync-build-base:${{ steps.get-sha.outputs.image_tag_sha }}-${{ matrix.arch }}
 
   multiarch_manifest:
-    # Needed to push to Gihub Package Registry
     permissions:
       packages: write
       contents: read
@@ -101,59 +100,30 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create and push multi-arch manifests for Dockerhub
+      - name: Create and push multi-arch manifests
         shell: bash
         run: |
+          declare -A registry_paths=(
+            ["dockerhub"]="matterlabs"
+            ["github"]="ghcr.io/${{ github.repository_owner }}"
+            ["google"]="us-docker.pkg.dev/matterlabs-infra/matterlabs-docker"
+          )
+          
           images=("zksync-build-base")
           archs=("amd64" "arm64")
-
-          for img in "${images[@]}"; do
-            multiarch_tag="matterlabs/zksync-build-base:latest"
-            individual_images=()
-
-            for arch in "${archs[@]}"; do
-              TAG="$IMAGE_TAG_SUFFIX"
-              docker pull matterlabs/zksync-build-base:${TAG}-${arch} --platform linux/${arch}
-              individual_images+=("matterlabs/zksync-build-base:${TAG}-${arch}")
+          
+          for registry in "${!registry_paths[@]}"; do
+            for img in "${images[@]}"; do
+              registry_path="${registry_paths[$registry]}"
+              multiarch_tag="${registry_path}/zksync-build-base:latest"
+              individual_images=()
+              
+              for arch in "${archs[@]}"; do
+                TAG="$IMAGE_TAG_SUFFIX"
+                docker pull ${registry_path}/zksync-build-base:${TAG}-${arch} --platform linux/${arch}
+                individual_images+=("${registry_path}/zksync-build-base:${TAG}-${arch}")
+              done
+              
+              docker buildx imagetools create --tag "${multiarch_tag}" "${individual_images[@]}"
             done
-
-            docker buildx imagetools create --tag "${multiarch_tag}" "${individual_images[@]}"
-          done
-
-      - name: Create and push multi-arch manifests for GitHub Container Registry
-        shell: bash
-        run: |
-          images=("zksync-build-base")
-          archs=("amd64" "arm64")
-
-          for img in "${images[@]}"; do
-            multiarch_tag="ghcr.io/${{ github.repository_owner }}/zksync-build-base:latest"
-            individual_images=()
-
-            for arch in "${archs[@]}"; do
-              TAG="$IMAGE_TAG_SUFFIX"
-              docker pull ghcr.io/${{ github.repository_owner }}/zksync-build-base:${TAG}-${arch} --platform linux/${arch}
-              individual_images+=("ghcr.io/${{ github.repository_owner }}/zksync-build-base:${TAG}-${arch}")
-            done
-
-            docker buildx imagetools create --tag "${multiarch_tag}" "${individual_images[@]}"
-          done
-
-      - name: Create and push multi-arch manifests for Google Artifact Registry
-        shell: bash
-        run: |
-          images=("zksync-build-base")
-          archs=("amd64" "arm64")
-
-          for img in "${images[@]}"; do
-            multiarch_tag="us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zksync-build-base:latest"
-            individual_images=()
-
-            for arch in "${archs[@]}"; do
-              TAG="$IMAGE_TAG_SUFFIX"
-              docker pull us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zksync-build-base:${TAG}-${arch} --platform linux/${arch}
-              individual_images+=("us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zksync-build-base:${TAG}-${arch}")
-            done
-
-            docker buildx imagetools create --tag "${multiarch_tag}" "${individual_images[@]}"
           done
