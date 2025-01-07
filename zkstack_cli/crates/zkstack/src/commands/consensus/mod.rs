@@ -203,8 +203,9 @@ impl Setup {
             .get_general_config()
             .await
             .context("get_general_config()")?;
+        // We're getting a parent path here, since we need object input with the `attesters` array
         let genesis_attesters = general
-            .get_raw("genesis_spec.attesters")
+            .get_raw("consensus.genesis_spec")
             .context(messages::MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML)?
             .clone();
         let genesis_attesters = read_attester_committee_yaml(genesis_attesters)?;
