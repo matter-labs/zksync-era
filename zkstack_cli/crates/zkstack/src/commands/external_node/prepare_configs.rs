@@ -75,8 +75,8 @@ async fn prepare_configs(
         .await?
         .patched();
     let main_node_public_addr: String = general_en.base().get("consensus.public_addr")?;
-    // FIXME: remove consensus config?
     let raw_consensus = general_en.base().get("consensus")?;
+    general_en.remove("consensus");
 
     // Copy and modify the consensus config
     let mut en_consensus_config =

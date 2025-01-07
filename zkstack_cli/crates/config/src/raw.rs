@@ -127,6 +127,25 @@ impl PatchedConfig {
         map.extend(source);
     }
 
+    pub fn remove(&mut self, key: &str) {
+        let serde_yaml::Value::Mapping(map) = &mut self.base.inner else {
+            unreachable!(); // checked during initialization
+        };
+        let mut map = map;
+
+        if let Some((parent_path, last_segment)) = key.rsplit_once('.') {
+            for segment in parent_path.split('.') {
+                map = match map.get_mut(segment) {
+                    Some(serde_yaml::Value::Mapping(child)) => child,
+                    _ => return,
+                };
+            }
+            map.remove(last_segment);
+        } else {
+            map.remove(key);
+        }
+    }
+
     pub async fn save(self) -> anyhow::Result<()> {
         let contents =
             serde_yaml::to_string(&self.base.inner).context("failed serializing config")?;

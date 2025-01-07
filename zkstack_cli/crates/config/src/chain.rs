@@ -90,7 +90,6 @@ impl ChainConfig {
         RawConfig::read(self.get_shell(), self.path_to_general_config()).await
     }
 
-    // FIXME: make async
     pub fn get_wallets_config(&self) -> anyhow::Result<WalletsConfig> {
         let path = self.configs.join(WALLETS_FILE);
         if self.get_shell().path_exists(&path) {
@@ -104,7 +103,6 @@ impl ChainConfig {
         anyhow::bail!("Wallets configs has not been found");
     }
 
-    // FIXME: make async
     pub fn get_contracts_config(&self) -> anyhow::Result<ContractsConfig> {
         ContractsConfig::read_with_base_path(self.get_shell(), &self.configs)
     }
