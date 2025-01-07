@@ -1,14 +1,39 @@
+use common::yaml::RawConfig;
 /// TODO(EVM-927): Note that the contents of this file are not useable without Gateway contracts.
 use ethers::abi::Address;
 use serde::{Deserialize, Serialize};
 use types::ProverMode;
-use zksync_basic_types::{H256, U256};
-use zksync_config::GenesisConfig;
+use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, H256, U256};
 
 use crate::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig, traits::ZkStackConfig,
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
+
+/// Part of the genesis config influencing `DeployGatewayCTMInput`.
+#[derive(Debug)]
+pub struct GenesisInput {
+    pub bootloader_hash: H256,
+    pub default_aa_hash: H256,
+    pub genesis_root_hash: H256,
+    pub rollup_last_leaf_index: u64,
+    pub genesis_commitment: H256,
+    pub protocol_version: ProtocolSemanticVersion,
+}
+
+impl GenesisInput {
+    // FIXME: is this enough? (cf. aliases in the "real" config definition)
+    pub fn new(raw: &RawConfig) -> anyhow::Result<Self> {
+        Ok(Self {
+            bootloader_hash: raw.get("bootloader_hash")?,
+            default_aa_hash: raw.get("default_aa_hash")?,
+            genesis_root_hash: raw.get("genesis_root")?,
+            rollup_last_leaf_index: raw.get("genesis_rollup_leaf_index")?,
+            genesis_commitment: raw.get("genesis_batch_commitment")?,
+            protocol_version: raw.get("genesis_protocol_semantic_version")?,
+        })
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DeployGatewayCTMInput {
@@ -60,7 +85,7 @@ impl DeployGatewayCTMInput {
     pub fn new(
         chain_config: &ChainConfig,
         ecosystem_config: &EcosystemConfig,
-        genesis_config: &GenesisConfig,
+        genesis_input: &GenesisInput,
         contracts_config: &ContractsConfig,
         initial_deployment_config: &InitialDeploymentConfig,
     ) -> Self {
@@ -109,16 +134,16 @@ impl DeployGatewayCTMInput {
             diamond_init_minimal_l2_gas_price: initial_deployment_config
                 .diamond_init_minimal_l2_gas_price,
 
-            bootloader_hash: genesis_config.bootloader_hash.unwrap(),
-            default_aa_hash: genesis_config.default_aa_hash.unwrap(),
+            bootloader_hash: genesis_input.bootloader_hash,
+            default_aa_hash: genesis_input.default_aa_hash,
 
             priority_tx_max_gas_limit: initial_deployment_config.priority_tx_max_gas_limit,
 
-            genesis_root: genesis_config.genesis_root_hash.unwrap(),
-            genesis_rollup_leaf_index: genesis_config.rollup_last_leaf_index.unwrap(),
-            genesis_batch_commitment: genesis_config.genesis_commitment.unwrap(),
+            genesis_root: genesis_input.genesis_root_hash,
+            genesis_rollup_leaf_index: genesis_input.rollup_last_leaf_index,
+            genesis_batch_commitment: genesis_input.genesis_commitment,
 
-            latest_protocol_version: genesis_config.protocol_version.unwrap().pack(),
+            latest_protocol_version: genesis_input.protocol_version.pack(),
 
             expected_rollup_l2_da_validator: contracts_config
                 .ecosystem_contracts

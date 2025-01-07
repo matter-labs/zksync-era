@@ -20,7 +20,7 @@ use crate::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
         SaveConfigWithBasePath, ZkStackConfig,
     },
-    ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
+    ContractsConfig, GeneralConfig, SecretsConfig, WalletsConfig,
 };
 
 /// Chain configuration file. This file is created in the chain
@@ -82,12 +82,7 @@ impl ChainConfig {
         self.shell.get().expect("Not initialized")
     }
 
-    // FIXME: remove
-    pub fn get_genesis_config(&self) -> anyhow::Result<GenesisConfig> {
-        GenesisConfig::read_with_base_path(self.get_shell(), &self.configs)
-    }
-
-    pub async fn get_raw_genesis_config(&self) -> anyhow::Result<RawConfig> {
+    pub async fn get_genesis_config(&self) -> anyhow::Result<RawConfig> {
         RawConfig::read(self.path_to_genesis_config()).await
     }
 
@@ -100,6 +95,7 @@ impl ChainConfig {
         RawConfig::read(self.path_to_general_config()).await
     }
 
+    // FIXME: make async
     pub fn get_wallets_config(&self) -> anyhow::Result<WalletsConfig> {
         let path = self.configs.join(WALLETS_FILE);
         if self.get_shell().path_exists(&path) {
@@ -112,6 +108,8 @@ impl ChainConfig {
         }
         anyhow::bail!("Wallets configs has not been found");
     }
+
+    // FIXME: make async
     pub fn get_contracts_config(&self) -> anyhow::Result<ContractsConfig> {
         ContractsConfig::read_with_base_path(self.get_shell(), &self.configs)
     }

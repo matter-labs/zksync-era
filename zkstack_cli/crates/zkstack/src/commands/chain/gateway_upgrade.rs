@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use strum::EnumIter;
 use types::L1BatchCommitmentMode;
 use xshell::Shell;
-use zksync_basic_types::{H256, U256};
+use zksync_basic_types::{L1ChainId, H256, U256};
 use zksync_types::{web3::keccak256, Address, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 
 use crate::{
@@ -146,11 +146,11 @@ fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
 async fn adapt_config(shell: &Shell, chain_config: ChainConfig) -> anyhow::Result<()> {
     println!("Adapting config");
     let mut contracts_config = chain_config.get_contracts_config()?;
-    let genesis_config = chain_config.get_genesis_config()?;
+    let genesis_config = chain_config.get_genesis_config().await?;
 
     contracts_config.l2.legacy_shared_bridge_addr = contracts_config.bridges.shared.l2_address;
     contracts_config.l1.base_token_asset_id = Some(encode_ntv_asset_id(
-        genesis_config.l1_chain_id.0.into(),
+        genesis_config.get::<L1ChainId>("l1_chain_id")?.0.into(),
         contracts_config.l1.base_token_addr,
     ));
 
@@ -170,7 +170,7 @@ async fn prepare_stage1(
     let chain_upgrade_config_path =
         GATEWAY_UPGRADE_CHAIN_PARAMS.input(&ecosystem_config.link_to_code);
 
-    let gateway_upgrade_input = GatewayChainUpgradeInput::new(&chain_config);
+    let gateway_upgrade_input = GatewayChainUpgradeInput::new(&chain_config).await?;
     gateway_upgrade_input.save(shell, chain_upgrade_config_path.clone())?;
 
     let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
@@ -250,8 +250,9 @@ async fn prepare_stage1(
     );
 
     let validum = chain_config
-        .get_genesis_config()?
-        .l1_batch_commit_data_generator_mode
+        .get_genesis_config()
+        .await?
+        .get::<L1BatchCommitmentMode>("l1_batch_commit_data_generator_mode")?
         == L1BatchCommitmentMode::Validium;
 
     // We do not use chain output because IMHO we should delete it altogether from there
@@ -378,9 +379,11 @@ async fn finalize_stage1(
     .await?;
 
     let l1_da_validator_contract = if chain_config
-        .get_genesis_config()?
-        .l1_batch_commit_data_generator_mode
-        == L1BatchCommitmentMode::Rollup
+        .get_genesis_config()
+        .await?
+        .get::<L1BatchCommitmentMode>(
+        "l1_batch_commit_data_generator_mode",
+    )? == L1BatchCommitmentMode::Rollup
     {
         ecosystem_config
             .get_contracts_config()?

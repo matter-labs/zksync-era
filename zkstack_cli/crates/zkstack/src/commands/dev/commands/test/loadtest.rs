@@ -5,7 +5,7 @@ use xshell::{cmd, Shell};
 
 use crate::commands::dev::messages::MSG_CHAIN_NOT_FOUND_ERR;
 
-pub fn run(shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     let chain_config = ecosystem_config
@@ -21,9 +21,9 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
         .env(
             "L2_CHAIN_ID",
             chain_config
-                .get_genesis_config()?
-                .l2_chain_id
-                .as_u64()
+                .get_genesis_config()
+                .await?
+                .get::<u64>("l2_chain_id")?
                 .to_string(),
         )
         .env(

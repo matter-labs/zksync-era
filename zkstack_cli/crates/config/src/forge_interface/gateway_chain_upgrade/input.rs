@@ -1,3 +1,4 @@
+use anyhow::Context;
 /// TODO(EVM-927): Note that the contents of this file are not useable without Gateway contracts.
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
@@ -24,19 +25,22 @@ pub struct GatewayChainUpgradeChain {
 }
 
 impl GatewayChainUpgradeInput {
-    pub fn new(current_chain_config: &ChainConfig) -> Self {
-        let contracts_config = current_chain_config.get_contracts_config().unwrap();
+    pub async fn new(current_chain_config: &ChainConfig) -> anyhow::Result<Self> {
+        let contracts_config = current_chain_config
+            .get_contracts_config()
+            .context("failed loading contracts config")?;
 
         let validum = current_chain_config
             .get_genesis_config()
-            .unwrap()
-            .l1_batch_commit_data_generator_mode
+            .await
+            .context("failed loading genesis config")?
+            .get::<L1BatchCommitmentMode>("l1_batch_commit_data_generator_mode")?
             == L1BatchCommitmentMode::Validium;
 
-        Self {
+        Ok(Self {
             owner_address: current_chain_config
                 .get_wallets_config()
-                .unwrap()
+                .context("failed loading wallets config")?
                 .governor
                 .address,
             chain: GatewayChainUpgradeChain {
@@ -46,6 +50,6 @@ impl GatewayChainUpgradeInput {
                 // TODO(EVM-860): we assume that all rollup chains want to forever remain this way
                 permanent_rollup: !validum,
             },
-        }
+        })
     }
 }

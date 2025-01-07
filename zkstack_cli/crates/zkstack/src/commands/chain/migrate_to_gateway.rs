@@ -97,7 +97,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .expose_str()
         .to_string();
 
-    let genesis_config = chain_config.get_genesis_config()?;
+    let genesis_config = chain_config.get_genesis_config().await?;
 
     let preparation_config_path = GATEWAY_PREPARATION.input(&ecosystem_config.link_to_code);
     let preparation_config = GatewayPreparationConfig::new(
@@ -220,7 +220,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     let chain_contracts_config = chain_config.get_contracts_config().unwrap();
 
     let is_rollup = matches!(
-        genesis_config.l1_batch_commit_data_generator_mode,
+        genesis_config.get("l1_batch_commit_data_generator_mode")?,
         L1BatchCommitmentMode::Rollup
     );
 

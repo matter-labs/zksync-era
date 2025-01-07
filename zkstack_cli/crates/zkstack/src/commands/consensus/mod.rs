@@ -194,7 +194,7 @@ impl Setup {
             .get_contracts_config()
             .context("get_contracts_config()")?;
         let l2_chain_id = chain
-            .get_raw_genesis_config()
+            .get_genesis_config()
             .await
             .context("get_genesis_config()")?
             .get("l2_chain_id")?;
