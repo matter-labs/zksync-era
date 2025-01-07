@@ -1,14 +1,7 @@
-use std::path::Path;
-
 use common::yaml::PatchedConfig;
-use xshell::Shell;
 pub use zksync_config::GenesisConfig;
 
-use crate::{
-    consts::GENESIS_FILE,
-    traits::{FileConfigWithDefaultName, ReadConfig},
-    ChainConfig,
-};
+use crate::{consts::GENESIS_FILE, traits::FileConfigWithDefaultName, ChainConfig};
 
 pub fn update_from_chain_config(
     genesis: &mut PatchedConfig,
@@ -27,10 +20,4 @@ pub fn update_from_chain_config(
 
 impl FileConfigWithDefaultName for GenesisConfig {
     const FILE_NAME: &'static str = GENESIS_FILE;
-}
-
-impl ReadConfig for GenesisConfig {
-    fn read(_shell: &Shell, _path: impl AsRef<Path>) -> anyhow::Result<Self> {
-        todo!("remove")
-    }
 }

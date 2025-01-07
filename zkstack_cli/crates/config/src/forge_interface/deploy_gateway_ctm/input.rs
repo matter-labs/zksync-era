@@ -1,39 +1,14 @@
-use common::yaml::RawConfig;
-/// TODO(EVM-927): Note that the contents of this file are not useable without Gateway contracts.
+// TODO(EVM-927): Note that the contents of this file are not useable without Gateway contracts.
 use ethers::abi::Address;
 use serde::{Deserialize, Serialize};
 use types::ProverMode;
-use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, H256, U256};
+use zksync_basic_types::{H256, U256};
 
 use crate::{
-    forge_interface::deploy_ecosystem::input::InitialDeploymentConfig, traits::ZkStackConfig,
+    forge_interface::deploy_ecosystem::input::{GenesisInput, InitialDeploymentConfig},
+    traits::ZkStackConfig,
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-
-/// Part of the genesis config influencing `DeployGatewayCTMInput`.
-#[derive(Debug)]
-pub struct GenesisInput {
-    pub bootloader_hash: H256,
-    pub default_aa_hash: H256,
-    pub genesis_root_hash: H256,
-    pub rollup_last_leaf_index: u64,
-    pub genesis_commitment: H256,
-    pub protocol_version: ProtocolSemanticVersion,
-}
-
-impl GenesisInput {
-    // FIXME: is this enough? (cf. aliases in the "real" config definition)
-    pub fn new(raw: &RawConfig) -> anyhow::Result<Self> {
-        Ok(Self {
-            bootloader_hash: raw.get("bootloader_hash")?,
-            default_aa_hash: raw.get("default_aa_hash")?,
-            genesis_root_hash: raw.get("genesis_root")?,
-            rollup_last_leaf_index: raw.get("genesis_rollup_leaf_index")?,
-            genesis_commitment: raw.get("genesis_batch_commitment")?,
-            protocol_version: raw.get("genesis_protocol_semantic_version")?,
-        })
-    }
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DeployGatewayCTMInput {

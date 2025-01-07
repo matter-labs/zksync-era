@@ -7,11 +7,8 @@ use common::{
 };
 use config::{
     forge_interface::{
-        deploy_ecosystem::input::InitialDeploymentConfig,
-        deploy_gateway_ctm::{
-            input::{DeployGatewayCTMInput, GenesisInput},
-            output::DeployGatewayCTMOutput,
-        },
+        deploy_ecosystem::input::{GenesisInput, InitialDeploymentConfig},
+        deploy_gateway_ctm::{input::DeployGatewayCTMInput, output::DeployGatewayCTMOutput},
         gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
         script_params::{DEPLOY_GATEWAY_CTM, GATEWAY_GOVERNANCE_TX_PATH1, GATEWAY_PREPARATION},
     },

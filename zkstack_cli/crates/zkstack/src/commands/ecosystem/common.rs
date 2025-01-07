@@ -1,15 +1,17 @@
-use anyhow::Context;
-use common::forge::{Forge, ForgeScriptArgs};
+use common::{
+    forge::{Forge, ForgeScriptArgs},
+    yaml::RawConfig,
+};
 use config::{
     forge_interface::{
         deploy_ecosystem::{
-            input::{DeployL1Config, InitialDeploymentConfig},
+            input::{DeployL1Config, GenesisInput, InitialDeploymentConfig},
             output::DeployL1Output,
         },
         script_params::DEPLOY_ECOSYSTEM_SCRIPT_PARAMS,
     },
-    traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig},
-    ContractsConfig, EcosystemConfig, GenesisConfig,
+    traits::{ReadConfig, SaveConfig},
+    ContractsConfig, EcosystemConfig,
 };
 use types::{L1Network, ProverMode};
 use xshell::Shell;
@@ -26,14 +28,13 @@ pub async fn deploy_l1(
     broadcast: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.link_to_code);
-    let default_genesis_config =
-        GenesisConfig::read_with_base_path(shell, config.get_default_configs_path())
-            .context("failed reading genesis config")?;
+    let default_genesis_config = RawConfig::read(config.get_default_configs_path()).await?;
+    let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
 
     let wallets_config = config.get_wallets()?;
     // For deploying ecosystem we only need genesis batch params
     let deploy_config = DeployL1Config::new(
-        &default_genesis_config,
+        &default_genesis_input,
         &wallets_config,
         initial_deployment_config,
         config.era_chain_id,

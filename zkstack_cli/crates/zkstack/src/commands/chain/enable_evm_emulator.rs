@@ -1,7 +1,8 @@
 use anyhow::Context;
-use common::{forge::ForgeScriptArgs, logger};
-use config::{traits::ReadConfigWithBasePath, EcosystemConfig, GenesisConfig};
+use common::{forge::ForgeScriptArgs, logger, yaml::RawConfig};
+use config::EcosystemConfig;
 use xshell::Shell;
+use zksync_types::H256;
 
 use crate::{
     enable_evm_emulator::enable_evm_emulator,
@@ -17,12 +18,14 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
-    let default_genesis_config = GenesisConfig::read_with_base_path(
-        shell,
-        EcosystemConfig::default_configs_path(&chain_config.link_to_code),
-    )?;
+    let default_genesis_config = RawConfig::read(EcosystemConfig::default_configs_path(
+        &chain_config.link_to_code,
+    ))
+    .await?;
 
-    let has_evm_emulation_support = default_genesis_config.evm_emulator_hash.is_some();
+    let has_evm_emulation_support = default_genesis_config
+        .get_opt::<H256>("evm_emulator_hash")?
+        .is_some();
     anyhow::ensure!(has_evm_emulation_support, MSG_EVM_EMULATOR_HASH_MISSING_ERR);
 
     let contracts = chain_config.get_contracts_config()?;
