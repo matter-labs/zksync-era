@@ -12,10 +12,7 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
 
-    let general_api = chain_config
-        .get_general_config()?
-        .api_config
-        .context("API config is not found")?;
+    let general_config = chain_config.get_general_config().await?;
 
     let mut command = cmd!(shell, "cargo run --release --bin loadnext")
         .env(
@@ -37,8 +34,14 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
                     .address
             ),
         )
-        .env("L2_RPC_ADDRESS", general_api.web3_json_rpc.http_url)
-        .env("L2_WS_RPC_ADDRESS", general_api.web3_json_rpc.ws_url);
+        .env(
+            "L2_RPC_ADDRESS",
+            general_config.get::<String>("api.web3_json_rpc.http_url")?,
+        )
+        .env(
+            "L2_WS_RPC_ADDRESS",
+            general_config.get::<String>("api.web3_json_rpc.ws_url")?,
+        );
 
     if global_config().verbose {
         command = command.env("RUST_LOG", "loadnext=info")

@@ -200,7 +200,7 @@ impl Setup {
             .get("l2_chain_id")?;
 
         let general = chain
-            .get_raw_general_config()
+            .get_general_config()
             .await
             .context("get_general_config()")?;
         let genesis_attesters = general

@@ -2,11 +2,7 @@ use std::path::Path;
 
 use anyhow::Context;
 use common::{config::global_config, docker, ethereum, logger};
-use config::{
-    portal::*,
-    traits::{ConfigWithL2RpcUrl, SaveConfig},
-    AppsEcosystemConfig, ChainConfig, EcosystemConfig,
-};
+use config::{portal::*, traits::SaveConfig, AppsEcosystemConfig, ChainConfig, EcosystemConfig};
 use ethers::types::Address;
 use types::{BaseToken, TokenInfo};
 use xshell::Shell;
@@ -24,7 +20,10 @@ async fn build_portal_chain_config(
     chain_config: &ChainConfig,
 ) -> anyhow::Result<PortalChainConfig> {
     // Get L2 RPC URL from general config
-    let l2_rpc_url = chain_config.get_general_config()?.get_l2_rpc_url()?;
+    let l2_rpc_url = chain_config
+        .get_general_config()
+        .await?
+        .get("api.web3_json_rpc.http_url")?;
     // Get L1 RPC URL from secrets config
     let secrets_config = chain_config.get_secrets_config().await?;
     let l1_rpc_url = secrets_config.get::<String>("l1.l1_rpc_url")?;
@@ -65,7 +64,7 @@ async fn build_portal_chain_config(
             id: chain_config.chain_id.as_u64(),
             key: chain_config.name.clone(),
             name: chain_config.name.clone(),
-            rpc_url: l2_rpc_url.to_string(),
+            rpc_url: l2_rpc_url,
             l1_network,
             public_l1_network_id: None,
             block_explorer_url: None,

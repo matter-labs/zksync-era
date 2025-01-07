@@ -53,7 +53,7 @@ async fn prepare_configs(
 ) -> anyhow::Result<()> {
     let mut ports = EcosystemPortsScanner::scan(shell)?;
     let genesis = config.get_genesis_config().await?;
-    let general = config.get_raw_general_config().await?;
+    let general = config.get_general_config().await?;
     let l2_rpc_port = general.get::<u16>("api.web3_json_rpc.http_port")?;
 
     let mut en_config = PatchedConfig::empty(en_configs_path.join(EN_CONFIG_FILE));

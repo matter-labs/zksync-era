@@ -129,29 +129,13 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     )
     .await?;
 
-    let gateway_provider = Provider::<Http>::try_from(
-        gateway_chain_config
-            .get_general_config()
-            .unwrap()
-            .api_config
-            .unwrap()
-            .web3_json_rpc
-            .http_url,
-    )?;
+    let general_config = gateway_chain_config.get_general_config().await?;
+    let l2_rpc_url = general_config.get::<String>("api.web3_json_rpc.http_url")?;
+    let gateway_provider = Provider::<Http>::try_from(l2_rpc_url)?;
 
-    let client: Client<L2> = Client::http(
-        gateway_chain_config
-            .get_general_config()
-            .unwrap()
-            .api_config
-            .unwrap()
-            .web3_json_rpc
-            .http_url
-            .parse()
-            .unwrap(),
-    )?
-    .for_network(L2::from(L2ChainId::new(gateway_chain_id).unwrap()))
-    .build();
+    let client: Client<L2> = Client::http(l2_rpc_url.parse().context("invalid L2 RPC URL")?)?
+        .for_network(L2::from(L2ChainId::new(gateway_chain_id).unwrap()))
+        .build();
 
     if hash == H256::zero() {
         println!("Chain already migrated!");

@@ -20,7 +20,7 @@ use crate::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
         SaveConfigWithBasePath, ZkStackConfig,
     },
-    ContractsConfig, GeneralConfig, WalletsConfig,
+    ContractsConfig, WalletsConfig,
 };
 
 /// Chain configuration file. This file is created in the chain
@@ -86,12 +86,7 @@ impl ChainConfig {
         RawConfig::read(self.path_to_genesis_config()).await
     }
 
-    // FIXME: remove
-    pub fn get_general_config(&self) -> anyhow::Result<GeneralConfig> {
-        GeneralConfig::read_with_base_path(self.get_shell(), &self.configs)
-    }
-
-    pub async fn get_raw_general_config(&self) -> anyhow::Result<RawConfig> {
+    pub async fn get_general_config(&self) -> anyhow::Result<RawConfig> {
         RawConfig::read(self.path_to_general_config()).await
     }
 

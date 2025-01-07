@@ -1,16 +1,10 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use anyhow::Context;
 use common::yaml::{merge_yaml, PatchedConfig};
-use url::Url;
 use xshell::Shell;
 pub use zksync_config::configs::GeneralConfig;
 
-use crate::{
-    consts::GENERAL_FILE,
-    traits::{ConfigWithL2RpcUrl, FileConfigWithDefaultName, ReadConfig},
-    ChainConfig,
-};
+use crate::{consts::GENERAL_FILE, traits::FileConfigWithDefaultName, ChainConfig};
 
 pub struct RocksDbs {
     pub state_keeper: PathBuf,
@@ -91,21 +85,4 @@ pub fn override_config(shell: &Shell, path: PathBuf, chain: &ChainConfig) -> any
 
 impl FileConfigWithDefaultName for GeneralConfig {
     const FILE_NAME: &'static str = GENERAL_FILE;
-}
-
-impl ReadConfig for GeneralConfig {
-    fn read(_shell: &Shell, _path: impl AsRef<Path>) -> anyhow::Result<Self> {
-        todo!("remove")
-    }
-}
-
-impl ConfigWithL2RpcUrl for GeneralConfig {
-    fn get_l2_rpc_url(&self) -> anyhow::Result<Url> {
-        self.api_config
-            .as_ref()
-            .map(|api_config| &api_config.web3_json_rpc.http_url)
-            .context("API config is missing")?
-            .parse()
-            .context("Failed to parse L2 RPC URL")
-    }
 }

@@ -179,15 +179,9 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     .await?
     .governance_l2_tx_hash;
 
-    let gateway_provider = Provider::<Http>::try_from(
-        gateway_chain_config
-            .get_general_config()
-            .unwrap()
-            .api_config
-            .unwrap()
-            .web3_json_rpc
-            .http_url,
-    )?;
+    let general_config = gateway_chain_config.get_general_config().await?;
+    let l2_rpc_url = general_config.get::<String>("api.web3_json_rpc.http_url")?;
+    let gateway_provider = Provider::<Http>::try_from(l2_rpc_url.clone())?;
 
     if hash == H256::zero() {
         println!("Chain already migrated!");
@@ -359,15 +353,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         hex::encode(hash.as_bytes())
     );
 
-    let gateway_url = gateway_chain_config
-        .get_general_config()
-        .unwrap()
-        .api_config
-        .unwrap()
-        .web3_json_rpc
-        .http_url
-        .clone();
-
+    let gateway_url = l2_rpc_url;
     let mut chain_secrets_config =
         PatchedConfig::read(chain_config.path_to_secrets_config()).await?;
     chain_secrets_config.insert("l1.gateway_rpc_url", gateway_url);
