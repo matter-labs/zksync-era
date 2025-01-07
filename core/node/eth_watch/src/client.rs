@@ -453,6 +453,7 @@ where
             });
         }
 
+        // TODO(EVM-934): support non-standard tokens.
         let selectors: [[u8; 4]; 3] = [
             zksync_types::ethabi::short_signature("name", &[]),
             zksync_types::ethabi::short_signature("symbol", &[]),

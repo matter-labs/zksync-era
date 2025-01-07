@@ -197,6 +197,7 @@ pub struct VerifierParams {
 #[derive(Debug)]
 pub struct ProposedUpgrade {
     pub l2_protocol_upgrade_tx: Box<L2CanonicalTransaction>,
+    // Factory deps are set only pre-gateway upgrades.
     pub factory_deps: Option<Vec<Vec<u8>>>,
     pub bootloader_hash: [u8; 32],
     pub default_account_hash: [u8; 32],
