@@ -71,7 +71,6 @@ export async function toBeReverted(
 
         return fail(message);
     } catch (error: any) {
-
         if (error.toString().includes('reverted')) {
             return pass();
         }
