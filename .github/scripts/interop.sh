@@ -23,7 +23,8 @@ zkstack chain create \
         --base-token-price-denominator 1 \
         --set-as-default false \
         --evm-emulator false \
-        --ignore-prerequisites --update-submodules false --skip-contract-compilation-override
+        --ignore-prerequisites --update-submodules false 
+        # --skip-contract-compilation-override
 
 zkstack chain init \
             --deploy-paymaster \
