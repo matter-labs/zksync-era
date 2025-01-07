@@ -10,5 +10,6 @@ pub mod prover;
 pub mod send_transactions;
 pub mod snapshot;
 pub(crate) mod sql_fmt;
+pub mod gateway;
 pub mod status;
 pub mod test;

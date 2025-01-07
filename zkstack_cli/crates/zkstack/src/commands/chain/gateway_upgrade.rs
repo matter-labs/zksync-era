@@ -10,15 +10,13 @@ use config::{
             input::GatewayChainUpgradeInput, output::GatewayChainUpgradeOutput,
         },
         gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput,
-        script_params::{GATEWAY_UPGRADE_CHAIN_PARAMS, GATEWAY_UPGRADE_ECOSYSTEM_PARAMS},
+        script_params::{ACCEPT_GOVERNANCE_SCRIPT_PARAMS, GATEWAY_UPGRADE_CHAIN_PARAMS, GATEWAY_UPGRADE_ECOSYSTEM_PARAMS},
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig,
 };
 use ethers::{
-    abi::{encode, parse_abi},
-    contract::BaseContract,
-    utils::hex,
+    abi::{encode, parse_abi}, contract::BaseContract, providers::{Http, Middleware, Provider}, signers::Signer, types::{transaction::eip2718::TypedTransaction, Eip1559TransactionRequest}, utils::hex
 };
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
@@ -32,9 +30,7 @@ use crate::{
     accept_ownership::{
         admin_execute_upgrade, admin_schedule_upgrade, admin_update_validator,
         set_da_validator_pair,
-    },
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
-    utils::forge::{fill_forge_private_key, WalletOwner},
+    }, commands::dev::commands::gateway::{fetch_chain_info, get_admin_call_builder, set_upgrade_timestamp_calldata, DAMode, GatewayUpgradeArgsInner, GatewayUpgradeInfo}, messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED}, utils::forge::{fill_forge_private_key, WalletOwner}
 };
 
 lazy_static! {
@@ -46,9 +42,6 @@ lazy_static! {
     Debug, Serialize, Deserialize, Clone, Copy, ValueEnum, EnumIter, strum::Display, PartialEq, Eq,
 )]
 pub enum GatewayChainUpgradeStage {
-    // some config paaram
-    AdaptConfig,
-
     // Does not require admin, still needs to be done to update configs, etc
     PrepareStage1,
 
@@ -106,12 +99,11 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
         .to_string();
 
     match args.chain_upgrade_stage {
-        GatewayChainUpgradeStage::AdaptConfig => adapt_config(shell, chain_config).await,
         GatewayChainUpgradeStage::PrepareStage1 => {
-            prepare_stage1(shell, args, ecosystem_config, chain_config, l1_url).await
+            prepare_stage1(shell, ecosystem_config, chain_config, l1_url).await
         }
         GatewayChainUpgradeStage::ScheduleStage1 => {
-            schedule_stage1(shell, args, ecosystem_config, chain_config, l1_url).await
+            schedule_stage1(shell, ecosystem_config, chain_config, l1_url).await
         }
         GatewayChainUpgradeStage::FinalizeStage1 => {
             finalize_stage1(shell, args, ecosystem_config, chain_config, l1_url).await
@@ -138,133 +130,51 @@ pub fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
     H256(keccak256(&encoded_data))
 }
 
-async fn adapt_config(shell: &Shell, chain_config: ChainConfig) -> anyhow::Result<()> {
-    println!("Adapting config");
-    let mut contracts_config = chain_config.get_contracts_config()?;
-    let genesis_config = chain_config.get_genesis_config()?;
-
-    contracts_config.l2.legacy_shared_bridge_addr = contracts_config.bridges.shared.l2_address;
-    contracts_config.l1.base_token_asset_id = Some(encode_ntv_asset_id(
-        genesis_config.l1_chain_id.0.into(),
-        contracts_config.l1.base_token_addr,
-    ));
-
-    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
-    println!("Done");
-
-    Ok(())
-}
-
 async fn prepare_stage1(
     shell: &Shell,
-    args: GatewayUpgradeArgs,
     ecosystem_config: EcosystemConfig,
     chain_config: ChainConfig,
     l1_url: String,
 ) -> anyhow::Result<()> {
-    let chain_upgrade_config_path =
-        GATEWAY_UPGRADE_CHAIN_PARAMS.input(&ecosystem_config.link_to_code);
-
-    let gateway_upgrade_input = GatewayChainUpgradeInput::new(&chain_config);
-    gateway_upgrade_input.save(shell, chain_upgrade_config_path.clone())?;
-
-    let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
-        .script(
-            &GATEWAY_UPGRADE_CHAIN_PARAMS.script(),
-            args.forge_args.clone(),
-        )
-        .with_ffi()
-        .with_rpc_url(l1_url)
-        .with_slow()
-        .with_broadcast();
-
-    forge = fill_forge_private_key(
-        forge,
-        Some(&chain_config.get_wallets_config()?.governor),
-        WalletOwner::Governor,
-    )?;
-
-    println!("Preparing the chain for the upgrade!");
-
-    forge.run(shell)?;
-
-    println!("done!");
-
-    let chain_output = GatewayChainUpgradeOutput::read(
-        shell,
-        GATEWAY_UPGRADE_CHAIN_PARAMS.output(&ecosystem_config.link_to_code),
-    )?;
-
     let gateway_ecosystem_preparation_output =
         GatewayEcosystemUpgradeOutput::read_with_base_path(shell, ecosystem_config.config)?;
 
     // No need to save it, we have enough for now
 
     let mut contracts_config = chain_config.get_contracts_config()?;
+    let general_config  = chain_config.get_general_config()?;
+    let genesis_config = chain_config.get_genesis_config()?;
 
-    contracts_config
-        .ecosystem_contracts
-        .stm_deployment_tracker_proxy_addr = Some(
+    let upgrade_info = GatewayUpgradeInfo::from_gateway_ecosystem_upgrade(
+        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
         gateway_ecosystem_preparation_output
-            .deployed_addresses
-            .bridgehub
-            .ctm_deployment_tracker_proxy_addr,
-    );
-    // This is force deployment data for creating new contracts, not really relevant here tbh,
-    contracts_config.ecosystem_contracts.force_deployments_data = Some(hex::encode(
-        &gateway_ecosystem_preparation_output
-            .contracts_config
-            .force_deployments_data
-            .0,
-    ));
-    contracts_config.ecosystem_contracts.native_token_vault_addr = Some(
-        gateway_ecosystem_preparation_output
-            .deployed_addresses
-            .native_token_vault_addr,
-    );
-    contracts_config
-        .ecosystem_contracts
-        .l1_bytecodes_supplier_addr = Some(
-        gateway_ecosystem_preparation_output
-            .deployed_addresses
-            .l1_bytecodes_supplier_addr,
-    );
-    contracts_config.l1.access_control_restriction_addr =
-        Some(chain_output.access_control_restriction);
-    contracts_config.l1.chain_admin_addr = chain_output.chain_admin_addr;
-
-    contracts_config.l1.rollup_l1_da_validator_addr = Some(
-        gateway_ecosystem_preparation_output
-            .deployed_addresses
-            .rollup_l1_da_validator_addr,
-    );
-    contracts_config.l1.no_da_validium_l1_validator_addr = Some(
-        gateway_ecosystem_preparation_output
-            .deployed_addresses
-            .validium_l1_da_validator_addr,
     );
 
-    let validum = chain_config
-        .get_genesis_config()?
-        .l1_batch_commit_data_generator_mode
-        == L1BatchCommitmentMode::Validium;
-
-    // We do not use chain output because IMHO we should delete it altogether from there
-    contracts_config.l2.da_validator_addr = if !validum {
-        Some(
-            gateway_ecosystem_preparation_output
-                .contracts_config
-                .expected_rollup_l2_da_validator,
-        )
+    let da_mode: DAMode = if genesis_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {
+        DAMode::PermanentRollup
     } else {
-        Some(
-            gateway_ecosystem_preparation_output
-                .contracts_config
-                .expected_validium_l2_da_validator,
-        )
+        DAMode::Validium
     };
-    contracts_config.l2.l2_native_token_vault_proxy_addr = Some(L2_NATIVE_TOKEN_VAULT_ADDRESS);
-    contracts_config.l2.legacy_shared_bridge_addr = contracts_config.bridges.shared.l2_address;
+
+    let chain_info = fetch_chain_info(
+        &upgrade_info,
+        &GatewayUpgradeArgsInner {
+            chain_id: chain_config.chain_id.as_u64(),
+            l1_rpc_url: l1_url,
+            l2_rpc_url: general_config.api_config.context("api config")?.web3_json_rpc.http_url,
+            validator_addr1: chain_config.get_wallets_config()?.operator.address,
+            validator_addr2: chain_config.get_wallets_config()?.blob_operator.address,
+            da_mode,
+            dangerous_no_cross_check: false,
+        }
+    ).await?;
+
+    upgrade_info.update_contracts_config(
+        &mut contracts_config,
+        &chain_info,
+        da_mode,
+        true
+    );
 
     contracts_config.save_with_base_path(shell, chain_config.configs)?;
 
@@ -273,28 +183,60 @@ async fn prepare_stage1(
 
 const NEW_PROTOCOL_VERSION: u64 = 0x1b00000000;
 
+async fn call_chain_admin(
+    l1_url: String,
+    chain_config: ChainConfig,
+    data: Vec<u8>
+) -> anyhow::Result<()> {
+    let wallet = chain_config.get_wallets_config()?.governor.private_key.context("gov pk missing")?;
+    let contracts_config = chain_config.get_contracts_config()?;
+
+    // Initialize provider
+    let provider = Provider::<Http>::try_from(l1_url)?;
+
+    // Initialize wallet
+    let chain_id = provider.get_chainid().await?.as_u64();
+    let wallet = wallet.with_chain_id(chain_id);
+
+    let tx= TypedTransaction::Eip1559(Eip1559TransactionRequest {
+        to: Some(contracts_config.l1.chain_admin_addr.into()),
+        // 10m should be always enough
+        gas: Some(U256::from(10_000_000)),
+        data: Some(data.into()),
+        ..Default::default()
+    });
+
+    let signed_tx = wallet.sign_transaction(&tx).await.unwrap();
+
+    let tx = provider.send_raw_transaction(tx.rlp_signed(&signed_tx)).await.unwrap();
+    println!("Sent tx with hash: {}", hex::encode(&tx.0));
+
+    let receipt = tx.await?.context("receipt not present")?;
+
+    if receipt.status.unwrap() != 1.into() {
+        anyhow::bail!("Transaction failed!");
+    }
+
+    Ok(())
+}
+
 async fn schedule_stage1(
     shell: &Shell,
-    args: GatewayUpgradeArgs,
     ecosystem_config: EcosystemConfig,
     chain_config: ChainConfig,
     l1_url: String,
 ) -> anyhow::Result<()> {
-    println!("Schedule stage1 of the upgrade!!");
+    let gateway_ecosystem_preparation_output =
+        GatewayEcosystemUpgradeOutput::read_with_base_path(shell, ecosystem_config.config)?;
 
-    admin_schedule_upgrade(
-        shell,
-        &ecosystem_config,
-        &chain_config.get_contracts_config()?,
-        // For now it is hardcoded both in scripts and here
-        U256::from(NEW_PROTOCOL_VERSION),
-        // We only do instant upgrades for now
-        U256::zero(),
-        &chain_config.get_wallets_config()?.governor,
-        &args.forge_args,
-        l1_url.clone(),
-    )
-    .await?;
+    println!("Schedule stage1 of the upgrade!!");
+    let calldata = set_upgrade_timestamp_calldata(
+        gateway_ecosystem_preparation_output.contracts_config.new_protocol_version,
+        // Immediatelly
+        0
+    );
+
+    call_chain_admin(l1_url, chain_config, calldata).await?;
 
     println!("done!");
 
@@ -311,101 +253,48 @@ async fn finalize_stage1(
     println!("Finalizing stage1 of chain upgrade!");
 
     let mut contracts_config = chain_config.get_contracts_config()?;
+    let general_config  = chain_config.get_general_config()?;
+    let genesis_config = chain_config.get_genesis_config()?;
+
     let gateway_ecosystem_preparation_output =
         GatewayEcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;
-
-    let old_validator_timelock = contracts_config.l1.validator_timelock_addr;
-    let new_validator_timelock = gateway_ecosystem_preparation_output
-        .deployed_addresses
-        .validator_timelock_addr;
-
-    let validators = [
-        chain_config.get_wallets_config()?.operator.address,
-        chain_config.get_wallets_config()?.blob_operator.address,
-    ];
-
-    println!("Setting new validators!");
-    for val in validators {
-        admin_update_validator(
-            shell,
-            &ecosystem_config,
-            &chain_config,
-            old_validator_timelock,
-            val,
-            false,
-            &chain_config.get_wallets_config()?.governor,
-            &args.forge_args,
-            l1_url.clone(),
-        )
-        .await?;
-
-        admin_update_validator(
-            shell,
-            &ecosystem_config,
-            &chain_config,
-            new_validator_timelock,
-            val,
-            true,
-            &chain_config.get_wallets_config()?.governor,
-            &args.forge_args,
-            l1_url.clone(),
-        )
-        .await?;
-    }
-
-    println!("Setting new validators done!");
-
-    contracts_config.l1.validator_timelock_addr = gateway_ecosystem_preparation_output
-        .deployed_addresses
-        .validator_timelock_addr;
-
-    admin_execute_upgrade(
-        shell,
-        &ecosystem_config,
-        &chain_config.get_contracts_config()?,
-        &chain_config.get_wallets_config()?.governor,
-        gateway_ecosystem_preparation_output
-            .chain_upgrade_diamond_cut
-            .0,
-        &args.forge_args,
-        l1_url.clone(),
-    )
-    .await?;
-
-    let l1_da_validator_contract = if chain_config
-        .get_genesis_config()?
-        .l1_batch_commit_data_generator_mode
-        == L1BatchCommitmentMode::Rollup
-    {
-        ecosystem_config
-            .get_contracts_config()?
-            .l1
-            .rollup_l1_da_validator_addr
+    
+    let da_mode: DAMode = if genesis_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {
+        DAMode::PermanentRollup
     } else {
-        ecosystem_config
-            .get_contracts_config()?
-            .l1
-            .no_da_validium_l1_validator_addr
-    }
-    .context("l1 da validator")?;
+        DAMode::Validium
+    };
+    
+    let upgrade_info = GatewayUpgradeInfo::from_gateway_ecosystem_upgrade(
+        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+        gateway_ecosystem_preparation_output
+    );
+    let args = GatewayUpgradeArgsInner {
+        chain_id: chain_config.chain_id.as_u64(),
+        l1_rpc_url: l1_url.clone(),
+        l2_rpc_url: general_config.api_config.context("api config")?.web3_json_rpc.http_url,
+        validator_addr1: chain_config.get_wallets_config()?.operator.address,
+        validator_addr2: chain_config.get_wallets_config()?.blob_operator.address,
+        da_mode,
+        dangerous_no_cross_check: false,
+    };
 
-    set_da_validator_pair(
-        shell,
-        &ecosystem_config,
-        contracts_config.l1.chain_admin_addr,
-        &chain_config.get_wallets_config()?.governor,
-        contracts_config.l1.diamond_proxy_addr,
-        l1_da_validator_contract,
-        contracts_config
-            .l2
-            .da_validator_addr
-            .context("l2_da_validator_addr")?,
-        &args.forge_args,
-        l1_url,
-    )
-    .await?;
+    let chain_info = fetch_chain_info(
+        &upgrade_info,
+        &args
+    ).await?;
+    
+    let admin_calls_finalize = get_admin_call_builder(
+        &upgrade_info,
+        &chain_info,
+        args
+    );
 
-    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+    admin_calls_finalize.display();
+
+    let admin_calldata = admin_calls_finalize.compile_full_calldata();
+
+    call_chain_admin(l1_url, chain_config, admin_calldata).await?;
 
     println!("done!");
 
@@ -479,7 +368,7 @@ async fn set_weth_for_chain(
 
     let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
         .script(
-            &GATEWAY_UPGRADE_ECOSYSTEM_PARAMS.script(),
+            &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
             forge_args.clone(),
         )
         .with_ffi()

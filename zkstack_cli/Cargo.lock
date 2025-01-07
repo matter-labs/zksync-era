@@ -7153,6 +7153,7 @@ dependencies = [
  "zksync_consensus_crypto",
  "zksync_consensus_roles",
  "zksync_consensus_utils",
+ "zksync_contracts",
  "zksync_eth_client",
  "zksync_protobuf",
  "zksync_protobuf_build",
