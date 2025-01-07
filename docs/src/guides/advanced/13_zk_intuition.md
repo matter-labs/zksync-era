@@ -1,14 +1,33 @@
-# Intuition guide to ZK in zkEVM
+# Intuition Guide to ZK in zkEVM
 
-**WARNING**: This guide simplifies the complex details of how we use ZK in our systems, just to give you a better
-understanding. We're leaving out a lot of details to keep things brief.
+> This guide provides a simplified overview of how Zero-Knowledge proofs work in zkSync Era. While some technical details are simplified for clarity, it serves as a solid foundation for understanding our ZK system.
+
+## Table of Contents
+- [What is 'Zero Knowledge'](#what-is-the-zero-knowledge)
+- [Basic Overview](#basic-overview)
+- [Witness Generation](#what-it-means-to-generate-a-witness)
+- [Proof Generation](#generating-the-proof)
+- [L1 Verification](#what-does-verify-proof-on-l1-mean)
+- [Technical Details](#technical-details)
+- [Contributing](#contributing)
 
 ## What is the 'Zero Knowledge'
 
-In our case, the prover takes public input and witness (which is huge - you'll see below), and produces a proof, but the
-verifier takes (public input, proof) only, without witness. This means that the huge witness doesn't have to be
-submitted to L1. This property can be used for many things, like privacy, but here we use it to implement an efficient
-rollup that publishes the least required amount of data to L1.
+In zkSync Era, Zero-Knowledge proofs allow us to verify the correctness of computations without revealing all the data. The system consists of two main parts:
+
+1. **Prover**: Takes public input and witness data to produce a proof
+2. **Verifier**: Only needs the public input and proof for verification
+
+This architecture significantly reduces the amount of data published to L1, making our rollup more efficient and cost-effective.
+
+```mermaid
+graph LR
+    A[Transaction Data] --> B[Prover]
+    B --> C[Proof]
+    C --> D[Verifier]
+    E[Public Input] --> D
+    D --> F[Verification Result]
+```
 
 ## Basic overview
 
@@ -136,6 +155,49 @@ Please be aware that there are multiple versions of the proving systems, such as
 looking through the code, make sure you're checking the version that’s relevant to what you’re working on. At the time
 this guide was written, the latest version was 1.3.4, but there was also ongoing development on a new proof system in
 version 1.4.0.
+
+## Technical Details
+
+### Current Version Information
+- Latest Stable Version: 1.4.1 (as of 2024)
+- Supported Proof Systems: 
+  - v1.3.4 (maintenance mode)
+  - v1.4.x (current active)
+  - v2.0 (in development)
+
+### Key Repositories
+- [zkSync Era](https://github.com/matter-labs/zksync-era)
+- [Era Contracts](https://github.com/matter-labs/era-contracts)
+- [Era Test Tools](https://github.com/matter-labs/era-test-node)
+
+## Contributing
+
+We welcome contributions to improve zkSync Era! Here's how you can help:
+
+1. **Understanding the System**: Start with this guide and explore our [documentation](https://era.zksync.io/docs/).
+2. **Finding Issues**: Check our [GitHub issues](https://github.com/matter-labs/zksync-era/issues) for good first issues.
+3. **Making Changes**: 
+   - Fork the repository
+   - Create a feature branch
+   - Make your changes
+   - Submit a pull request
+4. **Code Review**: All submissions require review. We use GitHub pull requests.
+
+### Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/matter-labs/zksync-era.git
+cd zksync-era
+
+# Install dependencies
+yarn install
+
+# Run tests
+yarn test
+```
+
+For more detailed contribution guidelines, please see our [CONTRIBUTING.md](https://github.com/matter-labs/zksync-era/blob/main/CONTRIBUTING.md).
 
 [witness_example]:
   https://github.com/matter-labs/era-zkevm_test_harness/tree/main/src/witness/individual_circuits/decommit_code.rs#L24
