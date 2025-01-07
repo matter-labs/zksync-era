@@ -1,7 +1,6 @@
 use common::yaml::PatchedConfig;
-pub use zksync_config::GenesisConfig;
 
-use crate::{consts::GENESIS_FILE, traits::FileConfigWithDefaultName, ChainConfig};
+use crate::ChainConfig;
 
 pub fn update_from_chain_config(
     genesis: &mut PatchedConfig,
@@ -16,8 +15,4 @@ pub fn update_from_chain_config(
     );
     // FIXME: check EVM emulator hash?
     Ok(())
-}
-
-impl FileConfigWithDefaultName for GenesisConfig {
-    const FILE_NAME: &'static str = GENESIS_FILE;
 }

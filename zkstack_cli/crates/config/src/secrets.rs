@@ -1,7 +1,4 @@
 use common::{db::DatabaseConfig, yaml::PatchedConfig};
-pub use zksync_config::configs::Secrets as SecretsConfig;
-
-use crate::{consts::SECRETS_FILE, traits::FileConfigWithDefaultName};
 
 pub fn set_server_database(
     secrets: &mut PatchedConfig,
@@ -28,8 +25,4 @@ pub fn set_prover_database(
 pub fn set_l1_rpc_url(secrets: &mut PatchedConfig, l1_rpc_url: String) -> anyhow::Result<()> {
     secrets.insert("l1.l1_rpc_url", l1_rpc_url);
     Ok(())
-}
-
-impl FileConfigWithDefaultName for SecretsConfig {
-    const FILE_NAME: &'static str = SECRETS_FILE;
 }

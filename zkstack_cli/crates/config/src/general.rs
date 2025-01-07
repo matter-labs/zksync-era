@@ -2,9 +2,8 @@ use std::path::PathBuf;
 
 use common::yaml::{merge_yaml, PatchedConfig};
 use xshell::Shell;
-pub use zksync_config::configs::GeneralConfig;
 
-use crate::{consts::GENERAL_FILE, traits::FileConfigWithDefaultName, ChainConfig};
+use crate::ChainConfig;
 
 pub struct RocksDbs {
     pub state_keeper: PathBuf,
@@ -81,8 +80,4 @@ pub fn override_config(shell: &Shell, path: PathBuf, chain: &ChainConfig) -> any
     merge_yaml(&mut chain_config, override_config, true)?;
     shell.write_file(chain_config_path, serde_yaml::to_string(&chain_config)?)?;
     Ok(())
-}
-
-impl FileConfigWithDefaultName for GeneralConfig {
-    const FILE_NAME: &'static str = GENERAL_FILE;
 }

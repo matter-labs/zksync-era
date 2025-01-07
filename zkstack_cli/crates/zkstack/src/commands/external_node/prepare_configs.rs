@@ -3,13 +3,12 @@ use std::path::Path;
 use anyhow::Context;
 use common::{logger, yaml::PatchedConfig};
 use config::{
-    set_rocks_db_config, traits::FileConfigWithDefaultName, ChainConfig, EcosystemConfig,
-    GeneralConfig, CONSENSUS_CONFIG_FILE, EN_CONFIG_FILE, SECRETS_FILE,
+    set_rocks_db_config, ChainConfig, EcosystemConfig, CONSENSUS_CONFIG_FILE, EN_CONFIG_FILE,
+    GENERAL_FILE, SECRETS_FILE,
 };
 use tokio::fs;
 use xshell::Shell;
 use zksync_basic_types::{L1ChainId, L2ChainId};
-use zksync_config::configs::consensus::ConsensusConfig;
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
 
@@ -70,7 +69,7 @@ async fn prepare_configs(
     en_config.save().await?;
 
     // Copy and modify the general config
-    let general_config_path = GeneralConfig::get_path_with_base_path(en_configs_path);
+    let general_config_path = en_configs_path.join(GENERAL_FILE);
     fs::copy(config.path_to_general_config(), &general_config_path).await?;
     let mut general_en = PatchedConfig::read(general_config_path.clone()).await?;
     let main_node_public_addr: String = general_en.base().get("consensus.public_addr")?;
@@ -107,11 +106,7 @@ async fn prepare_configs(
 
     let offset = 0; // This is zero because general_en ports already have a chain offset
     ports.allocate_ports_in_yaml(shell, &general_config_path, offset)?;
-    ports.allocate_ports_in_yaml(
-        shell,
-        &ConsensusConfig::get_path_with_base_path(en_configs_path),
-        offset,
-    )?;
+    ports.allocate_ports_in_yaml(shell, &en_configs_path.join(CONSENSUS_CONFIG_FILE), offset)?;
 
     Ok(())
 }

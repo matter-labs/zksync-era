@@ -7,7 +7,7 @@ use common::{
 };
 use config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
-    GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
+    WalletsConfig, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
 };
 use xshell::{cmd, Shell};
 
@@ -64,10 +64,10 @@ fn run_server(
         .run(
             shell,
             mode,
-            GenesisConfig::get_path_with_base_path(&chain_config.configs),
+            chain_config.configs.join(GENESIS_FILE),
             WalletsConfig::get_path_with_base_path(&chain_config.configs),
-            GeneralConfig::get_path_with_base_path(&chain_config.configs),
-            SecretsConfig::get_path_with_base_path(&chain_config.configs),
+            chain_config.configs.join(GENERAL_FILE),
+            chain_config.configs.join(SECRETS_FILE),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
             None,
             vec![],
