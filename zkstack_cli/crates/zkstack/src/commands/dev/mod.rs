@@ -48,7 +48,7 @@ pub enum DevCommands {
     #[command(about = MSG_GENERATE_GENESIS_ABOUT, alias = "genesis")]
     GenerateGenesis,
     #[command(about = MSG_GATEWAY_UPGRADE_CALLDATA)]
-    GatewayUpgradeCalldata(GatewayUpgradeCalldataArgs)
+    GatewayUpgradeCalldata(GatewayUpgradeCalldataArgs),
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
@@ -67,7 +67,7 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         }
         DevCommands::Status(args) => commands::status::run(shell, args).await?,
         DevCommands::GenerateGenesis => commands::genesis::run(shell).await?,
-        DevCommands::GatewayUpgradeCalldata(args) => commands::gateway::run(shell, args).await?
+        DevCommands::GatewayUpgradeCalldata(args) => commands::gateway::run(shell, args).await?,
     }
     Ok(())
 }

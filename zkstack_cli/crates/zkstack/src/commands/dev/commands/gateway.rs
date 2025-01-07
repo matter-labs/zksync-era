@@ -1,18 +1,30 @@
-use std::{any, sync::Arc};
+use std::{any, str::FromStr, sync::Arc};
 
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
 use common::{cmd::Cmd, spinner::Spinner};
-use config::{forge_interface::gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput, traits::{ReadConfig, ZkStackConfig}, ContractsConfig, EcosystemConfig};
-use ethers::{abi::{decode, encode, parse_abi, ParamType, Token}, contract::{BaseContract, Contract}, providers::{admin, Http, Provider}, utils::hex};
-use ethers::contract::abigen;
+use config::{
+    forge_interface::gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput,
+    traits::{ReadConfig, ZkStackConfig},
+    ContractsConfig, EcosystemConfig,
+};
+use ethers::{
+    abi::{decode, encode, parse_abi, ParamType, Token},
+    contract::{abigen, BaseContract, Contract},
+    providers::{admin, Http, Provider},
+    utils::hex,
+};
 use serde::{Deserialize, Serialize};
 use strum::EnumIter;
 use xshell::{cmd, Shell};
 use zksync_config::configs::{chain, consensus::ProtocolVersion};
-use zksync_types::{l2, web3::{keccak256, Bytes}, Address, ProtocolVersionId, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS, U256};
-use std::str::FromStr;
 use zksync_contracts::DIAMOND_CUT;
+use zksync_types::{
+    l2,
+    web3::{keccak256, Bytes},
+    Address, ProtocolVersionId, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS, U256,
+};
+
 use crate::{
     commands::dev::{
         commands::database::reset::reset_database, dals::get_core_dal,
@@ -41,7 +53,6 @@ macro_rules! amend_config_pre_upgrade {
     };
 }
 
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct GatewayUpgradeInfo {
     // Information about pre-upgrade contracts.
@@ -64,7 +75,7 @@ pub(crate) struct GatewayUpgradeInfo {
     chain_upgrade_diamond_cut: Bytes,
 
     new_protocol_version: u64,
-    old_protocol_version: u64
+    old_protocol_version: u64,
 }
 
 #[derive(Debug, Default)]
@@ -76,30 +87,45 @@ pub struct FetchedChainInfo {
 }
 
 // Bridgehub ABI
-abigen!(BridgehubAbi, r"[
+abigen!(
+    BridgehubAbi,
+    r"[
     function getHyperchain(uint256)(address)
-]");
+]"
+);
 
 // L1SharedBridgeLegacyStore ABI
-abigen!(L1SharedBridgeLegacyAbi, r"[
+abigen!(
+    L1SharedBridgeLegacyAbi,
+    r"[
     function l2BridgeAddress(uint256 _chainId)(address)
-]");
+]"
+);
 
 // L2WrappedBaseTokenStore ABI
-abigen!(L2WrappedBaseTokenStoreAbi, r"[
+abigen!(
+    L2WrappedBaseTokenStoreAbi,
+    r"[
     function l2WBaseTokenAddress(uint256 _chainId)(address)
-]");
+]"
+);
 
 // ZKChain ABI
-abigen!(ZKChainAbi, r"[
+abigen!(
+    ZKChainAbi,
+    r"[
     function getPubdataPricingMode()(uint256)
     function getBaseToken()(address) 
-]");
+]"
+);
 
 // ZKChain ABI
-abigen!(ValidatorTimelockAbi, r"[
+abigen!(
+    ValidatorTimelockAbi,
+    r"[
     function validators(uint256 _chainId, address _validator)(bool)
-]");
+]"
+);
 
 pub async fn fetch_chain_info(
     upgrade_info: &GatewayUpgradeInfo,
@@ -116,61 +142,63 @@ pub async fn fetch_chain_info(
     let client = Arc::new(provider);
     let chain_id = U256::from(args.chain_id);
 
-    let bridgehub = BridgehubAbi::new(
-        upgrade_info.bridgehub_addr,
-        client.clone()
-    );
+    let bridgehub = BridgehubAbi::new(upgrade_info.bridgehub_addr, client.clone());
     let hyperchain_addr = bridgehub.get_hyperchain(chain_id).await?;
     if hyperchain_addr == Address::zero() {
         anyhow::bail!("Chain not present in bridgehub");
     }
-    let l1_legacy_bridge = L1SharedBridgeLegacyAbi::new(
-        upgrade_info.l1_legacy_shared_bridge,
-        client.clone()
-    );
+    let l1_legacy_bridge =
+        L1SharedBridgeLegacyAbi::new(upgrade_info.l1_legacy_shared_bridge, client.clone());
 
     let l2_legacy_shared_bridge_addr = l1_legacy_bridge.l_2_bridge_address(chain_id).await?;
     if l2_legacy_shared_bridge_addr == Address::zero() {
         anyhow::bail!("Chain not registered inside the L1 shared bridge!");
     }
 
-    let l2_wrapped_base_token_store = L2WrappedBaseTokenStoreAbi::new(
-        upgrade_info.l2_wrapped_base_token_store,
-        client.clone()
-    );
+    let l2_wrapped_base_token_store =
+        L2WrappedBaseTokenStoreAbi::new(upgrade_info.l2_wrapped_base_token_store, client.clone());
 
-    let l2_predeployed_wrapped_base_token = l2_wrapped_base_token_store.l_2w_base_token_address(chain_id).await?;
+    let l2_predeployed_wrapped_base_token = l2_wrapped_base_token_store
+        .l_2w_base_token_address(chain_id)
+        .await?;
 
     if l2_predeployed_wrapped_base_token == Address::zero() {
         println!("\n\nWARNING: the chain does not contain wrapped base token. It is dangerous since the security of it depends on the chain admin\n\n");
     }
 
-    let zkchain = ZKChainAbi::new(
-        hyperchain_addr,
-        client.clone()
-    );  
+    let zkchain = ZKChainAbi::new(hyperchain_addr, client.clone());
 
     let base_token_addr = zkchain.get_base_token().await?;
 
     if !args.dangerous_no_cross_check {
         // Firstly, check that the validators are present in the current timelock
-        let old_timelock =ValidatorTimelockAbi::new(
-            upgrade_info.old_validator_timelock,
-            client.clone()
-        );
+        let old_timelock =
+            ValidatorTimelockAbi::new(upgrade_info.old_validator_timelock, client.clone());
 
-        if !old_timelock.validators(chain_id, args.validator_addr1).await? {
-            anyhow::bail!("{} not validator", hex_address_display(args.validator_addr1));
+        if !old_timelock
+            .validators(chain_id, args.validator_addr1)
+            .await?
+        {
+            anyhow::bail!(
+                "{} not validator",
+                hex_address_display(args.validator_addr1)
+            );
         }
-        if !old_timelock.validators(chain_id, args.validator_addr2).await? {
-            anyhow::bail!("{} not validator", hex_address_display(args.validator_addr2));
+        if !old_timelock
+            .validators(chain_id, args.validator_addr2)
+            .await?
+        {
+            anyhow::bail!(
+                "{} not validator",
+                hex_address_display(args.validator_addr2)
+            );
         }
 
         // Secondly, we check that the DA layer corresponds to the current pubdata pricing mode.
 
         // On L1 it is an enum with 0 meaaning a rollup and 1 meaning a validium.
-        // In the old version, it denoted how the pubdata will be checked. We use it to cross-check the 
-        // user's input 
+        // In the old version, it denoted how the pubdata will be checked. We use it to cross-check the
+        // user's input
         let pricing_mode = zkchain.get_pubdata_pricing_mode().await?;
         let pricing_mode_rollup = pricing_mode == U256::zero();
 
@@ -187,7 +215,7 @@ pub async fn fetch_chain_info(
         l2_legacy_shared_bridge_addr,
         l2_predeployed_wrapped_base_token,
         hyperchain_addr,
-        base_token_addr
+        base_token_addr,
     })
 }
 
@@ -206,25 +234,52 @@ pub fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
 impl GatewayUpgradeInfo {
     pub fn from_gateway_ecosystem_upgrade(
         bridgehub_addr: Address,
-        gateway_ecosystem_upgrade: GatewayEcosystemUpgradeOutput
+        gateway_ecosystem_upgrade: GatewayEcosystemUpgradeOutput,
     ) -> Self {
         Self {
             l1_chain_id: gateway_ecosystem_upgrade.l1_chain_id,
             bridgehub_addr,
-            old_validator_timelock: gateway_ecosystem_upgrade.contracts_config.old_validator_timelock,
-            l1_legacy_shared_bridge: gateway_ecosystem_upgrade.contracts_config.l1_legacy_shared_bridge,
-            ctm_deployment_tracker_proxy_addr: gateway_ecosystem_upgrade.deployed_addresses.bridgehub.ctm_deployment_tracker_proxy_addr,
-            native_token_vault_addr: gateway_ecosystem_upgrade.deployed_addresses.native_token_vault_addr,
-            l1_bytecodes_supplier_addr: gateway_ecosystem_upgrade.deployed_addresses.native_token_vault_addr,
-            rollup_l1_da_validator_addr: gateway_ecosystem_upgrade.deployed_addresses.rollup_l1_da_validator_addr,
-            no_da_validium_l1_validator_addr: gateway_ecosystem_upgrade.deployed_addresses.validium_l1_da_validator_addr,
-            expected_rollup_l2_da_validator: gateway_ecosystem_upgrade.contracts_config.expected_rollup_l2_da_validator,
-            expected_validium_l2_da_validator: gateway_ecosystem_upgrade.contracts_config.expected_validium_l2_da_validator,
-            new_validator_timelock: gateway_ecosystem_upgrade.deployed_addresses.validator_timelock_addr,
-            l2_wrapped_base_token_store: gateway_ecosystem_upgrade.deployed_addresses.l2_wrapped_base_token_store_addr,
+            old_validator_timelock: gateway_ecosystem_upgrade
+                .contracts_config
+                .old_validator_timelock,
+            l1_legacy_shared_bridge: gateway_ecosystem_upgrade
+                .contracts_config
+                .l1_legacy_shared_bridge,
+            ctm_deployment_tracker_proxy_addr: gateway_ecosystem_upgrade
+                .deployed_addresses
+                .bridgehub
+                .ctm_deployment_tracker_proxy_addr,
+            native_token_vault_addr: gateway_ecosystem_upgrade
+                .deployed_addresses
+                .native_token_vault_addr,
+            l1_bytecodes_supplier_addr: gateway_ecosystem_upgrade
+                .deployed_addresses
+                .native_token_vault_addr,
+            rollup_l1_da_validator_addr: gateway_ecosystem_upgrade
+                .deployed_addresses
+                .rollup_l1_da_validator_addr,
+            no_da_validium_l1_validator_addr: gateway_ecosystem_upgrade
+                .deployed_addresses
+                .validium_l1_da_validator_addr,
+            expected_rollup_l2_da_validator: gateway_ecosystem_upgrade
+                .contracts_config
+                .expected_rollup_l2_da_validator,
+            expected_validium_l2_da_validator: gateway_ecosystem_upgrade
+                .contracts_config
+                .expected_validium_l2_da_validator,
+            new_validator_timelock: gateway_ecosystem_upgrade
+                .deployed_addresses
+                .validator_timelock_addr,
+            l2_wrapped_base_token_store: gateway_ecosystem_upgrade
+                .deployed_addresses
+                .l2_wrapped_base_token_store_addr,
             chain_upgrade_diamond_cut: gateway_ecosystem_upgrade.chain_upgrade_diamond_cut,
-            new_protocol_version: gateway_ecosystem_upgrade.contracts_config.new_protocol_version,
-            old_protocol_version: gateway_ecosystem_upgrade.contracts_config.old_protocol_version
+            new_protocol_version: gateway_ecosystem_upgrade
+                .contracts_config
+                .new_protocol_version,
+            old_protocol_version: gateway_ecosystem_upgrade
+                .contracts_config
+                .old_protocol_version,
         }
     }
 
@@ -245,11 +300,11 @@ impl GatewayUpgradeInfo {
     }
 
     pub fn update_contracts_config(
-        &self, 
+        &self,
         contracts_config: &mut ContractsConfig,
-        chain_info: &FetchedChainInfo, 
+        chain_info: &FetchedChainInfo,
         da_mode: DAMode,
-        assign: bool
+        assign: bool,
     ) {
         assign_or_print!(
             contracts_config.l2.legacy_shared_bridge_addr,
@@ -257,10 +312,8 @@ impl GatewayUpgradeInfo {
             assign
         );
 
-        let base_token_id = encode_ntv_asset_id(
-            U256::from(self.l1_chain_id),
-            chain_info.base_token_addr,
-        );
+        let base_token_id =
+            encode_ntv_asset_id(U256::from(self.l1_chain_id), chain_info.base_token_addr);
         assign_or_print!(
             contracts_config.l1.base_token_asset_id,
             Some(base_token_id),
@@ -269,15 +322,15 @@ impl GatewayUpgradeInfo {
 
         assign_or_print!(
             contracts_config
-            .ecosystem_contracts
-            .stm_deployment_tracker_proxy_addr,
+                .ecosystem_contracts
+                .stm_deployment_tracker_proxy_addr,
             Some(self.ctm_deployment_tracker_proxy_addr),
             assign
         );
         assign_or_print!(
             contracts_config
-            .ecosystem_contracts
-            .stm_deployment_tracker_proxy_addr,
+                .ecosystem_contracts
+                .stm_deployment_tracker_proxy_addr,
             Some(self.ctm_deployment_tracker_proxy_addr),
             assign
         );
@@ -287,7 +340,9 @@ impl GatewayUpgradeInfo {
             assign
         );
         assign_or_print!(
-            contracts_config.ecosystem_contracts.l1_bytecodes_supplier_addr,
+            contracts_config
+                .ecosystem_contracts
+                .l1_bytecodes_supplier_addr,
             Some(self.l1_bytecodes_supplier_addr),
             assign
         );
@@ -319,10 +374,8 @@ impl GatewayUpgradeInfo {
     // They do not have to updated for the system to work smoothly during the upgrade, but after
     // "stage 2" they are desirable to be updated for consistency
     pub fn post_upgrade_update_contracts_config(&self, config: &mut ContractsConfig, assign: bool) {
-
     }
 }
-
 
 #[derive(
     Debug, Serialize, Deserialize, Clone, Copy, ValueEnum, EnumIter, strum::Display, PartialEq, Eq,
@@ -339,14 +392,13 @@ impl DAMode {
     }
 }
 
-
 #[derive(Debug, Clone, Serialize)]
 struct AdminCall {
     description: String,
     target: Address,
     #[serde(serialize_with = "serialize_hex")]
     data: Vec<u8>,
-    value: U256
+    value: U256,
 }
 
 impl AdminCall {
@@ -382,11 +434,10 @@ pub struct AdminCallBuilder {
     calls: Vec<AdminCall>,
     validator_timelock_abi: BaseContract,
     zkchain_abi: BaseContract,
-    chain_admin_abi: BaseContract
+    chain_admin_abi: BaseContract,
 }
 
 impl AdminCallBuilder {
-
     pub fn new() -> Self {
         Self {
             calls: vec![],
@@ -417,16 +468,22 @@ impl AdminCallBuilder {
         &mut self,
         chain_id: u64,
         validator_timelock_addr: Address,
-        validator_addr: Address
+        validator_addr: Address,
     ) {
-        let data = self.validator_timelock_abi.encode("addValidator", (U256::from(chain_id), validator_addr)).unwrap();
-        let description = format!("Adding validator 0x{}", hex::encode(&validator_timelock_addr.0));
+        let data = self
+            .validator_timelock_abi
+            .encode("addValidator", (U256::from(chain_id), validator_addr))
+            .unwrap();
+        let description = format!(
+            "Adding validator 0x{}",
+            hex::encode(&validator_timelock_addr.0)
+        );
 
         let call = AdminCall {
             description,
             data: data.to_vec(),
             target: validator_timelock_addr,
-            value: U256::zero()
+            value: U256::zero(),
         };
 
         self.calls.push(call);
@@ -440,14 +497,20 @@ impl AdminCallBuilder {
     ) {
         let diamond_cut = DIAMOND_CUT.decode_input(&diamond_cut_data.0).unwrap()[0].clone();
 
-        let data = self.zkchain_abi.encode("upgradeChainFromVersion", (U256::from(protocol_version), diamond_cut)).unwrap();
+        let data = self
+            .zkchain_abi
+            .encode(
+                "upgradeChainFromVersion",
+                (U256::from(protocol_version), diamond_cut),
+            )
+            .unwrap();
         let description = "Executing upgrade:".to_string();
 
         let call = AdminCall {
             description,
             data: data.to_vec(),
             target: hyperchain_addr,
-            value: U256::zero()
+            value: U256::zero(),
         };
 
         self.calls.push(call);
@@ -457,25 +520,25 @@ impl AdminCallBuilder {
         &mut self,
         hyperchain_addr: Address,
         l1_da_validator: Address,
-        l2_da_validator: Address
+        l2_da_validator: Address,
     ) {
-        let data = self.zkchain_abi.encode("setDAValidatorPair", (l1_da_validator, l2_da_validator)).unwrap();
+        let data = self
+            .zkchain_abi
+            .encode("setDAValidatorPair", (l1_da_validator, l2_da_validator))
+            .unwrap();
         let description = "Executing upgrade:".to_string();
 
         let call = AdminCall {
             description,
             data: data.to_vec(),
             target: hyperchain_addr,
-            value: U256::zero()
+            value: U256::zero(),
         };
 
         self.calls.push(call);
     }
 
-    pub fn append_make_permanent_rollup(
-        &mut self,
-        hyperchain_addr: Address,   
-    ) {
+    pub fn append_make_permanent_rollup(&mut self, hyperchain_addr: Address) {
         let data = self.zkchain_abi.encode("makePermanentRollup", ()).unwrap();
         let description = "Make permanent rollup:".to_string();
 
@@ -483,11 +546,10 @@ impl AdminCallBuilder {
             description,
             data: data.to_vec(),
             target: hyperchain_addr,
-            value: U256::zero()
+            value: U256::zero(),
         };
 
         self.calls.push(call);
-
     }
 
     pub fn display(&self) {
@@ -499,10 +561,12 @@ impl AdminCallBuilder {
     }
 
     pub fn compile_full_calldata(self) -> Vec<u8> {
-    
         let tokens: Vec<_> = self.calls.into_iter().map(|x| x.into_token()).collect();
 
-        let data = self.zkchain_abi.encode("multicall", (Token::Tuple(tokens), Token::Bool(true))).unwrap();
+        let data = self
+            .zkchain_abi
+            .encode("multicall", (Token::Tuple(tokens), Token::Bool(true)))
+            .unwrap();
 
         data.to_vec()
     }
@@ -520,7 +584,10 @@ fn chain_admin_abi() -> BaseContract {
 pub fn set_upgrade_timestamp_calldata(packed_protocol_version: u64, timestamp: u64) -> Vec<u8> {
     let chain_admin = chain_admin_abi();
 
-    chain_admin.encode("setUpgradeTimestamp", (packed_protocol_version, timestamp)).unwrap().to_vec()
+    chain_admin
+        .encode("setUpgradeTimestamp", (packed_protocol_version, timestamp))
+        .unwrap()
+        .to_vec()
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -534,7 +601,7 @@ pub struct GatewayUpgradeCalldataArgs {
     server_upgrade_timestamp: u64,
     da_mode: DAMode,
     #[clap(long, default_missing_value = "false")]
-    dangerous_no_cross_check: Option<bool>
+    dangerous_no_cross_check: Option<bool>,
 }
 
 pub struct GatewayUpgradeArgsInner {
@@ -544,7 +611,7 @@ pub struct GatewayUpgradeArgsInner {
     pub validator_addr1: Address,
     pub validator_addr2: Address,
     pub da_mode: DAMode,
-    pub dangerous_no_cross_check: bool
+    pub dangerous_no_cross_check: bool,
 }
 
 impl From<GatewayUpgradeCalldataArgs> for GatewayUpgradeArgsInner {
@@ -564,16 +631,32 @@ impl From<GatewayUpgradeCalldataArgs> for GatewayUpgradeArgsInner {
 pub fn get_admin_call_builder(
     upgrade_info: &GatewayUpgradeInfo,
     chain_info: &FetchedChainInfo,
-    args: GatewayUpgradeArgsInner
+    args: GatewayUpgradeArgsInner,
 ) -> AdminCallBuilder {
     let mut admin_calls_finalize = AdminCallBuilder::new();
 
-    admin_calls_finalize.append_validator(args.chain_id, upgrade_info.new_validator_timelock, args.validator_addr1);
-    admin_calls_finalize.append_validator(args.chain_id, upgrade_info.new_validator_timelock, args.validator_addr2);
+    admin_calls_finalize.append_validator(
+        args.chain_id,
+        upgrade_info.new_validator_timelock,
+        args.validator_addr1,
+    );
+    admin_calls_finalize.append_validator(
+        args.chain_id,
+        upgrade_info.new_validator_timelock,
+        args.validator_addr2,
+    );
 
-    admin_calls_finalize.append_execute_upgrade(chain_info.hyperchain_addr, upgrade_info.old_protocol_version, upgrade_info.chain_upgrade_diamond_cut.clone());
+    admin_calls_finalize.append_execute_upgrade(
+        chain_info.hyperchain_addr,
+        upgrade_info.old_protocol_version,
+        upgrade_info.chain_upgrade_diamond_cut.clone(),
+    );
 
-    admin_calls_finalize.append_set_da_validator_pair(chain_info.hyperchain_addr, upgrade_info.get_l1_da_validator(args.da_mode), upgrade_info.get_l2_da_validator(args.da_mode));
+    admin_calls_finalize.append_set_da_validator_pair(
+        chain_info.hyperchain_addr,
+        upgrade_info.get_l1_da_validator(args.da_mode),
+        upgrade_info.get_l2_da_validator(args.da_mode),
+    );
 
     if args.da_mode == DAMode::PermanentRollup {
         admin_calls_finalize.append_make_permanent_rollup(chain_info.hyperchain_addr);
@@ -582,40 +665,39 @@ pub fn get_admin_call_builder(
     admin_calls_finalize
 }
 
-pub(crate) async fn run(
-    shell: &Shell,
-    args: GatewayUpgradeCalldataArgs
-) -> anyhow::Result<()> {
+pub(crate) async fn run(shell: &Shell, args: GatewayUpgradeCalldataArgs) -> anyhow::Result<()> {
     // 0. Read the GatewayUpgradeInfo
 
     let upgrade_info = GatewayUpgradeInfo::read(shell, &args.upgrade_description_path)?;
 
     // 1. Update all the configs
 
-    let chain_info = fetch_chain_info(
-        &upgrade_info,
-        &args.clone().into()
-    ).await?;
+    let chain_info = fetch_chain_info(&upgrade_info, &args.clone().into()).await?;
 
     upgrade_info.update_contracts_config(&mut Default::default(), &chain_info, args.da_mode, false);
 
     // 2. Generate calldata
 
-    let schedule_calldata = set_upgrade_timestamp_calldata(args.server_upgrade_timestamp, upgrade_info.new_protocol_version);
-
-    println!("Calldata to schedule upgrade: {}", hex::encode(&schedule_calldata));
-
-    let admin_calls_finalize = get_admin_call_builder(
-        &upgrade_info,
-        &chain_info,
-        args.into()
+    let schedule_calldata = set_upgrade_timestamp_calldata(
+        args.server_upgrade_timestamp,
+        upgrade_info.new_protocol_version,
     );
+
+    println!(
+        "Calldata to schedule upgrade: {}",
+        hex::encode(&schedule_calldata)
+    );
+
+    let admin_calls_finalize = get_admin_call_builder(&upgrade_info, &chain_info, args.into());
 
     admin_calls_finalize.display();
 
     let chain_admin_calldata = admin_calls_finalize.compile_full_calldata();
 
-    println!("Full calldata to call `ChainAdmin` with : {}", hex::encode(&chain_admin_calldata));
+    println!(
+        "Full calldata to call `ChainAdmin` with : {}",
+        hex::encode(&chain_admin_calldata)
+    );
 
     Ok(())
 }

@@ -47,7 +47,7 @@ pub struct GatewayEcosystemUpgradeContractsOutput {
 
     pub new_protocol_version: u64,
     pub old_protocol_version: u64,
-    
+
     pub old_validator_timelock: Address,
     pub l1_legacy_shared_bridge: Address,
 }

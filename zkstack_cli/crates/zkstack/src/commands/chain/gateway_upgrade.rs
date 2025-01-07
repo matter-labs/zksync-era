@@ -10,13 +10,21 @@ use config::{
             input::GatewayChainUpgradeInput, output::GatewayChainUpgradeOutput,
         },
         gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput,
-        script_params::{ACCEPT_GOVERNANCE_SCRIPT_PARAMS, GATEWAY_UPGRADE_CHAIN_PARAMS, GATEWAY_UPGRADE_ECOSYSTEM_PARAMS},
+        script_params::{
+            ACCEPT_GOVERNANCE_SCRIPT_PARAMS, GATEWAY_UPGRADE_CHAIN_PARAMS,
+            GATEWAY_UPGRADE_ECOSYSTEM_PARAMS,
+        },
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig,
 };
 use ethers::{
-    abi::{encode, parse_abi}, contract::BaseContract, providers::{Http, Middleware, Provider}, signers::Signer, types::{transaction::eip2718::TypedTransaction, Eip1559TransactionRequest}, utils::hex
+    abi::{encode, parse_abi},
+    contract::BaseContract,
+    providers::{Http, Middleware, Provider},
+    signers::Signer,
+    types::{transaction::eip2718::TypedTransaction, Eip1559TransactionRequest},
+    utils::hex,
 };
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
@@ -30,7 +38,13 @@ use crate::{
     accept_ownership::{
         admin_execute_upgrade, admin_schedule_upgrade, admin_update_validator,
         set_da_validator_pair,
-    }, commands::dev::commands::gateway::{fetch_chain_info, get_admin_call_builder, set_upgrade_timestamp_calldata, DAMode, GatewayUpgradeArgsInner, GatewayUpgradeInfo}, messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED}, utils::forge::{fill_forge_private_key, WalletOwner}
+    },
+    commands::dev::commands::gateway::{
+        fetch_chain_info, get_admin_call_builder, set_upgrade_timestamp_calldata, DAMode,
+        GatewayUpgradeArgsInner, GatewayUpgradeInfo,
+    },
+    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
+    utils::forge::{fill_forge_private_key, WalletOwner},
 };
 
 lazy_static! {
@@ -142,39 +156,40 @@ async fn prepare_stage1(
     // No need to save it, we have enough for now
 
     let mut contracts_config = chain_config.get_contracts_config()?;
-    let general_config  = chain_config.get_general_config()?;
+    let general_config = chain_config.get_general_config()?;
     let genesis_config = chain_config.get_genesis_config()?;
 
     let upgrade_info = GatewayUpgradeInfo::from_gateway_ecosystem_upgrade(
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-        gateway_ecosystem_preparation_output
+        gateway_ecosystem_preparation_output,
     );
 
-    let da_mode: DAMode = if genesis_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {
-        DAMode::PermanentRollup
-    } else {
-        DAMode::Validium
-    };
+    let da_mode: DAMode =
+        if genesis_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {
+            DAMode::PermanentRollup
+        } else {
+            DAMode::Validium
+        };
 
     let chain_info = fetch_chain_info(
         &upgrade_info,
         &GatewayUpgradeArgsInner {
             chain_id: chain_config.chain_id.as_u64(),
             l1_rpc_url: l1_url,
-            l2_rpc_url: general_config.api_config.context("api config")?.web3_json_rpc.http_url,
+            l2_rpc_url: general_config
+                .api_config
+                .context("api config")?
+                .web3_json_rpc
+                .http_url,
             validator_addr1: chain_config.get_wallets_config()?.operator.address,
             validator_addr2: chain_config.get_wallets_config()?.blob_operator.address,
             da_mode,
             dangerous_no_cross_check: false,
-        }
-    ).await?;
+        },
+    )
+    .await?;
 
-    upgrade_info.update_contracts_config(
-        &mut contracts_config,
-        &chain_info,
-        da_mode,
-        true
-    );
+    upgrade_info.update_contracts_config(&mut contracts_config, &chain_info, da_mode, true);
 
     contracts_config.save_with_base_path(shell, chain_config.configs)?;
 
@@ -186,9 +201,13 @@ const NEW_PROTOCOL_VERSION: u64 = 0x1b00000000;
 async fn call_chain_admin(
     l1_url: String,
     chain_config: ChainConfig,
-    data: Vec<u8>
+    data: Vec<u8>,
 ) -> anyhow::Result<()> {
-    let wallet = chain_config.get_wallets_config()?.governor.private_key.context("gov pk missing")?;
+    let wallet = chain_config
+        .get_wallets_config()?
+        .governor
+        .private_key
+        .context("gov pk missing")?;
     let contracts_config = chain_config.get_contracts_config()?;
 
     // Initialize provider
@@ -198,7 +217,7 @@ async fn call_chain_admin(
     let chain_id = provider.get_chainid().await?.as_u64();
     let wallet = wallet.with_chain_id(chain_id);
 
-    let tx= TypedTransaction::Eip1559(Eip1559TransactionRequest {
+    let tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
         to: Some(contracts_config.l1.chain_admin_addr.into()),
         // 10m should be always enough
         gas: Some(U256::from(10_000_000)),
@@ -208,7 +227,10 @@ async fn call_chain_admin(
 
     let signed_tx = wallet.sign_transaction(&tx).await.unwrap();
 
-    let tx = provider.send_raw_transaction(tx.rlp_signed(&signed_tx)).await.unwrap();
+    let tx = provider
+        .send_raw_transaction(tx.rlp_signed(&signed_tx))
+        .await
+        .unwrap();
     println!("Sent tx with hash: {}", hex::encode(&tx.0));
 
     let receipt = tx.await?.context("receipt not present")?;
@@ -231,9 +253,11 @@ async fn schedule_stage1(
 
     println!("Schedule stage1 of the upgrade!!");
     let calldata = set_upgrade_timestamp_calldata(
-        gateway_ecosystem_preparation_output.contracts_config.new_protocol_version,
+        gateway_ecosystem_preparation_output
+            .contracts_config
+            .new_protocol_version,
         // Immediatelly
-        0
+        0,
     );
 
     call_chain_admin(l1_url, chain_config, calldata).await?;
@@ -253,42 +277,40 @@ async fn finalize_stage1(
     println!("Finalizing stage1 of chain upgrade!");
 
     let mut contracts_config = chain_config.get_contracts_config()?;
-    let general_config  = chain_config.get_general_config()?;
+    let general_config = chain_config.get_general_config()?;
     let genesis_config = chain_config.get_genesis_config()?;
 
     let gateway_ecosystem_preparation_output =
         GatewayEcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;
-    
-    let da_mode: DAMode = if genesis_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {
-        DAMode::PermanentRollup
-    } else {
-        DAMode::Validium
-    };
-    
+
+    let da_mode: DAMode =
+        if genesis_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {
+            DAMode::PermanentRollup
+        } else {
+            DAMode::Validium
+        };
+
     let upgrade_info = GatewayUpgradeInfo::from_gateway_ecosystem_upgrade(
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-        gateway_ecosystem_preparation_output
+        gateway_ecosystem_preparation_output,
     );
     let args = GatewayUpgradeArgsInner {
         chain_id: chain_config.chain_id.as_u64(),
         l1_rpc_url: l1_url.clone(),
-        l2_rpc_url: general_config.api_config.context("api config")?.web3_json_rpc.http_url,
+        l2_rpc_url: general_config
+            .api_config
+            .context("api config")?
+            .web3_json_rpc
+            .http_url,
         validator_addr1: chain_config.get_wallets_config()?.operator.address,
         validator_addr2: chain_config.get_wallets_config()?.blob_operator.address,
         da_mode,
         dangerous_no_cross_check: false,
     };
 
-    let chain_info = fetch_chain_info(
-        &upgrade_info,
-        &args
-    ).await?;
-    
-    let admin_calls_finalize = get_admin_call_builder(
-        &upgrade_info,
-        &chain_info,
-        args
-    );
+    let chain_info = fetch_chain_info(&upgrade_info, &args).await?;
+
+    let admin_calls_finalize = get_admin_call_builder(&upgrade_info, &chain_info, args);
 
     admin_calls_finalize.display();
 
