@@ -487,8 +487,10 @@ fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
     else {
         unreachable!()
     };
+    let factory_deps = upgrade.version.minor.is_pre_gateway().then(Vec::new);
     ProposedUpgrade {
         l2_protocol_upgrade_tx: tx,
+        factory_deps,
         bootloader_hash: upgrade.bootloader_code_hash.unwrap_or_default().into(),
         default_account_hash: upgrade.default_account_code_hash.unwrap_or_default().into(),
         verifier: upgrade.verifier_address.unwrap_or_default(),

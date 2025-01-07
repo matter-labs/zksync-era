@@ -97,6 +97,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                 )
                 .await?
             };
+
             // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
             let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
                 Some(self.sl_client.scheduler_vk_hash(address).await?)
