@@ -52,7 +52,7 @@ jobs:
         with:
           context: docker/proof-fri-gpu-compressor-gar
           build-args: |
-            PROOF_FRI_GPU_IMAGE=${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
+            PROOF_COMPRESSOR_IMAGE=${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
           push: true
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/proof-fri-gpu-compressor-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
