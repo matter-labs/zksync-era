@@ -209,7 +209,6 @@ impl WiringLayer for Web3ServerLayer {
 
         // In case it is an EN, the bridge addresses should be updated by fetching values from the main node.
         // It is the main node, the bridge addresses need to be updated by querying the L1.
-
         let bridge_addresses_updater_task =
             if let Some(main_node_client) = input.main_node_client.clone() {
                 BridgeAddressesUpdaterTask::MainNodeUpdater(MainNodeUpdaterInner {
