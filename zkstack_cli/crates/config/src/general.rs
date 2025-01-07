@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use common::yaml::merge_yaml;
 use xshell::Shell;
@@ -49,27 +49,38 @@ pub fn set_file_artifacts(
     config: &mut PatchedConfig,
     file_artifacts: FileArtifacts,
 ) -> anyhow::Result<()> {
-    // FIXME: won't work w/o migrating object store configs
-    config.insert_path(
-        "prover.prover_object_store.file_backed_base_path",
+    set_file_backed_path_if_selected(
+        config,
+        "prover.prover_object_store",
         &file_artifacts.prover_object_store,
     )?;
-    config.insert_path(
-        "prover.public_object_store.file_backed_base_path",
+    set_file_backed_path_if_selected(
+        config,
+        "prover.public_object_store",
         &file_artifacts.public_object_store,
     )?;
-    config.insert_path(
-        "snapshot_creator.object_store.file_backed_base_path",
+    set_file_backed_path_if_selected(
+        config,
+        "snapshot_creator.object_store",
         &file_artifacts.snapshot,
     )?;
-    config.insert_path(
-        "snapshot_recovery.object_store.file_backed_base_path",
+    set_file_backed_path_if_selected(
+        config,
+        "snapshot_recovery.object_store",
         &file_artifacts.snapshot,
     )?;
-    config.insert_path(
-        "core_object_store.file_backed_base_path",
-        &file_artifacts.core_object_store,
-    )?;
+    Ok(())
+}
+
+fn set_file_backed_path_if_selected(
+    config: &mut PatchedConfig,
+    prefix: &str,
+    path: &Path,
+) -> anyhow::Result<()> {
+    let container = config.base().get_raw(&format!("{prefix}.file_backed"));
+    if matches!(container, Some(serde_yaml::Value::Mapping(_))) {
+        config.insert_path(&format!("{prefix}.file_backed.file_backed_base_path"), path)?;
+    }
     Ok(())
 }
 
