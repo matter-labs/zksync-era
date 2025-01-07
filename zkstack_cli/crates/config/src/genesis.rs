@@ -11,6 +11,5 @@ pub fn update_from_chain_config(
         "l1_batch_commit_data_generator_mode",
         config.l1_batch_commit_data_generator_mode,
     )?;
-    // FIXME: check EVM emulator hash?
     Ok(())
 }
