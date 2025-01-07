@@ -53,4 +53,3 @@ zksync_test_contracts.workspace = true
 
 test-casing.workspace = true
 rand.workspace = true
-hex = "0.4"

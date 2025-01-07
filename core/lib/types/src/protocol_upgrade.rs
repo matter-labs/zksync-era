@@ -1,13 +1,9 @@
 use std::convert::{TryFrom, TryInto};
 
 use anyhow::Context as _;
-use ethabi::{decode, encode};
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{
-    ethabi,
-    protocol_version::{
-        L1VerifierConfig, ProtocolSemanticVersion, ProtocolVersionId, VerifierParams,
-    },
+use zksync_basic_types::protocol_version::{
+    L1VerifierConfig, ProtocolSemanticVersion, ProtocolVersionId, VerifierParams,
 };
 use zksync_contracts::{BaseSystemContractsHashes, DIAMOND_CUT};
 
@@ -16,7 +12,7 @@ use crate::{
         self, ForceDeployment, GatewayUpgradeEncodedInput, ProposedUpgrade,
         ZkChainSpecificUpgradeData,
     },
-    ethabi::{ParamType, Token},
+    ethabi::{self, ParamType, Token},
     h256_to_u256, u256_to_h256,
     web3::Log,
     Address, Execute, ExecuteTransactionCommon, Transaction, TransactionType, H256, U256,
@@ -130,14 +126,14 @@ async fn prepare_upgrade_call(
     // The source of truth for the code below is the one that is present in
     // `GatewayUpgrade.sol`.
     let mut encoded_input = GatewayUpgradeEncodedInput::decode(
-        decode(
+        ethabi::decode(
             &[GatewayUpgradeEncodedInput::schema()],
             &proposed_upgrade.post_upgrade_calldata,
         )?[0]
             .clone(),
     )?;
 
-    let gateway_upgrade_calldata = encode(&[
+    let gateway_upgrade_calldata = ethabi::encode(&[
         Token::Address(encoded_input.ctm_deployer),
         Token::Bytes(encoded_input.fixed_force_deployments_data),
         Token::Bytes(chain_specific.context("chain_specific")?.encode_bytes()),
