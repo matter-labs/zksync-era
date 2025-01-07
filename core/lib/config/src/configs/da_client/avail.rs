@@ -44,7 +44,7 @@ pub struct AvailSecrets {
 impl AvailDefaultConfig {
     pub fn finality_state(&self) -> anyhow::Result<String> {
         match self.finality_state.clone() {
-            Some(finality_state) => match finality_state {
+            Some(finality_state) => match finality_state.as_str() {
                 IN_BLOCK_FINALITY_STATE | FINALIZED_FINALITY_STATE => Ok(finality_state),
                 _ => Err(anyhow::anyhow!(
                     "Invalid finality state: {}. Supported values are: {}, {}",
