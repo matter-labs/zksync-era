@@ -753,7 +753,7 @@ impl HttpTest for TraceCallTest {
     ) -> anyhow::Result<()> {
         // Store an additional L2 block because L2 block #0 has some special processing making it work incorrectly.
         // First half of the test asserts API server's behavior when there is no open batch. In other words,
-        // when `ApiFeeInputProvider` is forced to fetch fee params from the main node.
+        // when `ApiFeeInputProvider` is forced to fetch fee params from the main fee provider.
         let mut connection = pool.connection().await?;
         store_l2_block(&mut connection, L2BlockNumber(1), &[]).await?;
         seal_l1_batch(&mut connection, L1BatchNumber(1)).await?;
@@ -949,7 +949,7 @@ impl HttpTest for TraceCallTestWithEvmEmulator {
     ) -> anyhow::Result<()> {
         // Store an additional L2 block because L2 block #0 has some special processing making it work incorrectly.
         // And make sure there is no open batch so that `ApiFeeInputProvider` is forced to fetch fee params from
-        // the main node.
+        // the main fee provider.
         let mut connection = pool.connection().await?;
         let block_header = L2BlockHeader {
             base_system_contracts_hashes: genesis_contract_hashes(&mut connection).await?,
