@@ -3,7 +3,7 @@ use common::{
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     spinner::Spinner,
 };
-use config::{raw::RawConfig, ChainConfig, EcosystemConfig};
+use config::{raw::RawConfig, ChainConfig, EcosystemConfig, SECRETS_FILE};
 use xshell::Shell;
 
 use crate::{
@@ -27,14 +27,12 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
 
 pub async fn init(shell: &Shell, chain_config: &ChainConfig) -> anyhow::Result<()> {
     let spin = Spinner::new(MSG_INITIALIZING_DATABASES_SPINNER);
-    let secrets = RawConfig::read(
-        shell,
-        chain_config
-            .external_node_config_path
-            .clone()
-            .context(MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED)?,
-    )
-    .await?;
+    let secrets_path = chain_config
+        .external_node_config_path
+        .as_ref()
+        .context(MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED)?
+        .join(SECRETS_FILE);
+    let secrets = RawConfig::read(shell, secrets_path).await?;
     let db_config = DatabaseConfig::from_url(&secrets.get("database.server_url")?)?;
     drop_db_if_exists(&db_config)
         .await

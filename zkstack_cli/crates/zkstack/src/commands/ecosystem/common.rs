@@ -9,7 +9,7 @@ use config::{
     },
     raw::RawConfig,
     traits::{ReadConfig, SaveConfig},
-    ContractsConfig, EcosystemConfig,
+    ContractsConfig, EcosystemConfig, GENESIS_FILE,
 };
 use types::{L1Network, ProverMode};
 use xshell::Shell;
@@ -26,7 +26,8 @@ pub async fn deploy_l1(
     broadcast: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.link_to_code);
-    let default_genesis_config = RawConfig::read(shell, config.get_default_configs_path()).await?;
+    let genesis_config_path = config.get_default_configs_path().join(GENESIS_FILE);
+    let default_genesis_config = RawConfig::read(shell, genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
 
     let wallets_config = config.get_wallets()?;

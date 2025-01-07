@@ -74,8 +74,8 @@ pub(crate) fn download_compressor_key(
         }
         CompressorType::All => unreachable!(),
     };
-    let url = url_path; // FIXME: get from config
-    logger::info(format!("Downloading setup key by URL: {}", url));
+    let url = general_config.base().get::<String>(url_path)?;
+    logger::info(format!("Downloading setup key by URL: {url}"));
 
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(600))
