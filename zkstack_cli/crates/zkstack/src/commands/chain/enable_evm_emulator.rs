@@ -8,7 +8,6 @@ use crate::{
     enable_evm_emulator::enable_evm_emulator,
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_EVM_EMULATOR_ENABLED, MSG_EVM_EMULATOR_HASH_MISSING_ERR,
-        MSG_L1_SECRETS_MUST_BE_PRESENTED,
     },
 };
 
@@ -29,13 +28,8 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     anyhow::ensure!(has_evm_emulation_support, MSG_EVM_EMULATOR_HASH_MISSING_ERR);
 
     let contracts = chain_config.get_contracts_config()?;
-    let secrets = chain_config.get_secrets_config()?;
-    let l1_rpc_url = secrets
-        .l1
-        .context(MSG_L1_SECRETS_MUST_BE_PRESENTED)?
-        .l1_rpc_url
-        .expose_str()
-        .to_string();
+    let secrets = chain_config.get_secrets_config().await?;
+    let l1_rpc_url = secrets.get("l1.l1_rpc_url")?;
 
     enable_evm_emulator(
         shell,

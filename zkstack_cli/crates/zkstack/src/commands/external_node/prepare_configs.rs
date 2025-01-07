@@ -82,7 +82,7 @@ async fn prepare_configs(
     en_consensus_config.extend(raw_consensus)?;
     let main_node_public_key = node_public_key(
         &config
-            .get_raw_secrets_config()
+            .get_secrets_config()
             .await?
             .get::<String>("consensus.node_key")?,
     )?;

@@ -1,13 +1,7 @@
-use std::path::Path;
-
 use common::{db::DatabaseConfig, yaml::PatchedConfig};
-use xshell::Shell;
 pub use zksync_config::configs::Secrets as SecretsConfig;
 
-use crate::{
-    consts::SECRETS_FILE,
-    traits::{FileConfigWithDefaultName, ReadConfig},
-};
+use crate::{consts::SECRETS_FILE, traits::FileConfigWithDefaultName};
 
 pub fn set_server_database(
     secrets: &mut PatchedConfig,
@@ -38,10 +32,4 @@ pub fn set_l1_rpc_url(secrets: &mut PatchedConfig, l1_rpc_url: String) -> anyhow
 
 impl FileConfigWithDefaultName for SecretsConfig {
     const FILE_NAME: &'static str = SECRETS_FILE;
-}
-
-impl ReadConfig for SecretsConfig {
-    fn read(_shell: &Shell, _path: impl AsRef<Path>) -> anyhow::Result<Self> {
-        todo!("remove")
-    }
 }

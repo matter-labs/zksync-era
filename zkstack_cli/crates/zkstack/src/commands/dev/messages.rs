@@ -45,7 +45,6 @@ pub(super) const MSG_DATABASE_RESET_GERUND: &str = "Resetting";
 pub(super) const MSG_DATABASE_RESET_PAST: &str = "reset";
 pub(super) const MSG_DATABASE_SETUP_GERUND: &str = "Setting up";
 pub(super) const MSG_DATABASE_SETUP_PAST: &str = "set up";
-pub(super) const MSG_DATABASE_MUST_BE_PRESENTED: &str = "Database config must be presented";
 pub(super) const MSG_DATABASE_COMMON_PROVER_HELP: &str = "Prover database";
 pub(super) const MSG_DATABASE_COMMON_PROVER_URL_HELP: &str =
     "URL of the Prover database. If not specified, it is used from the current chain's secrets";

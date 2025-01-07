@@ -2,16 +2,16 @@ use anyhow::Context;
 use common::{
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     spinner::Spinner,
+    yaml::RawConfig,
 };
-use config::{traits::ReadConfigWithBasePath, ChainConfig, EcosystemConfig, SecretsConfig};
+use config::{ChainConfig, EcosystemConfig};
 use xshell::Shell;
 
 use crate::{
     consts::SERVER_MIGRATIONS,
     messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_DATABASE_MUST_BE_PRESENTED,
-        MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED, MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR,
-        MSG_INITIALIZING_DATABASES_SPINNER,
+        MSG_CHAIN_NOT_INITIALIZED, MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED,
+        MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_INITIALIZING_DATABASES_SPINNER,
     },
     utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
 };
@@ -28,21 +28,14 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
 
 pub async fn init(shell: &Shell, chain_config: &ChainConfig) -> anyhow::Result<()> {
     let spin = Spinner::new(MSG_INITIALIZING_DATABASES_SPINNER);
-    let secrets = SecretsConfig::read_with_base_path(
-        shell,
+    let secrets = RawConfig::read(
         chain_config
             .external_node_config_path
             .clone()
             .context(MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED)?,
-    )?;
-    let db_config = DatabaseConfig::from_url(
-        secrets
-            .database
-            .as_ref()
-            .context(MSG_DATABASE_MUST_BE_PRESENTED)?
-            .master_url()?
-            .expose_url(),
-    )?;
+    )
+    .await?;
+    let db_config = DatabaseConfig::from_url(&secrets.get("database.server_url")?)?;
     drop_db_if_exists(&db_config)
         .await
         .context(MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR)?;

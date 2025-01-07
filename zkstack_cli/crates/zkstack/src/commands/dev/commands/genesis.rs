@@ -18,7 +18,7 @@ pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let spinner = Spinner::new(MSG_GENESIS_FILE_GENERATION_STARTED);
     let secrets_path = chain.path_to_secrets_config();
-    let dal = get_core_dal(shell, None)?;
+    let dal = get_core_dal(shell, None).await?;
     reset_database(shell, ecosystem.link_to_code, dal).await?;
     Cmd::new(cmd!(shell,"cargo run --package genesis_generator --bin genesis_generator -- --config-path={secrets_path}")).run()?;
     spinner.finish();

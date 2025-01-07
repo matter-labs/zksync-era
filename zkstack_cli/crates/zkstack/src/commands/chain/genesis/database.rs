@@ -36,7 +36,7 @@ pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
     let mut secrets = PatchedConfig::read(chain_config.path_to_secrets_config()).await?;
-    let args = args.fill_values_with_secrets(&chain_config)?;
+    let args = args.fill_values_with_secrets(&chain_config).await?;
     set_server_database(&mut secrets, &args.server_db)?;
     secrets.save().await?;
 

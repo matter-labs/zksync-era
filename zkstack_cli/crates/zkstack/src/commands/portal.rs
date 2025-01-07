@@ -25,13 +25,9 @@ async fn build_portal_chain_config(
 ) -> anyhow::Result<PortalChainConfig> {
     // Get L2 RPC URL from general config
     let l2_rpc_url = chain_config.get_general_config()?.get_l2_rpc_url()?;
-    // Get L1 RPC URL from secrects config
-    let secrets_config = chain_config.get_secrets_config()?;
-    let l1_rpc_url = secrets_config
-        .l1
-        .as_ref()
-        .map(|l1| l1.l1_rpc_url.expose_str())
-        .context("l1")?;
+    // Get L1 RPC URL from secrets config
+    let secrets_config = chain_config.get_secrets_config().await?;
+    let l1_rpc_url = secrets_config.get::<String>("l1.l1_rpc_url")?;
     // Build L1 network config
     let l1_network = Some(L1NetworkConfig {
         id: chain_config.l1_network.chain_id(),
@@ -40,10 +36,10 @@ async fn build_portal_chain_config(
         native_currency: TokenInfo::eth(),
         rpc_urls: RpcUrls {
             default: RpcUrlConfig {
-                http: vec![l1_rpc_url.to_string()],
+                http: vec![l1_rpc_url.clone()],
             },
             public: RpcUrlConfig {
-                http: vec![l1_rpc_url.to_string()],
+                http: vec![l1_rpc_url.clone()],
             },
         },
     });
@@ -53,8 +49,7 @@ async fn build_portal_chain_config(
     } else {
         (
             format!("{:?}", chain_config.base_token.address),
-            ethereum::get_token_info(chain_config.base_token.address, l1_rpc_url.to_string())
-                .await?,
+            ethereum::get_token_info(chain_config.base_token.address, l1_rpc_url).await?,
         )
     };
     let tokens = vec![TokenConfig {

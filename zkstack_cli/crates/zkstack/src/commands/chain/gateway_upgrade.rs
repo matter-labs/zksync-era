@@ -34,7 +34,7 @@ use crate::{
         admin_execute_upgrade, admin_schedule_upgrade, admin_update_validator,
         set_da_validator_pair,
     },
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
+    messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{fill_forge_private_key, WalletOwner},
 };
 
@@ -103,12 +103,9 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
     let l1_url = chain_config
-        .get_secrets_config()?
-        .l1
-        .context(MSG_L1_SECRETS_MUST_BE_PRESENTED)?
-        .l1_rpc_url
-        .expose_str()
-        .to_string();
+        .get_secrets_config()
+        .await?
+        .get("l1.l1_rpc_url")?;
 
     match args.chain_upgrade_stage {
         GatewayChainUpgradeStage::AdaptConfig => adapt_config(shell, chain_config).await,

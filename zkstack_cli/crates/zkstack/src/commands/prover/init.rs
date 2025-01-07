@@ -51,7 +51,9 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         &chain_config,
     )?;
 
-    if chain_config.get_general_config().is_err() || chain_config.get_secrets_config().is_err() {
+    if chain_config.get_general_config().is_err()
+        || chain_config.get_secrets_config().await.is_err()
+    {
         copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
     }
 

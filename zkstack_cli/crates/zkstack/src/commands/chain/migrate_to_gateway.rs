@@ -32,7 +32,7 @@ use zksync_config::configs::gateway::GatewayChainConfig;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use crate::{
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
+    messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
@@ -72,7 +72,7 @@ lazy_static! {
 #[allow(unused)]
 pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
     // TODO(EVM-927): this function does not work without the Gateway contracts.
-    //anyhow::bail!("Gateway upgrade not supported yet!");
+    anyhow::bail!("Gateway upgrade not supported yet!");
 
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
@@ -90,12 +90,9 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .context("Gateway config not present")?;
 
     let l1_url = chain_config
-        .get_secrets_config()?
-        .l1
-        .context(MSG_L1_SECRETS_MUST_BE_PRESENTED)?
-        .l1_rpc_url
-        .expose_str()
-        .to_string();
+        .get_secrets_config()
+        .await?
+        .get::<String>("l1.l1_rpc_url")?;
 
     let genesis_config = chain_config.get_genesis_config().await?;
 
