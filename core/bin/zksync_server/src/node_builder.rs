@@ -127,17 +127,16 @@ impl MainNodeBuilder {
             return Ok(PubdataType::Rollup);
         }
 
-        let Some(da_client_config) = self.configs.da_client_config.clone() else {
-            bail!("No config for DA client");
-        };
-
-        Ok(match da_client_config {
-            DAClientConfig::Avail(_) => PubdataType::Avail,
-            DAClientConfig::Celestia(_) => PubdataType::Celestia,
-            DAClientConfig::Eigen(_) => PubdataType::Eigen,
-            DAClientConfig::ObjectStore(_) => PubdataType::ObjectStore,
-            DAClientConfig::NoDA => PubdataType::NoDA,
-        })
+        match self.configs.da_client_config.clone() {
+            None => Err(anyhow::anyhow!("No config for DA client")),
+            Some(da_client_config) => Ok(match da_client_config {
+                DAClientConfig::Avail(_) => PubdataType::Avail,
+                DAClientConfig::Celestia(_) => PubdataType::Celestia,
+                DAClientConfig::Eigen(_) => PubdataType::Eigen,
+                DAClientConfig::ObjectStore(_) => PubdataType::ObjectStore,
+                DAClientConfig::NoDA => PubdataType::NoDA,
+            }),
+        }
     }
 
     fn add_sigint_handler_layer(mut self) -> anyhow::Result<Self> {

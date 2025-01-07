@@ -22,6 +22,7 @@ message AvailConfig {
 message AvailClientConfig {
   optional string api_node_url = 1;
   optional uint32 app_id = 2;
+  optional string finality_state = 3;
 }
 
 message AvailGasRelayConfig {
