@@ -1,8 +1,10 @@
+use zksync_da_client::DataAvailabilityClient;
 use zksync_node_sync::data_availability_fetcher::DataAvailabilityFetcher;
 use zksync_types::{Address, L2ChainId};
 
 use crate::{
     implementations::resources::{
+        da_client::DAClientResource,
         eth_interface::{EthInterfaceResource, GatewayEthInterfaceResource},
         healthcheck::AppHealthCheckResource,
         main_node_client::MainNodeClientResource,
@@ -26,7 +28,7 @@ pub struct DataAvailabilityFetcherLayer {
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub main_node_client: MainNodeClientResource,
-    pub l1_client: EthInterfaceResource,
+    pub da_client: DAClientResource,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
 }
@@ -59,10 +61,10 @@ impl WiringLayer for DataAvailabilityFetcherLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let pool = input.master_pool.get().await?;
         let MainNodeClientResource(client) = input.main_node_client;
-        let EthInterfaceResource(l1_client) = input.l1_client;
+        let DAClientResource(da_client) = input.da_client;
 
         tracing::info!("Running data availability fetcher.");
-        let task = DataAvailabilityFetcher::new(client, pool);
+        let task = DataAvailabilityFetcher::new(client, pool, da_client);
 
         // Insert healthcheck
         input
