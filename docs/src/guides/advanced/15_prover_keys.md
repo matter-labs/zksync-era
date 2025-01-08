@@ -32,7 +32,8 @@ More info about commitment schemes can be found [here](https://en.wikipedia.org/
 
 ### Setup keys (big, >700MB each)
 
-The following [link](https://github.com/matter-labs/zksync-era/blob/main/prover/setup-data-gpu-keys.json) provides the GCS buckets containing the latest setup keys.
+The following [link](https://github.com/matter-labs/zksync-era/blob/main/prover/setup-data-gpu-keys.json) provides the
+GCS buckets containing the latest setup keys.
 
 The primary key for a given circuit is called `setup key`. These keys can be substantial in size - approximately 700MB
 for our circuits. Due to their size, we don't store them directly on GitHub; instead, they need to be generated.
@@ -116,8 +117,7 @@ friendly hash function (currently Poseidon2).
   https://github.com/matter-labs/era-zkevm_test_harness/blob/3cd647aa57fc2e1180bab53f7a3b61ec47502a46/circuit_definitions/src/circuit_definitions/base_layer/mod.rs#L77
 [recursive_circuit_list]:
   https://github.com/matter-labs/era-zkevm_test_harness/blob/3cd647aa57fc2e1180bab53f7a3b61ec47502a46/circuit_definitions/src/circuit_definitions/recursion_layer/mod.rs#L29
-[verification_key_list]:
-  https://github.com/matter-labs/zksync-era/tree/main/prover/data/keys
+[verification_key_list]: https://github.com/matter-labs/zksync-era/tree/main/prover/data/keys
 [env_variables_for_hash]:
   https://github.com/matter-labs/zksync-era/blob/6d18061df4a18803d3c6377305ef711ce60317e1/etc/env/base/contracts.toml#L61
 [prover_setup_data]:
