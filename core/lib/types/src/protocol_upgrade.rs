@@ -12,7 +12,7 @@ use crate::{
         self, ForceDeployment, GatewayUpgradeEncodedInput, ProposedUpgrade,
         ZkChainSpecificUpgradeData,
     },
-    ethabi::{self, ParamType, Token},
+    ethabi::{self, decode, encode, ParamType, Token},
     h256_to_u256, u256_to_h256,
     web3::Log,
     Address, Execute, ExecuteTransactionCommon, Transaction, TransactionType, H256, U256,
@@ -103,8 +103,7 @@ pub trait ProtocolUpgradePreimageOracle: Send + Sync {
     ) -> anyhow::Result<Vec<Vec<u8>>>;
 }
 
-/// Some upgrades have chain-dependent calldata
-/// that has to be prepared properly
+/// Some upgrades have chain-dependent calldata that has to be prepared properly.
 async fn prepare_upgrade_call(
     proposed_upgrade: &ProposedUpgrade,
     chain_specific: Option<ZkChainSpecificUpgradeData>,
@@ -126,14 +125,14 @@ async fn prepare_upgrade_call(
     // The source of truth for the code below is the one that is present in
     // `GatewayUpgrade.sol`.
     let mut encoded_input = GatewayUpgradeEncodedInput::decode(
-        ethabi::decode(
+        decode(
             &[GatewayUpgradeEncodedInput::schema()],
             &proposed_upgrade.post_upgrade_calldata,
         )?[0]
             .clone(),
     )?;
 
-    let gateway_upgrade_calldata = ethabi::encode(&[
+    let gateway_upgrade_calldata = encode(&[
         Token::Address(encoded_input.ctm_deployer),
         Token::Bytes(encoded_input.fixed_force_deployments_data),
         Token::Bytes(chain_specific.context("chain_specific")?.encode_bytes()),
@@ -184,27 +183,42 @@ impl ProtocolUpgrade {
         preimage_oracle: impl ProtocolUpgradePreimageOracle,
         chain_specific: Option<ZkChainSpecificUpgradeData>,
     ) -> anyhow::Result<Self> {
-        let upgrade = ethabi::decode(
-            &[abi::ProposedUpgrade::schema()],
+        let upgrade = if let Ok(upgrade) = ethabi::decode(
+            &[abi::ProposedUpgrade::schema_pre_gateway()],
             init_calldata.get(4..).context("need >= 4 bytes")?,
-        )
-        .context("ethabi::decode()")?;
-        let mut upgrade =
-            abi::ProposedUpgrade::decode(upgrade.into_iter().next().unwrap()).unwrap();
+        ) {
+            upgrade
+        } else {
+            ethabi::decode(
+                &[abi::ProposedUpgrade::schema_post_gateway()],
+                init_calldata.get(4..).context("need >= 4 bytes")?,
+            )
+            .context("ethabi::decode()")?
+        };
+
+        let mut upgrade = abi::ProposedUpgrade::decode(upgrade.into_iter().next().unwrap())
+            .context("ProposedUpgrade::decode()")?;
+
         let bootloader_hash = H256::from_slice(&upgrade.bootloader_hash);
         let default_account_hash = H256::from_slice(&upgrade.default_account_hash);
 
+        let version = ProtocolSemanticVersion::try_from_packed(upgrade.new_protocol_version)
+            .map_err(|err| anyhow::format_err!("Version is not supported: {err}"))?;
         let tx = if upgrade.l2_protocol_upgrade_tx.tx_type != U256::zero() {
-            let factory_deps = preimage_oracle
-                .get_protocol_upgrade_preimages(
-                    upgrade
-                        .l2_protocol_upgrade_tx
-                        .factory_deps
-                        .iter()
-                        .map(|&x| u256_to_h256(x))
-                        .collect(),
-                )
-                .await?;
+            let factory_deps = if version.minor.is_pre_gateway() {
+                upgrade.factory_deps.clone().unwrap()
+            } else {
+                preimage_oracle
+                    .get_protocol_upgrade_preimages(
+                        upgrade
+                            .l2_protocol_upgrade_tx
+                            .factory_deps
+                            .iter()
+                            .map(|&x| u256_to_h256(x))
+                            .collect(),
+                    )
+                    .await?
+            };
 
             upgrade.l2_protocol_upgrade_tx.data =
                 prepare_upgrade_call(&upgrade, chain_specific).await?;
@@ -227,8 +241,7 @@ impl ProtocolUpgrade {
         };
 
         Ok(Self {
-            version: ProtocolSemanticVersion::try_from_packed(upgrade.new_protocol_version)
-                .map_err(|err| anyhow::format_err!("Version is not supported: {err}"))?,
+            version,
             bootloader_code_hash: (bootloader_hash != H256::zero()).then_some(bootloader_hash),
             default_account_code_hash: (default_account_hash != H256::zero())
                 .then_some(default_account_hash),
