@@ -27,8 +27,8 @@ jobs:
 
       - name: Download FFLONK key and setup data
         run: |
-          gsutil -m rsync -r gs://matterlabs-setup-keys-us/setup-keys/setup_fflonk_compact.key docker/proof-fri-gpu-compressor-gar
           gsutil -m rsync -r gs://matterlabs-setup-data-us/${{ inputs.setup_keys_id }} docker/proof-fri-gpu-compressor-gar
+          gsutil -m cp -r gs://matterlabs-setup-keys-us/setup-keys/setup_fflonk_compact.key docker/proof-fri-gpu-compressor-gar
 
       - name: Login to us-central1 GAR
         run: |
