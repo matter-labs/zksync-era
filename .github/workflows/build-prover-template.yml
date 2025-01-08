@@ -91,6 +91,9 @@ jobs:
     env:
       PROTOCOL_VERSION: ${{ needs.get-protocol-version.outputs.protocol_version }}
     runs-on: [matterlabs-ci-runner-high-performance]
+    permissions:
+      packages: write
+      contents: read
     strategy:
       matrix:
         components:
@@ -153,6 +156,14 @@ jobs:
           docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
           gcloud auth configure-docker us-docker.pkg.dev -q
 
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build and push
         uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
         with:
@@ -170,9 +181,12 @@ jobs:
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
             matterlabs/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
             matterlabs/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:latest
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:latest
             matterlabs/${{ matrix.components }}:latest
 
       - name: Push docker image
@@ -180,9 +194,12 @@ jobs:
         run: |
           docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
           docker push matterlabs/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
+          docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
           docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
+          docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
           docker push matterlabs/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
           docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:latest
+          docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:latest
           docker push matterlabs/${{ matrix.components }}:latest
 
   copy-images:
