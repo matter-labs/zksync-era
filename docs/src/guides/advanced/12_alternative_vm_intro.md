@@ -40,7 +40,7 @@ receiving a _pointer_ in its first register *(*basically a packed struct with 4 
 length of the slice to which it points to*)* to the calldata page of the parent. Similarly, a transaction can receive
 some other additional data within its registers at the start of the program: whether the transaction should invoke the
 constructor
-[more about deployments here](https://github.com/matter-labs/zksync-era/blob/main/docs/specs/zk_evm/system_contracts.md#contractdeployer--immutablesimulator),
+[more about deployments here](https://github.com/matter-labs/zksync-era/blob/main/docs/src/specs/zk_evm/system_contracts.md#contractdeployer--immutablesimulator),
 whether the transaction has `isSystem` flag, etc. The meaning of each of these flags will be expanded further in this
 section.
 
@@ -161,7 +161,7 @@ Note, that currently we do not have access to the `tx_counter` within VM (i.e. 
 and it will be automatically used for logs such as `event`s as well as system logs produced by `to_l1`, but we can not
 read it). We need to read it to publish the _user_ L2→L1 logs, so `increment_tx_counter` is always accompanied by the
 corresponding call to the
-[SystemContext](https://github.com/matter-labs/zksync-era/blob/main/docs/specs/zk_evm/system_contracts.md#systemcontext)
+[SystemContext](https://github.com/matter-labs/zksync-era/blob/main/docs/src/specs/zk_evm/system_contracts.md#systemcontext)
 contract.
 
 More on the difference between system and user logs can be read
@@ -197,7 +197,7 @@ the start of execution:
   to the call. Currently, two flags are supported: 0-th bit: `isConstructor` flag. This flag can only be set by system
   contracts and denotes whether the account should execute its constructor logic. Note, unlike Ethereum, there is no
   separation on constructor & deployment bytecode. More on that can be read
-  [here](https://github.com/matter-labs/zksync-era/blob/main/docs/specs/zk_evm/system_contracts.md#contractdeployer--immutablesimulator).
+  [here](https://github.com/matter-labs/zksync-era/blob/main/docs/src/specs/zk_evm/system_contracts.md#contractdeployer--immutablesimulator).
   1-st bit: `isSystem` flag. Whether the call intends a system contracts’ function. While most of the system contracts’
   functions are relatively harmless, accessing some with calldata only may break the invariants of Ethereum, e.g. if the
   system contract uses `mimic_call`: no one expects that by calling a contract some operations may be done out of the
@@ -286,7 +286,7 @@ On ZKsync the bytecode hashes are stored in the following format:
 
 - The 0th byte denotes the version of the format. Currently the only version that is used is “1”.
 - The 1st byte is `0` for deployed contracts’ code and `1` for the contract code
-  [that is being constructed](https://github.com/matter-labs/zksync-era/blob/main/docs/specs/zk_evm/system_contracts.md#constructing-vs-non-constructing-code-hash).
+  [that is being constructed](https://github.com/matter-labs/zksync-era/blob/main/docs/src/specs/zk_evm/system_contracts.md#constructing-vs-non-constructing-code-hash).
 - The 2nd and 3rd bytes denote the length of the contract in 32-byte words as big-endian 2-byte number.
 - The next 28 bytes are the last 28 bytes of the sha256 hash of the contract’s bytecode.
 
@@ -305,5 +305,5 @@ simply revert (similar to how EVM would treat them).
 
 A call to a contract with invalid bytecode can not be proven. That is why it is **essential** that no contract with
 invalid bytecode is ever deployed on ZKsync. It is the job of the
-[KnownCodesStorage](https://github.com/matter-labs/zksync-era/blob/main/docs/specs/zk_evm/system_contracts.md#knowncodestorage)
+[KnownCodesStorage](https://github.com/matter-labs/zksync-era/blob/main/docs/src/specs/zk_evm/system_contracts.md#knowncodestorage)
 to ensure that all allowed bytecodes in the system are valid.
