@@ -7082,7 +7082,6 @@ dependencies = [
  "zksync_contracts",
  "zksync_eth_client",
  "zksync_system_constants",
- "zksync_types",
  "zksync_web3_decl",
 ]
 

@@ -2,7 +2,7 @@ use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{forge::ForgeScriptArgs, logger};
 use zkstack_cli_config::{raw::RawConfig, EcosystemConfig, GENESIS_FILE};
-use zksync_types::H256;
+use zksync_basic_types::H256;
 
 use crate::{
     enable_evm_emulator::enable_evm_emulator,

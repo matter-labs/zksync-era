@@ -6,7 +6,7 @@ use zkstack_cli_config::{
     get_da_client_type, traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig,
 };
 use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode};
-use zksync_types::Address;
+use zksync_basic_types::Address;
 
 use crate::{
     accept_ownership::{accept_admin, make_permanent_rollup, set_da_validator_pair},

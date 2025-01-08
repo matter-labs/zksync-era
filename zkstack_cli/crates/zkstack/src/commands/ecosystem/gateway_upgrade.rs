@@ -20,8 +20,8 @@ use zkstack_cli_config::{
     EcosystemConfig, GENESIS_FILE,
 };
 use zkstack_cli_types::ProverMode;
-use zksync_basic_types::commitment::L1BatchCommitmentMode;
-use zksync_types::{H160, L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
+use zksync_basic_types::{commitment::L1BatchCommitmentMode, H160, U256};
+use zksync_system_constants::{L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS};
 
 use super::args::gateway_upgrade::{GatewayUpgradeArgs, GatewayUpgradeArgsFinal};
 use crate::{

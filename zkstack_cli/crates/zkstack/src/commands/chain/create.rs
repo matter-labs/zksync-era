@@ -7,8 +7,7 @@ use zkstack_cli_config::{
     create_local_configs_dir, create_wallets, raw::RawConfig, traits::SaveConfigWithBasePath,
     ChainConfig, EcosystemConfig, GENESIS_FILE,
 };
-use zksync_basic_types::L2ChainId;
-use zksync_types::H256;
+use zksync_basic_types::{L2ChainId, H256};
 
 use crate::{
     commands::chain::args::create::{ChainCreateArgs, ChainCreateArgsFinal},

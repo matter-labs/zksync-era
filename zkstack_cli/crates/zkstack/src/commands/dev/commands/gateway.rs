@@ -16,14 +16,15 @@ use zkstack_cli_config::{
     traits::{ReadConfig, ZkStackConfig},
     ContractsConfig,
 };
-use zksync_contracts::{chain_admin_contract, hyperchain_contract, DIAMOND_CUT};
-use zksync_types::{
+use zksync_basic_types::{
     ethabi,
+    protocol_version::ProtocolVersionId,
     url::SensitiveUrl,
     web3::{keccak256, Bytes},
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256,
-    L2_NATIVE_TOKEN_VAULT_ADDRESS, U256,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, H256, U256,
 };
+use zksync_contracts::{chain_admin_contract, hyperchain_contract, DIAMOND_CUT};
+use zksync_system_constants::L2_NATIVE_TOKEN_VAULT_ADDRESS;
 use zksync_web3_decl::{
     client::{Client, DynClient, L2},
     namespaces::{UnstableNamespaceClient, ZksNamespaceClient},
