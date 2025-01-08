@@ -14,8 +14,8 @@ use crate::{
 };
 
 /// Wiring layer for [`DataAvailabilityFetcher`].
-#[derive(Debug)]
-pub struct DataAvailabilityFetcherLayer {}
+#[derive(Debug, Default)]
+pub struct DataAvailabilityFetcherLayer;
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
@@ -36,7 +36,7 @@ pub struct Output {
 
 impl DataAvailabilityFetcherLayer {
     pub fn new() -> Self {
-        Self {}
+        Self::default()
     }
 }
 
