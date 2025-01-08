@@ -15,10 +15,9 @@ use zkstack_cli_config::{
         script_params::{DEPLOY_GATEWAY_CTM, GATEWAY_GOVERNANCE_TX_PATH1, GATEWAY_PREPARATION},
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig,
+    ChainConfig, EcosystemConfig, GatewayConfig,
 };
 use zksync_basic_types::H256;
-use zksync_config::configs::GatewayConfig;
 
 use crate::{
     messages::MSG_CHAIN_NOT_INITIALIZED,

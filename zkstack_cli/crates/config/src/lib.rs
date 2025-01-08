@@ -1,15 +1,7 @@
-pub use apps::*;
-pub use chain::*;
-pub use consts::*;
-pub use contracts::*;
-pub use ecosystem::*;
-pub use file_config::*;
-pub use general::*;
-pub use genesis::*;
-pub use manipulations::*;
-pub use secrets::*;
-pub use wallet_creation::*;
-pub use wallets::*;
+pub use crate::{
+    apps::*, chain::*, consts::*, contracts::*, ecosystem::*, file_config::*, gateway::*,
+    general::*, genesis::*, manipulations::*, secrets::*, wallet_creation::*, wallets::*,
+};
 
 mod apps;
 mod chain;

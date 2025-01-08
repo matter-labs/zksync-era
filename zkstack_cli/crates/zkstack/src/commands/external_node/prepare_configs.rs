@@ -8,7 +8,7 @@ use zkstack_cli_config::{
     set_rocks_db_config, ChainConfig, EcosystemConfig, CONSENSUS_CONFIG_FILE, EN_CONFIG_FILE,
     GENERAL_FILE, SECRETS_FILE,
 };
-use zksync_basic_types::{L1ChainId, L2ChainId};
+use zksync_basic_types::{L1ChainId, L2ChainId, SLChainId};
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
 
@@ -53,7 +53,7 @@ async fn prepare_configs(
     let mut ports = EcosystemPortsScanner::scan(shell)?;
     let genesis = config.get_genesis_config().await?;
     let general = config.get_general_config().await?;
-    let gateway = config.get_gateway_chain_config().ok();
+    let gateway = config.get_gateway_chain_config().await.ok();
     let l2_rpc_port = general.get::<u16>("api.web3_json_rpc.http_port")?;
 
     let mut en_config = PatchedConfig::empty(shell, en_configs_path.join(EN_CONFIG_FILE));
@@ -68,7 +68,8 @@ async fn prepare_configs(
     )?;
     en_config.insert("main_node_url", format!("http://127.0.0.1:{l2_rpc_port}"))?;
     if let Some(gateway) = &gateway {
-        en_config.insert_yaml("gateway_chain_id", gateway.gateway_chain_id)?;
+        let gateway_chain_id: SLChainId = gateway.get("gateway_chain_id")?;
+        en_config.insert_yaml("gateway_chain_id", gateway_chain_id)?;
     }
     en_config.save().await?;
 

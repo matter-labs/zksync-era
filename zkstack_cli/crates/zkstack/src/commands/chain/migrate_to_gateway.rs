@@ -20,12 +20,13 @@ use zkstack_cli_config::{
         gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
         script_params::GATEWAY_PREPARATION,
     },
-    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    init_gateway_chain_config,
+    raw::PatchedConfig,
+    traits::{ReadConfig, SaveConfig},
     EcosystemConfig,
 };
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{settlement::SettlementMode, Address, H256, U256, U64};
-use zksync_config::configs::gateway::GatewayChainConfig;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use crate::{
@@ -350,13 +351,16 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     chain_secrets_config.insert("l1.gateway_rpc_url", gateway_url)?;
     chain_secrets_config.save().await?;
 
-    let gateway_chain_config = GatewayChainConfig::from_gateway_and_chain_data(
+    let mut gateway_chain_config =
+        PatchedConfig::empty(shell, chain_config.path_to_gateway_chain_config());
+    init_gateway_chain_config(
+        &mut gateway_chain_config,
         &gateway_gateway_config,
         new_diamond_proxy_address,
         l2_chain_admin,
         gateway_chain_id.into(),
-    );
-    gateway_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
+    )?;
+    gateway_chain_config.save().await?;
 
     let mut general_config = chain_config.get_general_config().await?.patched();
     general_config.insert_yaml("eth.gas_adjuster.settlement_mode", SettlementMode::Gateway)?;
