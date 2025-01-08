@@ -2,17 +2,16 @@
 
 use std::time::Duration;
 
-use anyhow::{bail, Context as _};
+use anyhow::Context as _;
 use serde::Serialize;
 #[cfg(test)]
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_da_client::DataAvailabilityClient;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{
-    block::{L1BatchTreeData, L2BlockHeader},
-    Address, L1BatchNumber, L2ChainId,
+    block::L2BlockHeader, web3::contract::Error, Address, L1BatchNumber, L2ChainId,
 };
 use zksync_web3_decl::{
     client::{DynClient, L1, L2},
@@ -32,14 +31,24 @@ enum DataAvailabilityFetcherHealth {
     },
 }
 
-#[derive(Debug, thiserror::Error)]
-pub(crate) enum DataAvailabilityFetcherError {
-    #[error("error fetching data from main node: {0}")]
-    Rpc(#[from] anyhow::Error),
-    #[error("error calling DA layer: {0}")]
-    DALayer(#[from] anyhow::Error),
-    #[error("internal error")]
-    Internal(#[from] anyhow::Error),
+#[derive(Debug)]
+pub(crate) struct DataAvailabilityFetcherError {
+    error: anyhow::Error,
+    is_retriable: bool,
+}
+
+fn to_retriable_error(err: anyhow::Error) -> DataAvailabilityFetcherError {
+    DataAvailabilityFetcherError {
+        error: err,
+        is_retriable: true,
+    }
+}
+
+fn to_fatal_error(err: anyhow::Error) -> DataAvailabilityFetcherError {
+    DataAvailabilityFetcherError {
+        error: err,
+        is_retriable: false,
+    }
 }
 
 #[derive(Debug)]
@@ -133,10 +142,7 @@ impl DataAvailabilityFetcher {
     }
 
     async fn step(&mut self) -> Result<StepOutcome, DataAvailabilityFetcherError> {
-        let l1_batch_to_fetch = self
-            .get_batch_to_fetch()
-            .await
-            .map_err(|err| DataAvailabilityFetcherError::Internal(err))?;
+        let l1_batch_to_fetch = self.get_batch_to_fetch().await.map_err(to_fatal_error)?;
 
         let Some(l1_batch_to_fetch) = l1_batch_to_fetch else {
             return Ok(StepOutcome::NoProgress);
@@ -147,39 +153,51 @@ impl DataAvailabilityFetcher {
             .client
             .get_data_availability_details(l1_batch_to_fetch)
             .await
-            .map_err(|err| DataAvailabilityFetcherError::Rpc(err.into()))?;
+            .map_err(|err| to_retriable_error(err.into()))?;
 
         if da_details.pubdata_type.to_string() != self.da_client.name() {
-            return Err(DataAvailabilityFetcherError::Internal(anyhow::anyhow!(
+            return Err(to_fatal_error(anyhow::anyhow!(
                 "DA client mismatch, used in config: {}, received from main node: {}",
                 self.da_client.name(),
                 da_details.pubdata_type
             )));
         }
 
-        if da_details.inclusion_data.is_none() {
+        let Some(expected_inclusion_data) = da_details.inclusion_data else {
             return Ok(StepOutcome::NoInclusionDataFromMainNode);
-        }
+        };
 
         let inclusion_data = self
             .da_client
             .get_inclusion_data(da_details.blob_id.as_str())
             .await
             .map_err(|err| {
-                DataAvailabilityFetcherError::DALayer(anyhow::anyhow!(
-                    "Error fetching inclusion data: {err}"
-                ))
+                to_retriable_error(anyhow::anyhow!("Error fetching inclusion data: {err}"))
             })?;
 
         let Some(inclusion_data) = inclusion_data else {
-            Ok(StepOutcome::UnableToFetchInclusionData)
+            return Ok(StepOutcome::UnableToFetchInclusionData);
         };
+
+        // - if inclusion data is `Some`, but empty - it means that the main node uses dummy inclusion proofs
+        //   it is a valid case, and we don't need to check that it matches the one from DA layer
+        //   (this is especially important for the process of migration from Stage 1 to Stage 2 Validium)
+        //
+        // - if inclusion data is `Some` and not empty - it has to match the one retrieved from the DA layer
+        if !expected_inclusion_data.is_empty() && expected_inclusion_data != inclusion_data.data {
+            return Err(to_fatal_error(anyhow::anyhow!(
+                "Inclusion data mismatch for DA blob id: {}; expected: {:?}, got: {:?}",
+                da_details.blob_id,
+                expected_inclusion_data,
+                inclusion_data.data
+            )));
+        }
 
         let mut connection = self
             .pool
             .connection_tagged("data_availability_fetcher")
             .await
-            .map_err(|err| DataAvailabilityFetcherError::Internal(err.generalize()))?;
+            .map_err(|err| to_fatal_error(err.generalize()))?;
         connection
             .data_availability_dal()
             .insert_l1_batch_da(
@@ -190,7 +208,7 @@ impl DataAvailabilityFetcher {
                 Some(inclusion_data.data.as_slice()),
             )
             .await
-            .map_err(|err| DataAvailabilityFetcherError::Internal(err.generalize()))?;
+            .map_err(|err| to_fatal_error(err.generalize()))?;
 
         tracing::debug!(
             "Updated L1 batch #{} with DA blob id: {}",
@@ -236,19 +254,19 @@ impl DataAvailabilityFetcher {
                     true
                 }
                 Err(err) => {
-                    match err {
-                        DataAvailabilityFetcherError::Rpc(e) => {}
-                        DataAvailabilityFetcherError::DALayer(e) => {}
-                        DataAvailabilityFetcherError::Internal(e) => {}
+                    if err.is_retriable {
+                        tracing::warn!(
+                            "Error in data availability fetcher, will retry after a delay: {err:?}"
+                        );
+                        let health = DataAvailabilityFetcherHealth::Affected {
+                            error: err.error.to_string(),
+                        };
+                        self.health_updater.update(health.into());
+                        true
+                    } else {
+                        tracing::error!("Fatal error in data availability fetcher: {err:?}");
+                        return Err(err.error);
                     }
-                    tracing::warn!(
-                        "Transient error in tree data fetcher, will retry after a delay: {err:?}"
-                    );
-                    let health = DataAvailabilityFetcherHealth::Affected {
-                        error: err.to_string(),
-                    };
-                    self.health_updater.update(health.into());
-                    true
                 }
             };
 
@@ -260,7 +278,7 @@ impl DataAvailabilityFetcher {
                 break;
             }
         }
-        tracing::info!("Stop signal received; tree data fetcher is shutting down");
+        tracing::info!("Stop signal received; data availability fetcher is shutting down");
         Ok(())
     }
 }

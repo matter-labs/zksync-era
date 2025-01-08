@@ -39,6 +39,7 @@ impl MethodTracer {
             | Web3Error::TooManyTopics
             | Web3Error::FilterNotFound
             | Web3Error::InvalidFilterBlockHash
+            | Web3Error::InvalidPubdataCommitmentMode(_)
             | Web3Error::LogsLimitExceeded(_, _, _) => ErrorCode::InvalidParams.code(),
             Web3Error::SubmitTransactionError(_, _)
             | Web3Error::SerializationError(_)

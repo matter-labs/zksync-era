@@ -10,7 +10,7 @@ use zksync_types::{
 };
 
 use crate::{
-    models::storage_data_availability::{L1BatchDA, StorageDABlob},
+    models::storage_data_availability::{L1BatchDA, StorageDABlob, StorageDADetails},
     Core,
 };
 
@@ -238,11 +238,11 @@ impl DataAvailabilityDal<'_, '_> {
         number: L1BatchNumber,
     ) -> DalResult<Option<DataAvailabilityDetails>> {
         Ok(sqlx::query_as!(
-            StorageDABlob,
+            StorageDADetails,
             r#"
             SELECT
-                l1_batch_number,
                 blob_id,
+                client_type,
                 inclusion_data,
                 sent_at
             FROM
@@ -256,7 +256,7 @@ impl DataAvailabilityDal<'_, '_> {
         .with_arg("number", &number)
         .fetch_optional(self.storage)
         .await?
-        .map(DataAvailabilityBlob::from))
+        .map(DataAvailabilityDetails::from))
     }
 
     pub async fn get_latest_batch_with_inclusion_data(

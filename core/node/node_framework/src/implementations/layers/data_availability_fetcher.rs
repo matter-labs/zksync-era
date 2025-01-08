@@ -18,10 +18,7 @@ use crate::{
 
 /// Wiring layer for [`DataAvailabilityFetcher`].
 #[derive(Debug)]
-pub struct DataAvailabilityFetcherLayer {
-    l1_diamond_proxy_addr: Address,
-    l2_chain_id: L2ChainId,
-}
+pub struct DataAvailabilityFetcherLayer {}
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
@@ -41,11 +38,8 @@ pub struct Output {
 }
 
 impl DataAvailabilityFetcherLayer {
-    pub fn new(l1_diamond_proxy_addr: Address, l2_chain_id: L2ChainId) -> Self {
-        Self {
-            l1_diamond_proxy_addr,
-            l2_chain_id,
-        }
+    pub fn new() -> Self {
+        Self {}
     }
 }
 

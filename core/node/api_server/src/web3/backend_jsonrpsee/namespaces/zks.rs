@@ -233,6 +233,8 @@ impl ZksNamespaceServer for ZksNamespace {
         batch: L1BatchNumber,
     ) -> RpcResult<DataAvailabilityDetails> {
         self.get_data_availability_details_impl(batch)
+            .await
+            .map_err(|err| self.current_method().map_err(err))
     }
 }
 
