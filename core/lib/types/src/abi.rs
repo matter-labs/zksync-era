@@ -256,15 +256,16 @@ impl ProposedUpgrade {
     /// Pre-gateway RLP schema of the `ProposedUpgrade`.
     pub fn schema_pre_gateway() -> ParamType {
         ParamType::Tuple(vec![
-            L2CanonicalTransaction::schema(), // transaction data
-            ParamType::FixedBytes(32),        // bootloader code hash
-            ParamType::FixedBytes(32),        // default account code hash
-            ParamType::Address,               // verifier address
-            VerifierParams::schema(),         // verifier params
-            ParamType::Bytes,                 // l1 custom data
-            ParamType::Bytes,                 // l1 post-upgrade custom data
-            ParamType::Uint(256),             // timestamp
-            ParamType::Uint(256),             // version id
+            L2CanonicalTransaction::schema(),          // transaction data
+            ParamType::Array(ParamType::Bytes.into()), // factory deps
+            ParamType::FixedBytes(32),                 // bootloader code hash
+            ParamType::FixedBytes(32),                 // default account code hash
+            ParamType::Address,                        // verifier address
+            VerifierParams::schema(),                  // verifier params
+            ParamType::Bytes,                          // l1 custom data
+            ParamType::Bytes,                          // l1 post-upgrade custom data
+            ParamType::Uint(256),                      // timestamp
+            ParamType::Uint(256),                      // version id
         ])
     }
 
