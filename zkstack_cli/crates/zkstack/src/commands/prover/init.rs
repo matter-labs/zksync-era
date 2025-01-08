@@ -11,8 +11,8 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     copy_configs, get_link_to_prover, raw::PatchedConfig, set_prover_database, EcosystemConfig,
+    ObjectStoreConfig, ObjectStoreMode,
 };
-use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 
 use super::{
     args::init::{ProofStorageConfig, ProofStorageFileBacked, ProverInitArgs},
@@ -121,7 +121,6 @@ fn get_object_store_config(
                 gcs_credential_file_path: config.credentials_file,
             },
             max_retries: PROVER_STORE_MAX_RETRIES,
-            local_mirror_path: None,
         }),
         Some(ProofStorageConfig::GCSCreateBucket(config)) => {
             Some(create_gcs_bucket(shell, config)?)
@@ -147,12 +146,6 @@ fn set_object_store(
                 file_backed_base_path,
             )?;
         }
-        ObjectStoreMode::GCS { bucket_base_url } => {
-            patch.insert(
-                &format!("{prefix}.gcs.bucket_base_url"),
-                bucket_base_url.clone(),
-            )?;
-        }
         ObjectStoreMode::GCSWithCredentialFile {
             bucket_base_url,
             gcs_credential_file_path,
@@ -164,12 +157,6 @@ fn set_object_store(
             patch.insert(
                 &format!("{prefix}.gcs_with_credential_file.gcs_credential_file_path"),
                 gcs_credential_file_path.clone(),
-            )?;
-        }
-        ObjectStoreMode::GCSAnonymousReadOnly { bucket_base_url } => {
-            patch.insert(
-                &format!("{prefix}.gcs_anonymous_read_only.bucket_base_url"),
-                bucket_base_url.clone(),
             )?;
         }
     }
@@ -220,7 +207,6 @@ fn init_file_backed_proof_storage(
             file_backed_base_path: config.proof_store_dir,
         },
         max_retries: PROVER_STORE_MAX_RETRIES,
-        local_mirror_path: None,
     };
 
     Ok(object_store_config)

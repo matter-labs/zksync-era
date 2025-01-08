@@ -95,7 +95,7 @@ enum ProofStoreConfig {
 
 #[derive(Debug, Clone, ValueEnum, EnumIter, strum::Display, PartialEq, Eq, Serialize)]
 #[allow(clippy::upper_case_acronyms)]
-pub enum InternalCloudConnectionMode {
+pub(crate) enum InternalCloudConnectionMode {
     GCP,
     #[serde(rename = "LOCAL")] // match name in file-based configs
     Local,
@@ -179,7 +179,7 @@ pub struct ProverDatabaseConfig {
 }
 
 #[derive(Debug, Clone)]
-pub struct ProverInitArgsFinal {
+pub(crate) struct ProverInitArgsFinal {
     pub proof_store: ProofStorageConfig,
     pub public_store: Option<ProofStorageConfig>,
     pub compressor_key_args: Option<CompressorKeysArgs>,

@@ -1,6 +1,7 @@
 pub use crate::{
     apps::*, chain::*, consts::*, contracts::*, ecosystem::*, file_config::*, gateway::*,
-    general::*, genesis::*, manipulations::*, secrets::*, wallet_creation::*, wallets::*,
+    general::*, genesis::*, manipulations::*, object_store::*, secrets::*, wallet_creation::*,
+    wallets::*,
 };
 
 mod apps;
@@ -18,6 +19,7 @@ mod gateway;
 mod general;
 mod genesis;
 mod manipulations;
+mod object_store;
 pub mod portal;
 pub mod raw;
 mod secrets;

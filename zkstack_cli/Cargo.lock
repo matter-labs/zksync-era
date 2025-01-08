@@ -7076,7 +7076,6 @@ dependencies = [
  "zkstack_cli_config",
  "zkstack_cli_types",
  "zksync_basic_types",
- "zksync_config",
  "zksync_consensus_crypto",
  "zksync_consensus_roles",
  "zksync_contracts",
