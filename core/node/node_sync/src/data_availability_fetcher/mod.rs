@@ -4,7 +4,6 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use serde::Serialize;
-#[cfg(test)]
 use tokio::sync::watch;
 use zksync_da_client::DataAvailabilityClient;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
