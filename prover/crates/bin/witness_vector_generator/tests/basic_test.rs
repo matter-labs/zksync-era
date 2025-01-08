@@ -1,8 +1,8 @@
 use std::fs;
 
-use zksync_prover_fri_types::{CircuitWrapper, ProverJob, ProverServiceDataKey};
+use zksync_prover_fri_types::{CircuitWrapper, ProverJob, ProverServiceDataKey, ProvingStage};
 use zksync_prover_keystore::keystore::Keystore;
-use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
+use zksync_types::L1BatchNumber;
 use zksync_witness_vector_generator::generator::WitnessVectorGenerator;
 
 #[test]
@@ -14,7 +14,7 @@ fn test_generate_witness_vector() {
         .expect("circuit wrapper deserialization failed");
     let key = ProverServiceDataKey {
         circuit_id: 1,
-        round: AggregationRound::BasicCircuits,
+        stage: ProvingStage::BasicCircuits,
     };
     let job = ProverJob {
         block_number: L1BatchNumber(1),

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use circuit_sequencer_api_1_3_3::INITIAL_MONOTONIC_CYCLE_COUNTER;
+use circuit_sequencer_api::INITIAL_MONOTONIC_CYCLE_COUNTER;
 use zk_evm_1_3_1::{
     abstractions::{MAX_HEAP_PAGE_SIZE_IN_WORDS, MAX_MEMORY_BYTES},
     aux_structures::{MemoryPage, Timestamp},
@@ -15,7 +15,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{
     address_to_u256, bytecode::BytecodeHash, fee_model::L1PeggedBatchFeeModelInput, h256_to_u256,
-    Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
+    Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, U256,
 };
 
 use crate::{
@@ -33,6 +33,8 @@ use crate::{
         OracleTools, VmInstance,
     },
 };
+
+pub(crate) const MAX_NEW_FACTORY_DEPS: usize = 32;
 
 // TODO (SMA-1703): move these to config and make them programmatically generable.
 // fill these values in the similar fashion as other overhead-related constants

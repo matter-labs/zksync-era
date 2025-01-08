@@ -11,14 +11,6 @@ On the gossipnet, the data integrity will be protected by the BFT (byzantine fau
 
 > [!NOTE]
 >
-> Because the data transmitted over the gossipnet is signed by the main node (and eventually by the consensus quorum),
-> the signatures need to be backfilled to the node's local storage the first time you switch from centralized (ZKsync
-> API based) synchronization to the decentralized (gossipnet based) synchronization (this is a one-time thing). With the
-> current implementation it may take a couple of hours and gets faster the more nodes you add to the
-> `gossip_static_outbound` list (see below). We are working to remove this inconvenience.
-
-> [!NOTE]
->
 > The minimal supported server version for this is
 > [24.11.0](https://github.com/matter-labs/zksync-era/releases/tag/core-v24.11.0)
 
@@ -65,9 +57,6 @@ for more details):
   your node from getting DoS`ed by too large network messages. Use the value from the template.
 - `gossip_dynamic_inbound_limit` - maximal number of unauthenticated concurrent inbound connections that can be
   established to your node. This is a DDoS protection measure.
-- `gossip_static_outbound` - list of trusted peers that your node should always try to connect to. The template contains
-  the nodes maintained by Matterlabs, but you can add more if you know any. Note that the list contains both the network
-  address AND the public key of the node - this prevents spoofing attacks.
 
 ### Setting environment variables
 

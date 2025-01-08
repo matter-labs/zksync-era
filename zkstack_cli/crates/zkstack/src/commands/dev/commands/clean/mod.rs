@@ -38,7 +38,7 @@ pub fn containers(shell: &Shell) -> anyhow::Result<()> {
 }
 
 pub fn contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
-    let path_to_foundry = ecosystem_config.path_to_foundry();
+    let path_to_foundry = ecosystem_config.path_to_l1_foundry();
     let contracts_path = ecosystem_config.link_to_code.join("contracts");
     logger::info(MSG_CONTRACTS_CLEANING);
     shell
