@@ -10,9 +10,8 @@ use zksync_db_connection::{
 };
 use zksync_types::{
     api, api::TransactionReceipt, block::build_bloom, Address, BloomInput, L2BlockNumber,
-    L2ChainId, Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
+    L2ChainId, Transaction, H256, U256,
 };
-use zksync_vm_interface::VmEvent;
 
 use crate::{
     models::storage_transaction::{
@@ -34,35 +33,20 @@ pub struct TransactionsWeb3Dal<'a, 'c> {
 }
 
 impl TransactionsWeb3Dal<'_, '_> {
-    /// Returns receipts by transactions hashes.
-    /// Hashes are expected to be unique.
+    /// Returns receipts by transactions hashes. Hashes are expected to be unique.
+    ///
+    /// # Important!
+    ///
+    /// The returned receipts do not have `contract_address` set; this field needs to be filled separately.
     pub async fn get_transaction_receipts(
         &mut self,
         hashes: &[H256],
     ) -> DalResult<Vec<TransactionReceipt>> {
         let hash_bytes: Vec<_> = hashes.iter().map(H256::as_bytes).collect();
 
-        // Clarification for first part of the query(`WITH` clause):
-        // Looking for `ContractDeployed` event in the events table
-        // to find the address of deployed contract
         let st_receipts: Vec<StorageTransactionReceipt> = sqlx::query_as!(
             StorageTransactionReceipt,
             r#"
-            WITH
-            events AS (
-                SELECT DISTINCT
-                ON (events.tx_hash) *
-                FROM
-                    events
-                WHERE
-                    events.address = $1
-                    AND events.topic1 = $2
-                    AND events.tx_hash = ANY($3)
-                ORDER BY
-                    events.tx_hash,
-                    events.event_index_in_tx DESC
-            )
-            
             SELECT
                 transactions.hash AS tx_hash,
                 transactions.index_in_block,
@@ -78,20 +62,16 @@ impl TransactionsWeb3Dal<'_, '_> {
                 transactions.gas_limit,
                 miniblocks.hash AS "block_hash",
                 miniblocks.l1_batch_number AS "l1_batch_number?",
-                events.topic4 AS "contract_address?",
                 miniblocks.timestamp AS "block_timestamp?"
             FROM
                 transactions
             JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
-            LEFT JOIN events ON events.tx_hash = transactions.hash
             WHERE
-                transactions.hash = ANY($3)
+                transactions.hash = ANY($1)
                 AND transactions.data != '{}'::jsonb
             "#,
             // ^ Filter out transactions with pruned data, which would lead to potentially incomplete / bogus
             // transaction info.
-            CONTRACT_DEPLOYER_ADDRESS.as_bytes(),
-            VmEvent::DEPLOY_EVENT_SIGNATURE.as_bytes(),
             &hash_bytes as &[&[u8]],
         )
         .instrument("get_transaction_receipts")

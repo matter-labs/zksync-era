@@ -6,7 +6,6 @@ use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use zksync_types::{
     api::{self, TransactionDetails, TransactionReceipt, TransactionStatus},
     fee::Fee,
-    h256_to_address,
     l1::{OpProcessingType, PriorityQueueType},
     l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTxCommonData,
@@ -351,7 +350,6 @@ pub(crate) struct StorageTransactionReceipt {
     pub refunded_gas: i64,
     pub gas_limit: Option<BigDecimal>,
     pub effective_gas_price: Option<BigDecimal>,
-    pub contract_address: Option<Vec<u8>>,
     pub initiator_address: Vec<u8>,
     pub block_timestamp: Option<i64>,
 }
@@ -401,9 +399,7 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
                     .map(bigdecimal_to_u256)
                     .unwrap_or_default(),
             ),
-            contract_address: storage_receipt
-                .contract_address
-                .map(|addr| h256_to_address(&H256::from_slice(&addr))),
+            contract_address: None, // Must be filled in separately
             logs: vec![],
             l2_to_l1_logs: vec![],
             status,
