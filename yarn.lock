@@ -11378,5 +11378,5 @@ zksync-ethers@^6.9.0:
   integrity sha512-2CppwvLHtz689L7E9EhevbFtsqVukKC/lVicwdeUS2yqV46ET4iBR11rYdEfGW2oEo1h6yJuuwIBDFm2SybkIA==
 
 "zksync-ethers@https://github.com/zksync-sdk/zksync-ethers#sb-use-new-encoding-in-sdk":
-  version "6.12.1"
-  resolved "https://github.com/zksync-sdk/zksync-ethers#bc6e3ab201f743fcbb53e0216f3de421bb3a617f"
+  version "6.15.2"
+  resolved "https://github.com/zksync-sdk/zksync-ethers#10f6cec39658f4ac4fda34979509bbdbf5fb43db"

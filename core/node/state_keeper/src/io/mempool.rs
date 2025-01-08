@@ -20,9 +20,7 @@ use zksync_types::{
     utils::display_timestamp,
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
 };
-use zksync_vm_executor::storage::{
-    get_base_system_contracts_hashes_by_version_id, L1BatchParamsProvider,
-};
+use zksync_vm_executor::storage::{get_base_system_contracts_by_version_id, L1BatchParamsProvider};
 
 use crate::{
     io::{
@@ -384,7 +382,7 @@ impl StateKeeperIO for MempoolIO {
         protocol_version: ProtocolVersionId,
         _cursor: &IoCursor,
     ) -> anyhow::Result<BaseSystemContracts> {
-        get_base_system_contracts_hashes_by_version_id(
+        get_base_system_contracts_by_version_id(
             &mut self.pool.connection_tagged("state_keeper").await?,
             protocol_version,
         )

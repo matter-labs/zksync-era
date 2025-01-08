@@ -13,7 +13,7 @@ use zksync_eth_client::{
 use zksync_system_constants::L2_MESSAGE_ROOT_ADDRESS;
 use zksync_types::{
     api::{ChainAggProof, Log},
-    ethabi::{decode, Contract, ParamType},
+    ethabi::{self, decode, Contract, ParamType},
     tokens::TokenMetadata,
     web3::{BlockId, BlockNumber, CallRequest, Filter, FilterBuilder},
     Address, L1BatchNumber, L2ChainId, SLChainId, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256,
@@ -79,7 +79,7 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     ) -> Result<H256, ContractCallError>;
 }
 
-// This constant is used for reading auxilary events
+// This constant is used for reading auxiliary events
 const LOOK_BACK_BLOCK_RANGE: u64 = 1_000_000;
 pub const RETRY_LIMIT: usize = 5;
 const TOO_MANY_RESULTS_INFURA: &str = "query returned more than";
@@ -459,10 +459,11 @@ where
             });
         }
 
+        // TODO(EVM-934): support non-standard tokens.
         let selectors: [[u8; 4]; 3] = [
-            zksync_types::ethabi::short_signature("name", &[]),
-            zksync_types::ethabi::short_signature("symbol", &[]),
-            zksync_types::ethabi::short_signature("decimals", &[]),
+            ethabi::short_signature("name", &[]),
+            ethabi::short_signature("symbol", &[]),
+            ethabi::short_signature("decimals", &[]),
         ];
         let types: [ParamType; 3] = [ParamType::String, ParamType::String, ParamType::Uint(32)];
 
@@ -475,7 +476,7 @@ where
             };
             let result = self.client.call_contract_function(request, None).await?;
             // Base tokens are expected to support erc20 metadata
-            let mut token = zksync_types::ethabi::decode(&[param_type], &result.0)
+            let mut token = ethabi::decode(&[param_type], &result.0)
                 .expect("base token does not support erc20 metadata");
             decoded_result.push(token.pop().unwrap());
         }
