@@ -155,16 +155,6 @@ impl Distribution<configs::PrometheusConfig> for EncodeDist {
     }
 }
 
-impl Distribution<configs::chain::NetworkConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::chain::NetworkConfig {
-        configs::chain::NetworkConfig {
-            network: Sample::sample(rng),
-            zksync_network: self.sample(rng),
-            zksync_network_id: L2ChainId::max(),
-        }
-    }
-}
-
 impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
     #[allow(deprecated)]
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::chain::StateKeeperConfig {
