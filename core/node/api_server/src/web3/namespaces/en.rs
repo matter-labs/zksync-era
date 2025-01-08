@@ -1,12 +1,14 @@
 use anyhow::Context as _;
-use zksync_config::{configs::EcosystemContracts, GenesisConfig};
 use zksync_consensus_roles::validator;
 use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
     api::en, protocol_version::ProtocolSemanticVersion, tokens::TokenInfo, Address, L1BatchNumber,
     L2BlockNumber,
 };
-use zksync_web3_decl::error::Web3Error;
+use zksync_web3_decl::{
+    error::Web3Error,
+    types::{EcosystemContractsDto, GenesisConfigDto},
+};
 
 use crate::web3::{backend_jsonrpsee::MethodTracer, state::RpcState};
 
@@ -147,12 +149,12 @@ impl EnNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn get_ecosystem_contracts_impl(&self) -> Result<EcosystemContracts, Web3Error> {
+    pub async fn get_ecosystem_contracts_impl(&self) -> Result<EcosystemContractsDto, Web3Error> {
         Ok(self
             .state
             .api_config
             .l1_bridgehub_proxy_addr
-            .map(|bridgehub_proxy_addr| EcosystemContracts {
+            .map(|bridgehub_proxy_addr| EcosystemContractsDto {
                 bridgehub_proxy_addr,
                 state_transition_proxy_addr: self
                     .state
@@ -171,7 +173,7 @@ impl EnNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn genesis_config_impl(&self) -> Result<GenesisConfig, Web3Error> {
+    pub async fn genesis_config_impl(&self) -> Result<GenesisConfigDto, Web3Error> {
         // If this method will cause some load, we can cache everything in memory
         let mut storage = self.state.acquire_connection().await?;
         let genesis_batch = storage
@@ -203,13 +205,13 @@ impl EnNamespace {
             .map_err(DalError::generalize)?
             .context("Genesis not finished")?;
 
-        let config = GenesisConfig {
-            protocol_version: Some(protocol_version),
-            genesis_root_hash: Some(genesis_batch.metadata.root_hash),
-            rollup_last_leaf_index: Some(genesis_batch.metadata.rollup_last_leaf_index),
-            genesis_commitment: Some(genesis_batch.metadata.commitment),
-            bootloader_hash: Some(genesis_batch.header.base_system_contracts_hashes.bootloader),
-            default_aa_hash: Some(genesis_batch.header.base_system_contracts_hashes.default_aa),
+        let config = GenesisConfigDto {
+            protocol_version,
+            genesis_root_hash: genesis_batch.metadata.root_hash,
+            rollup_last_leaf_index: genesis_batch.metadata.rollup_last_leaf_index,
+            genesis_commitment: genesis_batch.metadata.commitment,
+            bootloader_hash: genesis_batch.header.base_system_contracts_hashes.bootloader,
+            default_aa_hash: genesis_batch.header.base_system_contracts_hashes.default_aa,
             evm_emulator_hash: genesis_batch
                 .header
                 .base_system_contracts_hashes
@@ -224,8 +226,6 @@ impl EnNamespace {
                 .state
                 .api_config
                 .l1_batch_commit_data_generator_mode,
-            // external node should initialise itself from a snapshot
-            custom_genesis_state_path: None,
         };
         Ok(config)
     }

@@ -1,9 +1,7 @@
-// External uses
-use serde::{Deserialize, Serialize};
-// Workspace uses
+use serde::Deserialize;
 use zksync_basic_types::{Address, H256};
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct EcosystemContracts {
     pub bridgehub_proxy_addr: Address,
     pub state_transition_proxy_addr: Address,

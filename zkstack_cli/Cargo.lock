@@ -7195,20 +7195,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_config"
-version = "26.2.1-non-semver-compat"
-dependencies = [
- "anyhow",
- "rand",
- "secrecy",
- "serde",
- "zksync_basic_types",
- "zksync_concurrency",
- "zksync_consensus_utils",
- "zksync_crypto_primitives",
-]
-
-[[package]]
 name = "zksync_consensus_crypto"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7302,7 +7288,6 @@ dependencies = [
  "thiserror",
  "tracing",
  "vise",
- "zksync_config",
  "zksync_contracts",
  "zksync_eth_signer",
  "zksync_types",
@@ -7464,7 +7449,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_config",
  "zksync_types",
 ]
 
