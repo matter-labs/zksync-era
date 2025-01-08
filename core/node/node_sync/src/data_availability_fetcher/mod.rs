@@ -5,17 +5,13 @@ use std::time::Duration;
 use anyhow::Context as _;
 use serde::Serialize;
 #[cfg(test)]
-use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_da_client::DataAvailabilityClient;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_types::{
-    block::L2BlockHeader, web3::contract::Error, Address, L1BatchNumber, L2ChainId,
-};
+use zksync_types::L1BatchNumber;
 use zksync_web3_decl::{
-    client::{DynClient, L1, L2},
-    error::EnrichedClientError,
+    client::{DynClient, L2},
     namespaces::ZksNamespaceClient,
 };
 
