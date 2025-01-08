@@ -36,9 +36,6 @@ zksync_eth_client = { path = "../core/lib/eth_client" }
 zksync_contracts = { path = "../core/lib/contracts" }
 zksync_consensus_roles = "=0.8.0"
 zksync_consensus_crypto = "=0.8.0"
-zksync_consensus_utils = "=0.8.0"
-zksync_protobuf = "=0.8.0"
-zksync_protobuf_build = "=0.8.0"
 
 # External dependencies
 anyhow = "1.0.82"

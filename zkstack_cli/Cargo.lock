@@ -7059,7 +7059,6 @@ dependencies = [
  "human-panic",
  "lazy_static",
  "prost 0.12.6",
- "rand",
  "reqwest 0.12.9",
  "secrecy",
  "serde",
@@ -7080,10 +7079,8 @@ dependencies = [
  "zksync_config",
  "zksync_consensus_crypto",
  "zksync_consensus_roles",
- "zksync_consensus_utils",
  "zksync_contracts",
  "zksync_eth_client",
- "zksync_protobuf",
  "zksync_system_constants",
  "zksync_types",
  "zksync_web3_decl",
@@ -7137,8 +7134,6 @@ dependencies = [
  "zkstack_cli_common",
  "zkstack_cli_types",
  "zksync_basic_types",
- "zksync_config",
- "zksync_protobuf",
  "zksync_system_constants",
 ]
 
