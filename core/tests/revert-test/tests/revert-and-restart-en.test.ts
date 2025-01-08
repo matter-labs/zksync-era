@@ -157,9 +157,9 @@ describe('Block reverting test', function () {
         const walletsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
 
         ethClientWeb3Url = secretsConfig.l1.l1_rpc_url;
-        apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
+        apiWeb3JsonRpcHttpUrl = `http://127.0.0.1:${generalConfig.api.web3_json_rpc.http_port}`;
         baseTokenAddress = contractsConfig.l1.base_token_addr;
-        enEthClientUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
+        enEthClientUrl = `http://127.0.0.1:${externalNodeGeneralConfig.api.web3_json_rpc.http_port}`;
         operatorAddress = walletsConfig.operator.address;
 
         const pathToMainLogs = await logsPath('server.log');

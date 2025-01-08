@@ -119,7 +119,7 @@ describe('Upgrade test', function () {
             config: 'secrets.yaml'
         });
         ethProviderAddress = secretsConfig.l1.l1_rpc_url;
-        web3JsonRpc = generalConfig.api.web3_json_rpc.http_url;
+        web3JsonRpc = `http://127.0.0.1:${generalConfig.api.web3_json_rpc.http_port}`;
         contractsL2DefaultUpgradeAddr = contractsConfig.l2.default_l2_upgrader;
         bytecodeSupplier = contractsConfig.ecosystem_contracts.l1_bytecodes_supplier_addr;
         contractsPriorityTxMaxGasLimit = '72000000';

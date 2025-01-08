@@ -80,7 +80,7 @@ jobs:
           ci_run zkstack ecosystem init --dev --update-submodules=${{matrix.compressor-mode == 'plonk'}} --verbose
 
           ci_run zkstack prover init --dev --verbose
-          echo "URL=$(grep "http_url" ./chains/proving_chain/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
+          echo "URL=http://127.0.0.1:$(grep "http_port" ./chains/proving_chain/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
 
       - name: Switch verifier to FFLONK interface
         working-directory: ./chains/proving_chain/configs

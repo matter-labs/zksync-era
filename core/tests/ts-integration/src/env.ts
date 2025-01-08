@@ -91,9 +91,7 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
 
     const network = ecosystem.l1_network.toLowerCase();
     let mainWalletPK = getMainWalletPk(pathToHome);
-
-    const l2NodeUrl = generalConfig.api.web3_json_rpc.http_url;
-
+    const l2NodeUrl = `http://127.0.0.1:${generalConfig.api.web3_json_rpc.http_port}`;
     const l1NodeUrl = secretsConfig.l1.l1_rpc_url;
 
     const pathToMainLogs = await logsPath(fileConfig.chain!, 'server.log');
