@@ -73,9 +73,7 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::api::Web3JsonRpcConfig {
         configs::api::Web3JsonRpcConfig {
             http_port: self.sample(rng),
-            http_url: self.sample(rng),
             ws_port: self.sample(rng),
-            ws_url: self.sample(rng),
             req_entities_limit: self.sample(rng),
             filters_disabled: self.sample(rng),
             filters_limit: self.sample(rng),
