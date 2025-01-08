@@ -288,6 +288,8 @@ where
         &self,
         hashes: Vec<H256>,
     ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>> {
+        println!("\n\nhere5\n\n");
+
         let Some(bytecode_supplier_addr) = self.bytecode_supplier_addr else {
             return Ok(vec![None; hashes.len()]);
         };
@@ -309,7 +311,10 @@ where
         let mut preimages = HashMap::new();
         for log in logs {
             let hash = log.topics[1];
+            println!("\n\nhere4\n\n");
             let preimage = decode(&[ParamType::Bytes], &log.data.0).expect("Invalid encoding");
+
+            println!("\n\nhere5\n\n");
             assert_eq!(preimage.len(), 1);
             let preimage = preimage[0].clone().into_bytes().unwrap();
             preimages.insert(hash, preimage);

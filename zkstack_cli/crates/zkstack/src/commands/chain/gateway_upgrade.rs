@@ -39,9 +39,12 @@ use crate::{
         admin_execute_upgrade, admin_schedule_upgrade, admin_update_validator,
         set_da_validator_pair,
     },
-    commands::dev::commands::gateway::{
-        fetch_chain_info, get_admin_call_builder, set_upgrade_timestamp_calldata, DAMode,
-        GatewayUpgradeArgsInner, GatewayUpgradeInfo,
+    commands::{
+        chain,
+        dev::commands::gateway::{
+            check_chain_readiness, fetch_chain_info, get_admin_call_builder,
+            set_upgrade_timestamp_calldata, DAMode, GatewayUpgradeArgsInner, GatewayUpgradeInfo,
+        },
     },
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
     utils::forge::{fill_forge_private_key, WalletOwner},
@@ -285,9 +288,25 @@ async fn finalize_stage1(
 ) -> anyhow::Result<()> {
     println!("Finalizing stage1 of chain upgrade!");
 
-    let mut contracts_config = chain_config.get_contracts_config()?;
+    let contracts_config = chain_config.get_contracts_config()?;
     let general_config = chain_config.get_general_config()?;
     let genesis_config = chain_config.get_genesis_config()?;
+
+    println!("Checking chain readiness...");
+    check_chain_readiness(
+        l1_url.clone(),
+        general_config
+            .api_config
+            .as_ref()
+            .context("api")?
+            .web3_json_rpc
+            .http_url
+            .clone(),
+        chain_config.chain_id.as_u64(),
+    )
+    .await?;
+
+    println!("The chain is ready!");
 
     let gateway_ecosystem_preparation_output =
         GatewayEcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;

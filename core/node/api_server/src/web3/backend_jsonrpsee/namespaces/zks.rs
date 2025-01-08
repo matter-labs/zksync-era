@@ -227,6 +227,12 @@ impl ZksNamespaceServer for ZksNamespace {
             })
             .map_err(|err| self.current_method().map_err(err))
     }
+
+    async fn get_inflight_txs_count(&self) -> RpcResult<usize> {
+        self.get_inflight_txs_count_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
 }
 
 fn map_event(vm_event: &VmEvent) -> Log {

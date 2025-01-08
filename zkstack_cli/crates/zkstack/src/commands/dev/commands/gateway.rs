@@ -1,4 +1,4 @@
-use std::{any, str::FromStr, sync::Arc};
+use std::{any, num::NonZeroUsize, str::FromStr, sync::Arc};
 
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
@@ -18,11 +18,17 @@ use serde::{Deserialize, Serialize};
 use strum::EnumIter;
 use xshell::{cmd, Shell};
 use zksync_config::configs::{chain, consensus::ProtocolVersion};
-use zksync_contracts::DIAMOND_CUT;
+use zksync_contracts::{chain_admin_contract, hyperchain_contract, DIAMOND_CUT};
 use zksync_types::{
-    l2,
+    ethabi, l2,
+    url::SensitiveUrl,
     web3::{keccak256, Bytes},
-    Address, ProtocolVersionId, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS, U256,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256,
+    L2_NATIVE_TOKEN_VAULT_ADDRESS, U256,
+};
+use zksync_web3_decl::{
+    client::{Client, DynClient, L2},
+    namespaces::ZksNamespaceClient,
 };
 
 use crate::{
@@ -115,7 +121,9 @@ abigen!(
     ZKChainAbi,
     r"[
     function getPubdataPricingMode()(uint256)
-    function getBaseToken()(address) 
+    function getBaseToken()(address)
+    function getTotalBatchesCommitted() external view returns (uint256)
+    function getTotalBatchesVerified() external view returns (uint256)
 ]"
 );
 
@@ -126,6 +134,74 @@ abigen!(
     function validators(uint256 _chainId, address _validator)(bool)
 ]"
 );
+
+async fn verify_next_batch_new_version(
+    batch_number: u32,
+    main_node_client: &Box<DynClient<L2>>,
+) -> anyhow::Result<()> {
+    let (_, right_bound) = main_node_client
+        .get_l2_block_range(L1BatchNumber(batch_number))
+        .await?
+        .context("Range must be present for a batch")?;
+
+    let next_l2_block = right_bound + 1;
+
+    let block_details = main_node_client
+        .get_block_details(L2BlockNumber(next_l2_block.as_u32()))
+        .await?
+        .with_context(|| format!("No L2 block is present after the batch {}", batch_number))?;
+
+    let protocol_version = block_details.protocol_version.with_context(|| {
+        format!(
+            "Protocol version not present for block {}",
+            next_l2_block.as_u64()
+        )
+    })?;
+    anyhow::ensure!(
+        protocol_version >= ProtocolVersionId::gateway_upgrade(),
+        "THe block does not yet contain the gateway upgrade"
+    );
+
+    Ok(())
+}
+
+// FIXME: make it more easy to use
+pub async fn check_chain_readiness(
+    l1_rpc_url: String,
+    l2_rpc_url: String,
+    l2_chain_id: u64,
+) -> anyhow::Result<()> {
+    let l1_provider = match Provider::<Http>::try_from(&l1_rpc_url) {
+        Ok(provider) => provider,
+        Err(err) => {
+            anyhow::bail!("Connection error: {:#?}", err);
+        }
+    };
+    let l1_client = Arc::new(l1_provider);
+
+    let l2_client = Client::http(SensitiveUrl::from_str(&l2_rpc_url).unwrap())
+        .context("failed creating JSON-RPC client for main node")?
+        .for_network(L2ChainId::new(l2_chain_id).unwrap().into())
+        .with_allowed_requests_per_second(NonZeroUsize::new(100 as usize).unwrap())
+        .build();
+    let l2_client = Box::new(l2_client) as Box<DynClient<L2>>;
+
+    let inflight_txs_count: usize = l2_client.get_inflight_txs_count().await?;
+    let diamond_proxy_addr = l2_client.get_main_contract().await?;
+
+    if inflight_txs_count != 0 {
+        anyhow::bail!("Chain not ready since there are inflight txs!");
+    }
+
+    let zkchain = ZKChainAbi::new(diamond_proxy_addr, l1_client.clone());
+    let batches_committed = zkchain.get_total_batches_committed().await?.as_u32();
+    let batches_verified = zkchain.get_total_batches_verified().await?.as_u32();
+
+    verify_next_batch_new_version(batches_committed, &l2_client).await?;
+    verify_next_batch_new_version(batches_verified, &l2_client).await?;
+
+    Ok(())
+}
 
 async fn verify_correct_l2_wrapped_base_token(
     l2_rpc_url: String,
@@ -462,8 +538,8 @@ where
 pub struct AdminCallBuilder {
     calls: Vec<AdminCall>,
     validator_timelock_abi: BaseContract,
-    zkchain_abi: BaseContract,
-    chain_admin_abi: BaseContract,
+    zkchain_abi: ethabi::Contract,
+    chain_admin_abi: ethabi::Contract,
 }
 
 impl AdminCallBuilder {
@@ -476,20 +552,8 @@ impl AdminCallBuilder {
                 ])
                 .unwrap(),
             ),
-            zkchain_abi: BaseContract::from(
-                parse_abi(&[
-                    "function upgradeChainFromVersion(uint256,tuple(tuple(address,uint8,bool,bytes4[])[],address,bytes))",
-                    "function setDAValidatorPair(address _l1DAValidator, address _l2DAValidator)",
-                    "function makePermanentRollup() external"
-                ])
-                .unwrap(),
-            ),
-            chain_admin_abi: BaseContract::from(
-                parse_abi(&[
-                    "function multicall(tuple(address target, uint256 value, bytes data)[], bool)",
-                ])
-                .unwrap(),
-            )
+            zkchain_abi: hyperchain_contract(),
+            chain_admin_abi: chain_admin_contract(),
         }
     }
 
@@ -528,10 +592,9 @@ impl AdminCallBuilder {
 
         let data = self
             .zkchain_abi
-            .encode(
-                "upgradeChainFromVersion",
-                (U256::from(protocol_version), diamond_cut),
-            )
+            .function("upgradeChainFromVersion")
+            .unwrap()
+            .encode_input(&[Token::Uint(protocol_version.into()), diamond_cut])
             .unwrap();
         let description = "Executing upgrade:".to_string();
 
@@ -553,7 +616,12 @@ impl AdminCallBuilder {
     ) {
         let data = self
             .zkchain_abi
-            .encode("setDAValidatorPair", (l1_da_validator, l2_da_validator))
+            .function("setDAValidatorPair")
+            .unwrap()
+            .encode_input(&[
+                Token::Address(l1_da_validator),
+                Token::Address(l2_da_validator),
+            ])
             .unwrap();
         let description = "Executing upgrade:".to_string();
 
@@ -568,7 +636,12 @@ impl AdminCallBuilder {
     }
 
     pub fn append_make_permanent_rollup(&mut self, hyperchain_addr: Address) {
-        let data = self.zkchain_abi.encode("makePermanentRollup", ()).unwrap();
+        let data = self
+            .zkchain_abi
+            .function("makePermanentRollup")
+            .unwrap()
+            .encode_input(&[])
+            .unwrap();
         let description = "Make permanent rollup:".to_string();
 
         let call = AdminCall {
@@ -593,8 +666,10 @@ impl AdminCallBuilder {
         let tokens: Vec<_> = self.calls.into_iter().map(|x| x.into_token()).collect();
 
         let data = self
-            .zkchain_abi
-            .encode("multicall", (Token::Tuple(tokens), Token::Bool(true)))
+            .chain_admin_abi
+            .function("multicall")
+            .unwrap()
+            .encode_input(&[Token::Array(tokens), Token::Bool(true)])
             .unwrap();
 
         data.to_vec()

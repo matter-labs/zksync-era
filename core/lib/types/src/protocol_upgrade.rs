@@ -126,6 +126,8 @@ async fn prepare_upgrade_call(
         return Ok(proposed_upgrade.l2_protocol_upgrade_tx.data.clone());
     }
 
+    println!("\n\nhere\n\n");
+
     // For gateway upgrade, things are bit more complex.
     // The source of truth for the code below is the one that is present in
     // `GatewayUpgrade.sol`.
@@ -136,6 +138,8 @@ async fn prepare_upgrade_call(
         )?[0]
             .clone(),
     )?;
+
+    println!("\n\nhere2\n\n");
 
     let gateway_upgrade_calldata = encode(&[
         Token::Address(encoded_input.ctm_deployer),
@@ -197,8 +201,11 @@ impl ProtocolUpgrade {
             abi::ProposedUpgrade::decode(upgrade.into_iter().next().unwrap()).unwrap();
         let bootloader_hash = H256::from_slice(&upgrade.bootloader_hash);
         let default_account_hash = H256::from_slice(&upgrade.default_account_hash);
+        println!("\n\nhere3\n\n");
 
         let tx = if upgrade.l2_protocol_upgrade_tx.tx_type != U256::zero() {
+            println!("\n\nhere4\n\n");
+
             let factory_deps = preimage_oracle
                 .get_protocol_upgrade_preimages(
                     upgrade

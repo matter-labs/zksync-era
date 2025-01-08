@@ -11,7 +11,7 @@ use zksync_types::{
     tee_types::TeeType,
     L1BatchNumber, L2ChainId,
 };
-use zksync_web3_decl::{error::Web3Error, types::H256};
+use zksync_web3_decl::{error::Web3Error, jsonrpsee::core::RpcResult, types::H256};
 
 use crate::web3::{backend_jsonrpsee::MethodTracer, RpcState};
 
@@ -138,5 +138,17 @@ impl UnstableNamespace {
             chain_id_leaf_proof,
             chain_id_leaf_proof_mask: chain_id_leaf_proof_mask as u64,
         }))
+    }
+
+    pub async fn get_inflight_txs_count_impl(&self) -> Result<usize, Web3Error> {
+        let mut connection = self.state.acquire_connection().await?;
+
+        let result = connection
+            .eth_sender_dal()
+            .get_inflight_txs_count()
+            .await
+            .map_err(DalError::generalize)?;
+
+        Ok(result)
     }
 }
