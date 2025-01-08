@@ -14,7 +14,7 @@ use ethers::{
 use tokio::time::MissedTickBehavior;
 use xshell::Shell;
 use zkstack_cli_common::{config::global_config, logger, wallets::Wallet};
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::{get_l2_http_url, EcosystemConfig};
 use zksync_basic_types::L2ChainId;
 use zksync_consensus_crypto::ByteFmt;
 use zksync_consensus_roles::{attester, validator};
@@ -217,7 +217,7 @@ impl Setup {
             chain,
             contracts,
             l2_chain_id,
-            l2_http_url: general.get("api.web3_json_rpc.http_url")?,
+            l2_http_url: get_l2_http_url(&general)?,
             genesis_attesters,
         })
     }

@@ -21,6 +21,7 @@ use zkstack_cli_config::{
         gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
         script_params::GATEWAY_PREPARATION,
     },
+    get_l2_http_url,
     traits::{ReadConfig, SaveConfig},
     EcosystemConfig,
 };
@@ -121,7 +122,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     .await?;
 
     let general_config = gateway_chain_config.get_general_config().await?;
-    let l2_rpc_url = general_config.get::<String>("api.web3_json_rpc.http_url")?;
+    let l2_rpc_url = get_l2_http_url(&general_config)?;
     let gateway_provider = Provider::<Http>::try_from(&l2_rpc_url)?;
 
     let client: Client<L2> = Client::http(l2_rpc_url.parse().context("invalid L2 RPC URL")?)?

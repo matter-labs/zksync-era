@@ -20,7 +20,7 @@ use zkstack_cli_config::{
         gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
         script_params::GATEWAY_PREPARATION,
     },
-    init_gateway_chain_config,
+    get_l2_http_url, init_gateway_chain_config,
     raw::PatchedConfig,
     traits::{ReadConfig, SaveConfig},
     EcosystemConfig,
@@ -173,7 +173,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     .governance_l2_tx_hash;
 
     let general_config = gateway_chain_config.get_general_config().await?;
-    let l2_rpc_url = general_config.get::<String>("api.web3_json_rpc.http_url")?;
+    let l2_rpc_url = get_l2_http_url(&general_config)?;
     let gateway_provider = Provider::<Http>::try_from(l2_rpc_url.clone())?;
 
     if hash == H256::zero() {

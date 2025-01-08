@@ -34,6 +34,18 @@ impl FileArtifacts {
     }
 }
 
+/// Obtains HTTP RPC URL for the main node based on its general config. The URL will have 127.0.0.1 host.
+pub fn get_l2_http_url(general_config: &RawConfig) -> anyhow::Result<String> {
+    let port = general_config.get::<u16>("api.web3_json_rpc.http_port")?;
+    Ok(format!("http://127.0.0.1:{port}"))
+}
+
+/// Obtains WS RPC URL for the main node based on its general config. The URL will have 127.0.0.1 host.
+pub fn get_l2_ws_url(general_config: &RawConfig) -> anyhow::Result<String> {
+    let port = general_config.get::<u16>("api.web3_json_rpc.ws_port")?;
+    Ok(format!("ws://127.0.0.1:{port}"))
+}
+
 pub fn set_rocks_db_config(config: &mut PatchedConfig, rocks_dbs: RocksDbs) -> anyhow::Result<()> {
     config.insert_path("db.state_keeper_db_path", &rocks_dbs.state_keeper)?;
     config.insert_path("db.merkle_tree.path", &rocks_dbs.merkle_tree)?;
