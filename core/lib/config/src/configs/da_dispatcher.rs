@@ -4,7 +4,8 @@ use serde::Deserialize;
 
 /// The default interval between the `da_dispatcher's` iterations.
 pub const DEFAULT_POLLING_INTERVAL_MS: u32 = 5000;
-/// The maximum number of rows to fetch from the database in a single query.
+/// The maximum number of rows to fetch from the database in a single query. The value has to be
+/// not too high to avoid the dispatcher iteration taking too much time.
 pub const DEFAULT_MAX_ROWS_TO_DISPATCH: u32 = 3;
 /// The maximum number of retries for the dispatch of a blob.
 pub const DEFAULT_MAX_RETRIES: u16 = 5;
