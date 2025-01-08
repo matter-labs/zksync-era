@@ -360,8 +360,6 @@ impl Distribution<configs::database::PostgresConfig> for EncodeDist {
             statement_timeout_sec: self.sample(rng),
             long_connection_threshold_ms: self.sample(rng),
             slow_query_threshold_ms: self.sample(rng),
-            test_server_url: self.sample(rng),
-            test_prover_url: self.sample(rng),
         }
     }
 }

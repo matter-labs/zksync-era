@@ -41,8 +41,6 @@ impl FromEnv for DatabaseSecrets {
 
 impl FromEnv for PostgresConfig {
     fn from_env() -> anyhow::Result<Self> {
-        let test_server_url = env::var("TEST_DATABASE_URL").ok();
-        let test_prover_url = env::var("TEST_DATABASE_PROVER_URL").ok();
         let max_connections = parse_optional_var("DATABASE_POOL_SIZE")?;
         let max_connections_master = parse_optional_var("DATABASE_POOL_SIZE_MASTER")?;
         let acquire_timeout_sec = parse_optional_var("DATABASE_ACQUIRE_TIMEOUT_SEC")?;
@@ -58,8 +56,6 @@ impl FromEnv for PostgresConfig {
             statement_timeout_sec,
             long_connection_threshold_ms,
             slow_query_threshold_ms,
-            test_server_url,
-            test_prover_url,
         })
     }
 }
