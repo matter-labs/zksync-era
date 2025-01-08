@@ -11,7 +11,7 @@ use config::{
 use ethers::{
     abi::{decode, encode, parse_abi, ParamType, Token},
     contract::{abigen, BaseContract, Contract},
-    providers::{admin, Http, Provider},
+    providers::{admin, Http, Middleware, Provider},
     utils::hex,
 };
 use serde::{Deserialize, Serialize};
@@ -127,6 +127,29 @@ abigen!(
 ]"
 );
 
+async fn verify_correct_l2_wrapped_base_token(
+    l2_rpc_url: String,
+    addr: Address,
+) -> anyhow::Result<()> {
+    // Connect to the L1 Ethereum network
+    let l2_provider = match Provider::<Http>::try_from(&l2_rpc_url) {
+        Ok(provider) => provider,
+        Err(err) => {
+            anyhow::bail!("Connection error: {:#?}", err);
+        }
+    };
+
+    let code = l2_provider.get_code(addr, None).await?;
+
+    if code.len() == 0 {
+        anyhow::bail!("L2 wrapped base token code can not be empty");
+    }
+
+    // TODO: also verify that the code is correct.
+
+    Ok(())
+}
+
 pub async fn fetch_chain_info(
     upgrade_info: &GatewayUpgradeInfo,
     args: &GatewayUpgradeArgsInner,
@@ -194,6 +217,16 @@ pub async fn fetch_chain_info(
             );
         }
 
+        if l2_predeployed_wrapped_base_token == Address::zero() {
+            anyhow::bail!("the chain does not contain wrapped base token. It is dangerous since the security of it depends on the chain admin");
+        }
+
+        verify_correct_l2_wrapped_base_token(
+            args.l2_rpc_url.clone(),
+            l2_predeployed_wrapped_base_token,
+        )
+        .await?;
+
         // Secondly, we check that the DA layer corresponds to the current pubdata pricing mode.
 
         // On L1 it is an enum with 0 meaaning a rollup and 1 meaning a validium.
@@ -204,10 +237,6 @@ pub async fn fetch_chain_info(
 
         if args.da_mode.is_rollup() != pricing_mode_rollup {
             anyhow::bail!("DA mode in consistent with the current system");
-        }
-
-        if l2_predeployed_wrapped_base_token != Address::zero() {
-            // FIXME: double check the correctness of the bytecode.
         }
     }
 
@@ -254,7 +283,7 @@ impl GatewayUpgradeInfo {
                 .native_token_vault_addr,
             l1_bytecodes_supplier_addr: gateway_ecosystem_upgrade
                 .deployed_addresses
-                .native_token_vault_addr,
+                .l1_bytecodes_supplier_addr,
             rollup_l1_da_validator_addr: gateway_ecosystem_upgrade
                 .deployed_addresses
                 .rollup_l1_da_validator_addr,

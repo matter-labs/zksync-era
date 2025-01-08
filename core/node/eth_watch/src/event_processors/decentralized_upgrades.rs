@@ -58,7 +58,10 @@ impl ProtocolUpgradePreimageOracle for &dyn EthClient {
         let mut result = vec![];
         for (i, preimage) in preimages.into_iter().enumerate() {
             let preimage = preimage.with_context(|| {
-                format!("Protocol upgrade preimage for {:#?} is missing", hashes[i])
+                format!(
+                    "Protocol upgrade preimage under id {i} for {:#?} is missing",
+                    hashes[i]
+                )
             })?;
             result.push(preimage);
         }

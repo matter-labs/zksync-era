@@ -160,8 +160,8 @@ async fn no_governance_prepare_gateway(
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     spinner.finish();
 
-    let forge_args = init_args.forge_args.clone();
-    let l1_rpc_url = init_args.l1_rpc_url.clone();
+    // let forge_args = init_args.forge_args.clone();
+    // let l1_rpc_url = init_args.l1_rpc_url.clone();
 
     let mut contracts_config = ecosystem_config.get_contracts_config()?;
 
@@ -212,113 +212,114 @@ async fn no_governance_prepare_gateway(
             Some(output.contracts_config.expected_rollup_l2_da_validator);
     }
 
-    let chain_create_args = ChainCreateArgsFinal {
-        chain_name: "gateway".to_string(),
-        chain_id: 505,
-        prover_version: ProverMode::NoProofs,
-        wallet_creation: WalletCreation::Localhost,
-        l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
-        wallet_path: None,
-        base_token: BaseToken::eth(),
-        set_as_default: false,
-        legacy_bridge: false,
-        evm_emulator: false,
-        update_submodules: Some(false),
-        link_to_code: ecosystem_config.link_to_code.clone().display().to_string(),
-    };
-    chain::create::create_chain_inner(chain_create_args, ecosystem_config, shell)?;
-    let chain_config = ecosystem_config
-        .load_chain(Some("gateway".to_string()))
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    register_chain(
-        shell,
-        forge_args,
-        ecosystem_config,
-        &chain_config,
-        &mut contracts_config,
-        l1_rpc_url.clone(),
-        None,
-        false,
-    )
-    .await?;
-    shell.copy_file(
-        ecosystem_config.link_to_code.join(
-            "contracts/l1-contracts/broadcast/RegisterZKChain.s.sol/9/dry-run/run-latest.json",
-        ),
-        ecosystem_config
-            .link_to_code
-            .join(GATEWAY_GOVERNANCE_TX_PATH1),
-    )?;
+    // FIXME: Maybe include gateway preparation
+    // let chain_create_args = ChainCreateArgsFinal {
+    //     chain_name: "gateway".to_string(),
+    //     chain_id: 505,
+    //     prover_version: ProverMode::NoProofs,
+    //     wallet_creation: WalletCreation::Localhost,
+    //     l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
+    //     wallet_path: None,
+    //     base_token: BaseToken::eth(),
+    //     set_as_default: false,
+    //     legacy_bridge: false,
+    //     evm_emulator: false,
+    //     update_submodules: Some(false),
+    //     link_to_code: ecosystem_config.link_to_code.clone().display().to_string(),
+    // };
+    // chain::create::create_chain_inner(chain_create_args, ecosystem_config, shell)?;
+    // let chain_config = ecosystem_config
+    //     .load_chain(Some("gateway".to_string()))
+    //     .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    // register_chain(
+    //     shell,
+    //     forge_args,
+    //     ecosystem_config,
+    //     &chain_config,
+    //     &mut contracts_config,
+    //     l1_rpc_url.clone(),
+    //     None,
+    //     false,
+    // )
+    // .await?;
+    // shell.copy_file(
+    //     ecosystem_config.link_to_code.join(
+    //         "contracts/l1-contracts/broadcast/RegisterZKChain.s.sol/9/dry-run/run-latest.json",
+    //     ),
+    //     ecosystem_config
+    //         .link_to_code
+    //         .join(GATEWAY_GOVERNANCE_TX_PATH1),
+    // )?;
 
-    let DBNames { server_name, .. } = generate_db_names(&chain_config);
-    let args = InitConfigsArgsFinal {
-        genesis_args: GenesisArgsFinal {
-            server_db: DatabaseConfig::new(DATABASE_SERVER_URL.clone(), server_name),
-            dont_drop: false,
-        },
-        l1_rpc_url,
-        no_port_reallocation: false,
-        validium_config: Some(ValidiumType::NoDA),
-    };
-    init_configs(&args, shell, ecosystem_config, &chain_config).await?;
+    // let DBNames { server_name, .. } = generate_db_names(&chain_config);
+    // let args = InitConfigsArgsFinal {
+    //     genesis_args: GenesisArgsFinal {
+    //         server_db: DatabaseConfig::new(DATABASE_SERVER_URL.clone(), server_name),
+    //         dont_drop: false,
+    //     },
+    //     l1_rpc_url,
+    //     no_port_reallocation: false,
+    //     validium_config: Some(ValidiumType::NoDA),
+    // };
+    // init_configs(&args, shell, ecosystem_config, &chain_config).await?;
 
-    deploy_l2_contracts::deploy_l2_contracts(
-        shell,
-        &chain_config,
-        ecosystem_config,
-        &mut contracts_config,
-        init_args.forge_args.clone(),
-        false,
-    )
-    .await?;
-    shell.copy_file(
-        ecosystem_config.link_to_code.join(
-            "contracts/l1-contracts/broadcast/DeployL2Contracts.sol/9/dry-run/run-latest.json",
-        ),
-        ecosystem_config
-            .link_to_code
-            .join(GATEWAY_GOVERNANCE_TX_PATH1),
-    )?;
+    // deploy_l2_contracts::deploy_l2_contracts(
+    //     shell,
+    //     &chain_config,
+    //     ecosystem_config,
+    //     &mut contracts_config,
+    //     init_args.forge_args.clone(),
+    //     false,
+    // )
+    // .await?;
+    // shell.copy_file(
+    //     ecosystem_config.link_to_code.join(
+    //         "contracts/l1-contracts/broadcast/DeployL2Contracts.sol/9/dry-run/run-latest.json",
+    //     ),
+    //     ecosystem_config
+    //         .link_to_code
+    //         .join(GATEWAY_GOVERNANCE_TX_PATH1),
+    // )?;
 
-    contracts_config.l1.base_token_addr = Address::from_low_u64_be(1);
-    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+    // contracts_config.l1.base_token_addr = Address::from_low_u64_be(1);
+    contracts_config.save_with_base_path(shell, &ecosystem_config.config)?;
 
-    //==========
+    // //==========
 
-    let chain_genesis_config = chain_config.get_genesis_config()?;
-    let chain_contracts_config = chain_config.get_contracts_config()?;
-    let gateway_config = chain::convert_to_gateway::calculate_gateway_ctm(
-        shell,
-        init_args.forge_args.clone(),
-        ecosystem_config,
-        &chain_config,
-        &chain_genesis_config,
-        &ecosystem_config.get_initial_deployment_config().unwrap(),
-        init_args.l1_rpc_url.clone(),
-    )
-    .await?;
+    // let chain_genesis_config = chain_config.get_genesis_config()?;
+    // let chain_contracts_config = chain_config.get_contracts_config()?;
+    // let gateway_config = chain::convert_to_gateway::calculate_gateway_ctm(
+    //     shell,
+    //     init_args.forge_args.clone(),
+    //     ecosystem_config,
+    //     &chain_config,
+    //     &chain_genesis_config,
+    //     &ecosystem_config.get_initial_deployment_config().unwrap(),
+    //     init_args.l1_rpc_url.clone(),
+    // )
+    // .await?;
 
-    // =========
+    // // =========
 
-    let gateway_preparation_config_path = GATEWAY_PREPARATION.input(&chain_config.link_to_code);
-    let preparation_config = GatewayPreparationConfig::new(
-        &chain_config,
-        &chain_contracts_config,
-        &ecosystem_config.get_contracts_config()?,
-        &gateway_config,
-    )?;
-    preparation_config.save(shell, gateway_preparation_config_path)?;
+    // let gateway_preparation_config_path = GATEWAY_PREPARATION.input(&chain_config.link_to_code);
+    // let preparation_config = GatewayPreparationConfig::new(
+    //     &chain_config,
+    //     &chain_contracts_config,
+    //     &ecosystem_config.get_contracts_config()?,
+    //     &gateway_config,
+    // )?;
+    // preparation_config.save(shell, gateway_preparation_config_path)?;
 
-    chain::convert_to_gateway::gateway_governance_whitelisting(
-        shell,
-        init_args.forge_args.clone(),
-        ecosystem_config,
-        &chain_config,
-        gateway_config,
-        init_args.l1_rpc_url.clone(),
-        false,
-    )
-    .await?;
+    // chain::convert_to_gateway::gateway_governance_whitelisting(
+    //     shell,
+    //     init_args.forge_args.clone(),
+    //     ecosystem_config,
+    //     &chain_config,
+    //     gateway_config,
+    //     init_args.l1_rpc_url.clone(),
+    //     false,
+    // )
+    // .await?;
 
     Ok(())
 }

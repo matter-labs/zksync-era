@@ -196,8 +196,6 @@ async fn prepare_stage1(
     Ok(())
 }
 
-const NEW_PROTOCOL_VERSION: u64 = 0x1b00000000;
-
 async fn call_chain_admin(
     l1_url: String,
     chain_config: ChainConfig,
@@ -222,10 +220,21 @@ async fn call_chain_admin(
         // 10m should be always enough
         gas: Some(U256::from(10_000_000)),
         data: Some(data.into()),
+        value: Some(U256::zero()),
+        nonce: Some(
+            provider
+                .get_transaction_count(wallet.address(), None)
+                .await?,
+        ),
+        max_fee_per_gas: Some(provider.get_gas_price().await?),
+        max_priority_fee_per_gas: Some(U256::zero()),
+        chain_id: Some(chain_id.into()),
         ..Default::default()
     });
 
     let signed_tx = wallet.sign_transaction(&tx).await.unwrap();
+
+    println!("rlp signed {:#?}", tx.rlp_signed(&signed_tx));
 
     let tx = provider
         .send_raw_transaction(tx.rlp_signed(&signed_tx))

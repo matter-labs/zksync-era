@@ -12,6 +12,7 @@ pub struct GatewayEcosystemUpgradeInput {
     pub era_chain_id: L2ChainId,
     pub owner_address: Address,
     pub testnet_verifier: bool,
+    pub governance_upgrade_timer_initial_delay: u64,
     pub contracts: GatewayUpgradeContractsConfig,
     pub tokens: GatewayUpgradeTokensConfig,
 }
@@ -78,6 +79,8 @@ impl GatewayEcosystemUpgradeInput {
                     .ecosystem_contracts
                     .validator_timelock_addr,
             },
+            // Locally only 0 is supported
+            governance_upgrade_timer_initial_delay: 0,
             tokens: GatewayUpgradeTokensConfig {
                 token_weth_address: initial_deployment_config.token_weth_address,
             },
