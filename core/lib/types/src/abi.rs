@@ -283,21 +283,6 @@ impl ProposedUpgrade {
         ])
     }
 
-    /// Post-gateway RLP schema of the `ProposedUpgrade`.
-    pub fn schema_post_gateway() -> ParamType {
-        ParamType::Tuple(vec![
-            L2CanonicalTransaction::schema(), // transaction data
-            ParamType::FixedBytes(32),        // bootloader code hash
-            ParamType::FixedBytes(32),        // default account code hash
-            ParamType::Address,               // verifier address
-            VerifierParams::schema(),         // verifier params
-            ParamType::Bytes,                 // l1 custom data
-            ParamType::Bytes,                 // l1 post-upgrade custom data
-            ParamType::Uint(256),             // timestamp
-            ParamType::Uint(256),             // version id
-        ])
-    }
-
     /// Encodes `ProposedUpgrade` to a RLP token.
     pub fn encode(&self) -> Token {
         let mut tokens = vec![self.l2_protocol_upgrade_tx.encode()];
