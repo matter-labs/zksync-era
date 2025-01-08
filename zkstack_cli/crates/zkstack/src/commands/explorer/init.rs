@@ -1,14 +1,14 @@
 use anyhow::Context;
-use common::{config::global_config, db, logger, Prompt};
-use config::{
+use slugify_rs::slugify;
+use url::Url;
+use xshell::Shell;
+use zkstack_cli_common::{config::global_config, db, logger, Prompt};
+use zkstack_cli_config::{
     explorer::{ExplorerChainConfig, ExplorerConfig},
     explorer_compose::{ExplorerBackendComposeConfig, ExplorerBackendConfig, ExplorerBackendPorts},
     traits::{ConfigWithL2RpcUrl, SaveConfig},
     ChainConfig, EcosystemConfig,
 };
-use slugify_rs::slugify;
-use url::Url;
-use xshell::Shell;
 
 use crate::{
     consts::L2_BASE_TOKEN_ADDRESS,

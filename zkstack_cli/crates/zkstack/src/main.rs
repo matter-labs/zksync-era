@@ -4,15 +4,15 @@ use commands::{
     contract_verifier::ContractVerifierCommands,
     dev::DevCommands,
 };
-use common::{
+use xshell::Shell;
+use zkstack_cli_common::{
     check_general_prerequisites,
     config::{global_config, init_global_config, GlobalConfig},
     error::log_error,
     init_prompt_theme, logger,
     version::version_message,
 };
-use config::EcosystemConfig;
-use xshell::Shell;
+use zkstack_cli_config::EcosystemConfig;
 
 use crate::commands::{
     args::ServerArgs, chain::ChainCommands, consensus, ecosystem::EcosystemCommands,

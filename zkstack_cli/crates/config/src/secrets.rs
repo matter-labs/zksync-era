@@ -1,8 +1,8 @@
 use std::{path::Path, str::FromStr};
 
 use anyhow::Context;
-use common::db::DatabaseConfig;
 use xshell::Shell;
+use zkstack_cli_common::db::DatabaseConfig;
 use zksync_basic_types::url::SensitiveUrl;
 pub use zksync_config::configs::Secrets as SecretsConfig;
 use zksync_protobuf_config::{encode_yaml_repr, read_yaml_repr};
