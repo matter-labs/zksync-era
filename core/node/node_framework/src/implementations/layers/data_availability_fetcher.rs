@@ -1,14 +1,11 @@
-use zksync_da_client::DataAvailabilityClient;
 use zksync_node_sync::data_availability_fetcher::DataAvailabilityFetcher;
-use zksync_types::{Address, L2ChainId};
 
 use crate::{
     implementations::resources::{
         da_client::DAClientResource,
-        eth_interface::{EthInterfaceResource, GatewayEthInterfaceResource},
         healthcheck::AppHealthCheckResource,
         main_node_client::MainNodeClientResource,
-        pools::{MasterPool, PoolResource, ReplicaPool},
+        pools::{MasterPool, PoolResource},
     },
     service::StopReceiver,
     task::{Task, TaskId},

@@ -24,7 +24,7 @@ use zksync_node_framework::{
         consistency_checker::ConsistencyCheckerLayer,
         da_clients::{
             avail::AvailWiringLayer, celestia::CelestiaWiringLayer, eigen::EigenWiringLayer,
-            no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
+            object_store::ObjectStorageClientWiringLayer,
         },
         data_availability_fetcher::DataAvailabilityFetcherLayer,
         healtcheck_server::HealthCheckLayer,
@@ -701,7 +701,9 @@ impl ExternalNodeBuilder {
                     self = self.add_tree_data_fetcher_layer()?;
                 }
                 Component::DataAvailabilityFetcher => {
-                    self = self.add_data_availability_fetcher_layer()?;
+                    self = self
+                        .add_da_client_layer()?
+                        .add_data_availability_fetcher_layer()?;
                 }
                 Component::Core => {
                     // Main tasks
