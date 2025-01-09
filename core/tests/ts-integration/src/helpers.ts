@@ -76,6 +76,7 @@ export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.t
 
     let txResponse = null;
     let txReceipt = null;
+    let nonce = Number(await wallet.getNonce());
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
         // Send a dummy transaction and wait for it to execute. We override `maxFeePerGas` as the default ethers behavior
         // is to fetch `maxFeePerGas` from the latest sealed block and double it which is not enough for scenarios with
@@ -85,7 +86,7 @@ export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.t
             txResponse = await wallet.transfer({
                 to: wallet.address,
                 amount: 0,
-                overrides: { maxFeePerGas: gasPrice, maxPriorityFeePerGas: 0 }
+                overrides: { maxFeePerGas: gasPrice, nonce: nonce, maxPriorityFeePerGas: 0 }
             });
         } else {
             console.log('Gas price has not changed, waiting longer');
