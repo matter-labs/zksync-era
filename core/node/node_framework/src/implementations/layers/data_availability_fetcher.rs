@@ -14,7 +14,7 @@ use crate::{
 };
 
 /// Wiring layer for [`DataAvailabilityFetcher`].
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct DataAvailabilityFetcherLayer;
 
 #[derive(Debug, FromContext)]
@@ -32,12 +32,6 @@ pub struct Input {
 pub struct Output {
     #[context(task)]
     pub task: DataAvailabilityFetcher,
-}
-
-impl DataAvailabilityFetcherLayer {
-    pub fn new() -> Self {
-        Self
-    }
 }
 
 #[async_trait::async_trait]

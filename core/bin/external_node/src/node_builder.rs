@@ -377,7 +377,7 @@ impl ExternalNodeBuilder {
     }
 
     fn add_data_availability_fetcher_layer(mut self) -> anyhow::Result<Self> {
-        let layer = DataAvailabilityFetcherLayer::new();
+        let layer = DataAvailabilityFetcherLayer::default();
         self.node.add_layer(layer);
 
         Ok(self)
