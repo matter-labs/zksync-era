@@ -1798,7 +1798,7 @@ impl TransactionsDal<'_, '_> {
             "Updated {} transactions for stashed accounts, stashed accounts amount: {}, stashed_accounts: {:?}",
             result.rows_affected(),
             stashed_addresses.len(),
-            stashed_accounts.iter().map(|a|format!("{:x}", a)).collect()
+            stashed_accounts.iter().map(|a|format!("{:x}", a)).collect::<Vec<_>>()
         );
 
         let purged_addresses: Vec<_> = purged_accounts.iter().map(Address::as_bytes).collect();
