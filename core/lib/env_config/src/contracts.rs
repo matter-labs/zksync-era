@@ -13,6 +13,9 @@ impl FromEnv for EcosystemContracts {
             l1_bytecodes_supplier_addr: std::env::var("CONTRACTS_L1_BYTECODE_SUPPLIER_ADDR")?
                 .parse()
                 .ok(),
+            l1_wrapped_base_token_store: std::env::var("CONTRACTS_L1_WRAPPED_BASE_TOKEN_STORE")?
+                .parse()
+                .ok(),
         })
     }
 }

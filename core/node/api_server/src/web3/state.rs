@@ -108,6 +108,7 @@ pub struct InternalApiConfig {
     pub estimate_gas_optimize_search: bool,
     pub bridge_addresses: api::BridgeAddresses,
     pub l1_bytecodes_supplier_addr: Option<Address>,
+    pub l1_wrapped_base_token_store: Option<Address>,
     pub l1_bridgehub_proxy_addr: Option<Address>,
     pub l1_state_transition_proxy_addr: Option<Address>,
     pub l1_transparent_proxy_admin_addr: Option<Address>,
@@ -169,6 +170,10 @@ impl InternalApiConfig {
                 .ecosystem_contracts
                 .as_ref()
                 .and_then(|a| a.l1_bytecodes_supplier_addr),
+            l1_wrapped_base_token_store: contracts_config
+                .ecosystem_contracts
+                .as_ref()
+                .and_then(|a| a.l1_wrapped_base_token_store),
             l1_diamond_proxy_addr: contracts_config.diamond_proxy_addr,
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),

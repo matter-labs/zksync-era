@@ -101,6 +101,11 @@ impl WiringLayer for EthWatchLayer {
             self.contracts_config
                 .ecosystem_contracts
                 .as_ref()
+                .and_then(|a| a.l1_wrapped_base_token_store),
+            self.contracts_config.l1_shared_bridge_proxy_addr,
+            self.contracts_config
+                .ecosystem_contracts
+                .as_ref()
                 .map(|a| a.state_transition_proxy_addr),
             self.contracts_config.chain_admin_addr,
             self.contracts_config.governance_addr,
@@ -113,7 +118,11 @@ impl WiringLayer for EthWatchLayer {
                 Some(Box::new(EthHttpQueryClient::new(
                     gateway_client.0,
                     contracts_config.diamond_proxy_addr,
-                    // Bytecode supplier is only present on L1
+                    // Only present on L1.
+                    None,
+                    // Only present on L1.
+                    None,
+                    // Only present on L1.
                     None,
                     Some(contracts_config.state_transition_proxy_addr),
                     contracts_config.chain_admin_addr,

@@ -205,6 +205,8 @@ pub enum ContractCallError {
         #[source]
         source: web3::contract::Error,
     },
+    #[error("custom error: {0}")]
+    Custom(String),
 }
 
 /// Common error type exposed by the crate.

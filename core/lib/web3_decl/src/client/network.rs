@@ -10,6 +10,9 @@ use zksync_types::{L1ChainId, L2ChainId, SLChainId};
 pub trait Network: 'static + Copy + Default + Sync + Send + fmt::Debug {
     /// String representation of a network used as a metric label and in log messages.
     fn metric_label(&self) -> String;
+
+    /// Number representation of the chain id
+    fn chain_id(&self) -> Option<u64>;
 }
 
 /// L1-compatible (e.g., Ethereum) network.
@@ -24,6 +27,10 @@ impl Network for L1 {
         } else {
             "ethereum".to_owned()
         }
+    }
+
+    fn chain_id(&self) -> Option<u64> {
+        self.0.map(|x| x.0)
     }
 }
 
@@ -50,6 +57,10 @@ impl Network for L2 {
         } else {
             "l2".to_owned()
         }
+    }
+
+    fn chain_id(&self) -> Option<u64> {
+        self.0.map(|x| x.as_u64())
     }
 }
 

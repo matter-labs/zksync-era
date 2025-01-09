@@ -12,8 +12,8 @@ use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     abi::ZkChainSpecificUpgradeData, ethabi::Contract, protocol_version::ProtocolSemanticVersion,
-    tokens::TokenMetadata, web3::BlockNumber as Web3BlockNumber, L1BatchNumber, L2ChainId,
-    PriorityOpId,
+    tokens::TokenMetadata, web3::BlockNumber as Web3BlockNumber, Address, L1BatchNumber, L2ChainId,
+    PriorityOpId, H256,
 };
 
 pub use self::client::{EthClient, EthHttpQueryClient, L2EthClient};
@@ -79,7 +79,6 @@ impl EthWatch {
         let decentralized_upgrades_processor = DecentralizedUpgradesEventProcessor::new(
             state.last_seen_protocol_version,
             chain_admin_contract,
-            get_chain_specific_upgrade_params(&l1_client, contracts_config).await?,
             sl_client.clone(),
             l1_client.clone(),
         );
@@ -245,20 +244,4 @@ impl EthWatch {
         }
         Ok(())
     }
-}
-
-async fn get_chain_specific_upgrade_params(
-    l1_client: &Arc<dyn EthClient>,
-    contracts_config: &ContractsConfig,
-) -> anyhow::Result<Option<ZkChainSpecificUpgradeData>> {
-    let TokenMetadata { name, symbol, .. } = l1_client.get_base_token_metadata().await?;
-
-    Ok(ZkChainSpecificUpgradeData::from_partial_components(
-        contracts_config.l1_base_token_asset_id,
-        contracts_config.l2_legacy_shared_bridge_addr,
-        contracts_config.l2_predeployed_wrapped_base_token_address,
-        contracts_config.base_token_addr,
-        Some(name),
-        Some(symbol),
-    ))
 }
