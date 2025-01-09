@@ -9,11 +9,9 @@ use std::{
 use zksync_dal::{
     transactions_web3_dal::ExtendedTransactionReceipt, Connection, Core, CoreDal, DalError,
 };
-use zksync_multivm::interface::VmEvent;
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
-    address_to_h256,
-    api::{GetLogsFilter, TransactionReceipt},
+    api::TransactionReceipt,
     get_nonce_key, h256_to_u256,
     tx::execute::DeploymentParams,
     utils::{decompose_full_nonce, deployed_address_create, deployed_address_evm_create},
@@ -139,15 +137,9 @@ pub(crate) async fn fill_transaction_receipts(
             .map_err(DalError::generalize)?;
         // Load deployment events for the block in order to compute deployment nonces at the start of each transaction.
         // TODO: can filter by the senders as well if necessary.
-        let log_filter = GetLogsFilter {
-            from_block: requested_block,
-            to_block: requested_block,
-            addresses: vec![CONTRACT_DEPLOYER_ADDRESS],
-            topics: vec![(1, vec![VmEvent::DEPLOY_EVENT_SIGNATURE])],
-        };
         let deployment_events = storage
             .events_web3_dal()
-            .get_logs(log_filter, 10_000) // FIXME: use dedicated query?
+            .get_contract_deployment_logs(requested_block)
             .await
             .map_err(DalError::generalize)?;
 
@@ -156,7 +148,7 @@ pub(crate) async fn fill_transaction_receipts(
             .zip(nonce_keys)
         {
             let sender = filled_receipts[idx].from;
-            let tx_index = filled_receipts[idx].transaction_index;
+            let tx_index = filled_receipts[idx].transaction_index.as_u64();
             let initial_nonce = nonces_at_block_start
                 .get(&nonce_key)
                 .copied()
@@ -164,16 +156,11 @@ pub(crate) async fn fill_transaction_receipts(
                 .unwrap_or_default();
             let (_, initial_deploy_nonce) = decompose_full_nonce(h256_to_u256(initial_nonce));
 
-            let sender_topic = address_to_h256(&sender);
             let nonce_increment = deployment_events
                 .iter()
-                // Can use `take_while` because events are ordered by `transaction_index`. `unwrap()` is safe
-                // since all events belonging to a block have `transaction_index` set.
-                .take_while(|event| event.transaction_index.unwrap() < tx_index)
-                .filter(|event| {
-                    // First topic in `ContractDeployed` event is the deployer address.
-                    event.topics[1] == sender_topic
-                })
+                // Can use `take_while` because events are ordered by `transaction_index_in_block`.
+                .take_while(|event| event.transaction_index_in_block < tx_index)
+                .filter(|event| event.deployer == sender)
                 .count();
             let deploy_nonce = initial_deploy_nonce + nonce_increment;
             filled_receipts[idx].contract_address =
@@ -186,7 +173,7 @@ pub(crate) async fn fill_transaction_receipts(
 
 #[cfg(test)]
 mod tests {
-    use zksync_dal::ConnectionPool;
+    use zksync_dal::{events_web3_dal::ContractDeploymentLog, ConnectionPool};
     use zksync_multivm::vm_1_3_2::zk_evm_1_3_3::ethereum_types::H256;
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_test_contracts::{Account, TestContract, TxType};
@@ -307,6 +294,29 @@ mod tests {
         let mut storage = pool.connection().await.unwrap();
         prepare_storage(&mut storage, alice.address()).await;
         persist_block_with_transactions(&pool, txs).await;
+
+        // Sanity check: for successful deployments, the actual deployed address must correspond to the derived one.
+        let deployment_events = storage
+            .events_web3_dal()
+            .get_contract_deployment_logs(L2BlockNumber(1))
+            .await
+            .unwrap();
+        let expected_events: Vec<_> = expected_statuses_and_contract_addresses
+            .iter()
+            .enumerate()
+            .filter_map(|(i, &(status, address))| {
+                if let (1, Some(deployed_address)) = (status, address) {
+                    Some(ContractDeploymentLog {
+                        transaction_index_in_block: i as u64,
+                        deployer: alice.address(),
+                        deployed_address,
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert_eq!(deployment_events, expected_events);
 
         for (&tx_hash, &(status, expected_address)) in tx_hashes
             .iter()
