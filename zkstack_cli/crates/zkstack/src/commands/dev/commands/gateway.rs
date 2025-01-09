@@ -164,7 +164,6 @@ async fn verify_next_batch_new_version(
     Ok(())
 }
 
-// FIXME: make it more easy to use
 pub async fn check_chain_readiness(
     l1_rpc_url: String,
     l2_rpc_url: String,
@@ -220,7 +219,7 @@ async fn verify_correct_l2_wrapped_base_token(
         anyhow::bail!("L2 wrapped base token code can not be empty");
     }
 
-    // TODO: also verify that the code is correct.
+    // TODO(EVM-939): also verify that the code is correct.
 
     Ok(())
 }
@@ -249,9 +248,12 @@ pub async fn fetch_chain_info(
         L1SharedBridgeLegacyAbi::new(upgrade_info.l1_legacy_shared_bridge, client.clone());
 
     let l2_legacy_shared_bridge_addr = l1_legacy_bridge.l_2_bridge_address(chain_id).await?;
-    if l2_legacy_shared_bridge_addr == Address::zero() {
-        anyhow::bail!("Chain not registered inside the L1 shared bridge!");
-    }
+    // Creation of the shared bridge is one of the steps for chain creation,
+    // so it is very weird that a chain does not have it, so we fail here.
+    anyhow::ensure!(
+        l2_legacy_shared_bridge_addr != Address::zero(),
+        "Chain not registered inside the L1 shared bridge!"
+    );
 
     let l2_wrapped_base_token_store =
         L2WrappedBaseTokenStoreAbi::new(upgrade_info.l1_wrapped_base_token_store, client.clone());
@@ -260,7 +262,9 @@ pub async fn fetch_chain_info(
         .l_2w_base_token_address(chain_id)
         .await?;
 
-    if l2_predeployed_wrapped_base_token == Address::zero() {
+    // Even in case the user does not want the script to fail due to this issue,
+    // we still display it just in case.
+    if l2_predeployed_wrapped_base_token == Address::zero() && args.dangerous_no_cross_check {
         println!("\n\nWARNING: the chain does not contain wrapped base token. It is dangerous since the security of it depends on the ecosystem admin\n\n");
     }
 
@@ -488,6 +492,7 @@ impl GatewayUpgradeInfo {
     // They do not have to updated for the system to work smoothly during the upgrade, but after
     // "stage 2" they are desirable to be updated for consistency
     pub fn post_upgrade_update_contracts_config(&self, config: &mut ContractsConfig, assign: bool) {
+        todo!()
     }
 }
 

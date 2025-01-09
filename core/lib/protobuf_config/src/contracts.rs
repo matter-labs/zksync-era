@@ -16,8 +16,6 @@ impl ProtoRepr for proto::Contracts {
         let weth_bridge = &bridges.weth;
 
         let ecosystem_contracts = if let Some(ecosystem_contracts) = &self.ecosystem_contracts {
-            println!("\n\n FROM FILE :{:#?}", ecosystem_contracts);
-
             Some(EcosystemContracts {
                 bridgehub_proxy_addr: required(&ecosystem_contracts.bridgehub_proxy_addr)
                     .and_then(|x| parse_h160(x))

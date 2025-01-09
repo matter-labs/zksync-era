@@ -58,9 +58,9 @@ impl L1UpdaterInner {
                 .call(&self.l1_eth_client)
                 .await;
 
-        // In case we can successfully retrieve the l1 nullifier, this is definitely the new l1 asset router
-        // Note, that the error might've happen due to the method not being present in the previous version.
-        // So we treat any error as equal inability to query the l1 nullifier
+        // In case we can successfully retrieve the l1 nullifier, this is definitely the new l1 asset router.
+        // The contrary is not necessarily true: the query can fail either due to network issues or
+        // due to the contract being outdated. To be conservative, we just always treat such cases as `false`.
         let should_use_l2_asset_router = if l1_nullifier_addr.is_ok() {
             true
         } else {
@@ -80,7 +80,7 @@ impl L1UpdaterInner {
                     .update_l1_shared_bridge(info.l1_shared_bridge_addr)
                     .await;
                 // We only update one way:
-                // - Once the L2 asset router should be used, there is no way back
+                // - Once the L2 asset router should be used, there is never a need to go back
                 // - To not undo the previous change in case of a network error
                 if info.should_use_l2_asset_router {
                     self.bridge_address_updater

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt, io::Write, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
+use std::{borrow::Cow, fmt, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
@@ -20,7 +20,7 @@ use zksync_multivm::{
     vm_latest::HistoryEnabled,
     FastVmInstance, LegacyVmInstance, MultiVmTracer,
 };
-use zksync_types::{commitment::PubdataParams, vm::FastVmMode, Transaction, H256, H512};
+use zksync_types::{commitment::PubdataParams, vm::FastVmMode, Transaction};
 
 use super::{
     executor::{Command, MainBatchExecutor},
@@ -214,14 +214,12 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         with_compression: bool,
     ) -> BatchTransactionExecutionResult<BytecodeResult> {
         let call_tracer_result = Arc::new(OnceCell::default());
-        let legacy_tracer = if true {
+        let legacy_tracer = if Tr::TRACE_CALLS {
             vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
         } else {
             vec![]
         };
         let mut legacy_tracer = legacy_tracer.into();
-
-        let hash = tx.hash();
 
         let (compression_result, tx_result) = match self {
             Self::Legacy(vm) => vm.inspect_transaction_with_bytecode_compression(
@@ -241,22 +239,12 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
             .take()
             .unwrap_or_default();
 
-        // write_tx_traces(hash, format!("{:#?}", call_traces));
-
         BatchTransactionExecutionResult {
             tx_result: Box::new(tx_result),
             compressed_bytecodes,
             call_traces,
         }
     }
-}
-
-fn write_tx_traces(hash: H256, trace_str: String) {
-    // Create or open the file
-    let mut file = std::fs::File::create(format!("{}.txt", hash)).unwrap();
-
-    // Write data into the file
-    file.write_all(trace_str.as_bytes()).unwrap();
 }
 
 /// Implementation of the "primary" (non-test) batch executor.

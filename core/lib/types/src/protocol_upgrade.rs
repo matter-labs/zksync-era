@@ -121,8 +121,6 @@ async fn prepare_upgrade_call(
         return Ok(proposed_upgrade.l2_protocol_upgrade_tx.data.clone());
     }
 
-    println!("\n\nhere\n\n");
-
     // For gateway upgrade, things are bit more complex.
     // The source of truth for the code below is the one that is present in
     // `GatewayUpgrade.sol`.
@@ -133,8 +131,6 @@ async fn prepare_upgrade_call(
         )?[0]
             .clone(),
     )?;
-
-    println!("\n\nhere2\n\n");
 
     let gateway_upgrade_calldata = encode(&[
         Token::Address(encoded_input.ctm_deployer),
@@ -205,7 +201,6 @@ impl ProtocolUpgrade {
 
         let bootloader_hash = H256::from_slice(&upgrade.bootloader_hash);
         let default_account_hash = H256::from_slice(&upgrade.default_account_hash);
-        println!("\n\nhere3\n\n");
 
         let version = ProtocolSemanticVersion::try_from_packed(upgrade.new_protocol_version)
             .map_err(|err| anyhow::format_err!("Version is not supported: {err}"))?;

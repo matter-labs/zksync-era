@@ -239,8 +239,6 @@ async fn call_chain_admin(
 
     let signed_tx = wallet.sign_transaction(&tx).await.unwrap();
 
-    println!("rlp signed {:#?}", tx.rlp_signed(&signed_tx));
-
     let tx = provider
         .send_raw_transaction(tx.rlp_signed(&signed_tx))
         .await

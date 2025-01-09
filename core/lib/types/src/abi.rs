@@ -546,10 +546,6 @@ impl ZkChainSpecificUpgradeData {
         base_token_name: Option<String>,
         base_token_symbol: Option<String>,
     ) -> Option<Self> {
-        println!(
-            "predeployed_l2_weth_address.unwrap_or_default = {}",
-            predeployed_l2_weth_address.clone().unwrap_or_default()
-        );
         Some(Self {
             base_token_asset_id: base_token_asset_id?,
             l2_legacy_shared_bridge: l2_legacy_shared_bridge?,

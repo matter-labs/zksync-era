@@ -304,8 +304,6 @@ where
         &self,
         hashes: Vec<H256>,
     ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>> {
-        println!("\n\nhere5\n\n");
-
         let Some(bytecode_supplier_addr) = self.bytecode_supplier_addr else {
             return Ok(vec![None; hashes.len()]);
         };
@@ -327,10 +325,7 @@ where
         let mut preimages = HashMap::new();
         for log in logs {
             let hash = log.topics[1];
-            println!("\n\nhere4\n\n");
             let preimage = decode(&[ParamType::Bytes], &log.data.0).expect("Invalid encoding");
-
-            println!("\n\nhere5\n\n");
             assert_eq!(preimage.len(), 1);
             let preimage = preimage[0].clone().into_bytes().unwrap();
             preimages.insert(hash, preimage);
@@ -464,17 +459,15 @@ where
     async fn get_chain_gateway_upgrade_info(
         &self,
     ) -> Result<Option<ZkChainSpecificUpgradeData>, ContractCallError> {
-        println!(
-            "\n\n Starting the check\n\n {:#?} {:#?}",
-            self.l1_shared_bridge_addr, self.wrapped_base_token_store
-        );
-        let (Some(l1_shared_bridge_addr), Some(l2_wrapped_base_token_store)) =
-            (self.l1_shared_bridge_addr, self.wrapped_base_token_store)
-        else {
+        let Some(l1_shared_bridge_addr) = self.l1_shared_bridge_addr else {
+            tracing::warn!("l1 shared bridge is not provided!");
             return Ok(None);
         };
 
-        println!("{l1_shared_bridge_addr} -- {l2_wrapped_base_token_store}");
+        let Some(l1_wrapped_base_token_store) = self.wrapped_base_token_store else {
+            tracing::warn!("l1 wrapped base token store is not provided!");
+            return Ok(None);
+        };
 
         let l2_chain_id = U256::from(self.l2_chain_id.as_u64());
 
@@ -496,15 +489,16 @@ where
         let l2_predeployed_wrapped_base_token: Address =
             CallFunctionArgs::new("l2WBaseTokenAddress", l2_chain_id)
                 .for_contract(
-                    l2_wrapped_base_token_store,
+                    l1_wrapped_base_token_store,
                     &self.wrapped_base_token_store_abi,
                 )
                 .call(&self.client)
                 .await?;
 
         if l2_predeployed_wrapped_base_token == Address::zero() {
-            // The situation is similar to the l2 shared bridge, but this situation is more likely
-            // to occure, so we log an allow to proceed.
+            // This state is not completely impossible, but somewhat undesirable.
+            // Contracts will still allow the upgrade to go through without
+            // the l2 predeployed wrapped base token, so we will allow it here as well.
             tracing::error!("L2 predeployed wrapped base token is empty");
         }
 
