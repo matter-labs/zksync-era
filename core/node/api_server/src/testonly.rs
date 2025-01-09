@@ -22,7 +22,7 @@ use zksync_system_constants::{
     L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, SYSTEM_CONTEXT_ADDRESS,
     SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
 };
-use zksync_test_contracts::{LoadnextContractExecutionParams, TestContract};
+use zksync_test_contracts::{Account, LoadnextContractExecutionParams, TestContract};
 use zksync_types::{
     address_to_u256,
     api::state_override::{Bytecode, OverrideAccount, OverrideState, StateOverride},
@@ -35,12 +35,12 @@ use zksync_types::{
     get_code_key, get_known_code_key,
     l1::L1Tx,
     l2::L2Tx,
-    transaction_request::{CallRequest, Eip712Meta, PaymasterParams},
+    transaction_request::{CallRequest, Eip712Meta},
     tx::IncludedTxLocation,
     u256_to_h256,
     utils::storage_key_for_eth_balance,
-    AccountTreeId, Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce,
-    ProtocolVersionId, StorageKey, StorageLog, Transaction, EIP_712_TX_TYPE, H256, U256,
+    AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
+    StorageLog, Transaction, EIP_712_TX_TYPE, H256, U256,
 };
 use zksync_vm_executor::{batch::MainBatchExecutorFactory, interface::BatchExecutorFactory};
 
@@ -307,7 +307,7 @@ pub(crate) fn decode_u256_output(raw_output: &[u8]) -> U256 {
 }
 
 pub(crate) trait TestAccount {
-    fn create_transfer(&self, value: U256) -> L2Tx {
+    fn create_transfer(&mut self, value: U256) -> L2Tx {
         let fee = Fee {
             gas_limit: 200_000.into(),
             ..default_fee()
@@ -317,41 +317,38 @@ pub(crate) trait TestAccount {
 
     fn query_base_token_balance(&self) -> CallRequest;
 
-    fn create_transfer_with_fee(&self, value: U256, fee: Fee) -> L2Tx;
+    fn create_transfer_with_fee(&mut self, value: U256, fee: Fee) -> L2Tx;
 
-    fn create_load_test_tx(&self, params: LoadnextContractExecutionParams) -> L2Tx;
+    fn create_load_test_tx(&mut self, params: LoadnextContractExecutionParams) -> L2Tx;
 
-    fn create_expensive_tx(&self, write_count: usize) -> L2Tx;
+    fn create_expensive_tx(&mut self, write_count: usize) -> L2Tx;
 
-    fn create_expensive_cleanup_tx(&self) -> L2Tx;
+    fn create_expensive_cleanup_tx(&mut self) -> L2Tx;
 
-    fn create_code_oracle_tx(&self, bytecode_hash: H256, expected_keccak_hash: H256) -> L2Tx;
+    fn create_code_oracle_tx(&mut self, bytecode_hash: H256, expected_keccak_hash: H256) -> L2Tx;
 
-    fn create_counter_tx(&self, increment: U256, revert: bool) -> L2Tx;
+    fn create_counter_tx(&mut self, increment: U256, revert: bool) -> L2Tx;
 
     fn create_l1_counter_tx(&self, increment: U256, revert: bool) -> L1Tx;
 
     fn query_counter_value(&self) -> CallRequest;
 
-    fn create_infinite_loop_tx(&self) -> L2Tx;
+    fn create_infinite_loop_tx(&mut self) -> L2Tx;
 
     fn multicall_with_value(&self, value: U256, calls: &[Call3Value]) -> CallRequest;
 }
 
-impl TestAccount for K256PrivateKey {
-    fn create_transfer_with_fee(&self, value: U256, fee: Fee) -> L2Tx {
-        L2Tx::new_signed(
-            Some(Address::random()),
-            vec![],
-            Nonce(0),
-            fee,
+impl TestAccount for Account {
+    fn create_transfer_with_fee(&mut self, value: U256, fee: Fee) -> L2Tx {
+        let execute = Execute {
+            contract_address: Some(Address::random()),
+            calldata: vec![],
             value,
-            L2ChainId::default(),
-            self,
-            vec![],
-            PaymasterParams::default(),
-        )
-        .unwrap()
+            factory_deps: vec![],
+        };
+        self.get_l2_tx_for_execute(execute, Some(fee))
+            .try_into()
+            .unwrap()
     }
 
     fn query_base_token_balance(&self) -> CallRequest {
@@ -368,64 +365,55 @@ impl TestAccount for K256PrivateKey {
         }
     }
 
-    fn create_load_test_tx(&self, params: LoadnextContractExecutionParams) -> L2Tx {
-        L2Tx::new_signed(
-            Some(StateBuilder::LOAD_TEST_ADDRESS),
-            params.to_bytes(),
-            Nonce(0),
-            default_fee(),
-            0.into(),
-            L2ChainId::default(),
-            self,
-            if params.deploys > 0 {
+    fn create_load_test_tx(&mut self, params: LoadnextContractExecutionParams) -> L2Tx {
+        let execute = Execute {
+            contract_address: Some(StateBuilder::LOAD_TEST_ADDRESS),
+            calldata: params.to_bytes(),
+            value: 0.into(),
+            factory_deps: if params.deploys > 0 {
                 TestContract::load_test().factory_deps()
             } else {
                 vec![]
             },
-            PaymasterParams::default(),
-        )
-        .unwrap()
+        };
+        self.get_l2_tx_for_execute(execute, Some(default_fee()))
+            .try_into()
+            .unwrap()
     }
 
-    fn create_expensive_tx(&self, write_count: usize) -> L2Tx {
+    fn create_expensive_tx(&mut self, write_count: usize) -> L2Tx {
         let calldata = TestContract::expensive()
             .function("expensive")
             .encode_input(&[Token::Uint(write_count.into())])
             .expect("failed encoding `expensive` function");
-        L2Tx::new_signed(
-            Some(StateBuilder::EXPENSIVE_CONTRACT_ADDRESS),
+        let execute = Execute {
+            contract_address: Some(StateBuilder::EXPENSIVE_CONTRACT_ADDRESS),
             calldata,
-            Nonce(0),
-            default_fee(),
-            0.into(),
-            L2ChainId::default(),
-            self,
-            vec![],
-            PaymasterParams::default(),
-        )
-        .unwrap()
+            value: 0.into(),
+            factory_deps: vec![],
+        };
+        self.get_l2_tx_for_execute(execute, Some(default_fee()))
+            .try_into()
+            .unwrap()
     }
 
-    fn create_expensive_cleanup_tx(&self) -> L2Tx {
+    fn create_expensive_cleanup_tx(&mut self) -> L2Tx {
         let calldata = TestContract::expensive()
             .function("cleanUp")
             .encode_input(&[])
             .expect("failed encoding `cleanUp` input");
-        L2Tx::new_signed(
-            Some(StateBuilder::EXPENSIVE_CONTRACT_ADDRESS),
+        let execute = Execute {
+            contract_address: Some(StateBuilder::EXPENSIVE_CONTRACT_ADDRESS),
             calldata,
-            Nonce(0),
-            default_fee(),
-            0.into(),
-            L2ChainId::default(),
-            self,
-            vec![],
-            PaymasterParams::default(),
-        )
-        .unwrap()
+            value: 0.into(),
+            factory_deps: vec![],
+        };
+        self.get_l2_tx_for_execute(execute, Some(default_fee()))
+            .try_into()
+            .unwrap()
     }
 
-    fn create_code_oracle_tx(&self, bytecode_hash: H256, expected_keccak_hash: H256) -> L2Tx {
+    fn create_code_oracle_tx(&mut self, bytecode_hash: H256, expected_keccak_hash: H256) -> L2Tx {
         let calldata = TestContract::precompiles_test()
             .function("callCodeOracle")
             .encode_input(&[
@@ -433,37 +421,31 @@ impl TestAccount for K256PrivateKey {
                 Token::FixedBytes(expected_keccak_hash.0.to_vec()),
             ])
             .expect("failed encoding `callCodeOracle` input");
-        L2Tx::new_signed(
-            Some(StateBuilder::PRECOMPILES_CONTRACT_ADDRESS),
+        let execute = Execute {
+            contract_address: Some(StateBuilder::PRECOMPILES_CONTRACT_ADDRESS),
             calldata,
-            Nonce(0),
-            default_fee(),
-            0.into(),
-            L2ChainId::default(),
-            self,
-            vec![],
-            PaymasterParams::default(),
-        )
-        .unwrap()
+            value: 0.into(),
+            factory_deps: vec![],
+        };
+        self.get_l2_tx_for_execute(execute, Some(default_fee()))
+            .try_into()
+            .unwrap()
     }
 
-    fn create_counter_tx(&self, increment: U256, revert: bool) -> L2Tx {
+    fn create_counter_tx(&mut self, increment: U256, revert: bool) -> L2Tx {
         let calldata = TestContract::counter()
             .function("incrementWithRevert")
             .encode_input(&[Token::Uint(increment), Token::Bool(revert)])
             .expect("failed encoding `incrementWithRevert` input");
-        L2Tx::new_signed(
-            Some(StateBuilder::COUNTER_CONTRACT_ADDRESS),
+        let execute = Execute {
+            contract_address: Some(StateBuilder::COUNTER_CONTRACT_ADDRESS),
             calldata,
-            Nonce(0),
-            default_fee(),
-            0.into(),
-            L2ChainId::default(),
-            self,
-            vec![],
-            PaymasterParams::default(),
-        )
-        .unwrap()
+            value: 0.into(),
+            factory_deps: vec![],
+        };
+        self.get_l2_tx_for_execute(execute, Some(default_fee()))
+            .try_into()
+            .unwrap()
     }
 
     fn create_l1_counter_tx(&self, increment: U256, revert: bool) -> L1Tx {
@@ -498,23 +480,20 @@ impl TestAccount for K256PrivateKey {
         }
     }
 
-    fn create_infinite_loop_tx(&self) -> L2Tx {
+    fn create_infinite_loop_tx(&mut self) -> L2Tx {
         let calldata = TestContract::infinite_loop()
             .function("infiniteLoop")
             .encode_input(&[])
             .expect("failed encoding `infiniteLoop` input");
-        L2Tx::new_signed(
-            Some(StateBuilder::INFINITE_LOOP_CONTRACT_ADDRESS),
+        let execute = Execute {
+            contract_address: Some(StateBuilder::INFINITE_LOOP_CONTRACT_ADDRESS),
             calldata,
-            Nonce(0),
-            default_fee(),
-            0.into(),
-            L2ChainId::default(),
-            self,
-            vec![],
-            PaymasterParams::default(),
-        )
-        .unwrap()
+            value: 0.into(),
+            factory_deps: vec![],
+        };
+        self.get_l2_tx_for_execute(execute, Some(default_fee()))
+            .try_into()
+            .unwrap()
     }
 
     fn multicall_with_value(&self, value: U256, calls: &[Call3Value]) -> CallRequest {
@@ -691,20 +670,26 @@ pub(crate) async fn persist_block_with_transactions(
 
 #[cfg(test)]
 mod tests {
+    use zksync_test_contracts::TxType;
+
     use super::*;
 
     #[tokio::test]
     async fn persisting_block_with_transactions_works() {
-        let transfer = K256PrivateKey::random().create_transfer(1.into());
-        let initiator = transfer.initiator_account();
+        let mut alice = Account::random();
+        let transfer = alice.create_transfer(1.into());
         let transfer_hash = transfer.hash();
+        let deployment = alice
+            .get_deploy_tx(TestContract::counter().bytecode, None, TxType::L2)
+            .tx;
+        let deployment_hash = deployment.hash();
 
         let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
         insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
-        let balance_key = storage_key_for_eth_balance(&initiator);
+        let balance_key = storage_key_for_eth_balance(&alice.address());
         let balance_log = StorageLog::new_write_log(balance_key, H256::from_low_u64_be(u64::MAX));
         storage
             .storage_logs_dal()
@@ -712,20 +697,29 @@ mod tests {
             .await
             .unwrap();
 
-        persist_block_with_transactions(&pool, vec![transfer.into()]).await;
+        persist_block_with_transactions(&pool, vec![transfer.into(), deployment]).await;
 
-        let receipts = storage
+        let mut receipts = storage
             .transactions_web3_dal()
-            .get_transaction_receipts(&[transfer_hash])
+            .get_transaction_receipts(&[transfer_hash, deployment_hash])
             .await
             .unwrap();
-        assert_eq!(receipts.len(), 1);
-        assert_eq!(receipts[0].inner.from, initiator);
+        assert_eq!(receipts.len(), 2);
+        receipts.sort_unstable_by_key(|receipt| receipt.inner.transaction_index);
+
+        assert_eq!(receipts[0].inner.from, alice.address());
         assert_eq!(receipts[0].inner.transaction_hash, transfer_hash);
         assert_eq!(receipts[0].inner.status, 1.into());
         assert_eq!(receipts[0].nonce, 0.into());
+        assert_eq!(receipts[0].calldata.0, [] as [u8; 0]);
 
-        // Check that the transaction has storage logs and events persisted
+        assert_eq!(receipts[1].inner.from, alice.address());
+        assert_eq!(receipts[1].inner.transaction_hash, deployment_hash);
+        assert_eq!(receipts[1].inner.status, 1.into());
+        assert_eq!(receipts[1].nonce, 1.into());
+        assert!(!receipts[1].calldata.0.is_empty());
+
+        // Check that the transactions have storage logs and events persisted
         let new_storage_logs: Vec<_> = storage
             .storage_logs_dal()
             .dump_all_storage_logs_for_tests()
