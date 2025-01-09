@@ -448,6 +448,11 @@ mod simple_execution {
     fn simple_execute() {
         test_simple_execute::<super::ShadowedFastVm>();
     }
+
+    #[test]
+    fn create2_deployment_address() {
+        test_create2_deployment_address::<super::ShadowedFastVm>();
+    }
 }
 
 mod storage {

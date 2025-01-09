@@ -150,6 +150,36 @@ impl Execute {
         }
     }
 
+    /// Creates an instance for deploying the specified bytecode via `ContractDeployer.create2` without additional dependencies.
+    /// If necessary, additional deps can be added to `Self.factory_deps` after this call.
+    pub fn for_create2_deploy(
+        salt: H256,
+        contract_bytecode: Vec<u8>,
+        constructor_input: &[ethabi::Token],
+    ) -> (Self, Create2DeploymentParams) {
+        let bytecode_hash = BytecodeHash::for_bytecode(&contract_bytecode).value();
+        let raw_constructor_input = ethabi::encode(constructor_input);
+        let params = ethabi::encode(&[
+            ethabi::Token::FixedBytes(salt.as_bytes().to_vec()),
+            ethabi::Token::FixedBytes(bytecode_hash.as_bytes().to_vec()),
+            ethabi::Token::Bytes(raw_constructor_input.clone()),
+        ]);
+        let calldata = CREATE2_FUNCTION.iter().copied().chain(params).collect();
+        let execute = Self {
+            contract_address: Some(CONTRACT_DEPLOYER_ADDRESS),
+            calldata,
+            value: 0.into(),
+            factory_deps: vec![contract_bytecode],
+        };
+
+        let deployment_params = Create2DeploymentParams {
+            salt,
+            bytecode_hash,
+            raw_constructor_input,
+        };
+        (execute, deployment_params)
+    }
+
     /// Creates an instance for transferring base token to the specified recipient.
     pub fn transfer(to: Address, value: U256) -> Self {
         Self {
@@ -191,7 +221,6 @@ impl Create2DeploymentParams {
     }
 
     /// Pre-calculates the address of the to-be-deployed EraVM contract (via CREATE2).
-    // FIXME: test that this is correct
     pub fn derive_address(&self, sender: Address) -> Address {
         let prefix_bytes = keccak256("zksyncCreate2".as_bytes());
         let address_bytes = address_to_h256(&sender);
