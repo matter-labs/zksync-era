@@ -1,5 +1,5 @@
 use anyhow::Context;
-use zksync_types::{url::SensitiveUrl, L2ChainId, SLChainId};
+use zksync_types::{url::SensitiveUrl, L1ChainId, L2ChainId, SLChainId};
 use zksync_web3_decl::client::Client;
 
 use crate::{
@@ -13,21 +13,24 @@ use crate::{
 /// Wiring layer for Ethereum client.
 #[derive(Debug)]
 pub struct QueryEthClientLayer {
-    chain_id: SLChainId,
-    web3_url: SensitiveUrl,
-    gateway_web3_url: Option<SensitiveUrl>,
+    l1_chain_id: L1ChainId,
+    l1_rpc_url: SensitiveUrl,
+    gateway_chain_id: Option<SLChainId>,
+    gateway_rpc_url: Option<SensitiveUrl>,
 }
 
 impl QueryEthClientLayer {
     pub fn new(
-        chain_id: SLChainId,
-        web3_url: SensitiveUrl,
-        gateway_web3_url: Option<SensitiveUrl>,
+        l1_chain_id: L1ChainId,
+        l1_rpc_url: SensitiveUrl,
+        gateway_chain_id: Option<SLChainId>,
+        gateway_rpc_url: Option<SensitiveUrl>,
     ) -> Self {
         Self {
-            chain_id,
-            web3_url,
-            gateway_web3_url,
+            l1_chain_id,
+            l1_rpc_url,
+            gateway_chain_id,
+            gateway_rpc_url,
         }
     }
 }
@@ -53,27 +56,29 @@ impl WiringLayer for QueryEthClientLayer {
         // Both `query_client_gateway` and `query_client_l2` use the same URL, but provide different type guarantees.
         Ok(Output {
             query_client_l1: EthInterfaceResource(Box::new(
-                Client::http(self.web3_url.clone())
+                Client::http(self.l1_rpc_url.clone())
                     .context("Client::new()")?
-                    .for_network(self.chain_id.into())
+                    .for_network(self.l1_chain_id.into())
                     .build(),
             )),
-            query_client_l2: if let Some(gateway_web3_url) = self.gateway_web3_url.clone() {
-                Some(L2InterfaceResource(Box::new(
-                    Client::http(gateway_web3_url)
-                        .context("Client::new()")?
-                        .for_network(L2ChainId::try_from(self.chain_id.0).unwrap().into())
-                        .build(),
-                )))
+            query_client_l2: if let Some(gateway_rpc_url) = self.gateway_rpc_url.clone() {
+                let mut builder = Client::http(gateway_rpc_url).context("Client::new()")?;
+                if let Some(gateway_chain_id) = self.gateway_chain_id {
+                    builder =
+                        builder.for_network(L2ChainId::try_from(gateway_chain_id.0).unwrap().into())
+                }
+
+                Some(L2InterfaceResource(Box::new(builder.build())))
             } else {
                 None
             },
-            query_client_gateway: if let Some(gateway_web3_url) = self.gateway_web3_url {
-                Some(GatewayEthInterfaceResource(Box::new(
-                    Client::http(gateway_web3_url)
-                        .context("Client::new()")?
-                        .build(),
-                )))
+            query_client_gateway: if let Some(gateway_rpc_url) = self.gateway_rpc_url {
+                let mut builder = Client::http(gateway_rpc_url).context("Client::new()")?;
+                if let Some(gateway_chain_id) = self.gateway_chain_id {
+                    builder = builder.for_network(gateway_chain_id.into())
+                }
+
+                Some(GatewayEthInterfaceResource(Box::new(builder.build())))
             } else {
                 None
             },

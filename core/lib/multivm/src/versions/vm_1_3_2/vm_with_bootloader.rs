@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use circuit_sequencer_api_1_3_3::INITIAL_MONOTONIC_CYCLE_COUNTER;
+use circuit_sequencer_api::INITIAL_MONOTONIC_CYCLE_COUNTER;
 use itertools::Itertools;
 use zk_evm_1_3_3::{
     aux_structures::{MemoryPage, Timestamp},
@@ -16,8 +16,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{
     address_to_u256, bytecode::BytecodeHash, fee_model::L1PeggedBatchFeeModelInput, h256_to_u256,
-    l1::is_l1_tx_type, Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE,
-    MAX_NEW_FACTORY_DEPS, U256,
+    l1::is_l1_tx_type, Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, U256,
 };
 
 use crate::{
@@ -132,6 +131,8 @@ impl From<BlockContext> for DerivedBlockContext {
         DerivedBlockContext { context, base_fee }
     }
 }
+
+pub(crate) const MAX_NEW_FACTORY_DEPS: usize = 32;
 
 /// The size of the bootloader memory in bytes which is used by the protocol.
 /// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce

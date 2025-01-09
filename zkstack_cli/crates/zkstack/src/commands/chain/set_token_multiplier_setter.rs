@@ -1,14 +1,16 @@
 use anyhow::Context;
-use common::{
+use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
+use lazy_static::lazy_static;
+use xshell::Shell;
+use zkstack_cli_common::{
     forge::{Forge, ForgeScript, ForgeScriptArgs},
     logger,
     spinner::Spinner,
     wallets::Wallet,
 };
-use config::{forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, EcosystemConfig};
-use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
-use lazy_static::lazy_static;
-use xshell::Shell;
+use zkstack_cli_config::{
+    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, EcosystemConfig,
+};
 use zksync_basic_types::Address;
 
 use crate::{
@@ -91,7 +93,7 @@ pub async fn set_token_multiplier_setter(
             (chain_admin_address, target_address),
         )
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_foundry();
+    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
     let forge = Forge::new(&foundry_contracts_path)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),

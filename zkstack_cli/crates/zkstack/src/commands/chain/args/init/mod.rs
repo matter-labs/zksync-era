@@ -1,9 +1,9 @@
 use clap::Parser;
-use common::{forge::ForgeScriptArgs, Prompt};
-use config::ChainConfig;
 use serde::{Deserialize, Serialize};
-use types::L1Network;
 use url::Url;
+use zkstack_cli_common::{forge::ForgeScriptArgs, Prompt};
+use zkstack_cli_config::ChainConfig;
+use zkstack_cli_types::L1Network;
 
 use crate::{
     commands::chain::args::genesis::{GenesisArgs, GenesisArgsFinal},
@@ -35,6 +35,8 @@ pub struct InitArgs {
     pub l1_rpc_url: Option<String>,
     #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP)]
     pub no_port_reallocation: bool,
+    #[clap(long)]
+    pub update_submodules: Option<bool>,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
 }
@@ -56,7 +58,7 @@ impl InitArgs {
             true
         } else {
             self.deploy_paymaster.unwrap_or_else(|| {
-                common::PromptConfirm::new(MSG_DEPLOY_PAYMASTER_PROMPT)
+                zkstack_cli_common::PromptConfirm::new(MSG_DEPLOY_PAYMASTER_PROMPT)
                     .default(true)
                     .ask()
             })

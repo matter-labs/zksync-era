@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use common::{forge::ForgeScriptArgs, Prompt, PromptConfirm};
 use serde::{Deserialize, Serialize};
-use types::L1Network;
 use url::Url;
+use zkstack_cli_common::{forge::ForgeScriptArgs, Prompt, PromptConfirm};
+use zkstack_cli_types::L1Network;
 
 use crate::{
     commands::chain::args::genesis::GenesisArgs,
@@ -97,10 +97,14 @@ pub struct EcosystemInitArgs {
     pub ecosystem_only: bool,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
-    #[clap(long, short = 'o', help = MSG_OBSERVABILITY_HELP, default_missing_value = "true", num_args = 0..=1)]
+    #[clap(
+        long, short = 'o', help = MSG_OBSERVABILITY_HELP, default_missing_value = "true", num_args = 0..=1
+    )]
     pub observability: Option<bool>,
     #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP)]
     pub no_port_reallocation: bool,
+    #[clap(long)]
+    pub update_submodules: Option<bool>,
 }
 
 impl EcosystemInitArgs {

@@ -1,14 +1,14 @@
 use anyhow::Context;
-use common::{
+use xshell::Shell;
+use zkstack_cli_common::{
     logger,
     server::{Server, ServerMode},
     spinner::Spinner,
 };
-use config::{
+use zkstack_cli_config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
     GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
-use xshell::Shell;
 
 use crate::messages::{
     MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_GENESIS_COMPLETED,
@@ -40,6 +40,7 @@ pub fn run_server_genesis(chain_config: &ChainConfig, shell: &Shell) -> anyhow::
             GeneralConfig::get_path_with_base_path(&chain_config.configs),
             SecretsConfig::get_path_with_base_path(&chain_config.configs),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
+            None,
             vec![],
         )
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)

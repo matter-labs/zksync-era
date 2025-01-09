@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as yaml from 'yaml';
+import fsSync from 'fs';
 
 export type FileConfig = { loadFromFile: false; chain?: undefined } | { loadFromFile: true; chain: string };
 
@@ -15,7 +16,8 @@ export const configNames = [
     'genesis.yaml',
     'secrets.yaml',
     'wallets.yaml',
-    'external_node.yaml'
+    'external_node.yaml',
+    'gateway_chain.yaml'
 ] as const;
 
 export type ConfigName = (typeof configNames)[number];
@@ -63,7 +65,7 @@ export function loadConfig({
         config
     );
     if (!fs.existsSync(configPath)) {
-        return [];
+        return null;
     }
     return yaml.parse(
         fs.readFileSync(configPath, {
@@ -128,11 +130,15 @@ export function getConfigsFolderPath({
     return path.join(pathToHome, 'chains', chain, configsFolder ?? 'configs', configsFolderSuffix ?? '');
 }
 
-export function replaceAggregatedBlockExecuteDeadline(pathToHome: string, fileConfig: any, value: number) {
+export function replaceL1BatchMinAgeBeforeExecuteSeconds(pathToHome: string, fileConfig: any, value: number) {
     const generalConfigPath = getConfigPath({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
-    const generalConfig = fs.readFileSync(generalConfigPath, 'utf8');
-    const regex = /aggregated_block_execute_deadline:\s*\d+/g;
-    const newGeneralConfig = generalConfig.replace(regex, `aggregated_block_execute_deadline: ${value}`);
-
+    const generalConfig = fsSync.readFileSync(generalConfigPath, 'utf8');
+    const generalConfigObject = yaml.parse(generalConfig);
+    if (value == 0) {
+        delete generalConfigObject['eth']['sender']['l1_batch_min_age_before_execute_seconds'];
+    } else {
+        generalConfigObject['eth']['sender']['l1_batch_min_age_before_execute_seconds'] = value;
+    }
+    const newGeneralConfig = yaml.stringify(generalConfigObject);
     fs.writeFileSync(generalConfigPath, newGeneralConfig, 'utf8');
 }

@@ -121,10 +121,20 @@ impl ForgeScript {
         self
     }
 
+    pub fn with_zksync(mut self) -> Self {
+        self.args.add_arg(ForgeScriptArg::Zksync);
+        self
+    }
+
     pub fn with_calldata(mut self, calldata: &Bytes) -> Self {
         self.args.add_arg(ForgeScriptArg::Sig {
             sig: hex::encode(calldata),
         });
+        self
+    }
+
+    pub fn with_gas_limit(mut self, gas_limit: u64) -> Self {
+        self.args.add_arg(ForgeScriptArg::GasLimit { gas_limit });
         self
     }
 
@@ -253,6 +263,11 @@ pub enum ForgeScriptArg {
     Sender {
         address: String,
     },
+    #[strum(to_string = "gas-limit={gas_limit}")]
+    GasLimit {
+        gas_limit: u64,
+    },
+    Zksync,
 }
 
 /// ForgeScriptArgs is a set of arguments that can be passed to the forge script command.

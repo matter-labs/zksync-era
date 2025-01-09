@@ -1,6 +1,7 @@
 use anyhow::Context;
-use common::forge::{Forge, ForgeScriptArgs};
-use config::{
+use xshell::Shell;
+use zkstack_cli_common::forge::{Forge, ForgeScriptArgs};
+use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::{
             input::{DeployL1Config, InitialDeploymentConfig},
@@ -11,8 +12,7 @@ use config::{
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig},
     ContractsConfig, EcosystemConfig, GenesisConfig,
 };
-use types::{L1Network, ProverMode};
-use xshell::Shell;
+use zkstack_cli_types::{L1Network, ProverMode};
 
 use crate::utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner};
 
@@ -41,7 +41,7 @@ pub async fn deploy_l1(
     );
     deploy_config.save(shell, deploy_config_path)?;
 
-    let mut forge = Forge::new(&config.path_to_foundry())
+    let mut forge = Forge::new(&config.path_to_l1_foundry())
         .script(&DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url.to_string());

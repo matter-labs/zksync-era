@@ -6,9 +6,9 @@ use std::{
 
 use anyhow::{bail, Context};
 use clap::Parser;
-use common::{cmd::Cmd, logger, spinner::Spinner};
-use config::EcosystemConfig;
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
+use zkstack_cli_config::EcosystemConfig;
 
 use crate::commands::{
     autocomplete::{autocomplete_file_name, generate_completions},
@@ -32,6 +32,7 @@ pub struct LintArgs {
 }
 
 pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
+    shell.set_var("ZKSYNC_USE_CUDA_STUBS", "true");
     let targets = if args.targets.is_empty() {
         vec![
             Target::Rs,

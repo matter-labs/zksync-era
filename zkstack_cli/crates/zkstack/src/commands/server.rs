@@ -1,15 +1,15 @@
 use anyhow::Context;
-use common::{
+use xshell::{cmd, Shell};
+use zkstack_cli_common::{
     cmd::Cmd,
     config::global_config,
     logger,
     server::{Server, ServerMode},
 };
-use config::{
+use zkstack_cli_config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
     GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
-use xshell::{cmd, Shell};
 
 use crate::{
     commands::args::{RunServerArgs, ServerArgs, ServerCommand, WaitArgs},
@@ -69,6 +69,7 @@ fn run_server(
             GeneralConfig::get_path_with_base_path(&chain_config.configs),
             SecretsConfig::get_path_with_base_path(&chain_config.configs),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
+            None,
             vec![],
         )
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)
