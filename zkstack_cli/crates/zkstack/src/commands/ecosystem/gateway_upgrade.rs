@@ -16,6 +16,7 @@ use config::{
 };
 use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
 use lazy_static::lazy_static;
+use serde::Deserialize;
 use types::{BaseToken, ProverMode, WalletCreation};
 use xshell::Shell;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
@@ -62,8 +63,8 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
     match final_ecosystem_args.ecosystem_upgrade_stage {
         GatewayUpgradeStage::NoGovernancePrepare => {
             no_governance_prepare(&mut final_ecosystem_args, shell, &ecosystem_config).await?;
-            no_governance_prepare_gateway(&mut final_ecosystem_args, shell, &mut ecosystem_config)
-                .await?;
+            //no_governance_prepare_gateway(&mut final_ecosystem_args, shell, &mut ecosystem_config)
+            //    .await?;
         }
         GatewayUpgradeStage::GovernanceStage1 => {
             governance_stage_1(&mut final_ecosystem_args, shell, &ecosystem_config).await?;
@@ -83,6 +84,15 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
     }
 
     Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+struct BroadcastFile {
+    pub transactions: Vec<BroadcastFileTransactions>,
+}
+#[derive(Debug, Deserialize)]
+struct BroadcastFileTransactions {
+    pub hash: String,
 }
 
 async fn no_governance_prepare(
@@ -146,10 +156,34 @@ async fn no_governance_prepare(
 
     println!("done!");
 
-    let output = GatewayEcosystemUpgradeOutput::read(
+    let l1_chain_id = era_config.l1_network.chain_id();
+
+    let broadcast_file: BroadcastFile = {
+        let file_content = std::fs::read_to_string(
+            ecosystem_config
+                .link_to_code
+                .join("contracts/l1-contracts")
+                .join(format!(
+                    "broadcast/EcosystemUpgrade.s.sol/{}/run-latest.json",
+                    l1_chain_id
+                )),
+        )
+        .context("Failed to read broadcast file")?;
+        serde_json::from_str(&file_content).context("Failed to parse broadcast file")?
+    };
+
+    dbg!(&broadcast_file);
+
+    let mut output = GatewayEcosystemUpgradeOutput::read(
         shell,
         GATEWAY_UPGRADE_ECOSYSTEM_PARAMS.output(&ecosystem_config.link_to_code),
     )?;
+
+    // Add all the transaction hashes.
+    for tx in broadcast_file.transactions {
+        output.transactions.push(tx.hash);
+    }
+
     output.save_with_base_path(shell, &ecosystem_config.config)?;
 
     Ok(())

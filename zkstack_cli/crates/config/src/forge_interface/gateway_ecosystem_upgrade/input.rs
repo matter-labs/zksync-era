@@ -14,6 +14,7 @@ pub struct GatewayEcosystemUpgradeInput {
     pub testnet_verifier: bool,
     pub contracts: GatewayUpgradeContractsConfig,
     pub tokens: GatewayUpgradeTokensConfig,
+    pub governance_upgrade_timer_initial_delay: u64,
 }
 
 impl ZkStackConfig for GatewayEcosystemUpgradeInput {}
@@ -33,6 +34,8 @@ impl GatewayEcosystemUpgradeInput {
             era_chain_id,
             testnet_verifier,
             owner_address: current_contracts_config.l1.governance_addr,
+            // FIXME - where should it be loaded from?
+            governance_upgrade_timer_initial_delay: 15,
             contracts: GatewayUpgradeContractsConfig {
                 create2_factory_addr: initial_deployment_config.create2_factory_addr,
                 create2_factory_salt: initial_deployment_config.create2_factory_salt,
