@@ -1776,7 +1776,7 @@ impl TransactionsDal<'_, '_> {
         limit: usize,
     ) -> DalResult<Vec<(Transaction, TransactionTimeRangeConstraint)>> {
         let stashed_addresses: Vec<_> = stashed_accounts.iter().map(Address::as_bytes).collect();
-        sqlx::query!(
+        let result = sqlx::query!(
             r#"
             UPDATE transactions
             SET
@@ -1794,8 +1794,14 @@ impl TransactionsDal<'_, '_> {
         .execute(self.storage)
         .await?;
 
+        tracing::debug!(
+            "Updated {} transactions for stashed accounts, stashed accounts amount: {}",
+            result.rows_affected(),
+            stashed_addresses.len()
+        );
+
         let purged_addresses: Vec<_> = purged_accounts.iter().map(Address::as_bytes).collect();
-        sqlx::query!(
+        let result = sqlx::query!(
             r#"
             DELETE FROM transactions
             WHERE
@@ -1808,6 +1814,12 @@ impl TransactionsDal<'_, '_> {
         .with_arg("purged_addresses.len", &purged_addresses.len())
         .execute(self.storage)
         .await?;
+
+        tracing::debug!(
+            "Updated {} transactions for purged accounts, purged accounts amount: {}",
+            result.rows_affected(),
+            purged_addresses.len()
+        );
 
         // Note, that transactions are updated in order of their hashes to avoid deadlocks with other UPDATE queries.
         let transactions = sqlx::query_as!(
