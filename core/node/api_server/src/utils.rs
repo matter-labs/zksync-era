@@ -147,7 +147,7 @@ pub(crate) async fn fill_transaction_receipts(
         };
         let deployment_events = storage
             .events_web3_dal()
-            .get_logs(log_filter, usize::MAX)
+            .get_logs(log_filter, 10_000) // FIXME: use dedicated query?
             .await
             .map_err(DalError::generalize)?;
 
@@ -156,6 +156,7 @@ pub(crate) async fn fill_transaction_receipts(
             .zip(nonce_keys)
         {
             let sender = filled_receipts[idx].from;
+            let tx_index = filled_receipts[idx].transaction_index;
             let initial_nonce = nonces_at_block_start
                 .get(&nonce_key)
                 .copied()
@@ -168,7 +169,7 @@ pub(crate) async fn fill_transaction_receipts(
                 .iter()
                 // Can use `take_while` because events are ordered by `transaction_index`. `unwrap()` is safe
                 // since all events belonging to a block have `transaction_index` set.
-                .take_while(|event| event.transaction_index.unwrap() < idx.into())
+                .take_while(|event| event.transaction_index.unwrap() < tx_index)
                 .filter(|event| {
                     // First topic in `ContractDeployed` event is the deployer address.
                     event.topics[1] == sender_topic
@@ -181,4 +182,167 @@ pub(crate) async fn fill_transaction_receipts(
     }
 
     Ok(filled_receipts)
+}
+
+#[cfg(test)]
+mod tests {
+    use zksync_dal::ConnectionPool;
+    use zksync_multivm::vm_1_3_2::zk_evm_1_3_3::ethereum_types::H256;
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_test_contracts::{Account, TestContract, TxType};
+    use zksync_types::{
+        ethabi, utils::storage_key_for_eth_balance, Address, Execute, StorageLog, Transaction,
+    };
+
+    use super::*;
+    use crate::testonly::{persist_block_with_transactions, TestAccount};
+
+    async fn prepare_storage(storage: &mut Connection<'_, Core>, rich_account: Address) {
+        insert_genesis_batch(storage, &GenesisParams::mock())
+            .await
+            .unwrap();
+        let balance_key = storage_key_for_eth_balance(&rich_account);
+        let balance_log = StorageLog::new_write_log(balance_key, H256::from_low_u64_be(u64::MAX));
+        storage
+            .storage_logs_dal()
+            .append_storage_logs(L2BlockNumber(0), &[balance_log])
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn fill_transaction_receipts_basics() {
+        let mut alice = Account::random();
+        let transfer = alice.create_transfer(1.into());
+        let transfer_hash = transfer.hash();
+        let deployment = alice
+            .get_deploy_tx(TestContract::counter().bytecode, None, TxType::L2)
+            .tx;
+        let deployment_hash = deployment.hash();
+
+        let pool = ConnectionPool::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
+        prepare_storage(&mut storage, alice.address()).await;
+        persist_block_with_transactions(&pool, vec![transfer.into(), deployment]).await;
+
+        let receipts = storage
+            .transactions_web3_dal()
+            .get_transaction_receipts(&[transfer_hash])
+            .await
+            .unwrap();
+        assert_eq!(receipts.len(), 1);
+        let filled_receipts = fill_transaction_receipts(&mut storage, receipts)
+            .await
+            .unwrap();
+        assert_eq!(filled_receipts.len(), 1);
+        let transfer_receipt = filled_receipts.into_iter().next().unwrap();
+        assert_eq!(transfer_receipt.status, 1.into());
+        assert_eq!(transfer_receipt.contract_address, None);
+
+        let receipts = storage
+            .transactions_web3_dal()
+            .get_transaction_receipts(&[deployment_hash])
+            .await
+            .unwrap();
+        assert_eq!(receipts.len(), 1);
+        let filled_receipts = fill_transaction_receipts(&mut storage, receipts)
+            .await
+            .unwrap();
+        assert_eq!(filled_receipts.len(), 1);
+        let deploy_receipt = filled_receipts.into_iter().next().unwrap();
+        assert_eq!(deploy_receipt.status, 1.into());
+        assert_eq!(
+            deploy_receipt.contract_address,
+            Some(deployed_address_create(alice.address(), 0.into()))
+        );
+    }
+
+    #[tokio::test]
+    async fn various_deployments() {
+        let mut alice = Account::random();
+        let (create2_execute, create2_params) = Execute::for_create2_deploy(
+            H256::zero(),
+            TestContract::counter().bytecode.to_vec(),
+            &[],
+        );
+
+        let txs = vec![
+            alice.create_transfer(1.into()).into(),
+            alice
+                .get_deploy_tx(TestContract::counter().bytecode, None, TxType::L2)
+                .tx,
+            alice.create_transfer(1.into()).into(),
+            // Failed deployment: this should fail with an out-of-gas error due to allocating too many items for reads
+            alice
+                .get_deploy_tx(
+                    TestContract::load_test().bytecode,
+                    Some(&[ethabi::Token::Uint(u64::MAX.into())]),
+                    TxType::L2,
+                )
+                .tx,
+            alice.get_l2_tx_for_execute(create2_execute.clone(), None),
+            // Failed deployment: this tries to deploy to the same address as the previous transaction.
+            alice.get_l2_tx_for_execute(create2_execute, None),
+            alice
+                .get_deploy_tx(
+                    TestContract::load_test().bytecode,
+                    Some(&[ethabi::Token::Uint(10.into())]),
+                    TxType::L2,
+                )
+                .tx,
+        ];
+        let tx_hashes: Vec<_> = txs.iter().map(Transaction::hash).collect();
+        let expected_statuses_and_contract_addresses = [
+            (1_u32, None),
+            (1, Some(deployed_address_create(alice.address(), 0.into()))),
+            (1, None),
+            (0, Some(deployed_address_create(alice.address(), 1.into()))),
+            (1, Some(create2_params.derive_address(alice.address()))),
+            (0, Some(create2_params.derive_address(alice.address()))),
+            // deployment nonce 1 was used by the successful `create2` tx
+            (1, Some(deployed_address_create(alice.address(), 2.into()))),
+        ];
+
+        let pool = ConnectionPool::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
+        prepare_storage(&mut storage, alice.address()).await;
+        persist_block_with_transactions(&pool, txs).await;
+
+        for (&tx_hash, &(status, expected_address)) in tx_hashes
+            .iter()
+            .zip(&expected_statuses_and_contract_addresses)
+        {
+            println!("Fetching receipt for {tx_hash:?}");
+            let receipts = storage
+                .transactions_web3_dal()
+                .get_transaction_receipts(&[tx_hash])
+                .await
+                .unwrap();
+            let filled_receipts = fill_transaction_receipts(&mut storage, receipts)
+                .await
+                .unwrap();
+            assert_eq!(filled_receipts.len(), 1);
+            let receipt = filled_receipts.into_iter().next().unwrap();
+            assert_eq!(receipt.status, status.into());
+            assert_eq!(receipt.contract_address, expected_address);
+        }
+
+        // Test all receipts for a block.
+        let receipts = storage
+            .transactions_web3_dal()
+            .get_transaction_receipts(&tx_hashes)
+            .await
+            .unwrap();
+        let filled_receipts = fill_transaction_receipts(&mut storage, receipts)
+            .await
+            .unwrap();
+        let statuses_and_contract_addresses: Vec<_> = filled_receipts
+            .iter()
+            .map(|receipt| (receipt.status.as_u32(), receipt.contract_address))
+            .collect();
+        assert_eq!(
+            statuses_and_contract_addresses,
+            expected_statuses_and_contract_addresses
+        );
+    }
 }
