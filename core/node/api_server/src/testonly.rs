@@ -2,15 +2,32 @@
 
 use std::{collections::HashMap, iter};
 
+use assert_matches::assert_matches;
 use zk_evm_1_5_0::zkevm_opcode_defs::decoding::{EncodingModeProduction, VmEncodingMode};
 use zksync_contracts::{eth_contract, load_contract, read_bytecode};
-use zksync_dal::{Connection, Core, CoreDal};
-use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
-use zksync_system_constants::{L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE};
+use zksync_dal::{
+    transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
+};
+use zksync_multivm::{
+    interface::{
+        tracer::ValidationTraces, ExecutionResult, TransactionExecutionMetrics,
+        TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics,
+    },
+    utils::{derive_base_fee_and_gas_per_pubdata, StorageWritesDeduplicator},
+};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_test_utils::{create_l2_block, default_l1_batch_env, default_system_env};
+use zksync_state::PostgresStorage;
+use zksync_system_constants::{
+    L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, SYSTEM_CONTEXT_ADDRESS,
+    SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+};
 use zksync_test_contracts::{LoadnextContractExecutionParams, TestContract};
 use zksync_types::{
     address_to_u256,
     api::state_override::{Bytecode, OverrideAccount, OverrideState, StateOverride},
+    block::{pack_block_info, L2BlockHeader},
+    commitment::PubdataParams,
     ethabi,
     ethabi::Token,
     fee::Fee,
@@ -19,11 +36,13 @@ use zksync_types::{
     l1::L1Tx,
     l2::L2Tx,
     transaction_request::{CallRequest, Eip712Meta, PaymasterParams},
+    tx::IncludedTxLocation,
     u256_to_h256,
     utils::storage_key_for_eth_balance,
-    AccountTreeId, Address, K256PrivateKey, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId,
-    StorageKey, StorageLog, EIP_712_TX_TYPE, H256, U256,
+    AccountTreeId, Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce,
+    ProtocolVersionId, StorageKey, StorageLog, Transaction, EIP_712_TX_TYPE, H256, U256,
 };
+use zksync_vm_executor::{batch::MainBatchExecutorFactory, interface::BatchExecutorFactory};
 
 const MULTICALL3_CONTRACT_PATH: &str =
     "contracts/l2-contracts/zkout/Multicall3.sol/Multicall3.json";
@@ -512,5 +531,221 @@ impl TestAccount for K256PrivateKey {
             data: Some(calldata.into()),
             ..CallRequest::default()
         }
+    }
+}
+
+pub(crate) fn mock_execute_transaction(transaction: Transaction) -> TransactionExecutionResult {
+    TransactionExecutionResult {
+        hash: transaction.hash(),
+        transaction,
+        execution_info: VmExecutionMetrics::default(),
+        execution_status: TxExecutionStatus::Success,
+        refunded_gas: 0,
+        operator_suggested_refund: 0,
+        compressed_bytecodes: vec![],
+        call_traces: vec![],
+        revert_reason: None,
+    }
+}
+
+pub(crate) async fn store_custom_l2_block(
+    storage: &mut Connection<'_, Core>,
+    header: &L2BlockHeader,
+    transaction_results: &[TransactionExecutionResult],
+) -> anyhow::Result<()> {
+    let number = header.number;
+    for result in transaction_results {
+        let l2_tx = result.transaction.clone().try_into().unwrap();
+        let tx_submission_result = storage
+            .transactions_dal()
+            .insert_transaction_l2(
+                &l2_tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
+            .await
+            .unwrap();
+        assert_matches!(tx_submission_result, L2TxSubmissionResult::Added);
+    }
+
+    // Record L2 block info which is read by the VM sandbox logic
+    let l2_block_info_key = StorageKey::new(
+        AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+        SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    );
+    let block_info = pack_block_info(number.0.into(), number.0.into());
+    let l2_block_log = StorageLog::new_write_log(l2_block_info_key, u256_to_h256(block_info));
+    storage
+        .storage_logs_dal()
+        .append_storage_logs(number, &[l2_block_log])
+        .await?;
+
+    storage.blocks_dal().insert_l2_block(header).await?;
+    storage
+        .transactions_dal()
+        .mark_txs_as_executed_in_l2_block(
+            number,
+            transaction_results,
+            1.into(),
+            ProtocolVersionId::latest(),
+            false,
+        )
+        .await?;
+    Ok(())
+}
+
+/// Executes transactions and stores real events and storage logs.
+pub(crate) async fn persist_block_with_transactions(
+    pool: &ConnectionPool<Core>,
+    txs: Vec<Transaction>,
+) {
+    let mut storage = pool.connection().await.unwrap();
+    let prev_block = storage
+        .blocks_dal()
+        .get_last_sealed_l2_block_header()
+        .await
+        .unwrap()
+        .expect("no blocks in storage");
+    assert_eq!(prev_block.number, L2BlockNumber(0));
+    let block_header = create_l2_block(1);
+    let block_number = block_header.number;
+
+    let system_env = default_system_env();
+    let mut l1_batch_env = default_l1_batch_env(1, 1, Address::repeat_byte(1));
+    l1_batch_env.first_l2_block.prev_block_hash = prev_block.hash;
+    l1_batch_env.previous_batch_hash = Some(
+        storage
+            .blocks_dal()
+            .get_l1_batch_state_root(L1BatchNumber(0))
+            .await
+            .unwrap()
+            .expect("no root hash for genesis L1 batch"),
+    );
+
+    let executor_storage = PostgresStorage::new_async(
+        tokio::runtime::Handle::current(),
+        pool.connection().await.unwrap(),
+        block_number - 1,
+        false,
+    )
+    .await
+    .unwrap();
+
+    let mut batch_executor = MainBatchExecutorFactory::<()>::new(false).init_batch(
+        executor_storage,
+        l1_batch_env,
+        system_env,
+        PubdataParams::default(),
+    );
+
+    let mut all_events = vec![];
+    let mut events_by_transaction = vec![];
+    let mut all_logs = vec![];
+    let mut all_tx_results = vec![];
+    for (i, tx) in txs.into_iter().enumerate() {
+        let tx_result = batch_executor
+            .execute_tx(tx.clone())
+            .await
+            .unwrap()
+            .tx_result;
+
+        let start_idx = all_events.len();
+        all_events.extend(tx_result.logs.events);
+        let tx_location = IncludedTxLocation {
+            tx_hash: tx.hash(),
+            tx_index_in_l2_block: i as u32,
+            tx_initiator_address: tx.initiator_account(),
+        };
+        events_by_transaction.push((tx_location, start_idx..all_events.len()));
+        all_logs.extend(tx_result.logs.storage_logs);
+        all_tx_results.push(TransactionExecutionResult {
+            execution_status: match tx_result.result {
+                ExecutionResult::Success { .. } => TxExecutionStatus::Success,
+                ExecutionResult::Revert { .. } => TxExecutionStatus::Failure,
+                other => panic!("unexpected tx result: {other:?}"),
+            },
+            ..mock_execute_transaction(tx)
+        });
+    }
+
+    let events_by_transaction: Vec<_> = events_by_transaction
+        .into_iter()
+        .map(|(location, range)| (location, all_events[range].iter().collect::<Vec<_>>()))
+        .collect();
+
+    storage
+        .events_dal()
+        .save_events(block_number, &events_by_transaction)
+        .await
+        .unwrap();
+    let deduplicated_logs = StorageWritesDeduplicator::deduplicate_logs(all_logs.iter());
+    storage
+        .storage_logs_dal()
+        .insert_storage_logs(block_number, &deduplicated_logs)
+        .await
+        .unwrap();
+    store_custom_l2_block(&mut storage, &block_header, &all_tx_results)
+        .await
+        .unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn persisting_block_with_transactions_works() {
+        let transfer = K256PrivateKey::random().create_transfer(1.into());
+        let initiator = transfer.initiator_account();
+        let transfer_hash = transfer.hash();
+
+        let pool = ConnectionPool::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+            .await
+            .unwrap();
+        let balance_key = storage_key_for_eth_balance(&initiator);
+        let balance_log = StorageLog::new_write_log(balance_key, H256::from_low_u64_be(u64::MAX));
+        storage
+            .storage_logs_dal()
+            .append_storage_logs(L2BlockNumber(0), &[balance_log])
+            .await
+            .unwrap();
+
+        persist_block_with_transactions(&pool, vec![transfer.into()]).await;
+
+        let receipts = storage
+            .transactions_web3_dal()
+            .get_transaction_receipts(&[transfer_hash])
+            .await
+            .unwrap();
+        assert_eq!(receipts.len(), 1);
+        assert_eq!(receipts[0].inner.from, initiator);
+        assert_eq!(receipts[0].inner.transaction_hash, transfer_hash);
+        assert_eq!(receipts[0].inner.status, 1.into());
+        assert_eq!(receipts[0].nonce, 0.into());
+
+        // Check that the transaction has storage logs and events persisted
+        let new_storage_logs: Vec<_> = storage
+            .storage_logs_dal()
+            .dump_all_storage_logs_for_tests()
+            .await
+            .into_iter()
+            .filter(|log| log.l2_block_number == L2BlockNumber(1))
+            .collect();
+        assert!(!new_storage_logs.is_empty());
+        assert!(
+            new_storage_logs
+                .iter()
+                .any(|log| log.hashed_key == balance_key.hashed_key()),
+            "{new_storage_logs:#?}"
+        );
+
+        let new_events = storage
+            .events_web3_dal()
+            .get_all_logs(L2BlockNumber(0))
+            .await
+            .unwrap();
+        assert!(!new_events.is_empty());
     }
 }

@@ -10,18 +10,17 @@ use tokio::sync::watch;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_multivm::{
     interface::{
-        Halt, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionLogs,
-        VmExecutionResultAndLogs, VmExecutionStatistics,
+        Halt, SystemEnv, TxExecutionMode, VmExecutionLogs, VmExecutionResultAndLogs,
+        VmExecutionStatistics,
     },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
-use zksync_node_test_utils::create_l2_transaction;
+use zksync_node_test_utils::{create_l2_transaction, default_l1_batch_env, default_system_env};
 use zksync_types::{
     block::{L2BlockExecutionData, L2BlockHasher},
-    fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     u256_to_h256, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
-    Transaction, H256, U256, ZKPORTER_IS_AVAILABLE,
+    Transaction, H256, U256,
 };
 
 use crate::{
@@ -62,43 +61,6 @@ pub(crate) fn pending_batch_data(pending_l2_blocks: Vec<L2BlockExecutionData>) -
         },
         pubdata_params: Default::default(),
         pending_l2_blocks,
-    }
-}
-
-pub(super) fn default_system_env() -> SystemEnv {
-    SystemEnv {
-        zk_porter_available: ZKPORTER_IS_AVAILABLE,
-        version: ProtocolVersionId::latest(),
-        base_system_smart_contracts: BASE_SYSTEM_CONTRACTS.clone(),
-        bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
-        execution_mode: TxExecutionMode::VerifyExecute,
-        default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
-        chain_id: L2ChainId::from(270),
-    }
-}
-
-pub(super) fn default_l1_batch_env(
-    number: u32,
-    timestamp: u64,
-    fee_account: Address,
-) -> L1BatchEnv {
-    L1BatchEnv {
-        previous_batch_hash: None,
-        number: L1BatchNumber(number),
-        timestamp,
-        fee_account,
-        enforced_base_fee: None,
-        first_l2_block: L2BlockEnv {
-            number,
-            timestamp,
-            prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(number - 1)),
-            max_virtual_blocks_to_create: 1,
-        },
-        fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-            fair_l2_gas_price: 1,
-            fair_pubdata_price: 1,
-            l1_gas_price: 1,
-        }),
     }
 }
 

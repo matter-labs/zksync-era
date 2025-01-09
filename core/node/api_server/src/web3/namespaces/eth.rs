@@ -1,22 +1,16 @@
 use anyhow::Context as _;
-use zksync_dal::{
-    transactions_web3_dal::ExtendedTransactionReceipt, Connection, Core, CoreDal, DalError,
-};
-use zksync_multivm::interface::VmEvent;
-use zksync_system_constants::{CONTRACT_DEPLOYER_ADDRESS, DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE};
+use zksync_dal::{CoreDal, DalError};
+use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
-    address_to_h256,
     api::{
         state_override::StateOverride, BlockId, BlockNumber, FeeHistory, GetLogsFilter,
         Transaction, TransactionId, TransactionReceipt, TransactionVariant,
     },
     bytecode::{trim_padded_evm_bytecode, BytecodeHash, BytecodeMarker},
-    get_nonce_key, h256_to_u256,
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
-    tx::execute::DeploymentParams,
     u256_to_h256,
-    utils::{decompose_full_nonce, deployed_address_create, deployed_address_evm_create},
+    utils::decompose_full_nonce,
     web3::{self, Bytes, SyncInfo, SyncState},
     AccountTreeId, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
@@ -28,7 +22,7 @@ use zksync_web3_decl::{
 use crate::{
     execution_sandbox::BlockArgs,
     tx_sender::BinarySearchKind,
-    utils::open_readonly_transaction,
+    utils::{fill_transaction_receipts, open_readonly_transaction},
     web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter},
 };
 
@@ -383,113 +377,8 @@ impl EthNamespace {
             .get_transaction_receipts(&block.transactions)
             .await
             .with_context(|| format!("get_transaction_receipts({block_number})"))?;
-        let receipts = Self::fill_transaction_receipts(&mut storage, receipts).await?;
+        let receipts = fill_transaction_receipts(&mut storage, receipts).await?;
         Ok(Some(receipts))
-    }
-
-    /// Fills `contract_address` for the provided transaction receipts. This field must be set
-    /// only for canonical deployment transactions, i.e., txs with `to == None` for EVM contract deployment
-    /// and calls to `ContractDeployer.{create, create2, createAccount, create2Account}` for EraVM contracts.
-    /// Also, it must be set regardless of whether the deployment succeeded (thus e.g. we cannot rely on `ContractDeployed` events
-    /// emitted by `ContractDeployer` for EraVM contracts).
-    ///
-    /// Requires all `receipts` to be from the same L2 block.
-    async fn fill_transaction_receipts(
-        storage: &mut Connection<'_, Core>,
-        mut receipts: Vec<ExtendedTransactionReceipt>,
-    ) -> Result<Vec<TransactionReceipt>, Web3Error> {
-        receipts.sort_unstable_by_key(|receipt| receipt.inner.transaction_index);
-
-        let mut filled_receipts = Vec::with_capacity(receipts.len());
-        let mut receipt_indexes_with_unknown_nonce = vec![];
-        for (i, mut receipt) in receipts.into_iter().enumerate() {
-            receipt.inner.contract_address = if receipt.inner.to.is_none() {
-                // This is an EVM deployment transaction.
-                Some(deployed_address_evm_create(
-                    receipt.inner.from,
-                    receipt.nonce,
-                ))
-            } else if receipt.inner.to == Some(CONTRACT_DEPLOYER_ADDRESS) {
-                // Possibly an EraVM deployment transaction.
-                if let Some(deployment_params) = DeploymentParams::decode(&receipt.calldata.0)? {
-                    match deployment_params {
-                        DeploymentParams::Create | DeploymentParams::CreateAccount => {
-                            // We need a deployment nonce which isn't available locally; we'll compute it in a single batch below.
-                            receipt_indexes_with_unknown_nonce.push(i);
-                            None
-                        }
-                        DeploymentParams::Create2(data)
-                        | DeploymentParams::Create2Account(data) => {
-                            Some(data.derive_address(receipt.inner.from))
-                        }
-                    }
-                } else {
-                    None
-                }
-            } else {
-                // Not a deployment transaction.
-                None
-            };
-            filled_receipts.push(receipt.inner);
-        }
-
-        if let Some(&first_idx) = receipt_indexes_with_unknown_nonce.first() {
-            let requested_block = L2BlockNumber(filled_receipts[first_idx].block_number.as_u32());
-            let nonce_keys: Vec<_> = receipt_indexes_with_unknown_nonce
-                .iter()
-                .map(|&i| get_nonce_key(&filled_receipts[i].from).hashed_key())
-                .collect();
-
-            // Load nonces at the start of the block.
-            let nonces_at_block_start = storage
-                .storage_logs_dal()
-                .get_storage_values(&nonce_keys, requested_block - 1)
-                .await
-                .map_err(DalError::generalize)?;
-            // Load deployment events for the block in order to compute deployment nonces at the start of each transaction.
-            // TODO: can filter by the senders as well if necessary.
-            let log_filter = GetLogsFilter {
-                from_block: requested_block,
-                to_block: requested_block,
-                addresses: vec![CONTRACT_DEPLOYER_ADDRESS],
-                topics: vec![(1, vec![VmEvent::DEPLOY_EVENT_SIGNATURE])],
-            };
-            let deployment_events = storage
-                .events_web3_dal()
-                .get_logs(log_filter, usize::MAX)
-                .await
-                .map_err(DalError::generalize)?;
-
-            for (idx, nonce_key) in receipt_indexes_with_unknown_nonce
-                .into_iter()
-                .zip(nonce_keys)
-            {
-                let sender = filled_receipts[idx].from;
-                let initial_nonce = nonces_at_block_start
-                    .get(&nonce_key)
-                    .copied()
-                    .flatten()
-                    .unwrap_or_default();
-                let (_, initial_deploy_nonce) = decompose_full_nonce(h256_to_u256(initial_nonce));
-
-                let sender_topic = address_to_h256(&sender);
-                let nonce_increment = deployment_events
-                    .iter()
-                    // Can use `take_while` because events are ordered by `transaction_index`. `unwrap()` is safe
-                    // since all events belonging to a block have `transaction_index` set.
-                    .take_while(|event| event.transaction_index.unwrap() < idx.into())
-                    .filter(|event| {
-                        // First topic in `ContractDeployed` event is the deployer address.
-                        event.topics[1] == sender_topic
-                    })
-                    .count();
-                let deploy_nonce = initial_deploy_nonce + nonce_increment;
-                filled_receipts[idx].contract_address =
-                    Some(deployed_address_create(sender, deploy_nonce));
-            }
-        }
-
-        Ok(filled_receipts)
     }
 
     pub async fn get_code_impl(
@@ -665,7 +554,7 @@ impl EthNamespace {
             .get_transaction_receipts(&[hash])
             .await
             .context("get_transaction_receipts")?;
-        let receipts = Self::fill_transaction_receipts(&mut storage, receipts).await?;
+        let receipts = fill_transaction_receipts(&mut storage, receipts).await?;
         Ok(receipts.into_iter().next())
     }
 

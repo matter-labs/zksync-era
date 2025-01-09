@@ -16,7 +16,7 @@ use zksync_multivm::{
     vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 use zksync_node_genesis::create_genesis_l1_batch;
-use zksync_node_test_utils::{recover, Snapshot};
+use zksync_node_test_utils::{default_l1_batch_env, default_system_env, recover, Snapshot};
 use zksync_state::{OwnedStorage, ReadStorageFactory, RocksdbStorageOptions};
 use zksync_test_contracts::{
     Account, DeployContractsTx, LoadnextContractExecutionParams, TestContract, TxType,
@@ -37,12 +37,7 @@ use zksync_types::{
 use zksync_vm_executor::batch::{MainBatchExecutorFactory, TraceCalls};
 
 use super::{read_storage_factory::RocksdbStorageFactory, StorageType};
-use crate::{
-    testonly,
-    testonly::BASE_SYSTEM_CONTRACTS,
-    tests::{default_l1_batch_env, default_system_env},
-    AsyncRocksdbCache,
-};
+use crate::{testonly, testonly::BASE_SYSTEM_CONTRACTS, AsyncRocksdbCache};
 
 /// Representation of configuration parameters used by the state keeper.
 /// Has sensible defaults for most tests, each of which can be overridden.

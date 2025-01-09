@@ -17,10 +17,9 @@ use zksync_config::{
     GenesisConfig,
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, CoreDal};
+use zksync_dal::{Connection, ConnectionPool, CoreDal};
 use zksync_multivm::interface::{
-    tracer::ValidationTraces, TransactionExecutionMetrics, TransactionExecutionResult,
-    TxExecutionStatus, VmEvent, VmExecutionMetrics,
+    tracer::ValidationTraces, TransactionExecutionMetrics, TransactionExecutionResult, VmEvent,
 };
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
@@ -39,15 +38,13 @@ use zksync_types::{
     },
     fee_model::{BatchFeeInput, FeeParams},
     get_nonce_key,
-    l2::L2Tx,
     storage::get_code_key,
     system_contracts::get_system_smart_contracts,
     tokens::{TokenInfo, TokenMetadata},
     tx::IncludedTxLocation,
     u256_to_h256,
     utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance},
-    AccountTreeId, Address, L1BatchNumber, Nonce, ProtocolVersionId, StorageKey, StorageLog, H256,
-    U256, U64,
+    AccountTreeId, Address, L1BatchNumber, Nonce, StorageKey, StorageLog, H256, U256, U64,
 };
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 use zksync_web3_decl::{
@@ -65,7 +62,11 @@ use zksync_web3_decl::{
 };
 
 use super::*;
-use crate::{tx_sender::SandboxExecutorOptions, web3::testonly::TestServerBuilder};
+use crate::{
+    testonly::{mock_execute_transaction, store_custom_l2_block},
+    tx_sender::SandboxExecutorOptions,
+    web3::testonly::TestServerBuilder,
+};
 
 mod debug;
 mod filters;
@@ -326,20 +327,6 @@ fn assert_logs_match(actual_logs: &[api::Log], expected_logs: &[&VmEvent]) {
     }
 }
 
-fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
-    TransactionExecutionResult {
-        hash: transaction.hash(),
-        transaction: transaction.into(),
-        execution_info: VmExecutionMetrics::default(),
-        execution_status: TxExecutionStatus::Success,
-        refunded_gas: 0,
-        operator_suggested_refund: 0,
-        compressed_bytecodes: vec![],
-        call_traces: vec![],
-        revert_reason: None,
-    }
-}
-
 /// Stores L2 block and returns the L2 block header.
 async fn store_l2_block(
     storage: &mut Connection<'_, Core>,
@@ -349,52 +336,6 @@ async fn store_l2_block(
     let header = create_l2_block(number.0);
     store_custom_l2_block(storage, &header, transaction_results).await?;
     Ok(header)
-}
-
-async fn store_custom_l2_block(
-    storage: &mut Connection<'_, Core>,
-    header: &L2BlockHeader,
-    transaction_results: &[TransactionExecutionResult],
-) -> anyhow::Result<()> {
-    let number = header.number;
-    for result in transaction_results {
-        let l2_tx = result.transaction.clone().try_into().unwrap();
-        let tx_submission_result = storage
-            .transactions_dal()
-            .insert_transaction_l2(
-                &l2_tx,
-                TransactionExecutionMetrics::default(),
-                ValidationTraces::default(),
-            )
-            .await
-            .unwrap();
-        assert_matches!(tx_submission_result, L2TxSubmissionResult::Added);
-    }
-
-    // Record L2 block info which is read by the VM sandbox logic
-    let l2_block_info_key = StorageKey::new(
-        AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
-        SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
-    );
-    let block_info = pack_block_info(number.0.into(), number.0.into());
-    let l2_block_log = StorageLog::new_write_log(l2_block_info_key, u256_to_h256(block_info));
-    storage
-        .storage_logs_dal()
-        .append_storage_logs(number, &[l2_block_log])
-        .await?;
-
-    storage.blocks_dal().insert_l2_block(header).await?;
-    storage
-        .transactions_dal()
-        .mark_txs_as_executed_in_l2_block(
-            number,
-            transaction_results,
-            1.into(),
-            ProtocolVersionId::latest(),
-            false,
-        )
-        .await?;
-    Ok(())
 }
 
 async fn seal_l1_batch(
@@ -751,7 +692,7 @@ impl HttpTest for TransactionCountTest {
             store_l2_block(
                 &mut storage,
                 l2_block_number,
-                &[execute_l2_transaction(committed_tx)],
+                &[mock_execute_transaction(committed_tx.into())],
             )
             .await?;
             let nonce_log = StorageLog::new_write_log(
@@ -915,8 +856,8 @@ impl HttpTest for TransactionReceiptsTest {
         let tx1 = create_l2_transaction(10, 200);
         let tx2 = create_l2_transaction(10, 200);
         let tx_results = vec![
-            execute_l2_transaction(tx1.clone()),
-            execute_l2_transaction(tx2.clone()),
+            mock_execute_transaction(tx1.clone().into()),
+            mock_execute_transaction(tx2.clone().into()),
         ];
         store_l2_block(&mut storage, l2_block_number, &tx_results).await?;
 
