@@ -241,7 +241,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
             .take()
             .unwrap_or_default();
 
-        write_tx_traces(hash, format!("{:#?}", call_traces));
+        // write_tx_traces(hash, format!("{:#?}", call_traces));
 
         BatchTransactionExecutionResult {
             tx_result: Box::new(tx_result),

@@ -61,7 +61,7 @@ describe('ETH token checks', () => {
 
         const l2GasLimit = await alice.provider.estimateDefaultBridgeDepositL2Gas(
             alice.providerL1!,
-            zksync.utils.ETH_ADDRESS,
+            zksync.utils.ETH_ADDRESS_IN_CONTRACTS,
             amount,
             alice.address,
             alice.address,

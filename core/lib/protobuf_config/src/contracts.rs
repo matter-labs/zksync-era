@@ -16,6 +16,8 @@ impl ProtoRepr for proto::Contracts {
         let weth_bridge = &bridges.weth;
 
         let ecosystem_contracts = if let Some(ecosystem_contracts) = &self.ecosystem_contracts {
+            println!("\n\n FROM FILE :{:#?}", ecosystem_contracts);
+
             Some(EcosystemContracts {
                 bridgehub_proxy_addr: required(&ecosystem_contracts.bridgehub_proxy_addr)
                     .and_then(|x| parse_h160(x))
@@ -35,7 +37,7 @@ impl ProtoRepr for proto::Contracts {
                     .as_ref()
                     .map(|x| parse_h160(x).expect("Invalid address")),
                 l1_wrapped_base_token_store: ecosystem_contracts
-                    .l1_wraped_base_token_store
+                    .l1_wrapped_base_token_store
                     .as_ref()
                     .map(|x| parse_h160(x).expect("Invalid address")),
             })
@@ -127,12 +129,6 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h256(x))
                 .transpose()
                 .context("base_token_asset_id")?,
-            l2_predeployed_wrapped_base_token_address: l2
-                .predeployed_wrapped_base_token_address
-                .as_ref()
-                .map(|x| parse_h160(x))
-                .transpose()
-                .context("l2 predeployed_wrapped_base_token_address")?,
             chain_admin_addr: l1
                 .chain_admin_addr
                 .as_ref()
@@ -168,7 +164,7 @@ impl ProtoRepr for proto::Contracts {
                 l1_bytecodes_supplier_addr: ecosystem_contracts
                     .l1_bytecodes_supplier_addr
                     .map(|x| format!("{:?}", x)),
-                l1_wraped_base_token_store: ecosystem_contracts
+                l1_wrapped_base_token_store: ecosystem_contracts
                     .l1_wrapped_base_token_store
                     .map(|x| format!("{:?}", x)),
             });
@@ -191,9 +187,6 @@ impl ProtoRepr for proto::Contracts {
                 legacy_shared_bridge_addr: this
                     .l2_legacy_shared_bridge_addr
                     .map(|a| format!("{:?}", a)),
-                predeployed_wrapped_base_token_address: this
-                    .l2_predeployed_wrapped_base_token_address
-                    .map(|x| format!("{:?}", x)),
                 timestamp_asserter_addr: this
                     .l2_timestamp_asserter_addr
                     .map(|a| format!("{:?}", a)),

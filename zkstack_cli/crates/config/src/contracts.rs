@@ -200,6 +200,9 @@ pub struct EcosystemContracts {
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expected_rollup_l2_da_validator: Option<Address>,
+    // `Option` to be able to parse configs from pre-gateway protocol version.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub l1_wrapped_base_token_store: Option<Address>,
 }
 
 impl ZkStackConfig for EcosystemContracts {}
@@ -270,7 +273,4 @@ pub struct L2Contracts {
     pub consensus_registry: Option<Address>,
     pub multicall3: Option<Address>,
     pub timestamp_asserter_addr: Option<Address>,
-    // `Option` to be able to parse configs from pre-gateway protocol version.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub predeployed_l2_wrapped_base_token_address: Option<Address>,
 }

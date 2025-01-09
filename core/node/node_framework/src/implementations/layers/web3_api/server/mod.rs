@@ -5,7 +5,7 @@ use bridge_addresses::{L1UpdaterInner, MainNodeUpdaterInner};
 use tokio::{sync::oneshot, task::JoinHandle};
 use zksync_circuit_breaker::replication_lag::ReplicationLagChecker;
 use zksync_config::configs::api::MaxResponseSize;
-use zksync_contracts::bridgehub_contract;
+use zksync_contracts::{bridgehub_contract, l1_asset_router_contract};
 use zksync_node_api_server::web3::{
     state::{BridgeAddressesHandle, InternalApiConfig, SealedL2BlockNumber},
     ApiBuilder, ApiServer, Namespace,
@@ -226,6 +226,7 @@ impl WiringLayer for Web3ServerLayer {
                         .context("Lacking l1 bridgehub proxy address")?,
                     update_interval: self.optional_config.bridge_addresses_refresh_interval,
                     bridgehub_abi: bridgehub_contract(),
+                    l1_asset_router_abi: l1_asset_router_contract(),
                 })
             };
 

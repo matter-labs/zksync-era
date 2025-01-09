@@ -110,6 +110,7 @@ impl WiringLayer for EthWatchLayer {
             self.contracts_config.chain_admin_addr,
             self.contracts_config.governance_addr,
             self.eth_watch_config.confirmations_for_eth_event,
+            self.chain_id,
         );
 
         let sl_l2_client: Option<Box<dyn L2EthClient>> =
@@ -128,6 +129,7 @@ impl WiringLayer for EthWatchLayer {
                     contracts_config.chain_admin_addr,
                     contracts_config.governance_addr,
                     self.eth_watch_config.confirmations_for_eth_event,
+                    self.chain_id,
                 )))
             } else {
                 None

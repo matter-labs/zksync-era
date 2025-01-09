@@ -87,6 +87,8 @@ pub struct GatewayUpgradeArgs {
     pub forge_args: ForgeScriptArgs,
 
     chain_upgrade_stage: GatewayChainUpgradeStage,
+
+    l2_wrapped_base_token_addr: Option<Address>,
 }
 
 lazy_static! {
@@ -408,10 +410,8 @@ async fn set_weth_for_chain(
                     .l1
                     .chain_admin_addr,
                 chain_config.chain_id.as_u64(),
-                contracts_config
-                    .l2
-                    .predeployed_l2_wrapped_base_token_address
-                    .expect("No predeployed_l2_wrapped_base_token_address"),
+                args.l2_wrapped_base_token_addr
+                    .context("l2_wrapped_base_token_addr")?,
             ),
         )
         .unwrap();

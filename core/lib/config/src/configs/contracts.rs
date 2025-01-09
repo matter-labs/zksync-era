@@ -9,6 +9,9 @@ pub struct EcosystemContracts {
     pub state_transition_proxy_addr: Address,
     pub transparent_proxy_admin_addr: Address,
     pub l1_bytecodes_supplier_addr: Option<Address>,
+    // Note that on the contract side of things this contract is called `L2WrappedBaseTokenStore`,
+    // while on the server side for consistency with the conventions, where the prefix denotes
+    // the location of the contracts we call it `l1_wrapped_base_token_store`
     pub l1_wrapped_base_token_store: Option<Address>,
 }
 
@@ -52,8 +55,6 @@ pub struct ContractsConfig {
     pub base_token_addr: Option<Address>,
     pub l1_base_token_asset_id: Option<H256>,
 
-    pub l2_predeployed_wrapped_base_token_address: Option<Address>,
-
     pub chain_admin_addr: Option<Address>,
     pub l2_da_validator_addr: Option<Address>,
 }
@@ -78,7 +79,6 @@ impl ContractsConfig {
             governance_addr: Address::repeat_byte(0x13),
             base_token_addr: Some(Address::repeat_byte(0x14)),
             l1_base_token_asset_id: Some(H256::repeat_byte(0x15)),
-            l2_predeployed_wrapped_base_token_address: Some(Address::repeat_byte(0x1b)),
             ecosystem_contracts: Some(EcosystemContracts::for_tests()),
             chain_admin_addr: Some(Address::repeat_byte(0x18)),
             l2_da_validator_addr: Some(Address::repeat_byte(0x1a)),

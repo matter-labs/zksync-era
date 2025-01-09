@@ -77,7 +77,7 @@ pub(crate) struct GatewayUpgradeInfo {
     expected_validium_l2_da_validator: Address,
     new_validator_timelock: Address,
 
-    l2_wrapped_base_token_store: Address,
+    l1_wrapped_base_token_store: Address,
     chain_upgrade_diamond_cut: Bytes,
 
     new_protocol_version: u64,
@@ -87,7 +87,6 @@ pub(crate) struct GatewayUpgradeInfo {
 #[derive(Debug, Default)]
 pub struct FetchedChainInfo {
     l2_legacy_shared_bridge_addr: Address,
-    l2_predeployed_wrapped_base_token: Address,
     hyperchain_addr: Address,
     base_token_addr: Address,
 }
@@ -255,14 +254,14 @@ pub async fn fetch_chain_info(
     }
 
     let l2_wrapped_base_token_store =
-        L2WrappedBaseTokenStoreAbi::new(upgrade_info.l2_wrapped_base_token_store, client.clone());
+        L2WrappedBaseTokenStoreAbi::new(upgrade_info.l1_wrapped_base_token_store, client.clone());
 
     let l2_predeployed_wrapped_base_token = l2_wrapped_base_token_store
         .l_2w_base_token_address(chain_id)
         .await?;
 
     if l2_predeployed_wrapped_base_token == Address::zero() {
-        println!("\n\nWARNING: the chain does not contain wrapped base token. It is dangerous since the security of it depends on the chain admin\n\n");
+        println!("\n\nWARNING: the chain does not contain wrapped base token. It is dangerous since the security of it depends on the ecosystem admin\n\n");
     }
 
     let zkchain = ZKChainAbi::new(hyperchain_addr, client.clone());
@@ -294,7 +293,7 @@ pub async fn fetch_chain_info(
         }
 
         if l2_predeployed_wrapped_base_token == Address::zero() {
-            anyhow::bail!("the chain does not contain wrapped base token. It is dangerous since the security of it depends on the chain admin");
+            anyhow::bail!("the chain does not contain wrapped base token. It is dangerous since the security of it depends on the ecosystem admin");
         }
 
         verify_correct_l2_wrapped_base_token(
@@ -318,7 +317,6 @@ pub async fn fetch_chain_info(
 
     Ok(FetchedChainInfo {
         l2_legacy_shared_bridge_addr,
-        l2_predeployed_wrapped_base_token,
         hyperchain_addr,
         base_token_addr,
     })
@@ -375,7 +373,10 @@ impl GatewayUpgradeInfo {
             new_validator_timelock: gateway_ecosystem_upgrade
                 .deployed_addresses
                 .validator_timelock_addr,
-            l2_wrapped_base_token_store: gateway_ecosystem_upgrade
+            // Note that on the contract side of things this contract is called `L2WrappedBaseTokenStore`,
+            // while on the server side for consistency with the conventions, where the prefix denotes
+            // the location of the contracts we call it `l1_wrapped_base_token_store`
+            l1_wrapped_base_token_store: gateway_ecosystem_upgrade
                 .deployed_addresses
                 .l2_wrapped_base_token_store_addr,
             chain_upgrade_diamond_cut: gateway_ecosystem_upgrade.chain_upgrade_diamond_cut,
@@ -422,6 +423,14 @@ impl GatewayUpgradeInfo {
         assign_or_print!(
             contracts_config.l1.base_token_asset_id,
             Some(base_token_id),
+            assign
+        );
+
+        assign_or_print!(
+            contracts_config
+                .ecosystem_contracts
+                .l1_wrapped_base_token_store,
+            Some(self.l1_wrapped_base_token_store),
             assign
         );
 

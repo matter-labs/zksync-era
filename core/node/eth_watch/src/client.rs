@@ -111,6 +111,7 @@ pub struct EthHttpQueryClient<Net: Network> {
     l1_asset_router_abi: Contract,
     wrapped_base_token_store_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
+    l2_chain_id: L2ChainId,
 }
 
 impl<Net: Network> EthHttpQueryClient<Net>
@@ -127,6 +128,7 @@ where
         chain_admin_address: Option<Address>,
         governance_address: Address,
         confirmations_for_eth_event: Option<u64>,
+        l2_chain_id: L2ChainId,
     ) -> Self {
         tracing::debug!(
             "New eth client, ZKsync addr: {:x}, governance addr: {:?}",
@@ -158,6 +160,7 @@ where
             confirmations_for_eth_event,
             wrapped_base_token_store,
             l1_shared_bridge_addr,
+            l2_chain_id,
         }
     }
 
@@ -461,21 +464,24 @@ where
     async fn get_chain_gateway_upgrade_info(
         &self,
     ) -> Result<Option<ZkChainSpecificUpgradeData>, ContractCallError> {
+        println!(
+            "\n\n Starting the check\n\n {:#?} {:#?}",
+            self.l1_shared_bridge_addr, self.wrapped_base_token_store
+        );
         let (Some(l1_shared_bridge_addr), Some(l2_wrapped_base_token_store)) =
             (self.l1_shared_bridge_addr, self.wrapped_base_token_store)
         else {
             return Ok(None);
         };
 
-        let l2_chain_id: U256 = CallFunctionArgs::new("getChainId", ())
-            .for_contract(self.diamond_proxy_addr, &self.getters_facet_contract_abi)
-            .call(&self.client)
-            .await?;
+        println!("{l1_shared_bridge_addr} -- {l2_wrapped_base_token_store}");
+
+        let l2_chain_id = U256::from(self.l2_chain_id.as_u64());
 
         // It does not matter whether the l1 shared bridge is an L1AssetRouter or L1Nullifier,
         // either way it supports the "l2BridgeAddress" method.
         let l2_legacy_shared_bridge: Address =
-            CallFunctionArgs::new("l2BridgeAddress", (l2_chain_id))
+            CallFunctionArgs::new("l2BridgeAddress", l2_chain_id)
                 .for_contract(l1_shared_bridge_addr, &self.l1_asset_router_abi)
                 .call(&self.client)
                 .await?;
@@ -488,7 +494,7 @@ where
         }
 
         let l2_predeployed_wrapped_base_token: Address =
-            CallFunctionArgs::new("l2WBaseTokenAddress", (l2_chain_id))
+            CallFunctionArgs::new("l2WBaseTokenAddress", l2_chain_id)
                 .for_contract(
                     l2_wrapped_base_token_store,
                     &self.wrapped_base_token_store_abi,
