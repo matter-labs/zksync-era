@@ -397,7 +397,7 @@ impl ConsistencyChecker {
 
         let gateway_chain_data = if let Some(client) = gateway_client {
             let gateway_diamond_proxy =
-                CallFunctionArgs::new("getZKChain", Token::Uint(l2_chain_id.0.into()))
+                CallFunctionArgs::new("getZKChain", Token::Uint(l2_chain_id.as_u64().into()))
                     .for_contract(L2_BRIDGEHUB_ADDRESS, &bridgehub_contract())
                     .call(&client)
                     .await?;

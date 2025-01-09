@@ -115,6 +115,12 @@ impl TestContract {
         &CONTRACT
     }
 
+    pub fn validation_test() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::custom_account::ValidationRuleBreaker));
+        &CONTRACT
+    }
+
     /// Returns a contract testing precompiles.
     pub fn precompiles_test() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =

@@ -19,7 +19,7 @@ use crate::{
 pub struct PKSigningEthClientLayer {
     eth_sender_config: EthConfig,
     contracts_config: ContractsConfig,
-    gateway_contracts_config: Option<GatewayChainConfig>,
+    gateway_chain_config: Option<GatewayChainConfig>,
     wallets: wallets::EthSender,
 }
 
@@ -43,13 +43,13 @@ impl PKSigningEthClientLayer {
     pub fn new(
         eth_sender_config: EthConfig,
         contracts_config: ContractsConfig,
-        gateway_contracts_config: Option<GatewayChainConfig>,
+        gateway_chain_config: Option<GatewayChainConfig>,
         wallets: wallets::EthSender,
     ) -> Self {
         Self {
             eth_sender_config,
             contracts_config,
-            gateway_contracts_config,
+            gateway_chain_config,
             wallets,
         }
     }
@@ -97,21 +97,19 @@ impl WiringLayer for PKSigningEthClientLayer {
             );
             BoundEthInterfaceForBlobsResource(Box::new(signing_client_for_blobs))
         });
-        let signing_client_for_gateway = if input.gateway_client.is_some() {
-            if self
-                .gateway_contracts_config
-                .clone()
-                .is_some_and(|v| v.gateway_chain_id.0 != 0_u64)
-            {
+
+        let signing_client_for_gateway = if let (Some(client), Some(gateway_contracts)) =
+            (&input.gateway_client, self.gateway_chain_config.as_ref())
+        {
+            if gateway_contracts.gateway_chain_id.0 != 0u64 {
                 let private_key = self.wallets.operator.private_key();
-                let GatewayEthInterfaceResource(gateway_client) = input.gateway_client.unwrap();
-                let gateway_contracts = self.gateway_contracts_config.unwrap();
+                let GatewayEthInterfaceResource(gateway_client) = client;
                 let signing_client_for_blobs = PKSigningClient::new_raw(
                     private_key.clone(),
                     gateway_contracts.diamond_proxy_addr,
                     gas_adjuster_config.default_priority_fee_per_gas,
                     gateway_contracts.gateway_chain_id,
-                    gateway_client,
+                    gateway_client.clone(),
                 );
                 Some(BoundEthInterfaceForL2Resource(Box::new(
                     signing_client_for_blobs,

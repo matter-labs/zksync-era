@@ -113,12 +113,11 @@ impl CountInstructions for Fast {
         }
 
         let (system_env, l1_batch_env) = test_env();
-        let mut vm =
-            vm_fast::Vm::<_, InstructionCount>::custom(l1_batch_env, system_env, &*STORAGE);
+        let mut vm = vm_fast::Vm::custom(l1_batch_env, system_env, &*STORAGE);
         vm.push_transaction(tx.clone());
-        let mut tracer = InstructionCount(0);
+        let mut tracer = (InstructionCount(0), ());
         vm.inspect(&mut tracer, InspectExecutionMode::OneTx);
-        tracer.0
+        tracer.0 .0
     }
 }
 

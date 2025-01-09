@@ -54,7 +54,6 @@ message Sender {
   optional bool tx_aggregation_paused = 20; // required
   optional bool tx_aggregation_only_prove_and_execute = 21; // required
   optional uint32 time_in_mempool_in_l1_blocks_cap = 22; // optional
-  optional uint64 priority_op_start_index = 23; // optional
 }
 
 message GasAdjuster {

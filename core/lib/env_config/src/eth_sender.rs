@@ -74,8 +74,6 @@ mod tests {
                     pubdata_sending_mode: PubdataSendingMode::Calldata,
                     tx_aggregation_only_prove_and_execute: false,
                     tx_aggregation_paused: false,
-                    ignore_db_nonce: None,
-                    priority_tree_start_index: None,
                     time_in_mempool_in_l1_blocks_cap: 2000,
                 }),
                 gas_adjuster: Some(GasAdjusterConfig {
