@@ -458,7 +458,7 @@ impl ContractVerifier {
                 if selector == create_acc.short_signature()
                     || selector == create2_acc.short_signature() =>
             {
-                let tokens = create
+                let tokens = create_acc
                     .decode_input(token_data)
                     .context("failed to decode `createAccount` / `create2Account` input")?;
                 // Constructor arguments are in the third parameter.

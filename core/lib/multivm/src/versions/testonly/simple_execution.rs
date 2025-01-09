@@ -1,10 +1,9 @@
 use assert_matches::assert_matches;
-use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_test_contracts::{TestContract, TxType};
-use zksync_types::{h256_to_address, Address, Execute, H256};
+use zksync_types::{Execute, H256};
 
-use super::{default_pubdata_builder, tester::VmTesterBuilder, TestedVm};
-use crate::interface::{ExecutionResult, InspectExecutionMode, VmEvent, VmInterfaceExt};
+use super::{default_pubdata_builder, extract_deploy_events, tester::VmTesterBuilder, TestedVm};
+use crate::interface::{ExecutionResult, InspectExecutionMode, VmInterfaceExt};
 
 pub(crate) fn test_estimate_fee<VM: TestedVm>() {
     let mut vm_tester = VmTesterBuilder::new()
@@ -115,21 +114,4 @@ pub(crate) fn test_create2_deployment_address<VM: TestedVm>() {
     let deploy_events = extract_deploy_events(&res.logs.events);
     assert_eq!(deploy_events.len(), 1);
     assert_eq!(deploy_events[0], (account.address, expected_address));
-}
-
-fn extract_deploy_events(events: &[VmEvent]) -> Vec<(Address, Address)> {
-    events
-        .iter()
-        .filter_map(|event| {
-            if event.address == CONTRACT_DEPLOYER_ADDRESS
-                && event.indexed_topics[0] == VmEvent::DEPLOY_EVENT_SIGNATURE
-            {
-                let deployer = h256_to_address(&event.indexed_topics[1]);
-                let deployed_address = h256_to_address(&event.indexed_topics[3]);
-                Some((deployer, deployed_address))
-            } else {
-                None
-            }
-        })
-        .collect()
 }

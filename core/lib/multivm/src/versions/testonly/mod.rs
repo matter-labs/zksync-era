@@ -15,13 +15,15 @@ use once_cell::sync::Lazy;
 use zksync_contracts::{
     read_bootloader_code, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
 };
+use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
     block::L2BlockHasher, bytecode::BytecodeHash, fee_model::BatchFeeInput, get_code_key,
-    get_is_account_key, h256_to_u256, u256_to_h256, utils::storage_key_for_eth_balance, Address,
-    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, U256,
+    get_is_account_key, h256_to_address, h256_to_u256, u256_to_h256,
+    utils::storage_key_for_eth_balance, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
+    ProtocolVersionId, U256,
 };
 use zksync_vm_interface::{
-    pubdata::PubdataBuilder, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
+    pubdata::PubdataBuilder, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmEvent,
 };
 
 pub(super) use self::tester::{
@@ -185,4 +187,21 @@ impl ContractToDeploy {
             contract.insert(storage);
         }
     }
+}
+
+fn extract_deploy_events(events: &[VmEvent]) -> Vec<(Address, Address)> {
+    events
+        .iter()
+        .filter_map(|event| {
+            if event.address == CONTRACT_DEPLOYER_ADDRESS
+                && event.indexed_topics[0] == VmEvent::DEPLOY_EVENT_SIGNATURE
+            {
+                let deployer = h256_to_address(&event.indexed_topics[1]);
+                let deployed_address = h256_to_address(&event.indexed_topics[3]);
+                Some((deployer, deployed_address))
+            } else {
+                None
+            }
+        })
+        .collect()
 }
