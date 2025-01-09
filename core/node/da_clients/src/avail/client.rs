@@ -121,8 +121,12 @@ impl AvailClient {
                     .seed_phrase
                     .ok_or_else(|| anyhow::anyhow!("Seed phrase is missing"))?;
                 // these unwraps are safe because we validate in protobuf config
-                let sdk_client =
-                    RawAvailClient::new(conf.app_id, seed_phrase.0.expose_secret()).await?;
+                let sdk_client = RawAvailClient::new(
+                    conf.app_id,
+                    seed_phrase.0.expose_secret(),
+                    conf.finality_state()?,
+                )
+                .await?;
 
                 Ok(Self {
                     config,

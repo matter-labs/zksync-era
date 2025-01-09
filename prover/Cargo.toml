@@ -19,6 +19,7 @@ anyhow = "1.0"
 async-trait = "0.1"
 axum = "0.7.5"
 bincode = "1"
+byteorder = "1.5.0"
 chrono = "0.4.38"
 clap = "4.4.6"
 colored = "2.0"
@@ -67,14 +68,18 @@ url = "2.5.2"
 vise = "0.2.0"
 
 # Proving dependencies
-circuit_definitions = "=0.150.18"
-circuit_sequencer_api = "=0.150.18"
-zkevm_test_harness = "=0.150.18"
+circuit_definitions = "=0.150.19"
+circuit_sequencer_api = "=0.150.19"
+zkevm_test_harness = "=0.150.19"
+proof-compression-gpu = { package = "proof-compression", version = "=0.152.10"}
+fflonk-gpu = { package = "fflonk-cuda", version = "=0.152.10"}
+fflonk = "=0.30.12"
+franklin-crypto = "=0.30.12"
 
 # GPU proving dependencies
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.152.9" }
-shivini = "=0.152.9"
-boojum-cuda = "=0.152.9"
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.152.10"}
+shivini = "=0.152.10"
+boojum-cuda = "=0.152.10"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }

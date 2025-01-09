@@ -102,6 +102,7 @@ impl ConfigurationSource for Environment {
 /// This part of the external node config is fetched directly from the main node.
 #[derive(Debug, Deserialize)]
 pub(crate) struct RemoteENConfig {
+    pub l1_bytecodes_supplier_addr: Option<Address>,
     #[serde(alias = "bridgehub_proxy_addr")]
     pub l1_bridgehub_proxy_addr: Option<Address>,
     #[serde(alias = "state_transition_proxy_addr")]
@@ -191,6 +192,9 @@ impl RemoteENConfig {
             l1_transparent_proxy_admin_addr: ecosystem_contracts
                 .as_ref()
                 .map(|a| a.transparent_proxy_admin_addr),
+            l1_bytecodes_supplier_addr: ecosystem_contracts
+                .as_ref()
+                .and_then(|a| a.l1_bytecodes_supplier_addr),
             l1_diamond_proxy_addr,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
@@ -216,6 +220,7 @@ impl RemoteENConfig {
     #[cfg(test)]
     fn mock() -> Self {
         Self {
+            l1_bytecodes_supplier_addr: None,
             l1_bridgehub_proxy_addr: None,
             l1_state_transition_proxy_addr: None,
             l1_transparent_proxy_admin_addr: None,
@@ -983,11 +988,11 @@ impl OptionalENConfig {
 /// This part of the external node config is required for its operation.
 #[derive(Debug, Deserialize)]
 pub(crate) struct RequiredENConfig {
-    /// The chain ID of the L1 network (e.g., 1 for Ethereum mainnet). In the future, it may be different from the settlement layer.
+    /// The chain ID of the L1 network (e.g., 1 for Ethereum mainnet).
     pub l1_chain_id: L1ChainId,
-    /// The chain ID of the settlement layer (e.g., 1 for Ethereum mainnet). This ID will be checked against the `eth_client_url` RPC provider on initialization
-    /// to ensure that there's no mismatch between the expected and actual settlement layer network.
-    pub sl_chain_id: Option<SLChainId>,
+    /// The chain ID of the gateway. This ID will be checked against the `gateway_rpc_url` RPC provider on initialization
+    /// to ensure that there's no mismatch between the expected and actual gateway network.
+    pub gateway_chain_id: Option<SLChainId>,
     /// L2 chain ID (e.g., 270 for ZKsync Era mainnet). This ID will be checked against the `main_node_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual L2 network.
     pub l2_chain_id: L2ChainId,
@@ -1009,10 +1014,6 @@ pub(crate) struct RequiredENConfig {
 }
 
 impl RequiredENConfig {
-    pub fn settlement_layer_id(&self) -> SLChainId {
-        self.sl_chain_id.unwrap_or(self.l1_chain_id.into())
-    }
-
     fn from_env() -> anyhow::Result<Self> {
         envy::prefixed("EN_")
             .from_env()
@@ -1034,7 +1035,7 @@ impl RequiredENConfig {
             .context("Database config is required")?;
         Ok(RequiredENConfig {
             l1_chain_id: en_config.l1_chain_id,
-            sl_chain_id: None,
+            gateway_chain_id: en_config.gateway_chain_id,
             l2_chain_id: en_config.l2_chain_id,
             http_port: api_config.web3_json_rpc.http_port,
             ws_port: api_config.web3_json_rpc.ws_port,
@@ -1055,7 +1056,7 @@ impl RequiredENConfig {
     fn mock(temp_dir: &tempfile::TempDir) -> Self {
         Self {
             l1_chain_id: L1ChainId(9),
-            sl_chain_id: None,
+            gateway_chain_id: None,
             l2_chain_id: L2ChainId::default(),
             http_port: 0,
             ws_port: 0,
@@ -1401,12 +1402,12 @@ impl ExternalNodeConfig<()> {
         if let Some(local_diamond_proxy_addr) = self.optional.contracts_diamond_proxy_addr {
             anyhow::ensure!(
                 local_diamond_proxy_addr == remote_diamond_proxy_addr,
-                "Diamond proxy address {local_diamond_proxy_addr:?} specified in config doesn't match one returned \
+                "L1 diamond proxy address {local_diamond_proxy_addr:?} specified in config doesn't match one returned \
                 by main node ({remote_diamond_proxy_addr:?})"
             );
         } else {
             tracing::info!(
-                "Diamond proxy address is not specified in config; will use address \
+                "L1 diamond proxy address is not specified in config; will use address \
                 returned by main node: {remote_diamond_proxy_addr:?}"
             );
         }
@@ -1475,10 +1476,11 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
                 l1_weth_bridge: config.remote.l1_weth_bridge_addr,
                 l2_weth_bridge: config.remote.l2_weth_bridge_addr,
             },
+            l1_bytecodes_supplier_addr: config.remote.l1_bytecodes_supplier_addr,
             l1_bridgehub_proxy_addr: config.remote.l1_bridgehub_proxy_addr,
             l1_state_transition_proxy_addr: config.remote.l1_state_transition_proxy_addr,
             l1_transparent_proxy_admin_addr: config.remote.l1_transparent_proxy_admin_addr,
-            l1_diamond_proxy_addr: config.remote.l1_diamond_proxy_addr,
+            l1_diamond_proxy_addr: config.l1_diamond_proxy_address(),
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,
             fee_history_limit: config.optional.fee_history_limit,
