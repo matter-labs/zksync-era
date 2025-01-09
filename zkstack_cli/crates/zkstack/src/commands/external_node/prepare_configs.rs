@@ -1,14 +1,14 @@
 use std::{collections::BTreeMap, path::Path, str::FromStr};
 
 use anyhow::Context;
-use common::logger;
-use config::{
+use xshell::Shell;
+use zkstack_cli_common::logger;
+use zkstack_cli_config::{
     external_node::ENConfig,
     set_rocks_db_config,
     traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig, GeneralConfig, SecretsConfig,
 };
-use xshell::Shell;
 use zksync_basic_types::url::SensitiveUrl;
 use zksync_config::configs::{
     consensus::{ConsensusConfig, ConsensusSecrets, NodeSecretKey, Secret},

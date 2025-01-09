@@ -1,12 +1,13 @@
 use std::path::Path;
 
 use anyhow::Context;
-use common::{
+use xshell::Shell;
+use zkstack_cli_common::{
     contracts::build_l2_contracts,
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
 };
-use config::{
+use zkstack_cli_config::{
     forge_interface::{
         deploy_l2_contracts::{
             input::DeployL2ContractsInput,
@@ -20,7 +21,6 @@ use config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use xshell::Shell;
 
 use crate::{
     messages::{
