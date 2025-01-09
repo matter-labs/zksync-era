@@ -82,14 +82,14 @@ export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.t
         // is to fetch `maxFeePerGas` from the latest sealed block and double it which is not enough for scenarios with
         // extreme gas price fluctuations.
         let gasPrice = await wallet.provider.getGasPrice();
-        if (!txResponse || txResponse.maxFeePerGas != gasPrice) {
+        if (!txResponse || !txResponse.maxFeePerGas || txResponse.maxFeePerGas < gasPrice) {
             txResponse = await wallet.transfer({
                 to: wallet.address,
                 amount: 0,
                 overrides: { maxFeePerGas: gasPrice, nonce: nonce, maxPriorityFeePerGas: 0 }
             });
         } else {
-            console.log('Gas price has not changed, waiting longer');
+            console.log('Gas price has not gone up, waiting longer');
         }
         txReceipt = await Promise.race([
             txResponse.wait().then((receipt) => receipt as TransactionReceipt | null),
