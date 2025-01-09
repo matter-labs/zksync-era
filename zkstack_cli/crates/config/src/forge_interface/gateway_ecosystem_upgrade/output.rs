@@ -18,6 +18,10 @@ pub struct GatewayEcosystemUpgradeOutput {
 
     pub contracts_config: GatewayEcosystemUpgradeContractsOutput,
     pub deployed_addresses: GatewayEcosystemUpgradeDeployedAddresses,
+    /// List of transactions that were executed during the upgrade.
+    /// This is added later by the zkstack and not present in the toml file that solidity creates.
+    #[serde(default)]
+    pub transactions: Vec<String>,
 }
 
 impl FileConfigWithDefaultName for GatewayEcosystemUpgradeOutput {
