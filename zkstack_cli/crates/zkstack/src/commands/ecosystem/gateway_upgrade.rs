@@ -171,7 +171,6 @@ async fn no_governance_prepare(
         serde_json::from_str(&file_content).context("Failed to parse broadcast file")?
     };
 
-    dbg!(&broadcast_file);
 
     let mut output = GatewayEcosystemUpgradeOutput::read(
         shell,
