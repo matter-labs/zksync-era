@@ -34,8 +34,8 @@ impl GatewayEcosystemUpgradeInput {
             era_chain_id,
             testnet_verifier,
             owner_address: current_contracts_config.l1.governance_addr,
-            // FIXME - where should it be loaded from?
-            governance_upgrade_timer_initial_delay: 15,
+            // TODO: for local testing, even 0 is fine - but before prod, we should load it from some configuration.
+            governance_upgrade_timer_initial_delay: 0,
             contracts: GatewayUpgradeContractsConfig {
                 create2_factory_addr: initial_deployment_config.create2_factory_addr,
                 create2_factory_salt: initial_deployment_config.create2_factory_salt,

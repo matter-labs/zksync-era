@@ -63,8 +63,8 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
     match final_ecosystem_args.ecosystem_upgrade_stage {
         GatewayUpgradeStage::NoGovernancePrepare => {
             no_governance_prepare(&mut final_ecosystem_args, shell, &ecosystem_config).await?;
-            //no_governance_prepare_gateway(&mut final_ecosystem_args, shell, &mut ecosystem_config)
-            //    .await?;
+            no_governance_prepare_gateway(&mut final_ecosystem_args, shell, &mut ecosystem_config)
+                .await?;
         }
         GatewayUpgradeStage::GovernanceStage1 => {
             governance_stage_1(&mut final_ecosystem_args, shell, &ecosystem_config).await?;
