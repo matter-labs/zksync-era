@@ -550,4 +550,4 @@ jobs:
         if: always()
         with:
           name: logs_${{matrix.use_gateway_chain}}
-          path: logs_${{matrix.use_gateway_chain}}
+          path: logs
