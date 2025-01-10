@@ -1,8 +1,8 @@
 use clap::Subcommand;
 use commands::status::args::StatusArgs;
-use messages::MSG_STATUS_ABOUT;
 #[cfg(feature = "gateway")]
 use messages::MSG_GATEWAY_UPGRADE_CALLDATA;
+use messages::MSG_STATUS_ABOUT;
 use xshell::Shell;
 
 use self::commands::{
