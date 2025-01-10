@@ -297,12 +297,7 @@ impl DebugNamespace {
         let (output, revert_reason) = match result.vm.result {
             ExecutionResult::Success { output, .. } => (output, None),
             ExecutionResult::Revert { output } => (vec![], Some(output.to_string())),
-            ExecutionResult::Halt { reason } => {
-                return Err(Web3Error::SubmitTransactionError(
-                    reason.to_string(),
-                    vec![],
-                ))
-            }
+            ExecutionResult::Halt { reason } => (vec![], Some(reason.to_string())),
         };
         let call = Call::new_high_level(
             call.common_data.fee.gas_limit.as_u64(),
