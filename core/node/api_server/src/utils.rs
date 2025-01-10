@@ -2,6 +2,7 @@
 
 use std::{
     cell::Cell,
+    collections::HashSet,
     thread,
     time::{Duration, Instant},
 };
@@ -91,7 +92,7 @@ pub(crate) async fn fill_transaction_receipts(
     receipts.sort_unstable_by_key(|receipt| receipt.inner.transaction_index);
 
     let mut filled_receipts = Vec::with_capacity(receipts.len());
-    let mut receipt_indexes_with_unknown_nonce = vec![];
+    let mut receipt_indexes_with_unknown_nonce = HashSet::new();
     for (i, mut receipt) in receipts.into_iter().enumerate() {
         receipt.inner.contract_address = if receipt.inner.to.is_none() {
             // This is an EVM deployment transaction.
@@ -105,7 +106,7 @@ pub(crate) async fn fill_transaction_receipts(
                 match deployment_params {
                     DeploymentParams::Create | DeploymentParams::CreateAccount => {
                         // We need a deployment nonce which isn't available locally; we'll compute it in a single batch below.
-                        receipt_indexes_with_unknown_nonce.push(i);
+                        receipt_indexes_with_unknown_nonce.insert(i);
                         None
                     }
                     DeploymentParams::Create2(data) | DeploymentParams::Create2Account(data) => {
@@ -122,53 +123,69 @@ pub(crate) async fn fill_transaction_receipts(
         filled_receipts.push(receipt.inner);
     }
 
-    if let Some(&first_idx) = receipt_indexes_with_unknown_nonce.first() {
-        let requested_block = L2BlockNumber(filled_receipts[first_idx].block_number.as_u32());
-        let nonce_keys: Vec<_> = receipt_indexes_with_unknown_nonce
-            .iter()
-            .map(|&i| get_nonce_key(&filled_receipts[i].from).hashed_key())
+    if let Some(&first_idx) = receipt_indexes_with_unknown_nonce.iter().next() {
+        let block_number = L2BlockNumber(filled_receipts[first_idx].block_number.as_u32());
+        // We cannot iterate over `receipt_indexes_with_unknown_nonce` since it would violate Rust aliasing rules
+        // (Rust isn't smart enough to understand that `receipt_indexes_with_unknown_nonce` are unique).
+        let unknown_receipts = filled_receipts
+            .iter_mut()
+            .enumerate()
+            .filter_map(|(i, receipt)| {
+                receipt_indexes_with_unknown_nonce
+                    .contains(&i)
+                    .then_some(receipt)
+            })
             .collect();
-
-        // Load nonces at the start of the block.
-        let nonces_at_block_start = storage
-            .storage_logs_dal()
-            .get_storage_values(&nonce_keys, requested_block - 1)
-            .await
-            .map_err(DalError::generalize)?;
-        // Load deployment events for the block in order to compute deployment nonces at the start of each transaction.
-        // TODO: can filter by the senders as well if necessary.
-        let deployment_events = storage
-            .events_web3_dal()
-            .get_contract_deployment_logs(requested_block)
-            .await
-            .map_err(DalError::generalize)?;
-
-        for (idx, nonce_key) in receipt_indexes_with_unknown_nonce
-            .into_iter()
-            .zip(nonce_keys)
-        {
-            let sender = filled_receipts[idx].from;
-            let tx_index = filled_receipts[idx].transaction_index.as_u64();
-            let initial_nonce = nonces_at_block_start
-                .get(&nonce_key)
-                .copied()
-                .flatten()
-                .unwrap_or_default();
-            let (_, initial_deploy_nonce) = decompose_full_nonce(h256_to_u256(initial_nonce));
-
-            let nonce_increment = deployment_events
-                .iter()
-                // Can use `take_while` because events are ordered by `transaction_index_in_block`.
-                .take_while(|event| event.transaction_index_in_block < tx_index)
-                .filter(|event| event.deployer == sender)
-                .count();
-            let deploy_nonce = initial_deploy_nonce + nonce_increment;
-            filled_receipts[idx].contract_address =
-                Some(deployed_address_create(sender, deploy_nonce));
-        }
+        fill_receipts_with_unknown_nonce(storage, block_number, unknown_receipts).await?;
     }
 
     Ok(filled_receipts)
+}
+
+async fn fill_receipts_with_unknown_nonce(
+    storage: &mut Connection<'_, Core>,
+    block_number: L2BlockNumber,
+    receipts: Vec<&mut TransactionReceipt>,
+) -> Result<(), Web3Error> {
+    // Load nonces at the start of the block.
+    let nonce_keys: Vec<_> = receipts
+        .iter()
+        .map(|receipt| get_nonce_key(&receipt.from).hashed_key())
+        .collect();
+    let nonces_at_block_start = storage
+        .storage_logs_dal()
+        .get_storage_values(&nonce_keys, block_number - 1)
+        .await
+        .map_err(DalError::generalize)?;
+
+    // Load deployment events for the block in order to compute deployment nonces at the start of each transaction.
+    // TODO: can filter by the senders as well if necessary.
+    let deployment_events = storage
+        .events_web3_dal()
+        .get_contract_deployment_logs(block_number)
+        .await
+        .map_err(DalError::generalize)?;
+
+    for (receipt, nonce_key) in receipts.into_iter().zip(nonce_keys) {
+        let sender = receipt.from;
+        let tx_index = receipt.transaction_index.as_u64();
+        let initial_nonce = nonces_at_block_start
+            .get(&nonce_key)
+            .copied()
+            .flatten()
+            .unwrap_or_default();
+        let (_, initial_deploy_nonce) = decompose_full_nonce(h256_to_u256(initial_nonce));
+
+        let nonce_increment = deployment_events
+            .iter()
+            // Can use `take_while` because events are ordered by `transaction_index_in_block`.
+            .take_while(|event| event.transaction_index_in_block < tx_index)
+            .filter(|event| event.deployer == sender)
+            .count();
+        let deploy_nonce = initial_deploy_nonce + nonce_increment;
+        receipt.contract_address = Some(deployed_address_create(sender, deploy_nonce));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
