@@ -2,11 +2,6 @@ use std::{num::NonZeroUsize, str::FromStr, sync::Arc};
 
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
-use zkstack_cli_config::{
-    forge_interface::gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput,
-    traits::{ReadConfig, ZkStackConfig},
-    ContractsConfig,
-};
 use ethers::{
     abi::{encode, parse_abi, Token},
     contract::{abigen, BaseContract},
@@ -16,6 +11,11 @@ use ethers::{
 use serde::{Deserialize, Serialize};
 use strum::EnumIter;
 use xshell::Shell;
+use zkstack_cli_config::{
+    forge_interface::gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput,
+    traits::{ReadConfig, ZkStackConfig},
+    ContractsConfig,
+};
 use zksync_contracts::{chain_admin_contract, hyperchain_contract, DIAMOND_CUT};
 use zksync_types::{
     ethabi,
