@@ -67,7 +67,7 @@ describe('L2 native ERC20 contract checks', () => {
         const mintTx = await aliceErc20.mint(alice.address, 1000n);
         await mintTx.wait();
 
-        // We will test that the token can be withdrawn and work with without explicit registration
+        // We will test that the token can be withdrawn and works without explicit registration
         const l2ChainId = (await l2Provider.getNetwork()).chainId;
         zkTokenAssetId = encodeNTVAssetId(l2ChainId, l2TokenAddress);
 
