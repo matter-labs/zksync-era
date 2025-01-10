@@ -174,11 +174,11 @@ jobs:
     strategy:
       # ----------------------------------------------
       # Note, that while the contracts do support gateway chain
-      # in reality it wont exist for quite some time and so 
+      # in reality it won't exist for quite some time and so
       # we will test both cases here
       # ----------------------------------------------
       matrix:
-        use_gateway_chain: [ true, false ]
+        use_gateway_chain: [ "true", "false" ]
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
@@ -549,5 +549,5 @@ jobs:
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
         if: always()
         with:
-          name: logs
-          path: logs
+          name: logs_${{matrix.use_gateway_chain}}
+          path: logs_${{matrix.use_gateway_chain}}
