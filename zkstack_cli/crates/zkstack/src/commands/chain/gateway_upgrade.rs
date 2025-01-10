@@ -27,6 +27,7 @@ use zkstack_cli_config::{
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{H256, U256};
 use zksync_types::{web3::keccak256, Address, L2_NATIVE_TOKEN_VAULT_ADDRESS};
+use crate::commands::chain::utils::encode_ntv_asset_id;
 
 use crate::{
     accept_ownership::{
@@ -126,16 +127,6 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
             set_weth_for_chain(shell, args, ecosystem_config, chain_config, l1_url).await
         }
     }
-}
-
-pub fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
-    let encoded_data = encode(&[
-        ethers::abi::Token::Uint(l1_chain_id),
-        ethers::abi::Token::Address(L2_NATIVE_TOKEN_VAULT_ADDRESS),
-        ethers::abi::Token::Address(addr),
-    ]);
-
-    H256(keccak256(&encoded_data))
 }
 
 async fn adapt_config(shell: &Shell, chain_config: ChainConfig) -> anyhow::Result<()> {

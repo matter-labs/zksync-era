@@ -15,7 +15,7 @@ use crate::{
                 configs::{InitConfigsArgs, InitConfigsArgsFinal},
                 da_configs::ValidiumType,
             },
-            gateway_upgrade::encode_ntv_asset_id,
+            utils::encode_ntv_asset_id,
             genesis,
         },
         portal::update_portal_config,
