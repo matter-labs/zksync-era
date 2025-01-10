@@ -686,7 +686,7 @@ mod tests {
         assert_eq!(receipts.len(), 1);
         let receipt = receipts.into_iter().next().unwrap().inner;
         assert_eq!(receipt.transaction_hash, tx_hash);
-        assert_eq!(receipt.to, Some(Address::zero()));
+        assert_eq!(receipt.to, None);
     }
 
     #[tokio::test]
