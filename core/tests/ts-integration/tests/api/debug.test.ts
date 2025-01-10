@@ -107,16 +107,6 @@ describe('Debug methods', () => {
         const txCallTraceWithTracer = await testMaster
             .mainAccount()
             .provider.send('debug_traceTransaction', [tx.hash, { tracer: 'callTracer' }]);
-
-        console.log("aliceErc20");
-        const smallGasLimit = 20_000;
-        const value2 = 1n;
-        //let tx;
-        const tx2 = await aliceErc20.transfer(bob.address, value2, {gasLimit: smallGasLimit});
-        console.log("tx", tx2);
-        const receipt2 = await tx2.wait();
-        console.log("receipt", receipt2);
-
         expect(txCallTrace).toEqual(expected);
         expect(txCallTrace).toEqual(txCallTraceWithTracer);
     });
