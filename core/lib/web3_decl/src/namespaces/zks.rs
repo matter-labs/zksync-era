@@ -142,11 +142,4 @@ pub trait ZksNamespace {
         &self,
         tx_bytes: Bytes,
     ) -> RpcResult<TransactionDetailedResult>;
-
-    // This is an unstable method that may get deleted in the future,
-    // however, it is part of the `zks` namespace in order to have it enabled by
-    // default on all networks. It is needed for the upgrade functionality and may be
-    // stabilized later with a different interface.
-    #[method(name = "unstableInflightTxsCount")]
-    async fn get_inflight_txs_count(&self) -> RpcResult<usize>;
 }

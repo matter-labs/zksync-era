@@ -26,7 +26,7 @@ use zksync_types::{
 };
 use zksync_web3_decl::{
     client::{Client, DynClient, L2},
-    namespaces::ZksNamespaceClient,
+    namespaces::{UnstableNamespaceClient, ZksNamespaceClient},
 };
 
 /// To support both functionality of assignment inside local tests
@@ -174,7 +174,7 @@ pub async fn check_chain_readiness(
         .build();
     let l2_client = Box::new(l2_client) as Box<DynClient<L2>>;
 
-    let inflight_txs_count: usize = l2_client.get_inflight_txs_count().await?;
+    let inflight_txs_count: usize = l2_client.get_unconfirmed_txs_count().await?;
     let diamond_proxy_addr = l2_client.get_main_contract().await?;
 
     if inflight_txs_count != 0 {
