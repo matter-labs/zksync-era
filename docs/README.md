@@ -22,3 +22,13 @@ If you'd like to contribute to the documentation:
 2. Test all code examples
 3. Update the table of contents when adding new pages
 4. Submit a pull request with your changes
+
+## Building the Documentation
+
+To build and serve the documentation locally, follow the setup instructions in the main project README.
+
+## License
+
+This documentation is part of zkSync Era and is licensed under the same terms as the main project.
+
+For more information about zkSync Era, visit [era.zksync.io/docs](https://era.zksync.io/docs/).
