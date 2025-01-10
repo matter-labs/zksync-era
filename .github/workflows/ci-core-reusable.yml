@@ -171,12 +171,19 @@ jobs:
 
   integration-tests:
     runs-on: [ matterlabs-ci-runner-ultra-performance ]
+    strategy:
+      # ----------------------------------------------
+      # Note, that while the contracts do support gateway chain
+      # in reality it wont exist for quite some time and so 
+      # we will test both cases here
+      # ----------------------------------------------
+      matrix:
+        use_gateway_chain: [ true, false ]
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
           fetch-depth: 0
-
 
       - name: Setup environment
         run: |
@@ -357,37 +364,43 @@ jobs:
           CHAINS="era,validium,custom_token,consensus"
           echo "CHAINS=$CHAINS" >> $GITHUB_ENV
 
+      # ----------------------------------------------------------------
+      #  Only create/initialize the gateway chain *if* use_gateway_chain=true
+      # ----------------------------------------------------------------
       - name: Initialize gateway chain
+        if: matrix.use_gateway_chain == 'true'
         run: |
           ci_run zkstack chain create \
-          --chain-name gateway \
-          --chain-id 505 \
-          --prover-mode no-proofs \
-          --wallet-creation localhost \
-          --l1-batch-commit-data-generator-mode rollup \
-          --base-token-address 0x0000000000000000000000000000000000000001 \
-          --base-token-price-nominator 1 \
-          --base-token-price-denominator 1 \
-          --set-as-default false \
-          --ignore-prerequisites \
-          --evm-emulator false
+            --chain-name gateway \
+            --chain-id 505 \
+            --prover-mode no-proofs \
+            --wallet-creation localhost \
+            --l1-batch-commit-data-generator-mode rollup \
+            --base-token-address 0x0000000000000000000000000000000000000001 \
+            --base-token-price-nominator 1 \
+            --base-token-price-denominator 1 \
+            --set-as-default false \
+            --ignore-prerequisites \
+            --evm-emulator false
           
           ci_run zkstack chain init \
-          --deploy-paymaster \
-          --l1-rpc-url=http://localhost:8545 \
-          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --server-db-name=zksync_server_localhost_gateway \
-          --chain gateway \
-          --validium-type no-da
+            --deploy-paymaster \
+            --l1-rpc-url=http://localhost:8545 \
+            --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+            --server-db-name=zksync_server_localhost_gateway \
+            --chain gateway \
+            --validium-type no-da
           
           ci_run zkstack chain convert-to-gateway --chain gateway --ignore-prerequisites
 
       - name: Run gateway
+        if: matrix.use_gateway_chain == 'true'
         run: |
           ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
       - name: Migrate chains to gateway
+        if: matrix.use_gateway_chain == 'true'
         run: |
           ci_run zkstack chain migrate-to-gateway --chain era --gateway-chain-name gateway
           ci_run zkstack chain migrate-to-gateway --chain validium --gateway-chain-name gateway
@@ -395,10 +408,12 @@ jobs:
           ci_run zkstack chain migrate-to-gateway --chain consensus --gateway-chain-name gateway
 
       - name: Migrate back era
+        if: matrix.use_gateway_chain == 'true'
         run: |
           ci_run zkstack chain migrate-from-gateway --chain era --gateway-chain-name gateway
 
       - name: Migrate to gateway again
+        if: matrix.use_gateway_chain == 'true'
         run: |
           ci_run zkstack chain migrate-to-gateway --chain era --gateway-chain-name gateway
 
@@ -490,27 +505,41 @@ jobs:
       - name: Fee projection tests
         run: |
           ci_run killall -INT zksync_server || true
-          ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
-          ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
+
+          # Only start & wait for the gateway server if use_gateway_chain == true
+          if [ "${{ matrix.use_gateway_chain }}" == "true" ]; then
+            ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+            ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
+          fi
+
+          # Always run the chain-specific fee tests
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}
 
       - name: Run revert tests
         run: |
           ci_run killall -INT zksync_server || true
           ci_run killall -INT zksync_external_node || true
-          ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
-          ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
+          # Only start & wait for the gateway server if use_gateway_chain == true
+          if [ "${{ matrix.use_gateway_chain }}" == "true" ]; then
+            ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+            ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
+          fi
+
+          # Always run the chain-specific revert tests
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --external-node --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
-      # Upgrade tests should run last, because as soon as they
-      # finish the bootloader will be different
-      # TODO make upgrade tests safe to run multiple times
       - name: Run upgrade test
         run: |
           ci_run killall -INT zksync_server || true
-          ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
-          ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
+
+          # Only start & wait for the gateway server if use_gateway_chain == true
+          if [ "${{ matrix.use_gateway_chain }}" == "true" ]; then
+            ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+            ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
+          fi
+
+          # Always run the upgrade test against era
           ci_run zkstack dev test upgrade --no-deps --chain era
 
       - name: Upload logs
