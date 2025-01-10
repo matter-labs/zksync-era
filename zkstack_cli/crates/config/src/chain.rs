@@ -9,7 +9,7 @@ use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode,
 use zksync_basic_types::L2ChainId;
 use zksync_config::{
     configs::{gateway::GatewayChainConfig, GatewayConfig},
-    DAClientConfig::Avail,
+    DAClientConfig::{Avail, NoDA},
 };
 
 use crate::{
@@ -119,7 +119,7 @@ impl ChainConfig {
             general.da_client_config,
         ) {
             (L1BatchCommitmentMode::Rollup, _) => Ok(DAValidatorType::Rollup),
-            (L1BatchCommitmentMode::Validium, None) => Ok(DAValidatorType::NoDA),
+            (L1BatchCommitmentMode::Validium, None | Some(NoDA)) => Ok(DAValidatorType::NoDA),
             (L1BatchCommitmentMode::Validium, Some(Avail(_))) => Ok(DAValidatorType::Avail),
             _ => anyhow::bail!("DAValidatorType is not supported"),
         }
