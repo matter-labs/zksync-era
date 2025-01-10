@@ -3,7 +3,7 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import * as hre from 'hardhat';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
-import { TimeoutError } from 'ethers/src.ts/utils/errors';
+import { TransactionReceipt } from 'ethers';
 
 export const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
 
@@ -75,7 +75,7 @@ export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.t
     const MAX_ATTEMPTS = 3;
 
     let txResponse = null;
-    let txReceipt = null;
+    let txReceipt: TransactionReceipt | null = null;
     let nonce = Number(await wallet.getNonce());
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
         // Send a dummy transaction and wait for it to execute. We override `maxFeePerGas` as the default ethers behavior
@@ -91,12 +91,22 @@ export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.t
         } else {
             console.log('Gas price has not gone up, waiting longer');
         }
-        txReceipt = await wallet.provider.waitForTransaction(txResponse.hash, 1, 3000).catch((_: TimeoutError) => null);
+        txReceipt = await wallet.provider.waitForTransaction(txResponse.hash, 1, 3000).catch((e) => {
+            if (ethers.isError(e, 'TIMEOUT')) {
+                console.log(`Transaction timed out, potentially gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`);
+                return null;
+            } else if (ethers.isError(e, 'UNKNOWN_ERROR') && e.message.match(/Not enough gas/)) {
+                console.log(
+                    `Transaction did not have enough gas, likely gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`
+                );
+                return null;
+            } else {
+                return Promise.reject(e);
+            }
+        });
         if (txReceipt) {
             // Transaction got executed, so we can safely assume it will be sealed in the next batch
             break;
-        } else {
-            console.log(`Transaction timed out (attempt ${i + 1}/${MAX_ATTEMPTS})`);
         }
     }
     if (!txReceipt) {
