@@ -349,11 +349,7 @@ describe('Upgrade test', function () {
         );
 
         console.log('Sending chain admin operation');
-        await sendChainAdminOperation({
-            target: await slChainAdminContract.getAddress(),
-            data: setTimestampCalldata,
-            value: 0
-        });
+        await chainAdminSetTimestamp(setTimestampCalldata);
 
         // Wait for server to process L1 event.
         await utils.sleep(2);
@@ -456,6 +452,17 @@ describe('Upgrade test', function () {
 
         await providerForPriorityOp.waitForTransaction(hash);
         console.log('Transaction complete!');
+    }
+
+    async function chainAdminSetTimestamp(data: string) {
+        const transaction = await slAdminGovWallet.sendTransaction({
+            to: await slChainAdminContract.getAddress(),
+            data,
+            type: 0
+        });
+        console.log(`Sent chain admin operation, tx_hash=${transaction.hash}, nonce=${transaction.nonce}`);
+        await transaction.wait();
+        console.log(`Chain admin operation succeeded, tx_hash=${transaction.hash}`);
     }
 
     async function sendChainAdminOperation(call: Call) {
