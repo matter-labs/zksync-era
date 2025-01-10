@@ -127,7 +127,7 @@ abigen!(
 
 async fn verify_next_batch_new_version(
     batch_number: u32,
-    main_node_client: &Box<DynClient<L2>>,
+    main_node_client: &DynClient<L2>,
 ) -> anyhow::Result<()> {
     let (_, right_bound) = main_node_client
         .get_l2_block_range(L1BatchNumber(batch_number))
@@ -186,8 +186,8 @@ pub async fn check_chain_readiness(
     let batches_committed = zkchain.get_total_batches_committed().await?.as_u32();
     let batches_verified = zkchain.get_total_batches_verified().await?.as_u32();
 
-    verify_next_batch_new_version(batches_committed, &l2_client).await?;
-    verify_next_batch_new_version(batches_verified, &l2_client).await?;
+    verify_next_batch_new_version(batches_committed, l2_client.as_ref()).await?;
+    verify_next_batch_new_version(batches_verified, l2_client.as_ref()).await?;
 
     Ok(())
 }
