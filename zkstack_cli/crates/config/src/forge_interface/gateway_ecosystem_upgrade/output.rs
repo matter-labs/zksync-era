@@ -48,6 +48,12 @@ pub struct GatewayEcosystemUpgradeContractsOutput {
     pub recursion_circuits_set_vks_hash: H256,
     pub recursion_leaf_level_vk_hash: H256,
     pub recursion_node_level_vk_hash: H256,
+
+    pub new_protocol_version: u64,
+    pub old_protocol_version: u64,
+
+    pub old_validator_timelock: Address,
+    pub l1_legacy_shared_bridge: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
