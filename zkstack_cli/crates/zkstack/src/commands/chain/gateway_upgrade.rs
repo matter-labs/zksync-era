@@ -27,13 +27,13 @@ use zkstack_cli_config::{
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{H256, U256};
 use zksync_types::{web3::keccak256, Address, L2_NATIVE_TOKEN_VAULT_ADDRESS};
-use crate::commands::chain::utils::encode_ntv_asset_id;
 
 use crate::{
     accept_ownership::{
         admin_execute_upgrade, admin_schedule_upgrade, admin_update_validator,
         set_da_validator_pair,
     },
+    commands::chain::utils::encode_ntv_asset_id,
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
     utils::forge::{fill_forge_private_key, WalletOwner},
 };
