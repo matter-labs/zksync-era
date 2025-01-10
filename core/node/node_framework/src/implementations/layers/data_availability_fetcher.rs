@@ -14,7 +14,7 @@ use crate::{
 };
 
 /// Wiring layer for [`DataAvailabilityFetcher`].
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct DataAvailabilityFetcherLayer;
 
 #[derive(Debug, FromContext)]
