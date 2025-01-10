@@ -371,25 +371,25 @@ jobs:
         if: matrix.use_gateway_chain == 'true'
         run: |
           ci_run zkstack chain create \
-            --chain-name gateway \
-            --chain-id 505 \
-            --prover-mode no-proofs \
-            --wallet-creation localhost \
-            --l1-batch-commit-data-generator-mode rollup \
-            --base-token-address 0x0000000000000000000000000000000000000001 \
-            --base-token-price-nominator 1 \
-            --base-token-price-denominator 1 \
-            --set-as-default false \
-            --ignore-prerequisites \
-            --evm-emulator false
+          --chain-name gateway \
+          --chain-id 505 \
+          --prover-mode no-proofs \
+          --wallet-creation localhost \
+          --l1-batch-commit-data-generator-mode rollup \
+          --base-token-address 0x0000000000000000000000000000000000000001 \
+          --base-token-price-nominator 1 \
+          --base-token-price-denominator 1 \
+          --set-as-default false \
+          --ignore-prerequisites \
+          --evm-emulator false
           
           ci_run zkstack chain init \
-            --deploy-paymaster \
-            --l1-rpc-url=http://localhost:8545 \
-            --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-            --server-db-name=zksync_server_localhost_gateway \
-            --chain gateway \
-            --validium-type no-da
+          --deploy-paymaster \
+          --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_gateway \
+          --chain gateway \
+          --validium-type no-da
           
           ci_run zkstack chain convert-to-gateway --chain gateway --ignore-prerequisites
 
@@ -529,6 +529,9 @@ jobs:
           # Always run the chain-specific revert tests
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --external-node --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
+      # Upgrade tests should run last, because as soon as they
+      # finish the bootloader will be different
+      # TODO make upgrade tests safe to run multiple times
       - name: Run upgrade test
         run: |
           ci_run killall -INT zksync_server || true
