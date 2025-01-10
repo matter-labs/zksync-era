@@ -26,6 +26,27 @@ describe('Debug methods', () => {
         aliceErc20 = new zksync.Contract(tokenDetails.l2Address, zksync.utils.IERC20, alice);
     });
 
+    test('Should show out-of-gas error in debug_traceTransaction', async () => {
+        const smallGasLimit = 20_000;
+        let tx;
+        try {
+            tx = await aliceErc20.transfer(bob.address, 1n, {
+                gasLimit: smallGasLimit
+            });
+            await tx.wait();
+        } catch (err) {
+            console.log("err", err);
+        }
+
+        const txCallTrace = await testMaster
+            .mainAccount()
+            .provider.send('debug_traceTransaction', [tx.hash]);
+
+        console.log("txCallTrace", txCallTrace);
+        //expect(txCallTrace.error).toBe('OutOfGas');
+
+    });
+
     test('Should not fail for infinity recursion', async () => {
         const bytecodePath = `${
             testMaster.environment().pathToHome
@@ -109,27 +130,6 @@ describe('Debug methods', () => {
             .provider.send('debug_traceTransaction', [tx.hash, { tracer: 'callTracer' }]);
         expect(txCallTrace).toEqual(expected);
         expect(txCallTrace).toEqual(txCallTraceWithTracer);
-    });
-
-    test('Should show out-of-gas error in debug_traceTransaction', async () => {
-        const smallGasLimit = 20_000;
-        let tx;
-        try {
-            tx = await aliceErc20.transfer(bob.address, 1n, {
-                gasLimit: smallGasLimit
-            });
-            await tx.wait();
-        } catch (err) {
-            console.log("err", err);
-        }
-
-        const txCallTrace = await testMaster
-            .mainAccount()
-            .provider.send('debug_traceTransaction', [tx.hash]);
-
-        console.log("txCallTrace", txCallTrace);
-        //expect(txCallTrace.error).toBe('OutOfGas');
-
     });
 
     afterAll(async () => {
