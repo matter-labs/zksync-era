@@ -11,7 +11,7 @@ use zksync_types::{
     tee_types::TeeType,
     L1BatchNumber, L2ChainId,
 };
-use zksync_web3_decl::{error::Web3Error, jsonrpsee::core::RpcResult, types::H256};
+use zksync_web3_decl::{error::Web3Error, types::H256};
 
 use crate::web3::{backend_jsonrpsee::MethodTracer, RpcState};
 

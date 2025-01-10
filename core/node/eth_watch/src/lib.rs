@@ -11,9 +11,8 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
-    abi::ZkChainSpecificUpgradeData, ethabi::Contract, protocol_version::ProtocolSemanticVersion,
-    tokens::TokenMetadata, web3::BlockNumber as Web3BlockNumber, Address, L1BatchNumber, L2ChainId,
-    PriorityOpId, H256,
+    ethabi::Contract, protocol_version::ProtocolSemanticVersion,
+    web3::BlockNumber as Web3BlockNumber, L1BatchNumber, L2ChainId, PriorityOpId,
 };
 
 pub use self::client::{EthClient, EthHttpQueryClient, L2EthClient};

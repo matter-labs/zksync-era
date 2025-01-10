@@ -12,7 +12,6 @@ use zksync_types::{
     ethabi::{self, Token},
     l1::L1Tx,
     protocol_upgrade::ProtocolUpgradeTx,
-    tokens::TokenMetadata,
     u256_to_h256,
     web3::{contract::Tokenizable, BlockNumber},
     Address, L1BatchNumber, L2ChainId, ProtocolUpgrade, SLChainId, Transaction, H256,

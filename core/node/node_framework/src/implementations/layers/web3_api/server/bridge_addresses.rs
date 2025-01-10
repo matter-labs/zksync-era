@@ -61,11 +61,7 @@ impl L1UpdaterInner {
         // In case we can successfully retrieve the l1 nullifier, this is definitely the new l1 asset router.
         // The contrary is not necessarily true: the query can fail either due to network issues or
         // due to the contract being outdated. To be conservative, we just always treat such cases as `false`.
-        let should_use_l2_asset_router = if l1_nullifier_addr.is_ok() {
-            true
-        } else {
-            false
-        };
+        let should_use_l2_asset_router = l1_nullifier_addr.is_ok();
 
         Ok(L1SharedBridgeInfo {
             l1_shared_bridge_addr,

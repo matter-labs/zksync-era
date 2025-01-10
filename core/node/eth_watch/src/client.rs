@@ -15,7 +15,6 @@ use zksync_types::{
     abi::ZkChainSpecificUpgradeData,
     api::{ChainAggProof, Log},
     ethabi::{self, decode, encode, Contract, ParamType},
-    tokens::TokenMetadata,
     web3::{keccak256, BlockId, BlockNumber, CallRequest, Filter, FilterBuilder},
     Address, L1BatchNumber, L2ChainId, SLChainId, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS,
     SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,

@@ -3,9 +3,8 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_types::{
-    abi::ZkChainSpecificUpgradeData, api::Log, ethabi::Contract,
-    protocol_upgrade::ProtocolUpgradePreimageOracle, protocol_version::ProtocolSemanticVersion,
-    ProtocolUpgrade, H256, U256,
+    api::Log, ethabi::Contract, protocol_upgrade::ProtocolUpgradePreimageOracle,
+    protocol_version::ProtocolSemanticVersion, ProtocolUpgrade, H256, U256,
 };
 
 use crate::{
