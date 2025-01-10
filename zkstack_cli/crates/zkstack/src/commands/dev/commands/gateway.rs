@@ -29,7 +29,6 @@ use zksync_web3_decl::{
     namespaces::ZksNamespaceClient,
 };
 
-
 /// To support both functionality of assignment inside local tests
 /// and to print out the changes to the user the following function is used.
 #[macro_export]
@@ -482,7 +481,11 @@ impl GatewayUpgradeInfo {
     // Updates to the config that should be done somewhere after the upgrade is fully over.
     // They do not have to updated for the system to work smoothly during the upgrade, but after
     // "stage 2" they are desirable to be updated for consistency
-    pub fn _post_upgrade_update_contracts_config(&self, _config: &mut ContractsConfig, _assign: bool) {
+    pub fn _post_upgrade_update_contracts_config(
+        &self,
+        _config: &mut ContractsConfig,
+        _assign: bool,
+    ) {
         todo!()
     }
 }

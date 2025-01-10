@@ -7,10 +7,7 @@ use common::{
 use config::{
     forge_interface::{
         gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput,
-        script_params::{
-            ACCEPT_GOVERNANCE_SCRIPT_PARAMS,
-            GATEWAY_UPGRADE_ECOSYSTEM_PARAMS,
-        },
+        script_params::{ACCEPT_GOVERNANCE_SCRIPT_PARAMS, GATEWAY_UPGRADE_ECOSYSTEM_PARAMS},
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig,
@@ -33,9 +30,9 @@ use zksync_types::{web3::keccak256, Address, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 
 use crate::{
     commands::dev::commands::gateway::{
-            check_chain_readiness, fetch_chain_info, get_admin_call_builder,
-            set_upgrade_timestamp_calldata, DAMode, GatewayUpgradeArgsInner, GatewayUpgradeInfo,
-        },
+        check_chain_readiness, fetch_chain_info, get_admin_call_builder,
+        set_upgrade_timestamp_calldata, DAMode, GatewayUpgradeArgsInner, GatewayUpgradeInfo,
+    },
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
     utils::forge::{fill_forge_private_key, WalletOwner},
 };

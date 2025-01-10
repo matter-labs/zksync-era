@@ -7,8 +7,7 @@ use config::{
         },
         gateway_preparation::input::GatewayPreparationConfig,
         script_params::{
-            FINALIZE_UPGRADE_SCRIPT_PARAMS, GATEWAY_PREPARATION,
-            GATEWAY_UPGRADE_ECOSYSTEM_PARAMS,
+            FINALIZE_UPGRADE_SCRIPT_PARAMS, GATEWAY_PREPARATION, GATEWAY_UPGRADE_ECOSYSTEM_PARAMS,
         },
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
@@ -20,9 +19,7 @@ use serde::Deserialize;
 use types::ProverMode;
 use xshell::Shell;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
-use zksync_types::{
-    H160, L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256,
-};
+use zksync_types::{H160, L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 
 use super::args::gateway_upgrade::{GatewayUpgradeArgs, GatewayUpgradeArgsFinal};
 use crate::{
@@ -56,8 +53,7 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
     match final_ecosystem_args.ecosystem_upgrade_stage {
         GatewayUpgradeStage::NoGovernancePrepare => {
             no_governance_prepare(&mut final_ecosystem_args, shell, &ecosystem_config).await?;
-            no_governance_prepare_gateway(shell, &mut ecosystem_config)
-                .await?;
+            no_governance_prepare_gateway(shell, &mut ecosystem_config).await?;
         }
         GatewayUpgradeStage::GovernanceStage1 => {
             governance_stage_1(&mut final_ecosystem_args, shell, &ecosystem_config).await?;
