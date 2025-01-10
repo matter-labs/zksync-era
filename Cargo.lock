@@ -11981,6 +11981,7 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_concurrency",
+ "zksync_config",
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
@@ -13010,6 +13011,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_matches",
+ "async-trait",
  "bigdecimal",
  "bincode",
  "blake2 0.10.6",

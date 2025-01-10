@@ -1,10 +1,10 @@
 use anyhow::{bail, Context};
-use common::{logger, spinner::Spinner};
-use config::{
+use xshell::Shell;
+use zkstack_cli_common::{logger, spinner::Spinner};
+use zkstack_cli_config::{
     create_local_configs_dir, create_wallets, get_default_era_chain_id,
     traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError,
 };
-use xshell::Shell;
 
 use crate::{
     commands::{

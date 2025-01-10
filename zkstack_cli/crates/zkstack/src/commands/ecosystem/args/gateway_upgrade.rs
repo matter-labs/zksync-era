@@ -2,11 +2,11 @@
 use std::path::PathBuf;
 
 use clap::{Parser, ValueEnum};
-use common::{forge::ForgeScriptArgs, Prompt};
 use serde::{Deserialize, Serialize};
 use strum::EnumIter;
-use types::L1Network;
 use url::Url;
+use zkstack_cli_common::{forge::ForgeScriptArgs, Prompt};
+use zkstack_cli_types::L1Network;
 
 use crate::{
     defaults::LOCAL_RPC_URL,
