@@ -1,6 +1,10 @@
 use anyhow::Context;
-use common::{db::DatabaseConfig, forge::Forge, git, spinner::Spinner};
-use config::{
+use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
+use lazy_static::lazy_static;
+use serde::Deserialize;
+use xshell::Shell;
+use zkstack_cli_common::{db::DatabaseConfig, forge::Forge, git, spinner::Spinner};
+use zkstack_cli_config::{
     forge_interface::{
         gateway_ecosystem_upgrade::{
             input::GatewayEcosystemUpgradeInput, output::GatewayEcosystemUpgradeOutput,
@@ -13,11 +17,7 @@ use config::{
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
     EcosystemConfig, GenesisConfig, CONFIGS_PATH,
 };
-use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
-use lazy_static::lazy_static;
-use serde::Deserialize;
-use types::ProverMode;
-use xshell::Shell;
+use zkstack_cli_types::ProverMode;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
 use zksync_types::{H160, L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 

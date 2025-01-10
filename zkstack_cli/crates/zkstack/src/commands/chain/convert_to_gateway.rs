@@ -1,10 +1,13 @@
 use anyhow::Context;
-use common::{
+use ethers::{abi::parse_abi, contract::BaseContract, types::Bytes, utils::hex};
+use lazy_static::lazy_static;
+use xshell::Shell;
+use zkstack_cli_common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     wallets::Wallet,
 };
-use config::{
+use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::input::InitialDeploymentConfig,
         deploy_gateway_ctm::{input::DeployGatewayCTMInput, output::DeployGatewayCTMOutput},
@@ -14,9 +17,6 @@ use config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig, GenesisConfig,
 };
-use ethers::{abi::parse_abi, contract::BaseContract, types::Bytes, utils::hex};
-use lazy_static::lazy_static;
-use xshell::Shell;
 use zksync_basic_types::H256;
 use zksync_config::configs::GatewayConfig;
 

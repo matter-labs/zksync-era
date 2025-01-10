@@ -2,7 +2,7 @@ use std::{num::NonZeroUsize, str::FromStr, sync::Arc};
 
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
-use config::{
+use zkstack_cli_config::{
     forge_interface::gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput,
     traits::{ReadConfig, ZkStackConfig},
     ContractsConfig,

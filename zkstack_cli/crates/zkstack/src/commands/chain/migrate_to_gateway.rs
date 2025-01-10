@@ -1,18 +1,5 @@
 use anyhow::Context;
 use clap::Parser;
-use common::{
-    config::global_config,
-    forge::{Forge, ForgeScriptArgs},
-    wallets::Wallet,
-};
-use config::{
-    forge_interface::{
-        gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
-        script_params::GATEWAY_PREPARATION,
-    },
-    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    EcosystemConfig,
-};
 use ethers::{
     abi::parse_abi,
     contract::BaseContract,
@@ -22,8 +9,21 @@ use ethers::{
 };
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use types::L1BatchCommitmentMode;
 use xshell::Shell;
+use zkstack_cli_common::{
+    config::global_config,
+    forge::{Forge, ForgeScriptArgs},
+    wallets::Wallet,
+};
+use zkstack_cli_config::{
+    forge_interface::{
+        gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
+        script_params::GATEWAY_PREPARATION,
+    },
+    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    EcosystemConfig,
+};
+use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{
     pubdata_da::PubdataSendingMode, settlement::SettlementMode, Address, H256, U256, U64,
 };

@@ -959,6 +959,7 @@ impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
             config: AvailClientConfig::FullClient(AvailDefaultConfig {
                 api_node_url: self.sample(rng),
                 app_id: self.sample(rng),
+                finality_state: None,
             }),
         })
     }

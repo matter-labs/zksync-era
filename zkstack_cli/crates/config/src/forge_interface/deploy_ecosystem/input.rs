@@ -6,7 +6,7 @@ use ethers::{
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use types::L1Network;
+use zkstack_cli_types::L1Network;
 use zksync_basic_types::L2ChainId;
 
 use crate::{

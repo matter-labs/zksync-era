@@ -1,7 +1,7 @@
 use ethers::types::Address;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use types::L1BatchCommitmentMode;
+use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{L2ChainId, H256};
 
 use crate::{traits::ZkStackConfig, ChainConfig, ContractsConfig};

@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Context};
-use common::{docker, logger, spinner::Spinner};
-use config::{EcosystemConfig, DOCKER_COMPOSE_FILE, ERA_OBSERVABILITY_COMPOSE_FILE};
 use xshell::Shell;
+use zkstack_cli_common::{docker, logger, spinner::Spinner};
+use zkstack_cli_config::{EcosystemConfig, DOCKER_COMPOSE_FILE, ERA_OBSERVABILITY_COMPOSE_FILE};
 
 use super::args::ContainersArgs;
 use crate::{
@@ -46,7 +46,10 @@ pub fn initialize_docker(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::
 fn start_container(shell: &Shell, compose_file: &str, retry_msg: &str) -> anyhow::Result<()> {
     while let Err(err) = docker::up(shell, compose_file, true) {
         logger::error(err.to_string());
-        if !common::PromptConfirm::new(retry_msg).default(true).ask() {
+        if !zkstack_cli_common::PromptConfirm::new(retry_msg)
+            .default(true)
+            .ask()
+        {
             return Err(err);
         }
     }
