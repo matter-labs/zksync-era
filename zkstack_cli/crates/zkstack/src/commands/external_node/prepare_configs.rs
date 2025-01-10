@@ -1,13 +1,13 @@
 use std::path::Path;
 
 use anyhow::Context;
-use common::logger;
-use config::{
+use xshell::Shell;
+use zkstack_cli_common::logger;
+use zkstack_cli_config::{
     raw::{PatchedConfig, RawConfig},
     set_rocks_db_config, ChainConfig, EcosystemConfig, CONSENSUS_CONFIG_FILE, EN_CONFIG_FILE,
     GENERAL_FILE, SECRETS_FILE,
 };
-use xshell::Shell;
 use zksync_basic_types::{L1ChainId, L2ChainId};
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;

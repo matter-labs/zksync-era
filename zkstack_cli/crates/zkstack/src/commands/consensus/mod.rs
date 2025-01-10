@@ -3,8 +3,6 @@ use std::{borrow::Borrow, collections::HashMap, path::PathBuf, sync::Arc};
 /// Consensus registry contract operations.
 /// Includes code duplicated from `zksync_node_consensus::registry::abi`.
 use anyhow::Context as _;
-use common::{config::global_config, logger, wallets::Wallet};
-use config::EcosystemConfig;
 use ethers::{
     abi::Detokenize,
     contract::{FunctionCall, Multicall},
@@ -15,6 +13,8 @@ use ethers::{
 };
 use tokio::time::MissedTickBehavior;
 use xshell::Shell;
+use zkstack_cli_common::{config::global_config, logger, wallets::Wallet};
+use zkstack_cli_config::EcosystemConfig;
 use zksync_basic_types::L2ChainId;
 use zksync_consensus_crypto::ByteFmt;
 use zksync_consensus_roles::{attester, validator};
@@ -139,8 +139,8 @@ fn print_attesters(committee: &attester::Committee) {
 }
 
 struct Setup {
-    chain: config::ChainConfig,
-    contracts: config::ContractsConfig,
+    chain: zkstack_cli_config::ChainConfig,
+    contracts: zkstack_cli_config::ContractsConfig,
     l2_chain_id: L2ChainId,
     l2_http_url: String,
     genesis_attesters: attester::Committee,

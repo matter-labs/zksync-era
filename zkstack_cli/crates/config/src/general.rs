@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
-use common::yaml::merge_yaml;
 use xshell::Shell;
+use zkstack_cli_common::yaml::merge_yaml;
 
 use crate::{raw::PatchedConfig, ChainConfig};
 

@@ -1,8 +1,8 @@
 use anyhow::Context;
 use clap::{command, Parser, Subcommand};
-use common::{logger, spinner::Spinner};
-use config::{ChainConfig, EcosystemConfig};
 use xshell::Shell;
+use zkstack_cli_common::{logger, spinner::Spinner};
+use zkstack_cli_config::{ChainConfig, EcosystemConfig};
 
 use crate::{
     commands::chain::{

@@ -1,15 +1,15 @@
 use anyhow::Context;
-use common::{
+use xshell::{cmd, Shell};
+use zkstack_cli_common::{
     cmd::Cmd,
     config::global_config,
     logger,
     server::{Server, ServerMode},
 };
-use config::{
+use zkstack_cli_config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
     WalletsConfig, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
 };
-use xshell::{cmd, Shell};
 
 use crate::{
     commands::args::{RunServerArgs, ServerArgs, ServerCommand, WaitArgs},

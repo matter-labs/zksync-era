@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 use anyhow::Context;
 use args::{StatusArgs, StatusSubcommands};
-use common::logger;
 use draw::{bordered_boxes, format_port_info};
 use serde::Deserialize;
 use serde_json::Value;
 use utils::deslugify;
 use xshell::Shell;
+use zkstack_cli_common::logger;
 
 use crate::{
     commands::dev::messages::{

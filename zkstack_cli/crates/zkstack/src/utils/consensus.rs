@@ -1,6 +1,6 @@
 use anyhow::Context as _;
-use config::{raw::PatchedConfig, ChainConfig};
 use serde::{Deserialize, Serialize};
+use zkstack_cli_config::{raw::PatchedConfig, ChainConfig};
 use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_roles::{attester, node, validator};
 

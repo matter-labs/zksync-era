@@ -130,3 +130,13 @@ jobs:
       setup_keys_id: ${{ needs.setup.outputs.prover_fri_gpu_key_id }}
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       protocol_version: ${{ needs.build-push-prover-images.outputs.protocol_version }}
+
+  build-gar-proof-fri-gpu-compressor-gar:
+    name: Build GAR proof FRI GPU compressor
+    needs: [setup, build-push-prover-images]
+    uses: ./.github/workflows/build-proof-fri-gpu-compressor-gar.yml
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
+    with:
+      setup_keys_id: ${{ needs.setup.outputs.prover_fri_gpu_key_id }}
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      protocol_version: ${{ needs.build-push-prover-images.outputs.protocol_version }}

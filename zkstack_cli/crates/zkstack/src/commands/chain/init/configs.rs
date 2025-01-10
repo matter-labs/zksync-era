@@ -1,10 +1,10 @@
 use anyhow::Context;
-use common::logger;
-use config::{
+use xshell::Shell;
+use zkstack_cli_common::logger;
+use zkstack_cli_config::{
     copy_configs, set_l1_rpc_url, traits::SaveConfigWithBasePath, update_from_chain_config,
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use xshell::Shell;
 use zksync_types::Address;
 
 use crate::{

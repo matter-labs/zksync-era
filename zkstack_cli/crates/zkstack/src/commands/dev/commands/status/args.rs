@@ -1,7 +1,7 @@
 use anyhow::Context;
 use clap::Parser;
-use config::EcosystemConfig;
 use xshell::Shell;
+use zkstack_cli_config::EcosystemConfig;
 
 use crate::{
     commands::dev::messages::{MSG_STATUS_PORTS_HELP, MSG_STATUS_URL_HELP},

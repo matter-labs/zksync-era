@@ -1,18 +1,18 @@
 use std::path::Path;
 
 use anyhow::Context;
-use common::{
+use url::Url;
+use xshell::Shell;
+use zkstack_cli_common::{
     db::migrate_db,
     git, logger,
     spinner::Spinner,
     yaml::{merge_yaml, ConfigDiff},
 };
-use config::{
+use zkstack_cli_config::{
     ChainConfig, EcosystemConfig, CONTRACTS_FILE, EN_CONFIG_FILE, ERA_OBSERBAVILITY_DIR,
     GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
 };
-use url::Url;
-use xshell::Shell;
 
 use super::args::UpdateArgs;
 use crate::{

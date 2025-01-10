@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use common::{logger, spinner::Spinner};
-use config::{get_link_to_prover, raw::PatchedConfig, EcosystemConfig};
 use xshell::Shell;
+use zkstack_cli_common::{logger, spinner::Spinner};
+use zkstack_cli_config::{get_link_to_prover, raw::PatchedConfig, EcosystemConfig};
 
 use super::args::compressor_keys::{CompressorKeysArgs, CompressorType};
 use crate::messages::{

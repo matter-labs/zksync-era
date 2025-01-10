@@ -1,7 +1,7 @@
 use anyhow::Context;
-use common::{forge::ForgeScriptArgs, logger};
-use config::{raw::RawConfig, EcosystemConfig, GENESIS_FILE};
 use xshell::Shell;
+use zkstack_cli_common::{forge::ForgeScriptArgs, logger};
+use zkstack_cli_config::{raw::RawConfig, EcosystemConfig, GENESIS_FILE};
 use zksync_types::H256;
 
 use crate::{

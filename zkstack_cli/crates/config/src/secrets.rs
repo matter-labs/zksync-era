@@ -1,4 +1,4 @@
-use common::db::DatabaseConfig;
+use zkstack_cli_common::db::DatabaseConfig;
 
 use crate::raw::PatchedConfig;
 

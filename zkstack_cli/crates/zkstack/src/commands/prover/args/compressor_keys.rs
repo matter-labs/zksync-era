@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use clap::{Parser, ValueEnum};
-use common::Prompt;
 use strum::EnumIter;
+use zkstack_cli_common::Prompt;
 
 use crate::messages::MSG_SETUP_COMPRESSOR_KEY_PATH_PROMPT;
 

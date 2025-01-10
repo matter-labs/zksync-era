@@ -1,13 +1,13 @@
 use std::path::Path;
 
 use clap::{Parser, ValueEnum};
-use common::{db::DatabaseConfig, logger, Prompt, PromptConfirm, PromptSelect};
-use config::ChainConfig;
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use strum::{EnumIter, IntoEnumIterator};
 use url::Url;
 use xshell::Shell;
+use zkstack_cli_common::{db::DatabaseConfig, logger, Prompt, PromptConfirm, PromptSelect};
+use zkstack_cli_config::ChainConfig;
 use zksync_config::configs::fri_prover::CloudConnectionMode;
 
 use super::{

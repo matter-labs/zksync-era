@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context};
-use common::{check_prerequisites, cmd::Cmd, logger, GPU_PREREQUISITES};
-use config::{get_link_to_prover, ChainConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{check_prerequisites, cmd::Cmd, logger, GPU_PREREQUISITES};
+use zkstack_cli_config::{get_link_to_prover, ChainConfig, EcosystemConfig};
 
 use super::args::run::{ProverComponent, ProverRunArgs};
 use crate::messages::{

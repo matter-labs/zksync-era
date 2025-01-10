@@ -1,10 +1,10 @@
 use anyhow::Context;
 use clap::Parser;
-use common::{db::DatabaseConfig, Prompt};
-use config::ChainConfig;
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use url::Url;
+use zkstack_cli_common::{db::DatabaseConfig, Prompt};
+use zkstack_cli_config::ChainConfig;
 
 use crate::{
     defaults::{generate_db_names, DBNames, DATABASE_SERVER_URL},

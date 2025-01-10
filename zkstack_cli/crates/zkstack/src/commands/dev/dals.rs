@@ -1,7 +1,7 @@
 use anyhow::Context as _;
-use config::{raw::RawConfig, EcosystemConfig};
 use url::Url;
 use xshell::Shell;
+use zkstack_cli_config::{raw::RawConfig, EcosystemConfig};
 
 use super::{commands::database::args::DalUrls, messages::MSG_CHAIN_NOT_FOUND_ERR};
 

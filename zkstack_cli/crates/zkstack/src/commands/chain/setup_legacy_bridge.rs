@@ -1,15 +1,15 @@
-use common::{
+use xshell::Shell;
+use zkstack_cli_common::{
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
 };
-use config::{
+use zkstack_cli_config::{
     forge_interface::{
         script_params::SETUP_LEGACY_BRIDGE, setup_legacy_bridge::SetupLegacyBridgeInput,
     },
     traits::SaveConfig,
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use xshell::Shell;
 
 use crate::{
     messages::MSG_DEPLOYING_PAYMASTER,

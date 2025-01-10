@@ -1,7 +1,7 @@
 use anyhow::Context as _;
-use common::{config::global_config, logger};
-use config::{raw::RawConfig, EcosystemConfig, GENERAL_FILE};
 use xshell::Shell;
+use zkstack_cli_common::{config::global_config, logger};
+use zkstack_cli_config::{raw::RawConfig, EcosystemConfig, GENERAL_FILE};
 
 use crate::{
     commands::args::WaitArgs,

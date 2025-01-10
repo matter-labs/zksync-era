@@ -1,17 +1,17 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::{
+use xshell::{cmd, Shell};
+use zkstack_cli_common::{
     cmd::Cmd,
     config::global_config,
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     logger,
     spinner::Spinner,
 };
-use config::{
+use zkstack_cli_config::{
     copy_configs, get_link_to_prover, raw::PatchedConfig, set_prover_database, EcosystemConfig,
 };
-use xshell::{cmd, Shell};
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 
 use super::{

@@ -1,14 +1,14 @@
 use anyhow::Context;
-use common::{
+use xshell::Shell;
+use zkstack_cli_common::{
     logger,
     server::{Server, ServerMode},
     spinner::Spinner,
 };
-use config::{
+use zkstack_cli_config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
     WalletsConfig, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
 };
-use xshell::Shell;
 
 use crate::messages::{
     MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_GENESIS_COMPLETED,
