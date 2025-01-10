@@ -8,3 +8,17 @@ This directory contains the comprehensive documentation for zkSync Era - a Layer
   - `guides/` - Detailed guides and tutorials
     - `advanced/` - Advanced topics including ZK proofs, system architecture, and technical details
   - Other documentation sections (API references, getting started guides, etc.)
+ 
+## Key Documentation Files
+
+Some of the important documentation includes:
+- Zero Knowledge Intuition Guide (`guides/advanced/13_zk_intuition.md`) - Provides a comprehensive overview of how ZK proofs work in zkSync Era
+- Other technical guides and documentation for developers and users
+
+## Contributing to Documentation
+
+If you'd like to contribute to the documentation:
+1. Make sure to follow the Markdown style guidelines
+2. Test all code examples
+3. Update the table of contents when adding new pages
+4. Submit a pull request with your changes
