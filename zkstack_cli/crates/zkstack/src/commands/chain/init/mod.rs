@@ -1,10 +1,10 @@
 use anyhow::Context;
 use clap::{command, Parser, Subcommand};
-use zksync_config::DAClientConfig;
 use xshell::Shell;
 use zkstack_cli_common::{git, logger, spinner::Spinner};
 use zkstack_cli_config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
 use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode};
+use zksync_config::DAClientConfig;
 use zksync_types::Address;
 
 use crate::{

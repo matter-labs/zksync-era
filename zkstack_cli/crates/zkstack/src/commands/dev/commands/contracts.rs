@@ -3,7 +3,9 @@ use std::path::PathBuf;
 use clap::Parser;
 use xshell::Shell;
 use zkstack_cli_common::{
-    contracts::{build_l1_contracts, build_l1_da_contracts, build_l2_contracts, build_system_contracts},
+    contracts::{
+        build_l1_contracts, build_l1_da_contracts, build_l2_contracts, build_system_contracts,
+    },
     logger,
     spinner::Spinner,
 };

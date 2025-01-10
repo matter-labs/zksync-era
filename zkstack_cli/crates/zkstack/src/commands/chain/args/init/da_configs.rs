@@ -1,8 +1,8 @@
 use clap::{Parser, ValueEnum};
-use zkstack_cli_common::{Prompt, PromptSelect};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter, IntoEnumIterator};
 use url::Url;
+use zkstack_cli_common::{Prompt, PromptSelect};
 use zksync_config::{
     configs::da_client::avail::{
         AvailClientConfig, AvailDefaultConfig, AvailGasRelayConfig, AvailSecrets,
@@ -71,7 +71,7 @@ impl ValidiumType {
                                         })
                                     })
                                     .ask(),
-                                finality_state: None 
+                                finality_state: None,
                             })
                         }
                         AvailClientTypeInternal::GasRelay => {
