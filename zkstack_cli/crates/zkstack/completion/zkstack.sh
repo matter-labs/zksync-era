@@ -279,6 +279,9 @@ _zkstack() {
             zkstack__dev,fmt)
                 cmd="zkstack__dev__fmt"
                 ;;
+            zkstack__dev,gateway-upgrade-calldata)
+                cmd="zkstack__dev__gateway__upgrade__calldata"
+                ;;
             zkstack__dev,generate-genesis)
                 cmd="zkstack__dev__generate__genesis"
                 ;;
@@ -413,6 +416,9 @@ _zkstack() {
                 ;;
             zkstack__dev__help,fmt)
                 cmd="zkstack__dev__help__fmt"
+                ;;
+            zkstack__dev__help,gateway-upgrade-calldata)
+                cmd="zkstack__dev__help__gateway__upgrade__calldata"
                 ;;
             zkstack__dev__help,generate-genesis)
                 cmd="zkstack__dev__help__generate__genesis"
@@ -890,6 +896,9 @@ _zkstack() {
                 ;;
             zkstack__help__dev,fmt)
                 cmd="zkstack__help__dev__fmt"
+                ;;
+            zkstack__help__dev,gateway-upgrade-calldata)
+                cmd="zkstack__help__dev__gateway__upgrade__calldata"
                 ;;
             zkstack__help__dev,generate-genesis)
                 cmd="zkstack__help__dev__generate__genesis"
@@ -1707,7 +1716,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__gateway__upgrade)
-            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --zksync --additional-args --verbose --chain --ignore-prerequisites --help adapt-config prepare-stage1 schedule-stage1 finalize-stage1 finalize-stage2 keep-up-stage2 set-l2weth-for-chain"
+            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --zksync --additional-args --verbose --chain --ignore-prerequisites --help prepare-stage1 schedule-stage1 finalize-stage1 finalize-stage2 keep-up-stage2 set-l2weth-for-chain [L2_WRAPPED_BASE_TOKEN_ADDR]"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2901,7 +2910,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --help database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis gateway-upgrade-calldata help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -3692,6 +3701,28 @@ _zkstack() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        zkstack__dev__gateway__upgrade__calldata)
+            opts="-v -h --dangerous-no-cross-check --verbose --chain --ignore-prerequisites --help <UPGRADE_DESCRIPTION_PATH> <CHAIN_ID> <L1_RPC_URL> <L2_RPC_URL> <VALIDATOR_ADDR1> <VALIDATOR_ADDR2> <SERVER_UPGRADE_TIMESTAMP> validium temporary-rollup permanent-rollup"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --dangerous-no-cross-check)
+                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
+                    return 0
+                    ;;
+                --chain)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         zkstack__dev__generate__genesis)
             opts="-v -h --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
@@ -3711,7 +3742,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__help)
-            opts="database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis help"
+            opts="database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis gateway-upgrade-calldata help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -3965,6 +3996,20 @@ _zkstack() {
         zkstack__dev__help__fmt__rustfmt)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__dev__help__gateway__upgrade__calldata)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
@@ -6445,7 +6490,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__dev)
-            opts="database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis"
+            opts="database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis gateway-upgrade-calldata"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -6699,6 +6744,20 @@ _zkstack() {
         zkstack__help__dev__fmt__rustfmt)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__help__dev__gateway__upgrade__calldata)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
