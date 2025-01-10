@@ -107,35 +107,18 @@ describe('Debug methods', () => {
         const txCallTraceWithTracer = await testMaster
             .mainAccount()
             .provider.send('debug_traceTransaction', [tx.hash, { tracer: 'callTracer' }]);
-        expect(txCallTrace).toEqual(expected);
-        expect(txCallTrace).toEqual(txCallTraceWithTracer);
-    });
 
-    test('Should show out-of-gas error in debug_traceTransaction', async () => {
         console.log("aliceErc20");
         const smallGasLimit = 20_000;
-        const value = 1n;
+        const value2 = 1n;
         //let tx;
-        const tx = await aliceErc20.transfer(bob.address, value, {gasLimit: smallGasLimit});
-        console.log("tx", tx);
-        const receipt = await tx.wait();
-        console.log("receipt", receipt);
-        // try {
-        //     tx = await aliceErc20.transfer(bob.address, 1n, {
-        //         gasLimit: smallGasLimit
-        //     });
-        //     await tx.wait();
-        // } catch (err) {
-        //     console.log("err", err);
-        // }
+        const tx2 = await aliceErc20.transfer(bob.address, value2, {gasLimit: smallGasLimit});
+        console.log("tx", tx2);
+        const receipt2 = await tx2.wait();
+        console.log("receipt", receipt2);
 
-        const txCallTrace = await testMaster
-            .mainAccount()
-            .provider.send('debug_traceTransaction', [tx.hash, , { tracer: 'flatCallTracer' }]);
-
-        console.log("txCallTrace", txCallTrace);
-        //expect(txCallTrace.error).toBe('OutOfGas');
-
+        expect(txCallTrace).toEqual(expected);
+        expect(txCallTrace).toEqual(txCallTraceWithTracer);
     });
 
     afterAll(async () => {
