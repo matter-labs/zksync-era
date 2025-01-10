@@ -1,6 +1,8 @@
 use clap::Subcommand;
-use commands::{gateway::GatewayUpgradeCalldataArgs, status::args::StatusArgs};
-use messages::{MSG_GATEWAY_UPGRADE_CALLDATA, MSG_STATUS_ABOUT};
+use commands::status::args::StatusArgs;
+#[cfg(feature = "gateway")]
+use messages::MSG_GATEWAY_UPGRADE_CALLDATA;
+use messages::MSG_STATUS_ABOUT;
 use xshell::Shell;
 
 use self::commands::{
@@ -47,8 +49,9 @@ pub enum DevCommands {
     Status(StatusArgs),
     #[command(about = MSG_GENERATE_GENESIS_ABOUT, alias = "genesis")]
     GenerateGenesis,
+    #[cfg(feature = "gateway")]
     #[command(about = MSG_GATEWAY_UPGRADE_CALLDATA)]
-    GatewayUpgradeCalldata(GatewayUpgradeCalldataArgs),
+    GatewayUpgradeCalldata(commands::gateway::GatewayUpgradeCalldataArgs),
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
@@ -67,6 +70,7 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         }
         DevCommands::Status(args) => commands::status::run(shell, args).await?,
         DevCommands::GenerateGenesis => commands::genesis::run(shell).await?,
+        #[cfg(feature = "gateway")]
         DevCommands::GatewayUpgradeCalldata(args) => commands::gateway::run(shell, args).await?,
     }
     Ok(())

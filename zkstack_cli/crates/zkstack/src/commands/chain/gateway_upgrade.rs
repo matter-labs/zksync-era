@@ -1,7 +1,7 @@
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
 use ethers::{
-    abi::{encode, parse_abi},
+    abi::parse_abi,
     contract::BaseContract,
     providers::{Http, Middleware, Provider},
     signers::Signer,
@@ -25,8 +25,8 @@ use zkstack_cli_config::{
     ChainConfig, EcosystemConfig,
 };
 use zkstack_cli_types::L1BatchCommitmentMode;
-use zksync_basic_types::{H256, U256};
-use zksync_types::{web3::keccak256, Address, L2_NATIVE_TOKEN_VAULT_ADDRESS};
+use zksync_basic_types::U256;
+use zksync_types::Address;
 
 use crate::{
     commands::dev::commands::gateway::{
@@ -124,16 +124,6 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
             set_weth_for_chain(shell, args, ecosystem_config, chain_config, l1_url).await
         }
     }
-}
-
-pub fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
-    let encoded_data = encode(&[
-        ethers::abi::Token::Uint(l1_chain_id),
-        ethers::abi::Token::Address(L2_NATIVE_TOKEN_VAULT_ADDRESS),
-        ethers::abi::Token::Address(addr),
-    ]);
-
-    H256(keccak256(&encoded_data))
 }
 
 async fn prepare_stage1(

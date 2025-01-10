@@ -62,3 +62,8 @@ dirs.workspace = true
 ethers.workspace = true
 xshell.workspace = true
 zksync_protobuf_build.workspace = true
+
+[features]
+# Features that allows gateway-chain related actions.
+# These should be available for outside users until stabilized. 
+gateway = []

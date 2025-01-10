@@ -3,6 +3,7 @@ pub mod config_writer;
 pub mod contracts;
 pub mod database;
 pub mod fmt;
+#[cfg(feature = "gateway")]
 pub mod gateway;
 pub mod genesis;
 pub mod lint;

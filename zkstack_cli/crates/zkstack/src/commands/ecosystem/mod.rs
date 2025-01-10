@@ -1,4 +1,4 @@
-use args::{build_transactions::BuildTransactionsArgs, gateway_upgrade::GatewayUpgradeArgs};
+use args::build_transactions::BuildTransactionsArgs;
 use clap::Subcommand;
 use xshell::Shell;
 
@@ -12,6 +12,7 @@ mod change_default;
 mod common;
 mod create;
 pub mod create_configs;
+#[cfg(feature = "gateway")]
 mod gateway_upgrade;
 pub(crate) mod init;
 pub(crate) mod setup_observability;
@@ -36,7 +37,8 @@ pub enum EcosystemCommands {
     #[command(alias = "obs")]
     SetupObservability,
     /// Gateway version upgrade
-    GatewayUpgrade(GatewayUpgradeArgs),
+    #[cfg(feature = "gateway")]
+    GatewayUpgrade(crate::commands::ecosystem::args::gateway_upgrade::GatewayUpgradeArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Result<()> {
@@ -46,6 +48,7 @@ pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Resul
         EcosystemCommands::Init(args) => init::run(args, shell).await,
         EcosystemCommands::ChangeDefaultChain(args) => change_default::run(args, shell),
         EcosystemCommands::SetupObservability => setup_observability::run(shell),
+        #[cfg(feature = "gateway")]
         EcosystemCommands::GatewayUpgrade(args) => gateway_upgrade::run(args, shell).await,
     }
 }
