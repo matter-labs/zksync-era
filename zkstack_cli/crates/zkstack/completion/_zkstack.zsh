@@ -705,7 +705,8 @@ _arguments "${_arguments_options[@]}" : \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
-':chain_upgrade_stage:(adapt-config prepare-stage1 schedule-stage1 finalize-stage1 finalize-stage2 keep-up-stage2 set-l2weth-for-chain)' \
+':chain_upgrade_stage:(prepare-stage1 schedule-stage1 finalize-stage1 finalize-stage2 keep-up-stage2 set-l2weth-for-chain)' \
+'::l2_wrapped_base_token_addr:_default' \
 && ret=0
 ;;
 (enable-evm-emulator)
@@ -1714,6 +1715,25 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
+(gateway-upgrade-calldata)
+_arguments "${_arguments_options[@]}" : \
+'--dangerous-no-cross-check=[]:DANGEROUS_NO_CROSS_CHECK:(true false)' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':upgrade_description_path:_default' \
+':chain_id:_default' \
+':l1_rpc_url:_default' \
+':l2_rpc_url:_default' \
+':validator_addr1:_default' \
+':validator_addr2:_default' \
+':server_upgrade_timestamp:_default' \
+':da_mode:(validium temporary-rollup permanent-rollup)' \
+&& ret=0
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_zkstack__dev__help_commands" \
@@ -1971,6 +1991,10 @@ _arguments "${_arguments_options[@]}" : \
 esac
 ;;
 (generate-genesis)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(gateway-upgrade-calldata)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -3137,6 +3161,10 @@ esac
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(gateway-upgrade-calldata)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
         esac
     ;;
 esac
@@ -3845,6 +3873,7 @@ _zkstack__dev_commands() {
 'send-transactions:Send transactions from file' \
 'status:Get status of the server' \
 'generate-genesis:Generate new genesis file based on current contracts' \
+'gateway-upgrade-calldata:Gateway upgrade checker and calldata generator' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack dev commands' commands "$@"
@@ -4072,6 +4101,11 @@ _zkstack__dev__fmt__rustfmt_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack dev fmt rustfmt commands' commands "$@"
 }
+(( $+functions[_zkstack__dev__gateway-upgrade-calldata_commands] )) ||
+_zkstack__dev__gateway-upgrade-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev gateway-upgrade-calldata commands' commands "$@"
+}
 (( $+functions[_zkstack__dev__generate-genesis_commands] )) ||
 _zkstack__dev__generate-genesis_commands() {
     local commands; commands=()
@@ -4092,6 +4126,7 @@ _zkstack__dev__help_commands() {
 'send-transactions:Send transactions from file' \
 'status:Get status of the server' \
 'generate-genesis:Generate new genesis file based on current contracts' \
+'gateway-upgrade-calldata:Gateway upgrade checker and calldata generator' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack dev help commands' commands "$@"
@@ -4201,6 +4236,11 @@ _zkstack__dev__help__fmt__prettier_commands() {
 _zkstack__dev__help__fmt__rustfmt_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack dev help fmt rustfmt commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__help__gateway-upgrade-calldata_commands] )) ||
+_zkstack__dev__help__gateway-upgrade-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev help gateway-upgrade-calldata commands' commands "$@"
 }
 (( $+functions[_zkstack__dev__help__generate-genesis_commands] )) ||
 _zkstack__dev__help__generate-genesis_commands() {
@@ -5079,6 +5119,7 @@ _zkstack__help__dev_commands() {
 'send-transactions:Send transactions from file' \
 'status:Get status of the server' \
 'generate-genesis:Generate new genesis file based on current contracts' \
+'gateway-upgrade-calldata:Gateway upgrade checker and calldata generator' \
     )
     _describe -t commands 'zkstack help dev commands' commands "$@"
 }
@@ -5187,6 +5228,11 @@ _zkstack__help__dev__fmt__prettier_commands() {
 _zkstack__help__dev__fmt__rustfmt_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help dev fmt rustfmt commands' commands "$@"
+}
+(( $+functions[_zkstack__help__dev__gateway-upgrade-calldata_commands] )) ||
+_zkstack__help__dev__gateway-upgrade-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help dev gateway-upgrade-calldata commands' commands "$@"
 }
 (( $+functions[_zkstack__help__dev__generate-genesis_commands] )) ||
 _zkstack__help__dev__generate-genesis_commands() {
