@@ -3,7 +3,7 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import * as hre from 'hardhat';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
-import { TransactionReceipt } from 'zksync-ethers/build/types';
+import { TimeoutError } from 'ethers/src.ts/utils/errors';
 
 export const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
 
@@ -91,10 +91,7 @@ export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.t
         } else {
             console.log('Gas price has not gone up, waiting longer');
         }
-        txReceipt = await Promise.race([
-            txResponse.wait().then((receipt) => receipt as TransactionReceipt | null),
-            new Promise<TransactionReceipt | null>((resolve) => setTimeout(() => resolve(null), 3000))
-        ]);
+        txReceipt = await wallet.provider.waitForTransaction(txResponse.hash, 1, 3000).catch((_: TimeoutError) => null);
         if (txReceipt) {
             // Transaction got executed, so we can safely assume it will be sealed in the next batch
             break;
