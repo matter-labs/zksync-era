@@ -6,16 +6,13 @@ use common::{
 };
 use config::{
     forge_interface::{
-        gateway_chain_upgrade::{
-            input::GatewayChainUpgradeInput, output::GatewayChainUpgradeOutput,
-        },
         gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput,
         script_params::{
-            ACCEPT_GOVERNANCE_SCRIPT_PARAMS, GATEWAY_UPGRADE_CHAIN_PARAMS,
+            ACCEPT_GOVERNANCE_SCRIPT_PARAMS,
             GATEWAY_UPGRADE_ECOSYSTEM_PARAMS,
         },
     },
-    traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
+    traits::{ReadConfig, ReadConfigWithBasePath, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig,
 };
 use ethers::{
@@ -35,17 +32,10 @@ use zksync_basic_types::{H256, U256};
 use zksync_types::{web3::keccak256, Address, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 
 use crate::{
-    accept_ownership::{
-        admin_execute_upgrade, admin_schedule_upgrade, admin_update_validator,
-        set_da_validator_pair,
-    },
-    commands::{
-        chain,
-        dev::commands::gateway::{
+    commands::dev::commands::gateway::{
             check_chain_readiness, fetch_chain_info, get_admin_call_builder,
             set_upgrade_timestamp_calldata, DAMode, GatewayUpgradeArgsInner, GatewayUpgradeInfo,
         },
-    },
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
     utils::forge::{fill_forge_private_key, WalletOwner},
 };
@@ -125,7 +115,7 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
             schedule_stage1(shell, ecosystem_config, chain_config, l1_url).await
         }
         GatewayChainUpgradeStage::FinalizeStage1 => {
-            finalize_stage1(shell, args, ecosystem_config, chain_config, l1_url).await
+            finalize_stage1(shell, ecosystem_config, chain_config, l1_url).await
         }
         GatewayChainUpgradeStage::FinalizeStage2 => {
             finalize_stage2(shell, ecosystem_config, chain_config).await
@@ -243,7 +233,7 @@ async fn call_chain_admin(
         .send_raw_transaction(tx.rlp_signed(&signed_tx))
         .await
         .unwrap();
-    println!("Sent tx with hash: {}", hex::encode(&tx.0));
+    println!("Sent tx with hash: {}", hex::encode(tx.0));
 
     let receipt = tx.await?.context("receipt not present")?;
 
@@ -281,7 +271,6 @@ async fn schedule_stage1(
 
 async fn finalize_stage1(
     shell: &Shell,
-    args: GatewayUpgradeArgs,
     ecosystem_config: EcosystemConfig,
     chain_config: ChainConfig,
     l1_url: String,
@@ -394,7 +383,6 @@ async fn set_weth_for_chain(
         ])
             .unwrap(),
     );
-    let contracts_config = chain_config.get_contracts_config()?;
     let calldata = contract
         .encode(
             "addL2WethToStore",

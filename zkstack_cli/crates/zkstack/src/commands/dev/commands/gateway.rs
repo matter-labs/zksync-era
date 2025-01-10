@@ -1,26 +1,24 @@
-use std::{any, num::NonZeroUsize, str::FromStr, sync::Arc};
+use std::{num::NonZeroUsize, str::FromStr, sync::Arc};
 
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
-use common::{cmd::Cmd, spinner::Spinner};
 use config::{
     forge_interface::gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput,
     traits::{ReadConfig, ZkStackConfig},
-    ContractsConfig, EcosystemConfig,
+    ContractsConfig,
 };
 use ethers::{
-    abi::{decode, encode, parse_abi, ParamType, Token},
-    contract::{abigen, BaseContract, Contract},
-    providers::{admin, Http, Middleware, Provider},
+    abi::{encode, parse_abi, Token},
+    contract::{abigen, BaseContract},
+    providers::{Http, Middleware, Provider},
     utils::hex,
 };
 use serde::{Deserialize, Serialize};
 use strum::EnumIter;
-use xshell::{cmd, Shell};
-use zksync_config::configs::{chain, consensus::ProtocolVersion};
+use xshell::Shell;
 use zksync_contracts::{chain_admin_contract, hyperchain_contract, DIAMOND_CUT};
 use zksync_types::{
-    ethabi, l2,
+    ethabi,
     url::SensitiveUrl,
     web3::{keccak256, Bytes},
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256,
@@ -31,13 +29,6 @@ use zksync_web3_decl::{
     namespaces::ZksNamespaceClient,
 };
 
-use crate::{
-    commands::dev::{
-        commands::database::reset::reset_database, dals::get_core_dal,
-        messages::MSG_GENESIS_FILE_GENERATION_STARTED,
-    },
-    messages::MSG_CHAIN_NOT_FOUND_ERR,
-};
 
 /// To support both functionality of assignment inside local tests
 /// and to print out the changes to the user the following function is used.
@@ -180,7 +171,7 @@ pub async fn check_chain_readiness(
     let l2_client = Client::http(SensitiveUrl::from_str(&l2_rpc_url).unwrap())
         .context("failed creating JSON-RPC client for main node")?
         .for_network(L2ChainId::new(l2_chain_id).unwrap().into())
-        .with_allowed_requests_per_second(NonZeroUsize::new(100 as usize).unwrap())
+        .with_allowed_requests_per_second(NonZeroUsize::new(100_usize).unwrap())
         .build();
     let l2_client = Box::new(l2_client) as Box<DynClient<L2>>;
 
@@ -491,7 +482,7 @@ impl GatewayUpgradeInfo {
     // Updates to the config that should be done somewhere after the upgrade is fully over.
     // They do not have to updated for the system to work smoothly during the upgrade, but after
     // "stage 2" they are desirable to be updated for consistency
-    pub fn post_upgrade_update_contracts_config(&self, config: &mut ContractsConfig, assign: bool) {
+    pub fn _post_upgrade_update_contracts_config(&self, _config: &mut ContractsConfig, _assign: bool) {
         todo!()
     }
 }
@@ -537,7 +528,7 @@ impl AdminCall {
 }
 
 fn hex_address_display(addr: Address) -> String {
-    format!("0x{}", hex::encode(&addr.0))
+    format!("0x{}", hex::encode(addr.0))
 }
 
 fn serialize_hex<S>(bytes: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
@@ -583,7 +574,7 @@ impl AdminCallBuilder {
             .unwrap();
         let description = format!(
             "Adding validator 0x{}",
-            hex::encode(&validator_timelock_addr.0)
+            hex::encode(validator_timelock_addr.0)
         );
 
         let call = AdminCall {

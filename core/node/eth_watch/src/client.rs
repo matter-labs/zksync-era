@@ -117,6 +117,7 @@ impl<Net: Network> EthHttpQueryClient<Net>
 where
     Box<DynClient<Net>>: GetLogsClient,
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         client: Box<DynClient<Net>>,
         diamond_proxy_addr: Address,

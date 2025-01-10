@@ -7,7 +7,7 @@ use config::{
         },
         gateway_preparation::input::GatewayPreparationConfig,
         script_params::{
-            FINALIZE_UPGRADE_SCRIPT_PARAMS, GATEWAY_GOVERNANCE_TX_PATH1, GATEWAY_PREPARATION,
+            FINALIZE_UPGRADE_SCRIPT_PARAMS, GATEWAY_PREPARATION,
             GATEWAY_UPGRADE_ECOSYSTEM_PARAMS,
         },
     },
@@ -17,11 +17,11 @@ use config::{
 use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
 use lazy_static::lazy_static;
 use serde::Deserialize;
-use types::{BaseToken, ProverMode, WalletCreation};
+use types::ProverMode;
 use xshell::Shell;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
 use zksync_types::{
-    Address, H160, L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256,
+    H160, L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256,
 };
 
 use super::args::gateway_upgrade::{GatewayUpgradeArgs, GatewayUpgradeArgsFinal};
@@ -32,18 +32,11 @@ use crate::{
     commands::{
         chain,
         chain::{
-            args::{
-                genesis::GenesisArgsFinal,
-                init::{configs::InitConfigsArgsFinal, da_configs::ValidiumType},
-            },
+            args::genesis::GenesisArgsFinal,
             convert_to_gateway::{
                 calculate_gateway_ctm, call_script, GATEWAY_PREPARATION_INTERFACE,
             },
-            deploy_l2_contracts,
             genesis::genesis,
-            init::configs::init_configs,
-            register_chain::register_chain,
-            ChainCreateArgsFinal,
         },
         ecosystem::args::gateway_upgrade::GatewayUpgradeStage,
     },
@@ -63,7 +56,7 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
     match final_ecosystem_args.ecosystem_upgrade_stage {
         GatewayUpgradeStage::NoGovernancePrepare => {
             no_governance_prepare(&mut final_ecosystem_args, shell, &ecosystem_config).await?;
-            no_governance_prepare_gateway(&mut final_ecosystem_args, shell, &mut ecosystem_config)
+            no_governance_prepare_gateway(shell, &mut ecosystem_config)
                 .await?;
         }
         GatewayUpgradeStage::GovernanceStage1 => {
@@ -185,7 +178,6 @@ async fn no_governance_prepare(
 }
 
 async fn no_governance_prepare_gateway(
-    init_args: &mut GatewayUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &mut EcosystemConfig,
 ) -> anyhow::Result<()> {

@@ -6,7 +6,6 @@ use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_config::ContractsConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
@@ -57,7 +56,6 @@ impl EthWatch {
         sl_l2_client: Option<Box<dyn L2EthClient>>,
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
-        contracts_config: &ContractsConfig,
         chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         let mut storage = pool.connection_tagged("eth_watch").await?;

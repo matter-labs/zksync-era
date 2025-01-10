@@ -141,7 +141,6 @@ impl WiringLayer for EthWatchLayer {
             sl_l2_client,
             main_pool,
             self.eth_watch_config.poll_interval(),
-            &self.contracts_config,
             self.chain_id,
         )
         .await?;
