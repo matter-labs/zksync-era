@@ -39,6 +39,6 @@ pub trait UnstableNamespace {
         chain_id: L2ChainId,
     ) -> RpcResult<Option<ChainAggProof>>;
 
-    #[method(name = "uncofirmedTxsCount")]
+    #[method(name = "unconfirmedTxsCount")]
     async fn get_unconfirmed_txs_count(&self) -> RpcResult<usize>;
 }
