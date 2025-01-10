@@ -400,6 +400,14 @@ jobs:
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
+      - name: Repeat integration tests to check flakiness
+        if: ${{ (steps.condition.outputs.should_run == 'true' && github.event_name == 'push' || github.ref != 'refs/heads/main') }}
+        run: |
+          for i in {1..10}; do
+            echo "Iteration $i"
+            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+          done
+
       - name: Init external nodes
         run: |
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
