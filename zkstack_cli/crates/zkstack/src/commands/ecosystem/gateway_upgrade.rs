@@ -1,6 +1,6 @@
 use anyhow::Context;
-use common::{db::DatabaseConfig, forge::Forge, git, spinner::Spinner};
-use config::{
+use zkstack_cli_common::{db::DatabaseConfig, forge::Forge, git, spinner::Spinner};
+use zkstack_cli_config::{
     forge_interface::{
         gateway_ecosystem_upgrade::{
             input::GatewayEcosystemUpgradeInput, output::GatewayEcosystemUpgradeOutput,
@@ -17,7 +17,7 @@ use config::{
 use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
 use lazy_static::lazy_static;
 use serde::Deserialize;
-use types::{BaseToken, ProverMode, WalletCreation};
+use zkstack_cli_types::{BaseToken, ProverMode, WalletCreation};
 use xshell::Shell;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
 use zksync_types::{

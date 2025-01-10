@@ -1,5 +1,5 @@
 use clap::{Parser, ValueEnum};
-use common::{Prompt, PromptSelect};
+use zkstack_cli_common::{Prompt, PromptSelect};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter, IntoEnumIterator};
 use url::Url;
@@ -71,6 +71,7 @@ impl ValidiumType {
                                         })
                                     })
                                     .ask(),
+                                finality_state: None 
                             })
                         }
                         AvailClientTypeInternal::GasRelay => {

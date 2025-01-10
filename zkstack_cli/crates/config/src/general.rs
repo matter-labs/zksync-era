@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use common::yaml::merge_yaml;
 use url::Url;
 use xshell::Shell;
+use zkstack_cli_common::yaml::merge_yaml;
 use zksync_config::configs::object_store::ObjectStoreMode;
 pub use zksync_config::configs::GeneralConfig;
 use zksync_protobuf_config::{encode_yaml_repr, read_yaml_repr};

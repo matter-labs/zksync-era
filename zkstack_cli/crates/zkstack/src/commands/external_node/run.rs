@@ -1,7 +1,7 @@
 use anyhow::Context;
-use common::logger;
-use config::{ChainConfig, EcosystemConfig};
 use xshell::Shell;
+use zkstack_cli_common::logger;
+use zkstack_cli_config::{ChainConfig, EcosystemConfig};
 
 use crate::{
     commands::external_node::{args::run::RunExternalNodeArgs, init},

@@ -1,12 +1,12 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context};
-use common::files::{
-    read_json_file, read_toml_file, read_yaml_file, save_json_file, save_toml_file, save_yaml_file,
-};
 use serde::{de::DeserializeOwned, Serialize};
 use url::Url;
 use xshell::Shell;
+use zkstack_cli_common::files::{
+    read_json_file, read_toml_file, read_yaml_file, save_json_file, save_toml_file, save_yaml_file,
+};
 
 // Configs that we use only inside ZK Stack CLI, we don't have protobuf implementation for them.
 pub trait ZkStackConfig {}
