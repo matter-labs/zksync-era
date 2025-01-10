@@ -174,15 +174,17 @@ pub(crate) async fn fill_transaction_receipts(
 #[cfg(test)]
 mod tests {
     use zksync_dal::{events_web3_dal::ContractDeploymentLog, ConnectionPool};
-    use zksync_multivm::vm_1_3_2::zk_evm_1_3_3::ethereum_types::H256;
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_test_contracts::{Account, TestContract, TxType};
     use zksync_types::{
-        ethabi, utils::storage_key_for_eth_balance, Address, Execute, StorageLog, Transaction,
+        ethabi, utils::storage_key_for_eth_balance, Address, Execute, ExecuteTransactionCommon,
+        StorageLog, Transaction, H256,
     };
 
     use super::*;
-    use crate::testonly::{persist_block_with_transactions, TestAccount};
+    use crate::testonly::{
+        default_fee, persist_block_with_transactions, StateBuilder, TestAccount,
+    };
 
     async fn prepare_storage(storage: &mut Connection<'_, Core>, rich_account: Address) {
         insert_genesis_batch(storage, &GenesisParams::mock())
@@ -354,5 +356,87 @@ mod tests {
             statuses_and_contract_addresses,
             expected_statuses_and_contract_addresses
         );
+    }
+
+    /// Because of AA support, determining deployment nonces is non-trivial. E.g., it would be incorrect
+    /// to define a deployment nonce increment as a count of successful deployment txs from an EOA because
+    /// the account might have a non-default AA that can be called as a contract (so it can deploy contracts
+    /// outside of deployment txs).
+    #[tokio::test]
+    async fn deployments_with_custom_account() {
+        let mut alice = Account::random();
+        let (account_deploy_tx, account_addr) =
+            alice.create2_account(TestContract::permissive_account().bytecode.to_vec());
+
+        let pool = ConnectionPool::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+            .await
+            .unwrap();
+        StateBuilder::default()
+            .with_balance(alice.address(), u64::MAX.into())
+            .apply(&mut storage)
+            .await;
+
+        let deploy_execute = Execute {
+            contract_address: Some(account_addr),
+            calldata: TestContract::permissive_account()
+                .function("deploy")
+                .encode_input(&[ethabi::Token::Uint(5.into())])
+                .unwrap(),
+            value: 0.into(),
+            factory_deps: vec![TestContract::permissive_account().dependencies[0]
+                .bytecode
+                .to_vec()],
+        };
+
+        let mut txs = vec![
+            // Deploy the account
+            account_deploy_tx.into(),
+            // Transfer tokens to the created account
+            alice
+                .create_transfer_with_fee(account_addr, (u64::MAX / 2).into(), default_fee())
+                .into(),
+            // Trigger deployments from the account by calling it
+            alice.get_l2_tx_for_execute(deploy_execute, None),
+        ];
+
+        // Trigger a deployment from the AA being the tx initiator
+        let mut deploy_tx_from_account = Account::random()
+            .get_deploy_tx(TestContract::counter().bytecode, None, TxType::L2)
+            .tx;
+        let ExecuteTransactionCommon::L2(data) = &mut deploy_tx_from_account.common_data else {
+            unreachable!();
+        };
+        // This invalidates the tx signature, but we don't care because the deployed AA doesn't check it
+        data.initiator_address = account_addr;
+        txs.push(deploy_tx_from_account);
+
+        let tx_hashes: Vec<_> = txs.iter().map(Transaction::hash).collect();
+        let expected_contract_addresses = [
+            Some(account_addr),
+            None,
+            None,
+            // deploy nonces 0..5 were used in the previous tx
+            Some(deployed_address_create(account_addr, 5.into())),
+        ];
+        persist_block_with_transactions(&pool, txs).await;
+
+        let receipts = storage
+            .transactions_web3_dal()
+            .get_transaction_receipts(&tx_hashes)
+            .await
+            .unwrap();
+        let filled_receipts = fill_transaction_receipts(&mut storage, receipts)
+            .await
+            .unwrap();
+        let contract_addresses: Vec<_> = filled_receipts
+            .iter()
+            .map(|receipt| {
+                assert_eq!(receipt.status, 1.into());
+                receipt.contract_address
+            })
+            .collect();
+        assert_eq!(contract_addresses, expected_contract_addresses);
     }
 }

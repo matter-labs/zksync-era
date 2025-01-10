@@ -19,14 +19,15 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, default_l1_batch_env, default_system_env};
 use zksync_state::PostgresStorage;
 use zksync_system_constants::{
-    L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, SYSTEM_CONTEXT_ADDRESS,
-    SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    CONTRACT_DEPLOYER_ADDRESS, L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
 };
 use zksync_test_contracts::{Account, LoadnextContractExecutionParams, TestContract};
 use zksync_types::{
     address_to_u256,
     api::state_override::{Bytecode, OverrideAccount, OverrideState, StateOverride},
     block::{pack_block_info, L2BlockHeader},
+    bytecode::BytecodeHash,
     commitment::PubdataParams,
     ethabi,
     ethabi::Token,
@@ -36,7 +37,7 @@ use zksync_types::{
     l1::L1Tx,
     l2::L2Tx,
     transaction_request::{CallRequest, Eip712Meta},
-    tx::IncludedTxLocation,
+    tx::{execute::Create2DeploymentParams, IncludedTxLocation},
     u256_to_h256,
     utils::storage_key_for_eth_balance,
     AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
@@ -56,7 +57,7 @@ fn inflate_bytecode(bytecode: &mut Vec<u8>, nop_count: usize) {
     );
 }
 
-fn default_fee() -> Fee {
+pub(crate) fn default_fee() -> Fee {
     let fee_input = FeeParams::sensible_v1_default().scale(1.0, 1.0);
     let (max_fee_per_gas, gas_per_pubdata_limit) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::default().into());
@@ -312,12 +313,12 @@ pub(crate) trait TestAccount {
             gas_limit: 200_000.into(),
             ..default_fee()
         };
-        self.create_transfer_with_fee(value, fee)
+        self.create_transfer_with_fee(Address::random(), value, fee)
     }
 
     fn query_base_token_balance(&self) -> CallRequest;
 
-    fn create_transfer_with_fee(&mut self, value: U256, fee: Fee) -> L2Tx;
+    fn create_transfer_with_fee(&mut self, to: Address, value: U256, fee: Fee) -> L2Tx;
 
     fn create_load_test_tx(&mut self, params: LoadnextContractExecutionParams) -> L2Tx;
 
@@ -336,12 +337,14 @@ pub(crate) trait TestAccount {
     fn create_infinite_loop_tx(&mut self) -> L2Tx;
 
     fn multicall_with_value(&self, value: U256, calls: &[Call3Value]) -> CallRequest;
+
+    fn create2_account(&mut self, bytecode: Vec<u8>) -> (L2Tx, Address);
 }
 
 impl TestAccount for Account {
-    fn create_transfer_with_fee(&mut self, value: U256, fee: Fee) -> L2Tx {
+    fn create_transfer_with_fee(&mut self, to: Address, value: U256, fee: Fee) -> L2Tx {
         let execute = Execute {
-            contract_address: Some(Address::random()),
+            contract_address: Some(to),
             calldata: vec![],
             value,
             factory_deps: vec![],
@@ -510,6 +513,37 @@ impl TestAccount for Account {
             data: Some(calldata.into()),
             ..CallRequest::default()
         }
+    }
+
+    fn create2_account(&mut self, bytecode: Vec<u8>) -> (L2Tx, Address) {
+        let create2_params = Create2DeploymentParams {
+            salt: H256::zero(),
+            bytecode_hash: BytecodeHash::for_bytecode(&bytecode).value(),
+            raw_constructor_input: vec![],
+        };
+        let deployed_address = create2_params.derive_address(self.address());
+
+        let calldata = zksync_contracts::deployer_contract()
+            .function("create2Account")
+            .expect("no `create2Account` function")
+            .encode_input(&[
+                Token::FixedBytes(create2_params.salt.as_bytes().to_vec()),
+                Token::FixedBytes(create2_params.bytecode_hash.as_bytes().to_vec()),
+                Token::Bytes(create2_params.raw_constructor_input),
+                Token::Uint(1.into()), // AA version
+            ])
+            .expect("failed encoding `create2Account` input");
+        let execute = Execute {
+            contract_address: Some(CONTRACT_DEPLOYER_ADDRESS),
+            calldata,
+            value: 0.into(),
+            factory_deps: vec![bytecode],
+        };
+        let deploy_tx = self
+            .get_l2_tx_for_execute(execute, Some(default_fee()))
+            .try_into()
+            .unwrap();
+        (deploy_tx, deployed_address)
     }
 }
 

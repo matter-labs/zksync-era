@@ -14,7 +14,7 @@ use zksync_types::{
     api::state_override::{OverrideAccount, StateOverride},
     fee::Fee,
     fee_model::BatchFeeInput,
-    ProtocolVersionId, Transaction, U256,
+    Address, ProtocolVersionId, Transaction, U256,
 };
 
 use super::*;
@@ -225,6 +225,7 @@ async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
     let tx = Account::random().create_transfer_with_fee(
+        Address::random(),
         0.into(),
         Fee {
             gas_limit: 200_000.into(),
@@ -274,6 +275,7 @@ async fn validating_transaction(set_balance: bool) {
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
     let tx = Account::random().create_transfer_with_fee(
+        Address::random(),
         0.into(),
         Fee {
             gas_limit: 200_000.into(),
