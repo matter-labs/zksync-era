@@ -91,7 +91,7 @@ async fn main() -> anyhow::Result<()> {
     let (witness_vector_sender, witness_vector_receiver) = tokio::sync::mpsc::channel(CHANNEL_SIZE);
 
     tracing::info!(
-        "Starting {} light WVGs and {} heavy WVGs.",
+        "Starting {} light WVGs and {} heavy WVGs..",
         opt.light_wvg_count,
         opt.heavy_wvg_count
     );
