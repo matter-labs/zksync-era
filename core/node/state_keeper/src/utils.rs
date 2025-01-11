@@ -6,11 +6,11 @@ pub(super) fn is_canceled(stop_receiver: &watch::Receiver<bool>) -> bool {
     *stop_receiver.borrow()
 }
 
-pub(super) fn seconds_since_epoch() -> u64 {
+pub(super) fn seconds_since_epoch() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Incorrect system time")
-        .as_secs()
+        .as_secs() as u128
 }
 
 pub(super) fn millis_since(since: u64) -> u64 {
