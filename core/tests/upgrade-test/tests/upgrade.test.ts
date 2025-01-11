@@ -153,16 +153,14 @@ describe('Upgrade test', function () {
             config: 'wallets.yaml'
         });
 
-        // Note, that the following check is needed to avoid flackiness. In case the
+        // Note, that the following check is needed to reduce flackiness. In case the
         // `ecosystemGovWallet` and `slAdminGovWallet` refer to the same account, then
         // sending transactions from the same account while using different `Wallet` objects
         // could lead to flacky issues.
-        if (chainWalletConfig.governor.private_key == ecosystemWalletConfig.governor.private_key) {
+        if (chainWalletConfig.governor.private_key == ecosystemWalletConfig.governor.private_key && !gatewayInfo) {
             ecosystemGovWallet = slAdminGovWallet;
         } else {
-            ecosystemGovWallet = gatewayInfo
-                ? new zksync.Wallet(ecosystemWalletConfig.governor.private_key, gatewayInfo.gatewayProvider)
-                : new ethers.Wallet(ecosystemWalletConfig.governor.private_key, alice._providerL1());
+            ecosystemGovWallet = new ethers.Wallet(ecosystemWalletConfig.governor.private_key, alice._providerL1());
         }
 
         upgradeAddress = await deployDefaultUpgradeImpl(slAdminGovWallet);
