@@ -2,8 +2,8 @@ use std::{collections::HashMap, fmt, sync::Arc};
 
 use anyhow::Context;
 use zksync_contracts::{
-    bytecode_supplier_contract, getters_facet_contract, l1_asset_router_contract, l2_message_root,
-    state_transition_manager_contract, verifier_contract, wrapped_base_token_store_contract,
+    getters_facet_contract, state_transition_manager_contract, verifier_contract,
+    L1_ASSET_ROUTER_CONTRACT, MESSAGE_ROOT_CONTRACT, WRAPPED_BASE_TOKEN_STORE_CONTRACT,
 };
 use zksync_eth_client::{
     clients::{DynClient, L1},
@@ -147,16 +147,15 @@ where
                 .context("NewUpgradeCutData event is missing in ABI")
                 .unwrap()
                 .signature(),
-            bytecode_published_signature: bytecode_supplier_contract()
-                .event("BytecodePublished")
-                .context("BytecodePublished event is missing in ABI")
-                .unwrap()
-                .signature(),
+            bytecode_published_signature: ethabi::long_signature(
+                "BytecodePublished",
+                &[ParamType::FixedBytes(32), ParamType::Bytes],
+            ),
             verifier_contract_abi: verifier_contract(),
             getters_facet_contract_abi: getters_facet_contract(),
-            message_root_abi: l2_message_root(),
-            l1_asset_router_abi: l1_asset_router_contract(),
-            wrapped_base_token_store_abi: wrapped_base_token_store_contract(),
+            message_root_abi: MESSAGE_ROOT_CONTRACT.clone(),
+            l1_asset_router_abi: L1_ASSET_ROUTER_CONTRACT.clone(),
+            wrapped_base_token_store_abi: WRAPPED_BASE_TOKEN_STORE_CONTRACT.clone(),
             confirmations_for_eth_event,
             wrapped_base_token_store,
             l1_shared_bridge_addr,
