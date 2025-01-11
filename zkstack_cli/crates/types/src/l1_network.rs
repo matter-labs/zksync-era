@@ -1,7 +1,4 @@
-use std::str::FromStr;
-
 use clap::ValueEnum;
-use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 use strum::EnumIter;
 
@@ -36,16 +33,6 @@ impl L1Network {
             L1Network::Sepolia => 11_155_111,
             L1Network::Holesky => 17000,
             L1Network::Mainnet => 1,
-        }
-    }
-
-    pub fn avail_l1_da_validator_addr(&self) -> Option<Address> {
-        match self {
-            L1Network::Localhost => None,
-            L1Network::Sepolia | L1Network::Holesky => {
-                Some(Address::from_str("0xd99d6569785547ac72150d0309aeDb30C7871b51").unwrap())
-            }
-            L1Network::Mainnet => None, // TODO: add mainnet address after it is known
         }
     }
 }

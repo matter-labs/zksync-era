@@ -1,3 +1,4 @@
+/// TODO(EVM-927): Note that the contents of this file are not useable without Gateway contracts.
 use anyhow::Context;
 use clap::Parser;
 use ethers::{
@@ -57,7 +58,11 @@ lazy_static! {
     );
 }
 
+#[allow(unused)]
 pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
+    // TODO(EVM-927): this function does not work without the Gateway contracts.
+    anyhow::bail!("Gateway upgrade not supported yet!");
+
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     let chain_name = global_config().chain_name.clone();

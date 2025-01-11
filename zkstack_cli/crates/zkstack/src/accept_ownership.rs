@@ -27,12 +27,6 @@ lazy_static! {
         parse_abi(&[
             "function governanceAcceptOwner(address governor, address target) public",
             "function chainAdminAcceptAdmin(address admin, address target) public",
-            "function setDAValidatorPair(address chainAdmin, address target, address l1DaValidator, address l2DaValidator) public",
-            "function makePermanentRollup(address chainAdmin, address target) public",
-            "function governanceExecuteCalls(bytes calldata callsToExecute, address target) public",
-            "function adminExecuteUpgrade(bytes memory diamondCut, address adminAddr, address accessControlRestriction, address chainDiamondProxy)",
-            "function adminScheduleUpgrade(address adminAddr, address accessControlRestriction, uint256 newProtocolVersion, uint256 timestamp)",
-            "function updateValidator(address adminAddr,address accessControlRestriction,address validatorTimelock,uint256 chainId,address validatorAddress,bool addValidator) public"
         ])
         .unwrap(),
     );
@@ -98,6 +92,8 @@ pub async fn accept_owner(
     accept_ownership(shell, governor, forge).await
 }
 
+// TODO(EVM-927): this function does not work without the Gateway contracts.
+#[allow(unused)]
 #[allow(clippy::too_many_arguments)]
 pub async fn set_da_validator_pair(
     shell: &Shell,
@@ -110,6 +106,9 @@ pub async fn set_da_validator_pair(
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
+    // TODO(EVM-927): this function does not work without the Gateway contracts.
+    anyhow::bail!("Gateway upgrade not supported yet!");
+
     // resume doesn't properly work here.
     let mut forge_args = forge_args.clone();
     forge_args.resume = false;
@@ -138,6 +137,8 @@ pub async fn set_da_validator_pair(
     accept_ownership(shell, governor, forge).await
 }
 
+// TODO(EVM-927): this function does not work without the Gateway contracts.
+#[allow(unused)]
 #[allow(clippy::too_many_arguments)]
 pub async fn make_permanent_rollup(
     shell: &Shell,
@@ -148,6 +149,9 @@ pub async fn make_permanent_rollup(
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
+    // TODO(EVM-927): this function does not work without the Gateway contracts.
+    anyhow::bail!("Gateway upgrade not supported yet!");
+
     // resume doesn't properly work here.
     let mut forge_args = forge_args.clone();
     forge_args.resume = false;
@@ -171,6 +175,8 @@ pub async fn make_permanent_rollup(
     accept_ownership(shell, governor, forge).await
 }
 
+// TODO(EVM-927): this function does not work without the Gateway contracts.
+#[allow(unused)]
 #[allow(clippy::too_many_arguments)]
 pub async fn governance_execute_calls(
     shell: &Shell,
@@ -180,6 +186,9 @@ pub async fn governance_execute_calls(
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
+    // TODO(EVM-927): this function does not work without the Gateway contracts.
+    anyhow::bail!("Gateway upgrade not supported yet!");
+
     // resume doesn't properly work here.
     let mut forge_args = forge_args.clone();
     forge_args.resume = false;
@@ -205,6 +214,8 @@ pub async fn governance_execute_calls(
     accept_ownership(shell, governor, forge).await
 }
 
+// TODO(EVM-927): this function does not work without the Gateway contracts.
+#[allow(unused)]
 #[allow(clippy::too_many_arguments)]
 pub async fn admin_execute_upgrade(
     shell: &Shell,
@@ -215,6 +226,9 @@ pub async fn admin_execute_upgrade(
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
+    // TODO(EVM-927): this function does not work without the Gateway contracts.
+    anyhow::bail!("Gateway upgrade not supported yet!");
+
     // resume doesn't properly work here.
     let mut forge_args = forge_args.clone();
     forge_args.resume = false;
@@ -250,6 +264,8 @@ pub async fn admin_execute_upgrade(
     accept_ownership(shell, governor, forge).await
 }
 
+// TODO(EVM-927): this function does not work without the Gateway contracts.
+#[allow(unused)]
 #[allow(clippy::too_many_arguments)]
 pub async fn admin_schedule_upgrade(
     shell: &Shell,
@@ -261,6 +277,9 @@ pub async fn admin_schedule_upgrade(
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
+    // TODO(EVM-927): this function does not work without the Gateway contracts.
+    anyhow::bail!("Gateway upgrade not supported yet!");
+
     // resume doesn't properly work here.
     let mut forge_args = forge_args.clone();
     forge_args.resume = false;
@@ -295,6 +314,8 @@ pub async fn admin_schedule_upgrade(
     accept_ownership(shell, governor, forge).await
 }
 
+// TODO(EVM-927): this function does not work without the Gateway contracts.
+#[allow(unused)]
 #[allow(clippy::too_many_arguments)]
 pub async fn admin_update_validator(
     shell: &Shell,
@@ -307,6 +328,9 @@ pub async fn admin_update_validator(
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
+    // TODO(EVM-927): this function does not work without the Gateway contracts.
+    anyhow::bail!("Gateway upgrade not supported yet!");
+
     // resume doesn't properly work here.
     let mut forge_args = forge_args.clone();
     forge_args.resume = false;
