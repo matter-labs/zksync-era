@@ -6,19 +6,19 @@ use zksync_contracts::{
 };
 use zksync_eth_client::{ContractCallError, EnrichedClientResult};
 use zksync_types::{
-    abi::{self, ProposedUpgrade},
+    abi::{self, ProposedUpgrade, ZkChainSpecificUpgradeData},
     api::{ChainAggProof, Log},
     bytecode::BytecodeHash,
     ethabi::{self, Token},
     l1::L1Tx,
     protocol_upgrade::ProtocolUpgradeTx,
-    tokens::TokenMetadata,
     u256_to_h256,
     web3::{contract::Tokenizable, BlockNumber},
-    Address, L1BatchNumber, L2ChainId, ProtocolUpgrade, SLChainId, Transaction, H256, U256, U64,
+    Address, L1BatchNumber, L2ChainId, ProtocolUpgrade, SLChainId, Transaction, H256,
+    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
 
-use crate::client::{EthClient, L2EthClient, RETRY_LIMIT};
+use crate::client::{encode_ntv_asset_id, EthClient, L2EthClient, RETRY_LIMIT};
 
 #[derive(Debug)]
 pub struct FakeEthClientData {
@@ -306,12 +306,20 @@ impl EthClient for MockEthClient {
         Ok(result)
     }
 
-    async fn get_base_token_metadata(&self) -> Result<TokenMetadata, ContractCallError> {
-        Ok(TokenMetadata {
-            name: "ETH".to_string(),
-            symbol: "Ether".to_string(),
-            decimals: 18,
-        })
+    async fn get_chain_gateway_upgrade_info(
+        &self,
+    ) -> Result<Option<ZkChainSpecificUpgradeData>, ContractCallError> {
+        Ok(Some(ZkChainSpecificUpgradeData {
+            base_token_asset_id: encode_ntv_asset_id(
+                self.chain_id().await?.0.into(),
+                SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+            ),
+            l2_legacy_shared_bridge: Address::repeat_byte(0x01),
+            l2_predeployed_wrapped_base_token: Address::repeat_byte(0x02),
+            base_token_l1_address: SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+            base_token_name: String::from("Ether"),
+            base_token_symbol: String::from("ETH"),
+        }))
     }
 
     async fn fflonk_scheduler_vk_hash(

@@ -1423,7 +1423,25 @@ pub static POST_SHARED_BRIDGE_EXECUTE_FUNCTION: Lazy<Function> = Lazy::new(|| {
     serde_json::from_str(abi).unwrap()
 });
 
-// Temporary thing, should be removed when new contracts are merged.
+// Temporary items, should be removed when new contracts are merged.
+
+pub static L1_ASSET_ROUTER_CONTRACT: Lazy<Contract> = Lazy::new(|| {
+    let abi = r#"
+    [
+        {"type":"function","name":"l2BridgeAddress","inputs":[{"name":"_chainId","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"","type":"address","internalType":"address"}],"stateMutability":"view"},
+        {"type":"function","name":"L1_NULLIFIER","inputs":[],"outputs":[{"name":"","type":"address","internalType":"contract IL1Nullifier"}],"stateMutability":"view"}
+    ]"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+pub static WRAPPED_BASE_TOKEN_STORE_CONTRACT: Lazy<Contract> = Lazy::new(|| {
+    let abi = r#"
+    [
+        {"type":"function","name":"l2WBaseTokenAddress","inputs":[{"name":"chainId","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"l2WBaseTokenAddress","type":"address","internalType":"address"}],"stateMutability":"view"}
+    ]"#;
+    serde_json::from_str(abi).unwrap()
+});
+
 pub static MESSAGE_ROOT_CONTRACT: Lazy<Contract> = Lazy::new(|| {
     let abi = r#"
     [{
