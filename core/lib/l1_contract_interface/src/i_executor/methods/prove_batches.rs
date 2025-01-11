@@ -76,8 +76,6 @@ impl ProveBatches {
                 vec![prev_l1_batch_info, batches_arg, proof_input]
             } else {
                 let proof_input = if should_use_fflonk {
-                    Token::Array(proof.into_iter().map(Token::Uint).collect())
-                } else {
                     Token::Array(
                         vec![verifier_type]
                             .into_iter()
@@ -85,6 +83,8 @@ impl ProveBatches {
                             .map(Token::Uint)
                             .collect(),
                     )
+                } else {
+                    Token::Array(proof.into_iter().map(Token::Uint).collect())
                 };
 
                 let encoded_data = encode(&[prev_l1_batch_info, batches_arg, proof_input]);
