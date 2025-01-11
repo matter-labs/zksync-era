@@ -1,7 +1,7 @@
 use anyhow::Context as _;
-use common::{config::global_config, logger};
-use config::{traits::ReadConfigWithBasePath, EcosystemConfig};
 use xshell::Shell;
+use zkstack_cli_common::{config::global_config, logger};
+use zkstack_cli_config::{traits::ReadConfigWithBasePath, EcosystemConfig};
 use zksync_config::configs::GeneralConfig;
 
 use crate::{

@@ -83,6 +83,14 @@ impl MempoolFetcher {
             let latency = KEEPER_METRICS.mempool_sync.start();
             let mut storage = self.pool.connection_tagged("state_keeper").await?;
             let mempool_info = self.mempool.get_mempool_info();
+
+            KEEPER_METRICS
+                .mempool_stashed_accounts
+                .set(mempool_info.stashed_accounts.len());
+            KEEPER_METRICS
+                .mempool_purged_accounts
+                .set(mempool_info.purged_accounts.len());
+
             let protocol_version = storage
                 .blocks_dal()
                 .pending_protocol_version()

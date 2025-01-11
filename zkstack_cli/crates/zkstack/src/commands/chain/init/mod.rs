@@ -1,11 +1,11 @@
 use anyhow::Context;
 use clap::{command, Parser, Subcommand};
-use common::{git, logger, spinner::Spinner};
-use config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
-use types::{BaseToken, L1BatchCommitmentMode};
 use xshell::Shell;
-use zksync_basic_types::Address;
+use zkstack_cli_common::{git, logger, spinner::Spinner};
+use zkstack_cli_config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
+use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode};
 use zksync_config::DAClientConfig;
+use zksync_types::Address;
 
 use crate::{
     accept_ownership::{accept_admin, make_permanent_rollup, set_da_validator_pair},
@@ -255,6 +255,7 @@ pub(crate) fn get_l1_da_validator(chain_config: &ChainConfig) -> anyhow::Result<
             if let Some(da_client_config) = general_config.da_client_config {
                 match da_client_config {
                     DAClientConfig::Avail(_) => contracts_config.l1.avail_l1_da_validator_addr,
+                    DAClientConfig::NoDA => contracts_config.l1.no_da_validium_l1_validator_addr,
                     _ => anyhow::bail!("DA client config is not supported"),
                 }
             } else {

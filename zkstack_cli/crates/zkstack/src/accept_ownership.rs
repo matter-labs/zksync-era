@@ -1,13 +1,4 @@
 use anyhow::Context;
-use common::{
-    forge::{Forge, ForgeScript, ForgeScriptArgs},
-    spinner::Spinner,
-    wallets::Wallet,
-};
-use config::{
-    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, ChainConfig, ContractsConfig,
-    EcosystemConfig,
-};
 use ethers::{
     abi::{parse_abi, Token},
     contract::BaseContract,
@@ -15,6 +6,15 @@ use ethers::{
 };
 use lazy_static::lazy_static;
 use xshell::Shell;
+use zkstack_cli_common::{
+    forge::{Forge, ForgeScript, ForgeScriptArgs},
+    spinner::Spinner,
+    wallets::Wallet,
+};
+use zkstack_cli_config::{
+    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, ChainConfig, ContractsConfig,
+    EcosystemConfig,
+};
 use zksync_basic_types::U256;
 
 use crate::{

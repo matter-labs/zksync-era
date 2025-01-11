@@ -1,9 +1,9 @@
 use std::{path::PathBuf, str::FromStr};
 
 use clap::Parser;
-use common::{forge::ForgeScriptArgs, Prompt};
 use serde::{Deserialize, Serialize};
 use url::Url;
+use zkstack_cli_common::{forge::ForgeScriptArgs, Prompt};
 use zksync_basic_types::H160;
 
 use crate::{

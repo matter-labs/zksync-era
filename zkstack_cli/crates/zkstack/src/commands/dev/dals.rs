@@ -1,7 +1,7 @@
 use anyhow::Context as _;
-use config::{EcosystemConfig, SecretsConfig};
 use url::Url;
 use xshell::Shell;
+use zkstack_cli_config::{EcosystemConfig, SecretsConfig};
 
 use super::{
     commands::database::args::DalUrls,

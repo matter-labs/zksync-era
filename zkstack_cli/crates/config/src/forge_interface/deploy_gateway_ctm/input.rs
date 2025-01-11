@@ -1,6 +1,6 @@
 use ethers::abi::Address;
 use serde::{Deserialize, Serialize};
-use types::ProverMode;
+use zkstack_cli_types::ProverMode;
 use zksync_basic_types::{H256, U256};
 use zksync_config::GenesisConfig;
 
