@@ -47,6 +47,15 @@ jobs:
           git submodule update --init --recursive
           git rev-parse HEAD
 
+      - name: Set new genesis for fflonk 
+        # Note, that while `Verifier` is not explicitly a part of the genensis state,
+        # it affects it indirectly as it is a part of the repo.
+        working-directory: ./etc/env/file_based
+        if: matrix.compressor-mode == 'fflonk'
+        run: |
+          sudo sed -i 's/^genesis_root: .*/genesis_root: 0xc2cbb3df06a08ba40810e07848d6522f5def60d9206b3638ee60d72cd9fac83c/' genesis.yaml
+          sudo sed -i "s/^genesis_batch_commitment: .*/genesis_batch_commitment: 0x5edce2e6a07abbb54d71581905b8fa3d9b9ecafea9add94be3c1b8ae709e690a/" genesis.yaml
+
       - name: Init
         run: |
           ci_run chmod -R +x ./bin
