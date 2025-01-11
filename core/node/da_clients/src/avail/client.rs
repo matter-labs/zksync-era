@@ -1,6 +1,6 @@
 use std::{fmt::Debug, sync::Arc, time::Duration};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use async_trait::async_trait;
 use jsonrpsee::ws_client::WsClientBuilder;
 use serde::{Deserialize, Serialize};
@@ -230,5 +230,26 @@ impl DataAvailabilityClient for AvailClient {
 
     fn blob_size_limit(&self) -> Option<usize> {
         Some(RawAvailClient::MAX_BLOB_SIZE)
+    }
+
+    async fn balance(&self) -> Result<u64, DAError> {
+        match self.sdk_client.as_ref() {
+            AvailClientMode::Default(client) => {
+                let AvailClientConfig::FullClient(default_config) = &self.config.config;
+
+                let ws_client = WsClientBuilder::default()
+                    .build(default_config.api_node_url.clone().as_str())
+                    .await
+                    .map_err(to_non_retriable_da_error)?;
+
+                Ok(client
+                    .balance(&ws_client)
+                    .await
+                    .map_err(to_non_retriable_da_error)?)
+            }
+            AvailClientMode::GasRelay(_) => {
+                unimplemented!("Balance retrieval is not supported in gas relay")
+            }
+        }
     }
 }

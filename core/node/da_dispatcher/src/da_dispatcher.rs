@@ -135,12 +135,37 @@ impl DataAvailabilityDispatcher {
                 .last_dispatched_l1_batch
                 .set(batch.l1_batch_number.0 as usize);
             METRICS.blob_size.observe(batch.pubdata.len());
+            METRICS.sealed_to_dispatched_lag.observe(
+                Utc::now()
+                    .signed_duration_since(batch.sealed_at)
+                    .to_std()
+                    .context("Time gap between sealed_at and sent_at is out of range")?,
+            );
             tracing::info!(
                 "Dispatched a DA for batch_number: {}, pubdata_size: {}, dispatch_latency: {dispatch_latency_duration:?}",
                 batch.l1_batch_number,
                 batch.pubdata.len(),
             );
         }
+
+        tokio::spawn(async {
+            // We don't need to report this metric every iteration, only once when the balance is changed
+            if batches.len() != 0 {
+                let balance = self
+                    .client
+                    .balance()
+                    .context("Unable to retrieve DA operator balance");
+
+                match balance {
+                    Some(balance) => {
+                        METRICS.operator_balance.set(balance);
+                    }
+                    Err(err) => {
+                        tracing::error!(err)
+                    }
+                }
+            }
+        });
 
         Ok(())
     }

@@ -97,6 +97,10 @@ impl DataAvailabilityClient for CelestiaClient {
     fn blob_size_limit(&self) -> Option<usize> {
         Some(1973786) // almost 2MB
     }
+
+    fn balance(&self) -> Result<u64, DAError> {
+        todo!()
+    }
 }
 
 impl Debug for CelestiaClient {

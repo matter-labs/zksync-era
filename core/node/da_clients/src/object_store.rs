@@ -87,6 +87,10 @@ impl DataAvailabilityClient for ObjectStoreDAClient {
     fn blob_size_limit(&self) -> Option<usize> {
         None
     }
+
+    fn balance(&self) -> Result<u64, DAError> {
+        Ok(0)
+    }
 }
 
 /// Used as a wrapper for the pubdata to be stored in the GCS.
