@@ -178,7 +178,9 @@ jobs:
       # we will test both cases here
       # ----------------------------------------------
       matrix:
-        use_gateway_chain: [ "true", "false" ]
+        use_gateway_chain: [ "WITH_GATEWAY", "WITHOUT_GATEWAY" ]
+      # In some cases it's useful to continue one job even if another fails.
+      fail-fast: false
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
@@ -365,10 +367,10 @@ jobs:
           echo "CHAINS=$CHAINS" >> $GITHUB_ENV
 
       # ----------------------------------------------------------------
-      #  Only create/initialize the gateway chain *if* use_gateway_chain=true
+      #  Only create/initialize the gateway chain *if* use_gateway_chain=WITH_GATEWAY
       # ----------------------------------------------------------------
       - name: Initialize gateway chain
-        if: matrix.use_gateway_chain == 'true'
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
           ci_run zkstack chain create \
           --chain-name gateway \
@@ -394,13 +396,13 @@ jobs:
           ci_run zkstack chain convert-to-gateway --chain gateway --ignore-prerequisites
 
       - name: Run gateway
-        if: matrix.use_gateway_chain == 'true'
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
           ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
       - name: Migrate chains to gateway
-        if: matrix.use_gateway_chain == 'true'
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
           ci_run zkstack chain migrate-to-gateway --chain era --gateway-chain-name gateway
           ci_run zkstack chain migrate-to-gateway --chain validium --gateway-chain-name gateway
@@ -408,12 +410,12 @@ jobs:
           ci_run zkstack chain migrate-to-gateway --chain consensus --gateway-chain-name gateway
 
       - name: Migrate back era
-        if: matrix.use_gateway_chain == 'true'
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
           ci_run zkstack chain migrate-from-gateway --chain era --gateway-chain-name gateway
 
       - name: Migrate to gateway again
-        if: matrix.use_gateway_chain == 'true'
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
           ci_run zkstack chain migrate-to-gateway --chain era --gateway-chain-name gateway
 
@@ -462,7 +464,7 @@ jobs:
 
       - name: Init external nodes
         run: |
-          GATEWAY_RPC_URL="${{ matrix.use_gateway_chain == 'true' && '--gateway-rpc-url=http://localhost:3550' || '' }}"
+          GATEWAY_RPC_URL="${{ matrix.use_gateway_chain == 'WITH_GATEWAY' && '--gateway-rpc-url=http://localhost:3550' || '' }}"
           
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --db-name=zksync_en_localhost_era_rollup --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain era
@@ -508,8 +510,8 @@ jobs:
         run: |
           ci_run killall -INT zksync_server || true
 
-          # Only start & wait for the gateway server if use_gateway_chain == true
-          if [ "${{ matrix.use_gateway_chain }}" == "true" ]; then
+          # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
+          if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
             ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
             ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
           fi
@@ -522,8 +524,8 @@ jobs:
           ci_run killall -INT zksync_server || true
           ci_run killall -INT zksync_external_node || true
 
-          # Only start & wait for the gateway server if use_gateway_chain == true
-          if [ "${{ matrix.use_gateway_chain }}" == "true" ]; then
+          # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
+          if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
             ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
             ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
           fi
@@ -538,8 +540,8 @@ jobs:
         run: |
           ci_run killall -INT zksync_server || true
 
-          # Only start & wait for the gateway server if use_gateway_chain == true
-          if [ "${{ matrix.use_gateway_chain }}" == "true" ]; then
+          # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
+          if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
             ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
             ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
           fi
