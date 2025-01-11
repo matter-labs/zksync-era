@@ -43,7 +43,7 @@ jobs:
         run: |
           git fetch
           # Checkout the commit with the DualVerifier contract to test FFLONK interface
-          git checkout b4d5b984
+          git checkout b68a01afa494fbb2fe85c954f0afe0d36ef589ca
           git submodule update --init --recursive
           git rev-parse HEAD
 
