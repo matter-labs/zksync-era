@@ -1,6 +1,8 @@
 //! Minimal reimplementation of the Avail SDK client required for the DA client implementation.
 //! This is considered to be a temporary solution until a mature SDK is available on crates.io
 
+use std::{fmt::Debug, sync::Arc, time};
+
 use anyhow::Context;
 use backon::{ConstantBuilder, Retryable};
 use bytes::Bytes;
@@ -11,7 +13,6 @@ use jsonrpsee::{
 use parity_scale_codec::{Compact, Decode, Encode};
 use scale_encode::EncodeAsFields;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, sync::Arc, time};
 use subxt_signer::{
     bip39::Mnemonic,
     sr25519::{Keypair, Signature},
