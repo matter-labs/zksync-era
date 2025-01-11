@@ -153,14 +153,16 @@ describe('Upgrade test', function () {
             config: 'wallets.yaml'
         });
 
-        // Note, that the following check is needed to reduce flackiness. In case the
+        // Note, that the following check is needed to avoid flackiness. In case the
         // `ecosystemGovWallet` and `slAdminGovWallet` refer to the same account, then
         // sending transactions from the same account while using different `Wallet` objects
         // could lead to flacky issues.
-        if (chainWalletConfig.governor.private_key == ecosystemWalletConfig.governor.private_key && !gatewayInfo) {
+        if (chainWalletConfig.governor.private_key == ecosystemWalletConfig.governor.private_key) {
             ecosystemGovWallet = slAdminGovWallet;
         } else {
-            ecosystemGovWallet = new ethers.Wallet(ecosystemWalletConfig.governor.private_key, alice._providerL1());
+            ecosystemGovWallet = gatewayInfo
+                ? new zksync.Wallet(ecosystemWalletConfig.governor.private_key, gatewayInfo.gatewayProvider)
+                : new ethers.Wallet(ecosystemWalletConfig.governor.private_key, alice._providerL1());
         }
 
         upgradeAddress = await deployDefaultUpgradeImpl(slAdminGovWallet);
@@ -349,7 +351,18 @@ describe('Upgrade test', function () {
         );
 
         console.log('Sending chain admin operation');
-        await chainAdminSetTimestamp(setTimestampCalldata);
+        // Different chain admin impls are used depending on whether gateway is used.
+        if (gatewayInfo) {
+            // ChainAdmin.sol: `setUpgradeTimestamp` has onlySelf so we do multicall.
+            await sendChainAdminOperation({
+                target: await slChainAdminContract.getAddress(),
+                data: setTimestampCalldata,
+                value: 0
+            });
+        } else {
+            // ChainAdminOwnable.sol: `setUpgradeTimestamp` has onlyOwner so we call it directly.
+            await chainAdminSetTimestamp(setTimestampCalldata);
+        }
 
         // Wait for server to process L1 event.
         await utils.sleep(2);
