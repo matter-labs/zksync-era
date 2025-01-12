@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 
 use clap::{Parser, ValueHint};
-use common::{Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use strum::IntoEnumIterator;
-use types::{L1Network, WalletCreation};
 use xshell::Shell;
+use zkstack_cli_common::{Prompt, PromptConfirm, PromptSelect};
+use zkstack_cli_types::{L1Network, WalletCreation};
 
 use crate::{
     commands::chain::{args::create::ChainCreateArgs, ChainCreateArgsFinal},
@@ -32,6 +32,8 @@ pub struct EcosystemCreateArgs {
         long, help = MSG_START_CONTAINERS_HELP, default_missing_value = "true", num_args = 0..=1
     )]
     pub start_containers: Option<bool>,
+    #[clap(long)]
+    pub update_submodules: Option<bool>,
 }
 
 impl EcosystemCreateArgs {
@@ -70,7 +72,7 @@ impl EcosystemCreateArgs {
             wallet_path: chain.wallet_path.clone(),
             chain_args: chain.clone(),
             start_containers,
-            skip_submodules_checkout: chain.skip_submodules_checkout,
+            update_submodules: self.update_submodules,
         })
     }
 }
@@ -84,7 +86,7 @@ pub struct EcosystemCreateArgsFinal {
     pub wallet_path: Option<PathBuf>,
     pub chain_args: ChainCreateArgsFinal,
     pub start_containers: bool,
-    pub skip_submodules_checkout: bool,
+    pub update_submodules: Option<bool>,
 }
 
 impl EcosystemCreateArgsFinal {

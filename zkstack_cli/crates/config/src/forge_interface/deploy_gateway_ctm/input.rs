@@ -1,6 +1,6 @@
 use ethers::abi::Address;
 use serde::{Deserialize, Serialize};
-use types::ProverMode;
+use zkstack_cli_types::ProverMode;
 use zksync_basic_types::{H256, U256};
 use zksync_config::GenesisConfig;
 
@@ -85,14 +85,11 @@ impl DeployGatewayCTMInput {
 
             base_token: chain_config.base_token.address,
 
-            chain_chain_id: U256::from(chain_config.chain_id.0),
-            era_chain_id: U256::from(ecosystem_config.era_chain_id.0),
+            chain_chain_id: U256::from(chain_config.chain_id.as_u64()),
+            era_chain_id: U256::from(ecosystem_config.era_chain_id.as_u64()),
             l1_chain_id: U256::from(ecosystem_config.l1_network.chain_id()),
 
-            // TODO: import it similar to DeployL1 config?
             testnet_verifier: ecosystem_config.prover_version == ProverMode::NoProofs,
-
-            // TODO: we should store it in ecosystem config somehwow and reuse here
             recursion_node_level_vk_hash: H256::zero(),
             recursion_leaf_level_vk_hash: H256::zero(),
             recursion_circuits_set_vks_hash: H256::zero(),

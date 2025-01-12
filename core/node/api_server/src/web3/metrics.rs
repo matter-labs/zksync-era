@@ -396,9 +396,7 @@ impl ApiMetrics {
             Web3Error::ProxyError(err) => {
                 tracing::warn!("Error proxying call to main node in method `{method}`: {err}");
             }
-            _ => {
-                tracing::debug!("Error in method `{method}`: {err:#}");
-            }
+            _ => { /* do nothing */ }
         }
 
         let labels = Web3ErrorLabels {

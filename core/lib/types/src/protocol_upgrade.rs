@@ -1,13 +1,9 @@
 use std::convert::{TryFrom, TryInto};
 
 use anyhow::Context as _;
-use ethabi::{decode, encode};
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{
-    ethabi,
-    protocol_version::{
-        L1VerifierConfig, ProtocolSemanticVersion, ProtocolVersionId, VerifierParams,
-    },
+use zksync_basic_types::protocol_version::{
+    L1VerifierConfig, ProtocolSemanticVersion, ProtocolVersionId, VerifierParams,
 };
 use zksync_contracts::{BaseSystemContractsHashes, DIAMOND_CUT};
 
@@ -16,7 +12,7 @@ use crate::{
         self, ForceDeployment, GatewayUpgradeEncodedInput, ProposedUpgrade,
         ZkChainSpecificUpgradeData,
     },
-    ethabi::{ParamType, Token},
+    ethabi::{self, decode, encode, ParamType, Token},
     h256_to_u256, u256_to_h256,
     web3::Log,
     Address, Execute, ExecuteTransactionCommon, Transaction, TransactionType, H256, U256,
@@ -107,8 +103,7 @@ pub trait ProtocolUpgradePreimageOracle: Send + Sync {
     ) -> anyhow::Result<Vec<Vec<u8>>>;
 }
 
-/// Some upgrades have chain-dependent calldata
-/// that has to be prepared properly
+/// Some upgrades have chain-dependent calldata that has to be prepared properly.
 async fn prepare_upgrade_call(
     proposed_upgrade: &ProposedUpgrade,
     chain_specific: Option<ZkChainSpecificUpgradeData>,
@@ -188,27 +183,42 @@ impl ProtocolUpgrade {
         preimage_oracle: impl ProtocolUpgradePreimageOracle,
         chain_specific: Option<ZkChainSpecificUpgradeData>,
     ) -> anyhow::Result<Self> {
-        let upgrade = ethabi::decode(
-            &[abi::ProposedUpgrade::schema()],
+        let upgrade = if let Ok(upgrade) = ethabi::decode(
+            &[abi::ProposedUpgrade::schema_pre_gateway()],
             init_calldata.get(4..).context("need >= 4 bytes")?,
-        )
-        .context("ethabi::decode()")?;
-        let mut upgrade =
-            abi::ProposedUpgrade::decode(upgrade.into_iter().next().unwrap()).unwrap();
+        ) {
+            upgrade
+        } else {
+            ethabi::decode(
+                &[abi::ProposedUpgrade::schema_post_gateway()],
+                init_calldata.get(4..).context("need >= 4 bytes")?,
+            )
+            .context("ethabi::decode()")?
+        };
+
+        let mut upgrade = abi::ProposedUpgrade::decode(upgrade.into_iter().next().unwrap())
+            .context("ProposedUpgrade::decode()")?;
+
         let bootloader_hash = H256::from_slice(&upgrade.bootloader_hash);
         let default_account_hash = H256::from_slice(&upgrade.default_account_hash);
 
+        let version = ProtocolSemanticVersion::try_from_packed(upgrade.new_protocol_version)
+            .map_err(|err| anyhow::format_err!("Version is not supported: {err}"))?;
         let tx = if upgrade.l2_protocol_upgrade_tx.tx_type != U256::zero() {
-            let factory_deps = preimage_oracle
-                .get_protocol_upgrade_preimages(
-                    upgrade
-                        .l2_protocol_upgrade_tx
-                        .factory_deps
-                        .iter()
-                        .map(|&x| u256_to_h256(x))
-                        .collect(),
-                )
-                .await?;
+            let factory_deps = if version.minor.is_pre_gateway() {
+                upgrade.factory_deps.clone().unwrap()
+            } else {
+                preimage_oracle
+                    .get_protocol_upgrade_preimages(
+                        upgrade
+                            .l2_protocol_upgrade_tx
+                            .factory_deps
+                            .iter()
+                            .map(|&x| u256_to_h256(x))
+                            .collect(),
+                    )
+                    .await?
+            };
 
             upgrade.l2_protocol_upgrade_tx.data =
                 prepare_upgrade_call(&upgrade, chain_specific).await?;
@@ -231,8 +241,7 @@ impl ProtocolUpgrade {
         };
 
         Ok(Self {
-            version: ProtocolSemanticVersion::try_from_packed(upgrade.new_protocol_version)
-                .map_err(|err| anyhow::format_err!("Version is not supported: {err}"))?,
+            version,
             bootloader_code_hash: (bootloader_hash != H256::zero()).then_some(bootloader_hash),
             default_account_code_hash: (default_account_hash != H256::zero())
                 .then_some(default_account_hash),
@@ -371,6 +380,7 @@ impl ProtocolVersion {
         &self,
         upgrade: ProtocolUpgrade,
         new_snark_wrapper_vk_hash: Option<H256>,
+        new_fflonk_snark_wrapper_vk_hash: Option<H256>,
     ) -> ProtocolVersion {
         ProtocolVersion {
             version: upgrade.version,
@@ -378,6 +388,8 @@ impl ProtocolVersion {
             l1_verifier_config: L1VerifierConfig {
                 snark_wrapper_vk_hash: new_snark_wrapper_vk_hash
                     .unwrap_or(self.l1_verifier_config.snark_wrapper_vk_hash),
+                fflonk_snark_wrapper_vk_hash: new_fflonk_snark_wrapper_vk_hash
+                    .or(self.l1_verifier_config.fflonk_snark_wrapper_vk_hash),
             },
             base_system_contracts_hashes: BaseSystemContractsHashes {
                 bootloader: upgrade

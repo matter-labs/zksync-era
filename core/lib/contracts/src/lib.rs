@@ -37,7 +37,7 @@ const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts/out";
 const BRIDGEHUB_CONTRACT_FILE: (&str, &str) = ("bridgehub", "IBridgehub.sol/IBridgehub.json");
 const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
-    "IChainTypeManager.sol/IChainTypeManager.json",
+    "ChainTypeManager.sol/ChainTypeManager.json",
 );
 const BYTECODE_SUPPLIER_CONTRACT_FILE: (&str, &str) =
     ("upgrades", "BytecodesSupplier.sol/BytecodesSupplier.json");
@@ -50,22 +50,35 @@ const DIAMOND_INIT_CONTRACT_FILE: (&str, &str) = (
     "chain-interfaces/IDiamondInit.sol/IDiamondInit.json",
 );
 const GOVERNANCE_CONTRACT_FILE: (&str, &str) = ("governance", "IGovernance.sol/IGovernance.json");
-const CHAIN_ADMIN_CONTRACT_FILE: (&str, &str) = ("governance", "IChainAdmin.sol/IChainAdmin.json");
+// TODO(EVM-924): We currently only support the "Ownable" chain admin.
+const CHAIN_ADMIN_CONTRACT_FILE: (&str, &str) = (
+    "governance",
+    "IChainAdminOwnable.sol/IChainAdminOwnable.json",
+);
 const GETTERS_FACET_CONTRACT_FILE: (&str, &str) = (
     "state-transition/chain-interfaces",
     "IGetters.sol/IGetters.json",
 );
-const ADMIN_FACET_CONTRACT_FILE: (&str, &str) = (
-    "state-transition/chain-interfaces",
-    "IAdmin.sol/IAdmin.json",
-);
 
 const MULTICALL3_CONTRACT_FILE: (&str, &str) = ("dev-contracts", "Multicall3.sol/Multicall3.json");
+const L1_ASSET_ROUTER_FILE: (&str, &str) = (
+    "bridge/asset-router",
+    "L1AssetRouter.sol/L1AssetRouter.json",
+);
+const L2_WRAPPED_BASE_TOKEN_STORE: (&str, &str) = (
+    "bridge",
+    "L2WrappedBaseTokenStore.sol/L2WrappedBaseTokenStore.json",
+);
+
 const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
+const DUAL_VERIFIER_CONTRACT_FILE: (&str, &str) = (
+    "state-transition/verifiers",
+    "DualVerifier.sol/DualVerifier.json",
+);
 
 const _IERC20_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
-const _FAIL_ON_RECEIVE_CONTRACT_FILE:  &str  =
+const _FAIL_ON_RECEIVE_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
 
 fn home_path() -> PathBuf {
@@ -156,10 +169,6 @@ pub fn getters_facet_contract() -> Contract {
     load_contract_for_both_compilers(GETTERS_FACET_CONTRACT_FILE)
 }
 
-pub fn admin_facet_contract() -> Contract {
-    load_contract_for_both_compilers(ADMIN_FACET_CONTRACT_FILE)
-}
-
 pub fn state_transition_manager_contract() -> Contract {
     load_contract_for_both_compilers(STATE_TRANSITION_CONTRACT_FILE)
 }
@@ -180,8 +189,24 @@ pub fn multicall_contract() -> Contract {
     load_contract_for_both_compilers(MULTICALL3_CONTRACT_FILE)
 }
 
+pub fn l1_asset_router_contract() -> Contract {
+    load_contract_for_both_compilers(L1_ASSET_ROUTER_FILE)
+}
+
+pub fn wrapped_base_token_store_contract() -> Contract {
+    load_contract_for_both_compilers(L2_WRAPPED_BASE_TOKEN_STORE)
+}
+
 pub fn verifier_contract() -> Contract {
-    load_contract_for_both_compilers(VERIFIER_CONTRACT_FILE)
+    let path = format!("{}/{}", FORGE_PATH_PREFIX, DUAL_VERIFIER_CONTRACT_FILE.1);
+    let zksync_home = home_path();
+    let path = Path::new(&zksync_home).join(path);
+
+    if path.exists() {
+        load_contract_for_both_compilers(DUAL_VERIFIER_CONTRACT_FILE)
+    } else {
+        load_contract_for_both_compilers(VERIFIER_CONTRACT_FILE)
+    }
 }
 
 pub fn deployer_contract() -> Contract {
@@ -193,7 +218,7 @@ pub fn l1_messenger_contract() -> Contract {
 }
 
 pub fn l2_message_root() -> Contract {
-    load_contract("contracts/l1-contracts/zkout/MessageRoot.sol/MessageRoot.json")
+    load_contract("contracts/l1-contracts/out/MessageRoot.sol/MessageRoot.json")
 }
 
 pub fn l2_rollup_da_validator_bytecode() -> Vec<u8> {
@@ -202,7 +227,7 @@ pub fn l2_rollup_da_validator_bytecode() -> Vec<u8> {
 
 /// Reads bytecode from the path RELATIVE to the Cargo workspace location.
 pub fn read_bytecode(relative_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u8> {
-    read_bytecode_from_path(relative_path).expect("Exists")
+    read_bytecode_from_path(relative_path).expect("Failed to open file")
 }
 
 pub fn eth_contract() -> Contract {
@@ -510,8 +535,9 @@ impl BaseSystemContracts {
     }
 
     pub fn playground_gateway() -> Self {
-        // TODO: the value should be taken from the `multivm_bootloaders` folder
-        let bootloader_bytecode = read_bootloader_code("playground_batch");
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_gateway/playground_batch.yul/playground_batch.yul.zbin",
+        );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
@@ -586,8 +612,9 @@ impl BaseSystemContracts {
     }
 
     pub fn estimate_gas_gateway() -> Self {
-        // TODO: the value should be taken from the `multivm_bootloaders` folder
-        let bootloader_bytecode = read_bootloader_code("fee_estimate");
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_gateway/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 

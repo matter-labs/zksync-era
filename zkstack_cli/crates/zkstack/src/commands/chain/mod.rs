@@ -1,11 +1,8 @@
-use ::common::forge::ForgeScriptArgs;
+use ::zkstack_cli_common::forge::ForgeScriptArgs;
 use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
-use gateway_upgrade::GatewayUpgradeArgs;
-use migrate_from_gateway::MigrateFromGatewayArgs;
-use migrate_to_gateway::MigrateToGatewayArgs;
 use xshell::Shell;
 
 use crate::commands::chain::{
@@ -15,20 +12,26 @@ use crate::commands::chain::{
 
 mod accept_chain_ownership;
 pub(crate) mod args;
-pub mod build_transactions;
-pub mod common;
-pub mod convert_to_gateway;
-pub mod create;
+mod build_transactions;
+pub(crate) mod common;
+#[cfg(feature = "gateway")]
+pub(crate) mod convert_to_gateway;
+pub(crate) mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
-pub mod gateway_upgrade;
+mod enable_evm_emulator;
+#[cfg(feature = "gateway")]
+mod gateway_upgrade;
 pub mod genesis;
 pub mod init;
+#[cfg(feature = "gateway")]
 mod migrate_from_gateway;
+#[cfg(feature = "gateway")]
 mod migrate_to_gateway;
 pub mod register_chain;
 mod set_token_multiplier_setter;
 mod setup_legacy_bridge;
+mod utils;
 
 #[derive(Subcommand, Debug)]
 pub enum ChainCommands {
@@ -72,13 +75,19 @@ pub enum ChainCommands {
     /// Update Token Multiplier Setter address on L1
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
     /// Prepare chain to be an eligible gateway
+    #[cfg(feature = "gateway")]
     ConvertToGateway(ForgeScriptArgs),
     /// Migrate chain to gateway
-    MigrateToGateway(MigrateToGatewayArgs),
+    #[cfg(feature = "gateway")]
+    MigrateToGateway(migrate_to_gateway::MigrateToGatewayArgs),
     /// Migrate chain from gateway
-    MigrateFromGateway(MigrateFromGatewayArgs),
+    #[cfg(feature = "gateway")]
+    MigrateFromGateway(migrate_from_gateway::MigrateFromGatewayArgs),
     /// Upgrade to the protocol version that supports Gateway
-    GatewayUpgrade(GatewayUpgradeArgs),
+    #[cfg(feature = "gateway")]
+    GatewayUpgrade(gateway_upgrade::GatewayUpgradeArgs),
+    /// Enable EVM emulation on chain (Not supported yet)
+    EnableEvmEmulator(ForgeScriptArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
@@ -108,9 +117,14 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
             set_token_multiplier_setter::run(args, shell).await
         }
+        #[cfg(feature = "gateway")]
         ChainCommands::ConvertToGateway(args) => convert_to_gateway::run(args, shell).await,
+        #[cfg(feature = "gateway")]
         ChainCommands::MigrateToGateway(args) => migrate_to_gateway::run(args, shell).await,
+        #[cfg(feature = "gateway")]
         ChainCommands::MigrateFromGateway(args) => migrate_from_gateway::run(args, shell).await,
+        #[cfg(feature = "gateway")]
         ChainCommands::GatewayUpgrade(args) => gateway_upgrade::run(args, shell).await,
+        ChainCommands::EnableEvmEmulator(args) => enable_evm_emulator::run(args, shell).await,
     }
 }

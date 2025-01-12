@@ -1,13 +1,13 @@
 use std::path::Path;
 
 use anyhow::Context;
-use common::{
-    // contracts::build_l2_contracts,
+use xshell::Shell;
+use zkstack_cli_common::{
     contracts::build_l2_contracts,
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
 };
-use config::{
+use zkstack_cli_config::{
     forge_interface::{
         deploy_l2_contracts::{
             input::DeployL2ContractsInput,
@@ -21,7 +21,6 @@ use config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use xshell::Shell;
 
 use crate::{
     messages::{
@@ -262,12 +261,10 @@ async fn call_forge(
 ) -> anyhow::Result<()> {
     let input = DeployL2ContractsInput::new(
         chain_config,
-        &ecosystem_config
-            .get_contracts_config()
-            .expect("contracts config"),
+        &ecosystem_config.get_contracts_config()?,
         ecosystem_config.era_chain_id,
     )?;
-    let foundry_contracts_path = chain_config.path_to_foundry();
+    let foundry_contracts_path = chain_config.path_to_l1_foundry();
     let secrets = chain_config.get_secrets_config()?;
     input.save(
         shell,

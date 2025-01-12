@@ -57,38 +57,6 @@ pub struct TransactionsDal<'c, 'a> {
 }
 
 impl TransactionsDal<'_, '_> {
-    /// FIXME: remove this function in prod
-    pub async fn erase_l1_txs_history(&mut self) -> DalResult<()> {
-        sqlx::query!(
-            r#"
-            UPDATE transactions
-            SET
-                l1_block_number = 0
-            WHERE
-                l1_block_number IS NOT NULL;
-            "#
-        )
-        .instrument("erase_l1_txs_history")
-        .execute(self.storage)
-        .await?;
-
-        // We need this to ensure that the operators' nonce is not too high.
-        sqlx::query!(
-            r#"
-            UPDATE eth_txs
-            SET
-                nonce = 0
-            WHERE
-                nonce IS NOT NULL;
-            "#
-        )
-        .instrument("erase_l1_txs_history")
-        .execute(self.storage)
-        .await?;
-
-        Ok(())
-    }
-
     pub async fn insert_transaction_l1(
         &mut self,
         tx: &L1Tx,
@@ -1808,7 +1776,7 @@ impl TransactionsDal<'_, '_> {
         limit: usize,
     ) -> DalResult<Vec<(Transaction, TransactionTimeRangeConstraint)>> {
         let stashed_addresses: Vec<_> = stashed_accounts.iter().map(Address::as_bytes).collect();
-        sqlx::query!(
+        let result = sqlx::query!(
             r#"
             UPDATE transactions
             SET
@@ -1826,8 +1794,15 @@ impl TransactionsDal<'_, '_> {
         .execute(self.storage)
         .await?;
 
+        tracing::debug!(
+            "Updated {} transactions for stashed accounts, stashed accounts amount: {}, stashed_accounts: {:?}",
+            result.rows_affected(),
+            stashed_addresses.len(),
+            stashed_accounts.iter().map(|a|format!("{:x}", a)).collect::<Vec<_>>()
+        );
+
         let purged_addresses: Vec<_> = purged_accounts.iter().map(Address::as_bytes).collect();
-        sqlx::query!(
+        let result = sqlx::query!(
             r#"
             DELETE FROM transactions
             WHERE
@@ -1840,6 +1815,12 @@ impl TransactionsDal<'_, '_> {
         .with_arg("purged_addresses.len", &purged_addresses.len())
         .execute(self.storage)
         .await?;
+
+        tracing::debug!(
+            "Updated {} transactions for purged accounts, purged accounts amount: {}",
+            result.rows_affected(),
+            purged_addresses.len()
+        );
 
         // Note, that transactions are updated in order of their hashes to avoid deadlocks with other UPDATE queries.
         let transactions = sqlx::query_as!(

@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use common::{cmd::Cmd, logger, spinner::Spinner};
-use config::EcosystemConfig;
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
+use zkstack_cli_config::EcosystemConfig;
 
 use super::sql_fmt::format_sql;
 use crate::commands::dev::{
@@ -85,6 +85,7 @@ pub struct FmtArgs {
 
 pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
     let ecosystem = EcosystemConfig::from_file(&shell)?;
+    shell.set_var("ZKSYNC_USE_CUDA_STUBS", "true");
     match args.formatter {
         None => {
             let mut tasks = vec![];

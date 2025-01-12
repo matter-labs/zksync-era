@@ -15,8 +15,8 @@ pub mod git;
 pub mod server;
 pub mod version;
 pub mod wallets;
-pub mod withdraw;
 pub mod yaml;
+pub mod zks_provider;
 
 pub use prerequisites::{
     check_general_prerequisites, check_prerequisites, GCLOUD_PREREQUISITE, GPU_PREREQUISITES,

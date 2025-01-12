@@ -1,14 +1,16 @@
 use anyhow::Context;
-use common::{
+use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
+use lazy_static::lazy_static;
+use xshell::Shell;
+use zkstack_cli_common::{
     forge::{Forge, ForgeScript, ForgeScriptArgs},
     logger,
     spinner::Spinner,
     wallets::Wallet,
 };
-use config::{forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, EcosystemConfig};
-use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
-use lazy_static::lazy_static;
-use xshell::Shell;
+use zkstack_cli_config::{
+    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, EcosystemConfig,
+};
 use zksync_basic_types::Address;
 
 use crate::{
@@ -23,7 +25,7 @@ use crate::{
 lazy_static! {
     static ref SET_TOKEN_MULTIPLIER_SETTER: BaseContract = BaseContract::from(
         parse_abi(&[
-            "function chainSetTokenMultiplierSetter(address accessControlRestriction, address diamondProxyAddress, address setter) public"
+            "function chainSetTokenMultiplierSetter(address chainAdmin, address accessControlRestriction, address diamondProxyAddress, address setter) public"
         ])
         .unwrap(),
     );
@@ -60,6 +62,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
             .context("access_control_restriction_addr")?,
         contracts_config.l1.diamond_proxy_addr,
         token_multiplier_setter_address,
+        contracts_config.l1.chain_admin_addr,
         &args.clone(),
         l1_url,
     )
@@ -82,6 +85,7 @@ pub async fn set_token_multiplier_setter(
     access_control_restriction_address: Address,
     diamond_proxy_address: Address,
     new_setter_address: Address,
+    chain_admin_addr: Address,
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
@@ -95,6 +99,7 @@ pub async fn set_token_multiplier_setter(
         .encode(
             "chainSetTokenMultiplierSetter",
             (
+                chain_admin_addr,
                 access_control_restriction_address,
                 diamond_proxy_address,
                 new_setter_address,

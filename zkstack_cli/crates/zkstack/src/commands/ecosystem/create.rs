@@ -1,10 +1,10 @@
 use anyhow::{bail, Context};
-use common::{logger, spinner::Spinner};
-use config::{
+use xshell::Shell;
+use zkstack_cli_common::{logger, spinner::Spinner};
+use zkstack_cli_config::{
     create_local_configs_dir, create_wallets, get_default_era_chain_id,
     traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError,
 };
-use xshell::Shell;
 
 use crate::{
     commands::{
@@ -57,7 +57,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         shell,
         shell.current_dir(),
         args.link_to_code.clone(),
-        args.skip_submodules_checkout,
+        args.update_submodules,
     )?;
 
     let spinner = Spinner::new(MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER);

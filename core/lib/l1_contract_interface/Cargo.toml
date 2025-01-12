@@ -13,12 +13,13 @@ categories.workspace = true
 [dependencies]
 zksync_types.workspace = true
 zksync_prover_interface.workspace = true
-zksync_system_constants.workspace = true
 
 # Used to serialize proof data
 crypto_codegen.workspace = true
 # Used to calculate the kzg commitment and proofs
 kzg.workspace = true
+fflonk.workspace = true
+circuit_definitions.workspace = true
 
 anyhow.workspace = true
 sha2.workspace = true

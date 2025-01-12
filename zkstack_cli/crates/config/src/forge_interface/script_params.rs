@@ -68,6 +68,12 @@ pub const SETUP_LEGACY_BRIDGE: ForgeScriptParams = ForgeScriptParams {
     script_path: "deploy-scripts/dev/SetupLegacyBridge.s.sol",
 };
 
+pub const ENABLE_EVM_EMULATOR_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/enable-evm-emulator.toml",
+    output: "script-out/output-enable-evm-emulator.toml",
+    script_path: "deploy-scripts/EnableEvmEmulator.s.sol",
+};
+
 pub const DEPLOY_GATEWAY_CTM: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/config-deploy-gateway-ctm.toml",
     output: "script-out/output-deploy-gateway-ctm.toml",

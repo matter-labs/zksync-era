@@ -24,6 +24,7 @@ use crate::{
 };
 
 pub(super) const STATE_TRANSITION_CONTRACT_ADDRESS: Address = Address::repeat_byte(0xa0);
+pub(super) const STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS: Address = Address::repeat_byte(0xb0);
 
 // Alias to conveniently call static methods of `ETHSender`.
 type MockEthTxManager = EthTxManager;
@@ -244,13 +245,13 @@ impl EthSenderTester {
                 None
             };
 
-        let mut connection = connection_pool.connection().await.unwrap();
         let aggregator = Aggregator::new(
             aggregator_config.clone(),
             MockObjectStore::arc(),
             custom_commit_sender_addr,
             commitment_mode,
-            &mut connection,
+            connection_pool.clone(),
+            gateway.clone(),
             SettlementMode::SettlesToL1,
         )
         .await
@@ -268,6 +269,7 @@ impl EthSenderTester {
             gateway.clone(),
             // ZKsync contract address
             Address::random(),
+            STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS,
             contracts_config.l1_multicall3_addr,
             STATE_TRANSITION_CONTRACT_ADDRESS,
             Default::default(),
@@ -417,10 +419,7 @@ impl EthSenderTester {
                 .await,
         ];
         let operation = AggregatedOperation::Execute(ExecuteBatches {
-            priority_ops_proofs: l1_batch_headers
-                .iter()
-                .map(|_| Default::default())
-                .collect(),
+            priority_ops_proofs: vec![Default::default(); l1_batch_headers.len()],
             l1_batches: l1_batch_headers
                 .into_iter()
                 .map(l1_batch_with_metadata)
@@ -525,6 +524,7 @@ impl EthSenderTester {
             .save_eth_tx(
                 &mut self.conn.connection().await.unwrap(),
                 &aggregated_operation,
+                Address::random(),
                 self.is_l2,
             )
             .await

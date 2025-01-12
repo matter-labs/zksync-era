@@ -226,7 +226,7 @@ impl BatchRootProcessor {
         metadata[0] = LOG_PROOF_SUPPORTED_METADATA_VERSION;
         metadata[1] = chain_agg_proof.chain_id_leaf_proof.len() as u8;
 
-        // Chain proofs are always final nodes in the proofs
+        // Chain proofs are always final nodes in the proofs.
         metadata[3] = 1;
 
         let mut chain_proof_vector = vec![

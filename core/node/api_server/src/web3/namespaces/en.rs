@@ -165,6 +165,7 @@ impl EnNamespace {
                     .l1_transparent_proxy_admin_addr
                     .unwrap(),
                 l1_bytecodes_supplier_addr: self.state.api_config.l1_bytecodes_supplier_addr,
+                l1_wrapped_base_token_store: self.state.api_config.l1_wrapped_base_token_store,
             })
             .context("Shared bridge doesn't supported")?)
     }
@@ -216,6 +217,7 @@ impl EnNamespace {
             l1_chain_id: self.state.api_config.l1_chain_id,
             l2_chain_id: self.state.api_config.l2_chain_id,
             snark_wrapper_vk_hash: verifier_config.snark_wrapper_vk_hash,
+            fflonk_snark_wrapper_vk_hash: verifier_config.fflonk_snark_wrapper_vk_hash,
             fee_account,
             dummy_verifier: self.state.api_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: self

@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use circuit_definitions::zkevm_circuits::scheduler::{
     block_header::BlockAuxilaryOutputWitness, input::SchedulerCircuitInstanceWitness,
 };
-use zksync_multivm::circuit_sequencer_api_latest::boojum::{
+use zkevm_test_harness::boojum::{
     field::goldilocks::{GoldilocksExt2, GoldilocksField},
     gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge,
 };

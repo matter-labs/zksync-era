@@ -1,7 +1,7 @@
 use ethers::types::Address;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use types::L1BatchCommitmentMode;
+use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{L2ChainId, H256};
 
 use crate::{traits::ZkStackConfig, ChainConfig, ContractsConfig};
@@ -62,6 +62,7 @@ pub struct ChainL1Config {
     pub base_token_gas_price_multiplier_denominator: u64,
     pub governance_security_council_address: Address,
     pub governance_min_delay: u64,
+    pub allow_evm_emulator: bool,
 }
 
 impl ZkStackConfig for RegisterChainL1Config {}
@@ -116,6 +117,7 @@ impl RegisterChainL1Config {
                     == L1BatchCommitmentMode::Validium,
                 validator_sender_operator_commit_eth: wallets_config.operator.address,
                 validator_sender_operator_blobs_eth: wallets_config.blob_operator.address,
+                allow_evm_emulator: chain_config.evm_emulator,
             },
             owner_address: wallets_config.governor.address,
             governance: contracts.l1.governance_addr,

@@ -1,11 +1,11 @@
 use anyhow::Context;
 use clap::{command, Parser, Subcommand};
-use common::{git, logger, spinner::Spinner};
-use config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
-use types::{BaseToken, L1BatchCommitmentMode};
 use xshell::Shell;
-use zksync_basic_types::Address;
+use zkstack_cli_common::{git, logger, spinner::Spinner};
+use zkstack_cli_config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
+use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode};
 use zksync_config::DAClientConfig;
+use zksync_types::Address;
 
 use crate::{
     accept_ownership::{accept_admin, make_permanent_rollup, set_da_validator_pair},
@@ -22,6 +22,7 @@ use crate::{
         set_token_multiplier_setter::set_token_multiplier_setter,
         setup_legacy_bridge::setup_legacy_bridge,
     },
+    enable_evm_emulator::enable_evm_emulator,
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DA_PAIR_REGISTRATION_SPINNER, MSG_DEPLOYING_PAYMASTER,
@@ -60,13 +61,15 @@ async fn run_init(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_config = config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+
+    if args.update_submodules.is_none() || args.update_submodules == Some(true) {
+        git::submodule_update(shell, config.link_to_code.clone())?;
+    }
+
     let args = args.fill_values_with_prompt(&chain_config);
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));
     logger::info(msg_initializing_chain(""));
-    if !args.skip_submodules_checkout {
-        git::submodule_update(shell, config.link_to_code.clone())?;
-    }
 
     init(&args, shell, &config, &chain_config).await?;
 
@@ -113,7 +116,7 @@ pub async fn init(
         contracts_config.l1.chain_admin_addr,
         &chain_config.get_wallets_config()?.governor,
         contracts_config.l1.diamond_proxy_addr,
-        &init_args.forge_args.clone(),
+        &init_args.forge_args,
         init_args.l1_rpc_url.clone(),
     )
     .await?;
@@ -138,11 +141,26 @@ pub async fn init(
                 .token_multiplier_setter
                 .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
                 .address,
+            chain_contracts.l1.chain_admin_addr,
             &init_args.forge_args.clone(),
             init_args.l1_rpc_url.clone(),
         )
         .await?;
         spinner.finish();
+    }
+
+    // Enable EVM emulation if needed (run by L2 Governor)
+    if chain_config.evm_emulator {
+        enable_evm_emulator(
+            shell,
+            ecosystem_config,
+            contracts_config.l1.chain_admin_addr,
+            &chain_config.get_wallets_config()?.governor,
+            contracts_config.l1.diamond_proxy_addr,
+            &init_args.forge_args,
+            init_args.l1_rpc_url.clone(),
+        )
+        .await?;
     }
 
     // Deploy L2 contracts: L2SharedBridge, L2DefaultUpgrader, ... (run by L1 Governor)
@@ -237,6 +255,7 @@ pub(crate) fn get_l1_da_validator(chain_config: &ChainConfig) -> anyhow::Result<
             if let Some(da_client_config) = general_config.da_client_config {
                 match da_client_config {
                     DAClientConfig::Avail(_) => contracts_config.l1.avail_l1_da_validator_addr,
+                    DAClientConfig::NoDA => contracts_config.l1.no_da_validium_l1_validator_addr,
                     _ => anyhow::bail!("DA client config is not supported"),
                 }
             } else {

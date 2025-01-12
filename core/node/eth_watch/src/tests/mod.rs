@@ -1,6 +1,5 @@
 use std::convert::TryInto;
 
-use zksync_config::ContractsConfig;
 use zksync_contracts::chain_admin_contract;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{
@@ -110,7 +109,6 @@ async fn create_test_watcher(
         sl_l2_client,
         connection_pool,
         std::time::Duration::from_nanos(1),
-        &ContractsConfig::for_tests(),
         L2ChainId::default(),
     )
     .await
@@ -217,7 +215,6 @@ async fn test_normal_operation_upgrade_timestamp() {
         None,
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
-        &ContractsConfig::for_tests(),
         L2ChainId::default(),
     )
     .await

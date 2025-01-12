@@ -41,9 +41,9 @@ impl EthSenderDal<'_, '_> {
                 from_addr IS NOT DISTINCT FROM $1 -- can't just use equality as NULL != NULL
                 AND confirmed_eth_tx_history_id IS NULL
                 AND is_gateway = $2
-                AND id <= (
-                    SELECT
-                        COALESCE(MAX(eth_tx_id), 0)
+                AND id <= COALESCE(
+                    (SELECT
+                        eth_tx_id
                     FROM
                         eth_txs_history
                     JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
@@ -51,6 +51,8 @@ impl EthSenderDal<'_, '_> {
                         eth_txs_history.sent_at_block IS NOT NULL
                         AND eth_txs.from_addr IS NOT DISTINCT FROM $1
                         AND is_gateway = $2
+                    ORDER BY eth_tx_id DESC LIMIT 1),
+                    0
                 )
             ORDER BY
                 id
@@ -78,6 +80,25 @@ impl EthSenderDal<'_, '_> {
             "#
         )
         .fetch_one(self.storage.conn())
+        .await?
+        .count
+        .unwrap();
+        Ok(count.try_into().unwrap())
+    }
+
+    pub async fn get_unconfirmed_txs_count(&mut self) -> DalResult<usize> {
+        let count = sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*)
+            FROM
+                eth_txs
+            WHERE
+                confirmed_eth_tx_history_id IS NULL
+            "#
+        )
+        .instrument("get_unconfirmed_txs_count")
+        .fetch_one(self.storage)
         .await?
         .count
         .unwrap();
@@ -172,9 +193,9 @@ impl EthSenderDal<'_, '_> {
             WHERE
                 from_addr IS NOT DISTINCT FROM $2 -- can't just use equality as NULL != NULL
                 AND is_gateway = $3
-                AND id > (
-                    SELECT
-                        COALESCE(MAX(eth_tx_id), 0)
+                AND id > COALESCE(
+                    (SELECT
+                        eth_tx_id
                     FROM
                         eth_txs_history
                     JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
@@ -182,6 +203,8 @@ impl EthSenderDal<'_, '_> {
                         eth_txs_history.sent_at_block IS NOT NULL
                         AND eth_txs.from_addr IS NOT DISTINCT FROM $2
                         AND is_gateway = $3
+                    ORDER BY eth_tx_id DESC LIMIT 1),
+                    0
                 )
             ORDER BY
                 id

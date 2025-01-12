@@ -1,18 +1,5 @@
 use anyhow::Context;
 use clap::Parser;
-use common::{
-    config::global_config,
-    forge::{Forge, ForgeScriptArgs},
-    wallets::Wallet,
-};
-use config::{
-    forge_interface::{
-        gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
-        script_params::GATEWAY_PREPARATION,
-    },
-    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    EcosystemConfig,
-};
 use ethers::{
     abi::parse_abi,
     contract::BaseContract,
@@ -22,8 +9,21 @@ use ethers::{
 };
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use types::L1BatchCommitmentMode;
 use xshell::Shell;
+use zkstack_cli_common::{
+    config::global_config,
+    forge::{Forge, ForgeScriptArgs},
+    wallets::Wallet,
+};
+use zkstack_cli_config::{
+    forge_interface::{
+        gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
+        script_params::GATEWAY_PREPARATION,
+    },
+    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    EcosystemConfig,
+};
+use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{
     pubdata_da::PubdataSendingMode, settlement::SettlementMode, Address, H256, U256, U64,
 };
@@ -46,7 +46,6 @@ pub struct MigrateToGatewayArgs {
     pub gateway_chain_name: String,
 }
 
-// TODO: use a different script here (i.e. make it have a different file)
 lazy_static! {
     static ref GATEWAY_PREPARATION_INTERFACE: BaseContract = BaseContract::from(
         parse_abi(&[
@@ -79,7 +78,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     let gateway_chain_config = ecosystem_config
         .load_chain(Some(args.gateway_chain_name.clone()))
         .context("Gateway not present")?;
-    let gateway_chain_id = gateway_chain_config.chain_id.0;
+    let gateway_chain_id = gateway_chain_config.chain_id.as_u64();
     let gateway_gateway_config = gateway_chain_config
         .get_gateway_config()
         .context("Gateway config not present")?;
@@ -166,7 +165,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                     // TODO(EVM-746): Use L2-based chain admin contract
                     l2_chain_admin,
                     chain_access_control_restriction,
-                    U256::from(chain_config.chain_id.0),
+                    U256::from(chain_config.chain_id.as_u64()),
                 ),
             )
             .unwrap(),
@@ -197,8 +196,8 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     // After the migration is done, there are a few things left to do:
     // Let's grab the new diamond proxy address
 
-    // TODO: maybe move to using a precalculated address, just like for EN
-    let chain_id = U256::from(chain_config.chain_id.0);
+    // TODO(EVM-929): maybe move to using a precalculated address, just like for EN
+    let chain_id = U256::from(chain_config.chain_id.as_u64());
     let contract = BRIDGEHUB_INTERFACE
         .clone()
         .into_contract(L2_BRIDGEHUB_ADDRESS, gateway_provider);
@@ -235,7 +234,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 (
                     chain_admin_addr,
                     chain_access_control_restriction,
-                    U256::from(chain_config.chain_id.0),
+                    U256::from(chain_config.chain_id.as_u64()),
                     gateway_da_validator_address,
                     chain_contracts_config
                         .l2
@@ -269,7 +268,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 (
                     chain_admin_addr,
                     chain_access_control_restriction,
-                    U256::from(chain_config.chain_id.0),
+                    U256::from(chain_config.chain_id.as_u64()),
                     chain_secrets_config.blob_operator.address,
                     gateway_gateway_config.validator_timelock_addr,
                     l2_chain_admin,
@@ -319,7 +318,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 (
                     chain_admin_addr,
                     chain_access_control_restriction,
-                    U256::from(chain_config.chain_id.0),
+                    U256::from(chain_config.chain_id.as_u64()),
                     chain_secrets_config.operator.address,
                     gateway_gateway_config.validator_timelock_addr,
                     l2_chain_admin,
@@ -402,7 +401,8 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .as_mut()
         .context("sender")?
         .wait_confirmations = Some(0);
-    // FIXME: do we need to move the following to be u64?
+    // TODO(EVM-925): the number below may not always work, especially for large prices on
+    // top of Gateway. This field would have to be either not used on GW or transformed into u64.
     eth_config
         .sender
         .as_mut()

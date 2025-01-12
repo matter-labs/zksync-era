@@ -75,11 +75,11 @@ pub enum ProtocolVersionId {
 
 impl ProtocolVersionId {
     pub const fn latest() -> Self {
-        Self::Version27
+        Self::Version26
     }
 
     pub const fn next() -> Self {
-        Self::Version28
+        Self::Version27
     }
 
     pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
@@ -123,9 +123,9 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version23 => VmVersion::Vm1_5_0SmallBootloaderMemory,
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
-            ProtocolVersionId::Version26 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmGateway,
-            ProtocolVersionId::Version28 => VmVersion::VmGateway,
+            ProtocolVersionId::Version28 => unreachable!("Version 28 is not yet supported"),
         }
     }
 
@@ -149,6 +149,10 @@ impl ProtocolVersionId {
 
     pub fn is_post_gateway(&self) -> bool {
         self >= &Self::gateway_upgrade()
+    }
+
+    pub fn is_pre_fflonk(&self) -> bool {
+        self < &Self::Version28
     }
 
     pub fn is_1_4_0(&self) -> bool {
@@ -188,7 +192,7 @@ impl ProtocolVersionId {
     }
 
     pub const fn gateway_upgrade() -> Self {
-        ProtocolVersionId::Version27
+        ProtocolVersionId::Version26
     }
 }
 
@@ -238,7 +242,7 @@ impl Detokenize for VerifierParams {
             other => {
                 return Err(Error::InvalidOutputType(format!(
                     "expected a tuple, got {other:?}"
-                )))
+                )));
             }
         };
 
@@ -262,6 +266,7 @@ pub struct L1VerifierConfig {
         rename(serialize = "recursion_scheduler_level_vk_hash")
     )]
     pub snark_wrapper_vk_hash: H256,
+    pub fflonk_snark_wrapper_vk_hash: Option<H256>,
 }
 
 impl From<ProtocolVersionId> for VmVersion {
@@ -293,9 +298,9 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version23 => VmVersion::Vm1_5_0SmallBootloaderMemory,
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
-            ProtocolVersionId::Version26 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmGateway,
-            ProtocolVersionId::Version28 => VmVersion::VmGateway,
+            ProtocolVersionId::Version28 => unreachable!("Version 28 is not yet supported"),
         }
     }
 }
@@ -433,9 +438,10 @@ mod tests {
         }
         let ser = L1VerifierConfig {
             snark_wrapper_vk_hash: H256::repeat_byte(0x11),
+            fflonk_snark_wrapper_vk_hash: Some(H256::repeat_byte(0x11)),
         };
         let ser_str = serde_json::to_string(&ser).unwrap();
-        let expected_str = r#"{"recursion_scheduler_level_vk_hash":"0x1111111111111111111111111111111111111111111111111111111111111111"}"#;
+        let expected_str = r#"{"recursion_scheduler_level_vk_hash":"0x1111111111111111111111111111111111111111111111111111111111111111","fflonk_snark_wrapper_vk_hash":"0x1111111111111111111111111111111111111111111111111111111111111111"}"#;
         assert_eq!(ser_str, expected_str);
     }
 }

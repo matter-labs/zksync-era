@@ -1,6 +1,6 @@
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
-use types::L1BatchCommitmentMode;
+use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::L2ChainId;
 
 use crate::{traits::ZkStackConfig, ChainConfig};

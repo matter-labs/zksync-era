@@ -65,14 +65,11 @@ jobs:
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
-          ci_run zkstackup -g --local
+          ci_run zkstackup -g --local --cargo-features gateway
 
       - name: Build contracts
         run: |
           ci_run zkstack dev contracts
-
-#      - name: Contracts unit tests
-#        run: ci_run yarn l1-contracts test
 
       - name: Download compilers for contract verifier tests
         run: ci_run zkstack contract-verifier init --zksolc-version=v1.5.3 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
@@ -82,7 +79,7 @@ jobs:
           ci_run zkstack dev test rust
           # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
           # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
-#          ci_run cargo test --release -p vm-benchmark --bench oneshot --bench batch
+          ci_run cargo test --release -p vm-benchmark --bench oneshot --bench batch
 
   loadtest:
     runs-on: [ matterlabs-ci-runner-high-performance ]
@@ -131,7 +128,7 @@ jobs:
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
-          ci_run zkstackup -g --local
+          ci_run zkstackup -g --local --cargo-features gateway
   
 
       - name: Create and initialize legacy chain
@@ -200,7 +197,7 @@ jobs:
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
-          ci_run zkstackup -g --local
+          ci_run zkstackup -g --local --cargo-features gateway
 
       - name: Create log directories
         run: |

@@ -4,12 +4,12 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize, Serializer};
-use types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
+use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use zksync_basic_types::L2ChainId;
 use zksync_config::{
     configs::{gateway::GatewayChainConfig, GatewayConfig},
-    DAClientConfig::Avail,
+    DAClientConfig::{Avail, NoDA},
 };
 
 use crate::{
@@ -119,7 +119,7 @@ impl ChainConfig {
             general.da_client_config,
         ) {
             (L1BatchCommitmentMode::Rollup, _) => Ok(DAValidatorType::Rollup),
-            (L1BatchCommitmentMode::Validium, None) => Ok(DAValidatorType::NoDA),
+            (L1BatchCommitmentMode::Validium, None | Some(NoDA)) => Ok(DAValidatorType::NoDA),
             (L1BatchCommitmentMode::Validium, Some(Avail(_))) => Ok(DAValidatorType::Avail),
             _ => anyhow::bail!("DAValidatorType is not supported"),
         }
@@ -169,7 +169,7 @@ impl ChainConfig {
         general_config.save_with_base_path(self.get_shell(), &self.configs)
     }
 
-    pub fn path_to_foundry(&self) -> PathBuf {
+    pub fn path_to_l1_foundry(&self) -> PathBuf {
         self.link_to_code.join(L1_CONTRACTS_FOUNDRY)
     }
 

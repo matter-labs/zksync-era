@@ -1,16 +1,16 @@
 use anyhow::Context;
-use common::{
+use xshell::Shell;
+use zkstack_cli_common::{
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
 };
-use config::{
+use zkstack_cli_config::{
     forge_interface::{
         script_params::SETUP_LEGACY_BRIDGE, setup_legacy_bridge::SetupLegacyBridgeInput,
     },
     traits::SaveConfig,
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use xshell::Shell;
 
 use crate::{
     messages::{MSG_DEPLOYING_PAYMASTER, MSG_L1_SECRETS_MUST_BE_PRESENTED},
@@ -50,7 +50,7 @@ pub async fn setup_legacy_bridge(
         create2factory_salt: contracts_config.create2_factory_salt,
         create2factory_addr: contracts_config.create2_factory_addr,
     };
-    let foundry_contracts_path = chain_config.path_to_foundry();
+    let foundry_contracts_path = chain_config.path_to_l1_foundry();
     input.save(shell, SETUP_LEGACY_BRIDGE.input(&chain_config.link_to_code))?;
     let secrets = chain_config.get_secrets_config()?;
 

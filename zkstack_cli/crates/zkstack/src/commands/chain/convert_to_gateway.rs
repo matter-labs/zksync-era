@@ -1,10 +1,13 @@
 use anyhow::Context;
-use common::{
+use ethers::{abi::parse_abi, contract::BaseContract, types::Bytes, utils::hex};
+use lazy_static::lazy_static;
+use xshell::Shell;
+use zkstack_cli_common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     wallets::Wallet,
 };
-use config::{
+use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::input::InitialDeploymentConfig,
         deploy_gateway_ctm::{input::DeployGatewayCTMInput, output::DeployGatewayCTMOutput},
@@ -14,9 +17,6 @@ use config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig, GenesisConfig,
 };
-use ethers::{abi::parse_abi, contract::BaseContract, types::Bytes, utils::hex};
-use lazy_static::lazy_static;
-use xshell::Shell;
 use zksync_basic_types::H256;
 use zksync_config::configs::GatewayConfig;
 
@@ -278,7 +278,9 @@ pub async fn gateway_governance_whitelisting(
     .await?
     .governance_l2_tx_hash;
 
+    // TOOD(EVM-931): adapt for more generic functionality from the rest of zkstack
     if !with_broadcast {
+        // TODO(EVM-930): the path below relies explicitly on chain id 9.
         shell.copy_file(
             config.link_to_code.join("contracts/l1-contracts/broadcast/GatewayPreparation.s.sol/9/dry-run/932d9a4d-latest.json"),
             config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
@@ -308,7 +310,9 @@ pub async fn gateway_governance_whitelisting(
     .await?
     .governance_l2_tx_hash;
 
+    // TOOD(EVM-931): adapt for more generic functionality from the rest of zkstack
     if !with_broadcast {
+        // TODO(EVM-930): the path below relies explicitly on chain id 9.
         shell.copy_file(
             config.link_to_code.join("contracts/l1-contracts/broadcast/GatewayPreparation.s.sol/9/dry-run/e518d36a-latest.json"),
             config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
@@ -336,7 +340,9 @@ pub async fn gateway_governance_whitelisting(
     .await?
     .governance_l2_tx_hash;
 
+    // TOOD(EVM-931): adapt for more generic functionality from the rest of zkstack
     if !with_broadcast {
+        // TODO(EVM-930): the path below relies explicitly on chain id 9.
         shell.copy_file(
             config.link_to_code.join("contracts/l1-contracts/broadcast/GatewayPreparation.s.sol/9/dry-run/98b2aab7-latest.json"),
             config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
@@ -367,7 +373,9 @@ pub async fn gateway_governance_whitelisting(
     .await?
     .governance_l2_tx_hash;
 
+    // TOOD(EVM-931): adapt for more generic functionality from the rest of zkstack
     if !with_broadcast {
+        // TODO(EVM-930): the path below relies explicitly on chain id 9.
         shell.copy_file(
             config.link_to_code.join("contracts/l1-contracts/broadcast/GatewayPreparation.s.sol/9/dry-run/b620eb4c-latest.json"),
             config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),

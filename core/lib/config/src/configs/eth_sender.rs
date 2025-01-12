@@ -41,9 +41,8 @@ impl EthConfig {
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
                 tx_aggregation_paused: false,
                 tx_aggregation_only_prove_and_execute: false,
-                ignore_db_nonce: None,
-                priority_tree_start_index: Some(0),
                 time_in_mempool_in_l1_blocks_cap: 1800,
+                is_verifier_pre_fflonk: true,
             }),
             gas_adjuster: Some(GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -94,7 +93,7 @@ pub struct SenderConfig {
     pub max_txs_in_flight: u64,
     /// The mode in which proofs are sent.
     pub proof_sending_mode: ProofSendingMode,
-
+    /// Note, that it is used only for L1 transactions
     pub max_aggregated_tx_gas: u32,
     pub max_eth_tx_data_size: usize,
     pub max_aggregated_blocks_to_commit: u32,
@@ -119,13 +118,10 @@ pub struct SenderConfig {
     /// special mode specifically for gateway migration to decrease number of non-executed batches
     #[serde(default = "SenderConfig::default_tx_aggregation_only_prove_and_execute")]
     pub tx_aggregation_only_prove_and_execute: bool,
-    /// Used to ignore db nonce check for sender and only use the RPC one.
-    pub ignore_db_nonce: Option<bool>,
-    /// Index of the priority operation to start building the `PriorityMerkleTree` from.
-    pub priority_tree_start_index: Option<usize>,
     /// Cap of time in mempool for price calculations
     #[serde(default = "SenderConfig::default_time_in_mempool_in_l1_blocks_cap")]
     pub time_in_mempool_in_l1_blocks_cap: u32,
+    pub is_verifier_pre_fflonk: bool,
 }
 
 impl SenderConfig {
@@ -157,14 +153,6 @@ impl SenderConfig {
     #[deprecated]
     pub fn private_key_blobs(&self) -> Option<H256> {
         std::env::var("ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY")
-            .ok()
-            .map(|pk| pk.parse().unwrap())
-    }
-
-    // Don't load gateway private key, if it's not required
-    #[deprecated]
-    pub fn private_key_gateway(&self) -> Option<H256> {
-        std::env::var("ETH_SENDER_SENDER_OPERATOR_GATEWAY_PRIVATE_KEY")
             .ok()
             .map(|pk| pk.parse().unwrap())
     }

@@ -4,7 +4,7 @@ use zksync_basic_types::L2ChainId;
 
 use crate::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig, traits::ZkStackConfig,
-    ContractsConfig, GenesisConfig, WalletsConfig,
+    ContractsConfig, GenesisConfig,
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -14,6 +14,7 @@ pub struct GatewayEcosystemUpgradeInput {
     pub testnet_verifier: bool,
     pub contracts: GatewayUpgradeContractsConfig,
     pub tokens: GatewayUpgradeTokensConfig,
+    pub governance_upgrade_timer_initial_delay: u64,
 }
 
 impl ZkStackConfig for GatewayEcosystemUpgradeInput {}
@@ -24,7 +25,6 @@ impl GatewayEcosystemUpgradeInput {
         current_contracts_config: &ContractsConfig,
         // It is expected to not change between the versions
         initial_deployment_config: &InitialDeploymentConfig,
-        wallets_config: &WalletsConfig,
         era_chain_id: L2ChainId,
         era_diamond_proxy: Address,
         testnet_verifier: bool,
@@ -33,11 +33,11 @@ impl GatewayEcosystemUpgradeInput {
             era_chain_id,
             testnet_verifier,
             owner_address: current_contracts_config.l1.governance_addr,
+            // TODO: for local testing, even 0 is fine - but before prod, we should load it from some configuration.
+            governance_upgrade_timer_initial_delay: 0,
             contracts: GatewayUpgradeContractsConfig {
                 create2_factory_addr: initial_deployment_config.create2_factory_addr,
                 create2_factory_salt: initial_deployment_config.create2_factory_salt,
-                // TODO verify correctnesss
-                governance_security_council_address: wallets_config.governor.address,
                 governance_min_delay: initial_deployment_config.governance_min_delay,
                 max_number_of_chains: initial_deployment_config.max_number_of_chains,
                 diamond_init_batch_overhead_l1_gas: initial_deployment_config
@@ -90,7 +90,6 @@ impl GatewayEcosystemUpgradeInput {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GatewayUpgradeContractsConfig {
-    pub governance_security_council_address: Address,
     pub governance_min_delay: u64,
     pub max_number_of_chains: u64,
     pub create2_factory_salt: H256,

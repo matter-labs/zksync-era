@@ -1,7 +1,7 @@
 use anyhow::Context;
-use common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
-use config::EcosystemConfig;
 use xshell::Shell;
+use zkstack_cli_common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
+use zkstack_cli_config::EcosystemConfig;
 
 use crate::{
     accept_ownership::accept_admin,
