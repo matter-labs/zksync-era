@@ -63,7 +63,7 @@ impl DataAvailabilityClient for EigenClient {
         Some(1920 * 1024) // 2mb - 128kb as a buffer
     }
 
-    fn balance(&self) -> Result<u64, DAError> {
+    async fn balance(&self) -> Result<u64, DAError> {
         Ok(0) // TODO fetch from API when payments are enabled in Eigen
     }
 }

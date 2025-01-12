@@ -98,7 +98,7 @@ impl DataAvailabilityClient for CelestiaClient {
         Some(1973786) // almost 2MB
     }
 
-    fn balance(&self) -> Result<u64, DAError> {
+    async fn balance(&self) -> Result<u64, DAError> {
         todo!()
     }
 }

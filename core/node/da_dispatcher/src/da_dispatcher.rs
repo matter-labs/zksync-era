@@ -103,7 +103,7 @@ impl DataAvailabilityDispatcher {
             .await?;
         drop(conn);
 
-        for batch in batches {
+        for batch in &batches {
             let dispatch_latency = METRICS.blob_dispatch_latency.start();
             let dispatch_response = retry(self.config.max_retries(), batch.l1_batch_number, || {
                 self.client
@@ -148,24 +148,26 @@ impl DataAvailabilityDispatcher {
             );
         }
 
-        tokio::spawn(async {
-            // We don't need to report this metric every iteration, only once when the balance is changed
-            if batches.len() != 0 {
-                let balance = self
-                    .client
+        // We don't need to report this metric every iteration, only once when the balance is changed
+        if !batches.is_empty() {
+            let client_arc = Arc::new(self.client.clone_boxed());
+
+            tokio::spawn(async move {
+                let balance = client_arc
                     .balance()
-                    .context("Unable to retrieve DA operator balance");
+                    .await
+                    .with_context(|| "Unable to retrieve DA operator balance");
 
                 match balance {
-                    Some(balance) => {
+                    Ok(balance) => {
                         METRICS.operator_balance.set(balance);
                     }
                     Err(err) => {
-                        tracing::error!(err)
+                        tracing::error!("{err}")
                     }
                 }
-            }
-        });
+            });
+        }
 
         Ok(())
     }

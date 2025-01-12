@@ -26,7 +26,7 @@ impl DataAvailabilityClient for NoDAClient {
         None
     }
 
-    fn balance(&self) -> Result<u64, DAError> {
+    async fn balance(&self) -> Result<u64, DAError> {
         Ok(0)
     }
 }

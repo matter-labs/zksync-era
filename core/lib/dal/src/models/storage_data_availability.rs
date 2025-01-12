@@ -1,4 +1,4 @@
-use chrono::{DateTime, NaiveDateTime};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use zksync_types::{pubdata_da::DataAvailabilityBlob, L1BatchNumber};
 
 /// Represents a blob in the data availability layer.
