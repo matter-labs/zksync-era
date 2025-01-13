@@ -349,11 +349,18 @@ describe('Upgrade test', function () {
         );
 
         console.log('Sending chain admin operation');
-        await sendChainAdminOperation({
-            target: await slChainAdminContract.getAddress(),
-            data: setTimestampCalldata,
-            value: 0
-        });
+        // Different chain admin impls are used depending on whether gateway is used.
+        if (gatewayInfo) {
+            // ChainAdmin.sol: `setUpgradeTimestamp` has onlySelf so we do multicall.
+            await sendChainAdminOperation({
+                target: await slChainAdminContract.getAddress(),
+                data: setTimestampCalldata,
+                value: 0
+            });
+        } else {
+            // ChainAdminOwnable.sol: `setUpgradeTimestamp` has onlyOwner so we call it directly.
+            await chainAdminSetTimestamp(setTimestampCalldata);
+        }
 
         // Wait for server to process L1 event.
         await utils.sleep(2);
@@ -456,6 +463,17 @@ describe('Upgrade test', function () {
 
         await providerForPriorityOp.waitForTransaction(hash);
         console.log('Transaction complete!');
+    }
+
+    async function chainAdminSetTimestamp(data: string) {
+        const transaction = await slAdminGovWallet.sendTransaction({
+            to: await slChainAdminContract.getAddress(),
+            data,
+            type: 0
+        });
+        console.log(`Sent chain admin operation, tx_hash=${transaction.hash}, nonce=${transaction.nonce}`);
+        await transaction.wait();
+        console.log(`Chain admin operation succeeded, tx_hash=${transaction.hash}`);
     }
 
     async function sendChainAdminOperation(call: Call) {
