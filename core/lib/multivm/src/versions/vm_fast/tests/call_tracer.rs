@@ -14,3 +14,13 @@ fn transfer() {
 fn reverted_tx() {
     call_tracer::test_reverted_tx::<Vm<_, _, _>>();
 }
+
+#[test]
+fn out_of_gas_tx() {
+    call_tracer::test_out_of_gas_tx::<Vm<_, _, _>>();
+}
+
+#[test]
+fn recursive_tx() {
+    call_tracer::test_recursive_tx::<Vm<_, _, _>>();
+}

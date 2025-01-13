@@ -266,6 +266,16 @@ mod call_tracer {
     fn reverted_tx() {
         test_reverted_tx::<super::ShadowedFastVm<_, _>>();
     }
+
+    #[test]
+    fn out_of_gas_tx() {
+        test_out_of_gas_tx::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn recursive_tx() {
+        test_recursive_tx::<super::ShadowedFastVm<_, _>>();
+    }
 }
 
 mod circuits {

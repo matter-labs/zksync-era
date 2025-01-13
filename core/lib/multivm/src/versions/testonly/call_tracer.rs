@@ -3,12 +3,13 @@
 
 use assert_matches::assert_matches;
 use ethabi::Token;
-use zksync_test_contracts::TestContract;
-use zksync_types::{zk_evm_types::FarCallOpcode, Address, Execute};
+use zksync_system_constants::MSG_VALUE_SIMULATOR_ADDRESS;
+use zksync_test_contracts::{LoadnextContractExecutionParams, TestContract, TxType};
+use zksync_types::{utils::deployed_address_create, zk_evm_types::FarCallOpcode, Address, Execute};
 
+use super::{ContractToDeploy, TestedVmWithCallTracer, VmTester, VmTesterBuilder};
 use crate::{
     interface::{Call, CallType, ExecutionResult, TxExecutionMode},
-    versions::testonly::{ContractToDeploy, TestedVmWithCallTracer, VmTester, VmTesterBuilder},
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
@@ -159,4 +160,84 @@ pub(crate) fn test_reverted_tx<VM: TestedVmWithCallTracer>() {
         call_to_contract.revert_reason.as_ref().unwrap(),
         "This method always reverts"
     );
+}
+
+pub(crate) fn test_out_of_gas_tx<VM: TestedVmWithCallTracer>() {
+    let mut vm: VmTester<VM> = VmTesterBuilder::new()
+        .with_empty_in_memory_storage()
+        .with_rich_accounts(1)
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .build();
+
+    let account = &mut vm.rich_accounts[0];
+    let out_of_gas_tx =
+        account.get_deploy_tx(TestContract::failed_call().bytecode, None, TxType::L2);
+
+    vm.vm.push_transaction(out_of_gas_tx.tx);
+    let (res, call_traces) = vm.vm.inspect_with_call_tracer();
+    assert_matches!(&res.result, ExecutionResult::Success { .. });
+
+    let constructor_call = extract_single_call(&call_traces, |call| {
+        call.r#type == CallType::Create && call.from == account.address
+    });
+    assert_eq!(constructor_call.input, [] as [u8; 0]);
+    assert_eq!(constructor_call.error, None);
+    assert_eq!(constructor_call.revert_reason, None);
+    let deploy_address = deployed_address_create(account.address, 0.into());
+    assert_eq!(constructor_call.to, deploy_address);
+
+    assert_eq!(constructor_call.calls.len(), 1, "{constructor_call:#?}");
+    let inner_call = &constructor_call.calls[0];
+    assert_eq!(inner_call.from, deploy_address);
+    assert_eq!(inner_call.to, MSG_VALUE_SIMULATOR_ADDRESS);
+    inner_call.revert_reason.as_ref().unwrap();
+}
+
+pub(crate) fn test_recursive_tx<VM: TestedVmWithCallTracer>() {
+    let contract_address = Address::repeat_byte(0x42);
+    let mut vm: VmTester<VM> = VmTesterBuilder::new()
+        .with_empty_in_memory_storage()
+        .with_rich_accounts(1)
+        .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_custom_contracts(vec![ContractToDeploy::new(
+            TestContract::load_test().bytecode.to_vec(),
+            contract_address,
+        )])
+        .build();
+
+    let account = &mut vm.rich_accounts[0];
+    let calldata = LoadnextContractExecutionParams {
+        recursive_calls: 20,
+        ..LoadnextContractExecutionParams::empty()
+    }
+    .to_bytes();
+    let recursive_tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(contract_address),
+            calldata: calldata.clone(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+
+    vm.vm.push_transaction(recursive_tx);
+    let (res, call_traces) = vm.vm.inspect_with_call_tracer();
+    assert!(!res.result.is_failed(), "{:#?}", res.result);
+
+    let mut call_to_contract = extract_single_call(&call_traces, |call| {
+        call.to == contract_address && call.input == calldata
+    });
+    let mut depth = 0;
+    while let Some(child_call) = call_to_contract.calls.first() {
+        assert_eq!(call_to_contract.calls.len(), 1, "{call_to_contract:#?}");
+        assert_eq!(child_call.from, contract_address);
+        assert_eq!(child_call.to, contract_address);
+        assert_ne!(child_call.input, call_to_contract.input);
+
+        depth += 1;
+        call_to_contract = child_call;
+    }
+    assert_eq!(depth, 20);
 }
