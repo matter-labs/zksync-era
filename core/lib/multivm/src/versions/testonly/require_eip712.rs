@@ -1,13 +1,12 @@
 use ethabi::Token;
 use zksync_eth_signer::TransactionParameters;
+use zksync_test_contracts::{Account, TestContract};
 use zksync_types::{
     fee::Fee, l2::L2Tx, transaction_request::TransactionRequest, Address, Eip712Domain, Execute,
     L2ChainId, Nonce, Transaction, U256,
 };
 
-use super::{
-    read_many_owners_custom_account_contract, tester::VmTesterBuilder, ContractToDeploy, TestedVm,
-};
+use super::{tester::VmTesterBuilder, ContractToDeploy, TestedVm};
 use crate::interface::{InspectExecutionMode, TxExecutionMode, VmInterfaceExt};
 
 /// This test deploys 'buggy' account abstraction code, and then tries accessing it both with legacy
@@ -21,7 +20,7 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
     let aa_address = Address::repeat_byte(0x10);
     let beneficiary_address = Address::repeat_byte(0x20);
 
-    let (bytecode, contract) = read_many_owners_custom_account_contract();
+    let bytecode = TestContract::many_owners().bytecode.to_vec();
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_custom_contracts(vec![
@@ -31,12 +30,11 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
         .with_rich_accounts(1)
         .build::<VM>();
     assert_eq!(vm.get_eth_balance(beneficiary_address), U256::from(0));
-    let chain_id: u32 = 270;
     let mut private_account = vm.rich_accounts[0].clone();
 
     // First, let's set the owners of the AA account to the `private_address`.
     // (so that messages signed by `private_address`, are authorized to act on behalf of the AA account).
-    let set_owners_function = contract.function("setOwners").unwrap();
+    let set_owners_function = TestContract::many_owners().function("setOwners");
     let encoded_input = set_owners_function
         .encode_input(&[Token::Array(vec![Token::Address(private_account.address)])])
         .unwrap();
@@ -98,7 +96,30 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
         vm.get_eth_balance(private_account.address)
     );
 
-    // // Now send the 'classic' EIP712 transaction
+    // Now send the 'classic' EIP712 transaction
+
+    let transaction: Transaction =
+        make_aa_transaction(aa_address, beneficiary_address, &private_account).into();
+    vm.vm.push_transaction(transaction);
+    vm.vm.execute(InspectExecutionMode::OneTx);
+
+    assert_eq!(
+        vm.get_eth_balance(beneficiary_address),
+        U256::from(916375026)
+    );
+    assert_eq!(
+        private_account_balance,
+        vm.get_eth_balance(private_account.address)
+    );
+}
+
+pub(crate) fn make_aa_transaction(
+    aa_address: Address,
+    beneficiary_address: Address,
+    private_account: &Account,
+) -> L2Tx {
+    let chain_id: u32 = 270;
+
     let tx_712 = L2Tx::new(
         Some(beneficiary_address),
         vec![],
@@ -131,16 +152,5 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
     let mut l2_tx = L2Tx::from_request(aa_txn_request, 100000, false).unwrap();
     l2_tx.set_input(encoded_tx, aa_hash);
 
-    let transaction: Transaction = l2_tx.into();
-    vm.vm.push_transaction(transaction);
-    vm.vm.execute(InspectExecutionMode::OneTx);
-
-    assert_eq!(
-        vm.get_eth_balance(beneficiary_address),
-        U256::from(916375026)
-    );
-    assert_eq!(
-        private_account_balance,
-        vm.get_eth_balance(private_account.address)
-    );
+    l2_tx
 }

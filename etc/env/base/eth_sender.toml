@@ -48,6 +48,8 @@ max_acceptable_priority_fee_in_gwei = 100000000000
 
 pubdata_sending_mode = "Blobs"
 
+is_verifier_pre_fflonk = true
+
 [eth_sender.gas_adjuster]
 # Priority fee to be used by GasAdjuster (in wei).
 default_priority_fee_per_gas = 1_000_000_000

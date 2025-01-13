@@ -120,3 +120,6 @@ configs/*
 era-observability/
 core/tests/ts-integration/deployments-zk
 transactions/
+
+# foundry-zksync
+install

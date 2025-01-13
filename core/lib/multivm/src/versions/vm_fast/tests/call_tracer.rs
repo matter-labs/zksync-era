@@ -1,10 +1,11 @@
+use zksync_test_contracts::TestContract;
 use zksync_types::{Address, Execute};
 use zksync_vm_interface::InspectExecutionMode;
 
 use crate::{
     interface::{TxExecutionMode, VmInterface},
     utils::testonly::check_call_tracer_test_result,
-    versions::testonly::{read_test_contract, ContractToDeploy, VmTester, VmTesterBuilder},
+    versions::testonly::{ContractToDeploy, VmTester, VmTesterBuilder},
     vm_fast::{call_tracer::CallTracer, Vm},
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
@@ -47,7 +48,7 @@ fn test_max_depth() {
 
 #[test]
 fn test_basic_behavior() {
-    let bytecode = read_test_contract();
+    let bytecode = TestContract::counter().bytecode.to_vec();
     let address = Address::repeat_byte(0xA5);
     let mut vm: VmTester<Vm<_, CallTracer>> = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
@@ -71,11 +72,11 @@ fn test_basic_behavior() {
         None,
     );
 
-    let mut call_tracer = CallTracer::default();
+    let mut call_tracer = (CallTracer::default(), ());
     vm.vm.push_transaction(tx);
     let res = vm.vm.inspect(&mut call_tracer, InspectExecutionMode::OneTx);
 
-    let call_tracer_result = call_tracer.result();
+    let call_tracer_result = call_tracer.0.result();
 
     check_call_tracer_test_result(&call_tracer_result);
     assert!(!res.result.is_failed());

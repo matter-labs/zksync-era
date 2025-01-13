@@ -82,7 +82,9 @@ in-file\:"Specify file with wallets"))' \
 '--base-token-price-denominator=[Base token denominator]:BASE_TOKEN_PRICE_DENOMINATOR:_default' \
 '--set-as-default=[Set as default chain]' \
 '--evm-emulator=[Enable EVM emulator]' \
+'--update-submodules=[Whether to update git submodules of repo]:UPDATE_SUBMODULES:(true false)' \
 '--start-containers=[Start reth and postgres containers after creation]' \
+'--update-submodules=[]:UPDATE_SUBMODULES:(true false)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--legacy-bridge[]' \
 '-v[Verbose mode]' \
@@ -130,6 +132,7 @@ _arguments "${_arguments_options[@]}" : \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '-o+[Enable Grafana]' \
 '--observability=[Enable Grafana]' \
+'--update-submodules=[]:UPDATE_SUBMODULES:(true false)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
 '-d[]' \
@@ -243,6 +246,7 @@ in-file\:"Specify file with wallets"))' \
 '--base-token-price-denominator=[Base token denominator]:BASE_TOKEN_PRICE_DENOMINATOR:_default' \
 '--set-as-default=[Set as default chain]' \
 '--evm-emulator=[Enable EVM emulator]' \
+'--update-submodules=[Whether to update git submodules of repo]:UPDATE_SUBMODULES:(true false)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--legacy-bridge[]' \
 '-v[Verbose mode]' \
@@ -284,6 +288,7 @@ _arguments "${_arguments_options[@]}" : \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '--deploy-paymaster=[]' \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
+'--update-submodules=[]:UPDATE_SUBMODULES:(true false)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
 '-d[]' \
@@ -603,6 +608,23 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
 ;;
+(enable-evm-emulator)
+_arguments "${_arguments_options[@]}" : \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_zkstack__chain__help_commands" \
@@ -704,6 +726,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (update-token-multiplier-setter)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(enable-evm-emulator)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -1421,6 +1447,7 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 '--version=[]:VERSION:_default' \
 '--snark-wrapper=[]:SNARK_WRAPPER:_default' \
+'--fflonk-snark-wrapper=[]:FFLONK_SNARK_WRAPPER:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--default[]' \
 '-v[Verbose mode]' \
@@ -1471,7 +1498,6 @@ _arguments "${_arguments_options[@]}" : \
 '--l1-contracts=[Build L1 contracts]' \
 '--l2-contracts=[Build L2 contracts]' \
 '--system-contracts=[Build system contracts]' \
-'--test-contracts=[Build test contracts]' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
@@ -1882,7 +1908,9 @@ _arguments "${_arguments_options[@]}" : \
 '(--clone)--bellman-cuda-dir=[]:BELLMAN_CUDA_DIR:_default' \
 '--bellman-cuda=[]' \
 '--setup-compressor-key=[]' \
-'--path=[]:PATH:_default' \
+'--plonk-path=[]:PLONK_PATH:_default' \
+'--fflonk-path=[]:FFLONK_PATH:_default' \
+'--compressor-type=[]:COMPRESSOR_TYPE:(fflonk plonk all)' \
 '--region=[]:REGION:(us europe asia)' \
 '--mode=[]:MODE:(download generate)' \
 '--setup-keys=[]' \
@@ -1922,8 +1950,13 @@ _arguments "${_arguments_options[@]}" : \
 '--round=[]:ROUND:(all-rounds basic-circuits leaf-aggregation node-aggregation recursion-tip scheduler)' \
 '--threads=[]:THREADS:_default' \
 '--max-allocation=[Memory allocation limit in bytes (for prover component)]:MAX_ALLOCATION:_default' \
-'--witness-vector-generator-count=[]:WITNESS_VECTOR_GENERATOR_COUNT:_default' \
+'-l+[]:LIGHT_WVG_COUNT:_default' \
+'--light-wvg-count=[]:LIGHT_WVG_COUNT:_default' \
+'-h+[]:HEAVY_WVG_COUNT:_default' \
+'--heavy-wvg-count=[]:HEAVY_WVG_COUNT:_default' \
+'-m+[]:MAX_ALLOCATION:_default' \
 '--max-allocation=[]:MAX_ALLOCATION:_default' \
+'--mode=[]:MODE:(fflonk plonk)' \
 '--docker=[]:DOCKER:(true false)' \
 '--tag=[]:TAG:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
@@ -1948,7 +1981,9 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (compressor-keys)
 _arguments "${_arguments_options[@]}" : \
-'--path=[]:PATH:_default' \
+'--plonk-path=[]:PLONK_PATH:_default' \
+'--fflonk-path=[]:FFLONK_PATH:_default' \
+'--compressor-type=[]:COMPRESSOR_TYPE:(fflonk plonk all)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
@@ -2121,6 +2156,7 @@ _arguments "${_arguments_options[@]}" : \
 '--db-url=[]:DB_URL:_default' \
 '--db-name=[]:DB_NAME:_default' \
 '--l1-rpc-url=[]:L1_RPC_URL:_default' \
+'--gateway-rpc-url=[]:GATEWAY_RPC_URL:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-u[Use default database urls and names]' \
 '--use-default[Use default database urls and names]' \
@@ -2703,6 +2739,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(enable-evm-emulator)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
         esac
     ;;
 esac
@@ -3231,6 +3271,7 @@ _zkstack__chain_commands() {
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
+'enable-evm-emulator:Enable EVM emulation on chain (Not supported yet)' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack chain commands' commands "$@"
@@ -3279,6 +3320,11 @@ _zkstack__chain__deploy-timestamp-asserter_commands() {
 _zkstack__chain__deploy-upgrader_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain deploy-upgrader commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__enable-evm-emulator_commands] )) ||
+_zkstack__chain__enable-evm-emulator_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain enable-evm-emulator commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__genesis_commands] )) ||
 _zkstack__chain__genesis_commands() {
@@ -3340,6 +3386,7 @@ _zkstack__chain__help_commands() {
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
+'enable-evm-emulator:Enable EVM emulation on chain (Not supported yet)' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack chain help commands' commands "$@"
@@ -3388,6 +3435,11 @@ _zkstack__chain__help__deploy-timestamp-asserter_commands() {
 _zkstack__chain__help__deploy-upgrader_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help deploy-upgrader commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__enable-evm-emulator_commands] )) ||
+_zkstack__chain__help__enable-evm-emulator_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help enable-evm-emulator commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__help__genesis_commands] )) ||
 _zkstack__chain__help__genesis_commands() {
@@ -4658,6 +4710,7 @@ _zkstack__help__chain_commands() {
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
+'enable-evm-emulator:Enable EVM emulation on chain (Not supported yet)' \
     )
     _describe -t commands 'zkstack help chain commands' commands "$@"
 }
@@ -4705,6 +4758,11 @@ _zkstack__help__chain__deploy-timestamp-asserter_commands() {
 _zkstack__help__chain__deploy-upgrader_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain deploy-upgrader commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__enable-evm-emulator_commands] )) ||
+_zkstack__help__chain__enable-evm-emulator_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain enable-evm-emulator commands' commands "$@"
 }
 (( $+functions[_zkstack__help__chain__genesis_commands] )) ||
 _zkstack__help__chain__genesis_commands() {

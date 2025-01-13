@@ -3,13 +3,13 @@
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
-use zksync_contracts::BaseSystemContracts;
+use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use zksync_types::{
-    block::L2BlockHeader, commitment::PubdataParams, fee_model::BatchFeeInput,
-    snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
-    ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
+    block::L2BlockHeader, bytecode::BytecodeHash, commitment::PubdataParams,
+    fee_model::BatchFeeInput, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber,
+    L2BlockNumber, L2ChainId, ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
 };
 
 const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 = u32::MAX;
@@ -308,15 +308,15 @@ impl L1BatchParamsProvider {
         );
 
         let contract_hashes = first_l2_block_in_batch.header.base_system_contracts_hashes;
-        let base_system_contracts = storage
-            .factory_deps_dal()
-            .get_base_system_contracts(
-                contract_hashes.bootloader,
-                contract_hashes.default_aa,
-                contract_hashes.evm_emulator,
-            )
-            .await
-            .context("failed getting base system contracts")?;
+        let base_system_contracts = get_base_system_contracts(
+            storage,
+            first_l2_block_in_batch.header.protocol_version,
+            contract_hashes.bootloader,
+            contract_hashes.default_aa,
+            contract_hashes.evm_emulator,
+        )
+        .await
+        .context("failed getting base system contracts")?;
 
         let (system_env, l1_batch_env) = l1_batch_params(
             first_l2_block_in_batch.l1_batch_number,
@@ -372,4 +372,97 @@ impl L1BatchParamsProvider {
         .with_context(|| format!("failed loading params for L1 batch #{number}"))
         .map(Some)
     }
+}
+
+async fn get_base_system_contracts(
+    storage: &mut Connection<'_, Core>,
+    protocol_version: Option<ProtocolVersionId>,
+    bootloader_hash: H256,
+    default_aa_hash: H256,
+    evm_simulator_hash: Option<H256>,
+) -> anyhow::Result<BaseSystemContracts> {
+    // There are two potential sources of base contracts bytecode:
+    // - Factory deps table in case the upgrade transaction has been executed before.
+    // - Factory deps of the upgrade transaction.
+
+    // Firstly trying from factory deps
+    if let Some(deps) = storage
+        .factory_deps_dal()
+        .get_base_system_contracts_from_factory_deps(
+            bootloader_hash,
+            default_aa_hash,
+            evm_simulator_hash,
+        )
+        .await?
+    {
+        return Ok(deps);
+    }
+
+    let protocol_version = protocol_version.context("Protocol version not provided")?;
+
+    let upgrade_tx = storage
+        .protocol_versions_dal()
+        .get_protocol_upgrade_tx(protocol_version)
+        .await?
+        .with_context(|| {
+            format!("Could not find base contracts for version {protocol_version:?}: bootloader {bootloader_hash:?} or {default_aa_hash:?}")
+        })?;
+
+    anyhow::ensure!(
+        upgrade_tx.execute.factory_deps.len() >= 2,
+        "Upgrade transaction does not have enough factory deps"
+    );
+
+    let bootloader_preimage = upgrade_tx.execute.factory_deps[0].clone();
+    let default_aa_preimage = upgrade_tx.execute.factory_deps[1].clone();
+
+    anyhow::ensure!(
+        BytecodeHash::for_bytecode(&bootloader_preimage).value() == bootloader_hash,
+        "Bootloader hash mismatch"
+    );
+    anyhow::ensure!(
+        BytecodeHash::for_bytecode(&default_aa_preimage).value() == default_aa_hash,
+        "Default account hash mismatch"
+    );
+
+    if evm_simulator_hash.is_some() {
+        // TODO(EVM-933): support EVM emulator.
+        panic!("EVM simulator not supported as part of gateway upgrade");
+    }
+
+    Ok(BaseSystemContracts {
+        bootloader: SystemContractCode {
+            code: bootloader_preimage,
+            hash: bootloader_hash,
+        },
+        default_aa: SystemContractCode {
+            code: default_aa_preimage,
+            hash: default_aa_hash,
+        },
+        evm_emulator: None,
+    })
+}
+
+pub async fn get_base_system_contracts_by_version_id(
+    storage: &mut Connection<'_, Core>,
+    version_id: ProtocolVersionId,
+) -> anyhow::Result<Option<BaseSystemContracts>> {
+    let hashes = storage
+        .protocol_versions_dal()
+        .get_base_system_contract_hashes_by_version_id(version_id)
+        .await?;
+    let Some(hashes) = hashes else {
+        return Ok(None);
+    };
+
+    Ok(Some(
+        get_base_system_contracts(
+            storage,
+            Some(version_id),
+            hashes.bootloader,
+            hashes.default_aa,
+            hashes.evm_emulator,
+        )
+        .await?,
+    ))
 }

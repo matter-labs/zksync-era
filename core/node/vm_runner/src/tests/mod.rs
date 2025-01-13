@@ -9,7 +9,7 @@ use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_block, execute_l2_transaction,
     l1_batch_metadata_to_commitment_artifacts,
 };
-use zksync_test_account::Account;
+use zksync_test_contracts::Account;
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHasher},
     bytecode::BytecodeHash,

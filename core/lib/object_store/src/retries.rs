@@ -53,7 +53,6 @@ impl Request<'_> {
                     backoff_secs *= 2;
                 }
                 Err(err) => {
-                    tracing::warn!(%err, "Failed request with a fatal error");
                     break Err(err);
                 }
             }

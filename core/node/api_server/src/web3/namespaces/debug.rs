@@ -96,13 +96,22 @@ impl DebugNamespace {
             CallType::NearCall => unreachable!("We have to filter our near calls before"),
         };
 
-        let result = if call.error.is_none() {
-            Some(CallResult {
-                output: web3::Bytes::from(call.output),
-                gas_used: U256::from(call.gas_used),
-            })
-        } else {
-            None
+        let (result, error) = match (call.revert_reason, call.error) {
+            (Some(revert_reason), _) => {
+                // If revert_reason exists, it takes priority over VM error
+                (None, Some(revert_reason))
+            }
+            (None, Some(vm_error)) => {
+                // If no revert_reason but VM error exists
+                (None, Some(vm_error))
+            }
+            (None, None) => (
+                Some(CallResult {
+                    output: web3::Bytes::from(call.output),
+                    gas_used: U256::from(call.gas_used),
+                }),
+                None,
+            ),
         };
 
         calls.push(DebugCallFlat {
@@ -116,6 +125,7 @@ impl DebugNamespace {
             },
             result,
             subtraces,
+            error,
             trace_address: trace_address.clone(), // Clone the current trace address
             transaction_position: meta.index_in_block,
             transaction_hash: meta.tx_hash,
@@ -240,12 +250,7 @@ impl DebugNamespace {
             // It is important to drop a DB connection before calling the provider, since it acquires a connection internally
             // on the main node.
             drop(connection);
-            let scale_factor = self.state.api_config.estimate_gas_scale_factor;
-            let fee_input_provider = &self.state.tx_sender.0.batch_fee_input_provider;
-            // For now, the same scaling is used for both the L1 gas price and the pubdata price
-            fee_input_provider
-                .get_batch_fee_input_scaled(scale_factor, scale_factor)
-                .await?
+            self.state.tx_sender.scaled_batch_fee_input().await?
         } else {
             let fee_input = block_args.historical_fee_input(&mut connection).await?;
             drop(connection);

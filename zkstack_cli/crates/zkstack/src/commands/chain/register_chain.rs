@@ -1,10 +1,11 @@
 use anyhow::Context;
-use common::{
+use xshell::Shell;
+use zkstack_cli_common::{
     forge::{Forge, ForgeScriptArgs},
     logger,
     spinner::Spinner,
 };
-use config::{
+use zkstack_cli_config::{
     forge_interface::{
         register_chain::{input::RegisterChainL1Config, output::RegisterChainOutput},
         script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
@@ -12,14 +13,13 @@ use config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use xshell::Shell;
 
 use crate::{
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_CHAIN_REGISTERED, MSG_L1_SECRETS_MUST_BE_PRESENTED,
         MSG_REGISTERING_CHAIN_SPINNER,
     },
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -69,7 +69,7 @@ pub async fn register_chain(
     let deploy_config = RegisterChainL1Config::new(chain_config, contracts)?;
     deploy_config.save(shell, deploy_config_path)?;
 
-    let mut forge = Forge::new(&config.path_to_foundry())
+    let mut forge = Forge::new(&config.path_to_l1_foundry())
         .script(&REGISTER_CHAIN_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url);
@@ -81,7 +81,11 @@ pub async fn register_chain(
     if let Some(address) = sender {
         forge = forge.with_sender(address);
     } else {
-        forge = fill_forge_private_key(forge, Some(&config.get_wallets()?.governor))?;
+        forge = fill_forge_private_key(
+            forge,
+            Some(&config.get_wallets()?.governor),
+            WalletOwner::Governor,
+        )?;
         check_the_balance(&forge).await?;
     }
 

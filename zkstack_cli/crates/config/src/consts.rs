@@ -20,6 +20,10 @@ pub(crate) const INITIAL_DEPLOYMENT_FILE: &str = "initial_deployments.yaml";
 pub(crate) const ERC20_DEPLOYMENT_FILE: &str = "erc20_deployments.yaml";
 /// Name of the contracts file
 pub const CONTRACTS_FILE: &str = "contracts.yaml";
+/// Name of the gateway contracts file
+pub const GATEWAY_FILE: &str = "gateway.yaml";
+/// Name of the gateway contracts file
+pub const GATEWAY_CHAIN_FILE: &str = "gateway_chain.yaml";
 /// Main repository for the ZKsync project
 pub const ZKSYNC_ERA_GIT_REPO: &str = "https://github.com/matter-labs/zksync-era";
 /// Name of the docker-compose file inside zksync repository
@@ -63,9 +67,10 @@ pub const DEFAULT_EXPLORER_API_PORT: u16 = 3002;
 /// Default port for the explorer data fetcher service
 pub const DEFAULT_EXPLORER_DATA_FETCHER_PORT: u16 = 3040;
 
-pub const EXPLORER_API_DOCKER_IMAGE: &str = "matterlabs/block-explorer-api";
-pub const EXPLORER_DATA_FETCHER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-data-fetcher";
-pub const EXPLORER_WORKER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-worker";
+pub const EXPLORER_API_DOCKER_IMAGE: &str = "matterlabs/block-explorer-api:v2.50.8";
+pub const EXPLORER_DATA_FETCHER_DOCKER_IMAGE: &str =
+    "matterlabs/block-explorer-data-fetcher:v2.50.8";
+pub const EXPLORER_WORKER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-worker:v2.50.8";
 
 /// Interval (in milliseconds) for polling new batches to process in explorer app
 pub const EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL: u64 = 1000;

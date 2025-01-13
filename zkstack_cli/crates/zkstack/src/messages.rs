@@ -7,6 +7,8 @@ use ethers::{
 use url::Url;
 use zksync_consensus_roles::attester;
 
+use crate::utils::forge::WalletOwner;
+
 pub(super) const MSG_SETUP_KEYS_DOWNLOAD_SELECTION_PROMPT: &str =
     "Do you want to download the setup keys or generate them?";
 pub(super) const MSG_SETUP_KEYS_REGION_PROMPT: &str =
@@ -83,6 +85,7 @@ pub(super) const MSG_CHAIN_INITIALIZED: &str = "Chain initialized successfully";
 pub(super) const MSG_CHAIN_CONFIGS_INITIALIZED: &str = "Chain configs were initialized";
 pub(super) const MSG_CHAIN_OWNERSHIP_TRANSFERRED: &str =
     "Chain ownership was transferred successfully";
+pub(super) const MSG_EVM_EMULATOR_ENABLED: &str = "EVM emulator enabled successfully";
 pub(super) const MSG_CHAIN_REGISTERED: &str = "Chain registraion was successful";
 pub(super) const MSG_DISTRIBUTING_ETH_SPINNER: &str = "Distributing eth...";
 pub(super) const MSG_MINT_BASE_TOKEN_SPINNER: &str =
@@ -270,6 +273,9 @@ pub(super) const MSG_SERVER_URING_HELP: &str = "Enables uring support for RocksD
 /// Accept ownership related messages
 pub(super) const MSG_ACCEPTING_GOVERNANCE_SPINNER: &str = "Accepting governance...";
 
+/// EVM emulator related messages
+pub(super) const MSG_ENABLING_EVM_EMULATOR: &str = "Enabling EVM emulator...";
+
 /// Containers related messages
 pub(super) const MSG_STARTING_CONTAINERS: &str = "Starting containers";
 pub(super) const MSG_STARTING_DOCKER_CONTAINERS_SPINNER: &str =
@@ -334,7 +340,15 @@ pub(super) fn msg_explorer_chain_not_initialized(chain: &str) -> String {
 }
 
 /// Forge utils related messages
-pub(super) const MSG_DEPLOYER_PK_NOT_SET_ERR: &str = "Deployer private key is not set";
+pub(super) fn msg_wallet_private_key_not_set(wallet_owner: WalletOwner) -> String {
+    format!(
+        "{} private key is not set",
+        match wallet_owner {
+            WalletOwner::Governor => "Governor",
+            WalletOwner::Deployer => "Deployer",
+        }
+    )
+}
 
 pub(super) fn msg_address_doesnt_have_enough_money_prompt(
     address: &H160,

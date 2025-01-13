@@ -1,11 +1,11 @@
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
-    ethabi::Token,
+    ethabi::{encode, Token},
     pubdata_da::PubdataSendingMode,
 };
 
 use crate::{
-    i_executor::structures::{CommitBatchInfo, StoredBatchInfo},
+    i_executor::structures::{CommitBatchInfo, StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
     Tokenizable, Tokenize,
 };
 
@@ -20,13 +20,29 @@ pub struct CommitBatches<'a> {
 
 impl Tokenize for CommitBatches<'_> {
     fn into_tokens(self) -> Vec<Token> {
+        let protocol_version = self.l1_batches[0].header.protocol_version.unwrap();
         let stored_batch_info = StoredBatchInfo::from(self.last_committed_l1_batch).into_token();
         let l1_batches_to_commit = self
             .l1_batches
             .iter()
             .map(|batch| CommitBatchInfo::new(self.mode, batch, self.pubdata_da).into_token())
             .collect();
-
-        vec![stored_batch_info, Token::Array(l1_batches_to_commit)]
+        if protocol_version.is_pre_gateway() {
+            vec![stored_batch_info, Token::Array(l1_batches_to_commit)]
+        } else {
+            let mut encoded_data = encode(&[
+                stored_batch_info.clone(),
+                Token::Array(l1_batches_to_commit),
+            ]);
+            encoded_data.insert(0, SUPPORTED_ENCODING_VERSION);
+            vec![
+                Token::Uint((self.last_committed_l1_batch.header.number.0 + 1).into()),
+                Token::Uint(
+                    (self.last_committed_l1_batch.header.number.0 + self.l1_batches.len() as u32)
+                        .into(),
+                ),
+                Token::Bytes(encoded_data),
+            ]
+        }
     }
 }

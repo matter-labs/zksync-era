@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
+use zksync_test_contracts::TestContract;
 use zksync_types::{Address, Execute};
 
 use super::TestedLatestVm;
@@ -8,9 +9,7 @@ use crate::{
     interface::{InspectExecutionMode, TxExecutionMode, VmInterface},
     tracers::CallTracer,
     utils::testonly::check_call_tracer_test_result,
-    versions::testonly::{
-        read_max_depth_contract, read_test_contract, ContractToDeploy, VmTesterBuilder,
-    },
+    versions::testonly::{read_max_depth_contract, ContractToDeploy, VmTesterBuilder},
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, ToTracerPointer},
 };
 
@@ -51,7 +50,7 @@ fn test_max_depth() {
 
 #[test]
 fn test_basic_behavior() {
-    let contract = read_test_contract();
+    let contract = TestContract::counter().bytecode.to_vec();
     let address = Address::repeat_byte(0xA5);
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()

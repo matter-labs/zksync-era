@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::{cmd::Cmd, config::global_config, logger};
-use config::EcosystemConfig;
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{cmd::Cmd, config::global_config, logger};
+use zkstack_cli_config::EcosystemConfig;
 
 use super::{
     args::fees::FeesArgs,

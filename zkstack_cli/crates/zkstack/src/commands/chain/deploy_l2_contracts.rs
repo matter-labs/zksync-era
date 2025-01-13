@@ -1,12 +1,13 @@
 use std::path::Path;
 
 use anyhow::Context;
-use common::{
+use xshell::Shell;
+use zkstack_cli_common::{
     contracts::build_l2_contracts,
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
 };
-use config::{
+use zkstack_cli_config::{
     forge_interface::{
         deploy_l2_contracts::{
             input::DeployL2ContractsInput,
@@ -20,14 +21,13 @@ use config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use xshell::Shell;
 
 use crate::{
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_L2_CONTRACT_SPINNER,
         MSG_L1_SECRETS_MUST_BE_PRESENTED,
     },
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 pub enum Deploy2ContractsOption {
@@ -284,7 +284,7 @@ async fn call_forge(
     signature: Option<&str>,
 ) -> anyhow::Result<()> {
     let input = DeployL2ContractsInput::new(chain_config, ecosystem_config.era_chain_id)?;
-    let foundry_contracts_path = chain_config.path_to_foundry();
+    let foundry_contracts_path = chain_config.path_to_l1_foundry();
     let secrets = chain_config.get_secrets_config()?;
     input.save(
         shell,
@@ -311,7 +311,11 @@ async fn call_forge(
         forge = forge.with_signature(signature);
     }
 
-    forge = fill_forge_private_key(forge, Some(&ecosystem_config.get_wallets()?.governor))?;
+    forge = fill_forge_private_key(
+        forge,
+        Some(&ecosystem_config.get_wallets()?.governor),
+        WalletOwner::Governor,
+    )?;
 
     check_the_balance(&forge).await?;
     forge.run(shell)?;

@@ -1,8 +1,8 @@
 use anyhow::Context;
 use clap::Subcommand;
-use common::{cmd::Cmd, logger};
-use config::EcosystemConfig;
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{cmd::Cmd, logger};
+use zkstack_cli_config::EcosystemConfig;
 
 use crate::commands::dev::messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_RUNNING_SNAPSHOT_CREATOR};
 

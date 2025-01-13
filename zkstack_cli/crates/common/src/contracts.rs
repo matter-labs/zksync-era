@@ -4,12 +4,6 @@ use xshell::{cmd, Shell};
 
 use crate::cmd::Cmd;
 
-pub fn build_test_contracts(shell: Shell, link_to_code: PathBuf) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(link_to_code.join("etc/contracts-test-data"));
-    Cmd::new(cmd!(shell, "yarn install")).run()?;
-    Ok(Cmd::new(cmd!(shell, "yarn build")).run()?)
-}
-
 pub fn build_l1_contracts(shell: Shell, link_to_code: PathBuf) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code.join("contracts/l1-contracts"));
     Ok(Cmd::new(cmd!(shell, "forge build")).run()?)

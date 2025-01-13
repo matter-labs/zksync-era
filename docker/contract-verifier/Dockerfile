@@ -17,7 +17,7 @@ ENV RUSTC_WRAPPER=${RUSTC_WRAPPER}
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN cargo build --release
+RUN cargo build --release --bin zksync_contract_verifier
 
 FROM ghcr.io/matter-labs/zksync-runtime-base:latest
 

@@ -133,6 +133,7 @@ impl UpdatesManager {
             system_logs: finished_batch.final_execution_state.system_logs.clone(),
             pubdata_input: finished_batch.pubdata_input.clone(),
             fee_address: self.fee_account_address,
+            batch_fee_input: self.batch_fee_input,
         };
 
         let final_bootloader_memory = finished_batch
@@ -145,7 +146,6 @@ impl UpdatesManager {
             .mark_l1_batch_as_sealed(
                 &l1_batch,
                 &final_bootloader_memory,
-                self.pending_l1_gas_count(),
                 &finished_batch.final_execution_state.storage_refunds,
                 &finished_batch.final_execution_state.pubdata_costs,
                 self.pending_execution_metrics().circuit_statistic,

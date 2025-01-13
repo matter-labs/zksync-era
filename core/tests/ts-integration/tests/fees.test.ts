@@ -21,7 +21,7 @@ import { logsTestPath } from 'utils/build/logs';
 import { sleep } from 'utils/build';
 import { killPidWithAllChilds } from 'utils/build/kill';
 import path from 'path';
-import { NodeSpawner } from '../src/utils';
+import { NodeSpawner } from 'utils';
 import { sendTransfers } from '../src/context-owner';
 import { Reporter } from '../src/reporter';
 
@@ -361,6 +361,9 @@ testFees('Test fees', function () {
             newL1GasPrice: requiredPubdataPrice,
             newPubdataPrice: requiredPubdataPrice
         });
+
+        // Wait for current batch to close so gas price is updated with the new config set above
+        await waitForNewL1Batch(alice);
 
         const l1Messenger = new ethers.Contract(zksync.utils.L1_MESSENGER_ADDRESS, zksync.utils.L1_MESSENGER, alice);
 
