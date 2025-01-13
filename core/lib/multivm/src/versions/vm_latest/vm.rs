@@ -60,6 +60,7 @@ impl TryFrom<VmVersion> for MultiVmSubversion {
             VmVersion::Vm1_5_0SmallBootloaderMemory => Ok(Self::SmallBootloaderMemory),
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => Ok(Self::IncreasedBootloaderMemory),
             VmVersion::VmGateway => Ok(Self::Gateway),
+            VmVersion::VmInterop => Ok(Self::Gateway),
             _ => Err(VmVersionIsNotVm150Error),
         }
     }

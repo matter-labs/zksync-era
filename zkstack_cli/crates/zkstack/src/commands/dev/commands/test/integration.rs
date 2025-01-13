@@ -41,9 +41,10 @@ pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
         .await?;
 
     let test_pattern = args.test_pattern;
+    let timeout = args.timeout.unwrap_or(800000).to_string();
     let mut command = cmd!(
         shell,
-        "yarn jest --forceExit --testTimeout 800000 -t {test_pattern...}"
+        "yarn jest --forceExit --testTimeout {timeout} -t {test_pattern...}"
     )
     .env("CHAIN_NAME", ecosystem_config.current_chain())
     .env("MASTER_WALLET_PK", wallets.get_test_pk(&chain_config)?);

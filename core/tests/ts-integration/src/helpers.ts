@@ -103,7 +103,7 @@ export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber
 }
 
 async function getL1BatchFinalizationStatus(provider: zksync.Provider, number: number) {
-    const result = await provider.send('zks_getL1ProcessingDetails', [number]);
+    const result = await provider.send('zks_getL1BatchDetails', [number]);
 
     if (result == null) {
         return null;

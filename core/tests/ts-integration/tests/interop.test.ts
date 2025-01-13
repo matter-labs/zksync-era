@@ -120,7 +120,6 @@ describe('Interop checks', () => {
         // Initialize Test Master and L1 Wallet
         interop1_wallet = new zksync.Wallet(test_wallet_pk, interop1_provider, l1_provider);
         interop1_rich_wallet = new zksync.Wallet(mainAccount.privateKey, interop1_provider, l1_provider);
-        console.log('PK', test_wallet_pk);
 
         // Setup Interop2 Provider and Wallet
         interop2_provider = new RetryProvider(
@@ -156,6 +155,7 @@ describe('Interop checks', () => {
             interop2_wallet
         );
 
+        console.log('PK', test_wallet_pk);
         console.log(`Test wallet 1 address: ${interop1_wallet.address}`);
         console.log(`Test wallet 2 address: ${interop1_wallet.address}`);
         console.log(
@@ -295,9 +295,11 @@ describe('Interop checks', () => {
         ]);
         tokenA_details.l2Address = await interop1_tokenA_contract_deployment.getAddress();
         console.log('Registering token A on Interop1');
-        await (await interop1_nativeTokenVault_contract.registerToken(tokenA_details.l2Address)).wait();
-        await (await interop1_tokenA_contract_deployment.mint(await interop1_wallet.getAddress(), 1000)).wait();
-        await (await interop1_tokenA_contract_deployment.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, 1000)).wait();
+        await Promise.all([
+            (await interop1_nativeTokenVault_contract.registerToken(tokenA_details.l2Address)).wait(),
+            (await interop1_tokenA_contract_deployment.mint(await interop1_wallet.getAddress(), 1000)).wait(),
+            (await interop1_tokenA_contract_deployment.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, 1000)).wait()
+        ]);
         console.log('Token A registered on Interop1');
         tokenA_details.assetId = await interop1_nativeTokenVault_contract.assetId(tokenA_details.l2Address);
         tokenA_details.l2AddressSecondChain = await interop2_nativeTokenVault_contract.tokenAddress(
@@ -318,14 +320,14 @@ describe('Interop checks', () => {
             tokenB_details.decimals
         ]);
         tokenB_details.l2AddressSecondChain = await interop2_tokenB_contract_deployment.getAddress();
-        await (
-            await interop2_tokenB_contract_deployment.mint(await interop1_wallet.getAddress(), ethers.parseEther('100'))
-        ).wait();
-        await (
+        await Promise.all([
+            (await interop2_tokenB_contract_deployment.mint(await interop1_wallet.getAddress(), ethers.parseEther('100'))
+            ).wait(),
+            (
             await interop2_tokenB_contract_deployment.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, ethers.parseEther('100'))
-        ).wait();
-        console.log('Registering token B on Interop2');
-        await (await interop2_nativeTokenVault_contract.registerToken(tokenB_details.l2AddressSecondChain)).wait();
+        ).wait(),
+            (await interop2_nativeTokenVault_contract.registerToken(tokenB_details.l2AddressSecondChain)).wait()
+        ]);
         console.log('Token B registered on Interop2');
         // await delay(timeout);
         tokenB_details.assetId = await interop2_nativeTokenVault_contract.assetId(tokenB_details.l2AddressSecondChain);
@@ -359,28 +361,32 @@ describe('Interop checks', () => {
             token: tokenA_details.l2Address,
             amount: 100
         });
-        await expect(withdrawA).toBeAccepted();
-        const withdrawalATx = await withdrawA;
-        const l2TxAReceipt = await interop1_wallet.provider.getTransactionReceipt(withdrawalATx.hash);
-        await withdrawalATx.waitFinalize();
-        await waitForBlockToBeFinalizedOnL1(interop1_wallet, l2TxAReceipt!.blockNumber);
-
-        await interop1_wallet.finalizeWithdrawalParams(withdrawalATx.hash); // kl todo finalize the Withdrawals with the params here. Alternatively do in the SDK.
-        await expect(interop1_rich_wallet.finalizeWithdrawal(withdrawalATx.hash)).toBeAccepted();
 
         const withdrawB = interop2_wallet.withdraw({
             token: tokenB_details.l2AddressSecondChain!,
             amount: 100
         });
 
-        await expect(withdrawB).toBeAccepted();
-        const withdrawBTx = await withdrawB;
-        const l2TxBReceipt = await interop2_wallet.provider.getTransactionReceipt(withdrawBTx.hash);
-        await withdrawBTx.waitFinalize();
-        await waitForBlockToBeFinalizedOnL1(interop2_wallet, l2TxBReceipt!.blockNumber);
+        await Promise.all([expect(withdrawA).toBeAccepted(), expect(withdrawB).toBeAccepted()]);
 
-        await interop2_wallet.finalizeWithdrawalParams(withdrawBTx.hash); // kl todo finalize the Withdrawals with the params here. Alternatively do in the SDK.
-        await expect(interop2_rich_wallet.finalizeWithdrawal(withdrawBTx.hash)).toBeAccepted();
+        const withdrawalATx = await withdrawA;
+        const l2TxAReceipt = await interop1_wallet.provider.getTransactionReceipt(withdrawalATx.hash);
+        // await interop1_wallet.finalizeWithdrawalParams(withdrawalATx.hash); // kl todo finalize the Withdrawals with the params here. Alternatively do in the SDK.
+
+        const withdrawalBTx = await withdrawB;
+        const l2TxBReceipt = await interop2_wallet.provider.getTransactionReceipt(withdrawalBTx.hash);
+
+        await Promise.all([withdrawalBTx.waitFinalize(), withdrawalATx.waitFinalize()]);
+
+        await Promise.all([
+            waitForBlockToBeFinalizedOnL1(interop1_wallet, l2TxAReceipt!.blockNumber),
+            waitForBlockToBeFinalizedOnL1(interop2_wallet, l2TxBReceipt!.blockNumber)
+        ]);
+        // await interop2_wallet.finalizeWithdrawalParams(withdrawalBTx.hash); // kl todo finalize the Withdrawals with the params here. Alternatively do in the SDK.
+        let nonce = await interop1_rich_wallet.getNonce();
+        
+        await expect(interop1_rich_wallet.finalizeWithdrawal(withdrawalATx.hash)).toBeAccepted();
+        await expect(interop2_rich_wallet.finalizeWithdrawal(withdrawalBTx.hash)).toBeAccepted();
 
         tokenA_details.l1Address = await l1NativeTokenVault.tokenAddress(tokenA_details.assetId);
         tokenB_details.l1Address = await l1NativeTokenVault.tokenAddress(tokenB_details.assetId);
@@ -442,7 +448,7 @@ describe('Interop checks', () => {
         console.log('[SETUP COMPLETED]');
     });
 
-    // test('Can transfer token A from Interop1 to Interop2', async () => {
+    // test.skip('Can transfer token A from Interop1 to Interop2', async () => {
     //     await printBalances('before token transfer');
     //     // Send Transfer Transaction
     //     await from_interop1_transfer_tokenA();
@@ -804,7 +810,7 @@ describe('Interop checks', () => {
             '0x01',
             new ethers.AbiCoder().encode(
                 ['bytes32', 'bytes'],
-                [assetId, new ethers.AbiCoder().encode(['uint256', 'address'], [amount, recipient])]
+                [assetId, new ethers.AbiCoder().encode(['uint256', 'address', 'address'], [amount, recipient, ethers.ZeroAddress])]
             )
         ]);
     }
