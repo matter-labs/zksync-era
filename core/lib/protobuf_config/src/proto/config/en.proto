@@ -1,5 +1,7 @@
 syntax = "proto3";
+
 import "zksync/config/genesis.proto";
+import "zksync/config/da_client.proto";
 
 package zksync.config.en;
 
@@ -12,4 +14,5 @@ message ExternalNode {
   reserved 8; reserved "gateway_url";
   optional uint64 bridge_addresses_refresh_interval_sec = 9; // optional
   optional uint64 gateway_chain_id = 10; // optional
+  optional da_client.DataAvailabilityClient da_client = 11; // optional
 }

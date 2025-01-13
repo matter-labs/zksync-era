@@ -1437,7 +1437,7 @@ impl ExternalNodeConfig<()> {
             tree_component: self.tree_component,
             api_component: self.api_component,
             consensus_secrets: self.consensus_secrets,
-            data_availability: (None, None),
+            data_availability: self.data_availability,
             remote,
         })
     }

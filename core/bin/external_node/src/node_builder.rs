@@ -24,7 +24,7 @@ use zksync_node_framework::{
         consistency_checker::ConsistencyCheckerLayer,
         da_clients::{
             avail::AvailWiringLayer, celestia::CelestiaWiringLayer, eigen::EigenWiringLayer,
-            object_store::ObjectStorageClientWiringLayer,
+            no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
         },
         data_availability_fetcher::DataAvailabilityFetcherLayer,
         healtcheck_server::HealthCheckLayer,
@@ -347,6 +347,11 @@ impl ExternalNodeBuilder {
         let Some(da_client_config) = da_client_config else {
             bail!("DA client config is missing");
         };
+
+        if let DAClientConfig::NoDA = da_client_config {
+            self.node.add_layer(NoDAClientWiringLayer);
+            return Ok(self);
+        }
 
         let Some(da_client_secrets) = da_client_secrets else {
             bail!("DA client secrets are missing");
