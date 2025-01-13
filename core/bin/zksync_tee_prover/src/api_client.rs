@@ -2,13 +2,12 @@ use reqwest::{Client, Response, StatusCode};
 use secp256k1::PublicKey;
 use serde::Serialize;
 use url::Url;
-use zksync_basic_types::H256;
+use zksync_basic_types::{tee_types::TeeType, L1BatchNumber, H256};
 use zksync_prover_interface::{
     api::{RegisterTeeAttestationRequest, SubmitTeeProofRequest, TeeProofGenerationDataRequest},
     inputs::TeeVerifierInput,
     outputs::L1BatchTeeProofForL1,
 };
-use zksync_types::{tee_types::TeeType, L1BatchNumber};
 
 use crate::{error::TeeProverError, metrics::METRICS};
 

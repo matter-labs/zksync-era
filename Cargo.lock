@@ -12957,7 +12957,6 @@ dependencies = [
  "reqwest 0.12.9",
  "secp256k1",
  "serde",
- "sha3 0.10.8",
  "thiserror 1.0.69",
  "tokio",
  "tracing",
@@ -12965,11 +12964,11 @@ dependencies = [
  "vise",
  "zksync_basic_types",
  "zksync_config",
+ "zksync_crypto_primitives",
  "zksync_env_config",
  "zksync_node_framework",
  "zksync_prover_interface",
  "zksync_tee_verifier",
- "zksync_types",
  "zksync_vlog",
 ]
 
