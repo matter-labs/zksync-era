@@ -226,7 +226,7 @@ tokio-stream = "0.1.16"
 rust-kzg-bn254 = "0.2.1"
 ark-bn254 = "0.5.0"
 num-bigint = "0.4.6"
-serial_test = "3.1.1"
+serial_test = { version = "3.1.1", features = ["file_locks"] }
 
 # Here and below:
 # We *always* pin the latest version of protocol to disallow accidental changes in the execution logic.

@@ -65,6 +65,7 @@ num-bigint.workspace = true
 zksync_web3_decl.workspace = true
 zksync_eth_client.workspace = true
 url.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 serial_test.workspace = true

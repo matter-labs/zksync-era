@@ -1,7 +1,8 @@
 use std::{str::FromStr, sync::Arc};
 
+use anyhow::Context;
 use secp256k1::{ecdsa::RecoverableSignature, SecretKey};
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::mpsc;
 use tokio_stream::{wrappers::UnboundedReceiverStream, StreamExt};
 use tonic::{
     transport::{Channel, ClientTlsConfig, Endpoint},
@@ -11,7 +12,7 @@ use url::Url;
 use zksync_config::EigenConfig;
 use zksync_da_client::types::DAError;
 use zksync_eth_client::clients::PKSigningClient;
-use zksync_types::{url::SensitiveUrl, Address, K256PrivateKey, SLChainId};
+use zksync_types::{url::SensitiveUrl, K256PrivateKey, SLChainId};
 use zksync_web3_decl::client::{Client, DynClient, L1};
 
 use super::{
@@ -31,25 +32,13 @@ use crate::eigen::{
     verifier::VerificationError,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct RawEigenClient {
-    client: Arc<Mutex<DisperserClient<Channel>>>,
+    client: DisperserClient<Channel>,
     private_key: SecretKey,
     pub config: EigenConfig,
     verifier: Verifier,
-    get_blob_data: Box<dyn GetBlobData>,
-}
-
-impl Clone for RawEigenClient {
-    fn clone(&self) -> Self {
-        Self {
-            client: self.client.clone(),
-            private_key: self.private_key,
-            config: self.config.clone(),
-            verifier: self.verifier.clone(),
-            get_blob_data: self.get_blob_data.clone_boxed(),
-        }
-    }
+    get_blob_data: Arc<dyn GetBlobData>,
 }
 
 pub(crate) const DATA_CHUNK_SIZE: usize = 32;
@@ -60,18 +49,18 @@ impl RawEigenClient {
     pub async fn new(
         private_key: SecretKey,
         config: EigenConfig,
-        get_blob_data: Box<dyn GetBlobData>,
+        get_blob_data: Arc<dyn GetBlobData>,
     ) -> anyhow::Result<Self> {
         let endpoint =
             Endpoint::from_str(config.disperser_rpc.as_str())?.tls_config(ClientTlsConfig::new())?;
-        let client = Arc::new(Mutex::new(DisperserClient::connect(endpoint).await?));
+        let client = DisperserClient::connect(endpoint).await?;
 
         let verifier_config = VerifierConfig {
             rpc_url: config
                 .eigenda_eth_rpc
                 .clone()
                 .ok_or(anyhow::anyhow!("EigenDA ETH RPC not set"))?,
-            svc_manager_addr: Address::from_str(&config.eigenda_svc_manager_address)?,
+            svc_manager_addr: config.eigenda_svc_manager_address,
             max_blob_size: Self::BLOB_SIZE_LIMIT as u32,
             g1_url: Url::parse(&config.g1_url)?,
             g2_url: Url::parse(&config.g2_url)?,
@@ -93,9 +82,9 @@ impl RawEigenClient {
             query_client,
         );
 
-        let verifier = Verifier::new(verifier_config, signing_client)
+        let verifier = Verifier::new(verifier_config, Arc::new(signing_client))
             .await
-            .map_err(|e| anyhow::anyhow!(format!("Failed to create verifier {:?}", e)))?;
+            .context("Failed to create verifier")?;
         Ok(RawEigenClient {
             client,
             private_key,
@@ -119,8 +108,7 @@ impl RawEigenClient {
 
         let disperse_reply = self
             .client
-            .lock()
-            .await
+            .clone()
             .disperse_blob(request)
             .await?
             .into_inner();
@@ -148,8 +136,6 @@ impl RawEigenClient {
         let mut response_stream = self
             .client
             .clone()
-            .lock()
-            .await
             .disperse_blob_authenticated(UnboundedReceiverStream::new(rx))
             .await?;
         let response_stream = response_stream.get_mut();
@@ -206,12 +192,12 @@ impl RawEigenClient {
             }
         }
         self.verifier
-            .verify_commitment(blob_info.blob_header.commitment.clone(), data)
+            .verify_commitment(blob_info.blob_header.commitment.clone(), &data)
             .map_err(|_| anyhow::anyhow!("Failed to verify commitment"))?;
 
         let result = self
             .verifier
-            .verify_inclusion_data_against_settlement_layer(blob_info.clone())
+            .verify_inclusion_data_against_settlement_layer(&blob_info)
             .await;
         // in case of an error, the dispatcher will retry, so the need to return None
         if let Err(e) = result {
@@ -323,8 +309,7 @@ impl RawEigenClient {
 
         let resp = self
             .client
-            .lock()
-            .await
+            .clone()
             .get_blob_status(polling_request.clone())
             .await?
             .into_inner();
@@ -337,17 +322,13 @@ impl RawEigenClient {
             }
             disperser::BlobStatus::Confirmed => {
                 if !self.config.wait_for_finalization {
-                    let blob_info = resp
-                        .info
-                        .ok_or_else(|| anyhow::anyhow!("No blob header in response"))?;
+                    let blob_info = resp.info.context("No blob header in response")?;
                     return Ok(Some(blob_info));
                 }
                 Ok(None)
             }
             disperser::BlobStatus::Finalized => {
-                let blob_info = resp
-                    .info
-                    .ok_or_else(|| anyhow::anyhow!("No blob header in response"))?;
+                let blob_info = resp.info.context("No blob header in response")?;
                 Ok(Some(blob_info))
             }
 
@@ -369,8 +350,7 @@ impl RawEigenClient {
             .batch_header_hash;
         let get_response = self
             .client
-            .lock()
-            .await
+            .clone()
             .retrieve_blob(disperser::RetrieveBlobRequest {
                 batch_header_hash,
                 blob_index,
@@ -405,51 +385,27 @@ fn get_account_id(secret_key: &SecretKey) -> String {
 fn convert_by_padding_empty_byte(data: &[u8]) -> Vec<u8> {
     let parse_size = DATA_CHUNK_SIZE - 1;
 
-    // Calculate the number of chunks
-    let data_len = (data.len() + parse_size - 1) / parse_size;
+    let chunk_count = (data.len()).div_ceil(parse_size);
+    let mut valid_data = Vec::with_capacity(data.len() + chunk_count);
 
-    // Pre-allocate `valid_data` with enough space for all chunks
-    let mut valid_data = vec![0u8; data_len * DATA_CHUNK_SIZE];
-    let mut valid_end = data_len * DATA_CHUNK_SIZE;
-
-    for (i, chunk) in data.chunks(parse_size).enumerate() {
-        let offset = i * DATA_CHUNK_SIZE;
-        valid_data[offset] = 0x00; // Set first byte of each chunk to 0x00 for big-endian compliance
-
-        let copy_end = offset + 1 + chunk.len();
-        valid_data[offset + 1..copy_end].copy_from_slice(chunk);
-
-        if i == data_len - 1 && chunk.len() < parse_size {
-            valid_end = offset + 1 + chunk.len();
-        }
+    for chunk in data.chunks(parse_size) {
+        valid_data.push(0x00); // Add the padding byte (0x00)
+        valid_data.extend_from_slice(chunk);
     }
 
-    valid_data.truncate(valid_end);
     valid_data
 }
 
 fn remove_empty_byte_from_padded_bytes(data: &[u8]) -> Vec<u8> {
     let parse_size = DATA_CHUNK_SIZE;
 
-    // Calculate the number of chunks
     let data_len = (data.len() + parse_size - 1) / parse_size;
+    let mut valid_data = Vec::with_capacity(data.len() - data_len);
 
-    // Pre-allocate `valid_data` with enough space for all chunks
-    let mut valid_data = vec![0u8; data_len * (DATA_CHUNK_SIZE - 1)];
-    let mut valid_end = data_len * (DATA_CHUNK_SIZE - 1);
-
-    for (i, chunk) in data.chunks(parse_size).enumerate() {
-        let offset = i * (DATA_CHUNK_SIZE - 1);
-
-        let copy_end = offset + chunk.len() - 1;
-        valid_data[offset..copy_end].copy_from_slice(&chunk[1..]);
-
-        if i == data_len - 1 && chunk.len() < parse_size {
-            valid_end = offset + chunk.len() - 1;
-        }
+    for chunk in data.chunks(parse_size) {
+        valid_data.extend_from_slice(&chunk[1..]);
     }
 
-    valid_data.truncate(valid_end);
     valid_data
 }
 

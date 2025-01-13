@@ -1,5 +1,11 @@
+use std::str::FromStr;
+
 use serde::Deserialize;
-use zksync_basic_types::secrets::PrivateKey;
+use zksync_basic_types::{secrets::PrivateKey, Address, H160};
+
+/// Default address of the EigenDA service manager contract deployed on Holesky.
+const DEFAULT_EIGENDA_SVC_MANAGER_ADDRESS: &str = "0xD4A7E1Bd8015057293f0D0A557088c286942e84b";
+
 /// Configuration for the EigenDA remote disperser client.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct EigenConfig {
@@ -11,7 +17,7 @@ pub struct EigenConfig {
     /// URL of the Ethereum RPC server
     pub eigenda_eth_rpc: Option<String>,
     /// Address of the service manager contract
-    pub eigenda_svc_manager_address: String,
+    pub eigenda_svc_manager_address: Address,
     /// Wait for the blob to be finalized before returning the response
     pub wait_for_finalization: bool,
     /// Authenticated dispersal
@@ -30,7 +36,7 @@ impl Default for EigenConfig {
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
             settlement_layer_confirmation_depth: 0,
             eigenda_eth_rpc: Some("https://ethereum-holesky-rpc.publicnode.com".to_string()),
-            eigenda_svc_manager_address: "0xD4A7E1Bd8015057293f0D0A557088c286942e84b".to_string(),
+            eigenda_svc_manager_address: H160::from_str(DEFAULT_EIGENDA_SVC_MANAGER_ADDRESS).unwrap_or_default(),
             wait_for_finalization: false,
             authenticated: false,
             g1_url: "https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g1.point".to_string(),

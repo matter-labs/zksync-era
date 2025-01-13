@@ -10,9 +10,12 @@ use zksync_config::configs::{
 };
 use zksync_protobuf::{required, ProtoRepr};
 
-use crate::proto::{
-    da_client::{self as proto},
-    object_store as object_store_proto,
+use crate::{
+    parse_h160,
+    proto::{
+        da_client::{self as proto},
+        object_store as object_store_proto,
+    },
 };
 
 impl ProtoRepr for proto::DataAvailabilityClient {
@@ -65,8 +68,8 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 .context("settlement_layer_confirmation_depth")?,
                 eigenda_eth_rpc: required(&conf.eigenda_eth_rpc).ok().cloned(),
                 eigenda_svc_manager_address: required(&conf.eigenda_svc_manager_address)
-                    .context("eigenda_svc_manager_address")?
-                    .clone(),
+                    .and_then(|x| parse_h160(x))
+                    .context("eigenda_svc_manager_address")?,
                 wait_for_finalization: *required(&conf.wait_for_finalization)
                     .context("wait_for_finalization")?,
                 authenticated: *required(&conf.authenticated).context("authenticated")?,
@@ -116,7 +119,10 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     config.settlement_layer_confirmation_depth,
                 ),
                 eigenda_eth_rpc: config.eigenda_eth_rpc.clone(),
-                eigenda_svc_manager_address: Some(config.eigenda_svc_manager_address.clone()),
+                eigenda_svc_manager_address: Some(format!(
+                    "{:?}",
+                    config.eigenda_svc_manager_address
+                )),
                 wait_for_finalization: Some(config.wait_for_finalization),
                 authenticated: Some(config.authenticated),
                 g1_url: Some(config.g1_url.clone()),

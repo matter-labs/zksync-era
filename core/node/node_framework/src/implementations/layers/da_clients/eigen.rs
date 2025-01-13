@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
 use zksync_da_client::DataAvailabilityClient;
 use zksync_da_clients::eigen::{EigenClient, GetBlobData};
@@ -50,7 +52,7 @@ impl WiringLayer for EigenWiringLayer {
         let master_pool = input.master_pool.get().await?;
         let get_blob_from_db = GetBlobFromDB { pool: master_pool };
         let client: Box<dyn DataAvailabilityClient> = Box::new(
-            EigenClient::new(self.config, self.secrets, Box::new(get_blob_from_db)).await?,
+            EigenClient::new(self.config, self.secrets, Arc::new(get_blob_from_db)).await?,
         );
 
         Ok(Self::Output {
@@ -73,9 +75,5 @@ impl GetBlobData for GetBlobFromDB {
             .get_blob_data_by_blob_id(input)
             .await?;
         Ok(batch.map(|b| b.pubdata))
-    }
-
-    fn clone_boxed(&self) -> Box<dyn GetBlobData> {
-        Box::new(self.clone())
     }
 }
