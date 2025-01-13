@@ -517,7 +517,10 @@ jobs:
           fi
 
           # Always run the chain-specific fee tests
-          ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill -v" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}
+          ci_run zkstack dev test fees --no-deps --no-kill -v --chain era
+          ci_run zkstack dev test fees --no-deps --no-kill -v --chain validium
+          ci_run zkstack dev test fees --no-deps --no-kill -v --chain custom_token
+          ci_run zkstack dev test fees --no-deps --no-kill -v --chain consensus  
 
       - name: Run revert tests
         run: |
