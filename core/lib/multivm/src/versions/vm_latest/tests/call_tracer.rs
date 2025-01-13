@@ -50,3 +50,13 @@ fn test_max_depth() {
 fn basic_behavior() {
     call_tracer::test_basic_behavior::<Vm<_, _>>();
 }
+
+#[test]
+fn transfer() {
+    call_tracer::test_transfer::<Vm<_, _>>();
+}
+
+#[test]
+fn reverted_tx() {
+    call_tracer::test_reverted_tx::<Vm<_, _>>();
+}

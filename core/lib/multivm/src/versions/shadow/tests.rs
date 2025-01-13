@@ -256,6 +256,16 @@ mod call_tracer {
     fn basic_behavior() {
         test_basic_behavior::<super::ShadowedFastVm<_, _>>();
     }
+
+    #[test]
+    fn transfer() {
+        test_transfer::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn reverted_tx() {
+        test_reverted_tx::<super::ShadowedFastVm<_, _>>();
+    }
 }
 
 mod circuits {
