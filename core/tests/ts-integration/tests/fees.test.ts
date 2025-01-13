@@ -362,6 +362,9 @@ testFees('Test fees', function () {
             newPubdataPrice: requiredPubdataPrice
         });
 
+        // Wait for current batch to close so gas price is updated with the new config set above
+        await waitForNewL1Batch(alice);
+
         const l1Messenger = new ethers.Contract(zksync.utils.L1_MESSENGER_ADDRESS, zksync.utils.L1_MESSENGER, alice);
 
         // Firstly, let's test a successful transaction.
