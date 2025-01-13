@@ -59,6 +59,7 @@ jobs:
       - name: checkout PR
         run: |
           git checkout --force FETCH_HEAD --recurse-submodules
+          git submodule update --init --recursive
 
       - name: run benchmarks on PR
         shell: bash
