@@ -119,14 +119,10 @@ impl DataAvailabilityFetcher {
         let l1_batch_to_fetch = if let Some(batch) = last_l1_batch_with_da_info {
             batch + 1
         } else {
-            let earliest_l1_batch = storage
-                .blocks_dal()
-                .get_earliest_l1_batch_number()
-                .await?
-                .context("all L1 batches disappeared from Postgres")?;
-
-            tracing::debug!("No L1 batches with DA info present in the storage; will fetch the earliest batch #{earliest_l1_batch}");
-            earliest_l1_batch
+            tracing::debug!(
+                "No L1 batches with DA info present in the storage; will use the batch number 1"
+            );
+            L1BatchNumber(1)
         };
 
         Ok(if l1_batch_to_fetch <= last_l1_batch {
