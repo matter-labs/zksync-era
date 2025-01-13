@@ -35,6 +35,7 @@ use crate::utils::{
     insert_base_system_contracts_to_factory_deps, insert_deduplicated_writes_and_protective_reads,
     insert_factory_deps, insert_storage_logs, save_genesis_l1_batch_metadata,
 };
+
 #[cfg(test)]
 mod tests;
 pub mod utils;
@@ -181,6 +182,7 @@ pub fn mock_genesis_config() -> GenesisConfig {
         l1_chain_id: L1ChainId(9),
         l2_chain_id: L2ChainId::default(),
         snark_wrapper_vk_hash: first_l1_verifier_config.snark_wrapper_vk_hash,
+        fflonk_snark_wrapper_vk_hash: first_l1_verifier_config.fflonk_snark_wrapper_vk_hash,
         fee_account: Default::default(),
         dummy_verifier: false,
         l1_batch_commit_data_generator_mode: Default::default(),
@@ -238,6 +240,7 @@ pub async fn insert_genesis_batch_with_custom_state(
     let mut transaction = storage.start_transaction().await?;
     let verifier_config = L1VerifierConfig {
         snark_wrapper_vk_hash: genesis_params.config.snark_wrapper_vk_hash,
+        fflonk_snark_wrapper_vk_hash: genesis_params.config.fflonk_snark_wrapper_vk_hash,
     };
 
     // if a custom genesis state was provided, read storage logs and factory dependencies from there
@@ -363,6 +366,40 @@ pub async fn validate_genesis_params(
         ));
     }
 
+    // We are getting function separately to get the second function with the same name, but
+    // overriden one
+    let function = verifier_abi
+        .functions_by_name("verificationKeyHash")?
+        .get(1);
+
+    if let Some(function) = function {
+        let fflonk_verification_key_hash: Option<H256> =
+            CallFunctionArgs::new("verificationKeyHash", U256::from(0))
+                .for_contract(verifier_address, &verifier_abi)
+                .call_with_function(query_client, function.clone())
+                .await
+                .ok();
+        tracing::info!(
+            "FFlonk verification key hash in contract: {:?}",
+            fflonk_verification_key_hash
+        );
+        tracing::info!(
+            "FFlonk verification key hash in config: {:?}",
+            genesis_params.config().fflonk_snark_wrapper_vk_hash
+        );
+
+        if fflonk_verification_key_hash.is_some()
+            && fflonk_verification_key_hash != genesis_params.config().fflonk_snark_wrapper_vk_hash
+        {
+            return Err(anyhow::anyhow!(
+            "FFlonk verification key hash mismatch: {fflonk_verification_key_hash:?} on contract, {:?} in config",
+            genesis_params.config().fflonk_snark_wrapper_vk_hash
+        ));
+        }
+    } else {
+        tracing::warn!("FFlonk verification key hash is not present in the contract");
+    }
+
     Ok(())
 }
 
@@ -480,7 +517,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         .await?;
     transaction
         .blocks_dal()
-        .insert_l1_batch(genesis_l1_batch_header.to_unsealed_header(batch_fee_input))
+        .insert_l1_batch(genesis_l1_batch_header.to_unsealed_header())
         .await?;
     transaction
         .blocks_dal()

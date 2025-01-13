@@ -4,10 +4,12 @@ use std::{
 };
 
 use anyhow::bail;
-use common::{cmd::Cmd, git, logger, spinner::Spinner, Prompt, PromptConfirm, PromptSelect};
-use config::ZKSYNC_ERA_GIT_REPO;
 use strum::{EnumIter, IntoEnumIterator};
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{
+    cmd::Cmd, git, logger, spinner::Spinner, Prompt, PromptConfirm, PromptSelect,
+};
+use zkstack_cli_config::ZKSYNC_ERA_GIT_REPO;
 
 use crate::messages::{
     msg_path_to_zksync_does_not_exist_err, MSG_CLONING_ERA_REPO_SPINNER,
@@ -89,6 +91,7 @@ pub(crate) fn resolve_link_to_code(
     shell: &Shell,
     base_path: PathBuf,
     link_to_code: String,
+    update_submodules: Option<bool>,
 ) -> anyhow::Result<PathBuf> {
     if link_to_code.is_empty() {
         if base_path.join("zksync-era").exists() {
@@ -103,7 +106,9 @@ pub(crate) fn resolve_link_to_code(
         Ok(link_to_code)
     } else {
         let path = PathBuf::from_str(&link_to_code)?;
-        git::submodule_update(shell, path.clone())?;
+        if update_submodules.is_none() || update_submodules == Some(true) {
+            git::submodule_update(shell, path.clone())?;
+        }
         Ok(path)
     }
 }

@@ -64,6 +64,10 @@ pub struct StateKeeperMetrics {
     /// Latency to synchronize the mempool with Postgres.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub mempool_sync: Histogram<Duration>,
+    /// Number of stashed accounts in mempool
+    pub mempool_stashed_accounts: Gauge<usize>,
+    /// Number of purged accounts in mempool
+    pub mempool_purged_accounts: Gauge<usize>,
     /// Latency of the state keeper waiting for a transaction.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub waiting_for_tx: Histogram<Duration>,

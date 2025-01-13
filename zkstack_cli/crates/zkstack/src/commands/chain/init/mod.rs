@@ -1,9 +1,9 @@
 use anyhow::Context;
 use clap::{command, Parser, Subcommand};
-use common::{git, logger, spinner::Spinner};
-use config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
-use types::BaseToken;
 use xshell::Shell;
+use zkstack_cli_common::{git, logger, spinner::Spinner};
+use zkstack_cli_config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
+use zkstack_cli_types::BaseToken;
 
 use crate::{
     accept_ownership::accept_admin,
@@ -59,11 +59,15 @@ async fn run_init(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_config = config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+
+    if args.update_submodules.is_none() || args.update_submodules == Some(true) {
+        git::submodule_update(shell, config.link_to_code.clone())?;
+    }
+
     let args = args.fill_values_with_prompt(&chain_config);
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));
     logger::info(msg_initializing_chain(""));
-    git::submodule_update(shell, config.link_to_code.clone())?;
 
     init(&args, shell, &config, &chain_config).await?;
 

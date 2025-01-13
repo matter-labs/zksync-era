@@ -1,7 +1,8 @@
 use std::{path::PathBuf, str::FromStr};
 
 use anyhow::Context;
-use common::{
+use xshell::Shell;
+use zkstack_cli_common::{
     config::global_config,
     contracts::build_system_contracts,
     forge::{Forge, ForgeScriptArgs},
@@ -9,7 +10,7 @@ use common::{
     spinner::Spinner,
     Prompt,
 };
-use config::{
+use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::{
             input::{DeployErc20Config, Erc20DeploymentConfig, InitialDeploymentConfig},
@@ -20,8 +21,7 @@ use config::{
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ContractsConfig, EcosystemConfig,
 };
-use types::L1Network;
-use xshell::Shell;
+use zkstack_cli_types::L1Network;
 
 use super::{
     args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
@@ -49,7 +49,9 @@ use crate::{
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
+    if args.update_submodules.is_none() || args.update_submodules == Some(true) {
+        git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
+    }
 
     let initial_deployment_config = match ecosystem_config.get_initial_deployment_config() {
         Ok(config) => config,
@@ -144,7 +146,7 @@ async fn deploy_erc20(
     )
     .save(shell, deploy_config_path)?;
 
-    let mut forge = Forge::new(&ecosystem_config.path_to_foundry())
+    let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
         .script(&DEPLOY_ERC20_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
@@ -369,6 +371,7 @@ async fn init_chains(
             deploy_paymaster,
             l1_rpc_url: Some(final_init_args.ecosystem.l1_rpc_url.clone()),
             no_port_reallocation: final_init_args.no_port_reallocation,
+            update_submodules: init_args.update_submodules,
             dev: final_init_args.dev,
         };
         let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);

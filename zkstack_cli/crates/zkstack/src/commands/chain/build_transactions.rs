@@ -1,10 +1,10 @@
 use anyhow::Context;
-use common::{git, logger, spinner::Spinner};
-use config::{
-    copy_configs, traits::SaveConfigWithBasePath, update_from_chain_config, EcosystemConfig,
-};
 use ethers::utils::hex::ToHex;
 use xshell::Shell;
+use zkstack_cli_common::{git, logger, spinner::Spinner};
+use zkstack_cli_config::{
+    copy_configs, traits::SaveConfigWithBasePath, update_from_chain_config, EcosystemConfig,
+};
 
 use crate::{
     commands::chain::{

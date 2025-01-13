@@ -1,11 +1,11 @@
 use std::path::Path;
 
-use config::{
+use xshell::Shell;
+use zkstack_cli_config::{
     forge_interface::deploy_ecosystem::input::{Erc20DeploymentConfig, InitialDeploymentConfig},
     traits::{SaveConfigWithBasePath, SaveConfigWithCommentAndBasePath},
     AppsEcosystemConfig,
 };
-use xshell::Shell;
 
 use crate::messages::{MSG_SAVE_ERC20_CONFIG_ATTENTION, MSG_SAVE_INITIAL_CONFIG_ATTENTION};
 

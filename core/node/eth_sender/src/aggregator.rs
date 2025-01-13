@@ -3,6 +3,7 @@ use std::sync::Arc;
 use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_eth_client::{BoundEthInterface, EthInterface};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
@@ -16,7 +17,8 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementMode,
-    Address, L1BatchNumber, ProtocolVersionId,
+    web3::CallRequest,
+    Address, L1BatchNumber, ProtocolVersionId, U256,
 };
 
 use super::{
@@ -26,6 +28,7 @@ use super::{
         TimestampDeadlineCriterion,
     },
 };
+use crate::EthSenderError;
 
 #[derive(Debug)]
 pub struct Aggregator {
@@ -35,6 +38,7 @@ pub struct Aggregator {
     config: SenderConfig,
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
+    sl_client: Box<dyn BoundEthInterface>,
     /// If we are operating in 4844 mode we need to wait for commit transaction
     /// to get included before sending the respective prove and execute transactions.
     /// In non-4844 mode of operation we operate with the single address and this
@@ -44,6 +48,62 @@ pub struct Aggregator {
     pubdata_da: PubdataSendingMode,
     commitment_mode: L1BatchCommitmentMode,
     priority_merkle_tree: Option<MiniMerkleTree<L1Tx>>,
+    priority_tree_start_index: Option<usize>,
+}
+
+/// Denotes whether there are any restrictions on sending either
+/// commit, prove or execute operations. If there is one, the reason for it
+/// is stored to be logged.
+#[derive(Debug, Default)]
+pub(crate) struct OperationSkippingRestrictions {
+    pub(crate) commit_restriction: Option<&'static str>,
+    pub(crate) prove_restriction: Option<&'static str>,
+    pub(crate) execute_restriction: Option<&'static str>,
+}
+
+impl OperationSkippingRestrictions {
+    fn check_for_continuation(
+        &self,
+        agg_op: &AggregatedOperation,
+        reason: Option<&'static str>,
+    ) -> bool {
+        if let Some(reason) = reason {
+            tracing::info!(
+                "Skipping sending commit operation of type {} for batches {}-{} \
+            since {}",
+                agg_op.get_action_type(),
+                agg_op.l1_batch_range().start(),
+                agg_op.l1_batch_range().end(),
+                reason
+            );
+            false
+        } else {
+            true
+        }
+    }
+
+    // Unlike other funcitons `filter_commit_op` accepts an already prepared `AggregatedOperation` for
+    // easier compatibility with other interfaces in the file.
+    fn filter_commit_op(
+        &self,
+        commit_op: Option<AggregatedOperation>,
+    ) -> Option<AggregatedOperation> {
+        let commit_op = commit_op?;
+        self.check_for_continuation(&commit_op, self.commit_restriction)
+            .then_some(commit_op)
+    }
+
+    fn filter_prove_op(&self, prove_op: Option<ProveBatches>) -> Option<AggregatedOperation> {
+        let op = AggregatedOperation::PublishProofOnchain(prove_op?);
+        self.check_for_continuation(&op, self.commit_restriction)
+            .then_some(op)
+    }
+
+    fn filter_execute_op(&self, execute_op: Option<ExecuteBatches>) -> Option<AggregatedOperation> {
+        let op = AggregatedOperation::Execute(execute_op?);
+        self.check_for_continuation(&op, self.commit_restriction)
+            .then_some(op)
+    }
 }
 
 impl Aggregator {
@@ -53,6 +113,7 @@ impl Aggregator {
         custom_commit_sender_addr: Option<Address>,
         commitment_mode: L1BatchCommitmentMode,
         pool: ConnectionPool<Core>,
+        sl_client: Box<dyn BoundEthInterface>,
         settlement_mode: SettlementMode,
     ) -> anyhow::Result<Self> {
         let pubdata_da = config.pubdata_sending_mode;
@@ -141,68 +202,133 @@ impl Aggregator {
             pubdata_da,
             commitment_mode,
             priority_merkle_tree: None,
+            priority_tree_start_index: None,
             pool,
+            sl_client,
         })
     }
 
-    pub async fn get_next_ready_operation(
+    pub(crate) async fn get_next_ready_operation(
         &mut self,
         storage: &mut Connection<'_, Core>,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version_id: ProtocolVersionId,
         l1_verifier_config: L1VerifierConfig,
-    ) -> Option<AggregatedOperation> {
+        restrictions: OperationSkippingRestrictions,
+    ) -> Result<Option<AggregatedOperation>, EthSenderError> {
         let Some(last_sealed_l1_batch_number) = storage
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
             .unwrap()
         else {
-            return None; // No L1 batches in Postgres; no operations are ready yet
+            return Ok(None); // No L1 batches in Postgres; no operations are ready yet
         };
 
-        if let Some(op) = self
-            .get_execute_operations(
+        if let Some(op) = restrictions.filter_execute_op(
+            self.get_execute_operations(
                 storage,
                 self.config.max_aggregated_blocks_to_execute as usize,
                 last_sealed_l1_batch_number,
             )
-            .await
-        {
-            Some(AggregatedOperation::Execute(op))
-        } else if let Some(op) = self
-            .get_proof_operation(storage, last_sealed_l1_batch_number, l1_verifier_config)
-            .await
-        {
-            Some(AggregatedOperation::PublishProofOnchain(op))
+            .await?,
+        ) {
+            Ok(Some(op))
+        } else if let Some(op) = restrictions.filter_prove_op(
+            self.get_proof_operation(storage, last_sealed_l1_batch_number, l1_verifier_config)
+                .await,
+        ) {
+            Ok(Some(op))
         } else {
-            self.get_commit_operation(
-                storage,
-                self.config.max_aggregated_blocks_to_commit as usize,
-                last_sealed_l1_batch_number,
-                base_system_contracts_hashes,
-                protocol_version_id,
-            )
-            .await
+            Ok(restrictions.filter_commit_op(
+                self.get_commit_operation(
+                    storage,
+                    self.config.max_aggregated_blocks_to_commit as usize,
+                    last_sealed_l1_batch_number,
+                    base_system_contracts_hashes,
+                    protocol_version_id,
+                )
+                .await,
+            ))
         }
     }
 
-    async fn get_or_init_tree(&mut self) -> &mut MiniMerkleTree<L1Tx> {
+    async fn query_no_params_method(&self, method_name: &str) -> Result<U256, EthSenderError> {
+        let data = self
+            .sl_client
+            .contract()
+            .function(method_name)
+            .unwrap()
+            .encode_input(&[])
+            .unwrap();
+
+        // Dereference the box to get a reference to the trait object:
+        let bound_ref: &dyn BoundEthInterface = &*self.sl_client;
+
+        // Now call `as_ref()` from `AsRef<dyn EthInterface>` explicitly:
+        let eth_interface: &dyn EthInterface = AsRef::<dyn EthInterface>::as_ref(bound_ref);
+
+        let result = eth_interface
+            .call_contract_function(
+                CallRequest {
+                    data: Some(data.into()),
+                    to: Some(self.sl_client.contract_addr()),
+                    ..CallRequest::default()
+                },
+                None,
+            )
+            .await?;
+
+        Ok(self
+            .sl_client
+            .contract()
+            .function(method_name)
+            .unwrap()
+            .decode_output(&result.0)
+            .unwrap()[0]
+            .clone()
+            .into_uint()
+            .unwrap())
+    }
+
+    async fn get_or_init_priority_tree_start_index(
+        &mut self,
+    ) -> Result<Option<usize>, EthSenderError> {
+        if self.priority_tree_start_index.is_none() {
+            let packed_semver = self.query_no_params_method("getProtocolVersion").await?;
+
+            // We always expect the provided version to be correct, so we panic if it is not
+            let version = ProtocolVersionId::try_from_packed_semver(packed_semver).unwrap();
+
+            // For pre-gateway versions the index is not supported.
+            if version.is_pre_gateway() {
+                return Ok(None);
+            }
+
+            let priority_tree_start_index = self
+                .query_no_params_method("getPriorityTreeStartIndex")
+                .await?;
+
+            self.priority_tree_start_index = Some(priority_tree_start_index.as_usize());
+        }
+
+        Ok(self.priority_tree_start_index)
+    }
+
+    async fn get_or_init_tree(
+        &mut self,
+        priority_tree_start_index: usize,
+    ) -> &mut MiniMerkleTree<L1Tx> {
         if self.priority_merkle_tree.is_none() {
             // We unwrap here since it is only invoked during initialization
             let mut connection = self.pool.connection_tagged("eth_sender").await.unwrap();
 
-            let priority_op_hashes =
-                if let Some(priority_tree_start_index) = self.config.priority_tree_start_index {
-                    // We unwrap here since it is only invoked during initialization
-                    connection
-                        .transactions_dal()
-                        .get_l1_transactions_hashes(priority_tree_start_index)
-                        .await
-                        .unwrap()
-                } else {
-                    vec![]
-                };
+            // We unwrap here since it is only invoked only once during initialization
+            let priority_op_hashes = connection
+                .transactions_dal()
+                .get_l1_transactions_hashes(priority_tree_start_index)
+                .await
+                .unwrap();
             let priority_merkle_tree = MiniMerkleTree::<L1Tx>::from_hashes(
                 KeccakHasher,
                 priority_op_hashes.into_iter(),
@@ -221,7 +347,7 @@ impl Aggregator {
         storage: &mut Connection<'_, Core>,
         limit: usize,
         last_sealed_l1_batch: L1BatchNumber,
-    ) -> Option<ExecuteBatches> {
+    ) -> Result<Option<ExecuteBatches>, EthSenderError> {
         let max_l1_batch_timestamp_millis = self
             .config
             .l1_batch_min_age_before_execute_seconds
@@ -231,25 +357,29 @@ impl Aggregator {
             .get_ready_for_execute_l1_batches(limit, max_l1_batch_timestamp_millis)
             .await
             .unwrap();
-        let l1_batches = extract_ready_subrange(
+        let Some(l1_batches) = extract_ready_subrange(
             storage,
             &mut self.execute_criteria,
             ready_for_execute_batches,
             last_sealed_l1_batch,
         )
-        .await?;
+        .await
+        else {
+            return Ok(None);
+        };
 
-        let priority_tree_start_index =
-            if let Some(start_index) = self.config.priority_tree_start_index {
-                start_index
-            } else {
-                let length = l1_batches.len();
-                return Some(ExecuteBatches {
-                    l1_batches,
-                    priority_ops_proofs: vec![Default::default(); length],
-                });
-            };
-        let priority_merkle_tree = self.get_or_init_tree().await;
+        let Some(priority_tree_start_index) = self.get_or_init_priority_tree_start_index().await?
+        else {
+            // The index is not yet applicable to the current system, so we
+            // return empty priority operations' proofs.
+            let length = l1_batches.len();
+            return Ok(Some(ExecuteBatches {
+                l1_batches,
+                priority_ops_proofs: vec![Default::default(); length],
+            }));
+        };
+
+        let priority_merkle_tree = self.get_or_init_tree(priority_tree_start_index).await;
 
         let mut priority_ops_proofs = vec![];
         for batch in &l1_batches {
@@ -293,10 +423,10 @@ impl Aggregator {
             }
         }
 
-        Some(ExecuteBatches {
+        Ok(Some(ExecuteBatches {
             l1_batches,
             priority_ops_proofs,
-        })
+        }))
     }
 
     async fn get_commit_operation(
@@ -628,7 +758,10 @@ pub async fn load_wrapped_fri_proofs_for_range(
     allowed_versions: &[ProtocolSemanticVersion],
 ) -> Option<L1BatchProofForL1> {
     for version in allowed_versions {
-        match blob_store.get((l1_batch_number, *version)).await {
+        match blob_store
+            .get::<L1BatchProofForL1>((l1_batch_number, *version))
+            .await
+        {
             Ok(proof) => return Some(proof),
             Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet
             Err(err) => panic!(

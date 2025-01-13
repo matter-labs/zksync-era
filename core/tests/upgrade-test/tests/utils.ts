@@ -1,34 +1,6 @@
 import { ethers } from 'ethers';
 import * as fs from 'fs';
-import { background } from 'utils';
 import { getConfigPath } from 'utils/build/file-configs';
-
-export function runServerInBackground({
-    components,
-    stdio,
-    cwd,
-    useZkStack,
-    chain
-}: {
-    components?: string[];
-    stdio: any;
-    cwd?: Parameters<typeof background>[0]['cwd'];
-    useZkStack?: boolean;
-    chain?: string;
-}) {
-    let command = '';
-
-    if (useZkStack) {
-        command = 'zkstack server';
-        command += chain ? ` --chain ${chain}` : '';
-    } else {
-        command = 'cd $ZKSYNC_HOME && cargo run --bin zksync_server --release --';
-    }
-    if (components && components.length > 0) {
-        command += ` --components=${components.join(',')}`;
-    }
-    background({ command, stdio, cwd });
-}
 
 export function setEthSenderSenderAggregatedBlockCommitDeadline(pathToHome: string, fileConfig: any, value: number) {
     setPropertyInGeneralConfig(pathToHome, fileConfig, 'aggregated_block_commit_deadline', value);
@@ -68,7 +40,7 @@ export interface Contracts {
     l2ForceDeployUpgraderAbi: any;
     complexUpgraderAbi: any;
     counterBytecode: any;
-    stateTransitonManager: any;
+    stateTransitionManager: any;
 }
 
 export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
@@ -96,7 +68,7 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
             counterBytecode: require(
                 `${pathToHome}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`
             ).deployedBytecode,
-            stateTransitonManager: new ethers.Interface(
+            stateTransitionManager: new ethers.Interface(
                 require(
                     `${CONTRACTS_FOLDER}/l1-contracts/out/StateTransitionManager.sol/StateTransitionManager.json`
                 ).abi
@@ -119,18 +91,15 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
             ),
             l2ForceDeployUpgraderAbi: new ethers.Interface(
                 require(
-                    `${pathToHome}/contracts/l2-contracts/artifacts-zk/contracts/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`
+                    `${pathToHome}/contracts/l2-contracts/zkout/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`
                 ).abi
             ),
             complexUpgraderAbi: new ethers.Interface(
-                require(
-                    `${pathToHome}/contracts/system-contracts/artifacts-zk/contracts-preprocessed/ComplexUpgrader.sol/ComplexUpgrader.json`
-                ).abi
+                require(`${pathToHome}/contracts/system-contracts/zkout/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
             ),
-            counterBytecode: require(
-                `${pathToHome}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`
-            ).deployedBytecode,
-            stateTransitonManager: new ethers.Interface(
+            counterBytecode: require(`${pathToHome}/core/tests/ts-integration/zkout/counter.sol/Counter.json`)
+                .deployedBytecode,
+            stateTransitionManager: new ethers.Interface(
                 require(
                     `${L1_CONTRACTS_FOLDER}/state-transition/StateTransitionManager.sol/StateTransitionManager.json`
                 ).abi
