@@ -564,7 +564,7 @@ impl ZkSyncStateKeeper {
         protocol_upgrade_tx: Option<ProtocolUpgradeTx>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Result<(), Error> {
-        let mut should_create_l2_block = false;
+        let mut is_sealed = false;
         if let Some(protocol_upgrade_tx) = protocol_upgrade_tx {
             self.process_upgrade_tx(batch_executor, updates_manager, protocol_upgrade_tx)
                 .await?;
@@ -583,22 +583,20 @@ impl ZkSyncStateKeeper {
                 );
 
                 // check if there is an open "non sealed" block, if yes seal it and return
-                if !updates_manager.l2_block.executed_transactions.is_empty()
-                    && !should_create_l2_block
-                {
+                if !updates_manager.l2_block.executed_transactions.is_empty() && !is_sealed {
                     self.seal_l2_block(updates_manager).await?;
                 }
                 return Ok(());
             }
 
-            if !should_create_l2_block && self.io.should_seal_l2_block(updates_manager) {
+            if !is_sealed && self.io.should_seal_l2_block(updates_manager) {
                 tracing::debug!(
                     "L2 block #{} (L1 batch #{}) should be sealed as per sealing rules",
                     updates_manager.l2_block.number,
                     updates_manager.l1_batch.number
                 );
                 self.seal_l2_block(updates_manager).await?;
-                should_create_l2_block = true;
+                is_sealed = true;
             }
             let waiting_latency = KEEPER_METRICS.waiting_for_tx.start();
             let Some(tx) = self
@@ -614,7 +612,8 @@ impl ZkSyncStateKeeper {
             waiting_latency.observe();
             let tx_hash = tx.hash();
 
-            if should_create_l2_block {
+            // if the current block is sealed, we need to start a new block
+            if is_sealed {
                 let new_l2_block_params = self
                     .wait_for_new_l2_block_params(updates_manager, stop_receiver)
                     .await
@@ -627,7 +626,7 @@ impl ZkSyncStateKeeper {
                 );
                 Self::start_next_l2_block(new_l2_block_params, updates_manager, batch_executor)
                     .await?;
-                should_create_l2_block = false;
+                is_sealed = false;
             }
 
             let (seal_resolution, exec_result) = self
@@ -684,9 +683,7 @@ impl ZkSyncStateKeeper {
                     updates_manager.l1_batch.number
                 );
                 // check if there is an open "non sealed" block, if yes seal it and return
-                if !updates_manager.l2_block.executed_transactions.is_empty()
-                    && !should_create_l2_block
-                {
+                if !updates_manager.l2_block.executed_transactions.is_empty() && !is_sealed {
                     self.seal_l2_block(updates_manager).await?;
                 }
                 full_latency.observe();
