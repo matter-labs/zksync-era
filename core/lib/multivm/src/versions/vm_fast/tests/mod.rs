@@ -197,6 +197,6 @@ impl TestedVmWithCallTracer for TestedFastVm<CallTracer, ()> {
     fn inspect_with_call_tracer(&mut self) -> (VmExecutionResultAndLogs, Vec<Call>) {
         let mut tracer = (CallTracer::default(), ());
         let result = self.inspect(&mut tracer, InspectExecutionMode::OneTx);
-        (result, tracer.0.result())
+        (result, tracer.0.into_result())
     }
 }

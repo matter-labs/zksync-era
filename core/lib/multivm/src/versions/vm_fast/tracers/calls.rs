@@ -1,12 +1,14 @@
+use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{zk_evm_types::FarCallOpcode, U256};
-use zksync_vm2::{
-    interface::{
-        CallframeInterface, Opcode, OpcodeType, ReturnType, ShouldStop, StateInterface, Tracer,
-    },
-    FatPointer,
+use zksync_vm2::interface::{
+    CallframeInterface, CallingMode, Opcode, OpcodeType, ReturnType, ShouldStop, StateInterface,
+    Tracer,
 };
 
-use crate::interface::{Call, VmRevertReason};
+use crate::{
+    interface::{Call, CallType, VmRevertReason},
+    vm_fast::utils::read_fat_pointer,
+};
 
 /// Call tracer for the fast VM.
 #[derive(Debug, Clone, Default)]
@@ -14,6 +16,7 @@ pub struct CallTracer {
     stack: Vec<FarcallAndNearCallCount>,
     finished_calls: Vec<Call>,
     current_stack_depth: usize,
+    // TODO: report as metrics
     max_stack_depth: usize,
     max_near_calls: usize,
 }
@@ -25,7 +28,8 @@ struct FarcallAndNearCallCount {
 }
 
 impl CallTracer {
-    pub fn result(self) -> Vec<Call> {
+    /// Converts this tracer into the captured calls.
+    pub fn into_result(self) -> Vec<Call> {
         self.finished_calls
     }
 }
@@ -36,7 +40,7 @@ impl Tracer for CallTracer {
         state: &mut S,
     ) -> ShouldStop {
         match OP::VALUE {
-            Opcode::FarCall(tipe) => {
+            Opcode::FarCall(ty) => {
                 self.current_stack_depth += 1;
                 self.max_stack_depth = self.max_stack_depth.max(self.current_stack_depth);
 
@@ -45,20 +49,23 @@ impl Tracer for CallTracer {
                 let to = state.current_frame().address();
                 let input = read_fat_pointer(state, state.read_register(1).0);
                 let value = U256::from(state.current_frame().context_u128());
+                let ty = match ty {
+                    CallingMode::Normal => CallType::Call(FarCallOpcode::Normal),
+                    CallingMode::Delegate => CallType::Call(FarCallOpcode::Delegate),
+                    CallingMode::Mimic => {
+                        let prev_this_address = state.callframe(1).address();
+                        if prev_this_address == CONTRACT_DEPLOYER_ADDRESS {
+                            // EraVM contract creation is encoded as a mimic call from `ContractDeployer` to the created contract.
+                            CallType::Create
+                        } else {
+                            CallType::Call(FarCallOpcode::Mimic)
+                        }
+                    }
+                };
 
                 self.stack.push(FarcallAndNearCallCount {
                     farcall: Call {
-                        r#type: match tipe {
-                            zksync_vm2::interface::CallingMode::Normal => {
-                                zksync_vm_interface::CallType::Call(FarCallOpcode::Normal)
-                            }
-                            zksync_vm2::interface::CallingMode::Delegate => {
-                                zksync_vm_interface::CallType::Call(FarCallOpcode::Delegate)
-                            }
-                            zksync_vm2::interface::CallingMode::Mimic => {
-                                zksync_vm_interface::CallType::Call(FarCallOpcode::Mimic)
-                            }
-                        },
+                        r#type: ty,
                         from,
                         to,
                         // The previous frame always exists directly after a far call
@@ -126,15 +133,4 @@ impl Tracer for CallTracer {
 
         ShouldStop::Continue
     }
-}
-
-fn read_fat_pointer<S: StateInterface>(state: &S, raw: U256) -> Vec<u8> {
-    let pointer = FatPointer::from(raw);
-    let length = pointer.length - pointer.offset;
-    let start = pointer.start + pointer.offset;
-    let mut calldata = vec![0; length as usize];
-    for i in 0..length {
-        calldata[i as usize] = state.read_heap_byte(pointer.memory_page, start + i);
-    }
-    calldata
 }
