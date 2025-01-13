@@ -658,8 +658,7 @@ dependencies = [
 [[package]]
 name = "boojum-cuda"
 version = "0.152.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbd43bc7fc457920cb3b823e4f95ffbbf180b2c48b8d643125cd121325cdd8db"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=si/better-proof-compression#eab05b82ef947930c150bd63192207bd1a84814e"
 dependencies = [
  "boojum",
  "cmake",
@@ -1707,8 +1706,7 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 [[package]]
 name = "era_cudart"
 version = "0.152.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6f881cf689ba889bb0fa04c0e71aba701acd7fafd3fa545e3f2782f2a8c0ba0"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=si/better-proof-compression#eab05b82ef947930c150bd63192207bd1a84814e"
 dependencies = [
  "bitflags 2.6.0",
  "era_cudart_sys",
@@ -1718,8 +1716,7 @@ dependencies = [
 [[package]]
 name = "era_cudart_sys"
 version = "0.152.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f29cbd9e6d97fc1f05b484f960e921fe69548b4773a361b2e403e4cb9d6d575"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=si/better-proof-compression#eab05b82ef947930c150bd63192207bd1a84814e"
 dependencies = [
  "serde_json",
 ]
@@ -1856,8 +1853,7 @@ dependencies = [
 [[package]]
 name = "fflonk-cuda"
 version = "0.152.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b008e6158c95747b3b135adbd7f6d563c406849a10c00abfef109b4d0442a589"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=si/better-proof-compression#eab05b82ef947930c150bd63192207bd1a84814e"
 dependencies = [
  "bincode",
  "byteorder",
@@ -4551,8 +4547,7 @@ dependencies = [
 [[package]]
 name = "proof-compression"
 version = "0.152.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40624617ed1535349cf31671a7091703d3a31e64d6a7760a5e952c68ee1f4f0e"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=si/better-proof-compression#eab05b82ef947930c150bd63192207bd1a84814e"
 dependencies = [
  "bincode",
  "byteorder",
@@ -4562,6 +4557,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shivini",
+ "zksync-gpu-prover",
 ]
 
 [[package]]
@@ -5861,8 +5857,7 @@ checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
 [[package]]
 name = "shivini"
 version = "0.152.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c336213e4ec7651d2984e892326d09c195ee166493c192b0d8aad36288e5c5f"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=si/better-proof-compression#eab05b82ef947930c150bd63192207bd1a84814e"
 dependencies = [
  "bincode",
  "boojum",
@@ -8021,8 +8016,7 @@ dependencies = [
 [[package]]
 name = "zksync-gpu-ffi"
 version = "0.152.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36f6a84e4e361977a2dc5dbe783e3856e40b1050dc1b9bb3e9833a5e59c20697"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=si/better-proof-compression#eab05b82ef947930c150bd63192207bd1a84814e"
 dependencies = [
  "cmake",
  "crossbeam",
@@ -8036,8 +8030,7 @@ dependencies = [
 [[package]]
 name = "zksync-gpu-prover"
 version = "0.152.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ba58bbaf4920c635553d3dfb7796636223f55e75ae6512eb9c98f48f0a03215"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=si/better-proof-compression#eab05b82ef947930c150bd63192207bd1a84814e"
 dependencies = [
  "bit-vec 0.6.3",
  "cfg-if",
@@ -8053,8 +8046,7 @@ dependencies = [
 [[package]]
 name = "zksync-wrapper-prover"
 version = "0.152.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4bcf41946f95a1e64ce99cde1d54966a04c5ef2c89d9a87f0fa61e39987510b"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=si/better-proof-compression#eab05b82ef947930c150bd63192207bd1a84814e"
 dependencies = [
  "circuit_definitions",
  "zkevm_test_harness",
@@ -8841,6 +8833,7 @@ dependencies = [
  "hex",
  "md5",
  "once_cell",
+ "proof-compression",
  "serde",
  "serde_json",
  "sha3 0.10.8",

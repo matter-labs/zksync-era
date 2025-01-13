@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fs::{self, File},
-    io::Read,
+    io::{Read, Write},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -114,7 +114,7 @@ impl Keystore {
         &self.basedir
     }
 
-    fn get_file_path(
+    pub(crate) fn get_file_path(
         &self,
         key: ProverServiceDataKey,
         service_data_type: ProverServiceDataType,
@@ -642,45 +642,6 @@ impl Keystore {
                 ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
             ),
             &scheduler_hint,
-        )
-        .context("save_finalization_hints()")?;
-
-        // Compression
-        // todo: don't use hardcoded values
-        for circuit in 1..5 {
-            let vk = source
-                .get_compression_vk(circuit as u8)
-                .map_err(|err| anyhow::anyhow!("No vk exist for circuit type: {circuit}: {err}"))?;
-
-            self.save_compression_vk(vk)
-                .context("save_compression_vk()")?;
-
-            let hint = source.get_compression_hint(circuit as u8).map_err(|err| {
-                anyhow::anyhow!("No finalization hint exist for circuit type: {circuit}: {err}")
-            })?;
-
-            self.save_finalization_hints(
-                ProverServiceDataKey::new_compression(circuit as u8),
-                &hint.into_inner(),
-            )
-            .context("save_finalization_hints()")?;
-        }
-
-        // Compression wrapper
-        let vk = source
-            .get_compression_for_wrapper_vk(5)
-            .map_err(|err| anyhow::anyhow!("No vk exist for circuit type: 5: {err}"))?;
-
-        self.save_compression_for_wrapper_vk(vk)
-            .context("save_compression_wrapper_vk()")?;
-
-        let hint = source.get_compression_for_wrapper_hint(5).map_err(|err| {
-            anyhow::anyhow!("No finalization hint exist for circuit type: 5: {err}")
-        })?;
-
-        self.save_finalization_hints(
-            ProverServiceDataKey::new_compression_wrapper(5),
-            &hint.into_inner(),
         )
         .context("save_finalization_hints()")?;
 

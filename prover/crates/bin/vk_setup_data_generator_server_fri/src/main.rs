@@ -11,6 +11,9 @@ use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
 use indicatif::{ProgressBar, ProgressStyle};
+use proof_compression_gpu::{
+    precompute_proof_chain_with_fflonk, precompute_proof_chain_with_plonk,
+};
 #[cfg(feature = "gpu")]
 use shivini::ProverContext;
 use tracing::level_filters::LevelFilter;
@@ -49,6 +52,7 @@ mod vk_commitment_helper;
 
 #[cfg(test)]
 mod tests;
+
 /// Generates new verification keys, and stores them in `keystore`.
 /// Jobs describe how many generators can run in parallel (each one is around 30 GB).
 /// If quiet is true, it doesn't display any progress bar.
@@ -64,8 +68,8 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
         let count = basic_vk_count() + recursive_layer_vk_count() + 2;
         let progress_bar = ProgressBar::new(count as u64);
         progress_bar.set_style(ProgressStyle::default_bar()
-        .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos:>7}/{len:7} ({eta})")
-        .progress_chars("#>-"));
+            .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos:>7}/{len:7} ({eta})")
+            .progress_chars("#>-"));
         Some(progress_bar)
     };
 
@@ -89,66 +93,7 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
     })
     .map_err(|err| anyhow::anyhow!("Failed generating recursive vk's: {err}"))?;
 
-    #[cfg(feature = "gpu")]
-    {
-        let config = WrapperConfig::new(5);
-        let worker = Worker::new();
-
-        tracing::info!("Creating prover context");
-
-        let _context = ProverContext::create().context("failed initializing gpu prover context")?;
-        tracing::info!("Generating verification keys for compression layers.");
-        generate_compression_vks(config, &mut in_memory_source, &worker);
-
-        tracing::info!("Generating verification keys for compression for wrapper.");
-
-        generate_compression_for_wrapper_vks(config, &mut in_memory_source, &worker);
-
-        tracing::info!("Saving keys & hints");
-    }
-
     keystore.save_keys_from_data_source(&in_memory_source)?;
-
-    // Generate snark VK
-    let scheduler_vk = in_memory_source
-        .get_recursion_layer_vk(ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8)
-        .map_err(|err| anyhow::anyhow!("Failed to get scheduler vk: {err}"))?;
-
-    tracing::info!("Generating PLONK verification keys for snark wrapper.");
-
-    let (_, plonk_vk) =
-        get_wrapper_setup_and_vk_from_scheduler_vk(scheduler_vk.clone(), WrapperConfig::new(1));
-
-    keystore
-        .save_snark_verification_key(plonk_vk)
-        .context("save_plonk_snark_vk")?;
-
-    if let Some(p) = pb.lock().unwrap().as_ref() {
-        p.inc(1)
-    }
-
-    tracing::info!("PLONK vk is generated");
-
-    #[cfg(feature = "gpu")]
-    {
-        tracing::info!("Generating FFLONK verification keys for snark wrapper.");
-
-        let (_, fflonk_vk) = get_fflonk_snark_verifier_setup_and_vk(&mut in_memory_source);
-
-        keystore
-            .save_fflonk_snark_verification_key(fflonk_vk)
-            .context("save_fflonk_snark_vk")?;
-
-        if let Some(p) = pb.lock().unwrap().as_ref() {
-            p.inc(1)
-        }
-
-        tracing::info!("FFLONK vk is generated");
-    }
-
-    // Let's also update the commitments file.
-    let commitments = keystore.generate_commitments()?;
-    keystore.save_commitments(&commitments)
 }
 
 #[derive(Debug, Parser)]
@@ -171,9 +116,6 @@ enum CircuitSelector {
     Recursive,
     /// Select circuits from basic group.
     Basic,
-    Compression,
-    CompressionWrapper,
-    Snark,
 }
 
 #[derive(Debug, Parser)]
@@ -215,6 +157,8 @@ enum Command {
         #[arg(long)]
         quiet: bool,
     },
+    #[command(name = "generate-compressor-data")]
+    GenerateCompressorPrecomputations,
     /// Generates setup keys (used by the CPU prover).
     #[command(name = "generate-sk")]
     GenerateSetupKeys {
@@ -280,17 +224,6 @@ fn generate_setup_keys(
                 .numeric_circuit
                 .expect("--numeric-circuit must be provided"),
         ),
-        CircuitSelector::Compression => ProverServiceDataKey::new_compression(
-            options
-                .numeric_circuit
-                .expect("--numeric-circuit must be provided"),
-        ),
-        CircuitSelector::CompressionWrapper => ProverServiceDataKey::new_compression_wrapper(
-            options
-                .numeric_circuit
-                .expect("--numeric-circuit must be provided"),
-        ),
-        CircuitSelector::Snark => ProverServiceDataKey::snark(),
     };
 
     let digest = generator
@@ -325,7 +258,6 @@ fn main() -> anyhow::Result<()> {
 
             read_and_update_contract_toml(&keystore, dryrun)
         }
-
         Command::GenerateSetupKeys { options } => {
             let generator = CPUSetupDataGenerator {
                 keystore: keystore_from_optional_path(
@@ -343,6 +275,12 @@ fn main() -> anyhow::Result<()> {
                 ),
             };
             generate_setup_keys(&generator, &options)
+        }
+        Command::GenerateCompressorPrecomputations => {
+            let keystore = Keystore::locate();
+            precompute_proof_chain_with_plonk(&keystore);
+            precompute_proof_chain_with_fflonk(&keystore);
+            Ok(())
         }
     }
 }

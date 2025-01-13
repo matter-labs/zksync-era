@@ -1,7 +1,7 @@
 #![allow(incomplete_features)] // We have to use generic const exprs.
 #![feature(generic_const_exprs)]
 
-use std::{env, time::Duration};
+use std::{env, path::PathBuf, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
@@ -99,7 +99,7 @@ async fn main() -> anyhow::Result<()> {
         config.compression_mode,
         config.max_attempts,
         protocol_version,
-        keystore,
+        keystore.with_compact_crs_filepath(config.universal_fflonk_setup_path.clone().into()),
         is_fflonk,
     );
 
