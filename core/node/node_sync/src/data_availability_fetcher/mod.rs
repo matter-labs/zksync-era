@@ -75,7 +75,7 @@ pub struct DataAvailabilityFetcher {
 }
 
 impl DataAvailabilityFetcher {
-    const DEFAULT_POLL_INTERVAL: Duration = Duration::from_millis(1000);
+    const DEFAULT_POLL_INTERVAL: Duration = Duration::from_millis(2000);
 
     /// Creates a new fetcher connected to the main node.
     pub fn new(
@@ -119,10 +119,19 @@ impl DataAvailabilityFetcher {
         let l1_batch_to_fetch = if let Some(batch) = last_l1_batch_with_da_info {
             batch + 1
         } else {
-            tracing::debug!(
-                "No L1 batches with DA info present in the storage; will use the batch number 1"
-            );
-            L1BatchNumber(1)
+            let mut earliest_l1_batch = storage
+                .blocks_dal()
+                .get_earliest_l1_batch_number()
+                .await?
+                .context("all L1 batches disappeared from Postgres")?;
+
+            // If there are no L1 batches in the storage, we should start from the first one, skipping the genesis
+            if earliest_l1_batch.0 == 0 {
+                earliest_l1_batch.0 = 1;
+            }
+
+            tracing::debug!("No L1 batches with DA info present in the storage; will fetch the earliest batch #{earliest_l1_batch}");
+            earliest_l1_batch
         };
 
         Ok(if l1_batch_to_fetch <= last_l1_batch {
