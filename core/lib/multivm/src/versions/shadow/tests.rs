@@ -1,20 +1,30 @@
 //! Unit tests from the `testonly` test suite.
 
-use std::{collections::HashSet, rc::Rc};
+use std::{collections::HashSet, fmt, rc::Rc};
 
 use zksync_types::{writes::StateDiffRecord, StorageKey, Transaction, H256, U256};
+use zksync_vm2::interface::Tracer;
+use zksync_vm_interface::{
+    utils::{CheckDivergence, DivergenceErrors},
+    Call,
+};
 
 use super::ShadowedFastVm;
 use crate::{
     interface::{
         pubdata::{PubdataBuilder, PubdataInput},
+        storage::InMemoryStorage,
         utils::{ShadowMut, ShadowRef},
         CurrentExecutionState, L2BlockEnv, VmExecutionResultAndLogs,
     },
-    versions::testonly::TestedVm,
+    versions::testonly::{TestedVm, TestedVmWithCallTracer},
+    vm_fast,
 };
 
-impl TestedVm for ShadowedFastVm {
+impl<Tr> TestedVm for ShadowedFastVm<InMemoryStorage, Tr>
+where
+    Tr: Tracer + Default + fmt::Debug + 'static,
+{
     type StateDump = ();
 
     fn dump_state(&self) -> Self::StateDump {
@@ -135,6 +145,78 @@ impl TestedVm for ShadowedFastVm {
     }
 }
 
+/// `PartialEq` for `Call` doesn't compare gas-related fields. Here, we do compare them.
+#[derive(Debug, PartialEq)]
+struct ExactCall<'a> {
+    inner: &'a Call,
+    parent_gas: u64,
+    gas: u64,
+    gas_used: u64,
+}
+
+impl<'a> ExactCall<'a> {
+    fn flatten(calls: &'a [Call]) -> Vec<Self> {
+        let mut flattened = Vec::new();
+        Self::flatten_inner(&mut flattened, calls);
+        flattened
+    }
+
+    fn flatten_inner(flattened: &mut Vec<Self>, calls: &'a [Call]) {
+        // Depth-first, parents-before-children traversal.
+        for call in calls {
+            flattened.push(Self {
+                inner: call,
+                parent_gas: call.parent_gas,
+                gas: call.gas,
+                gas_used: call.gas_used,
+            });
+            Self::flatten_inner(flattened, &call.calls);
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ExecutionResultAndTraces {
+    result: VmExecutionResultAndLogs,
+    traces: Vec<Call>,
+}
+
+impl From<(VmExecutionResultAndLogs, Vec<Call>)> for ExecutionResultAndTraces {
+    fn from((result, traces): (VmExecutionResultAndLogs, Vec<Call>)) -> Self {
+        Self { result, traces }
+    }
+}
+
+impl From<ExecutionResultAndTraces> for (VmExecutionResultAndLogs, Vec<Call>) {
+    fn from(value: ExecutionResultAndTraces) -> Self {
+        (value.result, value.traces)
+    }
+}
+
+impl CheckDivergence for ExecutionResultAndTraces {
+    fn check_divergence(&self, other: &Self) -> DivergenceErrors {
+        let mut errors = self.result.check_divergence(&other.result);
+        errors.check_match(
+            "call_traces",
+            &ExactCall::flatten(&self.traces),
+            &ExactCall::flatten(&other.traces),
+        );
+        errors
+    }
+}
+
+impl TestedVmWithCallTracer for ShadowedFastVm<InMemoryStorage, vm_fast::CallTracer> {
+    fn inspect_with_call_tracer(&mut self) -> (VmExecutionResultAndLogs, Vec<Call>) {
+        self.get_custom_mut("inspect_with_call_tracer", |r| {
+            ExecutionResultAndTraces::from(match r {
+                ShadowMut::Main(vm) => vm.inspect_with_call_tracer(),
+                ShadowMut::Shadow(vm) => vm.inspect_with_call_tracer(),
+            })
+        })
+        .into()
+    }
+}
+
 mod block_tip {
     use crate::versions::testonly::block_tip::*;
 
@@ -164,6 +246,15 @@ mod bytecode_publishing {
     #[test]
     fn bytecode_publishing() {
         test_bytecode_publishing::<super::ShadowedFastVm>();
+    }
+}
+
+mod call_tracer {
+    use crate::versions::testonly::call_tracer::*;
+
+    #[test]
+    fn basic_behavior() {
+        test_basic_behavior::<super::ShadowedFastVm<_, _>>();
     }
 }
 

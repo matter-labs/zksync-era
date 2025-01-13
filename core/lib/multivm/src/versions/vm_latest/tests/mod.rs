@@ -4,6 +4,7 @@ use std::{
     sync::Arc,
 };
 
+use once_cell::sync::OnceCell;
 use zk_evm_1_5_0::{
     aux_structures::{MemoryPage, Timestamp},
     vm_state::VmLocalState,
@@ -13,7 +14,7 @@ use zksync_types::{
     bytecode::BytecodeHash, l2::L2Tx, vm::VmVersion, writes::StateDiffRecord, StorageKey,
     StorageValue, Transaction, H256, U256,
 };
-use zksync_vm_interface::VmInterface;
+use zksync_vm_interface::{Call, InspectExecutionMode, VmInterface};
 
 use super::{HistoryEnabled, ToTracerPointer, Vm};
 use crate::{
@@ -23,10 +24,11 @@ use crate::{
         tracer::ViolatedValidationRule,
         CurrentExecutionState, L2BlockEnv, VmExecutionMode, VmExecutionResultAndLogs,
     },
-    tracers::ValidationTracer,
+    tracers::{CallTracer, ValidationTracer},
     utils::bytecode::bytes_to_be_words,
     versions::testonly::{
         filter_out_base_system_contracts, validation_params, TestedVm, TestedVmForValidation,
+        TestedVmWithCallTracer,
     },
     vm_latest::{
         constants::BOOTLOADER_HEAP_PAGE,
@@ -336,5 +338,15 @@ impl<S: ReadStorage, H: crate::glue::history_mode::HistoryMode> Vm<StorageView<S
             storage_oracle_state,
             local_state,
         }
+    }
+}
+
+impl TestedVmWithCallTracer for TestedLatestVm {
+    fn inspect_with_call_tracer(&mut self) -> (VmExecutionResultAndLogs, Vec<Call>) {
+        let result = Arc::new(OnceCell::new());
+        let call_tracer = CallTracer::new(result.clone()).into_tracer_pointer();
+        let res = self.inspect(&mut call_tracer.into(), InspectExecutionMode::OneTx);
+        let traces = result.get().unwrap().clone();
+        (res, traces)
     }
 }

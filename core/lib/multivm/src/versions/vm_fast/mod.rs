@@ -2,6 +2,7 @@ pub use zksync_vm2::interface;
 
 pub(crate) use self::version::FastVmVersion;
 pub use self::{
+    call_tracer::CallTracer,
     tracers::{FullValidationTracer, ValidationTracer},
     vm::Vm,
 };

@@ -535,7 +535,7 @@ impl DivergenceErrors {
         self
     }
 
-    fn check_match<T: fmt::Debug + PartialEq>(&mut self, context: &str, main: &T, shadow: &T) {
+    pub fn check_match<T: fmt::Debug + PartialEq>(&mut self, context: &str, main: &T, shadow: &T) {
         if main != shadow {
             let comparison = pretty_assertions::Comparison::new(main, shadow);
             let err = format!("`{context}` mismatch: {comparison}");

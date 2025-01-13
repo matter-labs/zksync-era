@@ -40,6 +40,5 @@ assert_matches.workspace = true
 pretty_assertions.workspace = true
 rand.workspace = true
 test-casing.workspace = true
-zksync_test_contracts.workspace = true
 zksync_eth_signer.workspace = true
-serde_json.workspace = true
+zksync_test_contracts.workspace = true

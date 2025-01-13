@@ -8,15 +8,17 @@ use zksync_vm_interface::{
     pubdata::{PubdataBuilder, PubdataInput},
     storage::ReadStorage,
     tracer::ViolatedValidationRule,
-    CurrentExecutionState, InspectExecutionMode, L2BlockEnv, VmExecutionMode,
+    Call, CurrentExecutionState, InspectExecutionMode, L2BlockEnv, VmExecutionMode,
     VmExecutionResultAndLogs, VmInterface,
 };
 
 use super::{FullValidationTracer, ValidationTracer, Vm};
 use crate::{
     interface::storage::{ImmutableStorageView, InMemoryStorage},
-    versions::testonly::{validation_params, TestedVm, TestedVmForValidation},
-    vm_fast::tracers::WithBuiltinTracers,
+    versions::testonly::{
+        validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer,
+    },
+    vm_fast::{call_tracer::CallTracer, tracers::WithBuiltinTracers},
 };
 
 mod account_validation_rules;
@@ -181,12 +183,20 @@ where
     }
 }
 
-impl TestedVmForValidation for Vm<ImmutableStorageView<InMemoryStorage>, (), FullValidationTracer> {
+impl TestedVmForValidation for TestedFastVm<(), FullValidationTracer> {
     fn run_validation(&mut self, tx: L2Tx, timestamp: u64) -> Option<ViolatedValidationRule> {
         let validation_params = validation_params(&tx, &self.system_env);
         self.push_transaction(tx.into());
         let mut tracer = ((), FullValidationTracer::new(validation_params, timestamp));
         self.inspect(&mut tracer, InspectExecutionMode::OneTx);
         tracer.1.validation_error()
+    }
+}
+
+impl TestedVmWithCallTracer for TestedFastVm<CallTracer, ()> {
+    fn inspect_with_call_tracer(&mut self) -> (VmExecutionResultAndLogs, Vec<Call>) {
+        let mut tracer = (CallTracer::default(), ());
+        let result = self.inspect(&mut tracer, InspectExecutionMode::OneTx);
+        (result, tracer.0.result())
     }
 }
