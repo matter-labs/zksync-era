@@ -5,16 +5,16 @@ use zksync_vm2::{
     },
     FatPointer,
 };
-use zksync_vm_interface::{Call, VmRevertReason};
 
+use crate::interface::{Call, VmRevertReason};
+
+/// Call tracer for the fast VM.
 #[derive(Debug, Clone, Default)]
 pub struct CallTracer {
     stack: Vec<FarcallAndNearCallCount>,
     finished_calls: Vec<Call>,
-
     current_stack_depth: usize,
     max_stack_depth: usize,
-
     max_near_calls: usize,
 }
 

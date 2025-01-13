@@ -18,7 +18,7 @@ use crate::{
     versions::testonly::{
         validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer,
     },
-    vm_fast::{call_tracer::CallTracer, tracers::WithBuiltinTracers},
+    vm_fast::{tracers::WithBuiltinTracers, CallTracer},
 };
 
 mod account_validation_rules;
