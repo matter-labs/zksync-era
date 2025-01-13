@@ -52,7 +52,7 @@ jobs:
               - docker/zk-environment/22.04_amd64_cuda_11_8.Dockerfile
               - .github/workflows/zk-environment-publish.yml
             zk_env_cuda_12:
-              - docker/zk-environment/22.04_amd64_cuda_12_0.Dockerfile
+              - docker/zk-environment/22.04_amd64_cuda_12.Dockerfile
               - .github/workflows/zk-environment-publish.yml
 
   get_short_sha:
@@ -197,7 +197,7 @@ jobs:
     runs-on: [matterlabs-ci-runner-high-performance]
     strategy:
       matrix:
-        cuda_version: ['11_8', '12_0']
+        cuda_version: ['11_8', '12']
     steps:
       - name: Evaluate condition
         id: condition
