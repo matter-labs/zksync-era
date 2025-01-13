@@ -1,7 +1,7 @@
 use anyhow::Context;
-use common::{cmd::Cmd, spinner::Spinner};
-use config::EcosystemConfig;
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{cmd::Cmd, spinner::Spinner};
+use zkstack_cli_config::EcosystemConfig;
 
 use crate::{
     commands::dev::{

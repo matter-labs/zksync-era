@@ -1,11 +1,20 @@
 /// TODO(EVM-927): Note that the contents of this file are not useable without Gateway contracts.
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
-use common::{
+use ethers::{
+    abi::{encode, parse_abi},
+    contract::BaseContract,
+    utils::hex,
+};
+use lazy_static::lazy_static;
+use serde::{Deserialize, Serialize};
+use strum::EnumIter;
+use xshell::Shell;
+use zkstack_cli_common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
 };
-use config::{
+use zkstack_cli_config::{
     forge_interface::{
         gateway_chain_upgrade::{
             input::GatewayChainUpgradeInput, output::GatewayChainUpgradeOutput,
@@ -16,16 +25,7 @@ use config::{
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig,
 };
-use ethers::{
-    abi::{encode, parse_abi},
-    contract::BaseContract,
-    utils::hex,
-};
-use lazy_static::lazy_static;
-use serde::{Deserialize, Serialize};
-use strum::EnumIter;
-use types::L1BatchCommitmentMode;
-use xshell::Shell;
+use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{H256, U256};
 use zksync_types::{web3::keccak256, Address, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 
