@@ -148,7 +148,7 @@ async function runBlockReverter(
         `;
     }
 
-    const cmd = `cd ${pathToHome} && RUST_LOG=off cargo run --bin block_reverter --release -- ${args.join(
+    const cmd = `cd ${pathToHome} && RUST_LOG=off cargo run --manifest-path ./core/Cargo.toml --bin block_reverter --release -- ${args.join(
         ' '
     )} ${fileConfigFlags}`;
 
