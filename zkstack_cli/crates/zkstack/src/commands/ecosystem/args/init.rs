@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use common::{forge::ForgeScriptArgs, Prompt, PromptConfirm};
 use serde::{Deserialize, Serialize};
-use types::L1Network;
 use url::Url;
+use zkstack_cli_common::{forge::ForgeScriptArgs, Prompt, PromptConfirm};
+use zkstack_cli_types::L1Network;
 
 use crate::{
     commands::chain::args::genesis::GenesisArgs,
