@@ -43,7 +43,7 @@ jobs:
         run: |
           git fetch
           # Checkout the commit with the DualVerifier contract to test FFLONK interface
-          git checkout b68a01afa494fbb2fe85c954f0afe0d36ef589ca
+          git checkout bcdd1cb05e8f4d9ec2dd41e2cc668cdfe30ee535
           git submodule update --init --recursive
           git rev-parse HEAD
 
@@ -53,8 +53,8 @@ jobs:
         working-directory: ./etc/env/file_based
         if: matrix.compressor-mode == 'fflonk'
         run: |
-          sudo sed -i 's/^genesis_root: .*/genesis_root: 0x596bdde3d20c57b7e1bc63dfa094c0824a82a7f11eba1658d2399c9b29216c97/' genesis.yaml
-          sudo sed -i "s/^genesis_batch_commitment: .*/genesis_batch_commitment: 0xa3ceee53a25ae7438d7144d3cf151d25638b866cdacc51226b04380ed8aa8bbe/" genesis.yaml
+          sudo sed -i 's/^genesis_root: .*/genesis_root: 0xc3fa60b6769a0c2f222053d7cbd1d6f63be7777e3c8d029cbd61cc075526ab81/' genesis.yaml
+          sudo sed -i "s/^genesis_batch_commitment: .*/genesis_batch_commitment: 0x17689e705b5749ed0bbd53c845988d17c419697c2cb29eabab8785f1cb775b4a/" genesis.yaml
 
       - name: Init
         run: |
