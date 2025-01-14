@@ -587,6 +587,7 @@ impl DivergenceErrors {
         }
     }
 
+    /// Extends this instance from another set of errors.
     pub fn extend(&mut self, from: Self) {
         self.divergences.extend(from.divergences);
     }

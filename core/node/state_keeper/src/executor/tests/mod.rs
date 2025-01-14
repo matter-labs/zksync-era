@@ -672,7 +672,7 @@ async fn execute_txs_with_call_traces(vm_mode: FastVmMode) {
     let create_call = find_first_call(&res.call_traces, &|call| {
         call.from == alice.address && call.r#type == CallType::Create
     })
-    .expect("no transfer call");
+    .expect("no create call");
 
     let expected_address = deployed_address_create(alice.address, 0.into());
     assert_eq!(create_call.to, expected_address);
