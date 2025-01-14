@@ -223,11 +223,13 @@ testFees('Test fees', function () {
                 [
                     {
                         to: ethers.Wallet.createRandom().address,
-                        value: 1n
+                        value: 1n,
+                        type: 2
                     },
                     {
                         to: receiver,
-                        value: 1n
+                        value: 1n,
+                        type: 2
                     },
                     {
                         data: aliceErc20.interface.encodeFunctionData('transfer', [
