@@ -450,6 +450,7 @@ async function updateReport(
     oldReport: string
 ): Promise<string> {
     const expectedL1Price = +ethers.formatEther(l1Receipt.gasUsed * newL1GasPrice);
+    // This is flaky without multiplying by 3.
     const estimatedL2GasPrice = ethers.getBigInt(await sender.provider.send('eth_gasPrice', [])) * 3n;
     transactionRequest.maxFeePerGas = estimatedL2GasPrice;
     const estimatedL2GasLimit = await sender.estimateGas(transactionRequest);
