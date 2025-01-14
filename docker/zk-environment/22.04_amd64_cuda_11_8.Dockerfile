@@ -129,7 +129,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl -fsSLO https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/${NVARCH}/cuda-keyring_1.0-1_all.deb && \
     dpkg -i cuda-keyring_1.0-1_all.deb && \
     apt-get purge --autoremove -y curl \
-    && rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/*
 
 ENV CUDA_VERSION 11.8.0
 
