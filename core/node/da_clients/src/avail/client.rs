@@ -250,7 +250,7 @@ impl DataAvailabilityClient for AvailClient {
                     .map_err(to_non_retriable_da_error)?)
             }
             AvailClientMode::GasRelay(_) => {
-                unimplemented!("Balance retrieval is not supported in gas relay")
+                Ok(0) // TODO: implement balance for gas relay
             }
         }
     }
