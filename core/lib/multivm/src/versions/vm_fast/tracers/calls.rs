@@ -1,13 +1,16 @@
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{zk_evm_types::FarCallOpcode, U256};
-use zksync_vm2::interface::{
-    CallframeInterface, CallingMode, Opcode, OpcodeType, ReturnType, ShouldStop, StateInterface,
-    Tracer,
+use zksync_vm2::{
+    interface::{
+        CallframeInterface, CallingMode, Opcode, OpcodeType, ReturnType, ShouldStop,
+        StateInterface, Tracer,
+    },
+    FatPointer,
 };
 
 use crate::{
     interface::{Call, CallType, VmRevertReason},
-    vm_fast::utils::read_fat_pointer,
+    vm_fast::utils::read_raw_fat_pointer,
 };
 
 /// Call tracer for the fast VM.
@@ -47,7 +50,7 @@ impl Tracer for CallTracer {
                 let current_gas = state.current_frame().gas() as u64;
                 let from = state.current_frame().caller();
                 let to = state.current_frame().address();
-                let input = read_fat_pointer(state, state.read_register(1).0);
+                let input = read_raw_fat_pointer(state, state.read_register(1).0);
                 let value = U256::from(state.current_frame().context_u128());
                 let ty = match ty {
                     CallingMode::Normal => CallType::Call(FarCallOpcode::Normal),
@@ -101,15 +104,31 @@ impl Tracer for CallTracer {
                         .parent_gas
                         .saturating_sub(state.current_frame().gas() as u64);
 
-                    let output = read_fat_pointer(state, state.read_register(1).0);
+                    let (maybe_output_ptr, is_pointer) = state.read_register(1);
+                    let output = if is_pointer {
+                        let output_ptr = FatPointer::from(maybe_output_ptr);
+                        if output_ptr.length == 0 && output_ptr.offset == 0 {
+                            // Trivial pointer, which is formally cannot be dereferenced. This only matters
+                            // when extracting the revert reason; the legacy VM treats the trivial pointer specially.
+                            None
+                        } else {
+                            Some(read_raw_fat_pointer(state, maybe_output_ptr))
+                        }
+                    } else {
+                        None
+                    };
 
                     match variant {
                         ReturnType::Normal => {
-                            current_call.farcall.output = output;
+                            current_call.farcall.output = output.unwrap_or_default();
                         }
                         ReturnType::Revert => {
                             current_call.farcall.revert_reason =
-                                Some(VmRevertReason::from(output.as_slice()).to_string());
+                                Some(if let Some(output) = &output {
+                                    VmRevertReason::from(output.as_slice()).to_string()
+                                } else {
+                                    "Unknown revert reason".to_owned()
+                                });
                         }
                         ReturnType::Panic => {
                             current_call.farcall.error = Some("Panic".to_string());
