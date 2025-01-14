@@ -99,7 +99,10 @@ impl DataAvailabilityClient for CelestiaClient {
     }
 
     async fn balance(&self) -> Result<u64, DAError> {
-        todo!()
+        self.client
+            .balance()
+            .await
+            .map_err(to_non_retriable_da_error)
     }
 }
 

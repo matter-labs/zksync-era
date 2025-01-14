@@ -20,6 +20,7 @@ use super::{
             query_client::QueryClient as AuthQueryClient, BaseAccount, QueryAccountRequest,
             QueryParamsRequest as QueryAuthParamsRequest,
         },
+        bank::v1beta1::{query_client::QueryClient as BankQueryClient, QueryAllBalancesRequest},
         base::{
             node::{
                 service_client::ServiceClient as MinGasPriceClient,
@@ -376,6 +377,37 @@ impl RawCelestiaClient {
 
         tracing::debug!(tx_hash = %tx_response.txhash, height, "transaction succeeded");
         Ok(Some(height))
+    }
+
+    pub async fn balance(&self) -> anyhow::Result<u64> {
+        let mut auth_query_client = BankQueryClient::new(self.grpc_channel.clone());
+        let resp = auth_query_client
+            .all_balances(QueryAllBalancesRequest {
+                address: self.address.clone(),
+                pagination: None,
+            })
+            .await?;
+
+        let micro_tia_balance = resp
+            .into_inner()
+            .balances
+            .into_iter()
+            .find(|coin| coin.denom == UNITS_SUFFIX)
+            .map_or_else(
+                || {
+                    Err(anyhow::anyhow!(
+                        "no balance found for address: {}",
+                        self.address
+                    ))
+                },
+                |coin| {
+                    coin.amount
+                        .parse::<u64>()
+                        .map_err(|e| anyhow::anyhow!("failed to parse balance: {}", e))
+                },
+            )?;
+
+        Ok(micro_tia_balance)
     }
 }
 
