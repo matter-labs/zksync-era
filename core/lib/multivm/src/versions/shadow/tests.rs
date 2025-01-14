@@ -145,36 +145,6 @@ where
     }
 }
 
-/// `PartialEq` for `Call` doesn't compare gas-related fields. Here, we do compare them.
-#[derive(Debug, PartialEq)]
-struct ExactCall<'a> {
-    inner: &'a Call,
-    parent_gas: u64,
-    gas: u64,
-    gas_used: u64,
-}
-
-impl<'a> ExactCall<'a> {
-    fn flatten(calls: &'a [Call]) -> Vec<Self> {
-        let mut flattened = Vec::new();
-        Self::flatten_inner(&mut flattened, calls);
-        flattened
-    }
-
-    fn flatten_inner(flattened: &mut Vec<Self>, calls: &'a [Call]) {
-        // Depth-first, parents-before-children traversal.
-        for call in calls {
-            flattened.push(Self {
-                inner: call,
-                parent_gas: call.parent_gas,
-                gas: call.gas,
-                gas_used: call.gas_used,
-            });
-            Self::flatten_inner(flattened, &call.calls);
-        }
-    }
-}
-
 #[derive(Debug)]
 struct ExecutionResultAndTraces {
     result: VmExecutionResultAndLogs,
@@ -196,11 +166,7 @@ impl From<ExecutionResultAndTraces> for (VmExecutionResultAndLogs, Vec<Call>) {
 impl CheckDivergence for ExecutionResultAndTraces {
     fn check_divergence(&self, other: &Self) -> DivergenceErrors {
         let mut errors = self.result.check_divergence(&other.result);
-        errors.check_match(
-            "call_traces",
-            &ExactCall::flatten(&self.traces),
-            &ExactCall::flatten(&other.traces),
-        );
+        errors.extend(self.traces.check_divergence(&other.traces));
         errors
     }
 }

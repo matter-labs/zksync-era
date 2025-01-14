@@ -44,6 +44,8 @@ use crate::{
     AsyncRocksdbCache,
 };
 
+pub(super) const TRANSFER_VALUE: u64 = 123_456_789;
+
 /// Representation of configuration parameters used by the state keeper.
 /// Has sensible defaults for most tests, each of which can be overridden.
 #[derive(Debug)]
@@ -380,6 +382,7 @@ impl AccountExt for Account {
             TxType::L2,
         )
     }
+
     fn l1_execute(&mut self, serial_id: PriorityOpId) -> Transaction {
         self.get_l1_tx(Execute::transfer(Address::random(), 0.into()), serial_id.0)
     }
@@ -443,7 +446,7 @@ impl AccountExt for Account {
     /// Automatically increments nonce of the account.
     fn execute_with_gas_limit(&mut self, gas_limit: u32) -> Transaction {
         self.get_l2_tx_for_execute(
-            Execute::transfer(Address::random(), 0.into()),
+            Execute::transfer(Address::random(), TRANSFER_VALUE.into()),
             Some(testonly::fee(gas_limit)),
         )
     }

@@ -53,6 +53,7 @@ impl DebugNamespace {
             }
         }
     }
+
     pub(crate) fn map_default_call(call: Call, only_top_call: bool) -> DebugCall {
         let calls = if only_top_call {
             vec![]
