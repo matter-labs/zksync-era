@@ -190,14 +190,16 @@ testFees('Test fees', function () {
         await (
             await alice.sendTransaction({
                 to: receiver,
-                value: BigInt(1)
+                value: BigInt(1),
+                type: 2
             })
         ).wait();
 
         await (
             await alice.sendTransaction({
                 data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, 1n]),
-                to: tokenDetails.l2Address
+                to: tokenDetails.l2Address,
+                type: 2
             })
         ).wait();
 
@@ -232,11 +234,13 @@ testFees('Test fees', function () {
                             ethers.Wallet.createRandom().address,
                             1n
                         ]),
-                        to: tokenDetails.l2Address
+                        to: tokenDetails.l2Address,
+                        type: 2
                     },
                     {
                         data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, 1n]),
-                        to: tokenDetails.l2Address
+                        to: tokenDetails.l2Address,
+                        type: 2
                     }
                 ],
                 gasPrice,
