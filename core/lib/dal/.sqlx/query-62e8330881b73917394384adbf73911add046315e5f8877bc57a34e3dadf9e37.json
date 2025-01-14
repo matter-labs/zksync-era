@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                system_logs,\n                compressed_state_diffs,\n                protocol_version,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input,\n                fee_address,\n                aggregation_root,\n                local_root,\n                state_diff_hash,\n                data_availability.inclusion_data,\n                l1_gas_price,\n                l2_fair_gas_price,\n                fair_pubdata_price\n            FROM\n                (\n                    SELECT\n                        l1_batches.*,\n                        ROW_NUMBER() OVER (\n                            ORDER BY\n                                number ASC\n                        ) AS row_number\n                    FROM\n                        l1_batches\n                    WHERE\n                        eth_commit_tx_id IS NOT NULL\n                        AND l1_batches.skip_proof = TRUE\n                        AND l1_batches.number > $1\n                    ORDER BY\n                        number\n                    LIMIT\n                        $2\n                ) inn\n            LEFT JOIN commitments ON commitments.l1_batch_number = inn.number\n            LEFT JOIN data_availability ON data_availability.l1_batch_number = inn.number\n            WHERE\n                number - row_number = $1\n            ",
+  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                protocol_version,\n                compressed_state_diffs,\n                system_logs,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input,\n                fee_address,\n                aggregation_root,\n                local_root,\n                state_diff_hash,\n                data_availability.inclusion_data\n            FROM\n                l1_batches\n            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n            LEFT JOIN\n                data_availability\n                ON data_availability.l1_batch_number = l1_batches.number\n            WHERE\n                eth_commit_tx_id IS NOT NULL\n                AND eth_prove_tx_id IS NULL\n            ORDER BY\n                number\n            LIMIT\n                $1\n            ",
   "describe": {
     "columns": [
       {
@@ -110,8 +110,8 @@
       },
       {
         "ordinal": 21,
-        "name": "system_logs",
-        "type_info": "ByteaArray"
+        "name": "protocol_version",
+        "type_info": "Int4"
       },
       {
         "ordinal": 22,
@@ -120,8 +120,8 @@
       },
       {
         "ordinal": 23,
-        "name": "protocol_version",
-        "type_info": "Int4"
+        "name": "system_logs",
+        "type_info": "ByteaArray"
       },
       {
         "ordinal": 24,
@@ -162,26 +162,10 @@
         "ordinal": 31,
         "name": "inclusion_data",
         "type_info": "Bytea"
-      },
-      {
-        "ordinal": 32,
-        "name": "l1_gas_price",
-        "type_info": "Int8"
-      },
-      {
-        "ordinal": 33,
-        "name": "l2_fair_gas_price",
-        "type_info": "Int8"
-      },
-      {
-        "ordinal": 34,
-        "name": "fair_pubdata_price",
-        "type_info": "Int8"
       }
     ],
     "parameters": {
       "Left": [
-        "Int8",
         "Int8"
       ]
     },
@@ -207,21 +191,18 @@
       true,
       true,
       true,
-      false,
-      true,
-      true,
-      true,
       true,
       true,
       false,
       true,
       true,
       true,
+      false,
       true,
-      false,
-      false,
-      false
+      true,
+      true,
+      true
     ]
   },
-  "hash": "7203b56390ec3768b7f8ed221756eaa79e05b443995c819db0befdcb1449691f"
+  "hash": "62e8330881b73917394384adbf73911add046315e5f8877bc57a34e3dadf9e37"
 }

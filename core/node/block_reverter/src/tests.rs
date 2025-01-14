@@ -12,7 +12,6 @@ use zksync_object_store::{Bucket, MockObjectStore};
 use zksync_state::interface::ReadStorage;
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
-    fee_model::BatchFeeInput,
     snapshots::SnapshotVersion,
     AccountTreeId, L2BlockNumber, ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog,
 };
@@ -61,7 +60,7 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             l2_tx_count: 0,
             fee_account_address: Address::default(),
             base_fee_per_gas: 0,
-            batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
+            batch_fee_input: Default::default(),
             gas_per_pubdata_limit: 0,
             base_system_contracts_hashes: Default::default(),
             protocol_version: Some(ProtocolVersionId::latest()),
@@ -90,7 +89,6 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             protocol_version: Some(ProtocolVersionId::latest()),
             pubdata_input: None,
             fee_address: Default::default(),
-            batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
         };
         storage
             .blocks_dal()
