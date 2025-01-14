@@ -2233,9 +2233,11 @@ impl TransactionsDal<'_, '_> {
         Ok(sqlx::query!(
             r#"
             SELECT
-                call_trace
+                call_trace,
+                transactions.error AS tx_error
             FROM
                 call_traces
+            INNER JOIN transactions ON tx_hash = transactions.hash
             WHERE
                 tx_hash = $1
             "#,
@@ -2245,7 +2247,7 @@ impl TransactionsDal<'_, '_> {
         .with_arg("tx_hash", &tx_hash)
         .fetch_optional(self.storage)
         .await?
-        .map(|call_trace| {
+        .map(|mut call_trace| {
             (
                 parse_call_trace(&call_trace.call_trace, protocol_version),
                 CallTraceMeta {
@@ -2253,6 +2255,7 @@ impl TransactionsDal<'_, '_> {
                     tx_hash,
                     block_number: row.miniblock_number as u32,
                     block_hash: H256::from_slice(&row.miniblocks_hash),
+                    internal_error: call_trace.tx_error.take(),
                 },
             )
         }))
