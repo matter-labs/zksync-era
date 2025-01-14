@@ -16,8 +16,13 @@ fn reverted_tx() {
 }
 
 #[test]
-fn out_of_gas_tx() {
-    call_tracer::test_out_of_gas_tx::<Vm<_, _, _>>();
+fn reverted_deployment() {
+    call_tracer::test_reverted_deployment_tx::<Vm<_, _, _>>();
+}
+
+#[test]
+fn out_of_gas() {
+    call_tracer::test_out_of_gas::<Vm<_, _, _>>();
 }
 
 #[test]

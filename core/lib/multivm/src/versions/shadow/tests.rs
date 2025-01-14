@@ -234,8 +234,13 @@ mod call_tracer {
     }
 
     #[test]
-    fn out_of_gas_tx() {
-        test_out_of_gas_tx::<super::ShadowedFastVm<_, _>>();
+    fn reverted_deployment() {
+        test_reverted_deployment_tx::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn out_of_gas() {
+        test_out_of_gas::<super::ShadowedFastVm<_, _>>();
     }
 
     #[test]

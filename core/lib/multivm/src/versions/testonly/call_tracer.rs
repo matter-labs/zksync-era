@@ -4,8 +4,10 @@
 use assert_matches::assert_matches;
 use ethabi::Token;
 use zksync_system_constants::MSG_VALUE_SIMULATOR_ADDRESS;
-use zksync_test_contracts::{LoadnextContractExecutionParams, TestContract, TxType};
-use zksync_types::{utils::deployed_address_create, zk_evm_types::FarCallOpcode, Address, Execute};
+use zksync_test_contracts::{Account, LoadnextContractExecutionParams, TestContract, TxType};
+use zksync_types::{
+    fee::Fee, utils::deployed_address_create, zk_evm_types::FarCallOpcode, Address, Execute,
+};
 
 use super::{ContractToDeploy, TestedVmWithCallTracer, VmTester, VmTesterBuilder};
 use crate::{
@@ -162,7 +164,55 @@ pub(crate) fn test_reverted_tx<VM: TestedVmWithCallTracer>() {
     );
 }
 
-pub(crate) fn test_out_of_gas_tx<VM: TestedVmWithCallTracer>() {
+pub(crate) fn test_out_of_gas<VM: TestedVmWithCallTracer>() {
+    let contract_address = Address::repeat_byte(0x23);
+    let mut vm: VmTester<VM> = VmTesterBuilder::new()
+        .with_empty_in_memory_storage()
+        .with_rich_accounts(1)
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_custom_contracts(vec![ContractToDeploy::new(
+            TestContract::expensive().bytecode.to_vec(),
+            contract_address,
+        )])
+        .build();
+
+    let account = &mut vm.rich_accounts[0];
+    let execute = Execute {
+        contract_address: Some(contract_address),
+        calldata: TestContract::expensive()
+            .function("expensive")
+            .encode_input(&[Token::Uint(1_000.into())])
+            .unwrap(),
+        value: 0.into(),
+        factory_deps: vec![],
+    };
+    let out_of_gas_tx = account.get_l2_tx_for_execute(
+        execute,
+        Some(Fee {
+            gas_limit: 500_000.into(), // insufficient gas
+            ..Account::default_fee()
+        }),
+    );
+
+    vm.vm.push_transaction(out_of_gas_tx);
+    let (res, call_traces) = vm.vm.inspect_with_call_tracer();
+    assert_matches!(&res.result, ExecutionResult::Revert { .. });
+
+    let out_of_gas_call = extract_single_call(&call_traces, |call| {
+        call.from == account.address && call.to == contract_address
+    });
+    assert_eq!(out_of_gas_call.error.as_ref().unwrap(), "Panic");
+    assert_eq!(out_of_gas_call.gas_used, out_of_gas_call.gas);
+
+    let parent_call =
+        extract_single_call(&call_traces, |call| call.calls.contains(out_of_gas_call));
+    assert_eq!(
+        parent_call.revert_reason.as_ref().unwrap(),
+        "Unknown revert reason"
+    );
+}
+
+pub(crate) fn test_reverted_deployment_tx<VM: TestedVmWithCallTracer>() {
     let mut vm: VmTester<VM> = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_rich_accounts(1)
@@ -170,10 +220,9 @@ pub(crate) fn test_out_of_gas_tx<VM: TestedVmWithCallTracer>() {
         .build();
 
     let account = &mut vm.rich_accounts[0];
-    let out_of_gas_tx =
-        account.get_deploy_tx(TestContract::failed_call().bytecode, None, TxType::L2);
+    let deploy_tx = account.get_deploy_tx(TestContract::failed_call().bytecode, None, TxType::L2);
 
-    vm.vm.push_transaction(out_of_gas_tx.tx);
+    vm.vm.push_transaction(deploy_tx.tx);
     let (res, call_traces) = vm.vm.inspect_with_call_tracer();
     assert_matches!(&res.result, ExecutionResult::Success { .. });
 
