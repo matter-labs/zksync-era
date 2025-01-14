@@ -123,8 +123,13 @@ ENV NVIDIA_REQUIRE_CUDA "cuda>=11.8 brand=tesla,driver>=450,driver<451 brand=tes
 ENV NV_CUDA_CUDART_VERSION 11.8.89-1
 ENV NV_CUDA_COMPAT_PACKAGE cuda-compat-11-8
 
-RUN wget -c -O - https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/${NVARCH}/3bf863cc.pub | apt-key add - && \
-    echo "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/${NVARCH} /" > /etc/apt/sources.list.d/cuda.list
+# curl purging is removed, it's required in next steps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gnupg2 curl ca-certificates && \
+    curl -fsSLO https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/${NVARCH}/cuda-keyring_1.0-1_all.deb && \
+    dpkg -i cuda-keyring_1.0-1_all.deb && \
+    apt-get purge --autoremove -y curl \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV CUDA_VERSION 11.8.0
 
