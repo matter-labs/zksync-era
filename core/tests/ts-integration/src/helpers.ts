@@ -90,7 +90,7 @@ export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.t
             txResponse = await wallet.transfer({
                 to: wallet.address,
                 amount: 0,
-                overrides: { maxFeePerGas: gasPrice, nonce: nonce, maxPriorityFeePerGas: 0 }
+                overrides: { maxFeePerGas: gasPrice, nonce: nonce, maxPriorityFeePerGas: 0, type: 2 }
             });
         } else {
             console.log('Gas price has not gone up, waiting longer');
