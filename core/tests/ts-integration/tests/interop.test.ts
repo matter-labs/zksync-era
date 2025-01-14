@@ -321,11 +321,18 @@ describe('Interop checks', () => {
         ]);
         tokenB_details.l2AddressSecondChain = await interop2_tokenB_contract_deployment.getAddress();
         await Promise.all([
-            (await interop2_tokenB_contract_deployment.mint(await interop1_wallet.getAddress(), ethers.parseEther('100'))
+            (
+                await interop2_tokenB_contract_deployment.mint(
+                    await interop1_wallet.getAddress(),
+                    ethers.parseEther('100')
+                )
             ).wait(),
             (
-            await interop2_tokenB_contract_deployment.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, ethers.parseEther('100'))
-        ).wait(),
+                await interop2_tokenB_contract_deployment.approve(
+                    L2_NATIVE_TOKEN_VAULT_ADDRESS,
+                    ethers.parseEther('100')
+                )
+            ).wait(),
             (await interop2_nativeTokenVault_contract.registerToken(tokenB_details.l2AddressSecondChain)).wait()
         ]);
         console.log('Token B registered on Interop2');
@@ -384,7 +391,7 @@ describe('Interop checks', () => {
         ]);
         // await interop2_wallet.finalizeWithdrawalParams(withdrawalBTx.hash); // kl todo finalize the Withdrawals with the params here. Alternatively do in the SDK.
         let nonce = await interop1_rich_wallet.getNonce();
-        
+
         await expect(interop1_rich_wallet.finalizeWithdrawal(withdrawalATx.hash)).toBeAccepted();
         await expect(interop2_rich_wallet.finalizeWithdrawal(withdrawalBTx.hash)).toBeAccepted();
 
@@ -810,7 +817,13 @@ describe('Interop checks', () => {
             '0x01',
             new ethers.AbiCoder().encode(
                 ['bytes32', 'bytes'],
-                [assetId, new ethers.AbiCoder().encode(['uint256', 'address', 'address'], [amount, recipient, ethers.ZeroAddress])]
+                [
+                    assetId,
+                    new ethers.AbiCoder().encode(
+                        ['uint256', 'address', 'address'],
+                        [amount, recipient, ethers.ZeroAddress]
+                    )
+                ]
             )
         ]);
     }

@@ -1,4 +1,4 @@
-sudo rm -rf ./volumes && zkstack dev clean containers && zkstack up -o false
+sudo zkstack dev clean containers && zkstack up -o false
 
 zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
             --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
