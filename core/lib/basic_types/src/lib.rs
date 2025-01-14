@@ -1,6 +1,6 @@
 //! The declaration of the most primitive types used in ZKsync network.
 //!
-//! Most of them are just re-exported from the `web3` crate.
+//! Most of them are just re-exported from the `web3` crate..
 
 // Linter settings
 #![warn(clippy::cast_lossless)]
