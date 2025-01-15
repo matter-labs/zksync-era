@@ -23,7 +23,7 @@ use crate::{
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
-        bootloader_state::{utils::apply_l2_block, BootloaderState},
+        bootloader::{utils::apply_l2_block, BootloaderState},
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::{

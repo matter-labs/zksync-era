@@ -15,7 +15,7 @@ use crate::{
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
-        bootloader_state::BootloaderState,
+        bootloader::BootloaderState,
         constants::{get_operator_refunds_offset, BOOTLOADER_HEAP_PAGE, TX_GAS_LIMIT_OFFSET},
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::{

@@ -1,3 +1,5 @@
+// FIXME: dedupe
+
 use zksync_types::{address_to_u256, h256_to_u256, U256};
 
 use crate::{interface::L1BatchEnv, vm_latest::utils::fee::get_batch_base_fee};

@@ -1,6 +1,5 @@
-pub(crate) use self::vm::MultiVmSubversion;
 pub use self::{
-    bootloader_state::BootloaderState,
+    bootloader::BootloaderState,
     old_vm::{
         history_recorder::{
             AppDataFrameManagerWithHistory, HistoryDisabled, HistoryEnabled, HistoryMode,
@@ -16,8 +15,9 @@ pub use self::{
     utils::transaction_encoding::TransactionVmExt,
     vm::Vm,
 };
+pub(crate) use self::{types::internals::TransactionData, vm::MultiVmSubversion};
 
-mod bootloader_state;
+pub(crate) mod bootloader;
 pub mod constants;
 mod implementation;
 mod old_vm;

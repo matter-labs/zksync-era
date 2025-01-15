@@ -5,7 +5,7 @@ use crate::{
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
-        bootloader_state::BootloaderState,
+        bootloader::BootloaderState,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         types::internals::ZkSyncVmState,
     },

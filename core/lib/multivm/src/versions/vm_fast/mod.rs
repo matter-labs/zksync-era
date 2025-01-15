@@ -6,7 +6,6 @@ pub use self::{
     vm::Vm,
 };
 
-mod bootloader_state;
 mod bytecode;
 mod events;
 mod glue;
@@ -16,7 +15,6 @@ mod refund;
 #[cfg(test)]
 mod tests;
 mod tracers;
-mod transaction_data;
 mod utils;
 mod version;
 mod vm;

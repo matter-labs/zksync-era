@@ -20,7 +20,7 @@ use crate::{
     },
     utils::bytecode::bytes_to_be_words,
     vm_latest::{
-        bootloader_state::BootloaderState,
+        bootloader::BootloaderState,
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{
             event_sink::InMemoryEventSink,

@@ -11,7 +11,7 @@ use crate::{
         TxExecutionMode,
     },
     vm_latest::{
-        bootloader_state::{
+        bootloader::{
             l2_block::BootloaderL2Block,
             snapshot::BootloaderStateSnapshot,
             utils::{apply_l2_block, apply_tx_to_memory},

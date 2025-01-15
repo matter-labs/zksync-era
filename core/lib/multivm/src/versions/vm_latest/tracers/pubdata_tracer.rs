@@ -27,7 +27,7 @@ use crate::{
         },
     },
     vm_latest::{
-        bootloader_state::{utils::apply_pubdata_to_memory, BootloaderState},
+        bootloader::{utils::apply_pubdata_to_memory, BootloaderState},
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::{traits::VmTracer, utils::VmHook},

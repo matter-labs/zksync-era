@@ -25,12 +25,10 @@ use zksync_vm2::{
 };
 
 use super::{
-    bootloader_state::{BootloaderState, BootloaderStateSnapshot},
     bytecode::compress_bytecodes,
     hook::Hook,
     initial_bootloader_memory::bootloader_initial_memory,
     tracers::{DynamicBytecodes, ValidationTracer, WithBuiltinTracers},
-    transaction_data::TransactionData,
 };
 use crate::{
     glue::GlueInto,
@@ -44,16 +42,18 @@ use crate::{
         VmInterfaceHistoryEnabled, VmRevertReason, VmTrackingContracts,
     },
     utils::events::extract_l2tol1logs_from_l1_messenger,
-    vm_fast::{
-        bootloader_state::utils::{apply_l2_block, apply_pubdata_to_memory},
-        events::merge_events,
-        refund::compute_refund,
-        version::FastVmVersion,
-    },
-    vm_latest::constants::{
-        get_operator_refunds_offset, get_result_success_first_slot,
-        get_vm_hook_params_start_position, get_vm_hook_position, TX_GAS_LIMIT_OFFSET,
-        VM_HOOK_PARAMS_COUNT,
+    vm_fast::{events::merge_events, refund::compute_refund, version::FastVmVersion},
+    vm_latest::{
+        bootloader::{
+            utils::{apply_l2_block, apply_pubdata_to_memory},
+            BootloaderState, BootloaderStateSnapshot,
+        },
+        constants::{
+            get_operator_refunds_offset, get_result_success_first_slot,
+            get_vm_hook_params_start_position, get_vm_hook_position, TX_GAS_LIMIT_OFFSET,
+            VM_HOOK_PARAMS_COUNT,
+        },
+        TransactionData,
     },
     VmVersion,
 };
@@ -258,11 +258,11 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
 
     pub(crate) fn push_transaction_inner(
         &mut self,
-        tx: zksync_types::Transaction,
+        tx: Transaction,
         refund: u64,
         with_compression: bool,
     ) {
-        let tx: TransactionData = tx.into();
+        let tx = TransactionData::new(tx, false);
         let overhead = tx.overhead_gas();
 
         self.insert_bytecodes(tx.factory_deps.iter().map(|dep| &dep[..]));
