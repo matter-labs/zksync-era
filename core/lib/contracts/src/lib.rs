@@ -37,24 +37,39 @@ const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts/out";
 const BRIDGEHUB_CONTRACT_FILE: (&str, &str) = ("bridgehub", "IBridgehub.sol/IBridgehub.json");
 const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
-    "StateTransitionManager.sol/StateTransitionManager.json",
+    "ChainTypeManager.sol/ChainTypeManager.json",
 );
+const BYTECODE_SUPPLIER_CONTRACT_FILE: (&str, &str) =
+    ("upgrades", "BytecodesSupplier.sol/BytecodesSupplier.json");
 const ZKSYNC_HYPERCHAIN_CONTRACT_FILE: (&str, &str) = (
     "state-transition/chain-interfaces",
-    "IZkSyncHyperchain.sol/IZkSyncHyperchain.json",
+    "IZKChain.sol/IZKChain.json",
 );
 const DIAMOND_INIT_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
     "chain-interfaces/IDiamondInit.sol/IDiamondInit.json",
 );
 const GOVERNANCE_CONTRACT_FILE: (&str, &str) = ("governance", "IGovernance.sol/IGovernance.json");
-const CHAIN_ADMIN_CONTRACT_FILE: (&str, &str) = ("governance", "IChainAdmin.sol/IChainAdmin.json");
+// TODO(EVM-924): We currently only support the "Ownable" chain admin.
+const CHAIN_ADMIN_CONTRACT_FILE: (&str, &str) = (
+    "governance",
+    "IChainAdminOwnable.sol/IChainAdminOwnable.json",
+);
 const GETTERS_FACET_CONTRACT_FILE: (&str, &str) = (
     "state-transition/chain-interfaces",
     "IGetters.sol/IGetters.json",
 );
 
 const MULTICALL3_CONTRACT_FILE: (&str, &str) = ("dev-contracts", "Multicall3.sol/Multicall3.json");
+const L1_ASSET_ROUTER_FILE: (&str, &str) = (
+    "bridge/asset-router",
+    "L1AssetRouter.sol/L1AssetRouter.json",
+);
+const L2_WRAPPED_BASE_TOKEN_STORE: (&str, &str) = (
+    "bridge",
+    "L2WrappedBaseTokenStore.sol/L2WrappedBaseTokenStore.json",
+);
+
 const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
 const DUAL_VERIFIER_CONTRACT_FILE: (&str, &str) = (
     "state-transition/verifiers",
@@ -158,6 +173,10 @@ pub fn state_transition_manager_contract() -> Contract {
     load_contract_for_both_compilers(STATE_TRANSITION_CONTRACT_FILE)
 }
 
+pub fn bytecode_supplier_contract() -> Contract {
+    load_contract_for_both_compilers(BYTECODE_SUPPLIER_CONTRACT_FILE)
+}
+
 pub fn hyperchain_contract() -> Contract {
     load_contract_for_both_compilers(ZKSYNC_HYPERCHAIN_CONTRACT_FILE)
 }
@@ -168,6 +187,14 @@ pub fn diamond_init_contract() -> Contract {
 
 pub fn multicall_contract() -> Contract {
     load_contract_for_both_compilers(MULTICALL3_CONTRACT_FILE)
+}
+
+pub fn l1_asset_router_contract() -> Contract {
+    load_contract_for_both_compilers(L1_ASSET_ROUTER_FILE)
+}
+
+pub fn wrapped_base_token_store_contract() -> Contract {
+    load_contract_for_both_compilers(L2_WRAPPED_BASE_TOKEN_STORE)
 }
 
 pub fn verifier_contract() -> Contract {
@@ -188,6 +215,14 @@ pub fn deployer_contract() -> Contract {
 
 pub fn l1_messenger_contract() -> Contract {
     load_sys_contract("L1Messenger")
+}
+
+pub fn l2_message_root() -> Contract {
+    load_contract("contracts/l1-contracts/out/MessageRoot.sol/MessageRoot.json")
+}
+
+pub fn l2_rollup_da_validator_bytecode() -> Vec<u8> {
+    read_bytecode("contracts/l2-contracts/zkout/RollupL2DAValidator.sol/RollupL2DAValidator.json")
 }
 
 /// Reads bytecode from the path RELATIVE to the Cargo workspace location.
@@ -719,14 +754,14 @@ pub static PRE_BOOJUM_COMMIT_FUNCTION: Lazy<Function> = Lazy::new(|| {
     serde_json::from_str(abi).unwrap()
 });
 
-pub static SET_CHAIN_ID_EVENT: Lazy<Event> = Lazy::new(|| {
+pub static GENESIS_UPGRADE_EVENT: Lazy<Event> = Lazy::new(|| {
     let abi = r#"
     {
       "anonymous": false,
       "inputs": [
         {
           "indexed": true,
-          "name": "_stateTransitionChain",
+          "name": "_hyperchain",
           "type": "address"
         },
         {
@@ -804,9 +839,14 @@ pub static SET_CHAIN_ID_EVENT: Lazy<Event> = Lazy::new(|| {
           "indexed": true,
           "name": "_protocolVersion",
           "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "name": "_factoryDeps",
+          "type": "bytes[]"
         }
       ],
-      "name": "SetChainIdUpgrade",
+      "name": "GenesisUpgrade",
       "type": "event"
     }"#;
     serde_json::from_str(abi).unwrap()
@@ -1420,30 +1460,5 @@ pub static POST_SHARED_BRIDGE_EXECUTE_FUNCTION: Lazy<Function> = Lazy::new(|| {
       "stateMutability": "nonpayable",
       "type": "function"
     }"#;
-    serde_json::from_str(abi).unwrap()
-});
-
-// Temporary thing, should be removed when new contracts are merged.
-pub static MESSAGE_ROOT_CONTRACT: Lazy<Contract> = Lazy::new(|| {
-    let abi = r#"
-    [{
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "_chainId",
-          "type": "uint256"
-        }
-      ],
-      "name": "getChainRoot",
-      "outputs": [
-        {
-          "internalType": "bytes32",
-          "name": "",
-          "type": "bytes32"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    }]"#;
     serde_json::from_str(abi).unwrap()
 });

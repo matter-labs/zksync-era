@@ -2,8 +2,8 @@ use std::{collections::HashMap, fmt, sync::Arc};
 
 use anyhow::Context;
 use zksync_contracts::{
-    getters_facet_contract, state_transition_manager_contract, verifier_contract,
-    MESSAGE_ROOT_CONTRACT,
+    bytecode_supplier_contract, getters_facet_contract, l1_asset_router_contract, l2_message_root,
+    state_transition_manager_contract, verifier_contract, wrapped_base_token_store_contract,
 };
 use zksync_eth_client::{
     clients::{DynClient, L1},
@@ -12,12 +12,12 @@ use zksync_eth_client::{
 };
 use zksync_system_constants::L2_MESSAGE_ROOT_ADDRESS;
 use zksync_types::{
+    abi::ZkChainSpecificUpgradeData,
     api::{ChainAggProof, Log},
-    ethabi::{self, decode, Contract, ParamType},
-    tokens::TokenMetadata,
-    web3::{BlockId, BlockNumber, CallRequest, Filter, FilterBuilder},
-    Address, L1BatchNumber, L2ChainId, SLChainId, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256,
-    U64,
+    ethabi::{self, decode, encode, Contract, ParamType},
+    web3::{keccak256, BlockId, BlockNumber, CallRequest, Filter, FilterBuilder},
+    Address, L1BatchNumber, L2ChainId, SLChainId, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS,
+    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
 use zksync_web3_decl::{
     client::{Network, L2},
@@ -64,7 +64,9 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         hashes: Vec<H256>,
     ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>>;
 
-    async fn get_base_token_metadata(&self) -> Result<TokenMetadata, ContractCallError>;
+    async fn get_chain_gateway_upgrade_info(
+        &self,
+    ) -> Result<Option<ZkChainSpecificUpgradeData>, ContractCallError>;
 
     /// Returns ID of the chain.
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId>;
@@ -97,27 +99,36 @@ pub struct EthHttpQueryClient<Net: Network> {
     new_upgrade_cut_data_signature: H256,
     bytecode_published_signature: H256,
     bytecode_supplier_addr: Option<Address>,
+    wrapped_base_token_store: Option<Address>,
+    l1_shared_bridge_addr: Option<Address>,
     // Only present for post-shared bridge chains.
     state_transition_manager_address: Option<Address>,
     chain_admin_address: Option<Address>,
     verifier_contract_abi: Contract,
     getters_facet_contract_abi: Contract,
     message_root_abi: Contract,
+    l1_asset_router_abi: Contract,
+    wrapped_base_token_store_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
+    l2_chain_id: L2ChainId,
 }
 
 impl<Net: Network> EthHttpQueryClient<Net>
 where
     Box<DynClient<Net>>: GetLogsClient,
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         client: Box<DynClient<Net>>,
         diamond_proxy_addr: Address,
         bytecode_supplier_addr: Option<Address>,
+        wrapped_base_token_store: Option<Address>,
+        l1_shared_bridge_addr: Option<Address>,
         state_transition_manager_address: Option<Address>,
         chain_admin_address: Option<Address>,
         governance_address: Address,
         confirmations_for_eth_event: Option<u64>,
+        l2_chain_id: L2ChainId,
     ) -> Self {
         tracing::debug!(
             "New eth client, ZKsync addr: {:x}, governance addr: {:?}",
@@ -136,14 +147,20 @@ where
                 .context("NewUpgradeCutData event is missing in ABI")
                 .unwrap()
                 .signature(),
-            bytecode_published_signature: ethabi::long_signature(
-                "BytecodePublished",
-                &[ParamType::FixedBytes(32), ParamType::Bytes],
-            ),
+            bytecode_published_signature: bytecode_supplier_contract()
+                .event("BytecodePublished")
+                .context("BytecodePublished event is missing in ABI")
+                .unwrap()
+                .signature(),
             verifier_contract_abi: verifier_contract(),
             getters_facet_contract_abi: getters_facet_contract(),
-            message_root_abi: MESSAGE_ROOT_CONTRACT.clone(),
+            message_root_abi: l2_message_root(),
+            l1_asset_router_abi: l1_asset_router_contract(),
+            wrapped_base_token_store_abi: wrapped_base_token_store_contract(),
             confirmations_for_eth_event,
+            wrapped_base_token_store,
+            l1_shared_bridge_addr,
+            l2_chain_id,
         }
     }
 
@@ -439,51 +456,100 @@ where
             .await
     }
 
-    async fn get_base_token_metadata(&self) -> Result<TokenMetadata, ContractCallError> {
-        let base_token_addr: Address = CallFunctionArgs::new("getBaseToken", ())
+    async fn get_chain_gateway_upgrade_info(
+        &self,
+    ) -> Result<Option<ZkChainSpecificUpgradeData>, ContractCallError> {
+        let Some(l1_shared_bridge_addr) = self.l1_shared_bridge_addr else {
+            tracing::warn!("l1 shared bridge is not provided!");
+            return Ok(None);
+        };
+
+        let Some(l1_wrapped_base_token_store) = self.wrapped_base_token_store else {
+            tracing::warn!("l1 wrapped base token store is not provided!");
+            return Ok(None);
+        };
+
+        let l2_chain_id = U256::from(self.l2_chain_id.as_u64());
+
+        // It does not matter whether the l1 shared bridge is an L1AssetRouter or L1Nullifier,
+        // either way it supports the "l2BridgeAddress" method.
+        let l2_legacy_shared_bridge: Address =
+            CallFunctionArgs::new("l2BridgeAddress", l2_chain_id)
+                .for_contract(l1_shared_bridge_addr, &self.l1_asset_router_abi)
+                .call(&self.client)
+                .await?;
+
+        if l2_legacy_shared_bridge == Address::zero() {
+            // This state is not completely impossible, but somewhat undesirable.
+            // Contracts will still allow the upgrade to go through without
+            // the shared bridge, so we will allow it here as well.
+            tracing::error!("L2 shared bridge from L1 is empty");
+        }
+
+        let l2_predeployed_wrapped_base_token: Address =
+            CallFunctionArgs::new("l2WBaseTokenAddress", l2_chain_id)
+                .for_contract(
+                    l1_wrapped_base_token_store,
+                    &self.wrapped_base_token_store_abi,
+                )
+                .call(&self.client)
+                .await?;
+
+        if l2_predeployed_wrapped_base_token == Address::zero() {
+            // This state is not completely impossible, but somewhat undesirable.
+            // Contracts will still allow the upgrade to go through without
+            // the l2 predeployed wrapped base token, so we will allow it here as well.
+            tracing::error!("L2 predeployed wrapped base token is empty");
+        }
+
+        let base_token_l1_address: Address = CallFunctionArgs::new("getBaseToken", ())
             .for_contract(self.diamond_proxy_addr, &self.getters_facet_contract_abi)
             .call(&self.client)
             .await?;
 
-        if base_token_addr == SHARED_BRIDGE_ETHER_TOKEN_ADDRESS {
-            return Ok(TokenMetadata {
-                name: String::from("Ether"),
-                symbol: String::from("ETH"),
-                decimals: 18,
-            });
-        }
+        let (base_token_name, base_token_symbol) =
+            if base_token_l1_address == SHARED_BRIDGE_ETHER_TOKEN_ADDRESS {
+                (String::from("Ether"), String::from("ETH"))
+            } else {
+                // TODO(EVM-934): support non-standard tokens.
+                let selectors: [[u8; 4]; 2] = [
+                    ethabi::short_signature("name", &[]),
+                    ethabi::short_signature("symbol", &[]),
+                ];
+                let types: [ParamType; 2] = [ParamType::String, ParamType::String];
 
-        // TODO(EVM-934): support non-standard tokens.
-        let selectors: [[u8; 4]; 3] = [
-            zksync_types::ethabi::short_signature("name", &[]),
-            zksync_types::ethabi::short_signature("symbol", &[]),
-            zksync_types::ethabi::short_signature("decimals", &[]),
-        ];
-        let types: [ParamType; 3] = [ParamType::String, ParamType::String, ParamType::Uint(32)];
+                let mut decoded_result = vec![];
+                for (selector, param_type) in selectors.into_iter().zip(types.into_iter()) {
+                    let request = CallRequest {
+                        to: Some(base_token_l1_address),
+                        data: Some(selector.into()),
+                        ..Default::default()
+                    };
+                    let result = self.client.call_contract_function(request, None).await?;
+                    // Base tokens are expected to support erc20 metadata
+                    let mut token = ethabi::decode(&[param_type], &result.0)
+                        .expect("base token does not support erc20 metadata");
+                    decoded_result.push(token.pop().unwrap());
+                }
 
-        let mut decoded_result = vec![];
-        for (selector, param_type) in selectors.into_iter().zip(types.into_iter()) {
-            let request = CallRequest {
-                to: Some(base_token_addr),
-                data: Some(selector.into()),
-                ..Default::default()
+                (decoded_result[0].to_string(), decoded_result[1].to_string())
             };
-            let result = self.client.call_contract_function(request, None).await?;
-            // Base tokens are expected to support erc20 metadata
-            let mut token = zksync_types::ethabi::decode(&[param_type], &result.0)
-                .expect("base token does not support erc20 metadata");
-            decoded_result.push(token.pop().unwrap());
-        }
 
-        Ok(TokenMetadata {
-            name: decoded_result[0].to_string(),
-            symbol: decoded_result[1].to_string(),
-            decimals: decoded_result[2]
-                .clone()
-                .into_uint()
-                .expect("decimals not supported")
-                .as_u32() as u8,
-        })
+        let base_token_asset_id = encode_ntv_asset_id(
+            // Note, that this is correct only for tokens that are being upgraded to the gateway protocol version.
+            // The chains that were deployed after it may have tokens with non-L1 base tokens.
+            U256::from(self.chain_id().await?.0),
+            base_token_l1_address,
+        );
+
+        Ok(Some(ZkChainSpecificUpgradeData {
+            base_token_asset_id,
+            l2_legacy_shared_bridge,
+            l2_predeployed_wrapped_base_token,
+            base_token_l1_address,
+            base_token_name,
+            base_token_symbol,
+        }))
     }
 }
 
@@ -632,8 +698,10 @@ impl EthClient for L2EthClientW {
         self.0.get_chain_root(block_number, l2_chain_id).await
     }
 
-    async fn get_base_token_metadata(&self) -> Result<TokenMetadata, ContractCallError> {
-        self.0.get_base_token_metadata().await
+    async fn get_chain_gateway_upgrade_info(
+        &self,
+    ) -> Result<Option<ZkChainSpecificUpgradeData>, ContractCallError> {
+        self.0.get_chain_gateway_upgrade_info().await
     }
 
     async fn get_published_preimages(
@@ -642,4 +710,14 @@ impl EthClient for L2EthClientW {
     ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>> {
         self.0.get_published_preimages(hashes).await
     }
+}
+
+pub(crate) fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
+    let encoded_data = encode(&[
+        ethabi::Token::Uint(l1_chain_id),
+        ethabi::Token::Address(L2_NATIVE_TOKEN_VAULT_ADDRESS),
+        ethabi::Token::Address(addr),
+    ]);
+
+    H256(keccak256(&encoded_data))
 }

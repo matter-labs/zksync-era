@@ -30,6 +30,10 @@ export function getContractSource(relativePath: string): string {
     return source;
 }
 
+export function readContract(path: string, fileName: string) {
+    return JSON.parse(fs.readFileSync(`${path}/${fileName}.sol/${fileName}.json`, { encoding: 'utf-8' }));
+}
+
 /**
  * Performs a contract deployment
  *
@@ -86,7 +90,7 @@ export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.t
             txResponse = await wallet.transfer({
                 to: wallet.address,
                 amount: 0,
-                overrides: { maxFeePerGas: gasPrice, nonce: nonce, maxPriorityFeePerGas: 0 }
+                overrides: { maxFeePerGas: gasPrice, nonce: nonce, maxPriorityFeePerGas: 0, type: 2 }
             });
         } else {
             console.log('Gas price has not gone up, waiting longer');
@@ -133,6 +137,16 @@ export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber
         } else {
             await zksync.utils.sleep(wallet.provider.pollingInterval);
         }
+    }
+}
+
+export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: number, txHash: string) {
+    // First, we wait for block to be finalized.
+    await waitUntilBlockFinalized(wallet, blockNumber);
+
+    // Second, we wait for the log proof.
+    while ((await wallet.provider.getLogProof(txHash)) == null) {
+        await zksync.utils.sleep(wallet.provider.pollingInterval);
     }
 }
 

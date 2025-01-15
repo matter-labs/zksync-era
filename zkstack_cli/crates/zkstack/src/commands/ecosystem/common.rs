@@ -16,6 +16,7 @@ use zkstack_cli_types::{L1Network, ProverMode};
 
 use crate::utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner};
 
+#[allow(clippy::too_many_arguments)]
 pub async fn deploy_l1(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
@@ -24,8 +25,10 @@ pub async fn deploy_l1(
     l1_rpc_url: &str,
     sender: Option<String>,
     broadcast: bool,
+    support_l2_legacy_shared_bridge_test: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.link_to_code);
+    dbg!(config.get_default_configs_path());
     let default_genesis_config =
         GenesisConfig::read_with_base_path(shell, config.get_default_configs_path())
             .context("failed reading genesis config")?;
@@ -38,6 +41,8 @@ pub async fn deploy_l1(
         initial_deployment_config,
         config.era_chain_id,
         config.prover_version == ProverMode::NoProofs,
+        config.l1_network,
+        support_l2_legacy_shared_bridge_test,
     );
     deploy_config.save(shell, deploy_config_path)?;
 
