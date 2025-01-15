@@ -700,11 +700,11 @@ impl<H: HistoryMode> HistoryRecorder<MemoryWrapper, H> {
 }
 
 #[derive(Debug)]
-pub struct StorageWrapper<S> {
+pub struct StorageWrapper<S: ?Sized> {
     storage_ptr: StoragePtr<S>,
 }
 
-impl<S: WriteStorage> StorageWrapper<S> {
+impl<S: WriteStorage + ?Sized> StorageWrapper<S> {
     pub fn new(storage_ptr: StoragePtr<S>) -> Self {
         Self { storage_ptr }
     }
@@ -733,7 +733,7 @@ pub struct StorageHistoryRecord {
     pub value: U256,
 }
 
-impl<S: WriteStorage> WithHistory for StorageWrapper<S> {
+impl<S: WriteStorage + ?Sized> WithHistory for StorageWrapper<S> {
     type HistoryRecord = StorageHistoryRecord;
     type ReturnValue = U256;
 
@@ -756,7 +756,7 @@ impl<S: WriteStorage> WithHistory for StorageWrapper<S> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> HistoryRecorder<StorageWrapper<S>, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> HistoryRecorder<StorageWrapper<S>, H> {
     pub fn read_from_storage(&self, key: &StorageKey) -> U256 {
         self.inner.read_from_storage(key)
     }

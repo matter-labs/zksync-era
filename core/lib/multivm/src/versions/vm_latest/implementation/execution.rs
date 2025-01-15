@@ -20,7 +20,7 @@ use crate::{
     HistoryMode,
 };
 
-impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> Vm<S, H> {
     pub(crate) fn inspect_inner(
         &mut self,
         dispatcher: &mut TracerDispatcher<S, H::Vm1_5_0>,

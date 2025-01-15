@@ -38,7 +38,7 @@ use crate::{
 };
 
 /// Default tracer for the VM. It manages the other tracers execution and stop the vm when needed.
-pub struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
+pub struct DefaultExecutionTracer<S: WriteStorage + ?Sized, H: HistoryMode> {
     tx_has_been_processed: bool,
     execution_mode: VmExecutionMode,
 
@@ -70,7 +70,7 @@ pub struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     _phantom: PhantomData<H>,
 }
 
-impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> DefaultExecutionTracer<S, H> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         computational_gas_limit: u32,
@@ -148,7 +148,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> Debug for DefaultExecutionTracer<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> Debug for DefaultExecutionTracer<S, H> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DefaultExecutionTracer").finish()
     }
@@ -184,7 +184,7 @@ macro_rules! dispatch_tracers {
     };
 }
 
-impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
     const CALL_BEFORE_DECODING: bool = false;
     const CALL_AFTER_DECODING: bool = true;
     const CALL_BEFORE_EXECUTION: bool = true;
@@ -266,7 +266,7 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> DefaultExecutionTracer<S, H> {
     pub(crate) fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         dispatch_tracers!(self.initialize_tracer(state));
     }

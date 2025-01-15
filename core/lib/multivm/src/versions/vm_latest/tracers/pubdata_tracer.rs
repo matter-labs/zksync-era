@@ -40,7 +40,7 @@ use crate::{
 
 /// Tracer responsible for collecting information about refunds.
 #[derive(Debug, Clone)]
-pub(crate) struct PubdataTracer<S> {
+pub(crate) struct PubdataTracer<S: ?Sized> {
     l1_batch_env: L1BatchEnv,
     pubdata_info_requested: bool,
     execution_mode: VmExecutionMode,
@@ -52,7 +52,7 @@ pub(crate) struct PubdataTracer<S> {
     _phantom_data: PhantomData<S>,
 }
 
-impl<S: WriteStorage> PubdataTracer<S> {
+impl<S: WriteStorage + ?Sized> PubdataTracer<S> {
     pub(crate) fn new(
         l1_batch_env: L1BatchEnv,
         execution_mode: VmExecutionMode,
@@ -198,7 +198,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
     }
 }
 
-impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for PubdataTracer<S> {
+impl<S: ?Sized, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for PubdataTracer<S> {
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,
@@ -213,7 +213,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for PubdataTracer<S> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PubdataTracer<S> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> VmTracer<S, H> for PubdataTracer<S> {
     fn finish_cycle(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,

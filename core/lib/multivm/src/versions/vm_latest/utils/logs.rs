@@ -10,7 +10,10 @@ use crate::{
     },
 };
 
-pub(crate) fn collect_events_and_l1_system_logs_after_timestamp<S: WriteStorage, H: HistoryMode>(
+pub(crate) fn collect_events_and_l1_system_logs_after_timestamp<
+    S: WriteStorage + ?Sized,
+    H: HistoryMode,
+>(
     vm_state: &ZkSyncVmState<S, H>,
     batch_env: &L1BatchEnv,
     from_timestamp: Timestamp,

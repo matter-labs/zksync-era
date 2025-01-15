@@ -60,7 +60,7 @@ fn formal_calldata_abi() -> PrimitiveValue {
 }
 
 /// Initialize the vm state and all necessary oracles
-pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
+pub(crate) fn new_vm_state<S: WriteStorage + ?Sized, H: HistoryMode>(
     storage: StoragePtr<S>,
     system_env: &SystemEnv,
     l1_batch_env: &L1BatchEnv,

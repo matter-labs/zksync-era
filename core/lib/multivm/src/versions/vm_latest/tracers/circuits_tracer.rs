@@ -24,16 +24,18 @@ use crate::{
 
 /// Tracer responsible for collecting information about refunds.
 #[derive(Debug)]
-pub(crate) struct CircuitsTracer<S, H> {
+pub(crate) struct CircuitsTracer<S: ?Sized, H> {
     pub(crate) statistics: CircuitCycleStatistic,
     last_decommitment_history_entry_checked: Option<usize>,
     last_written_keys_history_entry_checked: Option<usize>,
     last_read_keys_history_entry_checked: Option<usize>,
     last_precompile_inner_entry_checked: Option<usize>,
-    _phantom_data: PhantomData<(S, H)>,
+    _phantom_data: PhantomData<dyn FnOnce(&S, &H)>,
 }
 
-impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CircuitsTracer<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> DynTracer<S, SimpleMemory<H>>
+    for CircuitsTracer<S, H>
+{
     fn before_execution(
         &mut self,
         _state: VmLocalStateData<'_>,
@@ -120,7 +122,7 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S, H> {
     fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         self.last_decommitment_history_entry_checked = Some(
             state
@@ -159,7 +161,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S, H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> CircuitsTracer<S, H> {
     pub(crate) fn new() -> Self {
         Self {
             statistics: CircuitCycleStatistic::default(),

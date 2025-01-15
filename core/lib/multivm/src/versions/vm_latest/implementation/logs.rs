@@ -9,7 +9,7 @@ use crate::{
     HistoryMode,
 };
 
-impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> Vm<S, H> {
     pub(crate) fn collect_execution_logs_after_timestamp(
         &self,
         from_timestamp: Timestamp,

@@ -14,17 +14,19 @@ use crate::{
 };
 
 /// Tracer dispatcher is a tracer that can dispatch calls to multiple tracers.
-pub struct TracerDispatcher<S: WriteStorage, H: HistoryMode> {
+pub struct TracerDispatcher<S: WriteStorage + ?Sized, H: HistoryMode> {
     tracers: Vec<TracerPointer<S, H>>,
 }
 
-impl<S: WriteStorage, H: HistoryMode> TracerDispatcher<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> TracerDispatcher<S, H> {
     pub fn new(tracers: Vec<TracerPointer<S, H>>) -> Self {
         Self { tracers }
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> From<TracerPointer<S, H>> for TracerDispatcher<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> From<TracerPointer<S, H>>
+    for TracerDispatcher<S, H>
+{
     fn from(value: TracerPointer<S, H>) -> Self {
         Self {
             tracers: vec![value],
@@ -32,19 +34,23 @@ impl<S: WriteStorage, H: HistoryMode> From<TracerPointer<S, H>> for TracerDispat
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> From<Vec<TracerPointer<S, H>>> for TracerDispatcher<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> From<Vec<TracerPointer<S, H>>>
+    for TracerDispatcher<S, H>
+{
     fn from(value: Vec<TracerPointer<S, H>>) -> Self {
         Self { tracers: value }
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> Default for TracerDispatcher<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> Default for TracerDispatcher<S, H> {
     fn default() -> Self {
         Self { tracers: vec![] }
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for TracerDispatcher<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> DynTracer<S, SimpleMemory<H>>
+    for TracerDispatcher<S, H>
+{
     #[inline(always)]
     fn before_decoding(&mut self, _state: VmLocalStateData<'_>, _memory: &SimpleMemory<H>) {
         for tracer in self.tracers.iter_mut() {
@@ -91,7 +97,7 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for TracerDi
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for TracerDispatcher<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> VmTracer<S, H> for TracerDispatcher<S, H> {
     fn initialize_tracer(&mut self, _state: &mut ZkSyncVmState<S, H>) {
         for tracer in self.tracers.iter_mut() {
             tracer.initialize_tracer(_state);

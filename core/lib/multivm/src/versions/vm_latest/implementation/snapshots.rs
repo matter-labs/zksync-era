@@ -34,7 +34,7 @@ struct VmMetrics {
 static METRICS: vise::Global<VmMetrics> = vise::Global::new();
 
 /// Implementation of VM related to rollbacks inside virtual machine
-impl<S: WriteStorage> Vm<S, HistoryEnabled> {
+impl<S: WriteStorage + ?Sized> Vm<S, HistoryEnabled> {
     pub(crate) fn make_snapshot_inner(&mut self) {
         self.snapshots.push(VmSnapshot {
             // Vm local state contains O(1) various parameters (registers/etc).

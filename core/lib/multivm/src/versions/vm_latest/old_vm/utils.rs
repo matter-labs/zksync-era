@@ -98,7 +98,7 @@ pub(crate) fn precompile_calls_count_after_timestamp(
     sorted_timestamps.len() - sorted_timestamps.partition_point(|t| *t < from_timestamp)
 }
 
-pub(crate) fn vm_may_have_ended_inner<S: WriteStorage, H: HistoryMode>(
+pub(crate) fn vm_may_have_ended_inner<S: WriteStorage + ?Sized, H: HistoryMode>(
     vm: &ZkSyncVmState<S, H>,
 ) -> Option<VmExecutionResult> {
     let execution_has_ended = vm.execution_has_ended();

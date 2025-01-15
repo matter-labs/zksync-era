@@ -14,7 +14,9 @@ use crate::{
 pub type TracerPointer<S, H> = Box<dyn VmTracer<S, H>>;
 
 /// Run tracer for collecting data during the vm execution cycles
-pub trait VmTracer<S: WriteStorage, H: HistoryMode>: DynTracer<S, SimpleMemory<H>> {
+pub trait VmTracer<S: WriteStorage + ?Sized, H: HistoryMode>:
+    DynTracer<S, SimpleMemory<H>>
+{
     /// Initialize the tracer before the vm execution
     fn initialize_tracer(&mut self, _state: &mut ZkSyncVmState<S, H>) {}
     /// Run after each vm execution cycle
@@ -35,11 +37,13 @@ pub trait VmTracer<S: WriteStorage, H: HistoryMode>: DynTracer<S, SimpleMemory<H
     }
 }
 
-pub trait ToTracerPointer<S, H> {
+pub trait ToTracerPointer<S: ?Sized, H> {
     fn into_tracer_pointer(self) -> TracerPointer<S, H>;
 }
 
-impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S, H> + 'static> ToTracerPointer<S, H> for T {
+impl<S: WriteStorage + ?Sized, H: HistoryMode, T: VmTracer<S, H> + 'static> ToTracerPointer<S, H>
+    for T
+{
     fn into_tracer_pointer(self) -> TracerPointer<S, H> {
         Box::new(self)
     }

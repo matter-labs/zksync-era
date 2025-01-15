@@ -11,7 +11,7 @@ use crate::{
     HistoryMode,
 };
 
-impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> Vm<S, H> {
     /// Checks the last transaction has successfully published compressed bytecodes and returns `true` if there is at least one is still unknown.
     pub(crate) fn has_unpublished_bytecodes(&mut self) -> bool {
         self.bootloader_state
@@ -36,7 +36,7 @@ pub(crate) fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> (U256, Vec<U256>) {
     (bytecode_hash, bytecode_words)
 }
 
-pub(crate) fn compress_bytecodes<S: WriteStorage>(
+pub(crate) fn compress_bytecodes<S: WriteStorage + ?Sized>(
     bytecodes: &[Vec<u8>],
     storage: StoragePtr<S>,
 ) -> Vec<CompressedBytecodeInfo> {

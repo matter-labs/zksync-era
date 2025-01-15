@@ -96,7 +96,7 @@ impl FarCallTracker {
 
 /// Tracer responsible for handling the VM execution result.
 #[derive(Debug, Clone)]
-pub(crate) struct ResultTracer<S> {
+pub(crate) struct ResultTracer<S: ?Sized> {
     result: Option<Result>,
     bootloader_out_of_gas: bool,
     execution_mode: VmExecutionMode,
@@ -109,7 +109,7 @@ pub(crate) struct ResultTracer<S> {
     _phantom: PhantomData<S>,
 }
 
-impl<S> ResultTracer<S> {
+impl<S: ?Sized> ResultTracer<S> {
     pub(crate) fn new(execution_mode: VmExecutionMode, subversion: MultiVmSubversion) -> Self {
         Self {
             result: None,
@@ -130,7 +130,7 @@ fn current_frame_is_bootloader(local_state: &VmLocalState) -> bool {
     local_state.callstack.inner.len() == 1
 }
 
-impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer<S> {
+impl<S: ?Sized, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer<S> {
     fn after_decoding(
         &mut self,
         state: VmLocalStateData<'_>,
@@ -200,7 +200,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer<S> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for ResultTracer<S> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> VmTracer<S, H> for ResultTracer<S> {
     fn after_vm_execution(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,
@@ -228,7 +228,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for ResultTracer<S> {
     }
 }
 
-impl<S: WriteStorage> ResultTracer<S> {
+impl<S: WriteStorage + ?Sized> ResultTracer<S> {
     fn vm_finished_execution<H: HistoryMode>(&mut self, state: &ZkSyncVmState<S, H>) {
         let Some(result) = vm_may_have_ended_inner(state) else {
             // The VM has finished execution, but the result is not yet available.
@@ -333,7 +333,7 @@ impl<S: WriteStorage> ResultTracer<S> {
     }
 }
 
-pub(crate) fn tx_has_failed<S: WriteStorage, H: HistoryMode>(
+pub(crate) fn tx_has_failed<S: WriteStorage + ?Sized, H: HistoryMode>(
     state: &ZkSyncVmState<S, H>,
     tx_id: u32,
     subversion: MultiVmSubversion,

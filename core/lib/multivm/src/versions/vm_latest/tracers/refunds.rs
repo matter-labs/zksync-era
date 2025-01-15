@@ -37,7 +37,7 @@ struct RefundRequest {
 
 /// Tracer responsible for collecting information about refunds.
 #[derive(Debug, Clone)]
-pub(crate) struct RefundsTracer<S> {
+pub(crate) struct RefundsTracer<S: ?Sized> {
     // Some(x) means that the bootloader has asked the operator
     // to provide the refund the user, where `x` is the refund proposed
     // by the bootloader itself.
@@ -54,7 +54,7 @@ pub(crate) struct RefundsTracer<S> {
     _phantom: PhantomData<S>,
 }
 
-impl<S> RefundsTracer<S> {
+impl<S: ?Sized> RefundsTracer<S> {
     pub(crate) fn new(l1_batch: L1BatchEnv, subversion: MultiVmSubversion) -> Self {
         Self {
             pending_refund_request: None,
@@ -72,7 +72,7 @@ impl<S> RefundsTracer<S> {
     }
 }
 
-impl<S> RefundsTracer<S> {
+impl<S: ?Sized> RefundsTracer<S> {
     fn requested_refund(&self) -> Option<RefundRequest> {
         self.pending_refund_request
     }
@@ -160,7 +160,7 @@ impl<S> RefundsTracer<S> {
     }
 }
 
-impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for RefundsTracer<S> {
+impl<S: ?Sized, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for RefundsTracer<S> {
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,
@@ -187,7 +187,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for RefundsTracer<S> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
     fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         self.timestamp_initial = Timestamp(state.local_state.timestamp);
         self.computational_gas_remaining_before =

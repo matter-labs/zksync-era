@@ -25,13 +25,13 @@ use crate::{
 /// Tracer responsible for collecting information about EVM deploys and providing those
 /// to the code decommitter.
 #[derive(Debug)]
-pub(crate) struct EvmDeployTracer<S> {
+pub(crate) struct EvmDeployTracer<S: ?Sized> {
     tracked_signature: [u8; 4],
     pending_bytecodes: Vec<(usize, Vec<u8>)>,
     _phantom: PhantomData<S>,
 }
 
-impl<S> EvmDeployTracer<S> {
+impl<S: ?Sized> EvmDeployTracer<S> {
     pub(crate) fn new() -> Self {
         let tracked_signature = ethabi::short_signature(
             "publishEVMBytecode",
@@ -46,7 +46,7 @@ impl<S> EvmDeployTracer<S> {
     }
 }
 
-impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDeployTracer<S> {
+impl<S: ?Sized, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDeployTracer<S> {
     fn after_execution(
         &mut self,
         state: VmLocalStateData<'_>,
@@ -102,7 +102,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDeployTracer<S> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for EvmDeployTracer<S> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> VmTracer<S, H> for EvmDeployTracer<S> {
     fn finish_cycle(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,

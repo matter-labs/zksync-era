@@ -68,7 +68,7 @@ impl TryFrom<VmVersion> for MultiVmSubversion {
 /// Main entry point for Virtual Machine integration.
 /// The instance should process only one l1 batch
 #[derive(Debug)]
-pub struct Vm<S: WriteStorage, H: HistoryMode> {
+pub struct Vm<S: WriteStorage + ?Sized, H: HistoryMode> {
     pub(crate) bootloader_state: BootloaderState,
     // Current state and oracles of virtual machine
     pub(crate) state: ZkSyncVmState<S, H::Vm1_5_0>,
@@ -81,7 +81,7 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
     _phantom: std::marker::PhantomData<H>,
 }
 
-impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> Vm<S, H> {
     pub(super) fn gas_remaining(&self) -> u32 {
         self.state.local_state.callstack.current.ergs_remaining
     }
@@ -144,7 +144,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> VmInterface for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher<S, H::Vm1_5_0>;
 
     fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
@@ -230,7 +230,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> VmFactory<S> for Vm<S, H> {
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let vm_version: VmVersion = system_env.version.into();
         Self::new_with_subversion(
@@ -242,7 +242,7 @@ impl<S: WriteStorage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> Vm<S, H> {
     pub(crate) fn new_with_subversion(
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
@@ -263,7 +263,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     }
 }
 
-impl<S: WriteStorage> VmInterfaceHistoryEnabled for Vm<S, HistoryEnabled> {
+impl<S: WriteStorage + ?Sized> VmInterfaceHistoryEnabled for Vm<S, HistoryEnabled> {
     fn make_snapshot(&mut self) {
         self.make_snapshot_inner()
     }
@@ -281,7 +281,7 @@ impl<S: WriteStorage> VmInterfaceHistoryEnabled for Vm<S, HistoryEnabled> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTrackingContracts for Vm<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> VmTrackingContracts for Vm<S, H> {
     fn used_contract_hashes(&self) -> Vec<H256> {
         self.get_used_contracts()
             .into_iter()

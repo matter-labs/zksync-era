@@ -85,7 +85,7 @@ impl From<LogQuery> for ReducedTstoreLogQuery {
 }
 
 #[derive(Debug)]
-pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
+pub struct StorageOracle<S: WriteStorage + ?Sized, H: HistoryMode> {
     // Access to the persistent storage. Please note that it
     // is used only for read access. All the actual writes happen
     // after the execution ended.
@@ -126,7 +126,7 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
     pub(crate) read_storage_keys: HistoryRecorder<HashMap<StorageKey, ()>, HistoryEnabled>,
 }
 
-impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
+impl<S: WriteStorage + ?Sized> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
     fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
         self.storage.rollback_to_timestamp(timestamp);
         self.storage_frames_stack.rollback_to_timestamp(timestamp);
@@ -142,7 +142,7 @@ impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> StorageOracle<S, H> {
     pub fn new(storage: StoragePtr<S>) -> Self {
         Self {
             storage: HistoryRecorder::from_inner(StorageWrapper::new(storage)),
@@ -365,7 +365,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
     // Perform a storage read/write access by taking an partially filled query
     // and returning filled query and cold/warm marker for pricing purposes
     fn execute_partial_query(

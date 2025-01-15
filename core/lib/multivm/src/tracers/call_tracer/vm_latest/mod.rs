@@ -19,7 +19,7 @@ use crate::{
     vm_latest::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
 };
 
-impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
+impl<S: ?Sized, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
     fn after_execution(
         &mut self,
         state: VmLocalStateData<'_>,
@@ -60,7 +60,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CallTracer {
+impl<S: WriteStorage + ?Sized, H: HistoryMode> VmTracer<S, H> for CallTracer {
     fn after_vm_execution(
         &mut self,
         _state: &mut ZkSyncVmState<S, H>,

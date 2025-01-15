@@ -6,7 +6,7 @@ use zk_evm_1_5_0::{
 use crate::interface::storage::StoragePtr;
 
 /// Version of `zk_evm_1_5_0::Tracer` suitable for dynamic dispatch.
-pub trait DynTracer<S, M: Memory> {
+pub trait DynTracer<S: ?Sized, M: Memory> {
     fn before_decoding(&mut self, _state: VmLocalStateData<'_>, _memory: &M) {}
     fn after_decoding(
         &mut self,
