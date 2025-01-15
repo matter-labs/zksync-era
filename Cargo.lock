@@ -1315,7 +1315,7 @@ dependencies = [
  "smallvec",
  "unroll",
  "zksync_cs_derive",
- "zksync_pairing 0.30.13",
+ "zksync_pairing",
 ]
 
 [[package]]
@@ -1724,7 +1724,7 @@ dependencies = [
  "rayon",
  "serde",
  "zk_evm 0.150.20",
- "zksync_bellman 0.30.13",
+ "zksync_bellman",
 ]
 
 [[package]]
@@ -3300,7 +3300,7 @@ dependencies = [
  "smallvec",
  "splitmut",
  "tiny-keccak 1.5.0",
- "zksync_bellman 0.30.13",
+ "zksync_bellman",
 ]
 
 [[package]]
@@ -11337,27 +11337,6 @@ dependencies = [
 
 [[package]]
 name = "zksync_bellman"
-version = "0.30.12"
-dependencies = [
- "arrayvec 0.7.6",
- "bit-vec",
- "blake2s_simd",
- "byteorder",
- "cfg-if",
- "crossbeam",
- "futures 0.3.31",
- "hex",
- "lazy_static",
- "num_cpus",
- "rand 0.4.6",
- "serde",
- "smallvec",
- "tiny-keccak 1.5.0",
- "zksync_pairing 0.30.12",
-]
-
-[[package]]
-name = "zksync_bellman"
 version = "0.30.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78fc3c598daf718b6fc791bfbb01c4634199e479ea9b2c82d06cd108b967d441"
@@ -11376,7 +11355,7 @@ dependencies = [
  "serde",
  "smallvec",
  "tiny-keccak 1.5.0",
- "zksync_pairing 0.30.13",
+ "zksync_pairing",
 ]
 
 [[package]]
@@ -12108,17 +12087,6 @@ dependencies = [
 
 [[package]]
 name = "zksync_ff"
-version = "0.30.12"
-dependencies = [
- "byteorder",
- "hex",
- "rand 0.4.6",
- "serde",
- "zksync_ff_derive 0.30.12",
-]
-
-[[package]]
-name = "zksync_ff"
 version = "0.30.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6583c2db6dc787600879d27ec98d2eb628a757ee41831e54f8be1dae4acc599f"
@@ -12127,20 +12095,7 @@ dependencies = [
  "hex",
  "rand 0.4.6",
  "serde",
- "zksync_ff_derive 0.30.13",
-]
-
-[[package]]
-name = "zksync_ff_derive"
-version = "0.30.12"
-dependencies = [
- "num-bigint 0.4.6",
- "num-integer",
- "num-traits",
- "proc-macro2 1.0.92",
- "quote 1.0.37",
- "serde",
- "syn 1.0.109",
+ "zksync_ff_derive",
 ]
 
 [[package]]
@@ -12679,17 +12634,6 @@ dependencies = [
 
 [[package]]
 name = "zksync_pairing"
-version = "0.30.12"
-dependencies = [
- "byteorder",
- "cfg-if",
- "rand 0.4.6",
- "serde",
- "zksync_ff 0.30.12",
-]
-
-[[package]]
-name = "zksync_pairing"
 version = "0.30.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baafdd03ca7a48dc9b6808be3630f2d8a003aa425d71946e9158d8c0aeb1cc79"
@@ -12698,7 +12642,7 @@ dependencies = [
  "cfg-if",
  "rand 0.4.6",
  "serde",
- "zksync_ff 0.30.13",
+ "zksync_ff",
 ]
 
 [[package]]
@@ -12797,7 +12741,7 @@ dependencies = [
  "serde_with",
  "strum",
  "tokio",
- "zksync_bellman 0.30.12",
+ "zksync_bellman",
  "zksync_object_store",
  "zksync_types",
  "zksync_vm_interface",
