@@ -43,9 +43,18 @@ jobs:
         run: |
           git fetch
           # Checkout the commit with the DualVerifier contract to test FFLONK interface
-          git checkout b4d5b984
+          git checkout bcdd1cb05e8f4d9ec2dd41e2cc668cdfe30ee535
           git submodule update --init --recursive
           git rev-parse HEAD
+
+      - name: Set new genesis for fflonk 
+        # Note, that while `Verifier` is not explicitly a part of the genensis state,
+        # it affects it indirectly as it is a part of the repo.
+        working-directory: ./etc/env/file_based
+        if: matrix.compressor-mode == 'fflonk'
+        run: |
+          sudo sed -i 's/^genesis_root: .*/genesis_root: 0xc3fa60b6769a0c2f222053d7cbd1d6f63be7777e3c8d029cbd61cc075526ab81/' genesis.yaml
+          sudo sed -i "s/^genesis_batch_commitment: .*/genesis_batch_commitment: 0x17689e705b5749ed0bbd53c845988d17c419697c2cb29eabab8785f1cb775b4a/" genesis.yaml
 
       - name: Init
         run: |
@@ -88,13 +97,13 @@ jobs:
       - name: Run server
         run: |
           ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs_${{matrix.compressor-mode}}/server.log &
-      - name: Run Gateway
+      - name: Run prover gateway
         run: |
           ci_run zkstack prover run --component=gateway --docker=false &>prover_logs_${{matrix.compressor-mode}}/gateway.log &
       - name: Run Prover Job Monitor
         run: |
           ci_run zkstack prover run --component=prover-job-monitor --docker=false &>prover_logs_${{matrix.compressor-mode}}/prover-job-monitor.log &
-      - name: Wait for batch to be passed through gateway
+      - name: Wait for batch to be passed through prover gateway
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
           BATCH_NUMBER: 1
@@ -126,10 +135,10 @@ jobs:
 
       - name: Wait for batch to be executed on L1
         env:
-            DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
-            BATCH_NUMBER: 1
-            INTERVAL: 30
-            TIMEOUT: 1200
+          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
+          BATCH_NUMBER: 1
+          INTERVAL: 30
+          TIMEOUT: 1200
         run: |
           PASSED_ENV_VARS="BATCH_NUMBER,DATABASE_URL,URL,INTERVAL,TIMEOUT" \
           ci_run ./bin/prover_checkers/batch_l1_status_checker

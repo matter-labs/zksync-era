@@ -8,6 +8,8 @@ pub struct SetupLegacyBridgeInput {
     pub bridgehub: Address,
     pub diamond_proxy: Address,
     pub shared_bridge_proxy: Address,
+    pub l1_nullifier_proxy: Address,
+    pub l1_native_token_vault: Address,
     pub transparent_proxy_admin: Address,
     pub erc20bridge_proxy: Address,
     pub token_weth_address: Address,

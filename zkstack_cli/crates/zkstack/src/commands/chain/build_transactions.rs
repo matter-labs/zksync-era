@@ -18,13 +18,12 @@ use crate::{
     },
 };
 
-const REGISTER_CHAIN_TXNS_FILE_SRC: &str =
-    "contracts/l1-contracts/broadcast/RegisterHyperchain.s.sol/9/dry-run/run-latest.json";
-const REGISTER_CHAIN_TXNS_FILE_DST: &str = "register-hyperchain-txns.json";
+pub const REGISTER_CHAIN_TXNS_FILE_SRC: &str =
+    "contracts/l1-contracts/broadcast/RegisterZKChain.s.sol/9/dry-run/run-latest.json";
+pub const REGISTER_CHAIN_TXNS_FILE_DST: &str = "register-zk-chain-txns.json";
 
-const SCRIPT_CONFIG_FILE_SRC: &str =
-    "contracts/l1-contracts/script-config/register-hyperchain.toml";
-const SCRIPT_CONFIG_FILE_DST: &str = "register-hyperchain.toml";
+const SCRIPT_CONFIG_FILE_SRC: &str = "contracts/l1-contracts/script-config/register-zk-chain.toml";
+const SCRIPT_CONFIG_FILE_DST: &str = "register-zk-chain.toml";
 
 pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<()> {
     let config = EcosystemConfig::from_file(shell)?;

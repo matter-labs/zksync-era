@@ -1,16 +1,18 @@
 //! Testing harness for the batch executor.
 //! Contains helper functionality to initialize test context and perform tests without too much boilerplate.
 
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
+use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
+use assert_matches::assert_matches;
 use tempfile::TempDir;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_contracts::l2_rollup_da_validator_bytecode;
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
-        L1BatchEnv, L2BlockEnv, SystemEnv,
+        ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv,
     },
     utils::StorageWritesDeduplicator,
     vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
@@ -23,8 +25,10 @@ use zksync_test_contracts::{
 };
 use zksync_types::{
     block::L2BlockHasher,
+    bytecode::BytecodeHash,
     commitment::PubdataParams,
     ethabi::Token,
+    get_code_key, get_known_code_key,
     protocol_version::ProtocolSemanticVersion,
     snapshots::{SnapshotRecoveryStatus, SnapshotStorageLog},
     system_contracts::get_system_smart_contracts,
@@ -38,11 +42,14 @@ use zksync_vm_executor::batch::{MainBatchExecutorFactory, TraceCalls};
 
 use super::{read_storage_factory::RocksdbStorageFactory, StorageType};
 use crate::{
-    testonly,
-    testonly::BASE_SYSTEM_CONTRACTS,
+    testonly::{self, BASE_SYSTEM_CONTRACTS},
     tests::{default_l1_batch_env, default_system_env},
     AsyncRocksdbCache,
 };
+
+fn get_da_contract_address() -> Address {
+    Address::from_str("7726827caac94a7f9e1b160f7ea819f172f7b6f9").unwrap()
+}
 
 /// Representation of configuration parameters used by the state keeper.
 /// Has sensible defaults for most tests, each of which can be overridden.
@@ -95,6 +102,22 @@ impl Tester {
 
     pub(super) fn set_config(&mut self, config: TestConfig) {
         self.config = config;
+    }
+
+    /// Extension of `create_batch_executor` that allows us to run some initial transactions to bootstrap the state.
+    pub(super) async fn create_batch_executor_with_init_transactions(
+        &mut self,
+        storage_type: StorageType,
+        transactions: &[Transaction],
+    ) -> Box<dyn BatchExecutor<OwnedStorage>> {
+        let mut executor = self.create_batch_executor(storage_type).await;
+
+        for txn in transactions {
+            let res = executor.execute_tx(txn.clone()).await.unwrap();
+            assert_matches!(res.tx_result.result, ExecutionResult::Success { .. });
+        }
+
+        executor
     }
 
     /// Creates a batch executor instance with the specified storage type.
@@ -270,6 +293,9 @@ impl Tester {
             )
             .await
             .unwrap();
+
+            // Also setting up the da for tests
+            Self::setup_da(&mut storage).await;
         }
     }
 
@@ -306,6 +332,42 @@ impl Tester {
                     .unwrap();
             }
         }
+    }
+
+    pub async fn setup_contract<'a>(
+        con: &mut Connection<'a, Core>,
+        address: Address,
+        code: Vec<u8>,
+    ) {
+        let hash: H256 = BytecodeHash::for_bytecode(&code).value();
+        let known_code_key = get_known_code_key(&hash);
+        let code_key = get_code_key(&address);
+
+        let logs = vec![
+            StorageLog::new_write_log(known_code_key, H256::from_low_u64_be(1u64)),
+            StorageLog::new_write_log(code_key, hash),
+        ];
+
+        for log in logs {
+            apply_genesis_log(con, log).await;
+        }
+
+        let mut factory_deps = HashMap::new();
+        factory_deps.insert(hash, code);
+
+        con.factory_deps_dal()
+            .insert_factory_deps(L2BlockNumber(0), &factory_deps)
+            .await
+            .unwrap();
+    }
+
+    async fn setup_da<'a>(con: &mut Connection<'a, Core>) {
+        Self::setup_contract(
+            con,
+            get_da_contract_address(),
+            l2_rollup_da_validator_bytecode(),
+        )
+        .await;
     }
 
     pub(super) async fn wait_for_tasks(&mut self) {
@@ -557,6 +619,7 @@ impl StorageSnapshot {
         connection_pool: &ConnectionPool<Core>,
         alice: &mut Account,
         transaction_count: u32,
+        transactions: &[Transaction],
     ) -> Self {
         let mut tester = Tester::new(connection_pool.clone(), FastVmMode::Old);
         tester.genesis().await;
@@ -593,6 +656,30 @@ impl StorageSnapshot {
             max_virtual_blocks_to_create: 1,
         };
         let mut storage_writes_deduplicator = StorageWritesDeduplicator::new();
+
+        for transaction in transactions {
+            let tx_hash = transaction.hash(); // probably incorrect
+            let res = executor.execute_tx(transaction.clone()).await.unwrap();
+            if !res.tx_result.result.is_failed() {
+                let storage_logs = &res.tx_result.logs.storage_logs;
+                storage_writes_deduplicator
+                    .apply(storage_logs.iter().filter(|log| log.log.is_write()));
+            } else {
+                panic!("Unexpected tx execution result: {res:?}");
+            };
+
+            let mut hasher = L2BlockHasher::new(
+                L2BlockNumber(l2_block_env.number),
+                l2_block_env.timestamp,
+                l2_block_env.prev_block_hash,
+            );
+            hasher.push_tx_hash(tx_hash);
+
+            l2_block_env.number += 1;
+            l2_block_env.timestamp += 1;
+            l2_block_env.prev_block_hash = hasher.finalize(ProtocolVersionId::latest());
+            executor.start_next_l2_block(l2_block_env).await.unwrap();
+        }
 
         for _ in 0..transaction_count {
             let tx = alice.execute();
@@ -677,5 +764,27 @@ impl StorageSnapshot {
             .await
             .unwrap();
         snapshot
+    }
+}
+
+async fn apply_genesis_log<'a>(storage: &mut Connection<'a, Core>, log: StorageLog) {
+    storage
+        .storage_logs_dal()
+        .append_storage_logs(L2BlockNumber(0), &[log])
+        .await
+        .unwrap();
+
+    if storage
+        .storage_logs_dedup_dal()
+        .filter_written_slots(&[log.key.hashed_key()])
+        .await
+        .unwrap()
+        .is_empty()
+    {
+        storage
+            .storage_logs_dedup_dal()
+            .insert_initial_writes(L1BatchNumber(0), &[log.key.hashed_key()])
+            .await
+            .unwrap();
     }
 }
