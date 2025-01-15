@@ -15,6 +15,7 @@ mod apps;
 mod chain;
 mod consts;
 mod contracts;
+pub mod da;
 pub mod docker_compose;
 mod ecosystem;
 pub mod explorer;

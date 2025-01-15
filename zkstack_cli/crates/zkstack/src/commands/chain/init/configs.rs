@@ -1,5 +1,4 @@
 use anyhow::Context;
-use secrecy::ExposeSecret;
 use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{
@@ -72,18 +71,14 @@ pub async fn init_configs(
     let consensus_keys = generate_consensus_keys();
     set_genesis_specs(&mut general_config, chain_config, &consensus_keys)?;
 
-    if let Some(validium_config) = &init_args.validium_config {
-        match validium_config {
-            ValidiumType::NoDA => {
-                general_config.remove("da_client");
-            }
-            ValidiumType::Avail((avail_config, _)) => {
-                // FIXME: this doesn't serialize config in the Protobuf-compatible way (of course it doesn't)
-                general_config.insert_yaml("da_client.avail", avail_config)?;
-            }
+    match &init_args.validium_config {
+        None | Some(ValidiumType::NoDA) => {
+            general_config.remove("da_client");
+        }
+        Some(ValidiumType::Avail((avail_config, _))) => {
+            general_config.insert_yaml("da_client.avail", avail_config)?;
         }
     }
-
     general_config.save().await?;
 
     // Initialize genesis config
@@ -107,17 +102,10 @@ pub async fn init_configs(
     let mut secrets = chain_config.get_secrets_config().await?.patched();
     set_l1_rpc_url(&mut secrets, init_args.l1_rpc_url.clone())?;
     set_consensus_secrets(&mut secrets, &consensus_keys)?;
-    if let Some(validium_config) = &init_args.validium_config {
-        match validium_config {
-            ValidiumType::NoDA => { /* Do nothing */ }
-            ValidiumType::Avail((_, avail_secrets)) => {
-                if let Some(seed_phrase) = &avail_secrets.seed_phrase {
-                    secrets.insert_yaml("da.avail.seed_phrase", seed_phrase.0.expose_secret())?;
-                }
-                if let Some(api_key) = &avail_secrets.gas_relay_api_key {
-                    secrets.insert_yaml("da.avail.gas_relay_api_key", api_key.0.expose_secret())?;
-                }
-            }
+    match &init_args.validium_config {
+        None | Some(ValidiumType::NoDA) => { /* Do nothing */ }
+        Some(ValidiumType::Avail((_, avail_secrets))) => {
+            secrets.insert_yaml("da.avail", avail_secrets)?;
         }
     }
     secrets.save().await?;
