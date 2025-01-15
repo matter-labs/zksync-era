@@ -8,7 +8,7 @@ use anyhow::Context as _;
 use zksync_config::GenesisConfig;
 use zksync_contracts::{
     hyperchain_contract, verifier_contract, BaseSystemContracts, BaseSystemContractsHashes,
-    SET_CHAIN_ID_EVENT,
+    GENESIS_UPGRADE_EVENT,
 };
 use zksync_dal::{custom_genesis_export_dal::GenesisState, Connection, Core, CoreDal, DalError};
 use zksync_eth_client::{CallFunctionArgs, EthInterface};
@@ -20,7 +20,7 @@ use zksync_types::{
     bytecode::BytecodeHash,
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
-    protocol_upgrade::decode_set_chain_id_event,
+    protocol_upgrade::decode_genesis_upgrade_event,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     system_contracts::get_system_smart_contracts,
     u256_to_h256,
@@ -589,14 +589,14 @@ pub async fn save_set_chain_id_tx(
     storage: &mut Connection<'_, Core>,
     query_client: &dyn EthInterface,
     diamond_proxy_address: Address,
-    state_transition_manager_address: Address,
 ) -> anyhow::Result<()> {
     let to = query_client.block_number().await?.as_u64();
     let from = to.saturating_sub(PRIORITY_EXPIRATION);
+
     let filter = FilterBuilder::default()
-        .address(vec![state_transition_manager_address])
+        .address(vec![diamond_proxy_address])
         .topics(
-            Some(vec![SET_CHAIN_ID_EVENT.signature()]),
+            Some(vec![GENESIS_UPGRADE_EVENT.signature()]),
             Some(vec![diamond_proxy_address.into()]),
             None,
             None,
@@ -612,7 +612,7 @@ pub async fn save_set_chain_id_tx(
         logs
     );
     let (version_id, upgrade_tx) =
-        decode_set_chain_id_event(logs.remove(0)).context("Chain id event is incorrect")?;
+        decode_genesis_upgrade_event(logs.remove(0)).context("Chain id event is incorrect")?;
 
     tracing::info!("New version id {:?}", version_id);
     storage

@@ -604,7 +604,7 @@ export class TestContextOwner {
         // Reset the reporter context.
         this.reporter = new Reporter();
         try {
-            if (this.env.nodeMode == NodeMode.Main && isLocalHost(this.env.network.toLowerCase())) {
+            if (this.env.nodeMode == NodeMode.Main && isLocalHost(this.env.network)) {
                 // Check that the VM execution hasn't diverged using the VM playground. The component and thus the main node
                 // will crash on divergence, so we just need to make sure that the test doesn't exit before the VM playground
                 // processes all batches on the node.

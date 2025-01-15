@@ -128,6 +128,7 @@ pub(crate) struct RemoteENConfig {
     pub l2_weth_bridge_addr: Option<Address>,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l2_timestamp_asserter_addr: Option<Address>,
+    pub l1_wrapped_base_token_store: Option<Address>,
     pub base_token_addr: Address,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub dummy_verifier: bool,
@@ -195,6 +196,9 @@ impl RemoteENConfig {
             l1_bytecodes_supplier_addr: ecosystem_contracts
                 .as_ref()
                 .and_then(|a| a.l1_bytecodes_supplier_addr),
+            l1_wrapped_base_token_store: ecosystem_contracts
+                .as_ref()
+                .and_then(|a| a.l1_wrapped_base_token_store),
             l1_diamond_proxy_addr,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
@@ -235,6 +239,7 @@ impl RemoteENConfig {
             l2_shared_bridge_addr: Some(Address::repeat_byte(6)),
             l2_legacy_shared_bridge_addr: Some(Address::repeat_byte(7)),
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
+            l1_wrapped_base_token_store: None,
             dummy_verifier: true,
             l2_timestamp_asserter_addr: None,
         }
@@ -1477,6 +1482,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
                 l2_weth_bridge: config.remote.l2_weth_bridge_addr,
             },
             l1_bytecodes_supplier_addr: config.remote.l1_bytecodes_supplier_addr,
+            l1_wrapped_base_token_store: config.remote.l1_wrapped_base_token_store,
             l1_bridgehub_proxy_addr: config.remote.l1_bridgehub_proxy_addr,
             l1_state_transition_proxy_addr: config.remote.l1_state_transition_proxy_addr,
             l1_transparent_proxy_admin_addr: config.remote.l1_transparent_proxy_admin_addr,
