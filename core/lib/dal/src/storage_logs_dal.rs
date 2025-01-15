@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops, time::Instant};
+use std::{cmp, collections::HashMap, ops, time::Instant};
 
 use sqlx::types::chrono::Utc;
 use zksync_db_connection::{
@@ -28,7 +28,14 @@ impl StorageLogsDal<'_, '_> {
         block_number: L2BlockNumber,
         logs: &[StorageLog],
     ) -> DalResult<()> {
-        self.insert_storage_logs_inner(block_number, logs, 0).await
+        // a custom genesis batch might have quite a few storage logs associated with it (10s of millions, depending on how big the initial state was).
+        // For such cases we should process the query in chunks to avoid failures in the database or the driver.
+        let chunk_size = cmp::min(logs.len(), 10_000);
+        for chunk in logs.chunks(chunk_size) {
+            self.insert_storage_logs_inner(block_number, chunk, 0)
+                .await?;
+        }
+        Ok(())
     }
 
     async fn insert_storage_logs_inner(
@@ -489,9 +496,16 @@ impl StorageLogsDal<'_, '_> {
             return Ok(HashMap::new()); // Shortcut to save time on communication with DB in the common case
         }
 
+        // a custom genesis batch might have quite a few storage logs associated with it (10s of millions, depending on how big the initial state was).
+        // For such cases we should process the query in chunks to avoid failures in the database or the driver.
+        let chunk_size: usize = cmp::min(hashed_keys.len(), 10_000);
+
         let hashed_keys: Vec<_> = hashed_keys.iter().map(H256::as_bytes).collect();
-        let rows = sqlx::query!(
-            r#"
+        let mut result = HashMap::new();
+
+        for chunk in hashed_keys.chunks(chunk_size) {
+            let rows = sqlx::query!(
+                r#"
             SELECT
                 hashed_key,
                 l1_batch_number,
@@ -501,23 +515,21 @@ impl StorageLogsDal<'_, '_> {
             WHERE
                 hashed_key = ANY($1::bytea [])
             "#,
-            &hashed_keys as &[&[u8]],
-        )
-        .instrument("get_l1_batches_and_indices_for_initial_writes")
-        .with_arg("hashed_keys.len", &hashed_keys.len())
-        .report_latency()
-        .fetch_all(self.storage)
-        .await?;
-
-        Ok(rows
-            .into_iter()
-            .map(|row| {
+                &chunk as &[&[u8]],
+            )
+            .instrument("get_l1_batches_and_indices_for_initial_writes")
+            .with_arg("hashed_keys.len", &chunk.len())
+            .report_latency()
+            .fetch_all(self.storage)
+            .await?;
+            result.extend(rows.into_iter().map(|row| {
                 (
                     H256::from_slice(&row.hashed_key),
                     (L1BatchNumber(row.l1_batch_number as u32), row.index as u64),
                 )
-            })
-            .collect())
+            }));
+        }
+        Ok(result)
     }
 
     /// Gets previous values for the specified storage keys before the specified L1 batch number.
