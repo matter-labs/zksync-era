@@ -349,7 +349,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     let gateway_url = l2_rpc_url;
     let mut chain_secrets_config = chain_config.get_secrets_config().await?.patched();
-    chain_secrets_config.insert("l1.gateway_rpc_url", gateway_url);
+    chain_secrets_config.insert("l1.gateway_rpc_url", gateway_url)?;
     chain_secrets_config.save().await?;
 
     let gateway_chain_config = GatewayChainConfig::from_gateway_and_chain_data(
@@ -361,7 +361,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     gateway_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
     let mut general_config = chain_config.get_general_config().await?.patched();
-    general_config.insert_yaml("eth.gas_adjuster.settlement_mode", SettlementMode::Gateway);
+    general_config.insert_yaml("eth.gas_adjuster.settlement_mode", SettlementMode::Gateway)?;
 
     if is_rollup {
         // For rollups, new type of commitment should be used, but
@@ -369,13 +369,13 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         general_config.insert_yaml(
             "eth.sender.pubdata_sending_mode",
             PubdataSendingMode::RelayedL2Calldata,
-        );
+        )?;
     }
-    general_config.insert("eth.sender.wait_confirmations", 0);
+    general_config.insert("eth.sender.wait_confirmations", 0)?;
     // TODO(EVM-925): the number below may not always work, especially for large prices on
     // top of Gateway. This field would have to be either not used on GW or transformed into u64.
-    general_config.insert("eth.sender.max_aggregated_tx_gas", 4294967295_u64);
-    general_config.insert("eth.sender.max_eth_tx_data_size", 550_000);
+    general_config.insert("eth.sender.max_aggregated_tx_gas", 4294967295_u64)?;
+    general_config.insert("eth.sender.max_eth_tx_data_size", 550_000)?;
     general_config.save().await?;
 
     Ok(())

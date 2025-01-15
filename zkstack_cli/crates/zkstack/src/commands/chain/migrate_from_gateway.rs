@@ -125,7 +125,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
 
     let general_config = gateway_chain_config.get_general_config().await?;
     let l2_rpc_url = general_config.get::<String>("api.web3_json_rpc.http_url")?;
-    let gateway_provider = Provider::<Http>::try_from(l2_rpc_url)?;
+    let gateway_provider = Provider::<Http>::try_from(&l2_rpc_url)?;
 
     let client: Client<L2> = Client::http(l2_rpc_url.parse().context("invalid L2 RPC URL")?)?
         .for_network(L2::from(L2ChainId::new(gateway_chain_id).unwrap()))
@@ -173,16 +173,16 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     general_config.insert_yaml(
         "eth.gas_adjuster.settlement_mode",
         SettlementMode::SettlesToL1,
-    );
+    )?;
     if is_rollup {
-        general_config.insert_yaml("eth.sender.pubdata_sending_mode", PubdataSendingMode::Blobs);
+        general_config.insert_yaml("eth.sender.pubdata_sending_mode", PubdataSendingMode::Blobs)?;
     }
-    general_config.insert("eth.sender.wait_confirmations", 0);
+    general_config.insert("eth.sender.wait_confirmations", 0)?;
 
     // Undoing what was changed during migration to gateway.
     // TODO(EVM-925): maybe remove this logic.
-    general_config.insert("eth.sender.max_aggregated_tx_gas", 15000000);
-    general_config.insert("eth.sender.max_eth_tx_data_size", 120_000);
+    general_config.insert("eth.sender.max_aggregated_tx_gas", 15000000)?;
+    general_config.insert("eth.sender.max_eth_tx_data_size", 120_000)?;
     general_config.save().await?;
     Ok(())
 }

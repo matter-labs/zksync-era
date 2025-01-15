@@ -162,7 +162,7 @@ pub async fn calculate_gateway_ctm(
     config: &EcosystemConfig,
     chain_config: &ChainConfig,
     genesis_input: &GenesisInput,
-    initial_deployemnt_config: &InitialDeploymentConfig,
+    initial_deployment_config: &InitialDeploymentConfig,
     l1_rpc_url: String,
 ) -> anyhow::Result<GatewayConfig> {
     let contracts_config = chain_config.get_contracts_config()?;
@@ -173,7 +173,7 @@ pub async fn calculate_gateway_ctm(
         config,
         genesis_input,
         &contracts_config,
-        initial_deployemnt_config,
+        initial_deployment_config,
     );
     deploy_config.save(shell, deploy_config_path)?;
 

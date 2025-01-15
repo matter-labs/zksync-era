@@ -25,8 +25,7 @@ use zkstack_cli_config::{
     ChainConfig, EcosystemConfig,
 };
 use zkstack_cli_types::L1BatchCommitmentMode;
-use zksync_basic_types::{L1ChainId, H256, U256};
-use zksync_types::{web3::keccak256, Address, L2_NATIVE_TOKEN_VAULT_ADDRESS};
+use zksync_basic_types::{Address, U256};
 
 use crate::{
     commands::dev::commands::gateway::{
@@ -135,22 +134,19 @@ async fn prepare_stage1(
     // No need to save it, we have enough for now
 
     let mut contracts_config = chain_config.get_contracts_config()?;
-    let general_config = chain_config.get_general_config()?;
-    let genesis_config = chain_config.get_genesis_config()?;
+    let general_config = chain_config.get_general_config().await?;
+    let genesis_config = chain_config.get_genesis_config().await?;
 
     let upgrade_info = GatewayUpgradeInfo::from_gateway_ecosystem_upgrade(
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
         gateway_ecosystem_preparation_output,
     );
 
-    let commitment_mode = chain_config
-        .get_genesis_config()
-        .await?
-        .get::<L1BatchCommitmentMode>("l1_batch_commit_data_generator_mode")?;
-    let da_mode = if commitment_mode == L1BatchCommitmentMode::Rollup {
-        DAMode::PermanentRollup
-    } else {
-        DAMode::Validium
+    let commitment_mode =
+        genesis_config.get::<L1BatchCommitmentMode>("l1_batch_commit_data_generator_mode")?;
+    let da_mode = match commitment_mode {
+        L1BatchCommitmentMode::Rollup => DAMode::PermanentRollup,
+        L1BatchCommitmentMode::Validium => DAMode::Validium,
     };
 
     let chain_info = fetch_chain_info(
@@ -158,11 +154,7 @@ async fn prepare_stage1(
         &GatewayUpgradeArgsInner {
             chain_id: chain_config.chain_id.as_u64(),
             l1_rpc_url: l1_url,
-            l2_rpc_url: general_config
-                .api_config
-                .context("api config")?
-                .web3_json_rpc
-                .http_url,
+            l2_rpc_url: general_config.get("api.web3_json_rpc.http_url")?,
             validator_addr1: chain_config.get_wallets_config()?.operator.address,
             validator_addr2: chain_config.get_wallets_config()?.blob_operator.address,
             da_mode,
@@ -265,19 +257,13 @@ async fn finalize_stage1(
     println!("Finalizing stage1 of chain upgrade!");
 
     let contracts_config = chain_config.get_contracts_config()?;
-    let general_config = chain_config.get_general_config()?;
-    let genesis_config = chain_config.get_genesis_config()?;
+    let general_config = chain_config.get_general_config().await?;
+    let genesis_config = chain_config.get_genesis_config().await?;
 
     println!("Checking chain readiness...");
     check_chain_readiness(
         l1_url.clone(),
-        general_config
-            .api_config
-            .as_ref()
-            .context("api")?
-            .web3_json_rpc
-            .http_url
-            .clone(),
+        general_config.get("api.web3_json_rpc.http_url")?,
         chain_config.chain_id.as_u64(),
     )
     .await?;
@@ -287,14 +273,11 @@ async fn finalize_stage1(
     let gateway_ecosystem_preparation_output =
         GatewayEcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;
 
-    let commitment_mode = chain_config
-        .get_genesis_config()
-        .await?
-        .get::<L1BatchCommitmentMode>("l1_batch_commit_data_generator_mode")?;
-    let da_mode = if commitment_mode == L1BatchCommitmentMode::Rollup {
-        DAMode::PermanentRollup
-    } else {
-        DAMode::Validium
+    let commitment_mode =
+        genesis_config.get::<L1BatchCommitmentMode>("l1_batch_commit_data_generator_mode")?;
+    let da_mode = match commitment_mode {
+        L1BatchCommitmentMode::Rollup => DAMode::PermanentRollup,
+        L1BatchCommitmentMode::Validium => DAMode::Validium,
     };
 
     let upgrade_info = GatewayUpgradeInfo::from_gateway_ecosystem_upgrade(
@@ -304,11 +287,7 @@ async fn finalize_stage1(
     let args = GatewayUpgradeArgsInner {
         chain_id: chain_config.chain_id.as_u64(),
         l1_rpc_url: l1_url.clone(),
-        l2_rpc_url: general_config
-            .api_config
-            .context("api config")?
-            .web3_json_rpc
-            .http_url,
+        l2_rpc_url: general_config.get("api.web3_json_rpc.http_url")?,
         validator_addr1: chain_config.get_wallets_config()?.operator.address,
         validator_addr2: chain_config.get_wallets_config()?.blob_operator.address,
         da_mode,
@@ -316,15 +295,10 @@ async fn finalize_stage1(
     };
 
     let chain_info = fetch_chain_info(&upgrade_info, &args).await?;
-
     let admin_calls_finalize = get_admin_call_builder(&upgrade_info, &chain_info, args);
-
     admin_calls_finalize.display();
-
     let admin_calldata = admin_calls_finalize.compile_full_calldata();
-
     call_chain_admin(l1_url, chain_config, admin_calldata).await?;
-
     println!("done!");
 
     Ok(())
