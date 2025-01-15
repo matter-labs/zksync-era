@@ -1,5 +1,5 @@
 {
-  "SchedulerCircuit": {
+
     "fixed_parameters": {
       "parameters": {
         "num_columns_under_copy_permutation": 130,
@@ -266,5 +266,4 @@
         9108687955872827734
       ]
     ]
-  }
 }

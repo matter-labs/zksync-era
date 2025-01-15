@@ -91,7 +91,7 @@ impl proof_compression_gpu::BlobStorage for Keystore {
     fn read_fflonk_precomputation(&self) -> Box<dyn Read + Send + Sync> {
         let filepath = self.get_file_path(
             ProverServiceDataKey::snark(),
-            ProverServiceDataType::SetupData,
+            ProverServiceDataType::FflonkSetupData,
         );
 
         Box::new(File::open(filepath).unwrap())
@@ -107,7 +107,12 @@ impl proof_compression_gpu::BlobStorage for Keystore {
     }
 
     fn read_plonk_precomputation(&self) -> Box<dyn Read + Send + Sync> {
-        todo!()
+        let filepath = self.get_file_path(
+            ProverServiceDataKey::snark(),
+            ProverServiceDataType::PlonkSetupData,
+        );
+
+        Box::new(File::open(filepath).unwrap())
     }
 
     fn read_compact_raw_crs(&self) -> Box<dyn Read + Send + Sync> {
@@ -186,7 +191,7 @@ impl proof_compression_gpu::BlobStorageExt for Keystore {
     fn write_fflonk_precomputation(&self) -> Box<dyn Write> {
         let filepath = self.get_file_path(
             ProverServiceDataKey::snark(),
-            ProverServiceDataType::SetupData,
+            ProverServiceDataType::FflonkSetupData,
         );
 
         Box::new(File::create(filepath).unwrap())
@@ -202,7 +207,12 @@ impl proof_compression_gpu::BlobStorageExt for Keystore {
     }
 
     fn write_plonk_precomputation(&self) -> Box<dyn Write> {
-        todo!()
+        let filepath = self.get_file_path(
+            ProverServiceDataKey::snark(),
+            ProverServiceDataType::PlonkSetupData,
+        );
+
+        Box::new(File::create(filepath).unwrap())
     }
 
     fn write_compact_raw_crs(&self) -> Box<dyn Write> {

@@ -68,18 +68,18 @@ url = "2.5.2"
 vise = "0.2.0"
 
 # Proving dependencies
-circuit_definitions = "=0.150.19"
-circuit_sequencer_api = "=0.150.19"
-zkevm_test_harness = "=0.150.19"
-proof-compression-gpu = { package = "proof-compression", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "si/better-proof-compression"}
-fflonk-gpu = { package = "fflonk-cuda", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "si/better-proof-compression"}
-fflonk = "=0.30.12"
-franklin-crypto = "=0.30.12"
+circuit_definitions = { path = "../../../zksync-protocol/crates/circuit_definitions" }
+circuit_sequencer_api = { path = "../../../zksync-protocol/crates/circuit_sequencer_api" }
+zkevm_test_harness = { path = "../../../zksync-protocol/crates/zkevm_test_harness" }
+proof-compression-gpu = { package = "proof-compression", path = "../../../zksync-crypto-gpu/crates/proof-compression" }
+fflonk-gpu = { package = "fflonk-cuda", path = "../../../zksync-crypto-gpu/crates/fflonk"}
+fflonk = { package = "fflonk", path = "../../../zksync-crypto/crates/fflonk"}
+franklin-crypto = { package = "franklin-crypto", path = "../../../zksync-crypto/crates/franklin-crypto"}
 
 # GPU proving dependencies
-wrapper_prover = { package = "zksync-wrapper-prover", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "si/better-proof-compression"}
-shivini = { package = "shivini", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "si/better-proof-compression" }
-boojum-cuda = { package = "boojum-cuda", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "si/better-proof-compression" }
+wrapper_prover = { package = "zksync-wrapper-prover", path = "../../../zksync-crypto-gpu/crates/wrapper-prover"}
+shivini = { package = "shivini", path = "../../../zksync-crypto-gpu/crates/shivini" }
+boojum-cuda = { package = "boojum-cuda", path = "../../../zksync-crypto-gpu/crates/boojum-cuda" }
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }

@@ -1,10 +1,12 @@
 use core::fmt;
 
+use bellman::plonk::better_better_cs::proof::Proof as PlonkProof;
 use circuit_definitions::{
     boojum::pairing::bn256::Bn256,
-    circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuitNoLookupCustomGate,
+    circuit_definitions::aux_layer::{
+        ZkSyncSnarkWrapperCircuit, ZkSyncSnarkWrapperCircuitNoLookupCustomGate,
+    },
 };
-use circuit_sequencer_api::proof::FinalProof;
 use fflonk::FflonkProof;
 use serde::{Deserialize, Serialize};
 use serde_with::{hex::Hex, serde_as};
@@ -45,7 +47,7 @@ pub struct FflonkL1BatchProofForL1 {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PlonkL1BatchProofForL1 {
     pub aggregation_result_coords: [[u8; 32]; 4],
-    pub scheduler_proof: FinalProof,
+    pub scheduler_proof: PlonkProof<Bn256, ZkSyncSnarkWrapperCircuit>,
     pub protocol_version: ProtocolSemanticVersion,
 }
 

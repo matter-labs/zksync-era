@@ -4,7 +4,10 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use circuit_sequencer_api::proof::FinalProof;
 use fflonk_gpu::{FflonkSnarkVerifierCircuit, FflonkSnarkVerifierCircuitProof};
-use proof_compression_gpu::{run_proof_chain, SchedulerProof, SnarkWrapper, SnarkWrapperProof};
+use proof_compression_gpu::{
+    run_proof_chain, ProofStorage, SchedulerProof, SimpleProofStorage, SnarkWrapper,
+    SnarkWrapperProof,
+};
 use tokio::task::JoinHandle;
 use wrapper_prover::{GPUWrapperConfigs, WrapperProver};
 use zkevm_test_harness::proof_wrapper_utils::{get_trusted_setup, DEFAULT_WRAPPER_CONFIG};
@@ -16,7 +19,8 @@ use zksync_prover_fri_types::{
         circuit_definitions::{
             aux_layer::{
                 wrapper::ZkSyncCompressionWrapper, ZkSyncCompressionForWrapperCircuit,
-                ZkSyncCompressionLayerCircuit, ZkSyncCompressionProof,
+                ZkSyncCompressionForWrapperProof, ZkSyncCompressionLayerCircuit,
+                ZkSyncCompressionLayerProof, ZkSyncCompressionProof,
                 ZkSyncCompressionProofForWrapper, ZkSyncCompressionVerificationKeyForWrapper,
             },
             recursion_layer::{
@@ -33,7 +37,9 @@ use zksync_prover_interface::outputs::{
 };
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
+use zksync_types::{
+    basic_fri_types::Blob, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
+};
 
 use crate::metrics::METRICS;
 
@@ -152,9 +158,9 @@ impl JobProcessor for ProofCompressor {
 
         tokio::task::spawn_blocking(move || {
             Ok(run_proof_chain(
-                job.into_inner(),
                 snark_wrapper_mode,
                 &keystore,
+                job.into_inner(),
             ))
         })
     }
@@ -182,7 +188,7 @@ impl JobProcessor for ProofCompressor {
         let l1_batch_proof = match artifacts {
             SnarkWrapperProof::Plonk(proof) => L1BatchProofForL1::Plonk(PlonkL1BatchProofForL1 {
                 aggregation_result_coords,
-                scheduler_proof: *proof,
+                scheduler_proof: proof,
                 protocol_version: self.protocol_version,
             }),
             SnarkWrapperProof::FFfonk(proof) => {

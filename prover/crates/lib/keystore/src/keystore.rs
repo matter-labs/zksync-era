@@ -41,6 +41,8 @@ pub enum ProverServiceDataType {
     VerificationKey,
     SetupData,
     FinalizationHints,
+    PlonkSetupData,
+    FflonkSetupData,
     SnarkVerificationKey,
     FflonkSnarkVerificationKey,
 }
@@ -130,6 +132,12 @@ impl Keystore {
             ProverServiceDataType::FinalizationHints => self
                 .basedir
                 .join(format!("finalization_hints_{}.bin", name)),
+            ProverServiceDataType::PlonkSetupData => {
+                self.basedir.join(format!("plonk_setup_{}_data.bin", name))
+            }
+            ProverServiceDataType::FflonkSetupData => {
+                self.basedir.join(format!("fflonk_setup_{}_data.bin", name))
+            }
             ProverServiceDataType::SnarkVerificationKey => {
                 self.basedir.join(format!("verification_{}_key.json", name))
             }

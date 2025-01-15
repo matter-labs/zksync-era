@@ -99,7 +99,7 @@ async fn main() -> anyhow::Result<()> {
         config.compression_mode,
         config.max_attempts,
         protocol_version,
-        keystore.with_compact_crs_filepath(config.universal_fflonk_setup_path.clone().into()),
+        keystore,
         is_fflonk,
     );
 
@@ -114,7 +114,7 @@ async fn main() -> anyhow::Result<()> {
     })
     .expect("Error setting Ctrl+C handler"); // Setting handler should always succeed.
 
-    setup_crs_keys(&config, is_fflonk);
+    setup_crs_keys(&config);
 
     tracing::info!("Starting proof compressor");
 
@@ -139,20 +139,10 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn setup_crs_keys(config: &FriProofCompressorConfig, is_fflonk: bool) {
-    if is_fflonk {
-        download_initial_setup_keys_if_not_present(
-            &config.universal_fflonk_setup_path,
-            &config.universal_fflonk_setup_download_url,
-        );
-
-        env::set_var("COMPACT_CRS_FILE", &config.universal_fflonk_setup_path);
-        return;
-    }
-
+fn setup_crs_keys(config: &FriProofCompressorConfig) {
     download_initial_setup_keys_if_not_present(
-        &config.universal_setup_path,
-        &config.universal_setup_download_url,
+        &config.universal_fflonk_setup_path,
+        &config.universal_fflonk_setup_download_url,
     );
-    env::set_var("CRS_FILE", &config.universal_setup_path);
+    env::set_var("COMPACT_CRS_FILE", &config.universal_fflonk_setup_path);
 }
