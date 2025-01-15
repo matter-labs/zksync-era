@@ -30,11 +30,11 @@ use crate::{
         bootloader::{utils::apply_pubdata_to_memory, BootloaderState},
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
-        tracers::{traits::VmTracer, utils::VmHook},
+        tracers::traits::VmTracer,
         types::internals::ZkSyncVmState,
         utils::logs::collect_events_and_l1_system_logs_after_timestamp,
         vm::MultiVmSubversion,
-        StorageOracle,
+        StorageOracle, VmHook,
     },
 };
 
@@ -207,7 +207,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for PubdataTracer<S> {
         _storage: StoragePtr<S>,
     ) {
         let hook = VmHook::from_opcode_memory(&state, &data, self.subversion);
-        if let VmHook::PubdataRequested = hook {
+        if matches!(hook, Some(VmHook::PubdataRequested)) {
             self.pubdata_info_requested = true;
         }
     }

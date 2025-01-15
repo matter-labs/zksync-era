@@ -21,11 +21,11 @@ use crate::{
         old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
         tracers::{
             traits::VmTracer,
-            utils::{get_vm_hook_params, read_pointer, VmHook},
+            utils::{get_vm_hook_params, read_pointer},
         },
         types::internals::ZkSyncVmState,
         vm::MultiVmSubversion,
-        HistoryMode, SimpleMemory,
+        HistoryMode, SimpleMemory, VmHook,
     },
 };
 
@@ -156,7 +156,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer<S> {
         _storage: StoragePtr<S>,
     ) {
         let hook = VmHook::from_opcode_memory(&state, &data, self.subversion);
-        if let VmHook::ExecutionResult = hook {
+        if matches!(hook, Some(VmHook::PostResult)) {
             let vm_hook_params = get_vm_hook_params(memory, self.subversion);
             let success = vm_hook_params[0];
             let returndata = self

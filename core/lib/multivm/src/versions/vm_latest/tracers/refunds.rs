@@ -18,13 +18,11 @@ use crate::{
         bootloader::BootloaderState,
         constants::{get_operator_refunds_offset, BOOTLOADER_HEAP_PAGE, TX_GAS_LIMIT_OFFSET},
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
-        tracers::{
-            traits::VmTracer,
-            utils::{get_vm_hook_params, VmHook},
-        },
+        tracers::{traits::VmTracer, utils::get_vm_hook_params},
         types::internals::ZkSyncVmState,
         utils::fee::get_batch_base_fee,
         vm::MultiVmSubversion,
+        VmHook,
     },
 };
 
@@ -171,16 +169,16 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for RefundsTracer<S> {
         self.timestamp_before_cycle = Timestamp(state.vm_local_state.timestamp);
         let hook = VmHook::from_opcode_memory(&state, &data, self.subversion);
         match hook {
-            VmHook::NotifyAboutRefund => {
-                self.refund_gas = get_vm_hook_params(memory, self.subversion)[0].as_u64()
+            Some(VmHook::NotifyAboutRefund) => {
+                self.refund_gas = get_vm_hook_params(memory, self.subversion)[0].as_u64();
             }
-            VmHook::AskOperatorForRefund => {
+            Some(VmHook::AskOperatorForRefund) => {
                 self.pending_refund_request = Some(RefundRequest {
                     refund: get_vm_hook_params(memory, self.subversion)[0].as_u64(),
                     gas_spent_on_pubdata: get_vm_hook_params(memory, self.subversion)[1].as_u64(),
                     used_gas_per_pubdata_byte: get_vm_hook_params(memory, self.subversion)[2]
                         .as_u32(),
-                })
+                });
             }
             _ => {}
         }
