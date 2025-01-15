@@ -278,7 +278,9 @@ fn main() -> anyhow::Result<()> {
             let keystore = Keystore::locate();
             precompute_proof_chain_with_plonk(&keystore);
             precompute_proof_chain_with_fflonk(&keystore);
-            Ok(())
+
+            let commitments = keystore.generate_commitments()?;
+            keystore.save_commitments(&commitments)
         }
         Command::GenerateCompactCrs => {
             let keystore = Keystore::locate();

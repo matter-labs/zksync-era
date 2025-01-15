@@ -195,6 +195,14 @@ impl Keystore {
         &self,
         circuit_type: u8,
     ) -> anyhow::Result<ZkSyncRecursionLayerVerificationKey> {
+        if circuit_type == ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8 {
+            let vk = Self::load_json_from_file(self.get_file_path(
+                ProverServiceDataKey::new_recursive(circuit_type),
+                ProverServiceDataType::VerificationKey,
+            ))?;
+            return Ok(ZkSyncRecursionLayerVerificationKey::SchedulerCircuit(vk));
+        }
+
         Self::load_json_from_file(self.get_file_path(
             ProverServiceDataKey::new_recursive(circuit_type),
             ProverServiceDataType::VerificationKey,
@@ -241,6 +249,12 @@ impl Keystore {
             ProverServiceDataKey::new_recursive(vk.numeric_circuit_type()),
             ProverServiceDataType::VerificationKey,
         );
+
+        if let ZkSyncRecursionLayerVerificationKey::SchedulerCircuit(key) = vk {
+            tracing::info!("saving recursive layer verification key to: {:?}", filepath);
+            return Self::save_json_pretty(filepath, &key);
+        }
+
         tracing::info!("saving recursive layer verification key to: {:?}", filepath);
         Self::save_json_pretty(filepath, &vk)
     }

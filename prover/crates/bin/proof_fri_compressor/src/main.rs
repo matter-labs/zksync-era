@@ -141,8 +141,8 @@ async fn main() -> anyhow::Result<()> {
 
 fn setup_crs_keys(config: &FriProofCompressorConfig) {
     download_initial_setup_keys_if_not_present(
-        &config.universal_fflonk_setup_path,
-        &config.universal_fflonk_setup_download_url,
+        &config.universal_setup_path,
+        &config.universal_setup_download_url,
     );
-    env::set_var("COMPACT_CRS_FILE", &config.universal_fflonk_setup_path);
+    env::set_var("COMPACT_CRS_FILE", &config.universal_setup_path);
 }
