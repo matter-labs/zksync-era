@@ -9,7 +9,6 @@ pub use self::{
 mod bytecode;
 mod events;
 mod glue;
-mod initial_bootloader_memory;
 mod refund;
 #[cfg(test)]
 mod tests;

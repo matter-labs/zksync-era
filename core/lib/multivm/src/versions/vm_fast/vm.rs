@@ -26,7 +26,6 @@ use zksync_vm2::{
 
 use super::{
     bytecode::compress_bytecodes,
-    initial_bootloader_memory::bootloader_initial_memory,
     tracers::{DynamicBytecodes, ValidationTracer, WithBuiltinTracers},
 };
 use crate::{
@@ -135,7 +134,7 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
             &system_env.base_system_smart_contracts.bootloader,
             true,
         );
-        let bootloader_memory = bootloader_initial_memory(&batch_env);
+        let bootloader_memory = BootloaderState::initial_memory(&batch_env);
 
         let mut inner = VirtualMachine::new(
             BOOTLOADER_ADDRESS,
