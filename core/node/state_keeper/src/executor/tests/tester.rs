@@ -1,7 +1,7 @@
 //! Testing harness for the batch executor.
 //! Contains helper functionality to initialize test context and perform tests without too much boilerplate.
 
-use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use assert_matches::assert_matches;
 use tempfile::TempDir;
@@ -42,17 +42,12 @@ use zksync_vm_executor::batch::{MainBatchExecutorFactory, TraceCalls};
 
 use super::{read_storage_factory::RocksdbStorageFactory, StorageType};
 use crate::{
-    testonly::{self, BASE_SYSTEM_CONTRACTS},
+    testonly::{self, apply_genesis_logs, BASE_SYSTEM_CONTRACTS},
     tests::{default_l1_batch_env, default_system_env},
     AsyncRocksdbCache,
 };
 
 pub(super) const TRANSFER_VALUE: u64 = 123_456_789;
-
-// FIXME: what
-fn get_da_contract_address() -> Address {
-    Address::from_str("7726827caac94a7f9e1b160f7ea819f172f7b6f9").unwrap()
-}
 
 /// Representation of configuration parameters used by the state keeper.
 /// Has sensible defaults for most tests, each of which can be overridden.
@@ -297,7 +292,7 @@ impl Tester {
             .await
             .unwrap();
 
-            // Also setting up the da for tests
+            // Also setting up the DA for tests
             Self::setup_da(&mut storage).await;
         }
     }
@@ -337,37 +332,28 @@ impl Tester {
         }
     }
 
-    pub async fn setup_contract<'a>(
-        con: &mut Connection<'a, Core>,
-        address: Address,
-        code: Vec<u8>,
-    ) {
+    async fn setup_contract(conn: &mut Connection<'_, Core>, address: Address, code: Vec<u8>) {
         let hash: H256 = BytecodeHash::for_bytecode(&code).value();
         let known_code_key = get_known_code_key(&hash);
         let code_key = get_code_key(&address);
 
-        let logs = vec![
-            StorageLog::new_write_log(known_code_key, H256::from_low_u64_be(1u64)),
+        let logs = [
+            StorageLog::new_write_log(known_code_key, H256::from_low_u64_be(1)),
             StorageLog::new_write_log(code_key, hash),
         ];
+        apply_genesis_logs(conn, &logs).await;
 
-        for log in logs {
-            apply_genesis_log(con, log).await;
-        }
-
-        let mut factory_deps = HashMap::new();
-        factory_deps.insert(hash, code);
-
-        con.factory_deps_dal()
+        let factory_deps = HashMap::from([(hash, code)]);
+        conn.factory_deps_dal()
             .insert_factory_deps(L2BlockNumber(0), &factory_deps)
             .await
             .unwrap();
     }
 
-    async fn setup_da<'a>(con: &mut Connection<'a, Core>) {
+    async fn setup_da(conn: &mut Connection<'_, Core>) {
         Self::setup_contract(
-            con,
-            get_da_contract_address(),
+            conn,
+            Address::repeat_byte(0x23),
             l2_rollup_da_validator_bytecode(),
         )
         .await;
@@ -768,27 +754,5 @@ impl StorageSnapshot {
             .await
             .unwrap();
         snapshot
-    }
-}
-
-async fn apply_genesis_log<'a>(storage: &mut Connection<'a, Core>, log: StorageLog) {
-    storage
-        .storage_logs_dal()
-        .append_storage_logs(L2BlockNumber(0), &[log])
-        .await
-        .unwrap();
-
-    if storage
-        .storage_logs_dedup_dal()
-        .filter_written_slots(&[log.key.hashed_key()])
-        .await
-        .unwrap()
-        .is_empty()
-    {
-        storage
-            .storage_logs_dedup_dal()
-            .insert_initial_writes(L1BatchNumber(0), &[log.key.hashed_key()])
-            .await
-            .unwrap();
     }
 }
