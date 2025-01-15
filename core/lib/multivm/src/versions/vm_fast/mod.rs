@@ -9,7 +9,6 @@ pub use self::{
 mod bytecode;
 mod events;
 mod glue;
-mod refund;
 #[cfg(test)]
 mod tests;
 mod tracers;

@@ -40,7 +40,7 @@ use crate::{
         VmInterfaceHistoryEnabled, VmRevertReason, VmTrackingContracts,
     },
     utils::events::extract_l2tol1logs_from_l1_messenger,
-    vm_fast::{events::merge_events, refund::compute_refund, version::FastVmVersion},
+    vm_fast::{events::merge_events, version::FastVmVersion},
     vm_latest::{
         bootloader::{
             utils::{apply_l2_block, apply_pubdata_to_memory},
@@ -51,6 +51,7 @@ use crate::{
             get_vm_hook_params_start_position, get_vm_hook_position, TX_GAS_LIMIT_OFFSET,
             VM_HOOK_PARAMS_COUNT,
         },
+        utils::refund::compute_refund,
         TransactionData, VmHook,
     },
     VmVersion,
