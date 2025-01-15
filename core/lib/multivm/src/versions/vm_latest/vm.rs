@@ -24,7 +24,7 @@ use crate::{
         bootloader::BootloaderState,
         old_vm::{events::merge_events, history_recorder::HistoryEnabled},
         tracers::{dispatcher::TracerDispatcher, PubdataTracer},
-        types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState},
+        types::{new_vm_state, VmSnapshot, ZkSyncVmState},
     },
     HistoryMode,
 };

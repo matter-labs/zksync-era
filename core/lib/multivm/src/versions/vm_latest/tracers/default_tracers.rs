@@ -31,7 +31,7 @@ use crate::{
             utils::{computational_gas_price, print_debug_log, print_debug_returndata},
             CircuitsTracer, RefundsTracer, ResultTracer,
         },
-        types::internals::ZkSyncVmState,
+        types::ZkSyncVmState,
         vm::MultiVmSubversion,
         VmHook, VmTracer,
     },

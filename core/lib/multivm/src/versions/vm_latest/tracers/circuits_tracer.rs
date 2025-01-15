@@ -18,7 +18,7 @@ use crate::{
         bootloader::BootloaderState,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::traits::VmTracer,
-        types::internals::ZkSyncVmState,
+        types::ZkSyncVmState,
     },
 };
 

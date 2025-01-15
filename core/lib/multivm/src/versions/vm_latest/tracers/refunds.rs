@@ -19,7 +19,7 @@ use crate::{
         constants::{get_operator_refunds_offset, BOOTLOADER_HEAP_PAGE, TX_GAS_LIMIT_OFFSET},
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::{traits::VmTracer, utils::get_vm_hook_params},
-        types::internals::ZkSyncVmState,
+        types::ZkSyncVmState,
         utils::fee::get_batch_base_fee,
         vm::MultiVmSubversion,
         VmHook,

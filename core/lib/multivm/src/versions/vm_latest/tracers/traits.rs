@@ -7,7 +7,7 @@ use crate::{
     vm_latest::{
         bootloader::BootloaderState,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
-        types::internals::ZkSyncVmState,
+        types::ZkSyncVmState,
     },
 };
 

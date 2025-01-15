@@ -18,7 +18,7 @@ use crate::{
         VmTesterBuilder,
     },
     vm_latest::{
-        bootloader::BootloaderState, types::internals::ZkSyncVmState, HistoryEnabled, HistoryMode,
+        bootloader::BootloaderState, types::ZkSyncVmState, HistoryEnabled, HistoryMode,
         SimpleMemory, ToTracerPointer, Vm, VmTracer,
     },
 };

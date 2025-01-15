@@ -23,7 +23,7 @@ use crate::{
             traits::VmTracer,
             utils::{get_vm_hook_params, read_pointer},
         },
-        types::internals::ZkSyncVmState,
+        types::ZkSyncVmState,
         vm::MultiVmSubversion,
         HistoryMode, SimpleMemory, VmHook,
     },

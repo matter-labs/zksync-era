@@ -31,7 +31,7 @@ use crate::{
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::traits::VmTracer,
-        types::internals::ZkSyncVmState,
+        types::ZkSyncVmState,
         utils::logs::collect_events_and_l1_system_logs_after_timestamp,
         vm::MultiVmSubversion,
         StorageOracle, VmHook,

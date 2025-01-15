@@ -17,7 +17,7 @@ use crate::{
             utils::{apply_l2_block, apply_tx_to_memory},
         },
         constants::get_tx_description_offset,
-        types::internals::TransactionData,
+        types::TransactionData,
         utils::l2_blocks::assert_next_block,
         MultiVmSubversion,
     },

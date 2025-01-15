@@ -11,12 +11,12 @@ pub use self::{
         dispatcher::TracerDispatcher,
         traits::{ToTracerPointer, TracerPointer, VmTracer},
     },
-    types::internals::ZkSyncVmState,
+    types::ZkSyncVmState,
     utils::transaction_encoding::TransactionVmExt,
     vm::Vm,
 };
 pub(crate) use self::{
-    types::internals::{TransactionData, VmHook},
+    types::{TransactionData, VmHook},
     vm::MultiVmSubversion,
 };
 
