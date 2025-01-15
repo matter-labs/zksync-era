@@ -2,6 +2,7 @@
 //! We generate separate set of keys for CPU and for GPU proving.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use anyhow::Context as _;
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
@@ -34,6 +35,9 @@ use {
 };
 
 use crate::{keystore::Keystore, GoldilocksProverSetupData};
+
+// Constants for circuit configuration
+const DEFAULT_COMPRESSION_WRAPPER_TYPE: u8 = 5;
 
 /// Internal helper function, that calls the test harness to generate the setup data.
 /// It also does a final sanity check to make sure that verification keys didn't change.
@@ -329,12 +333,11 @@ pub fn get_fflonk_snark_verifier_setup_and_vk(
     FflonkSnarkVerifierCircuitVK,
 ) {
     let vk = data_source
-        .get_compression_for_wrapper_vk(5)
+        .get_compression_for_wrapper_vk(DEFAULT_COMPRESSION_WRAPPER_TYPE)
         .unwrap()
         .into_inner();
     let fixed_parameters = vk.fixed_parameters.clone();
-    // todo: do not hardcode this value
-    let wrapper_function = ZkSyncCompressionWrapper::from_numeric_circuit_type(5);
+    let wrapper_function = ZkSyncCompressionWrapper::from_numeric_circuit_type(DEFAULT_COMPRESSION_WRAPPER_TYPE);
 
     let circuit = FflonkSnarkVerifierCircuit {
         witness: None,
