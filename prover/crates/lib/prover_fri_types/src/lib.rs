@@ -312,8 +312,7 @@ impl ProverServiceDataKey {
     }
 
     pub fn all() -> Vec<ProverServiceDataKey> {
-        let mut keys = Self::all_boojum();
-        keys
+        Self::all_boojum()
     }
 
     pub fn is_base_layer(&self) -> bool {
