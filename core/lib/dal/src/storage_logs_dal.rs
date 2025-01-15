@@ -506,15 +506,15 @@ impl StorageLogsDal<'_, '_> {
         for chunk in hashed_keys.chunks(chunk_size) {
             let rows = sqlx::query!(
                 r#"
-            SELECT
-                hashed_key,
-                l1_batch_number,
-                index
-            FROM
-                initial_writes
-            WHERE
-                hashed_key = ANY($1::bytea [])
-            "#,
+                SELECT
+                    hashed_key,
+                    l1_batch_number,
+                    index
+                FROM
+                    initial_writes
+                WHERE
+                    hashed_key = ANY($1::bytea [])
+                "#,
                 &chunk as &[&[u8]],
             )
             .instrument("get_l1_batches_and_indices_for_initial_writes")
