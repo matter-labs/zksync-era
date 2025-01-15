@@ -68,18 +68,24 @@ url = "2.5.2"
 vise = "0.2.0"
 
 # Proving dependencies
-circuit_definitions = { path = "../../../zksync-protocol/crates/circuit_definitions" }
-circuit_sequencer_api = { path = "../../../zksync-protocol/crates/circuit_sequencer_api" }
-zkevm_test_harness = { path = "../../../zksync-protocol/crates/zkevm_test_harness" }
-proof-compression-gpu = { package = "proof-compression", path = "../../../zksync-crypto-gpu/crates/proof-compression" }
-fflonk-gpu = { package = "fflonk-cuda", path = "../../../zksync-crypto-gpu/crates/fflonk"}
-fflonk = { package = "fflonk", path = "../../../zksync-crypto/crates/fflonk"}
-franklin-crypto = { package = "franklin-crypto", path = "../../../zksync-crypto/crates/franklin-crypto"}
+circuit_definitions = "=0.150.20"
+circuit_sequencer_api = "=0.150.20"
+zkevm_test_harness = "=0.150.20"
+fflonk = "=0.30.13"
+franklin-crypto = "=0.30.13"
 
 # GPU proving dependencies
-wrapper_prover = { package = "zksync-wrapper-prover", path = "../../../zksync-crypto-gpu/crates/wrapper-prover"}
-shivini = { package = "shivini", path = "../../../zksync-crypto-gpu/crates/shivini" }
-boojum-cuda = { package = "boojum-cuda", path = "../../../zksync-crypto-gpu/crates/boojum-cuda" }
+# proof-compression-gpu = { package = "proof-compression", version = "=0.152.10"}
+# fflonk-gpu = { package = "fflonk-cuda", version = "=0.152.10"}
+# wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.152.10"}
+# shivini = "=0.152.10"
+# boojum-cuda = "=0.152.10"
+
+proof-compression-gpu = { package = "proof-compression", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "si/better-proof-compression"}
+fflonk-gpu = { package = "fflonk-cuda", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "si/better-proof-compression"}
+wrapper_prover = { package = "zksync-wrapper-prover", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "si/better-proof-compression"}
+shivini = { version = "=0.152.10", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "si/better-proof-compression" }
+boojum-cuda = { version = "=0.152.10", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "si/better-proof-compression" }
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }
