@@ -1,5 +1,5 @@
 {
-  "us": "gs://matterlabs-setup-data-us/dc3bba7-gpu/",
-  "europe": "gs://matterlabs-setup-data-europe/dc3bba7-gpu/",
-  "asia": "gs://matterlabs-setup-data-asia/dc3bba7-gpu/"
+  "us": "gs://matterlabs-setup-data-us/ee4df49-gpu/",
+  "europe": "gs://matterlabs-setup-data-europe/ee4df49-gpu/",
+  "asia": "gs://matterlabs-setup-data-asia/ee4df49-gpu/"
 }
