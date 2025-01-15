@@ -3,7 +3,10 @@ use std::path::{Path, PathBuf};
 use xshell::Shell;
 use zkstack_cli_common::yaml::merge_yaml;
 
-use crate::{raw::PatchedConfig, ChainConfig};
+use crate::{
+    raw::{PatchedConfig, RawConfig},
+    ChainConfig,
+};
 
 pub struct RocksDbs {
     pub state_keeper: PathBuf,
@@ -91,4 +94,15 @@ pub fn override_config(shell: &Shell, path: PathBuf, chain: &ChainConfig) -> any
     merge_yaml(&mut chain_config, override_config, true)?;
     shell.write_file(chain_config_path, serde_yaml::to_string(&chain_config)?)?;
     Ok(())
+}
+
+pub fn get_da_client_type(general: &RawConfig) -> Option<&str> {
+    general.get_raw("da_client").and_then(|val| {
+        let val = val.as_mapping()?;
+        if val.len() == 1 {
+            val.keys().next()?.as_str()
+        } else {
+            None
+        }
+    })
 }

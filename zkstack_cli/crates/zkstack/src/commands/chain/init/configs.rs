@@ -1,4 +1,5 @@
 use anyhow::Context;
+use secrecy::ExposeSecret;
 use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{
@@ -10,8 +11,12 @@ use zksync_types::Address;
 use crate::{
     commands::{
         chain::{
-            args::init::configs::{InitConfigsArgs, InitConfigsArgsFinal},
+            args::init::{
+                configs::{InitConfigsArgs, InitConfigsArgsFinal},
+                da_configs::ValidiumType,
+            },
             genesis,
+            utils::encode_ntv_asset_id,
         },
         portal::update_portal_config,
     },
@@ -66,6 +71,19 @@ pub async fn init_configs(
 
     let consensus_keys = generate_consensus_keys();
     set_genesis_specs(&mut general_config, chain_config, &consensus_keys)?;
+
+    if let Some(validium_config) = &init_args.validium_config {
+        match validium_config {
+            ValidiumType::NoDA => {
+                general_config.remove("da_client");
+            }
+            ValidiumType::Avail((avail_config, _)) => {
+                // FIXME: this doesn't serialize config in the Protobuf-compatible way (of course it doesn't)
+                general_config.insert_yaml("da_client.avail", avail_config)?;
+            }
+        }
+    }
+
     general_config.save().await?;
 
     // Initialize genesis config
@@ -79,12 +97,29 @@ pub async fn init_configs(
     contracts_config.l1.governance_addr = Address::zero();
     contracts_config.l1.chain_admin_addr = Address::zero();
     contracts_config.l1.base_token_addr = chain_config.base_token.address;
+    contracts_config.l1.base_token_asset_id = Some(encode_ntv_asset_id(
+        chain_config.l1_network.chain_id().into(),
+        contracts_config.l1.base_token_addr,
+    ));
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     // Initialize secrets config
     let mut secrets = chain_config.get_secrets_config().await?.patched();
     set_l1_rpc_url(&mut secrets, init_args.l1_rpc_url.clone())?;
     set_consensus_secrets(&mut secrets, &consensus_keys)?;
+    if let Some(validium_config) = &init_args.validium_config {
+        match validium_config {
+            ValidiumType::NoDA => { /* Do nothing */ }
+            ValidiumType::Avail((_, avail_secrets)) => {
+                if let Some(seed_phrase) = &avail_secrets.seed_phrase {
+                    secrets.insert_yaml("da.avail.seed_phrase", seed_phrase.0.expose_secret())?;
+                }
+                if let Some(api_key) = &avail_secrets.gas_relay_api_key {
+                    secrets.insert_yaml("da.avail.gas_relay_api_key", api_key.0.expose_secret())?;
+                }
+            }
+        }
+    }
     secrets.save().await?;
 
     genesis::database::update_configs(init_args.genesis_args.clone(), shell, chain_config).await?;

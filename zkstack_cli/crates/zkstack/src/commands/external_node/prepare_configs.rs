@@ -53,6 +53,7 @@ async fn prepare_configs(
     let mut ports = EcosystemPortsScanner::scan(shell)?;
     let genesis = config.get_genesis_config().await?;
     let general = config.get_general_config().await?;
+    let gateway = config.get_gateway_chain_config().ok();
     let l2_rpc_port = general.get::<u16>("api.web3_json_rpc.http_port")?;
 
     let mut en_config = PatchedConfig::empty(shell, en_configs_path.join(EN_CONFIG_FILE));
@@ -66,6 +67,9 @@ async fn prepare_configs(
         genesis.get::<String>("l1_batch_commit_data_generator_mode")?,
     )?;
     en_config.insert("main_node_url", format!("http://127.0.0.1:{l2_rpc_port}"))?;
+    if let Some(gateway) = &gateway {
+        en_config.insert_yaml("gateway_chain_id", gateway.gateway_chain_id)?;
+    }
     en_config.save().await?;
 
     // Copy and modify the general config

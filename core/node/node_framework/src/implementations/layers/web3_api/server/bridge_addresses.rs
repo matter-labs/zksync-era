@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use zksync_eth_client::CallFunctionArgs;
+use zksync_eth_client::{CallFunctionArgs, ContractCallError};
 use zksync_node_api_server::web3::state::BridgeAddressesHandle;
-use zksync_types::{ethabi::Contract, Address};
+use zksync_types::{ethabi::Contract, Address, L2_ASSET_ROUTER_ADDRESS};
 use zksync_web3_decl::{
     client::{DynClient, L1, L2},
     namespaces::ZksNamespaceClient,
@@ -37,20 +37,52 @@ pub struct L1UpdaterInner {
     pub bridgehub_addr: Address,
     pub update_interval: Option<Duration>,
     pub bridgehub_abi: Contract,
+    pub l1_asset_router_abi: Contract,
+}
+
+struct L1SharedBridgeInfo {
+    l1_shared_bridge_addr: Address,
+    should_use_l2_asset_router: bool,
 }
 
 impl L1UpdaterInner {
-    async fn loop_iteration(&self) {
-        let call_result = CallFunctionArgs::new("sharedBridge", ())
+    async fn get_shared_bridge_info(&self) -> Result<L1SharedBridgeInfo, ContractCallError> {
+        let l1_shared_bridge_addr: Address = CallFunctionArgs::new("sharedBridge", ())
             .for_contract(self.bridgehub_addr, &self.bridgehub_abi)
             .call(&self.l1_eth_client)
-            .await;
+            .await?;
 
-        match call_result {
-            Ok(shared_bridge_address) => {
+        let l1_nullifier_addr: Result<Address, ContractCallError> =
+            CallFunctionArgs::new("L1_NULLIFIER", ())
+                .for_contract(l1_shared_bridge_addr, &self.l1_asset_router_abi)
+                .call(&self.l1_eth_client)
+                .await;
+
+        // In case we can successfully retrieve the l1 nullifier, this is definitely the new l1 asset router.
+        // The contrary is not necessarily true: the query can fail either due to network issues or
+        // due to the contract being outdated. To be conservative, we just always treat such cases as `false`.
+        let should_use_l2_asset_router = l1_nullifier_addr.is_ok();
+
+        Ok(L1SharedBridgeInfo {
+            l1_shared_bridge_addr,
+            should_use_l2_asset_router,
+        })
+    }
+
+    async fn loop_iteration(&self) {
+        match self.get_shared_bridge_info().await {
+            Ok(info) => {
                 self.bridge_address_updater
-                    .update_l1_shared_bridge(shared_bridge_address)
+                    .update_l1_shared_bridge(info.l1_shared_bridge_addr)
                     .await;
+                // We only update one way:
+                // - Once the L2 asset router should be used, there is never a need to go back
+                // - To not undo the previous change in case of a network error
+                if info.should_use_l2_asset_router {
+                    self.bridge_address_updater
+                        .update_l2_shared_bridge(L2_ASSET_ROUTER_ADDRESS)
+                        .await;
+                }
             }
             Err(err) => {
                 tracing::error!("Failed to query shared bridge address, error: {err:?}");

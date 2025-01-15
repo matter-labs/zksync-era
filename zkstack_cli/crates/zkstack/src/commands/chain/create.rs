@@ -25,7 +25,7 @@ pub async fn run(args: ChainCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     create(args, &mut ecosystem_config, shell).await
 }
 
-async fn create(
+pub async fn create(
     args: ChainCreateArgs,
     ecosystem_config: &mut EcosystemConfig,
     shell: &Shell,

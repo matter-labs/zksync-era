@@ -42,11 +42,6 @@ fn migrate_database(shell: &Shell, link_to_code: impl AsRef<Path>, dal: Dal) -> 
         MSG_DATABASE_MIGRATE_GERUND,
         &dal.path,
     ));
-    Cmd::new(cmd!(
-        shell,
-        "cargo sqlx database create --database-url {url}"
-    ))
-    .run()?;
     Cmd::new(cmd!(shell, "cargo sqlx migrate run --database-url {url}")).run()?;
     spinner.finish();
 
