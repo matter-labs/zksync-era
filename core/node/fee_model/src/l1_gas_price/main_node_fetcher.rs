@@ -99,13 +99,13 @@ impl MainNodeFeeParamsFetcher {
 
 impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
     fn get_fee_model_params(&self) -> FeeParams {
-        let fee_params = self.main_node_fee_params.read().unwrap().clone();
+        let fee_params = *self.main_node_fee_params.read().unwrap();
         let batch_fee_input = *self.main_node_batch_fee_input.read().unwrap();
         if batch_fee_input.is_none() {
             return fee_params;
         }
         let batch_fee_input = batch_fee_input.unwrap();
-        return match fee_params {
+        match fee_params {
             FeeParams::V1(..) => FeeParams::V1(FeeParamsV1 {
                 config: FeeModelConfigV1 {
                     minimal_l2_gas_price: batch_fee_input.fair_l2_gas_price(),
@@ -113,7 +113,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
                 l1_gas_price: batch_fee_input.l1_gas_price(),
             }),
             FeeParams::V2(params) => {
-                let mut config = params.config().clone();
+                let mut config = params.config();
                 config.minimal_l2_gas_price = batch_fee_input.fair_l2_gas_price();
                 return FeeParams::V2(FeeParamsV2::new(
                     config,
@@ -122,6 +122,6 @@ impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
                     params.conversion_ratio(),
                 ));
             }
-        };
+        }
     }
 }
