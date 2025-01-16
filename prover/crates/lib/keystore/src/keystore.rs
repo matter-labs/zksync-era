@@ -213,20 +213,43 @@ impl Keystore {
         &self,
         circuit_type: u8,
     ) -> anyhow::Result<ZkSyncCompressionLayerVerificationKey> {
-        Self::load_json_from_file(self.get_file_path(
+        let key = Self::load_json_from_file(self.get_file_path(
             ProverServiceDataKey::new_compression(circuit_type),
             ProverServiceDataType::VerificationKey,
-        ))
+        ))?;
+
+        match circuit_type {
+            1 => Ok(ZkSyncCompressionLayerVerificationKey::CompressionMode1Circuit(key)),
+            2 => Ok(ZkSyncCompressionLayerVerificationKey::CompressionMode2Circuit(key)),
+            3 => Ok(ZkSyncCompressionLayerVerificationKey::CompressionMode3Circuit(key)),
+            4 => Ok(ZkSyncCompressionLayerVerificationKey::CompressionMode4Circuit(key)),
+            _ => Err(anyhow::anyhow!(
+                "Invalid compression circuit type: {}",
+                circuit_type
+            )),
+        }
     }
 
     pub fn load_compression_for_wrapper_vk(
         &self,
         circuit_type: u8,
     ) -> anyhow::Result<ZkSyncCompressionForWrapperVerificationKey> {
-        Self::load_json_from_file(self.get_file_path(
+        let key = Self::load_json_from_file(self.get_file_path(
             ProverServiceDataKey::new_compression_wrapper(circuit_type),
             ProverServiceDataType::VerificationKey,
-        ))
+        ))?;
+
+        match circuit_type {
+            1 => Ok(ZkSyncCompressionForWrapperVerificationKey::CompressionMode1Circuit(key)),
+            2 => Ok(ZkSyncCompressionForWrapperVerificationKey::CompressionMode2Circuit(key)),
+            3 => Ok(ZkSyncCompressionForWrapperVerificationKey::CompressionMode3Circuit(key)),
+            4 => Ok(ZkSyncCompressionForWrapperVerificationKey::CompressionMode4Circuit(key)),
+            5 => Ok(ZkSyncCompressionForWrapperVerificationKey::CompressionMode5Circuit(key)),
+            _ => Err(anyhow::anyhow!(
+                "Invalid compression circuit type: {}",
+                circuit_type
+            )),
+        }
     }
 
     pub fn save_base_layer_verification_key(
@@ -271,7 +294,7 @@ impl Keystore {
             "saving compression layer verification key to: {:?}",
             filepath
         );
-        Self::save_json_pretty(filepath, &vk)
+        Self::save_json_pretty(filepath, &vk.into_inner())
     }
 
     pub fn save_compression_for_wrapper_vk(
@@ -286,7 +309,7 @@ impl Keystore {
             "saving compression wrapper verification key to: {:?}",
             filepath
         );
-        Self::save_json_pretty(filepath, &vk)
+        Self::save_json_pretty(filepath, &vk.into_inner())
     }
 
     ///
