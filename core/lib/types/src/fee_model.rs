@@ -260,6 +260,9 @@ impl FeeParamsV2 {
         self.convert_to_base_token(self.l1_pubdata_price)
     }
 
+    pub fn conversion_ratio(&self) -> BaseTokenConversionRatio {
+        self.conversion_ratio
+    }
     /// Converts the fee param to the base token.
     fn convert_to_base_token(&self, price_in_wei: u64) -> u64 {
         let conversion_ratio = BigDecimal::from(self.conversion_ratio.numerator.get())
