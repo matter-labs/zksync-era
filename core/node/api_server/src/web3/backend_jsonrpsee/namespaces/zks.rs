@@ -4,8 +4,8 @@ use zksync_multivm::interface::VmEvent;
 use zksync_types::{
     api::{
         state_override::StateOverride, ApiStorageLog, BlockDetails, BridgeAddresses,
-        DataAvailabilityDetails, L1BatchDetails, L2ToL1LogProof, Log, Proof, ProtocolVersion,
-        TransactionDetailedResult, TransactionDetails,
+        L1BatchDetails, L2ToL1LogProof, Log, Proof, ProtocolVersion, TransactionDetailedResult,
+        TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -225,15 +225,6 @@ impl ZksNamespaceServer for ZksNamespace {
                     })
                     .collect(),
             })
-            .map_err(|err| self.current_method().map_err(err))
-    }
-
-    async fn get_data_availability_details(
-        &self,
-        batch: L1BatchNumber,
-    ) -> RpcResult<DataAvailabilityDetails> {
-        self.get_data_availability_details_impl(batch)
-            .await
             .map_err(|err| self.current_method().map_err(err))
     }
 }

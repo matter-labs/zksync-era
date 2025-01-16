@@ -8,7 +8,7 @@ use zksync_basic_types::{url::SensitiveUrl, L1ChainId, L2ChainId, SLChainId};
 use zksync_config::configs::en_config::ENConfig;
 use zksync_protobuf::{required, ProtoRepr};
 
-use crate::proto::{da_client as da_client_proto, en as proto};
+use crate::proto:: en as proto;
 
 impl ProtoRepr for proto::ExternalNode {
     type Type = ENConfig;
@@ -37,13 +37,7 @@ impl ProtoRepr for proto::ExternalNode {
                 .bridge_addresses_refresh_interval_sec
                 .and_then(NonZeroU64::new),
             gateway_chain_id: self.gateway_chain_id.map(SLChainId),
-            da_client: da_client_proto::DataAvailabilityClient::read(
-                &self
-                    .da_client
-                    .clone()
-                    .unwrap_or(da_client_proto::DataAvailabilityClient { config: None }),
-            )
-            .ok(),
+            da_client: None,
         })
     }
 
@@ -63,10 +57,6 @@ impl ProtoRepr for proto::ExternalNode {
                 .bridge_addresses_refresh_interval_sec
                 .map(|a| a.get()),
             gateway_chain_id: this.gateway_chain_id.map(|c| c.0),
-            da_client: this
-                .da_client
-                .clone()
-                .map(|da_client| da_client_proto::DataAvailabilityClient::build(&da_client)),
         }
     }
 }

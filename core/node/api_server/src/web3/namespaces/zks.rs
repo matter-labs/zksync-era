@@ -10,11 +10,9 @@ use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     address_to_h256,
     api::{
-        state_override::StateOverride, BlockDetails, BridgeAddresses, DataAvailabilityDetails,
-        GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion, StorageProof,
-        TransactionDetails,
+        state_override::StateOverride, BlockDetails, BridgeAddresses, GetLogsFilter,
+        L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion, StorageProof, TransactionDetails,
     },
-    commitment::L1BatchCommitmentMode,
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     h256_to_u256,
@@ -704,34 +702,6 @@ impl ZksNamespace {
             tracing::debug!("Send raw transaction error: {err}");
             API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
             err.into()
-        })
-    }
-
-    pub async fn get_data_availability_details_impl(
-        &self,
-        batch: L1BatchNumber,
-    ) -> Result<DataAvailabilityDetails, Web3Error> {
-        if self.state.api_config.l1_batch_commit_data_generator_mode
-            == L1BatchCommitmentMode::Rollup
-        {
-            return Err(Web3Error::InvalidPubdataCommitmentMode(
-                L1BatchCommitmentMode::Validium, // this method is only available when running the node in Validium mode
-            ));
-        }
-
-        let mut connection = self.state.acquire_connection().await?;
-        let db_details = connection
-            .data_availability_dal()
-            .get_da_details_by_batch_number(batch)
-            .await
-            .map_err(DalError::generalize)?
-            .ok_or(Web3Error::NoBlock)?;
-
-        Ok(DataAvailabilityDetails {
-            pubdata_type: db_details.pubdata_type,
-            blob_id: db_details.blob_id,
-            inclusion_data: db_details.inclusion_data,
-            sent_at: db_details.sent_at,
         })
     }
 }

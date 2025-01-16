@@ -1,8 +1,5 @@
-use std::str::FromStr;
-
 use chrono::NaiveDateTime;
 use zksync_types::{
-    commitment::PubdataType,
     pubdata_da::{DataAvailabilityBlob, DataAvailabilityDetails},
     L1BatchNumber,
 };
@@ -40,7 +37,7 @@ impl From<StorageDADetails> for DataAvailabilityDetails {
         DataAvailabilityDetails {
             blob_id: blob.blob_id,
             // safe to unwrap because the value in the database is assumed to be always correct
-            pubdata_type: PubdataType::from_str(blob.client_type.as_str()).unwrap(),
+            pubdata_type: blob.client_type.as_str().parse().unwrap(),
             inclusion_data: blob.inclusion_data,
             sent_at: blob.sent_at.and_utc(),
         }

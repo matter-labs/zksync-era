@@ -344,19 +344,15 @@ impl ExternalNodeBuilder {
 
     fn add_da_client_layer(mut self) -> anyhow::Result<Self> {
         let (da_client_config, da_client_secrets) = self.config.data_availability.clone();
-        let Some(da_client_config) = da_client_config else {
-            bail!("DA client config is missing");
-        };
+
+        let da_client_config = da_client_config.context("DA client config is missing")?;
 
         if let DAClientConfig::NoDA = da_client_config {
             self.node.add_layer(NoDAClientWiringLayer);
             return Ok(self);
         }
 
-        let Some(da_client_secrets) = da_client_secrets else {
-            bail!("DA client secrets are missing");
-        };
-
+        let da_client_secrets = da_client_secrets.context("DA client secrets are missing")?;
         match (da_client_config, da_client_secrets) {
             (DAClientConfig::Avail(config), DataAvailabilitySecrets::Avail(secret)) => {
                 self.node.add_layer(AvailWiringLayer::new(config, secret));

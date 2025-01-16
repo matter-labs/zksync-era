@@ -14,10 +14,7 @@ use std::{
 use jsonrpsee::{core::ClientError, types::error::ErrorCode};
 use pin_project_lite::pin_project;
 use thiserror::Error;
-use zksync_types::{
-    api::SerializationTransactionError, commitment::L1BatchCommitmentMode, L1BatchNumber,
-    L2BlockNumber,
-};
+use zksync_types::{api::SerializationTransactionError, L1BatchNumber, L2BlockNumber};
 
 /// Server-side representation of the RPC error.
 #[derive(Debug, Error)]
@@ -51,8 +48,6 @@ pub enum Web3Error {
     TreeApiUnavailable,
     #[error("Internal error")]
     InternalError(#[from] anyhow::Error),
-    #[error("Invalid pubdata commitment mode, expected: {0}")]
-    InvalidPubdataCommitmentMode(L1BatchCommitmentMode),
 }
 
 /// Client RPC error with additional details: the method name and arguments of the called method.

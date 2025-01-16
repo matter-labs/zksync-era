@@ -172,7 +172,6 @@ enum Web3ErrorKind {
     InvalidFilterBlockHash,
     TreeApiUnavailable,
     Internal,
-    InvalidPubdataCommitmentMode,
 }
 
 impl Web3ErrorKind {
@@ -189,7 +188,6 @@ impl Web3ErrorKind {
             Web3Error::InvalidFilterBlockHash => Self::InvalidFilterBlockHash,
             Web3Error::TreeApiUnavailable => Self::TreeApiUnavailable,
             Web3Error::InternalError(_) | Web3Error::MethodNotImplemented => Self::Internal,
-            Web3Error::InvalidPubdataCommitmentMode(_) => Self::InvalidPubdataCommitmentMode,
         }
     }
 }

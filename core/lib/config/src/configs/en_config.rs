@@ -22,5 +22,5 @@ pub struct ENConfig {
     pub bridge_addresses_refresh_interval_sec: Option<NonZeroU64>,
 
     pub gateway_chain_id: Option<SLChainId>,
-    pub da_client: Option<DAClientConfig>,
+    pub da_client: Option<DAClientConfig>, // Reused from general config
 }

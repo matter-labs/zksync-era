@@ -1,13 +1,13 @@
+use crate::client::{ForWeb3Network, L2};
 #[cfg_attr(not(feature = "server"), allow(unused_imports))]
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
+use zksync_types::api::DataAvailabilityDetails;
 use zksync_types::{
     api::{ChainAggProof, TeeProof, TransactionExecutionInfo},
     tee_types::TeeType,
     L1BatchNumber, L2ChainId, H256,
 };
-
-use crate::client::{ForWeb3Network, L2};
 
 /// RPCs in this namespace are experimental, and their interface is unstable, and it WILL change.
 #[cfg_attr(
@@ -41,4 +41,10 @@ pub trait UnstableNamespace {
 
     #[method(name = "unconfirmedTxsCount")]
     async fn get_unconfirmed_txs_count(&self) -> RpcResult<usize>;
+
+    #[method(name = "getDataAvailabilityDetails")]
+    async fn get_data_availability_details(
+        &self,
+        batch: L1BatchNumber,
+    ) -> RpcResult<Option<DataAvailabilityDetails>>;
 }

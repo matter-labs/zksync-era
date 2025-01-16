@@ -559,9 +559,11 @@ impl MainNodeBuilder {
             }
         }
 
-        let Some(da_client_config) = self.configs.da_client_config.clone() else {
-            bail!("No config for DA client");
-        };
+        let da_client_config = self
+            .configs
+            .da_client_config
+            .clone()
+            .context("No config for DA client")?;
 
         if let DAClientConfig::NoDA = da_client_config {
             self.node.add_layer(NoDAClientWiringLayer);
