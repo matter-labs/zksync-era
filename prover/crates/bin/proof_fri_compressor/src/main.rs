@@ -1,7 +1,7 @@
 #![allow(incomplete_features)] // We have to use generic const exprs.
 #![feature(generic_const_exprs)]
 
-use std::{env, path::PathBuf, time::Duration};
+use std::time::Duration;
 
 use anyhow::Context as _;
 use clap::Parser;
@@ -96,7 +96,6 @@ async fn main() -> anyhow::Result<()> {
     let proof_compressor = ProofCompressor::new(
         blob_store,
         pool,
-        config.compression_mode,
         config.max_attempts,
         protocol_version,
         keystore,
@@ -144,5 +143,5 @@ fn setup_crs_keys(config: &FriProofCompressorConfig) {
         &config.universal_setup_path,
         &config.universal_setup_download_url,
     );
-    env::set_var("COMPACT_CRS_FILE", &config.universal_setup_path);
+    std::env::set_var("COMPACT_CRS_FILE", &config.universal_setup_path);
 }

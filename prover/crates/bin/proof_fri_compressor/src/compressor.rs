@@ -2,32 +2,14 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use circuit_sequencer_api::proof::FinalProof;
-use fflonk_gpu::{FflonkSnarkVerifierCircuit, FflonkSnarkVerifierCircuitProof};
-use proof_compression_gpu::{
-    run_proof_chain, ProofStorage, SchedulerProof, SimpleProofStorage, SnarkWrapper,
-    SnarkWrapperProof,
-};
+use proof_compression_gpu::{run_proof_chain, SnarkWrapper, SnarkWrapperProof};
 use tokio::task::JoinHandle;
-use wrapper_prover::{GPUWrapperConfigs, WrapperProver};
-use zkevm_test_harness::proof_wrapper_utils::{get_trusted_setup, DEFAULT_WRAPPER_CONFIG};
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
-        circuit_definitions::{
-            aux_layer::{
-                wrapper::ZkSyncCompressionWrapper, ZkSyncCompressionForWrapperCircuit,
-                ZkSyncCompressionForWrapperProof, ZkSyncCompressionLayerCircuit,
-                ZkSyncCompressionLayerProof, ZkSyncCompressionProof,
-                ZkSyncCompressionProofForWrapper, ZkSyncCompressionVerificationKeyForWrapper,
-            },
-            recursion_layer::{
-                ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
-                ZkSyncRecursionVerificationKey,
-            },
-        },
+        circuit_definitions::recursion_layer::ZkSyncRecursionLayerProof,
         zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
     },
     get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper,
@@ -37,16 +19,13 @@ use zksync_prover_interface::outputs::{
 };
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{
-    basic_fri_types::Blob, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
-};
+use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
 
 use crate::metrics::METRICS;
 
 pub struct ProofCompressor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Prover>,
-    compression_mode: u8,
     max_attempts: u32,
     protocol_version: ProtocolSemanticVersion,
     keystore: Keystore,
@@ -57,7 +36,6 @@ impl ProofCompressor {
     pub fn new(
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Prover>,
-        compression_mode: u8,
         max_attempts: u32,
         protocol_version: ProtocolSemanticVersion,
         keystore: Keystore,
@@ -66,7 +44,6 @@ impl ProofCompressor {
         Self {
             blob_store,
             pool,
-            compression_mode,
             max_attempts,
             protocol_version,
             keystore,

@@ -7,21 +7,9 @@ use anyhow::Context as _;
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use boojum_cuda::poseidon2::GLHasher;
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
-use circuit_definitions::circuit_definitions::aux_layer::{
-    wrapper::ZkSyncCompressionWrapper, CompressionProofsTreeHasherForWrapper,
-};
-#[cfg(feature = "gpu")]
-use fflonk_gpu::{
-    FflonkDeviceSetup, FflonkSnarkVerifierCircuit, FflonkSnarkVerifierCircuitDeviceSetup,
-    FflonkSnarkVerifierCircuitVK,
-};
-#[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use shivini::cs::gpu_setup_and_vk_from_base_setup_vk_params_and_hints;
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
-use zkevm_test_harness::{
-    compute_setups::light::generate_light_circuit_setup_data,
-    data_source::in_memory_data_source::InMemoryDataSource,
-};
+use zkevm_test_harness::compute_setups::light::generate_light_circuit_setup_data;
 use zkevm_test_harness::{
     compute_setups::{generate_circuit_setup_data, CircuitSetupData},
     data_source::SetupDataSource,

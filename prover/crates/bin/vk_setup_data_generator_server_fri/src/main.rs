@@ -1,4 +1,5 @@
 #![feature(allocator_api, generic_const_exprs)]
+#![allow(incomplete_features)]
 
 //! Tool to generate different types of keys used by the proving system.
 //!
@@ -9,6 +10,7 @@ use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
 use indicatif::{ProgressBar, ProgressStyle};
+#[cfg(feature = "gpu")]
 use proof_compression_gpu::{
     precompute_proof_chain_with_fflonk, precompute_proof_chain_with_plonk, BlobStorageExt,
 };
@@ -16,34 +18,20 @@ use proof_compression_gpu::{
 use shivini::ProverContext;
 use tracing::level_filters::LevelFilter;
 use zkevm_test_harness::{
-    boojum::worker::Worker,
     compute_setups::{
         basic_vk_count, generate_base_layer_vks, generate_recursive_layer_vks,
         recursive_layer_vk_count,
     },
-    data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource},
-    proof_wrapper_utils::{
-        check_trusted_setup_file_existace, get_wrapper_setup_and_vk_from_scheduler_vk,
-        WrapperConfig,
-    },
+    data_source::in_memory_data_source::InMemoryDataSource,
+    proof_wrapper_utils::check_trusted_setup_file_existace,
 };
-use zksync_prover_fri_types::{
-    circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
-    ProverServiceDataKey,
-};
+use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_prover_keystore::{
     keystore::Keystore,
     setup_data_generator::{CPUSetupDataGenerator, GPUSetupDataGenerator, SetupDataGenerator},
 };
 
-#[cfg(feature = "gpu")]
-use crate::utils::{
-    generate_compression_for_wrapper_vks, generate_compression_vks,
-    get_plonk_wrapper_setup_and_vk_from_scheduler_vk,
-};
-
 mod commitment_generator;
-mod utils;
 mod vk_commitment_helper;
 
 #[cfg(test)]
@@ -275,31 +263,43 @@ fn main() -> anyhow::Result<()> {
             generate_setup_keys(&generator, &options)
         }
         Command::GenerateCompressorPrecomputations => {
-            let keystore = Keystore::locate();
-            precompute_proof_chain_with_plonk(&keystore);
-            precompute_proof_chain_with_fflonk(&keystore);
+            #[cfg(not(feature = "gpu"))]
+            {
+                anyhow::bail!("Must compile with --gpu feature to use this option.")
+            }
+            #[cfg(feature = "gpu")]
+            {
+                let keystore = Keystore::locate();
+                precompute_proof_chain_with_plonk(&keystore);
+                precompute_proof_chain_with_fflonk(&keystore);
 
-            let commitments = keystore.generate_commitments()?;
-            keystore.save_commitments(&commitments)
+                let commitments = keystore.generate_commitments()?;
+                keystore.save_commitments(&commitments)
+            }
         }
         Command::GenerateCompactCrs => {
-            let keystore = Keystore::locate();
-
-            if std::env::var("COMPACT_CRS_FILE").is_err() {
-                return Err(anyhow::anyhow!("COMPACT_CRS_FILE env variable is not set"));
+            #[cfg(not(feature = "gpu"))]
+            {
+                anyhow::bail!("Must compile with --gpu feature to use this option.")
             }
+            #[cfg(feature = "gpu")]
+            {
+                let keystore = Keystore::locate();
 
-            if std::env::var("IGNITION_TRANSCRIPT_PATH").is_err() {
-                return Err(anyhow::anyhow!(
-                    "IGNITION_TRANSCRIPT_PATH env variable is not set"
-                ));
+                if std::env::var("COMPACT_CRS_FILE").is_err() {
+                    return Err(anyhow::anyhow!("COMPACT_CRS_FILE env variable is not set"));
+                }
+
+                if std::env::var("IGNITION_TRANSCRIPT_PATH").is_err() {
+                    return Err(anyhow::anyhow!(
+                        "IGNITION_TRANSCRIPT_PATH env variable is not set"
+                    ));
+                }
+
+                Ok(proof_compression_gpu::create_compact_raw_crs(
+                    keystore.write_compact_raw_crs(),
+                ))
             }
-
-            Ok(proof_compression_gpu::create_compact_raw_crs(
-                keystore.write_compact_raw_crs(),
-            ))
         }
     }
 }
-
-// COMPACT_CRS_FILE=/home/afo/test/zksync-era/prover/keys/setup/setup_fflonk_compact.key IGNITION_TRANSCRIPT_PATH=/home/afo/zksync-crypto-gpu/crates/proof-compression/scripts BELLMAN_CUDA_DIR=/home/afo/test/era-bellman-cuda cargo run --release --features gpu generate-crs

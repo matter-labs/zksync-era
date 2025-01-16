@@ -116,11 +116,9 @@ impl proof_compression_gpu::BlobStorage for Keystore {
     }
 
     fn read_compact_raw_crs(&self) -> Box<dyn Read + Send + Sync> {
-        if let Some(filepath) = std::env::var(COMPACT_CRS_ENV_VAR).ok() {
-            Box::new(File::open(filepath).unwrap())
-        } else {
-            panic!("No compact CRS file path provided");
-        }
+        let filepath =
+            std::env::var(COMPACT_CRS_ENV_VAR).expect("No compact CRS file path provided");
+        Box::new(File::open(filepath).unwrap())
     }
 }
 
@@ -216,10 +214,8 @@ impl proof_compression_gpu::BlobStorageExt for Keystore {
     }
 
     fn write_compact_raw_crs(&self) -> Box<dyn Write> {
-        if let Some(filepath) = std::env::var(COMPACT_CRS_ENV_VAR).ok() {
-            Box::new(File::create(filepath).unwrap())
-        } else {
-            panic!("No compact CRS file path provided");
-        }
+        let filepath =
+            std::env::var(COMPACT_CRS_ENV_VAR).expect("No compact CRS file path provided");
+        Box::new(File::create(filepath).unwrap())
     }
 }
