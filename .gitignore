@@ -26,12 +26,6 @@ zksync_pk.key
 dist
 todo
 
-Cargo.lock
-!/Cargo.lock
-!/infrastructure/zksync-crypto/Cargo.lock
-!/prover/Cargo.lock
-!/zkstack_cli/Cargo.lock
-
 /etc/env/target/*
 /etc/env/.current
 /etc/env/configs/*
