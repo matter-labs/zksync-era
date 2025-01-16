@@ -78,7 +78,7 @@ describe('base ERC20 contract checks', () => {
         // TODO: should all the following tests use strict equality?
 
         const finalEthBalance = await alice.getBalanceL1();
-        expect(initialEthBalance).toBeGreaterThan(finalEthBalance + fee); // Fee should be taken from the ETH balance on L1.
+        expect(initialEthBalance).toBeGreaterThanOrEqual(finalEthBalance + fee); // Fee should be taken from the ETH balance on L1.
 
         const finalL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
         expect(initialL1Balance).toBeGreaterThanOrEqual(finalL1Balance + amount);

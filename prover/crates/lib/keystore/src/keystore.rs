@@ -78,7 +78,7 @@ impl Keystore {
         // - We're running from the core workspace.
         // - We're running the binary from the docker.
         let data_dir_path = match Workspace::locate() {
-            Workspace::None => {
+            Workspace::Root => {
                 // We're running a binary, likely in a docker.
                 // Keys can be in one of a few paths.
                 // We want to be very conservative here, and checking

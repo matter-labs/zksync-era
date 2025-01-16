@@ -43,9 +43,18 @@ jobs:
         run: |
           git fetch
           # Checkout the commit with the DualVerifier contract to test FFLONK interface
-          git checkout b4d5b984
+          git checkout bcdd1cb05e8f4d9ec2dd41e2cc668cdfe30ee535
           git submodule update --init --recursive
           git rev-parse HEAD
+
+      - name: Set new genesis for fflonk 
+        # Note, that while `Verifier` is not explicitly a part of the genensis state,
+        # it affects it indirectly as it is a part of the repo.
+        working-directory: ./etc/env/file_based
+        if: matrix.compressor-mode == 'fflonk'
+        run: |
+          sudo sed -i 's/^genesis_root: .*/genesis_root: 0xc3fa60b6769a0c2f222053d7cbd1d6f63be7777e3c8d029cbd61cc075526ab81/' genesis.yaml
+          sudo sed -i "s/^genesis_batch_commitment: .*/genesis_batch_commitment: 0x17689e705b5749ed0bbd53c845988d17c419697c2cb29eabab8785f1cb775b4a/" genesis.yaml
 
       - name: Init
         run: |

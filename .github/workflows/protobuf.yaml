@@ -47,13 +47,13 @@ jobs:
           git checkout $(git merge-base $BASE $HEAD) --recurse-submodules
         working-directory: ./before
       - name: compile before
-        run: cargo check --all-targets
-        working-directory: ./before/
+        run: cargo check --manifest-path ./core/Cargo.toml --all-targets
+        working-directory: ./before
       - name: build before.binpb
         run: >
           perl -ne 'print "$1\n" if /PROTOBUF_DESCRIPTOR="(.*)"/'
-          `find ./before/target/debug/build/*/output`
-          | xargs cat > ./before.binpb
+          `find ./before/core/target/debug/build/*/output`
+          | xargs cat > ./before/.binpb
 
       # after
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -62,12 +62,12 @@ jobs:
           path: after
           submodules: recursive
       - name: compile after
-        run: cargo check --all-targets
+        run: cargo check --manifest-path ./core/Cargo.toml --all-targets
         working-directory: ./after
       - name: build after.binpb
         run: >
           perl -ne 'print "$1\n" if /PROTOBUF_DESCRIPTOR="(.*)"/'
-          `find ./after/target/debug/build/*/output`
+          `find ./after/core/target/debug/build/*/output`
           | xargs cat > ./after.binpb
 
       # compare
@@ -75,6 +75,8 @@ jobs:
         with:
           github_token: ${{ github.token }}
       - name: buf breaking
-        run: >
-          buf breaking './after.binpb' --against './before.binpb' --exclude-path 'zksync/config/experimental.proto'
-          --config '{"version":"v1","breaking":{"use":["WIRE_JSON","WIRE"]}}' --error-format 'github-actions'
+        run: |
+          pwd
+          ls -la
+          buf breaking './after.binpb' --against './before.binpb' --exclude-path 'zksync/config/experimental.proto' \
+            --config '{"version":"v1","breaking":{"use":["WIRE_JSON","WIRE"]}}' --error-format 'github-actions'

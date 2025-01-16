@@ -16,7 +16,7 @@ services:
     command: node --dev --datadir /rethdata --http --http.addr 0.0.0.0 --http.port 8545 --http.corsdomain "*" --dev.block-time 300ms --chain /chaindata/reth_config
 
   zk:
-    image: ghcr.io/matter-labs/zk-environment:cuda-12_0-latest
+    image: ghcr.io/matter-labs/zk-environment:cuda-12-latest
     depends_on:
       - reth
       - postgres
@@ -59,7 +59,9 @@ services:
       resources:
         reservations:
           devices:
-            - capabilities: [ gpu ]
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
   postgres:
     image: "postgres:14"

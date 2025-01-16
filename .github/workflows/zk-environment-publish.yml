@@ -33,7 +33,7 @@ jobs:
     outputs:
       zk_environment: ${{ steps.changed-files-yaml.outputs.zk_env_any_changed }}
       zk_environment_cuda_11_8: ${{ steps.changed-files-yaml.outputs.zk_env_cuda_11_8_any_changed }}
-      zk_environment_cuda_12_0: ${{ steps.changed-files-yaml.outputs.zk_env_cuda_12_any_changed }}
+      zk_environment_cuda_12: ${{ steps.changed-files-yaml.outputs.zk_env_cuda_12_any_changed }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -52,7 +52,7 @@ jobs:
               - docker/zk-environment/22.04_amd64_cuda_11_8.Dockerfile
               - .github/workflows/zk-environment-publish.yml
             zk_env_cuda_12:
-              - docker/zk-environment/22.04_amd64_cuda_12_0.Dockerfile
+              - docker/zk-environment/22.04_amd64_cuda_12.Dockerfile
               - .github/workflows/zk-environment-publish.yml
 
   get_short_sha:
@@ -197,7 +197,7 @@ jobs:
     runs-on: [matterlabs-ci-runner-high-performance]
     strategy:
       matrix:
-        cuda_version: ['11_8', '12_0']
+        cuda_version: ['11_8', '12']
     steps:
       - name: Evaluate condition
         id: condition

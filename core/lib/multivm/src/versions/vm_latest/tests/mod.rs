@@ -32,7 +32,7 @@ use crate::{
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{event_sink::InMemoryEventSink, history_recorder::HistoryRecorder},
         tracers::PubdataTracer,
-        types::internals::TransactionData,
+        types::TransactionData,
         utils::logs::StorageLogQuery,
         AppDataFrameManagerWithHistory, HistoryMode, SimpleMemory, TracerDispatcher,
     },
