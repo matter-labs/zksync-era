@@ -113,10 +113,8 @@ impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
                 l1_gas_price: batch_fee_input.l1_gas_price(),
             }),
             FeeParams::V2(params) => {
-                let mut config = params.config();
-                config.minimal_l2_gas_price = batch_fee_input.fair_l2_gas_price();
                 return FeeParams::V2(FeeParamsV2::new(
-                    config,
+                    params.config(),
                     batch_fee_input.l1_gas_price(),
                     batch_fee_input.fair_pubdata_price(),
                     params.conversion_ratio(),
