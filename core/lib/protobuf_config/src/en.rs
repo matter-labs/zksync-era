@@ -8,7 +8,7 @@ use zksync_basic_types::{url::SensitiveUrl, L1ChainId, L2ChainId, SLChainId};
 use zksync_config::configs::en_config::ENConfig;
 use zksync_protobuf::{required, ProtoRepr};
 
-use crate::proto:: en as proto;
+use crate::proto::en as proto;
 
 impl ProtoRepr for proto::ExternalNode {
     type Type = ENConfig;

@@ -1,13 +1,13 @@
-use crate::client::{ForWeb3Network, L2};
 #[cfg_attr(not(feature = "server"), allow(unused_imports))]
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use zksync_types::api::DataAvailabilityDetails;
 use zksync_types::{
-    api::{ChainAggProof, TeeProof, TransactionExecutionInfo},
+    api::{ChainAggProof, DataAvailabilityDetails, TeeProof, TransactionExecutionInfo},
     tee_types::TeeType,
     L1BatchNumber, L2ChainId, H256,
 };
+
+use crate::client::{ForWeb3Network, L2};
 
 /// RPCs in this namespace are experimental, and their interface is unstable, and it WILL change.
 #[cfg_attr(
