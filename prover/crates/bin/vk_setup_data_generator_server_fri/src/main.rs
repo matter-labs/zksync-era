@@ -39,11 +39,6 @@ mod tests;
 /// Jobs describe how many generators can run in parallel (each one is around 30 GB).
 /// If quiet is true, it doesn't display any progress bar.
 fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result<()> {
-    // Start by checking the trusted setup existence.
-    // This is used at the last step, but we want to fail early if user didn't configure everything
-    // correctly.
-    check_trusted_setup_file_existace();
-
     let progress_bar = if quiet {
         None
     } else {
