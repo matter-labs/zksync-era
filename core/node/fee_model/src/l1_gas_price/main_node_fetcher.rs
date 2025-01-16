@@ -5,8 +5,7 @@ use std::{
 
 use tokio::sync::watch::Receiver;
 use zksync_types::fee_model::{
-    BaseTokenConversionRatio, BatchFeeInput, FeeModelConfigV1, FeeModelConfigV2, FeeParams,
-    FeeParamsV1, FeeParamsV2,
+    BatchFeeInput, FeeModelConfigV1, FeeParams, FeeParamsV1, FeeParamsV2,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -100,7 +99,7 @@ impl MainNodeFeeParamsFetcher {
 
 impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
     fn get_fee_model_params(&self) -> FeeParams {
-        let mut fee_params = self.main_node_fee_params.read().unwrap().clone();
+        let fee_params = self.main_node_fee_params.read().unwrap().clone();
         let batch_fee_input = *self.main_node_batch_fee_input.read().unwrap();
         if batch_fee_input.is_none() {
             return fee_params;
