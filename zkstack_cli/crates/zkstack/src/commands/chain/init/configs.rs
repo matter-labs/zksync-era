@@ -65,7 +65,7 @@ pub async fn init_configs(
         .base()
         .get_opt::<u16>("proof_data_handler.http_port")?;
     if let Some(port) = prover_data_handler_port {
-        general_config.insert("rover_gateway.api_url", format!("http://127.0.0.1:{port}"))?;
+        general_config.insert("prover_gateway.api_url", format!("http://127.0.0.1:{port}"))?;
     }
 
     let consensus_keys = generate_consensus_keys();

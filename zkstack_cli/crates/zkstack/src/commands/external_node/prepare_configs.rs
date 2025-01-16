@@ -105,6 +105,9 @@ async fn prepare_configs(
     secrets.insert("consensus.node_key", node_key)?;
     secrets.insert("database.server_url", args.db.full_url().to_string())?;
     secrets.insert("l1.l1_rpc_url", args.l1_rpc_url)?;
+    if let Some(url) = args.gateway_rpc_url {
+        secrets.insert("l1.gateway_rpc_url", url)?;
+    }
     secrets.save().await?;
 
     let dirs = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::ExternalNode)?;
