@@ -3,6 +3,7 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import * as hre from 'hardhat';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
+import { TransactionReceipt } from 'ethers';
 
 export const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
 
@@ -27,6 +28,10 @@ export function getContractSource(relativePath: string): string {
     const contractPath = `${__dirname}/../contracts/${relativePath}`;
     const source = fs.readFileSync(contractPath, 'utf8');
     return source;
+}
+
+export function readContract(path: string, fileName: string) {
+    return JSON.parse(fs.readFileSync(`${path}/${fileName}.sol/${fileName}.json`, { encoding: 'utf-8' }));
 }
 
 /**
@@ -71,13 +76,51 @@ export async function anyTransaction(wallet: zksync.Wallet): Promise<ethers.Tran
  * @param wallet Wallet to send transaction from. Should have enough balance to cover the fee.
  */
 export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.types.TransactionReceipt> {
-    // Send a dummy transaction and wait until the new L1 batch is created.
-    const oldReceipt = await anyTransaction(wallet);
+    const MAX_ATTEMPTS = 3;
+
+    let txResponse = null;
+    let txReceipt: TransactionReceipt | null = null;
+    let nonce = Number(await wallet.getNonce());
+    for (let i = 0; i < MAX_ATTEMPTS; i++) {
+        // Send a dummy transaction and wait for it to execute. We override `maxFeePerGas` as the default ethers behavior
+        // is to fetch `maxFeePerGas` from the latest sealed block and double it which is not enough for scenarios with
+        // extreme gas price fluctuations.
+        let gasPrice = await wallet.provider.getGasPrice();
+        if (!txResponse || !txResponse.maxFeePerGas || txResponse.maxFeePerGas < gasPrice) {
+            txResponse = await wallet.transfer({
+                to: wallet.address,
+                amount: 0,
+                overrides: { maxFeePerGas: gasPrice, nonce: nonce, maxPriorityFeePerGas: 0, type: 2 }
+            });
+        } else {
+            console.log('Gas price has not gone up, waiting longer');
+        }
+        txReceipt = await wallet.provider.waitForTransaction(txResponse.hash, 1, 3000).catch((e) => {
+            if (ethers.isError(e, 'TIMEOUT')) {
+                console.log(`Transaction timed out, potentially gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`);
+                return null;
+            } else if (ethers.isError(e, 'UNKNOWN_ERROR') && e.message.match(/Not enough gas/)) {
+                console.log(
+                    `Transaction did not have enough gas, likely gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`
+                );
+                return null;
+            } else {
+                return Promise.reject(e);
+            }
+        });
+        if (txReceipt) {
+            // Transaction got executed, so we can safely assume it will be sealed in the next batch
+            break;
+        }
+    }
+    if (!txReceipt) {
+        throw new Error('Failed to force an L1 batch to seal');
+    }
     // Invariant: even with 1 transaction, l1 batch must be eventually sealed, so this loop must exit.
-    while (!(await wallet.provider.getTransactionReceipt(oldReceipt.hash))?.l1BatchNumber) {
+    while (!(await wallet.provider.getTransactionReceipt(txReceipt.hash))?.l1BatchNumber) {
         await zksync.utils.sleep(wallet.provider.pollingInterval);
     }
-    return (await wallet.provider.getTransactionReceipt(oldReceipt.hash))!;
+    return (await wallet.provider.getTransactionReceipt(txReceipt.hash))!;
 }
 
 /**
@@ -94,6 +137,16 @@ export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber
         } else {
             await zksync.utils.sleep(wallet.provider.pollingInterval);
         }
+    }
+}
+
+export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: number, txHash: string) {
+    // First, we wait for block to be finalized.
+    await waitUntilBlockFinalized(wallet, blockNumber);
+
+    // Second, we wait for the log proof.
+    while ((await wallet.provider.getLogProof(txHash)) == null) {
+        await zksync.utils.sleep(wallet.provider.pollingInterval);
     }
 }
 
@@ -140,4 +193,8 @@ export function bigIntMax(...args: bigint[]) {
     }
 
     return args.reduce((max, current) => (current > max ? current : max), args[0]);
+}
+
+export function isLocalHost(network: string): boolean {
+    return network.toLowerCase() == 'localhost';
 }

@@ -1,15 +1,16 @@
 use anyhow::Context;
-use common::{
+use xshell::{cmd, Shell};
+use zkstack_cli_common::{
     cmd::Cmd,
     config::global_config,
     logger,
     server::{Server, ServerMode},
 };
-use config::{
+use zkstack_cli_config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
     GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
-use xshell::{cmd, Shell};
+use zksync_config::configs::gateway::GatewayChainConfig;
 
 use crate::{
     commands::args::{RunServerArgs, ServerArgs, ServerCommand, WaitArgs},
@@ -34,7 +35,7 @@ pub async fn run(shell: &Shell, args: ServerArgs) -> anyhow::Result<()> {
 }
 
 fn build_server(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(&chain_config.link_to_code);
+    let _dir_guard = shell.push_dir(chain_config.link_to_code.join("core"));
 
     logger::info(MSG_BUILDING_SERVER);
 
@@ -60,6 +61,19 @@ fn run_server(
     } else {
         ServerMode::Normal
     };
+
+    let gateway_config = chain_config.get_gateway_chain_config().ok();
+    let mut gateway_contracts = None;
+    if let Some(gateway_config) = gateway_config {
+        gateway_contracts = if gateway_config.gateway_chain_id.0 != 0_u64 {
+            Some(GatewayChainConfig::get_path_with_base_path(
+                &chain_config.configs,
+            ))
+        } else {
+            None
+        };
+    }
+
     server
         .run(
             shell,
@@ -69,6 +83,7 @@ fn run_server(
             GeneralConfig::get_path_with_base_path(&chain_config.configs),
             SecretsConfig::get_path_with_base_path(&chain_config.configs),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
+            gateway_contracts,
             vec![],
         )
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)

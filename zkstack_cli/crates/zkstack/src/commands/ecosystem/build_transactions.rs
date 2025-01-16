@@ -1,7 +1,7 @@
 use anyhow::Context;
-use common::{git, logger, spinner::Spinner};
-use config::{traits::SaveConfigWithBasePath, EcosystemConfig};
 use xshell::Shell;
+use zkstack_cli_common::{git, logger, spinner::Spinner};
+use zkstack_cli_config::{traits::SaveConfigWithBasePath, EcosystemConfig};
 
 use super::{
     args::build_transactions::BuildTransactionsArgs,
@@ -48,6 +48,7 @@ pub async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<(
         &initial_deployment_config,
         &args.l1_rpc_url,
         Some(args.sender),
+        false,
         false,
     )
     .await?;

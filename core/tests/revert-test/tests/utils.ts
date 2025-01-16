@@ -1,7 +1,7 @@
 import { exec as _exec, spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions } from 'child_process';
 import { promisify } from 'util';
 import { assert, expect } from 'chai';
-import { FileConfig, getAllConfigsPath, replaceAggregatedBlockExecuteDeadline } from 'utils/build/file-configs';
+import { FileConfig, getAllConfigsPath, replaceL1BatchMinAgeBeforeExecuteSeconds } from 'utils/build/file-configs';
 import { IZkSyncHyperchain } from 'zksync-ethers/build/typechain';
 import { Tester } from './tester';
 import { killPidWithAllChilds } from 'utils/build/kill';
@@ -144,10 +144,11 @@ async function runBlockReverter(
             --secrets-path=${configPaths['secrets.yaml']}
             --wallets-path=${configPaths['wallets.yaml']}
             --genesis-path=${configPaths['genesis.yaml']}
+            --gateway-chain-path=${configPaths['gateway_chain.yaml']}
         `;
     }
 
-    const cmd = `cd ${pathToHome} && RUST_LOG=off cargo run --bin block_reverter --release -- ${args.join(
+    const cmd = `cd ${pathToHome} && RUST_LOG=off cargo run --manifest-path ./core/Cargo.toml --bin block_reverter --release -- ${args.join(
         ' '
     )} ${fileConfigFlags}`;
 
@@ -312,14 +313,14 @@ export class NodeSpawner {
 
     public async spawnMainNode(enableExecute: boolean): Promise<Node<NodeType.MAIN>> {
         const env = this.env ?? process.env;
-        env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = enableExecute ? '1' : '10000';
+        env.ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS = enableExecute ? '0' : '10000';
         // Set full mode for the Merkle tree as it is required to get blocks committed.
         env.DATABASE_MERKLE_TREE_MODE = 'full';
 
         const { fileConfig, pathToHome, options, logs } = this;
 
         if (fileConfig.loadFromFile) {
-            replaceAggregatedBlockExecuteDeadline(pathToHome, fileConfig, enableExecute ? 1 : 10000);
+            replaceL1BatchMinAgeBeforeExecuteSeconds(pathToHome, fileConfig, enableExecute ? 0 : 10000);
         }
 
         let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher,vm_runner_protective_reads';

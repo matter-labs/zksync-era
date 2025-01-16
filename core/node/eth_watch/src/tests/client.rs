@@ -6,18 +6,19 @@ use zksync_contracts::{
 };
 use zksync_eth_client::{ContractCallError, EnrichedClientResult};
 use zksync_types::{
-    abi,
-    abi::ProposedUpgrade,
+    abi::{self, ProposedUpgrade, ZkChainSpecificUpgradeData},
     api::{ChainAggProof, Log},
-    ethabi,
-    ethabi::Token,
+    bytecode::BytecodeHash,
+    ethabi::{self, Token},
     l1::L1Tx,
+    protocol_upgrade::ProtocolUpgradeTx,
     u256_to_h256,
     web3::{contract::Tokenizable, BlockNumber},
-    Address, L1BatchNumber, L2ChainId, ProtocolUpgrade, SLChainId, Transaction, H256, U256, U64,
+    Address, L1BatchNumber, L2ChainId, ProtocolUpgrade, SLChainId, Transaction, H256,
+    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
 
-use crate::client::{EthClient, L2EthClient, RETRY_LIMIT};
+use crate::client::{encode_ntv_asset_id, EthClient, L2EthClient, RETRY_LIMIT};
 
 #[derive(Debug)]
 pub struct FakeEthClientData {
@@ -30,6 +31,7 @@ pub struct FakeEthClientData {
     chain_log_proofs: HashMap<L1BatchNumber, ChainAggProof>,
     batch_roots: HashMap<u64, Vec<Log>>,
     chain_roots: HashMap<u64, H256>,
+    bytecode_preimages: HashMap<H256, Vec<u8>>,
 }
 
 impl FakeEthClientData {
@@ -44,6 +46,7 @@ impl FakeEthClientData {
             chain_log_proofs: Default::default(),
             batch_roots: Default::default(),
             chain_roots: Default::default(),
+            bytecode_preimages: Default::default(),
         }
     }
 
@@ -68,6 +71,7 @@ impl FakeEthClientData {
                 .entry(*eth_block)
                 .or_default()
                 .push(diamond_upgrade_log(upgrade.clone(), *eth_block));
+            self.add_bytecode_preimages(&upgrade.tx);
         }
     }
 
@@ -97,6 +101,22 @@ impl FakeEthClientData {
     fn add_chain_log_proofs(&mut self, chain_log_proofs: Vec<(L1BatchNumber, ChainAggProof)>) {
         for (batch, proof) in chain_log_proofs {
             self.chain_log_proofs.insert(batch, proof);
+        }
+    }
+
+    fn get_bytecode_preimage(&self, hash: H256) -> Option<Vec<u8>> {
+        self.bytecode_preimages.get(&hash).cloned()
+    }
+
+    fn add_bytecode_preimages(&mut self, upgrade_tx: &Option<ProtocolUpgradeTx>) {
+        let Some(tx) = upgrade_tx.as_ref() else {
+            // Nothing to add
+            return;
+        };
+
+        for dep in tx.execute.factory_deps.iter() {
+            self.bytecode_preimages
+                .insert(BytecodeHash::for_bytecode(dep).value(), dep.clone());
         }
     }
 }
@@ -272,6 +292,42 @@ impl EthClient for MockEthClient {
     ) -> Result<H256, ContractCallError> {
         unimplemented!()
     }
+
+    async fn get_published_preimages(
+        &self,
+        hashes: Vec<H256>,
+    ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>> {
+        let mut result = vec![];
+
+        for hash in hashes {
+            result.push(self.inner.read().await.get_bytecode_preimage(hash));
+        }
+
+        Ok(result)
+    }
+
+    async fn get_chain_gateway_upgrade_info(
+        &self,
+    ) -> Result<Option<ZkChainSpecificUpgradeData>, ContractCallError> {
+        Ok(Some(ZkChainSpecificUpgradeData {
+            base_token_asset_id: encode_ntv_asset_id(
+                self.chain_id().await?.0.into(),
+                SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+            ),
+            l2_legacy_shared_bridge: Address::repeat_byte(0x01),
+            l2_predeployed_wrapped_base_token: Address::repeat_byte(0x02),
+            base_token_l1_address: SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+            base_token_name: String::from("Ether"),
+            base_token_symbol: String::from("ETH"),
+        }))
+    }
+
+    async fn fflonk_scheduler_vk_hash(
+        &self,
+        _verifier_address: Address,
+    ) -> Result<Option<H256>, ContractCallError> {
+        Ok(Some(H256::zero()))
+    }
 }
 
 #[async_trait::async_trait]
@@ -428,9 +484,7 @@ fn upgrade_timestamp_log(eth_block: u64) -> Log {
 }
 
 fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
-    let abi::Transaction::L1 {
-        tx, factory_deps, ..
-    } = upgrade
+    let abi::Transaction::L1 { tx, .. } = upgrade
         .tx
         .map(|tx| Transaction::from(tx).try_into().unwrap())
         .unwrap_or(abi::Transaction::L1 {
@@ -441,6 +495,7 @@ fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
     else {
         unreachable!()
     };
+    let factory_deps = upgrade.version.minor.is_pre_gateway().then(Vec::new);
     ProposedUpgrade {
         l2_protocol_upgrade_tx: tx,
         factory_deps,

@@ -24,6 +24,7 @@ zksync_object_store.workspace = true
 zksync_prover_interface.workspace = true
 zksync_shared_metrics.workspace = true
 zksync_node_fee_model.workspace = true
+zksync_mini_merkle_tree.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
@@ -35,6 +36,5 @@ tracing.workspace = true
 [dev-dependencies]
 test-casing.workspace = true
 zksync_node_test_utils.workspace = true
-once_cell.workspace = true
 assert_matches.workspace = true
 test-log.workspace = true

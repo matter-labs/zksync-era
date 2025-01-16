@@ -27,6 +27,7 @@ const PROTOCOL_VERSION: u8 = 4;
 pub(crate) struct RawAvailClient {
     app_id: u32,
     keypair: Keypair,
+    finality_state: String,
 }
 
 /// Utility type needed for encoding the call data
@@ -44,11 +45,19 @@ struct BoundedVec<_0>(pub Vec<_0>);
 impl RawAvailClient {
     pub(crate) const MAX_BLOB_SIZE: usize = 512 * 1024; // 512kb
 
-    pub(crate) async fn new(app_id: u32, seed: &str) -> anyhow::Result<Self> {
+    pub(crate) async fn new(
+        app_id: u32,
+        seed: &str,
+        finality_state: String,
+    ) -> anyhow::Result<Self> {
         let mnemonic = Mnemonic::parse(seed)?;
         let keypair = Keypair::from_phrase(&mnemonic, None)?;
 
-        Ok(Self { app_id, keypair })
+        Ok(Self {
+            app_id,
+            keypair,
+            finality_state,
+        })
     }
 
     /// Returns a hex-encoded extrinsic
@@ -291,7 +300,7 @@ impl RawAvailClient {
             let status = sub.next().await.transpose()?;
 
             if status.is_some() && status.as_ref().unwrap().is_object() {
-                if let Some(block_hash) = status.unwrap().get("finalized") {
+                if let Some(block_hash) = status.unwrap().get(self.finality_state.as_str()) {
                     break block_hash
                         .as_str()
                         .ok_or_else(|| anyhow::anyhow!("Invalid block hash"))?

@@ -10,7 +10,6 @@ use zksync_basic_types::{
 pub struct ENConfig {
     // Genesis
     pub l2_chain_id: L2ChainId,
-    pub sl_chain_id: Option<SLChainId>,
     pub l1_chain_id: L1ChainId,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
 
@@ -19,4 +18,6 @@ pub struct ENConfig {
     pub main_node_rate_limit_rps: Option<NonZeroUsize>,
 
     pub bridge_addresses_refresh_interval_sec: Option<NonZeroU64>,
+
+    pub gateway_chain_id: Option<SLChainId>,
 }

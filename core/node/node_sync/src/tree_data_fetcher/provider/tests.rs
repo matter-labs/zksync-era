@@ -256,13 +256,8 @@ fn mock_l1_client(block_number: U64, logs: Vec<web3::Log>, chain_id: SLChainId) 
         .method("eth_chainId", move || Ok(U64::from(chain_id.0)))
         .method("eth_call", move |req: CallRequest, _block_id: BlockId| {
             let contract = bridgehub_contract();
-            let function_name = if contract.function("getZKChain").is_ok() {
-                "getZKChain"
-            } else {
-                "getHyperchain"
-            };
             let expected_input = contract
-                .function(function_name)
+                .function("getZKChain")
                 .unwrap()
                 .encode_input(&[ethabi::Token::Uint(ERA_CHAIN_ID.into())])
                 .unwrap();
@@ -418,7 +413,7 @@ async fn using_different_settlement_layers() {
             .batch_details(number, &get_last_l2_block(&mut storage, number).await)
             .await
             .unwrap()
-            .expect(&format!("no root hash for batch #{number}"));
+            .unwrap_or_else(|err| panic!("no root hash for batch #{number}: {err:?}"));
         assert_eq!(root_hash, H256::repeat_byte(number.0 as u8));
 
         let past_l1_batch = provider.past_l1_batch.unwrap();

@@ -7,7 +7,7 @@ use crate::{
     interface::storage::WriteStorage,
     vm_latest::{
         old_vm::{history_recorder::HistoryEnabled, oracles::OracleWithHistory},
-        types::internals::VmSnapshot,
+        types::VmSnapshot,
         vm::Vm,
     },
 };

@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                snark_wrapper_vk_hash,\n                fflonk_snark_wrapper_vk_hash\n            FROM\n                prover_fri_protocol_versions\n            ORDER BY\n                id DESC\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "snark_wrapper_vk_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "fflonk_snark_wrapper_vk_hash",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "c37a16566258380ef19a32b2d78ad0d60cc20fd9260fa63328ed4d8dae13c1c1"
+}
