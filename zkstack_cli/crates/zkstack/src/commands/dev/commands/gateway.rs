@@ -174,9 +174,17 @@ pub async fn check_chain_readiness(
         .build();
     let l2_client = Box::new(l2_client) as Box<DynClient<L2>>;
 
-    let inflight_txs_count: usize = l2_client.get_unconfirmed_txs_count().await?;
-    let diamond_proxy_addr = l2_client.get_main_contract().await?;
+    let inflight_txs_count = match l2_client
+    .get_unconfirmed_txs_count()
+    .await {
+        Ok(x) => x,
+        Err(e) => {
+            anyhow::bail!("Failed to call `unstable_unconfirmedTxsCount`. Reason: `{}`.\nEnsure that `unstable` namespace is enabled on your server and it runs the latest version", e)
+        }
+    };
 
+    let diamond_proxy_addr = l2_client.get_main_contract().await?;
+    
     if inflight_txs_count != 0 {
         anyhow::bail!("Chain not ready since there are inflight txs!");
     }
@@ -714,6 +722,8 @@ pub struct GatewayUpgradeCalldataArgs {
     da_mode: DAMode,
     #[clap(long, default_missing_value = "false")]
     dangerous_no_cross_check: Option<bool>,
+    #[clap(long, default_missing_value = "false")]
+    force_display_finalization_params: Option<bool>
 }
 
 pub struct GatewayUpgradeArgsInner {
@@ -799,6 +809,21 @@ pub(crate) async fn run(shell: &Shell, args: GatewayUpgradeCalldataArgs) -> anyh
         "Calldata to schedule upgrade: {}",
         hex::encode(&schedule_calldata)
     );
+
+    if !args.force_display_finalization_params.unwrap_or_default() {
+        let chain_readiness = check_chain_readiness(
+            args.l1_rpc_url.clone(),
+            args.l2_rpc_url.clone(),
+            args.chain_id
+        ).await;
+
+        if let Err(err) = chain_readiness {
+            println!("Chain is not ready to finalize the upgrade due to the reason:\n{:#?}", err);
+            println!("Once the chain is ready, you can re-run this command to obtain the calls to finalize the upgrade");
+            println!("If you want to display finalization params anyway, pass `--force-display-finalization-params=true`.");
+            return Ok(());
+        };
+    }
 
     let admin_calls_finalize = get_admin_call_builder(&upgrade_info, &chain_info, args.into());
 
