@@ -4,7 +4,10 @@ use std::{
 };
 
 use tokio::sync::watch::Receiver;
-use zksync_types::fee_model::FeeParams;
+use zksync_types::fee_model::{
+    BaseTokenConversionRatio, BatchFeeInput, FeeModelConfigV1, FeeModelConfigV2, FeeParams,
+    FeeParamsV1, FeeParamsV2,
+};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::ClientRpcContext,
@@ -25,6 +28,7 @@ const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 pub struct MainNodeFeeParamsFetcher {
     client: Box<DynClient<L2>>,
     main_node_fee_params: RwLock<FeeParams>,
+    main_node_batch_fee_input: RwLock<Option<BatchFeeInput>>,
 }
 
 impl MainNodeFeeParamsFetcher {
@@ -32,6 +36,7 @@ impl MainNodeFeeParamsFetcher {
         Self {
             client: client.for_component("fee_params_fetcher"),
             main_node_fee_params: RwLock::new(FeeParams::sensible_v1_default()),
+            main_node_batch_fee_input: RwLock::new(None),
         }
     }
 
@@ -58,6 +63,28 @@ impl MainNodeFeeParamsFetcher {
             };
             *self.main_node_fee_params.write().unwrap() = main_node_fee_params;
 
+            let fetch_result = self
+                .client
+                .get_batch_fee_input()
+                .rpc_context("get_batch_fee_input")
+                .await;
+            let main_node_fee_params = match fetch_result {
+                Ok(price) => price,
+                Err(err) => {
+                    tracing::warn!("Unable to get the batch fee input: {}", err);
+                    // A delay to avoid spamming the main node with requests.
+                    if tokio::time::timeout(SLEEP_INTERVAL, stop_receiver.changed())
+                        .await
+                        .is_ok()
+                    {
+                        break;
+                    }
+                    continue;
+                }
+            };
+            *self.main_node_batch_fee_input.write().unwrap() =
+                Some(BatchFeeInput::PubdataIndependent(main_node_fee_params));
+
             if tokio::time::timeout(SLEEP_INTERVAL, stop_receiver.changed())
                 .await
                 .is_ok()
@@ -73,6 +100,29 @@ impl MainNodeFeeParamsFetcher {
 
 impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
     fn get_fee_model_params(&self) -> FeeParams {
-        *self.main_node_fee_params.read().unwrap()
+        let mut fee_params = self.main_node_fee_params.read().unwrap().clone();
+        let batch_fee_input = *self.main_node_batch_fee_input.read().unwrap();
+        if batch_fee_input.is_none() {
+            return fee_params;
+        }
+        let batch_fee_input = batch_fee_input.unwrap();
+        return match fee_params {
+            FeeParams::V1(..) => FeeParams::V1(FeeParamsV1 {
+                config: FeeModelConfigV1 {
+                    minimal_l2_gas_price: batch_fee_input.fair_l2_gas_price(),
+                },
+                l1_gas_price: batch_fee_input.l1_gas_price(),
+            }),
+            FeeParams::V2(params) => {
+                let mut config = params.config().clone();
+                config.minimal_l2_gas_price = batch_fee_input.fair_l2_gas_price();
+                return FeeParams::V2(FeeParamsV2::new(
+                    config,
+                    batch_fee_input.l1_gas_price(),
+                    batch_fee_input.fair_pubdata_price(),
+                    params.conversion_ratio(),
+                ));
+            }
+        };
     }
 }
