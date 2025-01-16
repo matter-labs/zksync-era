@@ -14,8 +14,6 @@ use indicatif::{ProgressBar, ProgressStyle};
 use proof_compression_gpu::{
     precompute_proof_chain_with_fflonk, precompute_proof_chain_with_plonk, BlobStorageExt,
 };
-#[cfg(feature = "gpu")]
-use shivini::ProverContext;
 use tracing::level_filters::LevelFilter;
 use zkevm_test_harness::{
     compute_setups::{
