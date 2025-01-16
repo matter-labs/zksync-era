@@ -120,7 +120,7 @@ pub trait SetupDataGenerator {
         dry_run: bool,
         recompute_if_missing: bool,
     ) -> anyhow::Result<HashMap<String, String>> {
-        Ok(ProverServiceDataKey::all()
+        Ok(ProverServiceDataKey::all_boojum()
             .iter()
             .map(|circuit| {
                 tracing::info!("Generating setup data for {:?}", circuit.name());
