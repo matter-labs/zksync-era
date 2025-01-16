@@ -1,4 +1,7 @@
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::{HashMap, VecDeque},
+    time::Duration,
+};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -40,6 +43,7 @@ pub struct ExternalIO {
     actions: ActionQueue,
     main_node_client: Box<dyn MainNodeClient>,
     chain_id: L2ChainId,
+    pending_l2_block_actions: VecDeque<(L2BlockNumber, L2BlockParams)>,
 }
 
 impl ExternalIO {
@@ -56,6 +60,7 @@ impl ExternalIO {
             actions,
             main_node_client,
             chain_id,
+            pending_l2_block_actions: VecDeque::new(),
         })
     }
 
@@ -337,23 +342,33 @@ impl StateKeeperIO for ExternalIO {
         cursor: &IoCursor,
         max_wait: Duration,
     ) -> anyhow::Result<Option<L2BlockParams>> {
-        // Wait for the next L2 block to appear in the queue.
-        let Some(action) = self.actions.recv_action(max_wait).await else {
-            return Ok(None);
-        };
-        match action {
-            SyncAction::L2Block { params, number } => {
-                anyhow::ensure!(
-                    number == cursor.next_l2_block,
-                    "L2 block number mismatch: expected {}, got {number}",
-                    cursor.next_l2_block
-                );
-                return Ok(Some(params));
-            }
-            other => {
-                anyhow::bail!(
+        // Check if there is a pending l2 block action while waiting for the next tx, if yes process it
+        if let Some((number, params)) = self.pending_l2_block_actions.pop_front() {
+            anyhow::ensure!(
+                number == cursor.next_l2_block,
+                "L2 block number mismatch: expected {}, got {number}",
+                cursor.next_l2_block
+            );
+            return Ok(Some(params));
+        } else {
+            // Alternatively, wait for the next L2 block to appear in the queue.
+            let Some(action) = self.actions.recv_action(max_wait).await else {
+                return Ok(None);
+            };
+            match action {
+                SyncAction::L2Block { params, number } => {
+                    anyhow::ensure!(
+                        number == cursor.next_l2_block,
+                        "L2 block number mismatch: expected {}, got {number}",
+                        cursor.next_l2_block
+                    );
+                    return Ok(Some(params));
+                }
+                other => {
+                    anyhow::bail!(
                     "Unexpected action in the queue while waiting for the next L2 block: {other:?}"
                 );
+                }
             }
         }
     }
@@ -370,10 +385,20 @@ impl StateKeeperIO for ExternalIO {
         let Some(action) = self.actions.peek_action_async(max_wait).await else {
             return Ok(None);
         };
+
         match action {
             SyncAction::Tx(tx) => {
                 self.actions.pop_action().unwrap();
                 return Ok(Some(Transaction::from(*tx)));
+            }
+            SyncAction::L2Block { params, number } => {
+                // Store any L2block action for future wait_for_new_l2_block_params call
+                // https://github.com/matter-labs/zksync-era/pull/3398
+                self.actions.pop_action().unwrap();
+                self.pending_l2_block_actions.push_back((number, params));
+
+                // Move to the next action
+                self.wait_for_next_tx(max_wait, _l2_block_timestamp).await
             }
             SyncAction::SealL2Block | SyncAction::SealBatch => {
                 // No more transactions in the current L2 block; the state keeper should seal it.

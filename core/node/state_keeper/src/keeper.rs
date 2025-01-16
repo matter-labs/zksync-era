@@ -166,13 +166,13 @@ impl ZkSyncStateKeeper {
                 &stop_receiver,
             )
             .await?;
-        self.restore_state(
-            &mut *batch_executor,
-            &mut updates_manager,
-            pending_l2_blocks,
-            &stop_receiver,
-        )
-        .await?;
+        let mut state_restored = self
+            .restore_state(
+                &mut *batch_executor,
+                &mut updates_manager,
+                pending_l2_blocks,
+            )
+            .await?;
 
         let mut l1_batch_seal_delta: Option<Instant> = None;
         while !is_canceled(&stop_receiver) {
@@ -181,6 +181,7 @@ impl ZkSyncStateKeeper {
                 &mut *batch_executor,
                 &mut updates_manager,
                 protocol_upgrade_tx,
+                state_restored,
                 &stop_receiver,
             )
             .await?;
@@ -234,6 +235,7 @@ impl ZkSyncStateKeeper {
             } else {
                 None
             };
+            state_restored = false;
         }
         Err(Error::Canceled)
     }
@@ -461,10 +463,9 @@ impl ZkSyncStateKeeper {
         batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
         updates_manager: &mut UpdatesManager,
         l2_blocks_to_reexecute: Vec<L2BlockExecutionData>,
-        stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<(), Error> {
+    ) -> Result<bool, Error> {
         if l2_blocks_to_reexecute.is_empty() {
-            return Ok(());
+            return Ok(false);
         }
 
         for (index, l2_block) in l2_blocks_to_reexecute.into_iter().enumerate() {
@@ -542,15 +543,7 @@ impl ZkSyncStateKeeper {
         tracing::debug!(
             "All the transactions from the pending state were re-executed successfully"
         );
-
-        // We've processed all the L2 blocks, and right now we're initializing the next *actual* L2 block.
-        let new_l2_block_params = self
-            .wait_for_new_l2_block_params(updates_manager, stop_receiver)
-            .await
-            .map_err(|e| e.context("wait_for_new_l2_block_params"))?;
-        Self::start_next_l2_block(new_l2_block_params, updates_manager, batch_executor).await?;
-
-        Ok(())
+        Ok(true)
     }
 
     #[tracing::instrument(
@@ -562,9 +555,10 @@ impl ZkSyncStateKeeper {
         batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
         updates_manager: &mut UpdatesManager,
         protocol_upgrade_tx: Option<ProtocolUpgradeTx>,
+        state_restored: bool,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Result<(), Error> {
-        let mut is_sealed = false;
+        let mut is_last_block_sealed = state_restored;
         if let Some(protocol_upgrade_tx) = protocol_upgrade_tx {
             self.process_upgrade_tx(batch_executor, updates_manager, protocol_upgrade_tx)
                 .await?;
@@ -583,20 +577,22 @@ impl ZkSyncStateKeeper {
                 );
 
                 // check if there is an open "non sealed" block, if yes seal it and return
-                if !updates_manager.l2_block.executed_transactions.is_empty() && !is_sealed {
+                if !updates_manager.l2_block.executed_transactions.is_empty()
+                    && !is_last_block_sealed
+                {
                     self.seal_l2_block(updates_manager).await?;
                 }
                 return Ok(());
             }
 
-            if !is_sealed && self.io.should_seal_l2_block(updates_manager) {
+            if !is_last_block_sealed && self.io.should_seal_l2_block(updates_manager) {
                 tracing::debug!(
                     "L2 block #{} (L1 batch #{}) should be sealed as per sealing rules",
                     updates_manager.l2_block.number,
                     updates_manager.l1_batch.number
                 );
                 self.seal_l2_block(updates_manager).await?;
-                is_sealed = true;
+                is_last_block_sealed = true;
             }
             let waiting_latency = KEEPER_METRICS.waiting_for_tx.start();
             let Some(tx) = self
@@ -613,7 +609,7 @@ impl ZkSyncStateKeeper {
             let tx_hash = tx.hash();
 
             // if the current block is sealed, we need to start a new block
-            if is_sealed {
+            if is_last_block_sealed {
                 let new_l2_block_params = self
                     .wait_for_new_l2_block_params(updates_manager, stop_receiver)
                     .await
@@ -626,7 +622,7 @@ impl ZkSyncStateKeeper {
                 );
                 Self::start_next_l2_block(new_l2_block_params, updates_manager, batch_executor)
                     .await?;
-                is_sealed = false;
+                is_last_block_sealed = false;
             }
 
             let (seal_resolution, exec_result) = self
@@ -683,7 +679,9 @@ impl ZkSyncStateKeeper {
                     updates_manager.l1_batch.number
                 );
                 // check if there is an open "non sealed" block, if yes seal it and return
-                if !updates_manager.l2_block.executed_transactions.is_empty() && !is_sealed {
+                if !updates_manager.l2_block.executed_transactions.is_empty()
+                    && !is_last_block_sealed
+                {
                     self.seal_l2_block(updates_manager).await?;
                 }
                 full_latency.observe();
