@@ -24,9 +24,7 @@ use zkstack_cli_config::{
     EcosystemConfig,
 };
 use zkstack_cli_types::L1BatchCommitmentMode;
-use zksync_basic_types::{
-    pubdata_da::PubdataSendingMode, settlement::SettlementMode, Address, H256, U256, U64,
-};
+use zksync_basic_types::{settlement::SettlementMode, Address, H256, U256, U64};
 use zksync_config::configs::gateway::GatewayChainConfig;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
@@ -364,12 +362,10 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     general_config.insert_yaml("eth.gas_adjuster.settlement_mode", SettlementMode::Gateway)?;
 
     if is_rollup {
-        // For rollups, new type of commitment should be used, but
-        // not for validium.
-        general_config.insert_yaml(
-            "eth.sender.pubdata_sending_mode",
-            PubdataSendingMode::RelayedL2Calldata,
-        )?;
+        // For rollups, new type of commitment should be used, but not for validium.
+        // `PubdataSendingMode` has differing `serde` and file-based config serializations, hence
+        // we supply a raw string value.
+        general_config.insert("eth.sender.pubdata_sending_mode", "RELAYED_L2_CALLDATA")?;
     }
     general_config.insert("eth.sender.wait_confirmations", 0)?;
     // TODO(EVM-925): the number below may not always work, especially for large prices on

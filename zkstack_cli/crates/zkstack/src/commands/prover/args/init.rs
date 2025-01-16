@@ -8,7 +8,6 @@ use url::Url;
 use xshell::Shell;
 use zkstack_cli_common::{db::DatabaseConfig, logger, Prompt, PromptConfirm, PromptSelect};
 use zkstack_cli_config::ChainConfig;
-use zksync_config::configs::fri_prover::CloudConnectionMode;
 
 use super::{
     compressor_keys::CompressorKeysArgs, init_bellman_cuda::InitBellmanCudaArgs,
@@ -94,22 +93,12 @@ enum ProofStoreConfig {
     GCS,
 }
 
-#[derive(
-    Debug, Clone, ValueEnum, EnumIter, strum::Display, PartialEq, Eq, Deserialize, Serialize,
-)]
+#[derive(Debug, Clone, ValueEnum, EnumIter, strum::Display, PartialEq, Eq, Serialize)]
 #[allow(clippy::upper_case_acronyms)]
-enum InternalCloudConnectionMode {
+pub enum InternalCloudConnectionMode {
     GCP,
+    #[serde(rename = "LOCAL")] // match name in file-based configs
     Local,
-}
-
-impl From<InternalCloudConnectionMode> for CloudConnectionMode {
-    fn from(cloud_type: InternalCloudConnectionMode) -> Self {
-        match cloud_type {
-            InternalCloudConnectionMode::GCP => CloudConnectionMode::GCP,
-            InternalCloudConnectionMode::Local => CloudConnectionMode::Local,
-        }
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Parser, Default)]
@@ -196,7 +185,7 @@ pub struct ProverInitArgsFinal {
     pub compressor_key_args: Option<CompressorKeysArgs>,
     pub setup_keys: Option<SetupKeysArgs>,
     pub bellman_cuda_config: Option<InitBellmanCudaArgs>,
-    pub cloud_type: CloudConnectionMode,
+    pub cloud_type: InternalCloudConnectionMode,
     pub database_config: Option<ProverDatabaseConfig>,
 }
 
@@ -520,20 +509,18 @@ impl ProverInitArgs {
         }
     }
 
-    fn get_cloud_type_with_prompt(&self) -> CloudConnectionMode {
+    fn get_cloud_type_with_prompt(&self) -> InternalCloudConnectionMode {
         if self.dev {
-            return CloudConnectionMode::Local;
+            return InternalCloudConnectionMode::Local;
         }
 
-        let cloud_type = self.cloud_type.clone().unwrap_or_else(|| {
+        self.cloud_type.clone().unwrap_or_else(|| {
             PromptSelect::new(
                 MSG_CLOUD_TYPE_PROMPT,
                 InternalCloudConnectionMode::iter().rev(),
             )
             .ask()
-        });
-
-        cloud_type.into()
+        })
     }
 
     fn fill_database_values_with_prompt(

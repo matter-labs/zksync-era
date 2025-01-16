@@ -25,9 +25,7 @@ use zkstack_cli_config::{
     EcosystemConfig,
 };
 use zkstack_cli_types::L1BatchCommitmentMode;
-use zksync_basic_types::{
-    pubdata_da::PubdataSendingMode, settlement::SettlementMode, H256, U256, U64,
-};
+use zksync_basic_types::{settlement::SettlementMode, H256, U256, U64};
 use zksync_types::L2ChainId;
 use zksync_web3_decl::client::{Client, L2};
 
@@ -175,7 +173,9 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         SettlementMode::SettlesToL1,
     )?;
     if is_rollup {
-        general_config.insert_yaml("eth.sender.pubdata_sending_mode", PubdataSendingMode::Blobs)?;
+        // `PubdataSendingMode` has differing `serde` and file-based config serializations, hence
+        // we supply a raw string value.
+        general_config.insert("eth.sender.pubdata_sending_mode", "BLOBS")?;
     }
     general_config.insert("eth.sender.wait_confirmations", 0)?;
 
