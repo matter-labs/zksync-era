@@ -108,7 +108,7 @@ pub struct VerifierConfig {
 /// Verifier used to verify the integrity of the blob info
 /// Kzg is used for commitment verification
 /// EigenDA service manager is used to connect to the service manager contract
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Verifier {
     kzg: Kzg,
     cfg: VerifierConfig,

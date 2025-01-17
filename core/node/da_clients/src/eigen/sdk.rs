@@ -32,7 +32,7 @@ use crate::eigen::{
     verifier::VerificationError,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct RawEigenClient {
     client: DisperserClient<Channel>,
     private_key: SecretKey,
