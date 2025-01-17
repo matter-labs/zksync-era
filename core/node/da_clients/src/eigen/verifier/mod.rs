@@ -348,12 +348,14 @@ impl Verifier {
     ) -> Result<Vec<u8>, VerificationError> {
         let context_block = self.get_context_block().await?;
 
+        let mut data = vec![];
         let func_selector =
             ethabi::short_signature("batchIdToBatchMetadataHash", &[ParamType::Uint(32)]);
-        let mut data = func_selector.to_vec();
-        let mut batch_id_vec = [0u8; 32];
-        U256::from(blob_info.blob_verification_proof.batch_id).to_big_endian(&mut batch_id_vec);
-        data.append(batch_id_vec.to_vec().as_mut());
+        data.extend_from_slice(&func_selector);
+        let batch_id_data = encode(&[Token::Uint(U256::from(
+            blob_info.blob_verification_proof.batch_id,
+        ))]);
+        data.extend_from_slice(&batch_id_data);
 
         let call_request = CallRequest {
             to: Some(self.cfg.svc_manager_addr),
