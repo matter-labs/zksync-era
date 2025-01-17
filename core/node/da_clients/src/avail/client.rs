@@ -7,10 +7,9 @@ use jsonrpsee::ws_client::WsClientBuilder;
 use serde::{Deserialize, Serialize};
 use subxt_signer::ExposeSecret;
 use url::Url;
-use zksync_basic_types::commitment::PubdataType;
 use zksync_config::configs::da_client::avail::{AvailClientConfig, AvailConfig, AvailSecrets};
 use zksync_da_client::{
-    types::{DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
 use zksync_types::{
@@ -247,7 +246,7 @@ impl DataAvailabilityClient for AvailClient {
         Some(RawAvailClient::MAX_BLOB_SIZE)
     }
 
-    fn name(&self) -> String {
-        PubdataType::Avail.to_string()
+    fn client_type(&self) -> ClientType {
+        ClientType::Avail
     }
 }

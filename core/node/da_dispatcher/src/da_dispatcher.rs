@@ -1,4 +1,4 @@
-use std::{future::Future, str::FromStr, sync::Arc, time::Duration};
+use std::{future::Future, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use chrono::Utc;
@@ -10,7 +10,7 @@ use zksync_da_client::{
     DataAvailabilityClient,
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_types::{commitment::PubdataType, L1BatchNumber};
+use zksync_types::{utils::client_type_to_pubdata_type, L1BatchNumber};
 
 use crate::metrics::METRICS;
 
@@ -128,7 +128,7 @@ impl DataAvailabilityDispatcher {
                     dispatch_response.blob_id.as_str(),
                     sent_at,
                     // safe to unwrap because this is provided by the client
-                    PubdataType::from_str(self.client.name().as_str()).unwrap(),
+                    client_type_to_pubdata_type(self.client.client_type()),
                     None,
                 )
                 .await?;

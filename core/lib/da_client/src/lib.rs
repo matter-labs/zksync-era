@@ -5,6 +5,8 @@ use std::fmt;
 use async_trait::async_trait;
 use types::{DAError, DispatchResponse, InclusionData};
 
+use crate::types::ClientType;
+
 /// Trait that defines the interface for the data availability layer clients.
 #[async_trait]
 pub trait DataAvailabilityClient: Sync + Send + fmt::Debug {
@@ -27,7 +29,7 @@ pub trait DataAvailabilityClient: Sync + Send + fmt::Debug {
     /// Returns the name of the client. It is expected that names are `.to_string()` of
     /// PubdataType enum, but String is used here to keep the interface more generic and make this
     /// crate independent of the workspace.
-    fn name(&self) -> String;
+    fn client_type(&self) -> ClientType;
 }
 
 impl Clone for Box<dyn DataAvailabilityClient> {

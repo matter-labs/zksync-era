@@ -1,7 +1,8 @@
 use std::fmt;
 
 use chrono::{DateTime, TimeZone, Utc};
-use zksync_basic_types::{Address, H256};
+use zksync_basic_types::{commitment::PubdataType, Address, H256};
+use zksync_da_client::types::ClientType;
 
 use crate::{
     address_to_h256, system_contracts::DEPLOYMENT_NONCE_INCREMENT, u256_to_h256, web3::keccak256,
@@ -87,6 +88,16 @@ pub fn storage_key_for_standard_token_balance(
 
 pub fn storage_key_for_eth_balance(address: &Address) -> StorageKey {
     storage_key_for_standard_token_balance(AccountTreeId::new(L2_BASE_TOKEN_ADDRESS), address)
+}
+
+pub fn client_type_to_pubdata_type(client_type: ClientType) -> PubdataType {
+    match client_type {
+        ClientType::NoDA => PubdataType::NoDA,
+        ClientType::Avail => PubdataType::Avail,
+        ClientType::Celestia => PubdataType::Celestia,
+        ClientType::Eigen => PubdataType::Eigen,
+        ClientType::ObjectStore => PubdataType::ObjectStore,
+    }
 }
 
 /// Pre-calculated the address of the to-be-deployed contract (via CREATE, not CREATE2).

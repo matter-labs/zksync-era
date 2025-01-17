@@ -1,7 +1,6 @@
 use async_trait::async_trait;
-use zksync_basic_types::commitment::PubdataType;
 use zksync_da_client::{
-    types::{DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
 
@@ -27,7 +26,7 @@ impl DataAvailabilityClient for NoDAClient {
         None
     }
 
-    fn name(&self) -> String {
-        PubdataType::NoDA.to_string()
+    fn client_type(&self) -> ClientType {
+        ClientType::NoDA
     }
 }

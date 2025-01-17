@@ -8,7 +8,7 @@ use tokio::sync::watch;
 use zksync_da_client::DataAvailabilityClient;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_types::L1BatchNumber;
+use zksync_types::{utils::client_type_to_pubdata_type, L1BatchNumber};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::UnstableNamespaceClient,
@@ -154,10 +154,11 @@ impl DataAvailabilityFetcher {
             return Ok(StepOutcome::NoProgress);
         };
 
-        if da_details.pubdata_type.to_string() != self.da_client.name() {
+        let config_pubdata_type = client_type_to_pubdata_type(self.da_client.client_type());
+        if da_details.pubdata_type != config_pubdata_type {
             return Err(to_fatal_error(anyhow::anyhow!(
                 "DA client mismatch, used in config: {}, received from main node: {}",
-                self.da_client.name(),
+                config_pubdata_type,
                 da_details.pubdata_type
             )));
         }

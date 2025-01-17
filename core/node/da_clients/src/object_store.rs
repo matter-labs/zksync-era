@@ -5,10 +5,9 @@ use std::{
 
 use async_trait::async_trait;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
-use zksync_basic_types::commitment::PubdataType;
 use zksync_config::ObjectStoreConfig;
 use zksync_da_client::{
-    types::{DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
 use zksync_object_store::{
@@ -89,8 +88,8 @@ impl DataAvailabilityClient for ObjectStoreDAClient {
         None
     }
 
-    fn name(&self) -> String {
-        PubdataType::ObjectStore.to_string()
+    fn client_type(&self) -> ClientType {
+        ClientType::ObjectStore
     }
 }
 
