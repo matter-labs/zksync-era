@@ -1,10 +1,11 @@
-use std::str::FromStr;
-
 use serde::Deserialize;
 use zksync_basic_types::{secrets::PrivateKey, Address, H160};
 
 /// Default address of the EigenDA service manager contract deployed on Holesky.
-const DEFAULT_EIGENDA_SVC_MANAGER_ADDRESS: &str = "0xD4A7E1Bd8015057293f0D0A557088c286942e84b";
+const DEFAULT_EIGENDA_SVC_MANAGER_ADDRESS: H160 = H160([
+    0xd4, 0xa7, 0xe1, 0xbd, 0x80, 0x15, 0x05, 0x72, 0x93, 0xf0, 0xd0, 0xa5, 0x57, 0x08, 0x8c, 0x28,
+    0x69, 0x42, 0xe8, 0x4b,
+]);
 
 /// Configuration for the EigenDA remote disperser client.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -36,7 +37,7 @@ impl Default for EigenConfig {
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
             settlement_layer_confirmation_depth: 0,
             eigenda_eth_rpc: Some("https://ethereum-holesky-rpc.publicnode.com".to_string()),
-            eigenda_svc_manager_address: H160::from_str(DEFAULT_EIGENDA_SVC_MANAGER_ADDRESS).unwrap_or_default(),
+            eigenda_svc_manager_address: DEFAULT_EIGENDA_SVC_MANAGER_ADDRESS,
             wait_for_finalization: false,
             authenticated: false,
             g1_url: "https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g1.point".to_string(),
