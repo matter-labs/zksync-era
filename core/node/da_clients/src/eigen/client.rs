@@ -99,10 +99,7 @@ mod tests {
     use crate::eigen::{blob_info::BlobInfo, EigenClient, GetBlobData};
 
     impl EigenClient {
-        async fn get_blob_data(
-            &self,
-            blob_id: BlobInfo,
-        ) -> anyhow::Result<Option<Vec<u8>>, DAError> {
+        async fn get_blob_data(&self, blob_id: BlobInfo) -> anyhow::Result<Vec<u8>, DAError> {
             self.client.get_blob_data(blob_id).await
         }
 
@@ -177,7 +174,7 @@ mod tests {
             .data;
         assert_eq!(expected_inclusion_data, actual_inclusion_data);
         let retrieved_data = client.get_blob_data(blob_info).await.unwrap();
-        assert_eq!(retrieved_data.unwrap(), data);
+        assert_eq!(retrieved_data, data);
     }
 
     #[ignore = "depends on external RPC"]
@@ -205,7 +202,7 @@ mod tests {
             .data;
         assert_eq!(expected_inclusion_data, actual_inclusion_data);
         let retrieved_data = client.get_blob_data(blob_info).await.unwrap();
-        assert_eq!(retrieved_data.unwrap(), data);
+        assert_eq!(retrieved_data, data);
     }
 
     #[ignore = "depends on external RPC"]
@@ -235,7 +232,7 @@ mod tests {
             .data;
         assert_eq!(expected_inclusion_data, actual_inclusion_data);
         let retrieved_data = client.get_blob_data(blob_info).await.unwrap();
-        assert_eq!(retrieved_data.unwrap(), data);
+        assert_eq!(retrieved_data, data);
     }
 
     #[ignore = "depends on external RPC"]
@@ -263,7 +260,7 @@ mod tests {
             .data;
         assert_eq!(expected_inclusion_data, actual_inclusion_data);
         let retrieved_data = client.get_blob_data(blob_info).await.unwrap();
-        assert_eq!(retrieved_data.unwrap(), data);
+        assert_eq!(retrieved_data, data);
     }
 
     #[ignore = "depends on external RPC"]
@@ -292,6 +289,6 @@ mod tests {
             .data;
         assert_eq!(expected_inclusion_data, actual_inclusion_data);
         let retrieved_data = client.get_blob_data(blob_info).await.unwrap();
-        assert_eq!(retrieved_data.unwrap(), data);
+        assert_eq!(retrieved_data, data);
     }
 }

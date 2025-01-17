@@ -180,9 +180,7 @@ impl RawEigenClient {
         let blob_info = blob_info::BlobInfo::try_from(blob_info)
             .map_err(|e| anyhow::anyhow!("Failed to convert blob info: {}", e))?;
 
-        let Some(data) = self.get_blob_data(blob_info.clone()).await? else {
-            return Err(anyhow::anyhow!("Failed to get blob data"));
-        };
+        let data = self.get_blob_data(blob_info.clone()).await?;
         let data_db = self.get_blob_data.get_blob_data(request_id).await?;
         if let Some(data_db) = data_db {
             if data_db != data {
@@ -335,10 +333,7 @@ impl RawEigenClient {
         }
     }
 
-    pub async fn get_blob_data(
-        &self,
-        blob_info: BlobInfo,
-    ) -> anyhow::Result<Option<Vec<u8>>, DAError> {
+    pub async fn get_blob_data(&self, blob_info: BlobInfo) -> Result<Vec<u8>, DAError> {
         use anyhow::anyhow;
         use zksync_da_client::types::DAError;
 
@@ -369,7 +364,7 @@ impl RawEigenClient {
         }
 
         let data = remove_empty_byte_from_padded_bytes(&get_response.data);
-        Ok(Some(data))
+        Ok(data)
     }
 }
 
