@@ -74,8 +74,8 @@ pub enum VerificationError {
     WrongProof,
     #[error("Different commitments: expected {expected:?}, got {actual:?}")]
     DifferentCommitments {
-        expected: G1Affine,
-        actual: G1Affine,
+        expected: Box<G1Affine>,
+        actual: Box<G1Affine>,
     },
     #[error("Different roots: expected {expected:?}, got {actual:?}")]
     DifferentRoots { expected: String, actual: String },
@@ -214,8 +214,8 @@ impl Verifier {
         }
         if actual_commitment != expected_commitment {
             return Err(VerificationError::DifferentCommitments {
-                expected: expected_commitment,
-                actual: actual_commitment,
+                expected: Box::new(expected_commitment),
+                actual: Box::new(actual_commitment),
             });
         }
         Ok(())
