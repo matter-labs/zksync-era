@@ -8,6 +8,7 @@ use url::Url;
 use zksync_basic_types::web3::CallRequest;
 use zksync_eth_client::{clients::PKSigningClient, EnrichedClientError, EnrichedClientResult};
 use zksync_types::{
+    url::SensitiveUrl,
     web3::{self, BlockId, BlockNumber},
     Address, U256, U64,
 };
@@ -98,7 +99,7 @@ pub enum VerificationError {
 /// Configuration for the verifier used for authenticated dispersals
 #[derive(Debug, Clone)]
 pub struct VerifierConfig {
-    pub rpc_url: String,
+    pub rpc_url: SensitiveUrl,
     pub svc_manager_addr: Address,
     pub max_blob_size: u32,
     pub g1_url: Url,

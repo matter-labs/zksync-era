@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use anyhow::Context;
 use zksync_config::configs::{
     self,
@@ -9,6 +11,7 @@ use zksync_config::configs::{
     },
 };
 use zksync_protobuf::{required, ProtoRepr};
+use zksync_types::url::SensitiveUrl;
 
 use crate::{
     parse_h160,
@@ -66,7 +69,9 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     &conf.settlement_layer_confirmation_depth,
                 )
                 .context("settlement_layer_confirmation_depth")?,
-                eigenda_eth_rpc: required(&conf.eigenda_eth_rpc).ok().cloned(),
+                eigenda_eth_rpc: Some(SensitiveUrl::from_str(
+                    required(&conf.eigenda_eth_rpc).context("eigenda_eth_rpc")?,
+                )?),
                 eigenda_svc_manager_address: required(&conf.eigenda_svc_manager_address)
                     .and_then(|x| parse_h160(x))
                     .context("eigenda_svc_manager_address")?,
@@ -118,7 +123,8 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 settlement_layer_confirmation_depth: Some(
                     config.settlement_layer_confirmation_depth,
                 ),
-                eigenda_eth_rpc: config.eigenda_eth_rpc.clone(),
+                // eigenda_eth_rpc: config.eigenda_eth_rpc.into(),
+                eigenda_eth_rpc: Some(format!("{:?}", config.eigenda_eth_rpc)),
                 eigenda_svc_manager_address: Some(format!(
                     "{:?}",
                     config.eigenda_svc_manager_address

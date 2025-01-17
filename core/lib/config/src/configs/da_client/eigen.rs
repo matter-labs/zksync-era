@@ -1,5 +1,7 @@
+use std::str::FromStr;
+
 use serde::Deserialize;
-use zksync_basic_types::{secrets::PrivateKey, Address, H160};
+use zksync_basic_types::{secrets::PrivateKey, url::SensitiveUrl, Address, H160};
 
 /// Default address of the EigenDA service manager contract deployed on Holesky.
 const DEFAULT_EIGENDA_SVC_MANAGER_ADDRESS: H160 = H160([
@@ -16,7 +18,7 @@ pub struct EigenConfig {
     /// a value less or equal to 0 means that the disperser will not wait for finalization
     pub settlement_layer_confirmation_depth: u32,
     /// URL of the Ethereum RPC server
-    pub eigenda_eth_rpc: Option<String>,
+    pub eigenda_eth_rpc: Option<SensitiveUrl>, //Option<String>,
     /// Address of the service manager contract
     pub eigenda_svc_manager_address: Address,
     /// Wait for the blob to be finalized before returning the response
@@ -36,7 +38,7 @@ impl Default for EigenConfig {
         Self {
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
             settlement_layer_confirmation_depth: 0,
-            eigenda_eth_rpc: Some("https://ethereum-holesky-rpc.publicnode.com".to_string()),
+            eigenda_eth_rpc: Some(SensitiveUrl::from_str("https://ethereum-holesky-rpc.publicnode.com").unwrap()), // Save to unwrap, never fails
             eigenda_svc_manager_address: DEFAULT_EIGENDA_SVC_MANAGER_ADDRESS,
             wait_for_finalization: false,
             authenticated: false,

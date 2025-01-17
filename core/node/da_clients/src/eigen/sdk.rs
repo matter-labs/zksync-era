@@ -12,7 +12,7 @@ use url::Url;
 use zksync_config::EigenConfig;
 use zksync_da_client::types::DAError;
 use zksync_eth_client::clients::PKSigningClient;
-use zksync_types::{url::SensitiveUrl, K256PrivateKey, SLChainId};
+use zksync_types::{K256PrivateKey, SLChainId};
 use zksync_web3_decl::client::{Client, DynClient, L1};
 
 use super::{
@@ -69,7 +69,7 @@ impl RawEigenClient {
             chain_id: config.chain_id,
         };
 
-        let url = SensitiveUrl::from_str(&verifier_config.rpc_url)?;
+        let url = verifier_config.rpc_url.clone();
         let query_client: Client<L1> = Client::http(url)?.build();
         let query_client = Box::new(query_client) as Box<DynClient<L1>>;
         let signing_client = PKSigningClient::new_raw(

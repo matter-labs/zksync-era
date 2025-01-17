@@ -90,6 +90,9 @@ impl FromEnv for DataAvailabilitySecrets {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
+    use zksync_basic_types::url::SensitiveUrl;
     use zksync_config::{
         configs::{
             da_client::{
@@ -266,7 +269,7 @@ mod tests {
             DAClientConfig::Eigen(EigenConfig {
                 disperser_rpc: "http://localhost:8080".to_string(),
                 settlement_layer_confirmation_depth: 0,
-                eigenda_eth_rpc: Some("http://localhost:8545".to_string()),
+                eigenda_eth_rpc: Some(SensitiveUrl::from_str("http://localhost:8545").unwrap()),
                 eigenda_svc_manager_address: "0x0000000000000000000000000000000000000123"
                     .parse()
                     .unwrap(),
