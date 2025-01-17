@@ -316,9 +316,9 @@ impl RawEigenClient {
 
         match disperser::BlobStatus::try_from(resp.status)? {
             disperser::BlobStatus::Processing | disperser::BlobStatus::Dispersing => Ok(None),
-            disperser::BlobStatus::Failed => Err(anyhow::anyhow!("Blob dispatch failed")),
+            disperser::BlobStatus::Failed => anyhow::bail!("Blob dispatch failed"),
             disperser::BlobStatus::InsufficientSignatures => {
-                Err(anyhow::anyhow!("Insufficient signatures"))
+                anyhow::bail!("Insufficient signatures")
             }
             disperser::BlobStatus::Confirmed => {
                 if !self.config.wait_for_finalization {
@@ -331,8 +331,7 @@ impl RawEigenClient {
                 let blob_info = resp.info.context("No blob header in response")?;
                 Ok(Some(blob_info))
             }
-
-            _ => Err(anyhow::anyhow!("Received unknown blob status")),
+            _ => anyhow::bail!("Received unknown blob status"),
         }
     }
 
