@@ -21,7 +21,6 @@ use zkevm_test_harness::{
         recursive_layer_vk_count,
     },
     data_source::in_memory_data_source::InMemoryDataSource,
-    proof_wrapper_utils::check_trusted_setup_file_existace,
 };
 use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_prover_keystore::{
