@@ -1,6 +1,12 @@
-use zksync_types::{L2ChainId, H256, U256};
+use zksync_types::{Address, L2ChainId, H256, U256};
 
 use crate::{interface::CompressedBytecodeInfo, vm_latest::types::TransactionData};
+
+#[derive(Debug)]
+pub(crate) struct EcRecoverCall {
+    pub input: [u8; 128],
+    pub output: Address,
+}
 
 /// Information about tx necessary for execution in bootloader.
 #[derive(Debug, Clone)]
@@ -29,9 +35,21 @@ impl BootloaderTx {
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         offset: usize,
         chain_id: L2ChainId,
-    ) -> Self {
-        let hash = tx.tx_hash(chain_id);
-        Self {
+    ) -> (Self, Option<EcRecoverCall>) {
+        let (signed_hash, hash) = tx.signed_and_tx_hashes(chain_id);
+        let expected_ecrecover_call = signed_hash.and_then(|signed_hash| {
+            let mut input = [0_u8; 128];
+            input[..32].copy_from_slice(signed_hash.as_bytes());
+            let (v, r_and_s) = tx.parse_signature()?;
+            input[63] = v as u8;
+            input[64..].copy_from_slice(r_and_s);
+            Some(EcRecoverCall {
+                input,
+                output: tx.from,
+            })
+        });
+
+        let this = Self {
             hash,
             encoded: tx.into_tokens(),
             compressed_bytecodes,
@@ -39,7 +57,8 @@ impl BootloaderTx {
             gas_overhead: predefined_overhead,
             trusted_gas_limit,
             offset,
-        }
+        };
+        (this, expected_ecrecover_call)
     }
 
     pub(super) fn encoded_len(&self) -> usize {

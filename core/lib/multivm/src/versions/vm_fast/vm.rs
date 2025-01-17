@@ -5,6 +5,7 @@ use zk_evm_1_5_0::{
 };
 use zksync_contracts::SystemContractCode;
 use zksync_types::{
+    address_to_u256,
     bytecode::BytecodeHash,
     h256_to_u256,
     l1::is_l1_tx_type,
@@ -21,6 +22,10 @@ use zksync_types::{
 };
 use zksync_vm2::{
     interface::{CallframeInterface, HeapId, StateInterface, Tracer},
+    precompiles::{
+        LegacyPrecompiles, PrecompileMemoryReader, PrecompileOutput, Precompiles,
+        ECRECOVER_INNER_FUNCTION_PRECOMPILE_ADDRESS,
+    },
     ExecutionEnd, FatPointer, Program, Settings, StorageSlot, VirtualMachine,
 };
 
@@ -44,7 +49,7 @@ use crate::{
     vm_latest::{
         bootloader::{
             utils::{apply_l2_block, apply_pubdata_to_memory},
-            BootloaderState, BootloaderStateSnapshot,
+            BootloaderState, BootloaderStateSnapshot, EcRecoverCall,
         },
         constants::{
             get_operator_refunds_offset, get_result_success_first_slot,
@@ -99,6 +104,7 @@ pub struct Vm<S, Tr = (), Val = ()> {
     pub(super) system_env: SystemEnv,
     snapshot: Option<VmSnapshot>,
     vm_version: FastVmVersion,
+    skip_signature_verification: bool,
     #[cfg(test)]
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
 }
@@ -171,11 +177,16 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
             batch_env,
             snapshot: None,
             vm_version,
+            skip_signature_verification: false,
             #[cfg(test)]
             enforced_state_diffs: None,
         };
         this.write_to_bootloader_heap(bootloader_memory);
         this
+    }
+
+    pub fn skip_signature_verification(&mut self) {
+        self.skip_signature_verification = true;
     }
 
     fn get_hook_params(&self) -> [U256; 3] {
@@ -282,7 +293,7 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
 
         let trusted_ergs_limit = tx.trusted_ergs_limit();
 
-        let memory = self.bootloader_state.push_tx(
+        let (memory, ecrecover_call) = self.bootloader_state.push_tx(
             tx,
             overhead,
             refund,
@@ -290,8 +301,13 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
             trusted_ergs_limit,
             self.system_env.chain_id,
         );
-
         self.write_to_bootloader_heap(memory);
+
+        self.world.precompiles.expected_ecrecover_call = if self.skip_signature_verification {
+            ecrecover_call
+        } else {
+            None
+        };
     }
 
     #[cfg(test)]
@@ -904,6 +920,7 @@ pub(crate) struct World<S, T> {
     dynamic_bytecodes: DynamicBytecodes,
     program_cache: HashMap<U256, Program<T, Self>>,
     pub(crate) bytecode_cache: HashMap<U256, Vec<u8>>,
+    precompiles: OptimizedPrecompiles,
 }
 
 impl<S: ReadStorage, T: Tracer> World<S, T> {
@@ -913,6 +930,7 @@ impl<S: ReadStorage, T: Tracer> World<S, T> {
             dynamic_bytecodes: DynamicBytecodes::default(),
             program_cache,
             bytecode_cache: HashMap::default(),
+            precompiles: OptimizedPrecompiles::default(),
         }
     }
 
@@ -1047,5 +1065,36 @@ impl<S: ReadStorage, T: Tracer> zksync_vm2::World<T> for World<S, T> {
                 buffer
             })
             .collect()
+    }
+
+    fn precompiles(&self) -> &impl Precompiles {
+        &self.precompiles
+    }
+}
+
+/// Precompiles implementation that shortcuts an `ecrecover` call made during L2 transaction validation.
+#[derive(Debug, Default)]
+struct OptimizedPrecompiles {
+    expected_ecrecover_call: Option<EcRecoverCall>,
+}
+
+// FIXME: test that the expected call is triggered
+impl Precompiles for OptimizedPrecompiles {
+    fn call_precompile(
+        &self,
+        address_low: u16,
+        memory: PrecompileMemoryReader<'_>,
+        aux_input: u64,
+    ) -> PrecompileOutput {
+        if address_low == ECRECOVER_INNER_FUNCTION_PRECOMPILE_ADDRESS {
+            if let Some(call) = &self.expected_ecrecover_call {
+                let memory_input = memory.clone().assume_offset_in_words();
+                if call.input.iter().copied().eq(memory_input) {
+                    // Return the predetermined address instead of ECDSA recovery
+                    return PrecompileOutput::from([U256::one(), address_to_u256(&call.output)]);
+                }
+            }
+        }
+        LegacyPrecompiles.call_precompile(address_low, memory, aux_input)
     }
 }
