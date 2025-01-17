@@ -5,8 +5,6 @@ use zksync_basic_types::{
     commitment::L1BatchCommitmentMode, url::SensitiveUrl, L1ChainId, L2ChainId, SLChainId,
 };
 
-use crate::DAClientConfig;
-
 /// Temporary config for initializing external node, will be completely replaced by consensus config later
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct ENConfig {

@@ -25,7 +25,7 @@ use crate::{
         },
         external_price_api_client::ForcedPriceClientConfig,
     },
-    AvailConfig, DAClientConfig,
+    AvailConfig,
 };
 
 trait Sample {
