@@ -14,6 +14,7 @@ use zksync_types::{
 
 use super::blob_info::{BatchHeader, BlobHeader, BlobInfo, BlobQuorumParam, G1Commitment};
 
+#[cfg(test)]
 mod tests;
 
 #[async_trait::async_trait]
@@ -410,17 +411,14 @@ impl Verifier {
 
     fn decode_bytes(&self, encoded: Vec<u8>) -> Result<Vec<u8>, VerificationError> {
         let output_type = [ParamType::Bytes];
-        let tokens: Vec<Token> = ethabi::decode(&output_type, &encoded)
+        let tokens = ethabi::decode(&output_type, &encoded)
             .map_err(|e| ServiceManagerError::Decoding(e.to_string()))?;
-        let token = tokens
-            .first()
-            .ok_or(ServiceManagerError::Decoding("No tokens found".to_string()))?;
-        match token {
-            Token::Bytes(data) => Ok(data.to_vec()),
-            _ => Err(VerificationError::from(ServiceManagerError::Decoding(
-                "Token type mismatch".to_string(),
-            ))),
-        }
+
+        // Safe unwrap because decode guarantees type correctness and non-empty output
+        let token = tokens.into_iter().next().unwrap();
+
+        // Safe unwrap, as type is guaranteed
+        Ok(token.into_bytes().unwrap())
     }
 
     async fn get_quorum_adversary_threshold(
