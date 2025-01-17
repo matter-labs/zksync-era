@@ -6,12 +6,13 @@ use rust_kzg_bn254::{blob::Blob, kzg::Kzg, polynomial::PolynomialFormat};
 use tokio::{fs::File, io::AsyncWriteExt};
 use url::Url;
 use zksync_basic_types::web3::CallRequest;
-use zksync_eth_client::{clients::PKSigningClient, EnrichedClientError, EnrichedClientResult};
+use zksync_eth_client::{EnrichedClientError, EnrichedClientResult, EthInterface};
 use zksync_types::{
     url::SensitiveUrl,
     web3::{self, BlockId, BlockNumber},
     Address, U256, U64,
 };
+use zksync_web3_decl::client::{DynClient, L1};
 
 use super::blob_info::{BatchHeader, BlobHeader, BlobInfo, BlobQuorumParam, G1Commitment};
 
@@ -32,7 +33,7 @@ pub trait VerifierClient: Sync + Send + std::fmt::Debug {
 }
 
 #[async_trait::async_trait]
-impl VerifierClient for PKSigningClient {
+impl VerifierClient for Box<DynClient<L1>> {
     async fn block_number(&self) -> EnrichedClientResult<U64> {
         self.as_ref().block_number().await
     }
@@ -60,9 +61,6 @@ pub enum ServiceManagerError {
     EnrichedClient(#[from] EnrichedClientError),
     #[error("Decoding error: {0}")]
     Decoding(String),
-    #[cfg(test)]
-    #[error("Parsing error: {0}")]
-    Parsing(String),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -105,8 +103,6 @@ pub struct VerifierConfig {
     pub g1_url: Url,
     pub g2_url: Url,
     pub settlement_layer_confirmation_depth: u32,
-    pub private_key: String,
-    pub chain_id: u64,
 }
 
 /// Verifier used to verify the integrity of the blob info
