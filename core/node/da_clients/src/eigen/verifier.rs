@@ -117,7 +117,7 @@ pub struct Verifier {
 
 impl Verifier {
     pub const DEFAULT_PRIORITY_FEE_PER_GAS: u64 = 100;
-    pub const SRSORDER: u32 = 268435456; // 2 ^ 28
+    pub const SRSORDER: u32 = 1 << 28; // 2 ^ 28
     pub const G1POINT: &'static str = "g1.point";
     pub const G2POINT: &'static str = "g2.point.powerOf2";
     pub const POINT_SIZE: u32 = 32;
