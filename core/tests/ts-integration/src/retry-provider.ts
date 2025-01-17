@@ -35,6 +35,7 @@ export class RetryProvider extends zksync.Provider {
                 }
                 return result;
             } catch (err: any) {
+                console.log(`Caught send error: ${err}`);
                 // Error markers observed on stage so far.
                 const ignoredErrors = [
                     'timeout',
