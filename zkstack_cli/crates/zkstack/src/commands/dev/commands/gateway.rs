@@ -799,8 +799,8 @@ pub(crate) async fn run(shell: &Shell, args: GatewayUpgradeCalldataArgs) -> anyh
     // 2. Generate calldata
 
     let schedule_calldata = set_upgrade_timestamp_calldata(
-        args.server_upgrade_timestamp,
         upgrade_info.new_protocol_version,
+        args.server_upgrade_timestamp,
     );
 
     println!(
