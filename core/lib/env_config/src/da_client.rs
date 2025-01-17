@@ -259,7 +259,6 @@ mod tests {
             DA_AUTHENTICATED=false
             DA_G1_URL="resources1"
             DA_G2_URL="resources2"
-            DA_CHAIN_ID=1
         "#;
         lock.set_env(config);
 
@@ -277,7 +276,6 @@ mod tests {
                 authenticated: false,
                 g1_url: "resources1".to_string(),
                 g2_url: "resources2".to_string(),
-                chain_id: 1
             })
         );
     }

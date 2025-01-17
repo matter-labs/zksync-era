@@ -29,8 +29,6 @@ pub struct EigenConfig {
     pub g1_url: String,
     /// Url to the file containing the G2 point used for KZG
     pub g2_url: String,
-    /// Chain ID of the Ethereum network
-    pub chain_id: u64,
 }
 
 impl Default for EigenConfig {
@@ -44,7 +42,6 @@ impl Default for EigenConfig {
             authenticated: false,
             g1_url: "https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g1.point".to_string(),
             g2_url: "https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g2.point.powerOf2".to_string(),
-            chain_id: 19000,
         }
     }
 }

@@ -80,7 +80,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 authenticated: *required(&conf.authenticated).context("authenticated")?,
                 g1_url: required(&conf.g1_url).context("g1_url")?.clone(),
                 g2_url: required(&conf.g2_url).context("g2_url")?.clone(),
-                chain_id: *required(&conf.chain_id).context("chain_id")?,
             }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
@@ -133,7 +132,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 authenticated: Some(config.authenticated),
                 g1_url: Some(config.g1_url.clone()),
                 g2_url: Some(config.g2_url.clone()),
-                chain_id: Some(config.chain_id),
             }),
             ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
                 object_store_proto::ObjectStore::build(config),
