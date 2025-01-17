@@ -108,8 +108,8 @@ mod tests {
         }
     }
 
-    const STATUS_QUERY_TIMEOUT: u64 = 1800000; // 30 minutes
-    const STATUS_QUERY_INTERVAL: u64 = 5; // 5 ms
+    const STATUS_QUERY_INTERVAL: Duration = Duration::from_millis(5);
+    const MAX_RETRY_ATTEMPTS: usize = 1800000; // With this value we retry for a duration of 30 minutes
 
     async fn get_blob_info(
         client: &EigenClient,
@@ -124,8 +124,8 @@ mod tests {
         })
         .retry(
             &ConstantBuilder::default()
-                .with_delay(Duration::from_millis(STATUS_QUERY_INTERVAL))
-                .with_max_times((STATUS_QUERY_TIMEOUT / STATUS_QUERY_INTERVAL) as usize),
+                .with_delay(STATUS_QUERY_INTERVAL)
+                .with_max_times(MAX_RETRY_ATTEMPTS),
         )
         .when(|e| e.to_string().contains("Blob not found"))
         .await?;
