@@ -40,7 +40,7 @@ jobs:
 
       - name: Cargo check
         if: steps.condition.outputs.skip_steps != 'true'
-        run: ci_run cargo check
+        run: ci_run cargo check --manifest-path core/Cargo.toml
 
       - name: Push changes
         if: steps.condition.outputs.skip_steps != 'true'
@@ -50,6 +50,6 @@ jobs:
           git config --global user.email "zksync-era-bot@users.noreply.github.com"
           git config --global user.name "zksync-era-bot"
           git remote set-url origin 'https://${{ secrets.RELEASE_TOKEN }}@github.com/matter-labs/zksync-era.git'
-          git add ./Cargo.lock
+          git add core/Cargo.lock
           git commit -m "Update Cargo.lock"
           git push
