@@ -385,7 +385,7 @@ fn get_account_id(secret_key: &SecretKey) -> String {
 fn convert_by_padding_empty_byte(data: &[u8]) -> Vec<u8> {
     let parse_size = DATA_CHUNK_SIZE - 1;
 
-    let chunk_count = (data.len()).div_ceil(parse_size);
+    let chunk_count = data.len().div_ceil(parse_size);
     let mut valid_data = Vec::with_capacity(data.len() + chunk_count);
 
     for chunk in data.chunks(parse_size) {
