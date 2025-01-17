@@ -101,10 +101,9 @@ impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
     fn get_fee_model_params(&self) -> FeeParams {
         let fee_params = *self.main_node_fee_params.read().unwrap();
         let batch_fee_input = *self.main_node_batch_fee_input.read().unwrap();
-        if batch_fee_input.is_none() {
+        let Some(batch_fee_input) = batch_fee_input else {
             return fee_params;
         }
-        let batch_fee_input = batch_fee_input.unwrap();
         match fee_params {
             FeeParams::V1(..) => FeeParams::V1(FeeParamsV1 {
                 config: FeeModelConfigV1 {
