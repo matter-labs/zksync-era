@@ -16,7 +16,7 @@ export default {
     },
     networks: {
         hardhat: {
-            zksync: true
+            zksync: false
         }
     },
     solidity: {

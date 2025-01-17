@@ -16,17 +16,12 @@ import {
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT
 } from 'zksync-ethers/build/utils';
 
-const contracts = {
-    counter: getTestContract('Counter'),
-    errors: getTestContract('SimpleRequire'),
-    context: getTestContract('Context'),
-    writesAndMessages: getTestContract('WritesAndMessages')
-};
-
 // Sane amount of L2 gas enough to process a transaction.
 const DEFAULT_L2_GAS_LIMIT = 5000000;
 
 describe('Tests for L1 behavior', () => {
+    let contracts: any;
+
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
 
@@ -38,6 +33,12 @@ describe('Tests for L1 behavior', () => {
     let expectedL2Costs: bigint;
 
     beforeAll(() => {
+        contracts = {
+            counter: getTestContract('Counter'),
+            errors: getTestContract('SimpleRequire'),
+            context: getTestContract('Context'),
+            writesAndMessages: getTestContract('WritesAndMessages')
+        };
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
     });

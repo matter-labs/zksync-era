@@ -9,10 +9,9 @@ use zksync_db_connection::{
     interpolate_query, match_query_as,
 };
 use zksync_types::{
-    api, api::TransactionReceipt, block::build_bloom, Address, BloomInput, L2BlockNumber,
-    L2ChainId, Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
+    api, api::TransactionReceipt, block::build_bloom, web3::keccak256, Address, BloomInput,
+    L2BlockNumber, L2ChainId, Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
-use zksync_types::web3::keccak256;
 use zksync_vm_interface::VmEvent;
 
 use crate::{
@@ -151,13 +150,20 @@ impl TransactionsWeb3Dal<'_, '_> {
         }
 
         st_receipts.iter_mut().for_each(|receipt| {
-            let is_deployment_tx = match serde_json::from_value::<Option<zksync_types::Address>>(receipt.execute_contract_address.clone().unwrap()).expect("invalid address value in the database") {
+            let is_deployment_tx = match serde_json::from_value::<Option<zksync_types::Address>>(
+                receipt.execute_contract_address.clone().unwrap(),
+            )
+            .expect("invalid address value in the database")
+            {
                 Some(to) => to == CONTRACT_DEPLOYER_ADDRESS,
                 None => true,
             };
             if is_deployment_tx {
                 // nonce may not work for l1 tx
-                receipt.contract_address = Some(derive_create_address(receipt.initiator_address.as_slice(), receipt.nonce.unwrap_or_default() as u64));
+                receipt.contract_address = Some(derive_create_address(
+                    receipt.initiator_address.as_slice(),
+                    receipt.nonce.unwrap_or_default() as u64,
+                ));
             }
         });
         let mut receipts: Vec<TransactionReceipt> =
@@ -498,10 +504,10 @@ impl TransactionsWeb3Dal<'_, '_> {
             "#,
             initiator_address.as_bytes(),
         )
-            .instrument("zkos_max_nonce_by_initiator_account")
-            .fetch_one(self.storage)
-            .await?
-            .nonce;
+        .instrument("zkos_max_nonce_by_initiator_account")
+        .fetch_one(self.storage)
+        .await?
+        .nonce;
 
         Ok(nonce.map(|n| U256::from(n)))
     }

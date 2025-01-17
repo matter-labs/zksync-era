@@ -7,13 +7,16 @@ use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
-use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
-use zksync_multivm::zk_evm_latest::k256::elliptic_curve::weierstrass::add;
+use zksync_multivm::{
+    utils::derive_base_fee_and_gas_per_pubdata,
+    zk_evm_latest::k256::elliptic_curve::weierstrass::add,
+};
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 #[cfg(test)]
 use zksync_types::H256;
 use zksync_types::{get_nonce_key, vm::VmVersion, Address, Nonce, Transaction, U256};
 use zksync_zkos_vm_runner::zkos_nonce_flat_key;
+
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.

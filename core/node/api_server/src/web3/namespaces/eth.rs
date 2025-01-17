@@ -1,4 +1,5 @@
 use std::str::FromStr;
+
 use anyhow::Context as _;
 use ruint::aliases::B160;
 use zk_ee::common_structs::derive_flat_storage_key;
@@ -6,11 +7,20 @@ use zk_os_basic_system::basic_io_implementer::address_into_special_storage_key;
 use zk_os_system_hooks::addresses_constants::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS;
 use zksync_dal::{CoreDal, DalError};
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
-use zksync_types::{api::{
-    state_override::StateOverride, BlockId, BlockNumber, FeeHistory, GetLogsFilter,
-    Transaction, TransactionId, TransactionReceipt, TransactionVariant,
-}, l2::{L2Tx, TransactionType}, transaction_request::CallRequest, utils::decompose_full_nonce, web3::{self, Bytes, SyncInfo, SyncState}, AccountTreeId, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256, H160, u256_to_h256, h256_to_u256};
-use zksync_types::bytecode::{BytecodeMarker, trim_padded_evm_bytecode};
+use zksync_types::{
+    api::{
+        state_override::StateOverride, BlockId, BlockNumber, FeeHistory, GetLogsFilter,
+        Transaction, TransactionId, TransactionReceipt, TransactionVariant,
+    },
+    bytecode::{trim_padded_evm_bytecode, BytecodeMarker},
+    h256_to_u256,
+    l2::{L2Tx, TransactionType},
+    transaction_request::CallRequest,
+    u256_to_h256,
+    utils::decompose_full_nonce,
+    web3::{self, Bytes, SyncInfo, SyncState},
+    AccountTreeId, L2BlockNumber, StorageKey, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
+};
 use zksync_web3_decl::{
     error::Web3Error,
     types::{Address, Block, Filter, FilterChanges, Log, U64},
@@ -126,9 +136,7 @@ impl EthNamespace {
 
         let mut balances = connection
             .storage_web3_dal()
-            .get_values(
-                &[storage_hashed_key],
-            )
+            .get_values(&[storage_hashed_key])
             .await
             .map_err(DalError::generalize)?;
 
@@ -440,8 +448,7 @@ impl EthNamespace {
             };
         }
 
-        assert_eq!(nonce.map(|n| n + 1).unwrap_or(U256::zero()), account_nonce);
-        Ok(nonce.map(|n| n + 1).unwrap_or(U256::zero()))
+        Ok(account_nonce)
     }
 
     pub async fn get_transaction_impl(

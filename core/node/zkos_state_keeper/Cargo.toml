@@ -29,3 +29,4 @@ ruint.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 serde = { version = "1.0.214", features = ["derive"] }
+hex.workspace = true

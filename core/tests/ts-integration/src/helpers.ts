@@ -46,7 +46,7 @@ export async function deployContract(
     deploymentType?: zksync.types.DeploymentType,
     overrides: any = {}
 ): Promise<zksync.Contract> {
-    const contractFactory = new zksync.ContractFactory(artifact.abi, artifact.bytecode, initiator, deploymentType);
+    const contractFactory = new ethers.ContractFactory(artifact.abi, artifact.bytecode, initiator);
     const contract = (await contractFactory.deploy(...args, overrides)) as zksync.Contract;
     await contract.waitForDeployment();
     return contract;

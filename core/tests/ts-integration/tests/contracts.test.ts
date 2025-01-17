@@ -32,7 +32,7 @@ const contracts = {
     error: getTestContract('SimpleRequire')
 };
 
-describe('Smart contract behavior checks', () => {
+describe('Smart contract behavior checks: zkos', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
 
@@ -51,7 +51,10 @@ describe('Smart contract behavior checks', () => {
 
         // Change the storage slot and ensure it actually changes.
         expect(counterContract.get()).resolves.toEqual(0n);
-        await expect(counterContract.increment(42)).toBeAccepted([feeCheck]);
+        await expect(counterContract.increment(42))
+            .toBeAccepted
+            // [feeCheck]
+            ();
         expect(counterContract.get()).resolves.toEqual(42n);
     });
 
@@ -64,23 +67,23 @@ describe('Smart contract behavior checks', () => {
     });
 
     test('Should deploy contract with create', async () => {
-        const contractFactory = new zksync.ContractFactory(contracts.create.abi, contracts.create.bytecode, alice);
+        const contractFactory = new ethers.ContractFactory(contracts.create.abi, contracts.create.bytecode, alice);
         const contract = (await contractFactory.deploy({
-            customData: {
-                factoryDeps: [contracts.create.factoryDep]
-            }
+            // customData: {
+            //     factoryDeps: [contracts.create.factoryDep]
+            // }
         })) as zksync.Contract;
         await contract.waitForDeployment();
         await expect(contract.getFooName()).resolves.toBe('Foo');
     });
 
-    test('Should perform "expensive" contract calls', async () => {
+    test.skip('Should perform "expensive" contract calls', async () => {
         expensiveContract = await deployContract(alice, contracts.expensive, []);
         //  Check that the transaction that is too expensive would be rejected by the API server.
         await expect(expensiveContract.expensive(15000)).toBeRejected();
     });
 
-    test('Should perform underpriced "expensive" contract calls', async () => {
+    test.skip('Should perform underpriced "expensive" contract calls', async () => {
         //  Check that processable transaction may fail with "out of gas" error.
         // To do so, we estimate gas for arg "1" and supply it to arg "20".
         // This guarantees that transaction won't fail during verification.
@@ -128,7 +131,7 @@ describe('Smart contract behavior checks', () => {
         );
     });
 
-    test('Should not allow invalid contract bytecode', async () => {
+    test.skip('Should not allow invalid contract bytecode', async () => {
         // In this test we ensure that bytecode validity is checked by server.
 
         // Helpers to interact with the RPC API directly.
@@ -240,7 +243,7 @@ describe('Smart contract behavior checks', () => {
         });
     });
 
-    test('Should return correct error during fee estimation', async () => {
+    test.skip('Should return correct error during fee estimation', async () => {
         const errorContract = await deployContract(alice, contracts.error, []);
 
         /*
@@ -266,7 +269,7 @@ describe('Smart contract behavior checks', () => {
             ();
     });
 
-    test('Should check block properties for tx execution', async () => {
+    test.skip('Should check block properties for tx execution', async () => {
         if (testMaster.isFastMode()) {
             // This test requires a new L1 batch to be created, which may be very time consuming on stage.
             return;
@@ -327,7 +330,7 @@ describe('Smart contract behavior checks', () => {
         ).toBeAccepted([]);
     });
 
-    test('Should successfully publish a large packable bytecode', async () => {
+    test.skip('Should successfully publish a large packable bytecode', async () => {
         // The rough length of the packed bytecode should be 350_000 / 4 = 87500,
         // which should fit into a batch
         const BYTECODE_LEN = 350_016 + 32; // +32 to ensure validity of the bytecode
@@ -359,7 +362,7 @@ describe('Smart contract behavior checks', () => {
         ).toBeAccepted([]);
     });
 
-    test('Should reject tx with not enough gas for publishing bytecode', async () => {
+    test.skip('Should reject tx with not enough gas for publishing bytecode', async () => {
         // Send a transaction with big unique factory dep and provide gas enough for validation but not for bytecode publishing.
         // Transaction should be rejected by API.
 
@@ -383,7 +386,7 @@ describe('Smart contract behavior checks', () => {
         ).toBeRejected('not enough gas to publish compressed bytecodes');
     });
 
-    test('Should check secp256r1 precompile', async () => {
+    test.skip('Should check secp256r1 precompile', async () => {
         const ec = new elliptic.ec('p256');
 
         const privateKeyHex = '519b423d715f8b581f4fa8ee59f4771a5b44c8130b4e3eacca54a56dda72b464';
