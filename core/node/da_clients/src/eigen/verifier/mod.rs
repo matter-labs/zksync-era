@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use ark_bn254::{Fq, G1Affine};
 use ethabi::{encode, ParamType, Token};
@@ -126,7 +126,7 @@ impl Verifier {
     pub const G2POINT: &'static str = "g2.point.powerOf2";
     pub const POINT_SIZE: u32 = 32;
 
-    async fn save_point(url: Url, point: String) -> Result<(), VerificationError> {
+    async fn save_point(url: Url, point: &str) -> Result<(), VerificationError> {
         let response = reqwest::get(url)
             .await
             .map_err(|e| VerificationError::LinkError(e.to_string()))?;
@@ -135,9 +135,8 @@ impl Verifier {
                 "Failed to get point".to_string(),
             ));
         }
-        let path = format!("./{}", point);
-        let path = Path::new(&path);
-        let mut file = File::create(path)
+
+        let mut file = File::create(point)
             .await
             .map_err(|e| VerificationError::LinkError(e.to_string()))?;
         let content = response
@@ -151,8 +150,8 @@ impl Verifier {
     }
 
     async fn save_points(url_g1: Url, url_g2: Url) -> Result<String, VerificationError> {
-        Self::save_point(url_g1, Self::G1POINT.to_string()).await?;
-        Self::save_point(url_g2, Self::G2POINT.to_string()).await?;
+        Self::save_point(url_g1, Self::G1POINT).await?;
+        Self::save_point(url_g2, Self::G2POINT).await?;
 
         Ok(".".to_string())
     }
