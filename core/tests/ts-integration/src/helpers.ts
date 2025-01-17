@@ -104,6 +104,11 @@ export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.t
                     `Transaction did not have enough gas, likely gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`
                 );
                 return null;
+            } else if (<Error>e.message.match(/max fee per gas less than block base fee/)) {
+                console.log(
+                    `Transaction's max fee per gas was lower than block base fee, likely gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`
+                );
+                return null;
             } else {
                 return Promise.reject(e);
             }
