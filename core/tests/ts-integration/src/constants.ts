@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 export const REQUIRED_L2_GAS_PRICE_PER_PUBDATA = 800;
 
@@ -12,6 +13,8 @@ export const L2_MESSAGE_ROOT_ADDRESS = '0x00000000000000000000000000000000000100
 // export const L2_NULLIFIER_ADDRESS = '0x0000000000000000000000000000000000010008';
 export const L2_INTEROP_CENTER_ADDRESS = '0x0000000000000000000000000000000000010008';
 export const L2_INTEROP_HANDLER_ADDRESS = '0x0000000000000000000000000000000000010009';
+export const L2_MESSAGE_ROOT_STORAGE_ADDRESS = '0x000000000000000000000000000000000001000B';
+export const L2_MESSAGE_VERIFICATION_ADDRESS = '0x000000000000000000000000000000000001000C';
 export const DEPLOYER_SYSTEM_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000008006';
 export const L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR = '0x0000000000000000000000000000000000008008';
 export const EMPTY_STRING_KECCAK = '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470';
@@ -23,37 +26,26 @@ export const L2_LOG_STRING =
     'tuple(uint8 l2ShardId,bool isService,uint16 txNumberInBatch,address sender,bytes32 key,bytes32 value)';
 export const ARTIFACTS_PATH = '../../../contracts/l1-contracts/out/';
 
-// struct InteropTrigger {
-// struct InteropTrigger {
-//     uint256 destinationChainId;
-//     address sender;
-//     bytes32 feeBundleHash;
-//     bytes32 executionBundleHash;
-//     GasFields gasFields;
-// }
-// struct GasFields {
-//     uint256 gasLimit;
-//     uint256 gasPerPubdataByteLimit;
-//     address refundRecipient;
-// }
 export const INTEROP_TRIGGER_ABI =
     'tuple(uint256 destinationChainId, address from, bytes32 feeBundleHash, bytes32 executionBundleHash, tuple(uint256 gasLimit, uint256 gasPerPubdataByteLimit, address refundRecipient) gasFields)';
 
-// struct InteropBundle {
-//     uint256 destinationChainId;
-//     InteropCall[] calls;
-//     // If not set - anyone can execute it.
-//     address[] executionAddresses;
-//     // Who can 'cancel' this bundle.
-//     address cancellationAddress;
-// }
-
-// struct InteropCall {
-//     address to;
-//     address from;
-//     uint256 value;
-//     bytes data;
-// }
 export const INTEROP_CALL_ABI = 'tuple(address to, address from, uint256 value, bytes data)';
 export const INTEROP_BUNDLE_ABI =
     'tuple(uint256 destinationChainId, tuple(address to, address from, uint256 value, bytes data)[] calls, address[] executionAddresses, address cancellationAddress)';
+
+// Read contract artifacts
+function readContract(path: string, fileName: string, contractName?: string) {
+    contractName = contractName || fileName;
+    return JSON.parse(fs.readFileSync(`${path}/${fileName}.sol/${contractName}.json`, { encoding: 'utf-8' }));
+}
+export const ArtifactBridgeHub = readContract(`${ARTIFACTS_PATH}`, 'Bridgehub');
+export const ArtifactInteropCenter = readContract(`${ARTIFACTS_PATH}`, 'InteropCenter');
+export const ArtifactInteropHandler = readContract(`${ARTIFACTS_PATH}`, 'InteropHandler');
+export const ArtifactL2MessageVerification = readContract(`${ARTIFACTS_PATH}`, 'L2MessageVerification');
+export const ArtifactNativeTokenVault = readContract(`${ARTIFACTS_PATH}`, 'L2NativeTokenVault');
+export const ArtifactMintableERC20 = readContract(
+    '../../../contracts/l1-contracts/artifacts-zk/contracts/dev-contracts',
+    'TestnetERC20Token'
+);
+export const ArtifactL1AssetRouter = readContract(`${ARTIFACTS_PATH}`, 'L1AssetRouter');
+export const ArtifactSwap = readContract('./artifacts-zk/contracts/Swap', 'Swap');

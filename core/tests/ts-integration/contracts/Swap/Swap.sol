@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 interface IERC20 {
     function transfer(address to, uint256 value) external returns (bool);
     function transferFrom(address from, address to, uint256 value) external returns (bool);
+    function mint(address to, uint256 value) external returns (bool);
 }
 
 contract Swap {
@@ -18,6 +19,6 @@ contract Swap {
 
     function swap(uint256 amount) public payable {
         IERC20(token1Address).transferFrom(msg.sender, address(this), amount);
-        IERC20(token2Address).transfer(msg.sender, amount);
+        IERC20(token2Address).mint(msg.sender, amount);
     }
 }
