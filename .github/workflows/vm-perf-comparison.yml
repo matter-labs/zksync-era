@@ -69,7 +69,7 @@ jobs:
         run: |
           ci_run zkstackup -g --local
           ci_run zkstack dev contracts
-          ci_run cargo bench --package vm-benchmark --bench instructions -- --verbose
+          ci_run cargo bench --manifest-path ./core/Cargo.toml --package vm-benchmark --bench instructions -- --verbose
 
           ci_run cargo bench --manifest-path ./core/Cargo.toml \
             --package vm-benchmark --bench instructions -- --print > instructions.log 2>/dev/null
