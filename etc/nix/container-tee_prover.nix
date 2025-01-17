@@ -1,5 +1,4 @@
 { pkgs
-, nixsgxLib
 , teepot
 , tee_prover
 , container-name
@@ -10,7 +9,7 @@ let
   name = container-name;
   entrypoint = "${teepot.teepot.tee_key_preexec}/bin/tee-key-preexec";
 in
-nixsgxLib.mkSGXContainer {
+pkgs.lib.tee.sgxGramineContainer {
   inherit name;
   inherit tag;
 
