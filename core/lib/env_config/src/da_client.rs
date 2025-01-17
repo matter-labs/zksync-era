@@ -90,9 +90,6 @@ impl FromEnv for DataAvailabilitySecrets {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
-    use zksync_basic_types::H160;
     use zksync_config::{
         configs::{
             da_client::{
@@ -270,10 +267,9 @@ mod tests {
                 disperser_rpc: "http://localhost:8080".to_string(),
                 settlement_layer_confirmation_depth: 0,
                 eigenda_eth_rpc: Some("http://localhost:8545".to_string()),
-                eigenda_svc_manager_address: H160::from_str(
-                    "0x0000000000000000000000000000000000000123"
-                )
-                .unwrap(),
+                eigenda_svc_manager_address: "0x0000000000000000000000000000000000000123"
+                    .parse()
+                    .unwrap(),
                 wait_for_finalization: true,
                 authenticated: false,
                 g1_url: "resources1".to_string(),
