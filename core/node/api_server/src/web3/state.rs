@@ -237,8 +237,9 @@ impl BridgeAddressesHandle {
         *self.0.write().await = bridge_addresses;
     }
 
-    pub async fn update_l1_shared_bridge(&self, l1_shared_bridge: Address) {
+    pub async fn update_l1_shared_and_erc20_bridges(&self, l1_shared_bridge: Address) {
         self.0.write().await.l1_shared_default_bridge = Some(l1_shared_bridge);
+        self.0.write().await.l1_erc20_default_bridge = Some(l1_shared_bridge);
     }
 
     pub async fn update_l2_shared_bridge(&self, l2_shared_bridge: Address) {

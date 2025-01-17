@@ -73,7 +73,7 @@ impl L1UpdaterInner {
         match self.get_shared_bridge_info().await {
             Ok(info) => {
                 self.bridge_address_updater
-                    .update_l1_shared_bridge(info.l1_shared_bridge_addr)
+                    .update_l1_shared_and_erc20_bridges(info.l1_shared_bridge_addr)
                     .await;
                 // We only update one way:
                 // - Once the L2 asset router should be used, there is never a need to go back
