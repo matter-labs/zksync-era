@@ -616,6 +616,9 @@ export class TestContextOwner {
             // network errors to propagate during node termination.
             await this.l1Provider.removeAllListeners();
             await this.l2Provider.removeAllListeners();
+            this.l1Provider.destroy();
+            this.l2Provider.destroy();
+
             this.reporter.startAction(`Tearing down the context`);
             await this.collectFunds();
             this.reporter.finishAction();
