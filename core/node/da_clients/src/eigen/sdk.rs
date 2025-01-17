@@ -399,8 +399,8 @@ fn convert_by_padding_empty_byte(data: &[u8]) -> Vec<u8> {
 fn remove_empty_byte_from_padded_bytes(data: &[u8]) -> Vec<u8> {
     let parse_size = DATA_CHUNK_SIZE;
 
-    let data_len = (data.len() + parse_size - 1) / parse_size;
-    let mut valid_data = Vec::with_capacity(data.len() - data_len);
+    let chunk_count = data.len().div_ceil(parse_size);
+    let mut valid_data = Vec::with_capacity(data.len() - chunk_count);
 
     for chunk in data.chunks(parse_size) {
         valid_data.extend_from_slice(&chunk[1..]);
