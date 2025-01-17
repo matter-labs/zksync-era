@@ -10,7 +10,7 @@ use crate::{
     interface::L1BatchEnv,
 };
 
-pub(crate) mod bytecode;
+pub mod bytecode;
 mod deduplicator;
 pub(crate) mod events;
 
