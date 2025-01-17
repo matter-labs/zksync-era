@@ -90,16 +90,13 @@ mod tests {
     use backon::{ConstantBuilder, Retryable};
     use serial_test::file_serial;
     use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
-    use zksync_da_client::{
-        types::{DAError, DispatchResponse},
-        DataAvailabilityClient,
-    };
+    use zksync_da_client::{types::DispatchResponse, DataAvailabilityClient};
     use zksync_types::secrets::PrivateKey;
 
     use crate::eigen::{blob_info::BlobInfo, EigenClient, GetBlobData};
 
     impl EigenClient {
-        async fn get_blob_data(&self, blob_id: BlobInfo) -> anyhow::Result<Vec<u8>, DAError> {
+        async fn get_blob_data(&self, blob_id: BlobInfo) -> anyhow::Result<Vec<u8>> {
             self.client.get_blob_data(blob_id).await
         }
 

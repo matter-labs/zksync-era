@@ -10,7 +10,6 @@ use tonic::{
 };
 use url::Url;
 use zksync_config::EigenConfig;
-use zksync_da_client::types::DAError;
 use zksync_eth_client::clients::PKSigningClient;
 use zksync_types::{K256PrivateKey, SLChainId};
 use zksync_web3_decl::client::{Client, DynClient, L1};
@@ -333,9 +332,8 @@ impl RawEigenClient {
         }
     }
 
-    pub async fn get_blob_data(&self, blob_info: BlobInfo) -> Result<Vec<u8>, DAError> {
+    pub async fn get_blob_data(&self, blob_info: BlobInfo) -> anyhow::Result<Vec<u8>> {
         use anyhow::anyhow;
-        use zksync_da_client::types::DAError;
 
         let blob_index = blob_info.blob_verification_proof.blob_index;
         let batch_header_hash = blob_info
@@ -349,18 +347,11 @@ impl RawEigenClient {
                 batch_header_hash,
                 blob_index,
             })
-            .await
-            .map_err(|e| DAError {
-                error: anyhow!(e),
-                is_retriable: true,
-            })?
+            .await?
             .into_inner();
 
         if get_response.data.is_empty() {
-            return Err(DAError {
-                error: anyhow!("Failed to get blob data"),
-                is_retriable: false,
-            });
+            return Err(anyhow!("Failed to get blob data"));
         }
 
         let data = remove_empty_byte_from_padded_bytes(&get_response.data);
