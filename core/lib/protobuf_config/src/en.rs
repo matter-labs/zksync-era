@@ -37,7 +37,6 @@ impl ProtoRepr for proto::ExternalNode {
                 .bridge_addresses_refresh_interval_sec
                 .and_then(NonZeroU64::new),
             gateway_chain_id: self.gateway_chain_id.map(SLChainId),
-            da_client: None,
         })
     }
 
