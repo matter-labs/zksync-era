@@ -42,7 +42,7 @@ async fn prettier_contracts(shell: Shell, check: bool) -> anyhow::Result<()> {
 }
 
 async fn rustfmt(shell: Shell, check: bool, link_to_code: PathBuf) -> anyhow::Result<()> {
-    for dir in [".", "prover", "zkstack_cli"] {
+    for dir in ["core", "prover", "zkstack_cli"] {
         let spinner = Spinner::new(&msg_running_rustfmt_for_dir_spinner(dir));
         let _dir = shell.push_dir(link_to_code.join(dir));
         let mut cmd = cmd!(shell, "cargo fmt -- --config imports_granularity=Crate --config group_imports=StdExternalCrate");

@@ -591,6 +591,7 @@ pub(crate) struct CallTrace {
     pub call_trace: Vec<u8>,
     pub tx_hash: Vec<u8>,
     pub tx_index_in_block: Option<i32>,
+    pub tx_error: Option<String>,
 }
 
 impl CallTrace {

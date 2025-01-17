@@ -12,6 +12,8 @@ mod change_default;
 mod common;
 mod create;
 pub mod create_configs;
+#[cfg(feature = "gateway")]
+mod gateway_upgrade;
 pub(crate) mod init;
 pub(crate) mod setup_observability;
 mod utils;
@@ -34,6 +36,9 @@ pub enum EcosystemCommands {
     /// downloading Grafana dashboards from the era-observability repo
     #[command(alias = "obs")]
     SetupObservability,
+    /// Gateway version upgrade
+    #[cfg(feature = "gateway")]
+    GatewayUpgrade(crate::commands::ecosystem::args::gateway_upgrade::GatewayUpgradeArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Result<()> {
@@ -43,5 +48,7 @@ pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Resul
         EcosystemCommands::Init(args) => init::run(args, shell).await,
         EcosystemCommands::ChangeDefaultChain(args) => change_default::run(args, shell),
         EcosystemCommands::SetupObservability => setup_observability::run(shell),
+        #[cfg(feature = "gateway")]
+        EcosystemCommands::GatewayUpgrade(args) => gateway_upgrade::run(args, shell).await,
     }
 }

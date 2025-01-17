@@ -567,7 +567,8 @@ impl BlocksWeb3Dal<'_, '_> {
             SELECT
                 transactions.hash AS tx_hash,
                 transactions.index_in_block AS tx_index_in_block,
-                call_trace
+                call_trace,
+                transactions.error AS tx_error
             FROM
                 call_traces
             INNER JOIN transactions ON tx_hash = transactions.hash
@@ -583,7 +584,7 @@ impl BlocksWeb3Dal<'_, '_> {
         .fetch_all(self.storage)
         .await?
         .into_iter()
-        .map(|call_trace| {
+        .map(|mut call_trace| {
             let tx_hash = H256::from_slice(&call_trace.tx_hash);
             let index = call_trace.tx_index_in_block.unwrap_or_default() as usize;
             let meta = CallTraceMeta {
@@ -591,6 +592,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 tx_hash,
                 block_number: block_number.0,
                 block_hash,
+                internal_error: call_trace.tx_error.take(),
             };
             (call_trace.into_call(protocol_version), meta)
         })
