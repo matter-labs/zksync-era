@@ -367,17 +367,22 @@ testFees('Test fees', function () {
             newL1GasPrice: requiredPubdataPrice,
             newPubdataPrice: requiredPubdataPrice
         });
+        console.log('Node has been respawned');
 
         // Wait for current batch to close so gas price is updated with the new config set above
         await waitForNewL1Batch(alice);
+        console.log('New L1 batch has been sealed');
 
         const l1Messenger = new ethers.Contract(zksync.utils.L1_MESSENGER_ADDRESS, zksync.utils.L1_MESSENGER, alice);
+        console.log('L1 messenger initialized');
 
         // Firstly, let's test a successful transaction.
         const largeData = ethers.randomBytes(90_000);
         const tx = await l1Messenger.sendToL1(largeData, { type: 0 });
+        console.log('L1 tx submitted');
         expect(tx.gasLimit > UINT32_MAX).toBeTruthy();
         const receipt = await tx.wait();
+        console.log('L1 tx has been awaited');
         console.log(`Gas used ${receipt.gasUsed}`);
         expect(receipt.gasUsed > UINT32_MAX).toBeTruthy();
 
