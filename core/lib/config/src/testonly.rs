@@ -947,7 +947,6 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
             main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
             bridge_addresses_refresh_interval_sec: self.sample_opt(|| rng.gen()),
             gateway_chain_id: self.sample_opt(|| SLChainId(rng.gen())),
-            da_client: Some(DAClientConfig::NoDA),
         }
     }
 }
