@@ -439,7 +439,7 @@ impl Verifier {
             .await
             .map_err(ServiceManagerError::EnrichedClient)?;
 
-        let percentages = self.decode_bytes(res.0.to_vec())?;
+        let percentages = self.decode_bytes(res.0)?;
 
         if percentages.len() > quorum_number as usize {
             return Ok(percentages[quorum_number as usize]);
