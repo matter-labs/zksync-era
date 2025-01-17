@@ -612,6 +612,10 @@ export class TestContextOwner {
                 await this.waitForVmPlayground();
                 this.reporter.finishAction();
             }
+            // Delete all listeners that might hold active connections to the node. Not doing so might cause unexpected
+            // network errors to propagate during node termination.
+            await this.l1Provider.removeAllListeners();
+            await this.l2Provider.removeAllListeners();
             this.reporter.startAction(`Tearing down the context`);
             await this.collectFunds();
             this.reporter.finishAction();
