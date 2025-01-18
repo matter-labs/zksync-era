@@ -117,7 +117,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
                     batch_fee_input.l1_gas_price(),
                     batch_fee_input.fair_pubdata_price(),
                     params.conversion_ratio(),
-                ));
+                ))
             }
         }
     }
