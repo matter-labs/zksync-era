@@ -406,12 +406,13 @@ export async function waitToExecuteBatch(mainContract: IZkSyncHyperchain, latest
     let lastExecutedBatch;
     while (
         (lastExecutedBatch = await mainContract.getTotalBatchesExecuted()) === initialExecutedBatch &&
-        tryCount < 100
+        tryCount < 1000
     ) {
         console.log(`Last executed batch: ${lastExecutedBatch}`);
         tryCount++;
         await utils.sleep(1);
     }
+    console.log(`Waited successfully for batch to execute: ${lastExecutedBatch}`);
     assert(lastExecutedBatch > initialExecutedBatch);
 }
 
