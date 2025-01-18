@@ -439,9 +439,16 @@ testFees('Test fees', function () {
     });
 
     afterAll(async () => {
-        await mainNodeSpawner.killAndSpawnMainNode();
         // Returning the pubdata price to the default one
         // Spawning with no options restores defaults.
+        await mainNodeSpawner.killAndSpawnMainNode();
+
+        // Wait for current batch to close so gas price returns to normal
+        let txReceipt1 = await waitForNewL1Batch(alice);
+        console.log(`Gas price #1: ${txReceipt1.gasPrice}`);
+        let txReceipt2 = await waitForNewL1Batch(alice);
+        console.log(`Gas price #2: ${txReceipt2.gasPrice}`);
+
         await testMaster.deinitialize();
         __ZKSYNC_TEST_CONTEXT_OWNER__.setL2NodePid(mainNodeSpawner.mainNode!.proc.pid!);
     });
