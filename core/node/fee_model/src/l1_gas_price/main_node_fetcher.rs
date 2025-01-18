@@ -3,10 +3,9 @@ use std::{
     time::Duration,
 };
 
+use async_trait::async_trait;
 use tokio::sync::watch::Receiver;
-use zksync_types::fee_model::{
-    BatchFeeInput, FeeModelConfigV1, FeeParams, FeeParamsV1, FeeParamsV2,
-};
+use zksync_types::fee_model::{BatchFeeInput, FeeParams, PubdataIndependentBatchFeeModelInput};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::ClientRpcContext,
@@ -17,8 +16,9 @@ use crate::BatchFeeModelInputProvider;
 
 const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-/// This structure maintains the known L1 gas price by periodically querying
+/// This structure maintains the known fee params/input by periodically querying
 /// the main node.
+///
 /// It is required since the main node doesn't only observe the current L1 gas price,
 /// but also applies adjustments to it in order to smooth out the spikes.
 /// The same algorithm cannot be consistently replicated on the external node side,
@@ -26,30 +26,40 @@ const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 #[derive(Debug)]
 pub struct MainNodeFeeParamsFetcher {
     client: Box<DynClient<L2>>,
-    main_node_fee_params: RwLock<FeeParams>,
-    main_node_batch_fee_input: RwLock<Option<BatchFeeInput>>,
+    main_node_fee_state: RwLock<(FeeParams, BatchFeeInput)>,
 }
 
 impl MainNodeFeeParamsFetcher {
     pub fn new(client: Box<DynClient<L2>>) -> Self {
+        let fee_params = FeeParams::sensible_v1_default();
+        let fee_input = fee_params.scale(1.0, 1.0);
         Self {
             client: client.for_component("fee_params_fetcher"),
-            main_node_fee_params: RwLock::new(FeeParams::sensible_v1_default()),
-            main_node_batch_fee_input: RwLock::new(None),
+            main_node_fee_state: RwLock::new((fee_params, fee_input)),
         }
     }
 
     pub async fn run(self: Arc<Self>, mut stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
         while !*stop_receiver.borrow_and_update() {
-            let fetch_result = self
-                .client
-                .get_fee_params()
-                .rpc_context("get_fee_params")
-                .await;
-            let main_node_fee_params = match fetch_result {
-                Ok(price) => price,
+            // We query fee params and fee input together to minimize the potential for them to be
+            // out of sync. They can still be fetched out of sync in rare circumstances but nothing
+            // in the system *directly* relies on `BatchFeeModelInputProvider::get_fee_model_params`
+            // except for `zks_getFeeParams`. Which is likely fine because EN is essentially
+            // mimicking how it observed the call to main node.
+            let (params_result, input_result) = tokio::join!(
+                self.client.get_fee_params().rpc_context("get_fee_params"),
+                self.client
+                    .get_batch_fee_input()
+                    .rpc_context("get_batch_fee_input")
+            );
+            let fee_state_result =
+                params_result.and_then(|params| input_result.map(|input| (params, input)));
+            let main_node_fee_state = match fee_state_result {
+                Ok((fee_params, fee_input)) => {
+                    (fee_params, BatchFeeInput::PubdataIndependent(fee_input))
+                }
                 Err(err) => {
-                    tracing::warn!("Unable to get the gas price: {}", err);
+                    tracing::warn!("Unable to get main node's fee params/input: {}", err);
                     // A delay to avoid spamming the main node with requests.
                     if tokio::time::timeout(SLEEP_INTERVAL, stop_receiver.changed())
                         .await
@@ -60,29 +70,7 @@ impl MainNodeFeeParamsFetcher {
                     continue;
                 }
             };
-            *self.main_node_fee_params.write().unwrap() = main_node_fee_params;
-
-            let fetch_result = self
-                .client
-                .get_batch_fee_input()
-                .rpc_context("get_batch_fee_input")
-                .await;
-            let main_node_fee_params = match fetch_result {
-                Ok(price) => price,
-                Err(err) => {
-                    tracing::warn!("Unable to get the batch fee input: {}", err);
-                    // A delay to avoid spamming the main node with requests.
-                    if tokio::time::timeout(SLEEP_INTERVAL, stop_receiver.changed())
-                        .await
-                        .is_ok()
-                    {
-                        break;
-                    }
-                    continue;
-                }
-            };
-            *self.main_node_batch_fee_input.write().unwrap() =
-                Some(BatchFeeInput::PubdataIndependent(main_node_fee_params));
+            *self.main_node_fee_state.write().unwrap() = main_node_fee_state;
 
             if tokio::time::timeout(SLEEP_INTERVAL, stop_receiver.changed())
                 .await
@@ -97,26 +85,29 @@ impl MainNodeFeeParamsFetcher {
     }
 }
 
+#[async_trait]
 impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
-    fn get_fee_model_params(&self) -> FeeParams {
-        let fee_params = *self.main_node_fee_params.read().unwrap();
-        let batch_fee_input = *self.main_node_batch_fee_input.read().unwrap();
-        let Some(batch_fee_input) = batch_fee_input else {
-            return fee_params;
-        };
-        match fee_params {
-            FeeParams::V1(..) => FeeParams::V1(FeeParamsV1 {
-                config: FeeModelConfigV1 {
-                    minimal_l2_gas_price: batch_fee_input.fair_l2_gas_price(),
-                },
-                l1_gas_price: batch_fee_input.l1_gas_price(),
-            }),
-            FeeParams::V2(params) => FeeParams::V2(FeeParamsV2::new(
-                params.config(),
-                batch_fee_input.l1_gas_price(),
-                params.l1_pubdata_price(),
-                params.conversion_ratio(),
-            )),
+    async fn get_batch_fee_input_scaled(
+        &self,
+        l1_gas_price_scale_factor: f64,
+        l1_pubdata_price_scale_factor: f64,
+    ) -> anyhow::Result<BatchFeeInput> {
+        let fee_input = self.main_node_fee_state.read().unwrap().1;
+        let fee_params = self.main_node_fee_state.read().unwrap().0;
+
+        match fee_input {
+            BatchFeeInput::L1Pegged(input) => Ok(fee_input),
+            BatchFeeInput::PubdataIndependent(input) => {
+                Ok(BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+                    fair_l2_gas_price: (input.fair_l2_gas_price as f64 * l1_gas_price_scale_factor) as u64,
+                    fair_pubdata_price: (input.fair_pubdata_price as f64 * l1_pubdata_price_scale_factor) as u64,
+                    l1_gas_price: (input.l1_gas_price as f64 * l1_gas_price_scale_factor) as u64,
+                }))
+            },
         }
+    }
+
+    fn get_fee_model_params(&self) -> FeeParams {
+        self.main_node_fee_state.read().unwrap().0
     }
 }
