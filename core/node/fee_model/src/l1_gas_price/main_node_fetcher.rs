@@ -89,11 +89,11 @@ impl MainNodeFeeParamsFetcher {
 impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
     async fn get_batch_fee_input_scaled(
         &self,
-        // EN's scale factors are ignored as we have already fetched scaled fee input from main node
-        _l1_gas_price_scale_factor: f64,
-        _l1_pubdata_price_scale_factor: f64,
+        l1_gas_price_scale_factor: f64,
+        l1_pubdata_price_scale_factor: f64,
     ) -> anyhow::Result<BatchFeeInput> {
-        Ok(self.main_node_fee_state.read().unwrap().1)
+        let params = self.main_node_fee_state.read().unwrap().1;
+        Ok(params.scale(l1_gas_price_scale_factor, l1_pubdata_price_scale_factor))
     }
 
     fn get_fee_model_params(&self) -> FeeParams {
