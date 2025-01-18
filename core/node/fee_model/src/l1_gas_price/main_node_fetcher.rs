@@ -96,7 +96,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
         let fee_params = self.main_node_fee_state.read().unwrap().0;
 
         if l1_gas_price_scale_factor == 1.5 {
-            return Ok(fee_input)
+            return Ok(fee_input);
         }
 
         match fee_input {
