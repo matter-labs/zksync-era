@@ -112,7 +112,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
                 l1_gas_price: batch_fee_input.l1_gas_price(),
             }),
             FeeParams::V2(params) => {
-                return FeeParams::V2(FeeParamsV2::new(
+                FeeParams::V2(FeeParamsV2::new(
                     params.config(),
                     batch_fee_input.l1_gas_price(),
                     batch_fee_input.fair_pubdata_price(),
