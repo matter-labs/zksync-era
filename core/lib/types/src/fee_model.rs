@@ -102,8 +102,6 @@ impl BatchFeeInput {
         }
     }
 
-    
-
     pub fn l1_gas_price(&self) -> u64 {
         match self {
             BatchFeeInput::L1Pegged(input) => input.l1_gas_price,
