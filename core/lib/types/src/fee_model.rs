@@ -102,6 +102,8 @@ impl BatchFeeInput {
         }
     }
 
+    
+
     pub fn l1_gas_price(&self) -> u64 {
         match self {
             BatchFeeInput::L1Pegged(input) => input.l1_gas_price,
@@ -282,6 +284,10 @@ impl FeeParamsV2 {
     /// Returns the l1 pubdata price denominated in the chain's base token (WEI or equivalent).
     pub fn l1_pubdata_price(&self) -> u64 {
         self.convert_to_base_token(self.l1_pubdata_price)
+    }
+
+    pub fn conversion_ratio(&self) -> BaseTokenConversionRatio {
+        self.conversion_ratio
     }
 
     /// Converts the fee param to the base token.
