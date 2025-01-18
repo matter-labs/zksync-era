@@ -212,10 +212,12 @@ testFees('Test fees', function () {
             ];
             for (const gasPrice of L1_GAS_PRICES_TO_TEST) {
                 // For the sake of simplicity, we'll use the same pubdata price as the L1 gas price.
+                console.log(`TAF: Killing node for ${gasPrice}`);
                 await mainNodeSpawner.killAndSpawnMainNode({
                     newL1GasPrice: gasPrice,
                     newPubdataPrice: gasPrice
                 });
+                console.log(`TAF: Respawned node for ${gasPrice}`);
 
                 reports = await appendResults(
                     alice,
@@ -258,21 +260,22 @@ testFees('Test fees', function () {
     describe('Test gas price expected value', function () {
         test('works', async () => {
             const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
+            console.log('TGPEV: Killing node');
             await mainNodeSpawner.killAndSpawnMainNode({
                 newL1GasPrice: l1GasPrice,
                 newPubdataPrice: l1GasPrice
             });
-            console.log('TGSPEV: Node respawned');
+            console.log('TGPEV: Node respawned');
 
             // wait for new batch so gas price is updated with new config set above
             await waitForNewL1Batch(alice);
-            console.log('TGSPEV: L1 batch sealed');
+            console.log('TGPEV: L1 batch sealed');
 
             const receipt = await anyTransaction(alice);
-            console.log(`TGSPEV: TX executed ${JSON.stringify(receipt)}`);
+            console.log(`TGPEV: TX executed ${JSON.stringify(receipt)}`);
 
             const feeParams = await alice._providerL2().getFeeParams();
-            console.log(`TGSPEV: Fee params fetched ${JSON.stringify(feeParams)}`);
+            console.log(`TGPEV: Fee params fetched ${JSON.stringify(feeParams)}`);
             const feeConfig = feeParams.V2.config;
             // type is missing conversion_ratio field
             const conversionRatio: { numerator: bigint; denominator: bigint } = (feeParams.V2 as any)[
@@ -284,7 +287,7 @@ testFees('Test fees', function () {
             } else {
                 expect(conversionRatio.numerator).toBeGreaterThan(1n);
             }
-            console.log(`TGSPEV: Conversion checked ${JSON.stringify(conversionRatio)}`);
+            console.log(`TGPEV: Conversion checked ${JSON.stringify(conversionRatio)}`);
 
             // the minimum + compute overhead of 0.01gwei in validium mode
             const expectedETHGasPrice =
@@ -293,18 +296,19 @@ testFees('Test fees', function () {
                     feeConfig.max_gas_per_batch;
             const expectedConvertedGasPrice =
                 (expectedETHGasPrice * conversionRatio.numerator) / conversionRatio.denominator;
-            console.log(`TGSPEV: Node has been respawned: ${expectedConvertedGasPrice}`);
+            console.log(`TGPEV: Node has been respawned: ${expectedConvertedGasPrice}`);
 
             expect(receipt.gasPrice).toBe(BigInt(expectedConvertedGasPrice));
         });
     });
 
-    describe('Test gas price expected value', function () {
+    describe('Test base token ratio fluctuations', function () {
         test('works', async () => {
             const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
 
             if (isETHBasedChain) return;
 
+            console.log('TBTRF: Killing node');
             await mainNodeSpawner.killAndSpawnMainNode({
                 newL1GasPrice: l1GasPrice,
                 newPubdataPrice: l1GasPrice,
@@ -314,6 +318,7 @@ testFees('Test fees', function () {
                 baseTokenPricePollingIntervalMs: 1000,
                 baseTokenAdjusterL1UpdateDeviationPercentage: 0
             });
+            console.log('TBTRF: Respawned node');
 
             const beginFeeParams = await alice._providerL2().getFeeParams();
             const mainContract = await alice.getMainContract();
@@ -357,7 +362,7 @@ testFees('Test fees', function () {
         });
     });
 
-    describe('Test gas price expected value', function () {
+    describe('Test gas consumption under large L1 gas price', function () {
         test('works', async () => {
             if (testMaster.environment().l1BatchCommitDataGeneratorMode === DataAvailabityMode.Validium) {
                 // We skip this test for Validium mode, since L1 gas price has little impact on the gasLimit in this mode.
@@ -378,31 +383,32 @@ testFees('Test fees', function () {
             // that the gasLimit is indeed over u32::MAX, which is the most important tested property.
             const requiredPubdataPrice = minimalL2GasPrice * 100_000n;
 
+            console.log('TGCULLGP: Killing node');
             await mainNodeSpawner.killAndSpawnMainNode({
                 newL1GasPrice: requiredPubdataPrice,
                 newPubdataPrice: requiredPubdataPrice
             });
-            console.log('Node has been respawned');
+            console.log('TGCULLGP: Node has been respawned');
 
             // Wait for current batch to close so gas price is updated with the new config set above
             await waitForNewL1Batch(alice);
-            console.log('New L1 batch has been sealed');
+            console.log('TGCULLGP: New L1 batch has been sealed');
 
             const l1Messenger = new ethers.Contract(
                 zksync.utils.L1_MESSENGER_ADDRESS,
                 zksync.utils.L1_MESSENGER,
                 alice
             );
-            console.log('L1 messenger initialized');
+            console.log('TGCULLGP: L1 messenger initialized');
 
             // Firstly, let's test a successful transaction.
             const largeData = ethers.randomBytes(90_000);
             const tx = await l1Messenger.sendToL1(largeData, { type: 0 });
-            console.log('L1 tx submitted');
+            console.log('TGCULLGP: L1 tx submitted');
             expect(tx.gasLimit > UINT32_MAX).toBeTruthy();
             const receipt = await tx.wait();
-            console.log('L1 tx has been awaited');
-            console.log(`Gas used ${receipt.gasUsed}`);
+            console.log('TGCULLGP: L1 tx has been awaited');
+            console.log(`TGCULLGP: Gas used ${receipt.gasUsed}`);
             expect(receipt.gasUsed > UINT32_MAX).toBeTruthy();
 
             // Let's also check that the same transaction would work as eth_call
