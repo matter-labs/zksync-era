@@ -3,7 +3,7 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import * as hre from 'hardhat';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
-import { TransactionReceipt } from 'ethers';
+import { TransactionReceipt, TransactionResponse } from 'ethers';
 
 export const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
 
@@ -78,7 +78,7 @@ export async function anyTransaction(wallet: zksync.Wallet): Promise<ethers.Tran
 export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.types.TransactionReceipt> {
     const MAX_ATTEMPTS = 3;
 
-    let txResponse = null;
+    let txResponse: TransactionResponse | null = null;
     let txReceipt: TransactionReceipt | null = null;
     let nonce = Number(await wallet.getNonce());
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
@@ -87,29 +87,42 @@ export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.t
         // extreme gas price fluctuations.
         let gasPrice = await wallet.provider.getGasPrice();
         if (!txResponse || !txResponse.maxFeePerGas || txResponse.maxFeePerGas < gasPrice) {
-            txResponse = await wallet.transfer({
-                to: wallet.address,
-                amount: 0,
-                overrides: { maxFeePerGas: gasPrice, nonce: nonce, maxPriorityFeePerGas: 0, type: 2 }
-            });
+            txResponse = await wallet
+                .transfer({
+                    to: wallet.address,
+                    amount: 0,
+                    overrides: { maxFeePerGas: gasPrice, nonce: nonce, maxPriorityFeePerGas: 0, type: 2 }
+                })
+                .catch((e) => {
+                    console.log(`Caught wallet.transfer error: ${JSON.stringify(e)}`);
+                    if (<Error>e.message.match(/Not enough gas/)) {
+                        console.log(
+                            `Transaction did not have enough gas, likely gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`
+                        );
+                        return null;
+                    } else if (<Error>e.message.match(/max fee per gas less than block base fee/)) {
+                        console.log(
+                            `Transaction's max fee per gas was lower than block base fee, likely gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`
+                        );
+                        return null;
+                    } else {
+                        return Promise.reject(e);
+                    }
+                });
+            if (!txResponse) {
+                continue;
+            }
         } else {
             console.log('Gas price has not gone up, waiting longer');
         }
         txReceipt = await wallet.provider.waitForTransaction(txResponse.hash, 1, 3000).catch((e) => {
+            console.log(`Caught wallet.provider.waitForTransaction error: ${JSON.stringify(e)}`);
             if (ethers.isError(e, 'TIMEOUT')) {
                 console.log(`Transaction timed out, potentially gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`);
                 return null;
-            } else if (
-                (ethers.isError(e, 'UNKNOWN_ERROR') && e.message.match(/Not enough gas/)) ||
-                <Error>e.message.match(/Not enough gas/)
-            ) {
+            } else if (ethers.isError(e, 'UNKNOWN_ERROR') && e.message.match(/Not enough gas/)) {
                 console.log(
                     `Transaction did not have enough gas, likely gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`
-                );
-                return null;
-            } else if (<Error>e.message.match(/max fee per gas less than block base fee/)) {
-                console.log(
-                    `Transaction's max fee per gas was lower than block base fee, likely gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`
                 );
                 return null;
             } else {
