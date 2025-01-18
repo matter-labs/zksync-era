@@ -97,13 +97,16 @@ impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
 
         match fee_input {
             BatchFeeInput::L1Pegged(input) => Ok(fee_input),
-            BatchFeeInput::PubdataIndependent(input) => {
-                Ok(BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-                    fair_l2_gas_price: (input.fair_l2_gas_price as f64 * l1_gas_price_scale_factor) as u64,
-                    fair_pubdata_price: (input.fair_pubdata_price as f64 * l1_pubdata_price_scale_factor) as u64,
+            BatchFeeInput::PubdataIndependent(input) => Ok(BatchFeeInput::PubdataIndependent(
+                PubdataIndependentBatchFeeModelInput {
+                    fair_l2_gas_price: (input.fair_l2_gas_price as f64 * l1_gas_price_scale_factor)
+                        as u64,
+                    fair_pubdata_price: (input.fair_pubdata_price as f64
+                        * l1_pubdata_price_scale_factor)
+                        as u64,
                     l1_gas_price: (input.l1_gas_price as f64 * l1_gas_price_scale_factor) as u64,
-                }))
-            },
+                },
+            )),
         }
     }
 
