@@ -259,13 +259,17 @@ testFees('Test fees', function () {
             newL1GasPrice: l1GasPrice,
             newPubdataPrice: l1GasPrice
         });
+        console.log('TGSPEV: Node respawned');
 
         // wait for new batch so gas price is updated with new config set above
         await waitForNewL1Batch(alice);
+        console.log('TGSPEV: L1 batch sealed');
 
         const receipt = await anyTransaction(alice);
+        console.log(`TGSPEV: TX executed ${JSON.stringify(receipt)}`);
 
         const feeParams = await alice._providerL2().getFeeParams();
+        console.log(`TGSPEV: Fee params fetched ${JSON.stringify(feeParams)}`);
         const feeConfig = feeParams.V2.config;
         // type is missing conversion_ratio field
         const conversionRatio: { numerator: bigint; denominator: bigint } = (feeParams.V2 as any)['conversion_ratio'];
@@ -275,6 +279,7 @@ testFees('Test fees', function () {
         } else {
             expect(conversionRatio.numerator).toBeGreaterThan(1n);
         }
+        console.log(`TGSPEV: Conversion checked ${JSON.stringify(conversionRatio)}`);
 
         // the minimum + compute overhead of 0.01gwei in validium mode
         const expectedETHGasPrice =
@@ -283,6 +288,7 @@ testFees('Test fees', function () {
                 feeConfig.max_gas_per_batch;
         const expectedConvertedGasPrice =
             (expectedETHGasPrice * conversionRatio.numerator) / conversionRatio.denominator;
+        console.log(`TGSPEV: Node has been respawned: ${expectedConvertedGasPrice}`);
 
         expect(receipt.gasPrice).toBe(BigInt(expectedConvertedGasPrice));
     });

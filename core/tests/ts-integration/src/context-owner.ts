@@ -615,10 +615,8 @@ export class TestContextOwner {
 
             this.reporter.startAction(`Tearing down the context`);
             await this.collectFunds();
-            // Delete all listeners that might hold active connections to the node. Not doing so might cause unexpected
-            // network errors to propagate during node termination.
-            await this.l1Provider.removeAllListeners();
-            await this.l2Provider.removeAllListeners();
+            // Destroy providers so that they drop potentially active connections to the node. Not doing so might cause
+            // unexpected network errors to propagate during node termination.
             this.l1Provider.destroy();
             this.l2Provider.destroy();
             this.reporter.finishAction();
