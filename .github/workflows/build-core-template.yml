@@ -214,7 +214,7 @@ jobs:
             ./contracts
 
       - name: login to Docker registries
-        if: ${{ inputs.action == 'push' || matrix.component.name == 'external-node' }}
+        if: ${{ inputs.action == 'push' || matrix.components == 'external-node' }}
         shell: bash
         run: |
           docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
@@ -222,7 +222,7 @@ jobs:
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
-        if: ${{ inputs.action == 'push' || matrix.component.name == 'external-node' }}
+        if: ${{ inputs.action == 'push' || matrix.components == 'external-node' }}
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -246,7 +246,7 @@ jobs:
             matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
 
       - name: Push docker image
-        if: ${{ inputs.action == 'push' || matrix.component.name == 'external-node'}}
+        if: ${{ inputs.action == 'push' || matrix.components == 'external-node'}}
         run: |
           docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
           docker push matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
