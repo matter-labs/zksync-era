@@ -260,6 +260,8 @@ testFees('Test fees', function () {
     describe('Test gas price expected value', function () {
         test('works', async () => {
             const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
+
+            await alice.provider.removeAllListeners();
             console.log('TGPEV: Killing node');
             await mainNodeSpawner.killAndSpawnMainNode({
                 newL1GasPrice: l1GasPrice,
