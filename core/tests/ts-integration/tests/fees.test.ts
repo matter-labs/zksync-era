@@ -271,7 +271,12 @@ testFees('Test fees', function () {
             await waitForNewL1Batch(alice);
             console.log('TGPEV: L1 batch sealed');
 
-            const receipt = await anyTransaction(alice);
+            console.log('TGPEV: Executing any transaction');
+            const receipt = await anyTransaction(alice).catch((e) => {
+                console.log(`TGPEV: Any transaction failed with ${e}`);
+                console.log(`TGPEV: Any transaction failed with ${JSON.stringify(e)}`);
+                return Promise.reject(e);
+            });
             console.log(`TGPEV: TX executed ${JSON.stringify(receipt)}`);
 
             const feeParams = await alice._providerL2().getFeeParams();
