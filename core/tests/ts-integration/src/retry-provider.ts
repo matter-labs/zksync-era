@@ -11,17 +11,22 @@ export class RetryProvider extends zksync.Provider {
     private readonly reporter: Reporter;
     private readonly knownTransactionHashes: Set<string> = new Set();
 
-    constructor(_url?: string | { url: string; timeout: number }, network?: ethers.Networkish, reporter?: Reporter) {
-        let url;
+    constructor(_url: string | { url: string; timeout: number }, network?: ethers.Networkish, reporter?: Reporter) {
+        let fetchRequest: ethers.FetchRequest;
         if (typeof _url === 'object') {
-            const fetchRequest: ethers.FetchRequest = new ethers.FetchRequest(_url.url);
+            fetchRequest = new ethers.FetchRequest(_url.url);
             fetchRequest.timeout = _url.timeout;
-            url = fetchRequest;
         } else {
-            url = _url;
+            fetchRequest = new ethers.FetchRequest(_url);
         }
+        fetchRequest.processFunc = async (req: ethers.FetchRequest, resp: ethers.FetchResponse) => {
+            if (!resp.ok()) {
+                console.log(`RPC query failed with req='${JSON.stringify(req)}', resp='${JSON.stringify(resp)}'`);
+            }
+            return resp;
+        };
 
-        super(url, network);
+        super(fetchRequest, network);
         this.reporter = reporter ?? new Reporter();
     }
 
