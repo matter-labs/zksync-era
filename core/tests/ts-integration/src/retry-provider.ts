@@ -27,19 +27,38 @@ export class RetryProvider extends zksync.Provider {
         };
         let defaultGetUrlFunc = ethers.FetchRequest.createGetUrlFunc();
         fetchRequest.getUrlFunc = async (req: ethers.FetchRequest, signal?: ethers.FetchCancelSignal) => {
-            try {
-                return await defaultGetUrlFunc(req, signal).catch((e) => {
-                    console.log(
-                        `RPC async get URL function failed with req='${JSON.stringify(req)}', e='${JSON.stringify(e)}, e_str='${e}'`
-                    );
-                    return Promise.reject(e);
-                });
-            } catch (e) {
-                console.log(
-                    `RPC get URL function failed with req='${JSON.stringify(req)}', e='${JSON.stringify(e)}, e_str='${e}'`
-                );
-                throw e;
+            for (let retry = 0; retry < 50; retry++) {
+                try {
+                    const result = await defaultGetUrlFunc(req, signal);
+                    // If we obtained result not from the first attempt, print a warning.
+                    if (retry != 0) {
+                        console.log(`RPC request ${req} took ${retry} retries to succeed`);
+                    }
+                    return result;
+                } catch (err: any) {
+                    console.log(`Caught RPC network error: ${err}`);
+                    // Error markers observed on stage so far.
+                    const ignoredErrors = [
+                        'timeout',
+                        'etimedout',
+                        'econnrefused',
+                        'econnreset',
+                        'bad gateway',
+                        'service temporarily unavailable',
+                        'nonetwork'
+                    ];
+                    const errString: string = err.toString().toLowerCase();
+                    const found = ignoredErrors.some((sampleErr) => errString.indexOf(sampleErr) !== -1);
+                    if (found) {
+                        // Error is related to timeouts. Sleep a bit and try again.
+                        await zksync.utils.sleep(this.pollingInterval);
+                        continue;
+                    }
+                    // Re-throw any non-timeout-related error.
+                    throw err;
+                }
             }
+            return Promise.reject(new Error(`Retried too many times, giving up on request=${req}`));
         };
 
         super(fetchRequest, network);
