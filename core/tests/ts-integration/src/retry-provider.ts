@@ -28,7 +28,12 @@ export class RetryProvider extends zksync.Provider {
         let defaultGetUrlFunc = ethers.FetchRequest.createGetUrlFunc();
         fetchRequest.getUrlFunc = async (req: ethers.FetchRequest, signal?: ethers.FetchCancelSignal) => {
             try {
-                return defaultGetUrlFunc(req, signal);
+                return await defaultGetUrlFunc(req, signal).catch((e) => {
+                    console.log(
+                        `RPC async get URL function failed with req='${JSON.stringify(req)}', e='${JSON.stringify(e)}, e_str='${e}'`
+                    );
+                    return Promise.reject(e);
+                });
             } catch (e) {
                 console.log(
                     `RPC get URL function failed with req='${JSON.stringify(req)}', e='${JSON.stringify(e)}, e_str='${e}'`
