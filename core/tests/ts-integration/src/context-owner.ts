@@ -615,10 +615,18 @@ export class TestContextOwner {
 
             this.reporter.startAction(`Tearing down the context`);
             await this.collectFunds();
-            // Destroy providers so that they drop potentially active connections to the node. Not doing so might cause
-            // unexpected network errors to propagate during node termination.
-            this.l1Provider.destroy();
-            this.l2Provider.destroy();
+            try {
+                // Destroy providers so that they drop potentially active connections to the node. Not doing so might cause
+                // unexpected network errors to propagate during node termination.
+                this.l1Provider.destroy();
+            } catch (err: any) {
+                console.log(`Caught error while destroying L1 provider: ${err}`);
+            }
+            try {
+                this.l2Provider.destroy();
+            } catch (err: any) {
+                console.log(`Caught error while destroying L2 provider: ${err}`);
+            }
             this.reporter.finishAction();
         } catch (error: any) {
             // Report the issue to the console and mark the last action as failed.
