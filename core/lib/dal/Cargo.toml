@@ -26,6 +26,8 @@ zksync_consensus_utils.workspace = true
 zksync_protobuf.workspace = true
 zksync_db_connection.workspace = true
 zksync_l1_contract_interface.workspace = true
+zksync_zkos_vm_runner.workspace = true
+
 
 itertools.workspace = true
 thiserror.workspace = true

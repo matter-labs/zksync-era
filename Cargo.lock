@@ -11880,6 +11880,7 @@ dependencies = [
  "zksync_test_contracts",
  "zksync_types",
  "zksync_vm_interface",
+ "zksync_zkos_vm_runner",
 ]
 
 [[package]]
@@ -12923,6 +12924,7 @@ dependencies = [
  "zksync_test_contracts",
  "zksync_types",
  "zksync_vm_executor",
+ "zksync_zkos_vm_runner",
 ]
 
 [[package]]
@@ -13027,6 +13029,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "strum",
+ "system_hooks",
  "thiserror",
  "tokio",
  "tracing",
@@ -13224,6 +13227,7 @@ dependencies = [
  "basic_system",
  "forward_system",
  "ruint",
+ "system_hooks",
  "zk_ee",
  "zksync_types",
  "zksync_utils",

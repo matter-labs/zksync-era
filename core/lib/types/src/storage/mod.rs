@@ -3,6 +3,7 @@ use core::fmt::Debug;
 use blake2::{Blake2s256, Digest};
 pub use log::*;
 use serde::{Deserialize, Serialize};
+use zk_os_system_hooks::addresses_constants::ACCOUNT_PARTIAL_DATA_STORAGE_ADDRESS;
 use zksync_basic_types::{web3::keccak256, L2ChainId};
 pub use zksync_system_constants::*;
 

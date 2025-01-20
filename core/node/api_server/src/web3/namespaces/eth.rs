@@ -402,15 +402,46 @@ impl EthNamespace {
         address: Address,
         block_id: Option<BlockId>,
     ) -> Result<U256, Web3Error> {
-        //todo: instead of using transactions table, read nonce directly from storage
+        let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        self.current_method().set_block_id(block_id);
+
         let mut connection = self.state.acquire_connection().await?;
-        let nonce: Option<U256> = connection
-            .transactions_web3_dal()
-            .zkos_max_nonce_by_initiator_account(address)
+
+        let block_number = self.state.resolve_block(&mut connection, block_id).await?;
+        self.set_block_diff(block_number);
+        let full_nonce = connection
+            .storage_web3_dal()
+            .get_address_historical_nonce(address, block_number)
             .await
             .map_err(DalError::generalize)?;
-        tracing::info!("account_nonce for {:?}: {:?}", address, nonce);
-        Ok((nonce.map(|n| n + 1).unwrap_or(U256::zero())).into())
+
+        // TODO (SMA-1612): currently account nonce is returning always, but later we will
+        //  return account nonce for account abstraction and deployment nonce for non account abstraction.
+        //  Strip off deployer nonce part.
+        let (mut account_nonce, _) = decompose_full_nonce(full_nonce);
+
+        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+            let account_nonce_u64 = u64::try_from(account_nonce)
+                .map_err(|err| anyhow::anyhow!("nonce conversion failed: {err}"))?;
+            account_nonce = if let Some(account_nonce) = self
+                .state
+                .tx_sink()
+                .lookup_pending_nonce(address, account_nonce_u64 as u32)
+                .await?
+            {
+                account_nonce.0.into()
+            } else {
+                // No nonce hint in the sink: get pending nonces from the mempool
+                connection
+                    .transactions_web3_dal()
+                    .next_nonce_by_initiator_account(address, account_nonce_u64)
+                    .await
+                    .map_err(DalError::generalize)?
+            };
+        }
+
+        assert_eq!(nonce.map(|n| n + 1).unwrap_or(U256::zero()), account_nonce);
+        Ok(nonce.map(|n| n + 1).unwrap_or(U256::zero()))
     }
 
     pub async fn get_transaction_impl(
