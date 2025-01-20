@@ -2169,7 +2169,6 @@ impl BlocksDal<'_, '_> {
             .await?;
 
         let Ok(metadata) = storage_batch.clone().try_into() else {
-            println!("{:?}", L1BatchMetadata::try_from(storage_batch.clone()));
             return Ok(None);
         };
 

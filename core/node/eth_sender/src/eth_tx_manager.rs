@@ -585,7 +585,6 @@ impl EthTxManager {
                 tracing::debug!("No new {operator_type:?} transactions to send");
             }
             for tx in new_eth_tx {
-                println!("got here {:?}", tx);
                 let result = self.send_eth_tx(storage, &tx, 0, current_block).await;
                 // If one of the transactions doesn't succeed, this means we should return
                 // as new transactions have increasing nonces, so they will also result in an error
