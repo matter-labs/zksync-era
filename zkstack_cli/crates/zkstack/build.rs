@@ -112,15 +112,22 @@ impl ShellAutocomplete for clap_complete::Shell {
                         .context(format!("could not read .{}rc", shell))?;
 
                     if !shell_rc_content.contains("# zkstack completion") {
-                        std::fs::write(
-                            shell_rc,
+                        let completion_snippet = if shell == "zsh" {
+                            format!(
+                                "{}\n# zkstack completion\nautoload -Uz compinit\ncompinit\nsource \"{}\"\n",
+                                shell_rc_content,
+                                completion_file.to_str().unwrap()
+                            )
+                        } else {
                             format!(
                                 "{}\n# zkstack completion\nsource \"{}\"\n",
                                 shell_rc_content,
                                 completion_file.to_str().unwrap()
-                            ),
-                        )
-                        .context(format!("could not write .{}rc", shell))?;
+                            )
+                        };
+
+                        std::fs::write(shell_rc, completion_snippet)
+                            .context(format!("could not write .{}rc", shell))?;
                     }
                 } else {
                     println!(
