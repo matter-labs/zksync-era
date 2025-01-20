@@ -242,7 +242,7 @@ zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.19" }
 fflonk = "=0.30.12"
 
 # New VM; pinned to a specific commit because of instability
-zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "457d8a7eea9093af9440662e33e598c13ba41633" }
+zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "6f0307264bb696fea8915734277024cc047b7056" } # FIXME: use commit from `main`
 
 # Consensus dependencies.
 zksync_concurrency = "=0.7.0"
