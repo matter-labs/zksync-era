@@ -677,9 +677,7 @@ impl ZksNamespace {
         Ok(self
             .state
             .tx_sender
-            .0
-            .batch_fee_input_provider
-            .get_batch_fee_input()
+            .scaled_batch_fee_input()
             .await?
             .into_pubdata_independent())
     }
