@@ -30,7 +30,7 @@ impl StorageLogsDal<'_, '_> {
     ) -> DalResult<()> {
         // a custom genesis batch might have quite a few storage logs associated with it (10s of millions, depending on how big the initial state was).
         // For such cases we should process the query in chunks to avoid failures in the database or the driver.
-        let chunk_size = cmp::min(logs.len(), 10_000);
+        let chunk_size = cmp::min(logs.len(), 100_000);
         for chunk in logs.chunks(chunk_size) {
             self.insert_storage_logs_inner(block_number, chunk, 0)
                 .await?;
@@ -498,7 +498,7 @@ impl StorageLogsDal<'_, '_> {
 
         // a custom genesis batch might have quite a few storage logs associated with it (10s of millions, depending on how big the initial state was).
         // For such cases we should process the query in chunks to avoid failures in the database or the driver.
-        let chunk_size: usize = cmp::min(hashed_keys.len(), 10_000);
+        let chunk_size: usize = cmp::min(hashed_keys.len(), 100_000);
 
         let hashed_keys: Vec<_> = hashed_keys.iter().map(H256::as_bytes).collect();
         let mut result = HashMap::new();

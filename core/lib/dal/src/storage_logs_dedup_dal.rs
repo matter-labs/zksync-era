@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{cmp, collections::HashSet};
 
 use sqlx::types::chrono::Utc;
 use zksync_db_connection::{
@@ -90,8 +90,16 @@ impl StorageLogsDedupDal<'_, '_> {
             .map(|x| x as i64)
             .collect();
 
-        sqlx::query!(
-            r#"
+        // a custom genesis batch might have quite a few storage logs associated with it (10s of millions, depending on how big the initial state was).
+        // For such cases we should process the query in chunks to avoid failures in the database or the driver.
+        let chunk_size = cmp::min(written_hashed_keys.len(), 100_000);
+
+        for (chunk_hashed_keys, chunk_indices) in hashed_keys
+            .chunks(chunk_size)
+            .zip(indices.chunks(chunk_size))
+        {
+            sqlx::query!(
+                r#"
             INSERT INTO
             initial_writes (hashed_key, index, l1_batch_number, created_at, updated_at)
             SELECT
@@ -103,15 +111,16 @@ impl StorageLogsDedupDal<'_, '_> {
             FROM
                 UNNEST($1::bytea [], $2::bigint []) AS u (hashed_key, index)
             "#,
-            &hashed_keys as &[&[u8]],
-            &indices,
-            i64::from(l1_batch_number.0)
-        )
-        .instrument("insert_initial_writes")
-        .with_arg("l1_batch_number", &l1_batch_number)
-        .with_arg("hashed_keys.len", &hashed_keys.len())
-        .execute(self.storage)
-        .await?;
+                &chunk_hashed_keys as &[&[u8]],
+                &chunk_indices,
+                i64::from(l1_batch_number.0)
+            )
+            .instrument("insert_initial_writes")
+            .with_arg("l1_batch_number", &l1_batch_number)
+            .with_arg("hashed_keys.len", &hashed_keys.len())
+            .execute(self.storage)
+            .await?;
+        }
 
         Ok(())
     }
