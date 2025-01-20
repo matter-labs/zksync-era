@@ -27,6 +27,7 @@ use zksync_types::{
     writes::TreeWrite,
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256, U256,
 };
+use zksync_types::commitment::L1BatchMetadata;
 use zksync_vm_interface::CircuitStatistic;
 
 pub use crate::models::storage_block::{L1BatchMetadataError, L1BatchWithOptionalMetadata};
@@ -1338,7 +1339,9 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = 0
                 OR eth_commit_tx_id IS NOT NULL
+                /* TODO(zk os): uncomment/update for zk os
                 AND commitment IS NOT NULL
+                */
             ORDER BY
                 number DESC
             LIMIT
@@ -1348,10 +1351,11 @@ impl BlocksDal<'_, '_> {
         .instrument("get_last_committed_to_eth_l1_batch")
         .fetch_one(self.storage)
         .await?;
-        // genesis batch is first generated without commitment, we should wait for the tree to set it.
-        if batch.commitment.is_none() {
-            return Ok(None);
-        }
+        // TODO(zk os): uncomment/update for zk os
+        // // genesis batch is first generated without commitment, we should wait for the tree to set it.
+        // if batch.commitment.is_none() {
+        //     return Ok(None);
+        // }
 
         self.map_storage_l1_batch(batch).await
     }
@@ -1999,6 +2003,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 eth_commit_tx_id IS NULL
                 AND number != 0
+                /* TODO(zk os): uncomment/update for zk os
                 AND protocol_versions.bootloader_code_hash = $1
                 AND protocol_versions.default_account_code_hash = $2
                 AND commitment IS NOT NULL
@@ -2011,16 +2016,16 @@ impl BlocksDal<'_, '_> {
                 AND (
                     data_availability.inclusion_data IS NOT NULL
                     OR $4 IS FALSE
-                )
+                ) */
             ORDER BY
                 number
             LIMIT
-                $5
+                $1
             "#,
-            bootloader_hash.as_bytes(),
-            default_aa_hash.as_bytes(),
-            protocol_version_id as i32,
-            with_da_inclusion_info,
+            // bootloader_hash.as_bytes(),
+            // default_aa_hash.as_bytes(),
+            // protocol_version_id as i32,
+            // with_da_inclusion_info,
             limit as i64,
         )
         .instrument("get_ready_for_commit_l1_batches")

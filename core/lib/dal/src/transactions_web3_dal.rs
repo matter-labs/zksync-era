@@ -12,6 +12,7 @@ use zksync_types::{
     api, api::TransactionReceipt, block::build_bloom, Address, BloomInput, L2BlockNumber,
     L2ChainId, Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
+use zksync_types::web3::keccak256;
 use zksync_vm_interface::VmEvent;
 
 use crate::{
@@ -45,7 +46,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         // Clarification for first part of the query(`WITH` clause):
         // Looking for `ContractDeployed` event in the events table
         // to find the address of deployed contract
-        let st_receipts: Vec<StorageTransactionReceipt> = sqlx::query_as!(
+        let mut st_receipts: Vec<StorageTransactionReceipt> = sqlx::query_as!(
             StorageTransactionReceipt,
             r#"
             WITH
@@ -69,6 +70,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                 transactions.l1_batch_tx_index,
                 transactions.miniblock_number AS "block_number!",
                 transactions.error,
+                transactions.nonce,
                 transactions.effective_gas_price,
                 transactions.initiator_address,
                 transactions.data -> 'to' AS "transfer_to?",
@@ -102,6 +104,62 @@ impl TransactionsWeb3Dal<'_, '_> {
         let block_timestamps: Vec<Option<i64>> =
             st_receipts.iter().map(|x| x.block_timestamp).collect();
 
+        // TODO(zk os): temporary dirty hack to derive deployment address
+        fn derive_create_address(address: &[u8], nonce: u64) -> Vec<u8> {
+            let nonce_bytes = nonce.to_be_bytes();
+            let skip_nonce_len = nonce_bytes.iter().take_while(|el| **el == 0).count();
+            let nonce_len = 8 - skip_nonce_len;
+
+            let rlp_encoded = if nonce_len == 1 && nonce_bytes[7] < 128 {
+                // we encode
+                // - 0xc0 + payload len
+                // - 0x80 + 20(address len)
+                // - address
+                // - one byte nonce
+
+                let payload_len = 22;
+
+                let mut encoding = Vec::with_capacity(23);
+                encoding.push(0xc0u8 + (payload_len as u8));
+                encoding.push(0x80u8 + 20u8);
+                encoding.extend(address);
+                encoding.push(nonce_bytes[7]);
+                encoding
+            } else {
+                // we encode
+                // - 0xc0 + payload len
+                // - 0x80 + 20(address len)
+                // - address
+                // - 0x80 + length of nonce
+                // - nonce
+
+                let payload_len = 22 + nonce_len;
+
+                let mut encoding = Vec::with_capacity(23);
+                encoding.push(0xc0u8 + (payload_len as u8));
+                encoding.push(0x80u8 + 20u8);
+                encoding.extend(address);
+                encoding.push(0x80u8 + (nonce_len as u8));
+                encoding.extend(nonce_bytes);
+                encoding
+            };
+            let mut hash = keccak256(rlp_encoded.as_slice());
+            for byte in &mut hash[0..12] {
+                *byte = 0;
+            }
+            hash.to_vec()
+        }
+
+        st_receipts.iter_mut().for_each(|receipt| {
+            let is_deployment_tx = match serde_json::from_value::<Option<zksync_types::Address>>(receipt.execute_contract_address.clone().unwrap()).expect("invalid address value in the database") {
+                Some(to) => to == CONTRACT_DEPLOYER_ADDRESS,
+                None => true,
+            };
+            if is_deployment_tx {
+                // nonce may not work for l1 tx
+                receipt.contract_address = Some(derive_create_address(receipt.initiator_address.as_slice(), receipt.nonce.unwrap_or_default() as u64));
+            }
+        });
         let mut receipts: Vec<TransactionReceipt> =
             st_receipts.into_iter().map(Into::into).collect();
 

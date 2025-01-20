@@ -339,6 +339,7 @@ impl From<&StorageTransaction> for TransactionTimeRangeConstraint {
 #[derive(sqlx::FromRow)]
 pub(crate) struct StorageTransactionReceipt {
     pub error: Option<String>,
+    pub nonce: Option<i64>,
     pub tx_format: Option<i32>,
     pub index_in_block: Option<i32>,
     pub block_hash: Vec<u8>,

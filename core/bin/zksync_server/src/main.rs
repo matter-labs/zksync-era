@@ -44,7 +44,7 @@ struct Cli {
     /// Comma-separated list of components to launch.
     #[arg(
         long,
-        default_value = "api,state_keeper"
+        default_value = "api,eth,state_keeper"
     )]
     components: ComponentsToRun,
     /// Path to the yaml config. If set, it will be used instead of env vars.

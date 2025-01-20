@@ -568,7 +568,8 @@ impl EthTxAggregator {
                     .header
                     .pubdata_input
                     .clone()
-                    .unwrap()
+                    // TODO(zk os): temporary mock value to test here
+                    .unwrap_or(vec![0u8; 1])
                     .chunks(ZK_SYNC_BYTES_PER_BLOB)
                     .map(|blob| {
                         let kzg_info = KzgInfo::new(blob);
