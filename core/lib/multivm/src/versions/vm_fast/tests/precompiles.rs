@@ -46,7 +46,7 @@ fn caching_ecrecover_result() {
     );
     vm.vm.push_transaction(tx);
 
-    assert!(vm.vm.world.precompiles.has_expected_call());
+    assert!(vm.vm.world.precompiles.expected_ecrecover_call.is_some());
     assert_eq!(vm.vm.world.precompiles.expected_calls.get(), 0);
 
     let exec_result = vm.vm.execute(InspectExecutionMode::OneTx);
