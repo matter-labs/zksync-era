@@ -33,6 +33,7 @@ COPY --from=builder /usr/src/zksync/core/target/release/block_reverter /usr/bin
 COPY --from=builder /usr/src/zksync/core/target/release/merkle_tree_consistency_checker /usr/bin
 COPY contracts/system-contracts/zkout/ /contracts/system-contracts/zkout/
 COPY contracts/l1-contracts/out/ /contracts/l1-contracts/out/
+COPY contracts/l1-contracts/zkout/ /contracts/l1-contracts/zkout/
 COPY contracts/l2-contracts/zkout/ /contracts/l2-contracts/zkout/
 COPY etc/tokens/ /etc/tokens/
 COPY etc/ERC20/ /etc/ERC20/
