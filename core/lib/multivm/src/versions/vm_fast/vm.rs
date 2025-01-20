@@ -45,7 +45,7 @@ use crate::{
         VmInterfaceHistoryEnabled, VmRevertReason, VmTrackingContracts,
     },
     utils::events::extract_l2tol1logs_from_l1_messenger,
-    vm_fast::{events::merge_events, version::FastVmVersion},
+    vm_fast::{events::merge_events, interface::CycleStats, version::FastVmVersion},
     vm_latest::{
         bootloader::{
             utils::{apply_l2_block, apply_pubdata_to_memory},
@@ -920,7 +920,7 @@ pub(crate) struct World<S, T> {
     dynamic_bytecodes: DynamicBytecodes,
     program_cache: HashMap<U256, Program<T, Self>>,
     pub(crate) bytecode_cache: HashMap<U256, Vec<u8>>,
-    precompiles: OptimizedPrecompiles,
+    pub(crate) precompiles: OptimizedPrecompiles,
 }
 
 impl<S: ReadStorage, T: Tracer> World<S, T> {
@@ -1074,11 +1074,19 @@ impl<S: ReadStorage, T: Tracer> zksync_vm2::World<T> for World<S, T> {
 
 /// Precompiles implementation that shortcuts an `ecrecover` call made during L2 transaction validation.
 #[derive(Debug, Default)]
-struct OptimizedPrecompiles {
+pub(crate) struct OptimizedPrecompiles {
     expected_ecrecover_call: Option<EcRecoverCall>,
+    #[cfg(test)]
+    pub(crate) expected_calls: std::cell::Cell<usize>,
 }
 
-// FIXME: test that the expected call is triggered
+impl OptimizedPrecompiles {
+    #[cfg(test)]
+    pub(crate) fn has_expected_call(&self) -> bool {
+        self.expected_ecrecover_call.is_some()
+    }
+}
+
 impl Precompiles for OptimizedPrecompiles {
     fn call_precompile(
         &self,
@@ -1091,7 +1099,10 @@ impl Precompiles for OptimizedPrecompiles {
                 let memory_input = memory.clone().assume_offset_in_words();
                 if call.input.iter().copied().eq(memory_input) {
                     // Return the predetermined address instead of ECDSA recovery
-                    return PrecompileOutput::from([U256::one(), address_to_u256(&call.output)]);
+                    #[cfg(test)]
+                    self.expected_calls.set(self.expected_calls.get() + 1);
+                    return PrecompileOutput::from([U256::one(), address_to_u256(&call.output)])
+                        .with_cycle_stats(CycleStats::EcRecover(1));
                 }
             }
         }
