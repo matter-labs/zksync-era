@@ -253,7 +253,6 @@ jobs:
       - name: Export chain list to environment variable
         run: |
           CHAINS="era"
-#          CHAINS="era,validium,custom_token,consensus"
           echo "CHAINS=$CHAINS" >> $GITHUB_ENV
 
       - name: Build test dependencies
