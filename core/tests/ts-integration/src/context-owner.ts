@@ -612,8 +612,24 @@ export class TestContextOwner {
                 await this.waitForVmPlayground();
                 this.reporter.finishAction();
             }
-            this.reporter.startAction(`Tearing down the context`);
+            this.reporter.startAction(`Collecting funds`);
             await this.collectFunds();
+            this.reporter.finishAction();
+            this.reporter.startAction(`Destroying providers`);
+            // Destroy providers so that they drop potentially active connections to the node. Not doing so might cause
+            // unexpected network errors to propagate during node termination.
+            try {
+                this.l1Provider.destroy();
+            } catch (err: any) {
+                // Catch any request cancellation errors that propagate here after destroying L1 provider
+                console.log(`Caught error while destroying L1 provider: ${err}`);
+            }
+            try {
+                this.l2Provider.destroy();
+            } catch (err: any) {
+                // Catch any request cancellation errors that propagate here after destroying L2 provider
+                console.log(`Caught error while destroying L2 provider: ${err}`);
+            }
             this.reporter.finishAction();
         } catch (error: any) {
             // Report the issue to the console and mark the last action as failed.
