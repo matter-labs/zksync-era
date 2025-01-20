@@ -24,7 +24,7 @@
     "chalk": "^4.0.0",
     "elliptic": "^6.5.5",
     "ethereumjs-abi": "^0.6.8",
-    "ethers": "^6.7.1",
+    "ethers": "^6.13.5",
     "hardhat": "=2.22.2",
     "jest": "^29.0.3",
     "jest-environment-node": "^29.0.3",

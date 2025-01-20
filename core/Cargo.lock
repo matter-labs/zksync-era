@@ -11994,7 +11994,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "25.4.0"
+version = "26.0.0"
 dependencies = [
  "anyhow",
  "assert_matches",
