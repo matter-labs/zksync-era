@@ -61,6 +61,7 @@ impl RawEigenClient {
             max_blob_size: Self::BLOB_SIZE_LIMIT as u32,
             g1_url: Url::parse(&config.g1_url)?,
             g2_url: Url::parse(&config.g2_url)?,
+            points_dir: config.points_dir.clone(),
             settlement_layer_confirmation_depth: config.settlement_layer_confirmation_depth,
         };
 

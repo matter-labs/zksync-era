@@ -78,6 +78,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 wait_for_finalization: *required(&conf.wait_for_finalization)
                     .context("wait_for_finalization")?,
                 authenticated: *required(&conf.authenticated).context("authenticated")?,
+                points_dir: Some(required(&conf.points_dir).context("points_dir")?.clone()),
                 g1_url: required(&conf.g1_url).context("g1_url")?.clone(),
                 g2_url: required(&conf.g2_url).context("g2_url")?.clone(),
             }),
@@ -122,7 +123,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 settlement_layer_confirmation_depth: Some(
                     config.settlement_layer_confirmation_depth,
                 ),
-                // eigenda_eth_rpc: config.eigenda_eth_rpc.into(),
                 eigenda_eth_rpc: Some(format!("{:?}", config.eigenda_eth_rpc)),
                 eigenda_svc_manager_address: Some(format!(
                     "{:?}",
@@ -132,6 +132,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 authenticated: Some(config.authenticated),
                 g1_url: Some(config.g1_url.clone()),
                 g2_url: Some(config.g2_url.clone()),
+                points_dir: Some(format!("{:?}", config.points_dir)),
             }),
             ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
                 object_store_proto::ObjectStore::build(config),

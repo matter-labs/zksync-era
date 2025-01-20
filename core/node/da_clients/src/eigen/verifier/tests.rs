@@ -24,6 +24,7 @@ fn get_verifier_config() -> VerifierConfig {
             max_blob_size: 2 * 1024 * 1024,
             g1_url: Url::parse("https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g1.point").unwrap(),
             g2_url: Url::parse("https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g2.point.powerOf2").unwrap(),
+            points_dir: None,
             settlement_layer_confirmation_depth: 0,
         }
 }

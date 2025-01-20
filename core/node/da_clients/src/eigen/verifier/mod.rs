@@ -1,9 +1,9 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, io::Write, sync::Arc};
 
 use ark_bn254::{Fq, G1Affine};
 use ethabi::{encode, ParamType, Token};
 use rust_kzg_bn254::{blob::Blob, kzg::Kzg, polynomial::PolynomialFormat};
-use tokio::{fs::File, io::AsyncWriteExt};
+use tempfile::NamedTempFile;
 use url::Url;
 use zksync_basic_types::web3::CallRequest;
 use zksync_eth_client::{EnrichedClientError, EnrichedClientResult, EthInterface};
@@ -100,9 +100,25 @@ pub struct VerifierConfig {
     pub rpc_url: SensitiveUrl,
     pub svc_manager_addr: Address,
     pub max_blob_size: u32,
+    pub points_dir: Option<String>,
     pub g1_url: Url,
     pub g2_url: Url,
     pub settlement_layer_confirmation_depth: u32,
+}
+
+#[derive(Debug)]
+enum PointFile {
+    Temp(NamedTempFile),
+    Path(String),
+}
+
+impl PointFile {
+    fn path(&self) -> &str {
+        match self {
+            PointFile::Temp(file) => file.path().to_str().unwrap(),
+            PointFile::Path(path) => path,
+        }
+    }
 }
 
 /// Verifier used to verify the integrity of the blob info
@@ -122,34 +138,43 @@ impl Verifier {
     pub const G2POINT: &'static str = "g2.point.powerOf2";
     pub const POINT_SIZE: u32 = 32;
 
-    async fn save_point(url: Url, point: &str) -> Result<(), VerificationError> {
+    async fn download_temp_point(url: Url) -> Result<NamedTempFile, VerificationError> {
         let response = reqwest::get(url)
             .await
-            .map_err(|e| VerificationError::LinkError(e.to_string()))?;
+            .map_err(|e| VerificationError::LinkError(e.to_string()))
+            .unwrap();
         if !response.status().is_success() {
             return Err(VerificationError::LinkError(
                 "Failed to get point".to_string(),
             ));
         }
 
-        let mut file = File::create(point)
-            .await
-            .map_err(|e| VerificationError::LinkError(e.to_string()))?;
+        let mut file = NamedTempFile::new().unwrap();
         let content = response
             .bytes()
             .await
-            .map_err(|e| VerificationError::LinkError(e.to_string()))?;
+            .map_err(|e| VerificationError::LinkError(e.to_string()))
+            .unwrap();
         file.write_all(&content)
-            .await
-            .map_err(|e| VerificationError::LinkError(e.to_string()))?;
-        Ok(())
+            .map_err(|e| VerificationError::LinkError(e.to_string()))
+            .unwrap();
+        Ok(file)
     }
 
-    async fn save_points(url_g1: Url, url_g2: Url) -> Result<String, VerificationError> {
-        Self::save_point(url_g1, Self::G1POINT).await?;
-        Self::save_point(url_g2, Self::G2POINT).await?;
-
-        Ok(".".to_string())
+    async fn get_points(cfg: &VerifierConfig) -> Result<(PointFile, PointFile), VerificationError> {
+        match &cfg.points_dir {
+            Some(path) => Ok((
+                PointFile::Path(format!("{}/{}", path, Self::G1POINT)),
+                PointFile::Path(format!("{}/{}", path, Self::G2POINT)),
+            )),
+            None => {
+                tracing::info!("Points for KZG setup not found, downloading temporary points");
+                Ok((
+                    PointFile::Temp(Self::download_temp_point(cfg.g1_url.clone()).await?),
+                    PointFile::Temp(Self::download_temp_point(cfg.g2_url.clone()).await?),
+                ))
+            }
+        }
     }
 
     pub(crate) async fn new(
@@ -157,18 +182,19 @@ impl Verifier {
         signing_client: Arc<dyn VerifierClient>,
     ) -> Result<Self, VerificationError> {
         let srs_points_to_load = cfg.max_blob_size / Self::POINT_SIZE;
-        let path = Self::save_points(cfg.clone().g1_url, cfg.clone().g2_url).await?;
+        let (g1_point_file, g2_point_file) = Self::get_points(&cfg).await?;
+        let g1_point_file_path = g1_point_file.path().to_string();
+        let g2_point_file_path = g2_point_file.path().to_string();
         let kzg_handle = tokio::task::spawn_blocking(move || {
             Kzg::setup(
-                &format!("{}/{}", path, Self::G1POINT),
+                &g1_point_file_path, //&format!("{}/{}", path, Self::G1POINT),
                 "",
-                &format!("{}/{}", path, Self::G2POINT),
+                &g2_point_file_path, //&format!("{}/{}", path, Self::G2POINT),
                 Self::SRSORDER,
                 srs_points_to_load,
                 "".to_string(),
             )
         });
-
         let kzg = kzg_handle
             .await
             .map_err(|e| VerificationError::Kzg(KzgError::Setup(e.to_string())))?

@@ -11822,6 +11822,7 @@ dependencies = [
  "sha3 0.10.8",
  "subxt-metadata",
  "subxt-signer",
+ "tempfile",
  "thiserror",
  "tiny-keccak 2.0.2",
  "tokio",

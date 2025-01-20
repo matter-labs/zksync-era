@@ -18,13 +18,15 @@ pub struct EigenConfig {
     /// a value less or equal to 0 means that the disperser will not wait for finalization
     pub settlement_layer_confirmation_depth: u32,
     /// URL of the Ethereum RPC server
-    pub eigenda_eth_rpc: Option<SensitiveUrl>, //Option<String>,
+    pub eigenda_eth_rpc: Option<SensitiveUrl>,
     /// Address of the service manager contract
     pub eigenda_svc_manager_address: Address,
     /// Wait for the blob to be finalized before returning the response
     pub wait_for_finalization: bool,
     /// Authenticated dispersal
     pub authenticated: bool,
+    /// Optional path to downloaded points directory
+    pub points_dir: Option<String>,
     /// Url to the file containing the G1 point used for KZG
     pub g1_url: String,
     /// Url to the file containing the G2 point used for KZG
@@ -40,6 +42,7 @@ impl Default for EigenConfig {
             eigenda_svc_manager_address: DEFAULT_EIGENDA_SVC_MANAGER_ADDRESS,
             wait_for_finalization: false,
             authenticated: false,
+            points_dir: None,
             g1_url: "https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g1.point".to_string(),
             g2_url: "https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g2.point.powerOf2".to_string(),
         }

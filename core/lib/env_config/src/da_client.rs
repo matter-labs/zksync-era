@@ -257,6 +257,7 @@ mod tests {
             DA_EIGENDA_SVC_MANAGER_ADDRESS="0x0000000000000000000000000000000000000123"
             DA_WAIT_FOR_FINALIZATION=true
             DA_AUTHENTICATED=false
+            DA_POINTS_DIR="resources/"
             DA_G1_URL="resources1"
             DA_G2_URL="resources2"
         "#;
@@ -274,6 +275,7 @@ mod tests {
                     .unwrap(),
                 wait_for_finalization: true,
                 authenticated: false,
+                points_dir: Some("resources/".to_string()),
                 g1_url: "resources1".to_string(),
                 g2_url: "resources2".to_string(),
             })
