@@ -8,7 +8,7 @@ use crate::{
     },
     utils::bytecode,
     vm_latest::{
-        bootloader_state::l2_block::BootloaderL2Block,
+        bootloader::l2_block::BootloaderL2Block,
         constants::{
             get_bootloader_tx_description_offset, get_compressed_bytecodes_offset,
             get_operator_provided_l1_messenger_pubdata_offset, get_operator_refunds_offset,

@@ -23,6 +23,7 @@ jobs:
       docs: ${{ steps.changed-files.outputs.docs_any_changed }}
       all: ${{ steps.changed-files.outputs.all_any_changed }}
     steps:
+          
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           fetch-depth: 2
@@ -56,8 +57,8 @@ jobs:
               - '.github/workflows/build-contract-verifier-template.yml'
               - '.github/workflows/ci-core-reusable.yml'
               - '.github/workflows/ci-core-lint-reusable.yml'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
+              - './core/Cargo.toml'
+              - './core/Cargo.lock'
               - 'zkstack_cli/**'
               - '!**/*.md'
               - '!**/*.MD'

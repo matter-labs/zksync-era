@@ -69,6 +69,17 @@ impl ForgeScript {
                 return Ok(res?);
             }
         }
+
+        // TODO: This line is very helpful for debugging purposes,
+        // maybe it makes sense to make it conditionally displayed.
+        let command = format!(
+            "forge script {} --legacy {}",
+            script_path.to_str().unwrap(),
+            args_no_resume.join(" ")
+        );
+
+        println!("Command: {}", command);
+
         let mut cmd = Cmd::new(cmd!(
             shell,
             "forge script {script_path} --legacy {args_no_resume...}"
@@ -291,6 +302,8 @@ pub struct ForgeScriptArgs {
     pub verifier_api_key: Option<String>,
     #[clap(long)]
     pub resume: bool,
+    #[clap(long)]
+    pub zksync: bool,
     /// List of additional arguments that can be passed through the CLI.
     ///
     /// e.g.: `zkstack init -a --private-key=<PRIVATE_KEY>`
@@ -304,6 +317,9 @@ impl ForgeScriptArgs {
     pub fn build(&mut self) -> Vec<String> {
         self.add_verify_args();
         self.cleanup_contract_args();
+        if self.zksync {
+            self.add_arg(ForgeScriptArg::Zksync);
+        }
         self.args
             .iter()
             .map(|arg| arg.to_string())
@@ -398,6 +414,10 @@ impl ForgeScriptArgs {
         self.additional_args
             .iter()
             .any(|arg| WALLET_ARGS.contains(&arg.as_ref()))
+    }
+
+    pub fn with_zksync(&mut self) {
+        self.zksync = true;
     }
 }
 

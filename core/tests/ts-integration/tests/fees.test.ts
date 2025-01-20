@@ -190,14 +190,16 @@ testFees('Test fees', function () {
         await (
             await alice.sendTransaction({
                 to: receiver,
-                value: BigInt(1)
+                value: BigInt(1),
+                type: 2
             })
         ).wait();
 
         await (
             await alice.sendTransaction({
                 data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, 1n]),
-                to: tokenDetails.l2Address
+                to: tokenDetails.l2Address,
+                type: 2
             })
         ).wait();
 
@@ -221,22 +223,26 @@ testFees('Test fees', function () {
                 [
                     {
                         to: ethers.Wallet.createRandom().address,
-                        value: 1n
+                        value: 1n,
+                        type: 2
                     },
                     {
                         to: receiver,
-                        value: 1n
+                        value: 1n,
+                        type: 2
                     },
                     {
                         data: aliceErc20.interface.encodeFunctionData('transfer', [
                             ethers.Wallet.createRandom().address,
                             1n
                         ]),
-                        to: tokenDetails.l2Address
+                        to: tokenDetails.l2Address,
+                        type: 2
                     },
                     {
                         data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, 1n]),
-                        to: tokenDetails.l2Address
+                        to: tokenDetails.l2Address,
+                        type: 2
                     }
                 ],
                 gasPrice,
@@ -404,9 +410,13 @@ testFees('Test fees', function () {
     });
 
     afterAll(async () => {
-        await mainNodeSpawner.killAndSpawnMainNode();
         // Returning the pubdata price to the default one
         // Spawning with no options restores defaults.
+        await mainNodeSpawner.killAndSpawnMainNode();
+
+        // Wait for current batch to close so gas price returns to normal.
+        await waitForNewL1Batch(alice);
+
         await testMaster.deinitialize();
         __ZKSYNC_TEST_CONTEXT_OWNER__.setL2NodePid(mainNodeSpawner.mainNode!.proc.pid!);
     });
@@ -444,8 +454,9 @@ async function updateReport(
     oldReport: string
 ): Promise<string> {
     const expectedL1Price = +ethers.formatEther(l1Receipt.gasUsed * newL1GasPrice);
-
-    const estimatedL2GasPrice = await sender.provider.getGasPrice();
+    // This is flaky without multiplying by 3.
+    const estimatedL2GasPrice = ethers.getBigInt(await sender.provider.send('eth_gasPrice', [])) * 3n;
+    transactionRequest.maxFeePerGas = estimatedL2GasPrice;
     const estimatedL2GasLimit = await sender.estimateGas(transactionRequest);
     const estimatedPrice = estimatedL2GasPrice * estimatedL2GasLimit;
 

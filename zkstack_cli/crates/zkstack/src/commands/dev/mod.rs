@@ -1,5 +1,7 @@
 use clap::Subcommand;
 use commands::status::args::StatusArgs;
+#[cfg(feature = "gateway")]
+use messages::MSG_GATEWAY_UPGRADE_CALLDATA;
 use messages::MSG_STATUS_ABOUT;
 use xshell::Shell;
 
@@ -15,7 +17,7 @@ use crate::commands::dev::messages::{
     MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
 };
 
-mod commands;
+pub(crate) mod commands;
 mod consts;
 mod dals;
 mod defaults;
@@ -47,6 +49,9 @@ pub enum DevCommands {
     Status(StatusArgs),
     #[command(about = MSG_GENERATE_GENESIS_ABOUT, alias = "genesis")]
     GenerateGenesis,
+    #[cfg(feature = "gateway")]
+    #[command(about = MSG_GATEWAY_UPGRADE_CALLDATA)]
+    GatewayUpgradeCalldata(commands::gateway::GatewayUpgradeCalldataArgs),
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
@@ -65,6 +70,8 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         }
         DevCommands::Status(args) => commands::status::run(shell, args).await?,
         DevCommands::GenerateGenesis => commands::genesis::run(shell).await?,
+        #[cfg(feature = "gateway")]
+        DevCommands::GatewayUpgradeCalldata(args) => commands::gateway::run(shell, args).await?,
     }
     Ok(())
 }

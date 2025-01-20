@@ -22,15 +22,17 @@ use zksync_types::{
     utils::storage_key_for_eth_balance, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersionId, U256,
 };
-use zksync_vm_interface::{
-    pubdata::PubdataBuilder, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmEvent,
-};
 
 pub(super) use self::tester::{
-    validation_params, TestedVm, TestedVmForValidation, VmTester, VmTesterBuilder,
+    validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer, VmTester,
+    VmTesterBuilder,
 };
 use crate::{
-    interface::storage::InMemoryStorage, pubdata_builders::FullPubdataBuilder,
+    interface::{
+        pubdata::PubdataBuilder, storage::InMemoryStorage, L1BatchEnv, L2BlockEnv, SystemEnv,
+        TxExecutionMode, VmEvent,
+    },
+    pubdata_builders::FullPubdataBuilder,
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
@@ -38,6 +40,7 @@ pub(super) mod account_validation_rules;
 pub(super) mod block_tip;
 pub(super) mod bootloader;
 pub(super) mod bytecode_publishing;
+pub(super) mod call_tracer;
 pub(super) mod circuits;
 pub(super) mod code_oracle;
 pub(super) mod default_aa;

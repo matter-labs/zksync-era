@@ -73,7 +73,7 @@ impl HttpTest for TraceBlockTest {
                 let expected_calls: Vec<_> = tx_result
                     .call_traces
                     .iter()
-                    .map(|call| DebugNamespace::map_default_call(call.clone(), false))
+                    .map(|call| DebugNamespace::map_default_call(call.clone(), false, None))
                     .collect();
                 assert_eq!(result.calls, expected_calls);
             }
@@ -216,7 +216,7 @@ impl HttpTest for TraceTransactionTest {
         let expected_calls: Vec<_> = tx_results[0]
             .call_traces
             .iter()
-            .map(|call| DebugNamespace::map_default_call(call.clone(), false))
+            .map(|call| DebugNamespace::map_default_call(call.clone(), false, None))
             .collect();
 
         let result = client

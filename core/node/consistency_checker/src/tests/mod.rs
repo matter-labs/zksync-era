@@ -134,13 +134,8 @@ fn create_mock_sl(chain_id: u64, with_get_zk_chain: bool) -> MockSettlementLayer
             }
             Some(addr) if with_get_zk_chain && addr == L2_BRIDGEHUB_ADDRESS => {
                 let contract = zksync_contracts::bridgehub_contract();
-                let function_name = if contract.function("getZKChain").is_ok() {
-                    "getZKChain"
-                } else {
-                    "getHyperchain"
-                };
                 let expected_input = contract
-                    .function(function_name)
+                    .function("getZKChain")
                     .unwrap()
                     .encode_input(&[Token::Uint(ERA_CHAIN_ID.into())])
                     .unwrap();

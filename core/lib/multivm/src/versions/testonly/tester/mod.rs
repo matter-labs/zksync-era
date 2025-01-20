@@ -8,6 +8,7 @@ use zksync_types::{
     writes::StateDiffRecord,
     Address, L1BatchNumber, StorageKey, Transaction, H256, U256,
 };
+use zksync_vm_interface::Call;
 
 pub(crate) use self::transaction_test_info::{ExpectedError, TransactionTestInfo, TxModifier};
 use super::get_empty_storage;
@@ -251,4 +252,8 @@ pub(crate) fn validation_params(tx: &L2Tx, system: &SystemEnv) -> ValidationPara
         computational_gas_limit: system.default_validation_computational_gas_limit,
         timestamp_asserter_params: None,
     }
+}
+
+pub(crate) trait TestedVmWithCallTracer: TestedVm {
+    fn inspect_with_call_tracer(&mut self) -> (VmExecutionResultAndLogs, Vec<Call>);
 }
