@@ -217,7 +217,7 @@ impl ConnectionPool {
             .await
             .wrap("batch_of_block()")?
             .context("batch of first_block is missing")?;
-        let registry = registry::Registry::new(cfg.genesis.clone(), self.clone()).await;
+        let registry = registry::Registry::new(self.clone()).await;
         for i in first.0..want_last.0 {
             let i = attester::BatchNumber(i);
             let cert = conn

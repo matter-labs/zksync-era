@@ -26,7 +26,6 @@ async fn test_attester_committee() {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
-    let setup = Setup::new(rng, 10);
     let account = &mut Account::random();
     let to_fund = &[account.address];
 
