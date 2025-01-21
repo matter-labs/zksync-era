@@ -1,14 +1,15 @@
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 
+use ethabi::{ParamType, Token};
 use url::Url;
-use zksync_eth_client::EnrichedClientResult;
 use zksync_types::{
     url::SensitiveUrl,
-    web3::{BlockId, Bytes, CallRequest},
-    Address, H160, U64,
+    web3::{Bytes, CallRequest},
+    Address, H160, U256,
 };
 use zksync_web3_decl::client::{Client, DynClient, L1};
 
+use super::VerificationError;
 use crate::eigen::{
     blob_info::{
         BatchHeader, BatchMetadata, BlobHeader, BlobInfo, BlobQuorumParam, BlobVerificationProof,
@@ -47,17 +48,62 @@ impl MockVerifierClient {
 
 #[async_trait::async_trait]
 impl VerifierClient for MockVerifierClient {
-    async fn block_number(&self) -> EnrichedClientResult<U64> {
-        Ok(U64::from(42))
+    async fn batch_id_to_batch_metadata_hash(
+        &self,
+        blob_info: &BlobInfo,
+        svc_manager_addr: Address,
+    ) -> Result<Vec<u8>, VerificationError> {
+        let mut data = vec![];
+        let func_selector =
+            ethabi::short_signature("batchIdToBatchMetadataHash", &[ParamType::Uint(32)]);
+        data.extend_from_slice(&func_selector);
+        let batch_id_data = ethabi::encode(&[Token::Uint(U256::from(
+            blob_info.blob_verification_proof.batch_id,
+        ))]);
+        data.extend_from_slice(&batch_id_data);
+
+        let call_request = CallRequest {
+            to: Some(svc_manager_addr),
+            data: Some(zksync_basic_types::web3::Bytes(data)),
+            ..Default::default()
+        };
+
+        let req = serde_json::to_string(&call_request).unwrap();
+        Ok(self.replies.get(&req).unwrap().clone().0)
     }
 
-    async fn call_contract_function(
+    async fn quorum_adversary_threshold_percentages(
         &self,
-        request: CallRequest,
-        _block: Option<BlockId>,
-    ) -> EnrichedClientResult<Bytes> {
-        let req = serde_json::to_string(&request).unwrap();
-        Ok(self.replies.get(&req).unwrap().clone())
+        _quorum_number: u32,
+        svc_manager_addr: Address,
+    ) -> Result<u8, VerificationError> {
+        let func_selector = ethabi::short_signature("quorumAdversaryThresholdPercentages", &[]);
+        let data = func_selector.to_vec();
+
+        let call_request = CallRequest {
+            to: Some(svc_manager_addr),
+            data: Some(zksync_basic_types::web3::Bytes(data)),
+            ..Default::default()
+        };
+
+        let req = serde_json::to_string(&call_request).unwrap();
+        Ok(self.replies.get(&req).unwrap().clone().0[0])
+    }
+
+    async fn quorum_numbers_required(
+        &self,
+        svc_manager_addr: Address,
+    ) -> Result<Vec<u8>, VerificationError> {
+        let func_selector = ethabi::short_signature("quorumNumbersRequired", &[]);
+        let data = func_selector.to_vec();
+        let call_request = CallRequest {
+            to: Some(svc_manager_addr),
+            data: Some(zksync_basic_types::web3::Bytes(data)),
+            ..Default::default()
+        };
+
+        let req = serde_json::to_string(&call_request).unwrap();
+        Ok(self.replies.get(&req).unwrap().clone().0)
     }
 }
 

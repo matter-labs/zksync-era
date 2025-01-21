@@ -6,12 +6,8 @@ use rust_kzg_bn254::{blob::Blob, kzg::Kzg, polynomial::PolynomialFormat};
 use tempfile::NamedTempFile;
 use url::Url;
 use zksync_basic_types::web3::CallRequest;
-use zksync_eth_client::{EnrichedClientError, EnrichedClientResult, EthInterface};
-use zksync_types::{
-    url::SensitiveUrl,
-    web3::{self, BlockId, BlockNumber},
-    Address, U256, U64,
-};
+use zksync_eth_client::{EnrichedClientError, EthInterface};
+use zksync_types::{url::SensitiveUrl, web3, Address, U256};
 use zksync_web3_decl::client::{DynClient, L1};
 
 use super::blob_info::{BatchHeader, BlobHeader, BlobInfo, BlobQuorumParam, G1Commitment};
@@ -19,31 +15,116 @@ use super::blob_info::{BatchHeader, BlobHeader, BlobInfo, BlobQuorumParam, G1Com
 #[cfg(test)]
 mod tests;
 
+fn decode_bytes(encoded: Vec<u8>) -> Result<Vec<u8>, VerificationError> {
+    let output_type = [ParamType::Bytes];
+    let tokens = ethabi::decode(&output_type, &encoded)
+        .map_err(|e| ServiceManagerError::Decoding(e.to_string()))?;
+
+    // Safe unwrap because decode guarantees type correctness and non-empty output
+    let token = tokens.into_iter().next().unwrap();
+
+    // Safe unwrap, as type is guaranteed
+    Ok(token.into_bytes().unwrap())
+}
+
 #[async_trait::async_trait]
 pub trait VerifierClient: Sync + Send + std::fmt::Debug {
-    /// Returns the current block number.
-    async fn block_number(&self) -> EnrichedClientResult<U64>;
-
-    /// Invokes a function on a contract specified by `contract_address` / `contract_abi` using `eth_call`.
-    async fn call_contract_function(
+    async fn batch_id_to_batch_metadata_hash(
         &self,
-        request: web3::CallRequest,
-        block: Option<BlockId>,
-    ) -> EnrichedClientResult<web3::Bytes>;
+        blob_info: &BlobInfo,
+        svc_manager_addr: Address,
+    ) -> Result<Vec<u8>, VerificationError>;
+
+    async fn quorum_adversary_threshold_percentages(
+        &self,
+        quorum_number: u32,
+        svc_manager_addr: Address,
+    ) -> Result<u8, VerificationError>;
+
+    async fn quorum_numbers_required(
+        &self,
+        svc_manager_addr: Address,
+    ) -> Result<Vec<u8>, VerificationError>;
 }
 
 #[async_trait::async_trait]
 impl VerifierClient for Box<DynClient<L1>> {
-    async fn block_number(&self) -> EnrichedClientResult<U64> {
-        self.as_ref().block_number().await
+    async fn batch_id_to_batch_metadata_hash(
+        &self,
+        blob_info: &BlobInfo,
+        svc_manager_addr: Address,
+    ) -> Result<Vec<u8>, VerificationError> {
+        let mut data = vec![];
+        let func_selector =
+            ethabi::short_signature("batchIdToBatchMetadataHash", &[ParamType::Uint(32)]);
+        data.extend_from_slice(&func_selector);
+        let batch_id_data = encode(&[Token::Uint(U256::from(
+            blob_info.blob_verification_proof.batch_id,
+        ))]);
+        data.extend_from_slice(&batch_id_data);
+
+        let call_request = CallRequest {
+            to: Some(svc_manager_addr),
+            data: Some(zksync_basic_types::web3::Bytes(data)),
+            ..Default::default()
+        };
+
+        let res = self
+            .as_ref()
+            .call_contract_function(call_request, None)
+            .await
+            .map_err(ServiceManagerError::EnrichedClient)?;
+
+        Ok(res.0.to_vec())
     }
 
-    async fn call_contract_function(
+    async fn quorum_adversary_threshold_percentages(
         &self,
-        request: web3::CallRequest,
-        block: Option<BlockId>,
-    ) -> EnrichedClientResult<web3::Bytes> {
-        self.as_ref().call_contract_function(request, block).await
+        quorum_number: u32,
+        svc_manager_addr: Address,
+    ) -> Result<u8, VerificationError> {
+        let func_selector = ethabi::short_signature("quorumAdversaryThresholdPercentages", &[]);
+        let data = func_selector.to_vec();
+
+        let call_request = CallRequest {
+            to: Some(svc_manager_addr),
+            data: Some(zksync_basic_types::web3::Bytes(data)),
+            ..Default::default()
+        };
+
+        let res = self
+            .as_ref()
+            .call_contract_function(call_request, None)
+            .await
+            .map_err(ServiceManagerError::EnrichedClient)?;
+
+        let percentages = decode_bytes(res.0)?;
+
+        if percentages.len() > quorum_number as usize {
+            return Ok(percentages[quorum_number as usize]);
+        }
+        Ok(0)
+    }
+
+    async fn quorum_numbers_required(
+        &self,
+        svc_manager_addr: Address,
+    ) -> Result<Vec<u8>, VerificationError> {
+        let func_selector = ethabi::short_signature("quorumNumbersRequired", &[]);
+        let data = func_selector.to_vec();
+        let call_request = CallRequest {
+            to: Some(svc_manager_addr),
+            data: Some(zksync_basic_types::web3::Bytes(data)),
+            ..Default::default()
+        };
+
+        let res = self
+            .as_ref()
+            .call_contract_function(call_request, None)
+            .await
+            .map_err(ServiceManagerError::EnrichedClient)?;
+
+        decode_bytes(res.0.to_vec())
     }
 }
 
@@ -347,56 +428,14 @@ impl Verifier {
         web3::keccak256(&hash_encoded).to_vec()
     }
 
-    /// Retrieves the block to make the request to the service manager
-    async fn get_context_block(&self) -> Result<u64, VerificationError> {
-        let latest = self
-            .signing_client
-            .as_ref()
-            .block_number()
-            .await
-            .map_err(ServiceManagerError::EnrichedClient)?
-            .as_u64();
-
-        let depth = self
-            .cfg
-            .settlement_layer_confirmation_depth
-            .saturating_sub(1);
-        let block_to_return = latest.saturating_sub(depth as u64);
-        Ok(block_to_return)
-    }
-
     async fn call_batch_id_to_metadata_hash(
         &self,
         blob_info: &BlobInfo,
     ) -> Result<Vec<u8>, VerificationError> {
-        let context_block = self.get_context_block().await?;
-
-        let mut data = vec![];
-        let func_selector =
-            ethabi::short_signature("batchIdToBatchMetadataHash", &[ParamType::Uint(32)]);
-        data.extend_from_slice(&func_selector);
-        let batch_id_data = encode(&[Token::Uint(U256::from(
-            blob_info.blob_verification_proof.batch_id,
-        ))]);
-        data.extend_from_slice(&batch_id_data);
-
-        let call_request = CallRequest {
-            to: Some(self.cfg.svc_manager_addr),
-            data: Some(zksync_basic_types::web3::Bytes(data)),
-            ..Default::default()
-        };
-
-        let res = self
-            .signing_client
+        self.signing_client
             .as_ref()
-            .call_contract_function(
-                call_request,
-                Some(BlockId::Number(BlockNumber::Number(context_block.into()))),
-            )
+            .batch_id_to_batch_metadata_hash(blob_info, self.cfg.svc_manager_addr)
             .await
-            .map_err(ServiceManagerError::EnrichedClient)?;
-
-        Ok(res.0.to_vec())
     }
 
     /// Verifies the certificate batch hash
@@ -431,63 +470,21 @@ impl Verifier {
         Ok(())
     }
 
-    fn decode_bytes(&self, encoded: Vec<u8>) -> Result<Vec<u8>, VerificationError> {
-        let output_type = [ParamType::Bytes];
-        let tokens = ethabi::decode(&output_type, &encoded)
-            .map_err(|e| ServiceManagerError::Decoding(e.to_string()))?;
-
-        // Safe unwrap because decode guarantees type correctness and non-empty output
-        let token = tokens.into_iter().next().unwrap();
-
-        // Safe unwrap, as type is guaranteed
-        Ok(token.into_bytes().unwrap())
-    }
-
     async fn get_quorum_adversary_threshold(
         &self,
         quorum_number: u32,
     ) -> Result<u8, VerificationError> {
-        let func_selector = ethabi::short_signature("quorumAdversaryThresholdPercentages", &[]);
-        let data = func_selector.to_vec();
-
-        let call_request = CallRequest {
-            to: Some(self.cfg.svc_manager_addr),
-            data: Some(zksync_basic_types::web3::Bytes(data)),
-            ..Default::default()
-        };
-
-        let res = self
-            .signing_client
+        self.signing_client
             .as_ref()
-            .call_contract_function(call_request, None)
+            .quorum_adversary_threshold_percentages(quorum_number, self.cfg.svc_manager_addr)
             .await
-            .map_err(ServiceManagerError::EnrichedClient)?;
-
-        let percentages = self.decode_bytes(res.0)?;
-
-        if percentages.len() > quorum_number as usize {
-            return Ok(percentages[quorum_number as usize]);
-        }
-        Ok(0)
     }
 
     async fn call_quorum_numbers_required(&self) -> Result<Vec<u8>, VerificationError> {
-        let func_selector = ethabi::short_signature("quorumNumbersRequired", &[]);
-        let data = func_selector.to_vec();
-        let call_request = CallRequest {
-            to: Some(self.cfg.svc_manager_addr),
-            data: Some(zksync_basic_types::web3::Bytes(data)),
-            ..Default::default()
-        };
-
-        let res = self
-            .signing_client
+        self.signing_client
             .as_ref()
-            .call_contract_function(call_request, None)
+            .quorum_numbers_required(self.cfg.svc_manager_addr)
             .await
-            .map_err(ServiceManagerError::EnrichedClient)?;
-
-        self.decode_bytes(res.0.to_vec())
     }
 
     /// Verifies that the certificate's blob quorum params are correct
