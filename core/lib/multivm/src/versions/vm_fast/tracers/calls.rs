@@ -50,7 +50,11 @@ impl Tracer for CallTracer {
                 let current_gas = state.current_frame().gas() as u64;
                 let from = state.current_frame().caller();
                 let to = state.current_frame().address();
-                let input = read_raw_fat_pointer(state, state.read_register(1).0);
+                let input = if current_gas == 0 {
+                    vec![]
+                } else {
+                    read_raw_fat_pointer(state, state.read_register(1).0)
+                };
                 let value = U256::from(state.current_frame().context_u128());
                 let ty = match ty {
                     CallingMode::Normal => CallType::Call(FarCallOpcode::Normal),
