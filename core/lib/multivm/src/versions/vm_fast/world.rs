@@ -179,7 +179,7 @@ impl<S: ReadStorage, T: Tracer> zksync_vm2::World<T> for World<S, T> {
     }
 }
 
-/// Precompiles implementation that shortcuts an `ecrecover` call made during L2 transaction validation.
+/// Precompiles implementation that may shortcut an `ecrecover` call made during L2 transaction validation.
 #[derive(Debug, Default)]
 pub(super) struct OptimizedPrecompiles {
     pub(super) expected_ecrecover_call: Option<EcRecoverCall>,
@@ -201,6 +201,8 @@ impl Precompiles for OptimizedPrecompiles {
                     // Return the predetermined address instead of ECDSA recovery
                     #[cfg(test)]
                     self.expected_calls.set(self.expected_calls.get() + 1);
+                    // By convention, the recovered address is left-padded to a 32-byte word and is preceded
+                    // by the success marker.
                     return PrecompileOutput::from([U256::one(), address_to_u256(&call.output)])
                         .with_cycle_stats(CycleStats::EcRecover(1));
                 }
