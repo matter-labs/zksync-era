@@ -32,15 +32,15 @@ async fn test_attester_committee() {
 
     scope::run!(ctx, |ctx, s| async {
         let pool = ConnectionPool::test(false, ProtocolVersionId::latest()).await;
-        let registry = Registry::new(setup.genesis.clone(), pool.clone()).await;
+        let registry = Registry::new(pool.clone()).await;
 
         // If the registry contract address is not specified,
-        // then the committee from genesis should be returned.
+        // then an empty committee should be returned.
         let got = registry
             .attester_committee_for(ctx, None, attester::BatchNumber(10))
             .await
             .unwrap();
-        assert_eq!(setup.genesis.attesters, got);
+        assert!(got.is_none());
 
         let (mut node, runner) = crate::testonly::StateKeeper::new(ctx, pool.clone()).await?;
         s.spawn_bg(runner.run_real(ctx, to_fund));
