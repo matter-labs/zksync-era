@@ -45,7 +45,7 @@ impl Registry {
 
     /// Attester committee for the given batch.
     /// It reads committee from the contract.
-    /// Falls back to committee specified in the genesis.
+    /// Falls back to empty committee.
     pub async fn attester_committee_for(
         &self,
         ctx: &ctx::Ctx,
@@ -57,7 +57,7 @@ impl Registry {
             return Ok(None);
         };
         let Some(address) = address else {
-            return Ok(self.genesis.attesters.clone());
+            return Ok(None);
         };
         let raw = self
             .vm
