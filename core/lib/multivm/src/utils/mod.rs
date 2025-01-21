@@ -139,7 +139,7 @@ pub fn adjust_pubdata_price_for_tx(
             // `gasPerPubdata <= 17 * l1gasprice / fair_l2_gas_price + 1`
             // `fair_l2_gas_price(gasPerPubdata - 1) / 17 <= l1gasprice`
             let new_l1_gas_price = fair_l2_gas_price
-                * (bounded_tx_gas_per_pubdata_limit - U256::from(1u32))
+                * bounded_tx_gas_per_pubdata_limit.saturating_sub(U256::from(1u32))
                 / U256::from(17);
 
             BatchFeeInput::L1Pegged(L1PeggedBatchFeeModelInput {
