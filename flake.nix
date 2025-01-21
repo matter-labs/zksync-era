@@ -84,17 +84,7 @@
               snappy.dev
             ];
 
-            src = with pkgs.lib.fileset; toSource {
-              root = ./.;
-              fileset = unions [
-                ./Cargo.lock
-                ./Cargo.toml
-                ./core
-                ./prover
-                ./zkstack_cli
-                ./.github/release-please/manifest.json
-              ];
-            };
+            src = ./core/.;
 
             env = {
               OPENSSL_NO_VENDOR = "1";

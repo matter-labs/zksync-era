@@ -149,6 +149,7 @@ mod tests {
             config: AvailClientConfig::FullClient(AvailDefaultConfig {
                 api_node_url: api_node_url.to_string(),
                 app_id,
+                finality_state: None,
             }),
         })
     }

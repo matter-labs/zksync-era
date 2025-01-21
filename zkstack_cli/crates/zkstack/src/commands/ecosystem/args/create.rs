@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 
 use clap::{Parser, ValueHint};
-use common::{Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use strum::IntoEnumIterator;
-use types::{L1Network, WalletCreation};
 use xshell::Shell;
+use zkstack_cli_common::{Prompt, PromptConfirm, PromptSelect};
+use zkstack_cli_types::{L1Network, WalletCreation};
 
 use crate::{
     commands::chain::{args::create::ChainCreateArgs, ChainCreateArgsFinal},
@@ -70,7 +70,7 @@ impl EcosystemCreateArgs {
             link_to_code,
             wallet_creation: chain.wallet_creation,
             wallet_path: chain.wallet_path.clone(),
-            chain_args: chain,
+            chain_args: chain.clone(),
             start_containers,
             update_submodules: self.update_submodules,
         })

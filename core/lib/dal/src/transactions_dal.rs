@@ -1776,7 +1776,7 @@ impl TransactionsDal<'_, '_> {
         limit: usize,
     ) -> DalResult<Vec<(Transaction, TransactionTimeRangeConstraint)>> {
         let stashed_addresses: Vec<_> = stashed_accounts.iter().map(Address::as_bytes).collect();
-        sqlx::query!(
+        let result = sqlx::query!(
             r#"
             UPDATE transactions
             SET
@@ -1794,8 +1794,15 @@ impl TransactionsDal<'_, '_> {
         .execute(self.storage)
         .await?;
 
+        tracing::debug!(
+            "Updated {} transactions for stashed accounts, stashed accounts amount: {}, stashed_accounts: {:?}",
+            result.rows_affected(),
+            stashed_addresses.len(),
+            stashed_accounts.iter().map(|a|format!("{:x}", a)).collect::<Vec<_>>()
+        );
+
         let purged_addresses: Vec<_> = purged_accounts.iter().map(Address::as_bytes).collect();
-        sqlx::query!(
+        let result = sqlx::query!(
             r#"
             DELETE FROM transactions
             WHERE
@@ -1808,6 +1815,12 @@ impl TransactionsDal<'_, '_> {
         .with_arg("purged_addresses.len", &purged_addresses.len())
         .execute(self.storage)
         .await?;
+
+        tracing::debug!(
+            "Updated {} transactions for purged accounts, purged accounts amount: {}",
+            result.rows_affected(),
+            purged_addresses.len()
+        );
 
         // Note, that transactions are updated in order of their hashes to avoid deadlocks with other UPDATE queries.
         let transactions = sqlx::query_as!(
@@ -2220,9 +2233,11 @@ impl TransactionsDal<'_, '_> {
         Ok(sqlx::query!(
             r#"
             SELECT
-                call_trace
+                call_trace,
+                transactions.error AS tx_error
             FROM
                 call_traces
+            INNER JOIN transactions ON tx_hash = transactions.hash
             WHERE
                 tx_hash = $1
             "#,
@@ -2232,7 +2247,7 @@ impl TransactionsDal<'_, '_> {
         .with_arg("tx_hash", &tx_hash)
         .fetch_optional(self.storage)
         .await?
-        .map(|call_trace| {
+        .map(|mut call_trace| {
             (
                 parse_call_trace(&call_trace.call_trace, protocol_version),
                 CallTraceMeta {
@@ -2240,6 +2255,7 @@ impl TransactionsDal<'_, '_> {
                     tx_hash,
                     block_number: row.miniblock_number as u32,
                     block_hash: H256::from_slice(&row.miniblocks_hash),
+                    internal_error: call_trace.tx_error.take(),
                 },
             )
         }))

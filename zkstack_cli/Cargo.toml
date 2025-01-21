@@ -21,10 +21,10 @@ keywords = ["zk", "cryptography", "blockchain", "ZKStack", "ZKsync"]
 
 [workspace.dependencies]
 # Local dependencies
-common = { path = "crates/common" }
-config = { path = "crates/config" }
-types = { path = "crates/types" }
-git_version_macro = { path = "crates/git_version_macro" }
+zkstack_cli_common = { path = "crates/common" }
+zkstack_cli_config = { path = "crates/config" }
+zkstack_cli_types = { path = "crates/types" }
+zkstack_cli_git_version_macro = { path = "crates/git_version_macro" }
 
 # ZkSync deps
 zksync_config = { path = "../core/lib/config" }
@@ -34,6 +34,7 @@ zksync_system_constants = { path = "../core/lib/constants" }
 zksync_types = { path = "../core/lib/types" }
 zksync_web3_decl = { path = "../core/lib/web3_decl" }
 zksync_eth_client = { path = "../core/lib/eth_client" }
+zksync_contracts = { path = "../core/lib/contracts" } 
 zksync_consensus_roles = "=0.7.0"
 zksync_consensus_crypto = "=0.7.0"
 zksync_consensus_utils = "=0.7.0"

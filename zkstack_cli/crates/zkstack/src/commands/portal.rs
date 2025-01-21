@@ -1,15 +1,15 @@
 use std::path::Path;
 
 use anyhow::Context;
-use common::{config::global_config, docker, ethereum, logger};
-use config::{
+use ethers::types::Address;
+use xshell::Shell;
+use zkstack_cli_common::{config::global_config, docker, ethereum, logger};
+use zkstack_cli_config::{
     portal::*,
     traits::{ConfigWithL2RpcUrl, SaveConfig},
     AppsEcosystemConfig, ChainConfig, EcosystemConfig,
 };
-use ethers::types::Address;
-use types::{BaseToken, TokenInfo};
-use xshell::Shell;
+use zkstack_cli_types::{BaseToken, TokenInfo};
 
 use crate::{
     consts::{L2_BASE_TOKEN_ADDRESS, PORTAL_DOCKER_CONFIG_PATH, PORTAL_DOCKER_IMAGE},

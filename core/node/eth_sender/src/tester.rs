@@ -13,7 +13,7 @@ use zksync_object_store::MockObjectStore;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, block::L1BatchHeader,
     commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataSendingMode,
-    settlement::SettlementMode, Address, L1BatchNumber, ProtocolVersion, H256,
+    settlement::SettlementMode, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use crate::{
@@ -24,6 +24,7 @@ use crate::{
 };
 
 pub(super) const STATE_TRANSITION_CONTRACT_ADDRESS: Address = Address::repeat_byte(0xa0);
+pub(super) const STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS: Address = Address::repeat_byte(0xb0);
 
 // Alias to conveniently call static methods of `ETHSender`.
 type MockEthTxManager = EthTxManager;
@@ -268,6 +269,7 @@ impl EthSenderTester {
             gateway.clone(),
             // ZKsync contract address
             Address::random(),
+            STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS,
             contracts_config.l1_multicall3_addr,
             STATE_TRANSITION_CONTRACT_ADDRESS,
             Default::default(),
@@ -522,6 +524,8 @@ impl EthSenderTester {
             .save_eth_tx(
                 &mut self.conn.connection().await.unwrap(),
                 &aggregated_operation,
+                Address::random(),
+                ProtocolVersionId::latest(),
                 self.is_l2,
             )
             .await

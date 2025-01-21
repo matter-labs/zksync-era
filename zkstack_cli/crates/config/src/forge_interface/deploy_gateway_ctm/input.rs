@@ -1,7 +1,6 @@
-/// TODO(EVM-927): Note that the contents of this file are not useable without Gateway contracts.
 use ethers::abi::Address;
 use serde::{Deserialize, Serialize};
-use types::ProverMode;
+use zkstack_cli_types::ProverMode;
 use zksync_basic_types::{H256, U256};
 use zksync_config::GenesisConfig;
 
@@ -91,7 +90,6 @@ impl DeployGatewayCTMInput {
             l1_chain_id: U256::from(ecosystem_config.l1_network.chain_id()),
 
             testnet_verifier: ecosystem_config.prover_version == ProverMode::NoProofs,
-
             recursion_node_level_vk_hash: H256::zero(),
             recursion_leaf_level_vk_hash: H256::zero(),
             recursion_circuits_set_vks_hash: H256::zero(),

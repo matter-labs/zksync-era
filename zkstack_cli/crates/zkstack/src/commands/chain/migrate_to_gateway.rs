@@ -1,18 +1,5 @@
 use anyhow::Context;
 use clap::Parser;
-use common::{
-    config::global_config,
-    forge::{Forge, ForgeScriptArgs},
-    wallets::Wallet,
-};
-use config::{
-    forge_interface::{
-        gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
-        script_params::GATEWAY_PREPARATION,
-    },
-    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    EcosystemConfig,
-};
 use ethers::{
     abi::parse_abi,
     contract::BaseContract,
@@ -22,8 +9,21 @@ use ethers::{
 };
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use types::L1BatchCommitmentMode;
 use xshell::Shell;
+use zkstack_cli_common::{
+    config::global_config,
+    forge::{Forge, ForgeScriptArgs},
+    wallets::Wallet,
+};
+use zkstack_cli_config::{
+    forge_interface::{
+        gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
+        script_params::GATEWAY_PREPARATION,
+    },
+    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    EcosystemConfig,
+};
+use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{
     pubdata_da::PubdataSendingMode, settlement::SettlementMode, Address, H256, U256, U64,
 };
@@ -67,12 +67,7 @@ lazy_static! {
     );
 }
 
-// TODO(EVM-927): merge gateway contracts
-#[allow(unused)]
 pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
-    // TODO(EVM-927): this function does not work without the Gateway contracts.
-    anyhow::bail!("Gateway upgrade not supported yet!");
-
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     let chain_name = global_config().chain_name.clone();

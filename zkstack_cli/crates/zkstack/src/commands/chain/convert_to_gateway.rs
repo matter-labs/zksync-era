@@ -1,11 +1,13 @@
-/// TODO(EVM-927): Note that the contents of this file are not useable without Gateway contracts.
 use anyhow::Context;
-use common::{
+use ethers::{abi::parse_abi, contract::BaseContract, types::Bytes, utils::hex};
+use lazy_static::lazy_static;
+use xshell::Shell;
+use zkstack_cli_common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     wallets::Wallet,
 };
-use config::{
+use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::input::InitialDeploymentConfig,
         deploy_gateway_ctm::{input::DeployGatewayCTMInput, output::DeployGatewayCTMOutput},
@@ -15,9 +17,6 @@ use config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig, GenesisConfig,
 };
-use ethers::{abi::parse_abi, contract::BaseContract, types::Bytes, utils::hex};
-use lazy_static::lazy_static;
-use xshell::Shell;
 use zksync_basic_types::H256;
 use zksync_config::configs::GatewayConfig;
 
@@ -49,11 +48,7 @@ lazy_static! {
     );
 }
 
-#[allow(unused)]
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
-    // TODO(EVM-927): this function does not work without the Gateway contracts.
-    anyhow::bail!("Gateway upgrade not supported yet!");
-
     let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
@@ -163,7 +158,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn calculate_gateway_ctm(
+pub async fn calculate_gateway_ctm(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
@@ -214,7 +209,7 @@ async fn calculate_gateway_ctm(
     Ok(gateway_config)
 }
 
-async fn deploy_gateway_ctm(
+pub async fn deploy_gateway_ctm(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
@@ -259,7 +254,7 @@ async fn deploy_gateway_ctm(
     Ok(())
 }
 
-async fn gateway_governance_whitelisting(
+pub async fn gateway_governance_whitelisting(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
@@ -397,7 +392,7 @@ async fn gateway_governance_whitelisting(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn call_script(
+pub async fn call_script(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     data: &Bytes,

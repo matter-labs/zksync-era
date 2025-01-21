@@ -4,9 +4,9 @@ use std::{
 };
 
 use anyhow::Context;
-use common::{db, docker::adjust_localhost_for_docker};
 use serde::{Deserialize, Serialize};
 use url::Url;
+use zkstack_cli_common::{db, docker::adjust_localhost_for_docker};
 
 use crate::{
     consts::{
