@@ -8,13 +8,7 @@
   "release-type": "simple",
   "packages": {
     "core": {
-      "component": "core",
-      "extra-files": [
-        {
-          "type": "generic",
-          "path": "Cargo.toml"
-        }
-      ]
+      "component": "core"
     },
     "prover": {
       "component": "prover",

@@ -29,3 +29,4 @@ jobs:
       update-cargo-lock: true                               # Update Cargo.lock file in the release PR
       publish-to-crates-io: true                            # Enable publishing to crates.io
       upgrade-dependencies: true                            # Upgrade cross-workspace dependencies
+      version-suffix: 'non-semver-compat'                   # Version suffix for the crates.io release
