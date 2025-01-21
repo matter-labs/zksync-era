@@ -4,13 +4,16 @@ use ark_bn254::{Fq, G1Affine};
 use ethabi::{encode, ParamType, Token};
 use rust_kzg_bn254::{blob::Blob, kzg::Kzg, polynomial::PolynomialFormat};
 use tempfile::NamedTempFile;
-use url::Url;
 use zksync_basic_types::web3::CallRequest;
+use zksync_config::EigenConfig;
 use zksync_eth_client::{EnrichedClientError, EthInterface};
-use zksync_types::{url::SensitiveUrl, web3, Address, U256};
+use zksync_types::{web3, Address, U256};
 use zksync_web3_decl::client::{DynClient, L1};
 
-use super::blob_info::{BatchHeader, BlobHeader, BlobInfo, BlobQuorumParam, G1Commitment};
+use super::{
+    blob_info::{BatchHeader, BlobHeader, BlobInfo, BlobQuorumParam, G1Commitment},
+    sdk::RawEigenClient,
+};
 
 #[cfg(test)]
 mod tests;
@@ -175,18 +178,6 @@ pub enum VerificationError {
     LinkError(String),
 }
 
-/// Configuration for the verifier used for authenticated dispersals
-#[derive(Debug, Clone)]
-pub struct VerifierConfig {
-    pub rpc_url: SensitiveUrl,
-    pub svc_manager_addr: Address,
-    pub max_blob_size: u32,
-    pub points_dir: Option<String>,
-    pub g1_url: Url,
-    pub g2_url: Url,
-    pub settlement_layer_confirmation_depth: u32,
-}
-
 #[derive(Debug)]
 enum PointFile {
     Temp(NamedTempFile),
@@ -208,8 +199,8 @@ impl PointFile {
 #[derive(Debug)]
 pub struct Verifier {
     kzg: Kzg,
-    cfg: VerifierConfig,
-    signing_client: Arc<dyn VerifierClient>,
+    cfg: EigenConfig,
+    client: Arc<dyn VerifierClient>,
 }
 
 impl Verifier {
@@ -219,7 +210,7 @@ impl Verifier {
     pub const G2POINT: &'static str = "g2.point.powerOf2";
     pub const POINT_SIZE: u32 = 32;
 
-    async fn download_temp_point(url: Url) -> Result<NamedTempFile, VerificationError> {
+    async fn download_temp_point(url: &String) -> Result<NamedTempFile, VerificationError> {
         let response = reqwest::get(url)
             .await
             .map_err(|e| VerificationError::LinkError(e.to_string()))
@@ -242,7 +233,7 @@ impl Verifier {
         Ok(file)
     }
 
-    async fn get_points(cfg: &VerifierConfig) -> Result<(PointFile, PointFile), VerificationError> {
+    async fn get_points(cfg: &EigenConfig) -> Result<(PointFile, PointFile), VerificationError> {
         match &cfg.points_dir {
             Some(path) => Ok((
                 PointFile::Path(format!("{}/{}", path, Self::G1POINT)),
@@ -251,18 +242,18 @@ impl Verifier {
             None => {
                 tracing::info!("Points for KZG setup not found, downloading temporary points");
                 Ok((
-                    PointFile::Temp(Self::download_temp_point(cfg.g1_url.clone()).await?),
-                    PointFile::Temp(Self::download_temp_point(cfg.g2_url.clone()).await?),
+                    PointFile::Temp(Self::download_temp_point(&cfg.g1_url).await?),
+                    PointFile::Temp(Self::download_temp_point(&cfg.g2_url).await?),
                 ))
             }
         }
     }
 
     pub(crate) async fn new(
-        cfg: VerifierConfig,
-        signing_client: Arc<dyn VerifierClient>,
+        cfg: EigenConfig,
+        client: Arc<dyn VerifierClient>,
     ) -> Result<Self, VerificationError> {
-        let srs_points_to_load = cfg.max_blob_size / Self::POINT_SIZE;
+        let srs_points_to_load = RawEigenClient::blob_size_limit() as u32 / Self::POINT_SIZE; // TODO: MAKE BLOB_SIZE_LIMIT part of Self?
         let (g1_point_file, g2_point_file) = Self::get_points(&cfg).await?;
         let g1_point_file_path = g1_point_file.path().to_string();
         let g2_point_file_path = g2_point_file.path().to_string();
@@ -281,11 +272,7 @@ impl Verifier {
             .map_err(|e| VerificationError::Kzg(KzgError::Setup(e.to_string())))?
             .map_err(KzgError::Internal)?;
 
-        Ok(Self {
-            kzg,
-            cfg,
-            signing_client,
-        })
+        Ok(Self { kzg, cfg, client })
     }
 
     /// Return the commitment from a blob
@@ -432,9 +419,9 @@ impl Verifier {
         &self,
         blob_info: &BlobInfo,
     ) -> Result<Vec<u8>, VerificationError> {
-        self.signing_client
+        self.client
             .as_ref()
-            .batch_id_to_batch_metadata_hash(blob_info, self.cfg.svc_manager_addr)
+            .batch_id_to_batch_metadata_hash(blob_info, self.cfg.eigenda_svc_manager_address)
             .await
     }
 
@@ -474,16 +461,19 @@ impl Verifier {
         &self,
         quorum_number: u32,
     ) -> Result<u8, VerificationError> {
-        self.signing_client
+        self.client
             .as_ref()
-            .quorum_adversary_threshold_percentages(quorum_number, self.cfg.svc_manager_addr)
+            .quorum_adversary_threshold_percentages(
+                quorum_number,
+                self.cfg.eigenda_svc_manager_address,
+            )
             .await
     }
 
     async fn call_quorum_numbers_required(&self) -> Result<Vec<u8>, VerificationError> {
-        self.signing_client
+        self.client
             .as_ref()
-            .quorum_numbers_required(self.cfg.svc_manager_addr)
+            .quorum_numbers_required(self.cfg.eigenda_svc_manager_address)
             .await
     }
 

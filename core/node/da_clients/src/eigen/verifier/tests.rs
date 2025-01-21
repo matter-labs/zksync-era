@@ -1,7 +1,7 @@
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use ethabi::{ParamType, Token};
-use url::Url;
+use zksync_config::EigenConfig;
 use zksync_types::{
     url::SensitiveUrl,
     web3::{Bytes, CallRequest},
@@ -15,20 +15,8 @@ use crate::eigen::{
         BatchHeader, BatchMetadata, BlobHeader, BlobInfo, BlobQuorumParam, BlobVerificationProof,
         G1Commitment,
     },
-    verifier::{Verifier, VerifierClient, VerifierConfig},
+    verifier::{Verifier, VerifierClient},
 };
-
-fn get_verifier_config() -> VerifierConfig {
-    VerifierConfig {
-            rpc_url: SensitiveUrl::from_str("https://ethereum-holesky-rpc.publicnode.com").unwrap(),
-            svc_manager_addr: Address::from_str("0xD4A7E1Bd8015057293f0D0A557088c286942e84b").unwrap(),
-            max_blob_size: 2 * 1024 * 1024,
-            g1_url: Url::parse("https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g1.point").unwrap(),
-            g2_url: Url::parse("https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g2.point.powerOf2").unwrap(),
-            points_dir: None,
-            settlement_layer_confirmation_depth: 0,
-        }
-}
 
 /// Mock struct for the Verifier
 /// Used to avoid making actual calls to a remote disperser
@@ -107,8 +95,8 @@ impl VerifierClient for MockVerifierClient {
     }
 }
 
-fn create_remote_query_client(cfg: VerifierConfig) -> Box<DynClient<L1>> {
-    let url = cfg.rpc_url;
+fn create_remote_query_client() -> Box<DynClient<L1>> {
+    let url = SensitiveUrl::from_str("https://ethereum-holesky-rpc.publicnode.com").unwrap();
     let query_client: Client<L1> = Client::http(url).unwrap().build();
     Box::new(query_client) as Box<DynClient<L1>>
 }
@@ -116,8 +104,8 @@ fn create_remote_query_client(cfg: VerifierConfig) -> Box<DynClient<L1>> {
 #[ignore = "depends on external RPC"]
 #[tokio::test]
 async fn test_verify_commitment() {
-    let cfg = get_verifier_config();
-    let query_client = create_remote_query_client(cfg.clone());
+    let cfg = EigenConfig::default();
+    let query_client = create_remote_query_client();
     let verifier = Verifier::new(cfg, Arc::new(query_client)).await.unwrap();
     let commitment = G1Commitment {
         x: vec![
@@ -138,7 +126,7 @@ async fn test_verify_commitment() {
 /// To test actual behaviour of the verifier, run the test above
 #[tokio::test]
 async fn test_verify_commitment_mocked() {
-    let cfg = get_verifier_config();
+    let cfg = EigenConfig::default();
     let query_client = MockVerifierClient::new(HashMap::new());
     let verifier = Verifier::new(cfg, Arc::new(query_client)).await.unwrap();
     let commitment = G1Commitment {
@@ -159,8 +147,8 @@ async fn test_verify_commitment_mocked() {
 #[ignore = "depends on external RPC"]
 #[tokio::test]
 async fn test_verify_merkle_proof() {
-    let cfg = get_verifier_config();
-    let query_client = create_remote_query_client(cfg.clone());
+    let cfg = EigenConfig::default();
+    let query_client = create_remote_query_client();
     let verifier = Verifier::new(cfg, Arc::new(query_client)).await.unwrap();
     let cert = BlobInfo {
         blob_header: BlobHeader {
@@ -240,7 +228,7 @@ async fn test_verify_merkle_proof() {
 /// To test actual behaviour of the verifier, run the test above
 #[tokio::test]
 async fn test_verify_merkle_proof_mocked() {
-    let cfg = get_verifier_config();
+    let cfg = EigenConfig::default();
     let query_client = MockVerifierClient::new(HashMap::new());
     let verifier = Verifier::new(cfg, Arc::new(query_client)).await.unwrap();
     let cert = BlobInfo {
@@ -320,8 +308,8 @@ async fn test_verify_merkle_proof_mocked() {
 #[ignore = "depends on external RPC"]
 #[tokio::test]
 async fn test_hash_blob_header() {
-    let cfg = get_verifier_config();
-    let query_client = create_remote_query_client(cfg.clone());
+    let cfg = EigenConfig::default();
+    let query_client = create_remote_query_client();
     let verifier = Verifier::new(cfg, Arc::new(query_client)).await.unwrap();
     let blob_header = BlobHeader {
         commitment: G1Commitment {
@@ -359,7 +347,7 @@ async fn test_hash_blob_header() {
 /// To test actual behaviour of the verifier, run the test above
 #[tokio::test]
 async fn test_hash_blob_header_mocked() {
-    let cfg = get_verifier_config();
+    let cfg = EigenConfig::default();
     let query_client = MockVerifierClient::new(HashMap::new());
     let verifier = Verifier::new(cfg, Arc::new(query_client)).await.unwrap();
     let blob_header = BlobHeader {
@@ -397,8 +385,8 @@ async fn test_hash_blob_header_mocked() {
 #[ignore = "depends on external RPC"]
 #[tokio::test]
 async fn test_inclusion_proof() {
-    let cfg = get_verifier_config();
-    let query_client = create_remote_query_client(cfg.clone());
+    let cfg = EigenConfig::default();
+    let query_client = create_remote_query_client();
     let verifier = Verifier::new(cfg, Arc::new(query_client)).await.unwrap();
     let proof = hex::decode("c455c1ea0e725d7ea3e5f29e9f48be8fc2787bb0a914d5a86710ba302c166ac4f626d76f67f1055bb960a514fb8923af2078fd84085d712655b58a19612e8cd15c3e4ac1cef57acde3438dbcf63f47c9fefe1221344c4d5c1a4943dd0d1803091ca81a270909dc0e146841441c9bd0e08e69ce6168181a3e4060ffacf3627480bec6abdd8d7bb92b49d33f180c42f49e041752aaded9c403db3a17b85e48a11e9ea9a08763f7f383dab6d25236f1b77c12b4c49c5cdbcbea32554a604e3f1d2f466851cb43fe73617b3d01e665e4c019bf930f92dea7394c25ed6a1e200d051fb0c30a2193c459f1cfef00bf1ba6656510d16725a4d1dc031cb759dbc90bab427b0f60ddc6764681924dda848824605a4f08b7f526fe6bd4572458c94e83fbf2150f2eeb28d3011ec921996dc3e69efa52d5fcf3182b20b56b5857a926aa66605808079b4d52c0c0cfe06923fa92e65eeca2c3e6126108e8c1babf5ac522f4d7").unwrap();
     let leaf: [u8; 32] =
@@ -418,7 +406,7 @@ async fn test_inclusion_proof() {
 /// To test actual behaviour of the verifier, run the test above
 #[tokio::test]
 async fn test_inclusion_proof_mocked() {
-    let cfg = get_verifier_config();
+    let cfg = EigenConfig::default();
     let query_client = MockVerifierClient::new(HashMap::new());
     let verifier = Verifier::new(cfg, Arc::new(query_client)).await.unwrap();
     let proof = hex::decode("c455c1ea0e725d7ea3e5f29e9f48be8fc2787bb0a914d5a86710ba302c166ac4f626d76f67f1055bb960a514fb8923af2078fd84085d712655b58a19612e8cd15c3e4ac1cef57acde3438dbcf63f47c9fefe1221344c4d5c1a4943dd0d1803091ca81a270909dc0e146841441c9bd0e08e69ce6168181a3e4060ffacf3627480bec6abdd8d7bb92b49d33f180c42f49e041752aaded9c403db3a17b85e48a11e9ea9a08763f7f383dab6d25236f1b77c12b4c49c5cdbcbea32554a604e3f1d2f466851cb43fe73617b3d01e665e4c019bf930f92dea7394c25ed6a1e200d051fb0c30a2193c459f1cfef00bf1ba6656510d16725a4d1dc031cb759dbc90bab427b0f60ddc6764681924dda848824605a4f08b7f526fe6bd4572458c94e83fbf2150f2eeb28d3011ec921996dc3e69efa52d5fcf3182b20b56b5857a926aa66605808079b4d52c0c0cfe06923fa92e65eeca2c3e6126108e8c1babf5ac522f4d7").unwrap();
@@ -438,8 +426,8 @@ async fn test_inclusion_proof_mocked() {
 #[ignore = "depends on external RPC"]
 #[tokio::test]
 async fn test_verify_batch() {
-    let cfg = get_verifier_config();
-    let query_client = create_remote_query_client(cfg.clone());
+    let cfg = EigenConfig::default();
+    let query_client = create_remote_query_client();
     let verifier = Verifier::new(cfg, Arc::new(query_client)).await.unwrap();
     let cert = BlobInfo {
         blob_header: BlobHeader {
@@ -541,7 +529,7 @@ async fn test_verify_batch_mocked() {
     );
     mock_replies.insert(mock_req, mock_res);
 
-    let cfg = get_verifier_config();
+    let cfg = EigenConfig::default();
     let query_client = MockVerifierClient::new(mock_replies);
     let verifier = Verifier::new(cfg, Arc::new(query_client)).await.unwrap();
     let cert = BlobInfo {
@@ -621,8 +609,8 @@ async fn test_verify_batch_mocked() {
 #[ignore = "depends on external RPC"]
 #[tokio::test]
 async fn test_verify_security_params() {
-    let cfg = get_verifier_config();
-    let query_client = create_remote_query_client(cfg.clone());
+    let cfg = EigenConfig::default();
+    let query_client = create_remote_query_client();
     let verifier = Verifier::new(cfg, Arc::new(query_client)).await.unwrap();
     let cert = BlobInfo {
         blob_header: BlobHeader {
@@ -745,7 +733,7 @@ async fn test_verify_securityyy_params_mocked() {
         );
     mock_replies.insert(mock_req, mock_res);
 
-    let cfg = get_verifier_config();
+    let cfg = EigenConfig::default();
     let query_client = MockVerifierClient::new(mock_replies);
     let verifier = Verifier::new(cfg, Arc::new(query_client)).await.unwrap();
     let cert = BlobInfo {

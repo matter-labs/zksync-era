@@ -8,15 +8,11 @@ use tonic::{
     transport::{Channel, ClientTlsConfig, Endpoint},
     Streaming,
 };
-use url::Url;
 use zksync_config::EigenConfig;
 use zksync_web3_decl::client::{Client, DynClient, L1};
 
 use super::{
-    blob_info::BlobInfo,
-    disperser::BlobInfo as DisperserBlobInfo,
-    verifier::{Verifier, VerifierConfig},
-    GetBlobData,
+    blob_info::BlobInfo, disperser::BlobInfo as DisperserBlobInfo, verifier::Verifier, GetBlobData,
 };
 use crate::eigen::{
     blob_info,
@@ -45,37 +41,27 @@ impl RawEigenClient {
 
     pub async fn new(
         private_key: SecretKey,
-        config: EigenConfig,
+        cfg: EigenConfig,
         get_blob_data: Arc<dyn GetBlobData>,
     ) -> anyhow::Result<Self> {
         let endpoint =
-            Endpoint::from_str(config.disperser_rpc.as_str())?.tls_config(ClientTlsConfig::new())?;
+            Endpoint::from_str(cfg.disperser_rpc.as_str())?.tls_config(ClientTlsConfig::new())?;
         let client = DisperserClient::connect(endpoint).await?;
 
-        let verifier_config = VerifierConfig {
-            rpc_url: config
-                .eigenda_eth_rpc
-                .clone()
-                .ok_or(anyhow::anyhow!("EigenDA ETH RPC not set"))?,
-            svc_manager_addr: config.eigenda_svc_manager_address,
-            max_blob_size: Self::BLOB_SIZE_LIMIT as u32,
-            g1_url: Url::parse(&config.g1_url)?,
-            g2_url: Url::parse(&config.g2_url)?,
-            points_dir: config.points_dir.clone(),
-            settlement_layer_confirmation_depth: config.settlement_layer_confirmation_depth,
-        };
-
-        let url = verifier_config.rpc_url.clone();
-        let query_client: Client<L1> = Client::http(url)?.build();
+        let rpc_url = cfg
+            .eigenda_eth_rpc
+            .clone()
+            .ok_or(anyhow::anyhow!("EigenDA ETH RPC not set"))?;
+        let query_client: Client<L1> = Client::http(rpc_url)?.build();
         let query_client = Box::new(query_client) as Box<DynClient<L1>>;
 
-        let verifier = Verifier::new(verifier_config, Arc::new(query_client))
+        let verifier = Verifier::new(cfg.clone(), Arc::new(query_client))
             .await
             .context("Failed to create verifier")?;
         Ok(RawEigenClient {
             client,
             private_key,
-            config,
+            config: cfg,
             verifier,
             get_blob_data,
         })
