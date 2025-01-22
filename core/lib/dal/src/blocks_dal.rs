@@ -1288,6 +1288,8 @@ impl BlocksDal<'_, '_> {
     pub async fn get_last_committed_to_eth_l1_batch(
         &mut self,
     ) -> DalResult<Option<L1BatchWithMetadata>> {
+        // TODO(zk os): update for zk os
+
         // We can get 0 batch for the first transaction
         let batch = sqlx::query_as!(
             StorageL1Batch,
@@ -1334,9 +1336,6 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = 0
                 OR eth_commit_tx_id IS NOT NULL
-            /* TODO(zk os): uncomment/update for zk os
-                                                    AND commitment IS NOT NULL
-                                                    */
             ORDER BY
                 number DESC
             LIMIT
@@ -1952,6 +1951,8 @@ impl BlocksDal<'_, '_> {
 
         with_da_inclusion_info: bool,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
+        // TODO(zk os): uncomment/update for zk os
+
         let raw_batches = sqlx::query_as!(
             StorageL1Batch,
             r#"
@@ -1998,20 +1999,6 @@ impl BlocksDal<'_, '_> {
             WHERE
                 eth_commit_tx_id IS NULL
                 AND number != 0
-            /* TODO(zk os): uncomment/update for zk os
-                                                                                        AND protocol_versions.bootloader_code_hash = $1
-                                                                                        AND protocol_versions.default_account_code_hash = $2
-                                                                                        AND commitment IS NOT NULL
-                                                                                        AND (
-                                                                                            protocol_versions.id = $3
-                                                                                            OR protocol_versions.upgrade_tx_hash IS NULL
-                                                                                        )
-                                                                                        AND events_queue_commitment IS NOT NULL
-                                                                                        AND bootloader_initial_content_commitment IS NOT NULL
-                                                                                        AND (
-                                                                                            data_availability.inclusion_data IS NOT NULL
-                                                                                            OR $4 IS FALSE
-                                                                                        ) */
             ORDER BY
                 number
             LIMIT
