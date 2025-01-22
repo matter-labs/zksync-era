@@ -26,6 +26,7 @@ ethabi.workspace = true
 vise.workspace = true
 hex.workspace = true
 serde = { workspace = true, features = ["derive"] }
+ciborium.workspace = true
 tempfile.workspace = true
 regex.workspace = true
 reqwest.workspace = true

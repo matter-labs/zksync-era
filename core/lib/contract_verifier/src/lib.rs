@@ -30,6 +30,7 @@ use crate::{
 };
 
 mod compilers;
+mod contract_identifier;
 pub mod error;
 mod metrics;
 mod resolver;

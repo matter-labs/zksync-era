@@ -11685,6 +11685,7 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "chrono",
+ "ciborium",
  "ethabi",
  "futures-util",
  "hex",
