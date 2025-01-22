@@ -192,7 +192,7 @@ impl ZkSyncStateKeeper {
                 self.seal_l2_block(&updates_manager).await?;
                 // We've sealed the L2 block that we had, but we still need to set up the timestamp
                 // for the fictive L2 block.
-                self.wait_for_new_l2_block_params(&mut updates_manager, &stop_receiver)
+                self.set_new_l2_block_params(&mut updates_manager, &stop_receiver)
                     .await?;
                 Self::start_next_l2_block(&mut updates_manager, &mut *batch_executor).await?;
             }
@@ -381,7 +381,7 @@ impl ZkSyncStateKeeper {
             l2_block = %updates.l2_block.number,
         )
     )]
-    async fn wait_for_new_l2_block_params(
+    async fn set_new_l2_block_params(
         &mut self,
         updates: &mut UpdatesManager,
         stop_receiver: &watch::Receiver<bool>,
@@ -412,7 +412,7 @@ impl ZkSyncStateKeeper {
             l2_block = %updates.l2_block.number,
         )
     )]
-    async fn wait_for_updated_l2_block_params(
+    async fn update_new_l2_block_params(
         &mut self,
         updates: &mut UpdatesManager,
         stop_receiver: &watch::Receiver<bool>,
@@ -582,9 +582,9 @@ impl ZkSyncStateKeeper {
         );
 
         // We've processed all the L2 blocks, and right now we're preparing the next *actual* L2 block.
-        self.wait_for_new_l2_block_params(updates_manager, stop_receiver)
+        self.set_new_l2_block_params(updates_manager, stop_receiver)
             .await
-            .map_err(|e| e.context("wait_for_new_l2_block_params"))?;
+            .map_err(|e| e.context("set_new_l2_block_params"))?;
         Ok(true)
     }
 
@@ -620,9 +620,9 @@ impl ZkSyncStateKeeper {
 
                 // Push the current block if it has not been done yet
                 if is_last_block_sealed {
-                    self.wait_for_updated_l2_block_params(updates_manager, stop_receiver)
+                    self.update_new_l2_block_params(updates_manager, stop_receiver)
                         .await
-                        .map_err(|e| e.context("wait_for_updated_l2_block_params"))?;
+                        .map_err(|e| e.context("update_new_l2_block_params"))?;
                     tracing::debug!(
                         "Initialized new L2 block #{} (L1 batch #{}) with timestamp {}",
                         updates_manager.l2_block.number + 1,
@@ -644,17 +644,17 @@ impl ZkSyncStateKeeper {
                 is_last_block_sealed = true;
 
                 // Get a tentative new l2 block parameters
-                self.wait_for_new_l2_block_params(updates_manager, stop_receiver)
+                self.set_new_l2_block_params(updates_manager, stop_receiver)
                     .await
-                    .map_err(|e| e.context("wait_for_new_l2_block_params"))?;
+                    .map_err(|e| e.context("set_new_l2_block_params"))?;
             }
             let waiting_latency = KEEPER_METRICS.waiting_for_tx.start();
 
             if is_last_block_sealed {
                 // The next block has not started yet, we keep updating the next l2 block parameters with correct timestamp
-                self.wait_for_updated_l2_block_params(updates_manager, stop_receiver)
+                self.update_new_l2_block_params(updates_manager, stop_receiver)
                     .await
-                    .map_err(|e| e.context("wait_for_updated_l2_block_params"))?;
+                    .map_err(|e| e.context("update_new_l2_block_params"))?;
             }
             let Some(tx) = self
                 .io
