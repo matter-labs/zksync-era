@@ -290,6 +290,17 @@ impl StateKeeperIO for MempoolIO {
         }))
     }
 
+    async fn get_updated_l2_block_params(&mut self) -> anyhow::Result<Option<L2BlockParams>> {
+        let current_timestamp_millis = millis_since_epoch();
+        let current_timestamp = (current_timestamp_millis / 1_000) as u64;
+
+        Ok(Some(L2BlockParams {
+            timestamp: current_timestamp,
+            // This value is effectively ignored by the protocol.
+            virtual_blocks: 1,
+        }))
+    }
+
     async fn wait_for_next_tx(
         &mut self,
         max_wait: Duration,
