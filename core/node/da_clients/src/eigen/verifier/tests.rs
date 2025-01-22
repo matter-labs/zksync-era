@@ -38,16 +38,14 @@ impl MockVerifierClient {
 impl VerifierClient for MockVerifierClient {
     async fn batch_id_to_batch_metadata_hash(
         &self,
-        blob_info: &BlobInfo,
+        batch_id: u32,
         svc_manager_addr: Address,
     ) -> Result<Vec<u8>, VerificationError> {
         let mut data = vec![];
         let func_selector =
             ethabi::short_signature("batchIdToBatchMetadataHash", &[ParamType::Uint(32)]);
         data.extend_from_slice(&func_selector);
-        let batch_id_data = ethabi::encode(&[Token::Uint(U256::from(
-            blob_info.blob_verification_proof.batch_id,
-        ))]);
+        let batch_id_data = ethabi::encode(&[Token::Uint(U256::from(batch_id))]);
         data.extend_from_slice(&batch_id_data);
 
         let call_request = CallRequest {
@@ -84,7 +82,7 @@ impl VerifierClient for MockVerifierClient {
         Ok(0)
     }
 
-    async fn quorum_numbers_required(
+    async fn required_quorum_numbers(
         &self,
         svc_manager_addr: Address,
     ) -> Result<Vec<u8>, VerificationError> {

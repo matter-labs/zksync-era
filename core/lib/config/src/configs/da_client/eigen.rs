@@ -38,7 +38,7 @@ impl Default for EigenConfig {
         Self {
             disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
             settlement_layer_confirmation_depth: 0,
-            eigenda_eth_rpc: Some(SensitiveUrl::from_str("https://ethereum-holesky-rpc.publicnode.com").unwrap()), // Save to unwrap, never fails
+            eigenda_eth_rpc: Some(SensitiveUrl::from_str("https://ethereum-holesky-rpc.publicnode.com").unwrap()), // Safe to unwrap, never fails
             eigenda_svc_manager_address: DEFAULT_EIGENDA_SVC_MANAGER_ADDRESS,
             wait_for_finalization: false,
             authenticated: false,
