@@ -524,7 +524,12 @@ function readCode(newPath: string, legacyPath: string): string {
     }
 }
 
-async function publishBytecode(wallet: ethers.Wallet, bytecodeSupplierAddr: string, bytecode: string, nonce: number): Promise<number> {
+async function publishBytecode(
+    wallet: ethers.Wallet,
+    bytecodeSupplierAddr: string,
+    bytecode: string,
+    nonce: number
+): Promise<number> {
     const hash = zksync.utils.hashBytecode(bytecode);
     const abi = [
         'function publishBytecode(bytes calldata _bytecode) public',
