@@ -268,9 +268,10 @@ describe('Upgrade test', function () {
         bootloaderHash = ethers.hexlify(zksync.utils.hashBytecode(bootloaderCode));
         defaultAccountHash = ethers.hexlify(zksync.utils.hashBytecode(defaultAACode));
 
-        await publishBytecode(tester.ethWallet, bytecodeSupplier, bootloaderCode);
-        await publishBytecode(tester.ethWallet, bytecodeSupplier, defaultAACode);
-        await publishBytecode(tester.ethWallet, bytecodeSupplier, forceDeployBytecode);
+        let nonce = await tester.ethWallet.getNonce();
+        nonce += await publishBytecode(tester.ethWallet, bytecodeSupplier, bootloaderCode, nonce);
+        nonce += await publishBytecode(tester.ethWallet, bytecodeSupplier, defaultAACode, nonce);
+        await publishBytecode(tester.ethWallet, bytecodeSupplier, forceDeployBytecode, nonce);
     });
 
     step('Schedule governance call', async () => {
@@ -523,7 +524,7 @@ function readCode(newPath: string, legacyPath: string): string {
     }
 }
 
-async function publishBytecode(wallet: ethers.Wallet, bytecodeSupplierAddr: string, bytecode: string) {
+async function publishBytecode(wallet: ethers.Wallet, bytecodeSupplierAddr: string, bytecode: string, nonce: number): Promise<number> {
     const hash = zksync.utils.hashBytecode(bytecode);
     const abi = [
         'function publishBytecode(bytes calldata _bytecode) public',
@@ -533,8 +534,11 @@ async function publishBytecode(wallet: ethers.Wallet, bytecodeSupplierAddr: stri
     const contract = new ethers.Contract(bytecodeSupplierAddr, abi, wallet);
     const block = await contract.publishingBlock(hash);
     if (block == BigInt(0)) {
-        await (await contract.publishBytecode(bytecode)).wait();
+        const tx = await contract.publishBytecode(bytecode, { nonce });
+        await tx.wait();
+        return 1;
     }
+    return 0;
 }
 
 async function checkedRandomTransfer(sender: zksync.Wallet, amount: bigint): Promise<zksync.types.TransactionResponse> {
