@@ -20,6 +20,8 @@ jobs:
   lint:
     name: lint
     uses: ./.github/workflows/ci-core-lint-reusable.yml
+    secrets:
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
   unit-tests:
     runs-on: [ matterlabs-ci-runner-highmem-long ]
 
