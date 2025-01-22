@@ -208,7 +208,7 @@ impl EN {
         attestation: Arc<attestation::Controller>,
     ) -> ctx::Result<()> {
         const POLL_INTERVAL: time::Duration = time::Duration::seconds(5);
-        let registry = registry::Registry::new(cfg.genesis.clone(), self.pool.clone()).await;
+        let registry = registry::Registry::new(self.pool.clone()).await;
         let mut next = attester::BatchNumber(0);
         loop {
             let status = loop {
