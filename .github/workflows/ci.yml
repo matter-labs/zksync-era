@@ -92,6 +92,8 @@ jobs:
     needs: changed_files
     if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/ci-core-reusable.yml
+    secrets:
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
   ci-for-prover:
     needs: changed_files

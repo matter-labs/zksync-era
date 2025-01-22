@@ -1,6 +1,10 @@
 name: Workflow template for CI jobs for Core Components
 on:
   workflow_call:
+    secrets:
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE:
+        description: "Token which will be provided to clone private repos"
+        required: true
     inputs:
       compilers:
         description: "JSON of required compilers and their versions"
@@ -190,7 +194,7 @@ jobs:
           echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
           echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
           echo "RUSTC_WRAPPER=sccache" >> .env
-          echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> .env
+          echo "GITHUB_TOKEN=${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}" >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> $GITHUB_ENV
 
       - name: Start services
