@@ -14,7 +14,7 @@ use zksync_vm_interface::tracer::{
     TimestampAsserterParams, ValidationParams, ValidationTraces, ViolatedValidationRule,
 };
 
-use crate::{tracers::TIMESTAMP_ASSERTER_FUNCTION_SELECTOR, vm_fast::utils::read_fat_pointer};
+use crate::{tracers::TIMESTAMP_ASSERTER_FUNCTION_SELECTOR, vm_fast::utils::read_raw_fat_pointer};
 
 /// [`Tracer`] used for account validation per [EIP-4337] and [EIP-7562].
 ///
@@ -157,7 +157,7 @@ impl Tracer for FullValidationTracer {
                 // Intercept calls to keccak, whitelist storage slots corresponding to the hash
                 let code_address = state.current_frame().code_address();
                 if code_address == KECCAK256_PRECOMPILE_ADDRESS {
-                    let calldata = read_fat_pointer(state, state.read_register(1).0);
+                    let calldata = read_raw_fat_pointer(state, state.read_register(1).0);
                     if calldata.len() != 64 {
                         return ShouldStop::Continue;
                     }
@@ -185,7 +185,7 @@ impl Tracer for FullValidationTracer {
 
                 if let Some(ref params) = self.timestamp_asserter_params {
                     if code_address == params.address {
-                        let calldata = read_fat_pointer(state, state.read_register(1).0);
+                        let calldata = read_raw_fat_pointer(state, state.read_register(1).0);
                         if calldata.len() == 68
                             && calldata[..4] == TIMESTAMP_ASSERTER_FUNCTION_SELECTOR
                         {
@@ -215,7 +215,7 @@ impl Tracer for FullValidationTracer {
             }
             Ret(kind) => {
                 if self.add_return_value_to_allowed_slots && kind == Normal {
-                    let return_value = read_fat_pointer(state, state.read_register(1).0);
+                    let return_value = read_raw_fat_pointer(state, state.read_register(1).0);
                     self.slots_obtained_via_keccak
                         .insert(return_value.as_slice().into());
                 }

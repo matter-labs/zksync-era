@@ -1,18 +1,20 @@
-// FIXME: move storage-agnostic tests to VM executor crate
-
 use assert_matches::assert_matches;
 use rand::{thread_rng, Rng};
 use test_casing::{test_casing, Product};
 use zksync_contracts::l2_message_root;
 use zksync_dal::{ConnectionPool, Core};
-use zksync_multivm::interface::{BatchTransactionExecutionResult, ExecutionResult, Halt};
+use zksync_multivm::interface::{
+    BatchTransactionExecutionResult, Call, CallType, ExecutionResult, Halt,
+};
 use zksync_test_contracts::{Account, TestContract};
 use zksync_types::{
-    get_nonce_key, utils::storage_key_for_eth_balance, vm::FastVmMode, web3, Execute, PriorityOpId,
-    H256, L2_MESSAGE_ROOT_ADDRESS, U256,
+    get_nonce_key,
+    utils::{deployed_address_create, storage_key_for_eth_balance},
+    vm::FastVmMode,
+    web3, Execute, PriorityOpId, H256, L2_MESSAGE_ROOT_ADDRESS, U256,
 };
 
-use self::tester::{AccountExt, StorageSnapshot, TestConfig, Tester};
+use self::tester::{AccountExt, StorageSnapshot, TestConfig, Tester, TRANSFER_VALUE};
 
 mod read_storage_factory;
 mod tester;
@@ -854,9 +856,9 @@ async fn execute_tx_with_large_packable_bytecode(vm_mode: FastVmMode) {
     executor.finish_batch().await.unwrap();
 }
 
-#[test_casing(2, [FastVmMode::Old, FastVmMode::Shadow])] // new VM doesn't support call tracing yet
+#[test_casing(3, FAST_VM_MODES)]
 #[tokio::test]
-async fn execute_tx_with_call_traces(vm_mode: FastVmMode) {
+async fn execute_txs_with_call_traces(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
     let mut tester = Tester::with_config(
@@ -876,4 +878,35 @@ async fn execute_tx_with_call_traces(vm_mode: FastVmMode) {
 
     assert_matches!(res.tx_result.result, ExecutionResult::Success { .. });
     assert!(!res.call_traces.is_empty());
+
+    find_first_call(&res.call_traces, &|call| {
+        call.from == alice.address && call.value == TRANSFER_VALUE.into()
+    })
+    .expect("no transfer call");
+
+    let deploy_tx = alice.deploy_loadnext_tx().tx;
+    let res = executor.execute_tx(deploy_tx).await.unwrap();
+    assert_matches!(res.tx_result.result, ExecutionResult::Success { .. });
+    assert!(!res.call_traces.is_empty());
+
+    let create_call = find_first_call(&res.call_traces, &|call| {
+        call.from == alice.address && call.r#type == CallType::Create
+    })
+    .expect("no create call");
+
+    let expected_address = deployed_address_create(alice.address, 0.into());
+    assert_eq!(create_call.to, expected_address);
+    assert!(!create_call.input.is_empty());
+}
+
+fn find_first_call<'a>(calls: &'a [Call], predicate: &impl Fn(&Call) -> bool) -> Option<&'a Call> {
+    for call in calls {
+        if predicate(call) {
+            return Some(call);
+        }
+        if let Some(call) = find_first_call(&call.calls, predicate) {
+            return Some(call);
+        }
+    }
+    None
 }
