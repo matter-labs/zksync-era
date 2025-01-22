@@ -86,6 +86,8 @@ jobs:
     needs: changed_files
     if: contains(github.ref_name, 'release-please--branches')
     uses: ./.github/workflows/ci-core-lint-reusable.yml
+    secrets:
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
 
   ci-for-core:
     name: CI for Core Components

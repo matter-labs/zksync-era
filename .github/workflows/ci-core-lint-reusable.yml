@@ -1,6 +1,10 @@
 name: Workflow template for Core Linting CI jobs
 on:
   workflow_call:
+    secrets:
+      ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE:
+        description: "Token which will be provided to clone private repos"
+        required: true
 
 jobs:
   code_lint:
@@ -20,12 +24,18 @@ jobs:
           echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
           echo "RUSTC_WRAPPER=sccache" >> .env
           echo "ZKSYNC_USE_CUDA_STUBS=true" >> .env
+          echo "GITHUB_TOKEN=${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}" >> .env
           echo "prover_url=postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover" >> $GITHUB_ENV
           echo "core_url=postgres://postgres:notsecurepassword@localhost:5432/zksync_local" >> $GITHUB_ENV
 
       - name: Start services
         run: |
           ci_localnet_up
+          
+      - name: git config for cloning private repos
+        run: |
+          ci_run git config --global --add url."https://${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}:x-oauth-basic@github.com/".insteadOf ssh://git@github.com/
+          ci_run git config --global --add url."https://${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}:x-oauth-basic@github.com/".insteadOf https://github.com/
       
       - name: Install zkstack
         run: |

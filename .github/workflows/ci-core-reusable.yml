@@ -39,6 +39,7 @@ jobs:
           echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
           echo "RUSTC_WRAPPER=sccache" >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
+          echo "GITHUB_TOKEN=${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}" >> .env
 
       # TODO: Remove when we after upgrade of hardhat-plugins
       - name: pre-download compilers
@@ -61,6 +62,11 @@ jobs:
       - name: Start services
         run: |
           ci_localnet_up
+          
+      - name: git config for cloning private repos
+        run: |
+          ci_run git config --global --add url."https://${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}:x-oauth-basic@github.com/".insteadOf ssh://git@github.com/
+          ci_run git config --global --add url."https://${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}:x-oauth-basic@github.com/".insteadOf https://github.com/
 
       - name: Init
         run: |
