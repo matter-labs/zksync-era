@@ -7045,7 +7045,7 @@ dependencies = [
 
 [[package]]
 name = "zkstack"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -7093,7 +7093,7 @@ dependencies = [
 
 [[package]]
 name = "zkstack_cli_common"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7122,7 +7122,7 @@ dependencies = [
 
 [[package]]
 name = "zkstack_cli_config"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -7146,14 +7146,14 @@ dependencies = [
 
 [[package]]
 name = "zkstack_cli_git_version_macro"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "chrono",
 ]
 
 [[package]]
 name = "zkstack_cli_types"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "clap",
  "ethers",
@@ -7165,7 +7165,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_basic_types"
-version = "0.1.0"
+version = "26.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "chrono",
@@ -7205,7 +7205,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_config"
-version = "0.1.0"
+version = "26.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "rand",
@@ -7274,7 +7274,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_contracts"
-version = "0.1.0"
+version = "26.1.0-non-semver-compat"
 dependencies = [
  "envy",
  "hex",
@@ -7287,7 +7287,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_crypto_primitives"
-version = "0.1.0"
+version = "26.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "blake2",
@@ -7303,7 +7303,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_client"
-version = "0.1.0"
+version = "26.1.0-non-semver-compat"
 dependencies = [
  "async-trait",
  "jsonrpsee",
@@ -7320,7 +7320,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_signer"
-version = "0.1.0"
+version = "26.1.0-non-semver-compat"
 dependencies = [
  "async-trait",
  "rlp",
@@ -7331,7 +7331,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_mini_merkle_tree"
-version = "0.1.0"
+version = "26.1.0-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -7378,7 +7378,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_config"
-version = "0.1.0"
+version = "26.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "hex",
@@ -7398,7 +7398,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_system_constants"
-version = "0.1.0"
+version = "26.1.0-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -7406,7 +7406,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_types"
-version = "0.1.0"
+version = "26.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7438,7 +7438,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_utils"
-version = "0.1.0"
+version = "26.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "futures",
@@ -7453,7 +7453,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vlog"
-version = "0.1.0"
+version = "26.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "chrono",
@@ -7478,7 +7478,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_web3_decl"
-version = "0.1.0"
+version = "26.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
