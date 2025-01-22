@@ -437,6 +437,443 @@
       "artifacts": [
         "StateOverrideTest"
       ]
+    },
+    "/Users/mp/zksync-era-current/core/tests/ts-integration/contracts/basic-constructor/basic-constructor.sol": {
+      "lastModificationDate": 1731408279127,
+      "contentHash": "70ecdfa3d158796009aa67234b08be5a",
+      "sourceName": "contracts/basic-constructor/basic-constructor.sol",
+      "solcConfig": {
+        "version": "0.8.26",
+        "settings": {
+          "evmVersion": "cancun",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "SimpleConstructor"
+      ]
+    },
+    "/Users/mp/zksync-era-current/core/tests/ts-integration/contracts/context/context.sol": {
+      "lastModificationDate": 1731408279127,
+      "contentHash": "4b958f94f629f2cc1c9fddc724ebeb29",
+      "sourceName": "contracts/context/context.sol",
+      "solcConfig": {
+        "version": "0.8.26",
+        "settings": {
+          "evmVersion": "cancun",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "Context"
+      ]
+    },
+    "/Users/mp/zksync-era-current/core/tests/ts-integration/contracts/counter/counter.sol": {
+      "lastModificationDate": 1731408279127,
+      "contentHash": "63c9893e081714ab790e29f058b715ac",
+      "sourceName": "contracts/counter/counter.sol",
+      "solcConfig": {
+        "version": "0.8.26",
+        "settings": {
+          "evmVersion": "cancun",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "Counter"
+      ]
+    },
+    "/Users/mp/zksync-era-current/core/tests/ts-integration/contracts/create/Foo.sol": {
+      "lastModificationDate": 1731408279127,
+      "contentHash": "9c5501a6d6a047acf8c95806e8931556",
+      "sourceName": "contracts/create/Foo.sol",
+      "solcConfig": {
+        "version": "0.8.26",
+        "settings": {
+          "evmVersion": "cancun",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.8.1"
+      ],
+      "artifacts": [
+        "Foo"
+      ]
+    },
+    "/Users/mp/zksync-era-current/core/tests/ts-integration/contracts/create/create.sol": {
+      "lastModificationDate": 1731408279127,
+      "contentHash": "00b9ab8ae89ec7dd50b00a52c9f3ac3e",
+      "sourceName": "contracts/create/create.sol",
+      "solcConfig": {
+        "version": "0.8.26",
+        "settings": {
+          "evmVersion": "cancun",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./Foo.sol"
+      ],
+      "versionPragmas": [
+        ">=0.8.1"
+      ],
+      "artifacts": [
+        "Import"
+      ]
+    },
+    "/Users/mp/zksync-era-current/core/tests/ts-integration/contracts/error/error.sol": {
+      "lastModificationDate": 1731408279129,
+      "contentHash": "ef85dd392db12ce8479d52cd3b79d5a8",
+      "sourceName": "contracts/error/error.sol",
+      "solcConfig": {
+        "version": "0.8.26",
+        "settings": {
+          "evmVersion": "cancun",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "SimpleRequire"
+      ]
+    },
+    "/Users/mp/zksync-era-current/core/tests/ts-integration/contracts/events/events.sol": {
+      "lastModificationDate": 1731408279129,
+      "contentHash": "dec1d7371a0a6f9a48599ba2ea39f9bc",
+      "sourceName": "contracts/events/events.sol",
+      "solcConfig": {
+        "version": "0.8.26",
+        "settings": {
+          "evmVersion": "cancun",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "Emitter"
+      ]
+    },
+    "/Users/mp/zksync-era-current/core/tests/ts-integration/contracts/expensive/expensive.sol": {
+      "lastModificationDate": 1731408279129,
+      "contentHash": "41d042bf0adde83a3f3ea547e938486f",
+      "sourceName": "contracts/expensive/expensive.sol",
+      "solcConfig": {
+        "version": "0.8.26",
+        "settings": {
+          "evmVersion": "cancun",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "Expensive"
+      ]
+    },
+    "/Users/mp/zksync-era-current/core/tests/ts-integration/contracts/infinite/infinite.sol": {
+      "lastModificationDate": 1731408279129,
+      "contentHash": "864913da683263940b1b9e45c8d2b6d0",
+      "sourceName": "contracts/infinite/infinite.sol",
+      "solcConfig": {
+        "version": "0.8.26",
+        "settings": {
+          "evmVersion": "cancun",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "InfiniteLoop"
+      ]
+    },
+    "/Users/mp/zksync-era-current/core/tests/ts-integration/contracts/inner-outer/inner.sol": {
+      "lastModificationDate": 1731408279129,
+      "contentHash": "f8367fb42120101efa3264c2f670c465",
+      "sourceName": "contracts/inner-outer/inner.sol",
+      "solcConfig": {
+        "version": "0.8.26",
+        "settings": {
+          "evmVersion": "cancun",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "Inner"
+      ]
+    },
+    "/Users/mp/zksync-era-current/core/tests/ts-integration/contracts/inner-outer/outer.sol": {
+      "lastModificationDate": 1731408279129,
+      "contentHash": "524c874353ef250c1a8fe11f382d1c42",
+      "sourceName": "contracts/inner-outer/outer.sol",
+      "solcConfig": {
+        "version": "0.8.26",
+        "settings": {
+          "evmVersion": "cancun",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./inner.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "Outer"
+      ]
+    },
+    "/Users/mp/zksync-era-current/core/tests/ts-integration/contracts/state-override/StateOverrideTest.sol": {
+      "lastModificationDate": 1731408279130,
+      "contentHash": "4de022fa91d9b4f7798bf19bdad0f16e",
+      "sourceName": "contracts/state-override/StateOverrideTest.sol",
+      "solcConfig": {
+        "version": "0.8.26",
+        "settings": {
+          "evmVersion": "cancun",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0",
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "StateOverrideTest"
+      ]
     }
   }
 }

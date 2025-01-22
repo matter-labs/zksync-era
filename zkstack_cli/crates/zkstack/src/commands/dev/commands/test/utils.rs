@@ -86,7 +86,7 @@ pub fn build_contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> any
     let spinner = Spinner::new(MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS);
 
     Cmd::new(cmd!(shell, "yarn build")).run()?;
-    Cmd::new(cmd!(shell, "yarn build-yul")).run()?;
+    // Cmd::new(cmd!(shell, "yarn build-yul")).run()?;
 
     spinner.finish();
     Ok(())
