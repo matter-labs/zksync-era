@@ -186,7 +186,7 @@ enum PointFile {
 impl PointFile {
     fn path(&self) -> &str {
         match self {
-            PointFile::Temp(file) => file.path().to_str().unwrap(),
+            PointFile::Temp(file) => file.path().to_str().unwrap_or_default(), // Safe unwrap because NamedTempFile guarantees a valid path
             PointFile::Path(path) => path,
         }
     }
@@ -212,23 +212,21 @@ impl Verifier {
     async fn download_temp_point(url: &String) -> Result<NamedTempFile, VerificationError> {
         let response = reqwest::get(url)
             .await
-            .map_err(|e| VerificationError::LinkError(e.to_string()))
-            .unwrap();
+            .map_err(|e| VerificationError::LinkError(e.to_string()))?;
         if !response.status().is_success() {
             return Err(VerificationError::LinkError(
                 "Failed to get point".to_string(),
             ));
         }
 
-        let mut file = NamedTempFile::new().unwrap();
+        let mut file =
+            NamedTempFile::new().map_err(|e| VerificationError::LinkError(e.to_string()))?;
         let content = response
             .bytes()
             .await
-            .map_err(|e| VerificationError::LinkError(e.to_string()))
-            .unwrap();
+            .map_err(|e| VerificationError::LinkError(e.to_string()))?;
         file.write_all(&content)
-            .map_err(|e| VerificationError::LinkError(e.to_string()))
-            .unwrap();
+            .map_err(|e| VerificationError::LinkError(e.to_string()))?;
         Ok(file)
     }
 
