@@ -1,6 +1,5 @@
 use std::convert::TryInto;
 
-use zksync_config::ContractsConfig;
 use zksync_contracts::chain_admin_contract;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{
@@ -72,6 +71,7 @@ fn build_upgrade_tx(id: ProtocolVersionId) -> ProtocolUpgradeTx {
         common_data: ProtocolUpgradeTxCommonData {
             upgrade_id: id,
             sender: [1u8; 20].into(),
+            // Note, that the field is deprecated
             eth_block: 0,
             gas_limit: Default::default(),
             max_fee_per_gas: Default::default(),
@@ -109,7 +109,6 @@ async fn create_test_watcher(
         sl_l2_client,
         connection_pool,
         std::time::Duration::from_nanos(1),
-        &ContractsConfig::for_tests(),
         L2ChainId::default(),
     )
     .await
@@ -216,13 +215,12 @@ async fn test_normal_operation_upgrade_timestamp() {
         None,
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
-        &ContractsConfig::for_tests(),
         L2ChainId::default(),
     )
     .await
     .unwrap();
 
-    let expected_upgrade_tx = build_upgrade_tx(ProtocolVersionId::Version28);
+    let expected_upgrade_tx = build_upgrade_tx(ProtocolVersionId::next());
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -237,7 +235,7 @@ async fn test_normal_operation_upgrade_timestamp() {
             (
                 ProtocolUpgrade {
                     version: ProtocolSemanticVersion {
-                        minor: ProtocolVersionId::Version28,
+                        minor: ProtocolVersionId::next(),
                         patch: 0.into(),
                     },
                     tx: Some(expected_upgrade_tx.clone()),
@@ -248,7 +246,7 @@ async fn test_normal_operation_upgrade_timestamp() {
             (
                 ProtocolUpgrade {
                     version: ProtocolSemanticVersion {
-                        minor: ProtocolVersionId::Version28,
+                        minor: ProtocolVersionId::next(),
                         patch: 1.into(),
                     },
                     tx: None,
@@ -272,7 +270,7 @@ async fn test_normal_operation_upgrade_timestamp() {
     watcher.loop_iteration(&mut storage).await.unwrap();
     let db_versions = storage.protocol_versions_dal().all_versions().await;
     let mut expected_version = ProtocolSemanticVersion {
-        minor: ProtocolVersionId::Version28,
+        minor: ProtocolVersionId::next(),
         patch: 0.into(),
     };
     assert_eq!(db_versions.len(), 4);
@@ -283,7 +281,7 @@ async fn test_normal_operation_upgrade_timestamp() {
     // Check that tx was saved with the second upgrade.
     let tx = storage
         .protocol_versions_dal()
-        .get_protocol_upgrade_tx(ProtocolVersionId::Version28)
+        .get_protocol_upgrade_tx(ProtocolVersionId::next())
         .await
         .unwrap()
         .expect("no protocol upgrade transaction");

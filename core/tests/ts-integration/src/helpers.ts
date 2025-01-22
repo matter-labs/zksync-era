@@ -3,7 +3,6 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import * as hre from 'hardhat';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
-import { TransactionReceipt } from 'ethers';
 
 export const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
 
@@ -28,6 +27,10 @@ export function getContractSource(relativePath: string): string {
     const contractPath = `${__dirname}/../contracts/${relativePath}`;
     const source = fs.readFileSync(contractPath, 'utf8');
     return source;
+}
+
+export function readContract(path: string, fileName: string) {
+    return JSON.parse(fs.readFileSync(`${path}/${fileName}.sol/${fileName}.json`, { encoding: 'utf-8' }));
 }
 
 /**
@@ -74,8 +77,8 @@ export async function anyTransaction(wallet: zksync.Wallet): Promise<ethers.Tran
 export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.types.TransactionReceipt> {
     const MAX_ATTEMPTS = 3;
 
-    let txResponse = null;
-    let txReceipt: TransactionReceipt | null = null;
+    let txResponse: ethers.TransactionResponse | null = null;
+    let txReceipt: ethers.TransactionReceipt | null = null;
     let nonce = Number(await wallet.getNonce());
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
         // Send a dummy transaction and wait for it to execute. We override `maxFeePerGas` as the default ethers behavior
@@ -83,11 +86,31 @@ export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.t
         // extreme gas price fluctuations.
         let gasPrice = await wallet.provider.getGasPrice();
         if (!txResponse || !txResponse.maxFeePerGas || txResponse.maxFeePerGas < gasPrice) {
-            txResponse = await wallet.transfer({
-                to: wallet.address,
-                amount: 0,
-                overrides: { maxFeePerGas: gasPrice, nonce: nonce, maxPriorityFeePerGas: 0 }
-            });
+            txResponse = await wallet
+                .transfer({
+                    to: wallet.address,
+                    amount: 0,
+                    overrides: { maxFeePerGas: gasPrice, nonce: nonce, maxPriorityFeePerGas: 0, type: 2 }
+                })
+                .catch((e) => {
+                    // Unlike `waitForTransaction` below, these errors are not wrapped as `EthersError` for some reason
+                    if (<Error>e.message.match(/Not enough gas/)) {
+                        console.log(
+                            `Transaction did not have enough gas, likely gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`
+                        );
+                        return null;
+                    } else if (<Error>e.message.match(/max fee per gas less than block base fee/)) {
+                        console.log(
+                            `Transaction's max fee per gas was lower than block base fee, likely gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`
+                        );
+                        return null;
+                    } else {
+                        return Promise.reject(e);
+                    }
+                });
+            if (!txResponse) {
+                continue;
+            }
         } else {
             console.log('Gas price has not gone up, waiting longer');
         }
@@ -133,6 +156,16 @@ export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber
         } else {
             await zksync.utils.sleep(wallet.provider.pollingInterval);
         }
+    }
+}
+
+export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: number, txHash: string) {
+    // First, we wait for block to be finalized.
+    await waitUntilBlockFinalized(wallet, blockNumber);
+
+    // Second, we wait for the log proof.
+    while ((await wallet.provider.getLogProof(txHash)) == null) {
+        await zksync.utils.sleep(wallet.provider.pollingInterval);
     }
 }
 

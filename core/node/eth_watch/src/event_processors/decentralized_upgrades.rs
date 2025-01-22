@@ -3,9 +3,8 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_types::{
-    abi::ZkChainSpecificUpgradeData, api::Log, ethabi::Contract,
-    protocol_upgrade::ProtocolUpgradePreimageOracle, protocol_version::ProtocolSemanticVersion,
-    ProtocolUpgrade, H256, U256,
+    api::Log, ethabi::Contract, protocol_upgrade::ProtocolUpgradePreimageOracle,
+    protocol_version::ProtocolSemanticVersion, ProtocolUpgrade, H256, U256,
 };
 
 use crate::{
@@ -20,7 +19,6 @@ pub struct DecentralizedUpgradesEventProcessor {
     /// Last protocol version seen. Used to skip events for already known upgrade proposals.
     last_seen_protocol_version: ProtocolSemanticVersion,
     update_upgrade_timestamp_signature: H256,
-    chain_specific_data: Option<ZkChainSpecificUpgradeData>,
     sl_client: Arc<dyn EthClient>,
     l1_client: Arc<dyn EthClient>,
 }
@@ -29,7 +27,6 @@ impl DecentralizedUpgradesEventProcessor {
     pub fn new(
         last_seen_protocol_version: ProtocolSemanticVersion,
         chain_admin_contract: &Contract,
-        chain_specific_data: Option<ZkChainSpecificUpgradeData>,
         sl_client: Arc<dyn EthClient>,
         l1_client: Arc<dyn EthClient>,
     ) -> Self {
@@ -40,7 +37,6 @@ impl DecentralizedUpgradesEventProcessor {
                 .context("UpdateUpgradeTimestamp event is missing in ABI")
                 .unwrap()
                 .signature(),
-            chain_specific_data,
             sl_client,
             l1_client,
         }
@@ -58,7 +54,10 @@ impl ProtocolUpgradePreimageOracle for &dyn EthClient {
         let mut result = vec![];
         for (i, preimage) in preimages.into_iter().enumerate() {
             let preimage = preimage.with_context(|| {
-                format!("Protocol upgrade preimage for {:#?} is missing", hashes[i])
+                format!(
+                    "Protocol upgrade preimage under id {i} for {:#?} is missing",
+                    hashes[i]
+                )
             })?;
             result.push(preimage);
         }
@@ -93,7 +92,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                 ..ProtocolUpgrade::try_from_diamond_cut(
                     &diamond_cut,
                     self.l1_client.as_ref(),
-                    self.chain_specific_data.clone(),
+                    self.l1_client.get_chain_gateway_upgrade_info().await?,
                 )
                 .await?
             };

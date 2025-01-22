@@ -1,4 +1,3 @@
-/// TODO(EVM-927): Note that the contents of this file are not useable without Gateway contracts.
 use anyhow::Context;
 use ethers::{abi::parse_abi, contract::BaseContract, types::Bytes, utils::hex};
 use lazy_static::lazy_static;
@@ -49,11 +48,7 @@ lazy_static! {
     );
 }
 
-#[allow(unused)]
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
-    // TODO(EVM-927): this function does not work without the Gateway contracts.
-    anyhow::bail!("Gateway upgrade not supported yet!");
-
     let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
@@ -163,7 +158,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn calculate_gateway_ctm(
+pub async fn calculate_gateway_ctm(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
@@ -214,7 +209,7 @@ async fn calculate_gateway_ctm(
     Ok(gateway_config)
 }
 
-async fn deploy_gateway_ctm(
+pub async fn deploy_gateway_ctm(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
@@ -259,7 +254,7 @@ async fn deploy_gateway_ctm(
     Ok(())
 }
 
-async fn gateway_governance_whitelisting(
+pub async fn gateway_governance_whitelisting(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
@@ -397,7 +392,7 @@ async fn gateway_governance_whitelisting(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn call_script(
+pub async fn call_script(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     data: &Bytes,

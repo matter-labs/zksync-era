@@ -20,7 +20,7 @@ use crate::{
     },
     utils::bytecode::bytes_to_be_words,
     vm_latest::{
-        bootloader_state::BootloaderState,
+        bootloader::BootloaderState,
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{
             event_sink::InMemoryEventSink,
@@ -31,7 +31,6 @@ use crate::{
             },
         },
         oracles::storage::StorageOracle,
-        types::l1_batch::bootloader_initial_memory,
         utils::l2_blocks::{assert_next_block, load_last_l2_block},
     },
 };
@@ -106,7 +105,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         Timestamp(0),
     );
 
-    let bootloader_initial_memory = bootloader_initial_memory(l1_batch_env);
+    let bootloader_initial_memory = BootloaderState::initial_memory(l1_batch_env);
     memory.populate_page(
         BOOTLOADER_HEAP_PAGE as usize,
         bootloader_initial_memory.clone(),

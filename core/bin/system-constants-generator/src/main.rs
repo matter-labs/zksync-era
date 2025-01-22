@@ -212,7 +212,7 @@ fn generate_rust_fee_constants(intrinsic_gas_constants: &IntrinsicSystemGasConst
 }
 
 fn save_file(path_in_repo: &str, content: String) {
-    let zksync_home = Workspace::locate().core();
+    let zksync_home = Workspace::locate().root();
     let fee_constants_path = zksync_home.join(path_in_repo);
 
     fs::write(fee_constants_path, content)

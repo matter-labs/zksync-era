@@ -3,10 +3,12 @@ use clap::{command, Parser, Subcommand};
 use xshell::Shell;
 use zkstack_cli_common::{git, logger, spinner::Spinner};
 use zkstack_cli_config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
-use zkstack_cli_types::BaseToken;
+use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode};
+use zksync_config::DAClientConfig;
+use zksync_types::Address;
 
 use crate::{
-    accept_ownership::accept_admin,
+    accept_ownership::{accept_admin, make_permanent_rollup, set_da_validator_pair},
     commands::chain::{
         args::init::{
             configs::{InitConfigsArgs, InitConfigsArgsFinal},
@@ -23,8 +25,8 @@ use crate::{
     enable_evm_emulator::enable_evm_emulator,
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_DEPLOYING_PAYMASTER, MSG_GENESIS_DATABASE_ERR,
-        MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_DA_PAIR_REGISTRATION_SPINNER, MSG_DEPLOYING_PAYMASTER,
+        MSG_GENESIS_DATABASE_ERR, MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
 };
@@ -123,18 +125,24 @@ pub async fn init(
     // Set token multiplier setter address (run by L2 Governor)
     if chain_config.base_token != BaseToken::eth() {
         let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
+        let chain_contracts = chain_config.get_contracts_config()?;
         set_token_multiplier_setter(
             shell,
             ecosystem_config,
             &chain_config.get_wallets_config()?.governor,
-            contracts_config.l1.chain_admin_addr,
+            chain_contracts
+                .l1
+                .access_control_restriction_addr
+                .context("chain_contracts.l1.access_control_restriction_addr")?,
+            chain_contracts.l1.diamond_proxy_addr,
             chain_config
                 .get_wallets_config()
                 .unwrap()
                 .token_multiplier_setter
                 .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
                 .address,
-            &init_args.forge_args,
+            chain_contracts.l1.chain_admin_addr,
+            &init_args.forge_args.clone(),
             init_args.l1_rpc_url.clone(),
         )
         .await?;
@@ -162,9 +170,45 @@ pub async fn init(
         ecosystem_config,
         &mut contracts_config,
         init_args.forge_args.clone(),
+        true,
     )
     .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+
+    let l1_da_validator_addr = get_l1_da_validator(chain_config);
+
+    let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
+    set_da_validator_pair(
+        shell,
+        ecosystem_config,
+        contracts_config.l1.chain_admin_addr,
+        &chain_config.get_wallets_config()?.governor,
+        contracts_config.l1.diamond_proxy_addr,
+        l1_da_validator_addr.context("l1_da_validator_addr")?,
+        contracts_config
+            .l2
+            .da_validator_addr
+            .context("da_validator_addr")?,
+        &init_args.forge_args.clone(),
+        init_args.l1_rpc_url.clone(),
+    )
+    .await?;
+    spinner.finish();
+
+    if chain_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {
+        println!("Making permanent rollup!");
+        make_permanent_rollup(
+            shell,
+            ecosystem_config,
+            contracts_config.l1.chain_admin_addr,
+            &chain_config.get_wallets_config()?.governor,
+            contracts_config.l1.diamond_proxy_addr,
+            &init_args.forge_args.clone(),
+            init_args.l1_rpc_url.clone(),
+        )
+        .await?;
+        println!("Done");
+    }
 
     // Setup legacy bridge - shouldn't be used for new chains (run by L1 Governor)
     if let Some(true) = chain_config.legacy_bridge {
@@ -199,4 +243,27 @@ pub async fn init(
         .context(MSG_GENESIS_DATABASE_ERR)?;
 
     Ok(())
+}
+
+pub(crate) fn get_l1_da_validator(chain_config: &ChainConfig) -> anyhow::Result<Address> {
+    let contracts_config = chain_config.get_contracts_config()?;
+
+    let l1_da_validator_contract = match chain_config.l1_batch_commit_data_generator_mode {
+        L1BatchCommitmentMode::Rollup => contracts_config.l1.rollup_l1_da_validator_addr,
+        L1BatchCommitmentMode::Validium => {
+            let general_config = chain_config.get_general_config()?;
+            if let Some(da_client_config) = general_config.da_client_config {
+                match da_client_config {
+                    DAClientConfig::Avail(_) => contracts_config.l1.avail_l1_da_validator_addr,
+                    DAClientConfig::NoDA => contracts_config.l1.no_da_validium_l1_validator_addr,
+                    _ => anyhow::bail!("DA client config is not supported"),
+                }
+            } else {
+                contracts_config.l1.no_da_validium_l1_validator_addr
+            }
+        }
+    }
+    .context("l1 da validator")?;
+
+    Ok(l1_da_validator_contract)
 }

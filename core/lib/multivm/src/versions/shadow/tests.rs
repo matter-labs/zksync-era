@@ -1,20 +1,30 @@
 //! Unit tests from the `testonly` test suite.
 
-use std::{collections::HashSet, rc::Rc};
+use std::{collections::HashSet, fmt, rc::Rc};
 
 use zksync_types::{writes::StateDiffRecord, StorageKey, Transaction, H256, U256};
+use zksync_vm2::interface::Tracer;
+use zksync_vm_interface::{
+    utils::{CheckDivergence, DivergenceErrors},
+    Call,
+};
 
 use super::ShadowedFastVm;
 use crate::{
     interface::{
         pubdata::{PubdataBuilder, PubdataInput},
+        storage::InMemoryStorage,
         utils::{ShadowMut, ShadowRef},
         CurrentExecutionState, L2BlockEnv, VmExecutionResultAndLogs,
     },
-    versions::testonly::TestedVm,
+    versions::testonly::{TestedVm, TestedVmWithCallTracer},
+    vm_fast,
 };
 
-impl TestedVm for ShadowedFastVm {
+impl<Tr> TestedVm for ShadowedFastVm<InMemoryStorage, Tr>
+where
+    Tr: Tracer + Default + fmt::Debug + 'static,
+{
     type StateDump = ();
 
     fn dump_state(&self) -> Self::StateDump {
@@ -135,6 +145,44 @@ impl TestedVm for ShadowedFastVm {
     }
 }
 
+#[derive(Debug)]
+struct ExecutionResultAndTraces {
+    result: VmExecutionResultAndLogs,
+    traces: Vec<Call>,
+}
+
+impl From<(VmExecutionResultAndLogs, Vec<Call>)> for ExecutionResultAndTraces {
+    fn from((result, traces): (VmExecutionResultAndLogs, Vec<Call>)) -> Self {
+        Self { result, traces }
+    }
+}
+
+impl From<ExecutionResultAndTraces> for (VmExecutionResultAndLogs, Vec<Call>) {
+    fn from(value: ExecutionResultAndTraces) -> Self {
+        (value.result, value.traces)
+    }
+}
+
+impl CheckDivergence for ExecutionResultAndTraces {
+    fn check_divergence(&self, other: &Self) -> DivergenceErrors {
+        let mut errors = self.result.check_divergence(&other.result);
+        errors.extend(self.traces.check_divergence(&other.traces));
+        errors
+    }
+}
+
+impl TestedVmWithCallTracer for ShadowedFastVm<InMemoryStorage, vm_fast::CallTracer> {
+    fn inspect_with_call_tracer(&mut self) -> (VmExecutionResultAndLogs, Vec<Call>) {
+        self.get_custom_mut("inspect_with_call_tracer", |r| {
+            ExecutionResultAndTraces::from(match r {
+                ShadowMut::Main(vm) => vm.inspect_with_call_tracer(),
+                ShadowMut::Shadow(vm) => vm.inspect_with_call_tracer(),
+            })
+        })
+        .into()
+    }
+}
+
 mod block_tip {
     use crate::versions::testonly::block_tip::*;
 
@@ -164,6 +212,40 @@ mod bytecode_publishing {
     #[test]
     fn bytecode_publishing() {
         test_bytecode_publishing::<super::ShadowedFastVm>();
+    }
+}
+
+mod call_tracer {
+    use crate::versions::testonly::call_tracer::*;
+
+    #[test]
+    fn basic_behavior() {
+        test_basic_behavior::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn transfer() {
+        test_transfer::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn reverted_tx() {
+        test_reverted_tx::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn reverted_deployment() {
+        test_reverted_deployment_tx::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn out_of_gas() {
+        test_out_of_gas::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn recursive_tx() {
+        test_recursive_tx::<super::ShadowedFastVm<_, _>>();
     }
 }
 
@@ -308,7 +390,6 @@ mod l1_messenger {
     use crate::versions::testonly::l1_messenger::*;
 
     #[test]
-    #[ignore] // Requires post-gateway system contracts
     fn rollup_da_output_hash_match() {
         test_rollup_da_output_hash_match::<super::ShadowedFastVm>();
     }
