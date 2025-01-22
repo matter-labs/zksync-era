@@ -120,7 +120,6 @@ impl VerifierClient for Box<DynClient<L1>> {
             data: Some(zksync_basic_types::web3::Bytes(data)),
             ..Default::default()
         };
-
         let res = self
             .as_ref()
             .call_contract_function(call_request, None)
