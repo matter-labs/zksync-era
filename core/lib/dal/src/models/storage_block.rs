@@ -206,53 +206,26 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
 
     fn try_from(batch: StorageL1Batch) -> Result<Self, Self::Error> {
         Ok(Self {
-            root_hash: H256::from_slice(
-                &batch.hash.unwrap_or(vec![0u8; 32]),
-            ),
-            rollup_last_leaf_index: batch
-                .rollup_last_leaf_index
-                .unwrap_or_default()
-                as u64,
+            root_hash: H256::from_slice(&batch.hash.unwrap_or(vec![0u8; 32])),
+            rollup_last_leaf_index: batch.rollup_last_leaf_index.unwrap_or_default() as u64,
             initial_writes_compressed: batch.compressed_initial_writes,
             repeated_writes_compressed: batch.compressed_repeated_writes,
-            l2_l1_merkle_root: H256::from_slice(
-                &batch
-                    .l2_l1_merkle_root
-                    .unwrap_or(vec![0u8; 32]),
-            ),
-            aux_data_hash: H256::from_slice(
-                &batch
-                    .aux_data_hash
-                    .unwrap_or(vec![0u8; 32]),
-            ),
+            l2_l1_merkle_root: H256::from_slice(&batch.l2_l1_merkle_root.unwrap_or(vec![0u8; 32])),
+            aux_data_hash: H256::from_slice(&batch.aux_data_hash.unwrap_or(vec![0u8; 32])),
             meta_parameters_hash: H256::from_slice(
-                &batch
-                    .meta_parameters_hash
-                    .unwrap_or(vec![0u8; 32]),
+                &batch.meta_parameters_hash.unwrap_or(vec![0u8; 32]),
             ),
             pass_through_data_hash: H256::from_slice(
-                &batch
-                    .pass_through_data_hash
-                    .unwrap_or(vec![0u8; 32]),
+                &batch.pass_through_data_hash.unwrap_or(vec![0u8; 32]),
             ),
-            commitment: H256::from_slice(
-                &batch
-                    .commitment
-                    .unwrap_or(vec![0u8; 32]),
-            ),
+            commitment: H256::from_slice(&batch.commitment.unwrap_or(vec![0u8; 32])),
             block_meta_params: L1BatchMetaParameters {
-                zkporter_is_available: batch
-                    .zkporter_is_available
-                    .unwrap_or_default(),
+                zkporter_is_available: batch.zkporter_is_available.unwrap_or_default(),
                 bootloader_code_hash: H256::from_slice(
-                    &batch
-                        .bootloader_code_hash
-                        .unwrap_or(vec![0u8; 32]),
+                    &batch.bootloader_code_hash.unwrap_or(vec![0u8; 32]),
                 ),
                 default_aa_code_hash: H256::from_slice(
-                    &batch
-                        .default_aa_code_hash
-                        .unwrap_or(vec![0u8; 32]),
+                    &batch.default_aa_code_hash.unwrap_or(vec![0u8; 32]),
                 ),
                 evm_emulator_code_hash: batch
                     .evm_emulator_code_hash

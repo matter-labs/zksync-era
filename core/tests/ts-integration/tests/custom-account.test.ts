@@ -10,11 +10,6 @@ import { deployContract, getTestContract } from '../src/helpers';
 import { ERC20_PER_ACCOUNT, L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 import { shouldChangeETHBalances, shouldChangeTokenBalances } from '../src/modifiers/balance-checker';
 
-const contracts = {
-    customAccount: getTestContract('CustomAccount'),
-    context: getTestContract('Context')
-};
-
 // We create multiple custom accounts and we need to fund them with ETH to pay for fees.
 const ETH_PER_CUSTOM_ACCOUNT = L2_DEFAULT_ETH_PER_ACCOUNT / 8n;
 const TRANSFER_AMOUNT = 1n;
@@ -23,6 +18,8 @@ const DEFAULT_TIMESTAMP_ASSERTER_RANGE_START = 0;
 const DEFAULT_TIMESTAMP_ASSERTER_RANGE_END = 2555971200;
 
 describe('Tests for the custom account behavior', () => {
+    let contracts: any;
+
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let customAccount: zksync.Contract;
@@ -31,6 +28,10 @@ describe('Tests for the custom account behavior', () => {
     let timestampAsserterAddress: string;
 
     beforeAll(() => {
+        contracts = {
+            customAccount: getTestContract('CustomAccount'),
+            context: getTestContract('Context')
+        };
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         erc20Address = testMaster.environment().erc20Token.l2Address;
@@ -123,7 +124,8 @@ describe('Tests for the custom account behavior', () => {
             erc20Address,
             timestampAsserterAddress,
             rangeStart,
-            rangeEnd
+            rangeEnd,
+            contracts.customAccount
         );
 
         const tx = await erc20.transfer.populateTransaction(alice.address, TRANSFER_AMOUNT);
@@ -149,7 +151,8 @@ describe('Tests for the custom account behavior', () => {
             erc20Address,
             timestampAsserterAddress,
             0,
-            BigInt('3402823669209384634633746074317682') // u128::MAX
+            BigInt('3402823669209384634633746074317682'), // u128::MAX
+            contracts.customAccount
         );
 
         const tx = await erc20.transfer.populateTransaction(alice.address, TRANSFER_AMOUNT);
@@ -186,7 +189,8 @@ describe('Tests for the custom account behavior', () => {
             erc20Address,
             timestampAsserterAddress,
             rangeStart,
-            rangeEnd
+            rangeEnd,
+            contracts.customAccount
         );
         const customAccountAddress = await customAccount.getAddress();
 
@@ -513,11 +517,12 @@ async function deployAndFundCustomAccount(
     erc20Address: string,
     timestampAsserterAddress: string,
     rangeStart: any,
-    rangeEnd: any
+    rangeEnd: any,
+    customAccount_: any
 ): Promise<zksync.Contract> {
     const customAccount = await deployContract(
         richAccount,
-        contracts.customAccount,
+        customAccount_,
         [false, timestampAsserterAddress, rangeStart, rangeEnd],
         'createAccount'
     );

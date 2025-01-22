@@ -68,10 +68,10 @@ use zksync_node_framework::{
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
             tx_sink::MasterPoolSinkLayer,
         },
+        zkos_state_keeper::ZkOsStateKeeperLayer,
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
-use zksync_node_framework::implementations::layers::zkos_state_keeper::ZkOsStateKeeperLayer;
 use zksync_types::{
     pubdata_da::PubdataSendingMode, settlement::SettlementMode, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
 };
@@ -239,12 +239,10 @@ impl MainNodeBuilder {
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let db_config = try_load_config!(self.configs.db_config);
 
-        let state_keeper_layer = ZkOsStateKeeperLayer::new(
-            try_load_config!(self.configs.mempool_config),
-        );
+        let state_keeper_layer =
+            ZkOsStateKeeperLayer::new(try_load_config!(self.configs.mempool_config));
 
-        self.node
-            .add_layer(state_keeper_layer);
+        self.node.add_layer(state_keeper_layer);
         Ok(self)
     }
 

@@ -512,6 +512,7 @@ impl TransactionsDal<'_, '_> {
         &mut self,
         tx_hash: H256,
         block_number: L2BlockNumber,
+        revert_reason: Option<String>,
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
@@ -520,17 +521,19 @@ impl TransactionsDal<'_, '_> {
                 l1_batch_number = $2,
                 l1_batch_tx_index = 0,
                 miniblock_number = $2,
+                error = $3,
                 updated_at = NOW()
             WHERE
                 transactions.hash = $1
             "#,
             &tx_hash.as_bytes(),
-            i64::from(block_number.0)
+            i64::from(block_number.0),
+            revert_reason
         )
-            .instrument("zkos_mark_tx_as_executed")
-            .with_arg("miniblock_number", &block_number)
-            .execute(self.storage)
-            .await?;
+        .instrument("zkos_mark_tx_as_executed")
+        .with_arg("miniblock_number", &block_number)
+        .execute(self.storage)
+        .await?;
         Ok(())
     }
 

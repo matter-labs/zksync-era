@@ -933,6 +933,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 
 [[package]]
+name = "crypto"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee?branch=main#b4e175f465a9bfd5f0e29eb2db214377038a2f22"
+dependencies = [
+ "blake2",
+ "k256",
+ "modexp",
+ "p256",
+ "ripemd",
+ "sha2",
+ "sha3",
+]
+
+[[package]]
 name = "crypto-bigint"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1069,6 +1083,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b42b6fa04a440b495c8b04d0e71b707c585f83cb9cb28cf8cd0d976c315e31b4"
 dependencies = [
  "powerfmt",
+]
+
+[[package]]
+name = "derivative"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcc3dd5e9e9c0b295d6e1e4d811fb6f157d5ffd784b8d202fc62eac8035a770b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -1686,6 +1711,18 @@ dependencies = [
  "concurrent-queue",
  "parking",
  "pin-project-lite",
+]
+
+[[package]]
+name = "evm_interpreter"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee?branch=main#b4e175f465a9bfd5f0e29eb2db214377038a2f22"
+dependencies = [
+ "arrayvec",
+ "crypto",
+ "either",
+ "ruint",
+ "zk_ee",
 ]
 
 [[package]]
@@ -2864,6 +2901,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "modexp"
+version = "1.0.0"
+source = "git+https://github.com/matter-labs/zk_ee?branch=main#b4e175f465a9bfd5f0e29eb2db214377038a2f22"
+
+[[package]]
 name = "multimap"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3279,6 +3321,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 
 [[package]]
+name = "p256"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c9863ad85fa8f4460f9c48cb909d38a0d689dba1f6f6988a5e3e0d31071bcd4b"
+dependencies = [
+ "ecdsa",
+ "elliptic-curve",
+ "primeorder",
+ "sha2",
+]
+
+[[package]]
 name = "parity-scale-codec"
 version = "3.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3579,6 +3633,15 @@ checksum = "479cf940fbbb3426c32c5d5176f62ad57549a0bb84773423ba8be9d089f5faba"
 dependencies = [
  "proc-macro2",
  "syn 2.0.79",
+]
+
+[[package]]
+name = "primeorder"
+version = "0.13.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "353e1ca18966c16d9deb1c69278edbc5f194139612772bd9537af60ac231e1e6"
+dependencies = [
+ "elliptic-curve",
 ]
 
 [[package]]
@@ -4096,6 +4159,26 @@ dependencies = [
  "subtle",
  "zeroize",
 ]
+
+[[package]]
+name = "ruint"
+version = "1.12.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5ef8fb1dd8de3870cb8400d51b4c2023854bbafd5431a3ac7e7317243e22d2f"
+dependencies = [
+ "proptest",
+ "rand",
+ "ruint-macro",
+ "serde",
+ "valuable",
+ "zeroize",
+]
+
+[[package]]
+name = "ruint-macro"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
 
 [[package]]
 name = "rustc-demangle"
@@ -5225,6 +5308,17 @@ checksum = "8e1d1b10ced5ca923a1fcb8d03e96b8d3268065d724548c0211415ff6ac6bac4"
 dependencies = [
  "core-foundation-sys",
  "libc",
+]
+
+[[package]]
+name = "system_hooks"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee?branch=main#b4e175f465a9bfd5f0e29eb2db214377038a2f22"
+dependencies = [
+ "crypto",
+ "evm_interpreter",
+ "ruint",
+ "zk_ee",
 ]
 
 [[package]]
@@ -6455,6 +6549,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "zk_ee"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee?branch=main#b4e175f465a9bfd5f0e29eb2db214377038a2f22"
+dependencies = [
+ "arrayvec",
+ "bitflags 2.6.0",
+ "cfg-if",
+ "crypto",
+ "derivative",
+ "ruint",
+]
+
+[[package]]
 name = "zkstack"
 version = "0.1.0"
 dependencies = [
@@ -6729,6 +6836,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "strum",
+ "system_hooks",
  "thiserror",
  "tracing",
  "zksync_basic_types",

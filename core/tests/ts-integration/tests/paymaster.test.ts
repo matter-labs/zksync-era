@@ -15,10 +15,6 @@ import * as hre from 'hardhat';
 import { Deployer } from '@matterlabs/hardhat-zksync-deploy';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-deploy/dist/types';
 
-const contracts = {
-    customPaymaster: getTestContract('CustomPaymaster')
-};
-
 // The amount of tokens to transfer (in wei).
 const AMOUNT = 1n;
 
@@ -28,6 +24,8 @@ const TESTNET_PAYMASTER_RATE_NUMERATOR = 1n;
 const PAYMASTER_RATE_DENOMINATOR = 1n;
 
 describe('Paymaster tests', () => {
+    let contracts: any;
+
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let paymaster: zksync.Contract;
@@ -35,6 +33,9 @@ describe('Paymaster tests', () => {
     let erc20: zksync.Contract;
 
     beforeAll(() => {
+        contracts = {
+            customPaymaster: getTestContract('CustomPaymaster')
+        };
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         erc20Address = testMaster.environment().erc20Token.l2Address;

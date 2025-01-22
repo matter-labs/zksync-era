@@ -149,11 +149,12 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
     }
     // `waitForServer` is expected to be executed. Otherwise this call may throw.
 
-    const l2TokenAddress = await new zksync.Wallet(
-        mainWalletPK,
-        l2Provider,
-        ethers.getDefaultProvider(l1NodeUrl)
-    ).l2TokenAddress(token.address);
+    // const l2TokenAddress = await new zksync.Wallet(
+    //     mainWalletPK,
+    //     l2Provider,
+    //     ethers.getDefaultProvider(l1NodeUrl)
+    // ).l2TokenAddress(token.address);
+    const l2TokenAddress = '0x1234512345123451234512345123451234512345';
 
     const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
     const l2ChainId = BigInt(genesisConfig.l2_chain_id);

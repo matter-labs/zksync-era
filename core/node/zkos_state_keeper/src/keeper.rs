@@ -1,34 +1,35 @@
-use std::alloc::Global;
-use std::collections::HashMap;
-use std::str::FromStr;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{alloc::Global, collections::HashMap, str::FromStr, sync::Arc, time::Duration};
+
 use anyhow::Context;
-use ruint::aliases::U256;
-use ruint::aliases::B160;
-use zk_os_forward_system::run::{BatchContext, BatchOutput, PreimageSource, run_batch, StorageCommitment};
-use tokio::sync::watch;
-use tokio::task::spawn_blocking;
-use tokio::time::Instant;
+use ruint::aliases::{B160, U256};
+use tokio::{sync::watch, task::spawn_blocking, time::Instant};
 use tracing::info_span;
-use zk_ee::common_structs::derive_flat_storage_key;
-use zk_ee::system::ExecutionEnvironmentType;
-use zk_ee::system::system_io_oracle::PreimageType;
-use zk_ee::utils::Bytes32;
-use zk_os_basic_system::basic_io_implementer::address_into_special_storage_key;
-use zk_os_basic_system::basic_system::simple_growable_storage::TestingTree;
-use zk_os_forward_system::run::test_impl::{InMemoryPreimageSource, InMemoryTree, TxListSource};
+use zk_ee::{
+    common_structs::derive_flat_storage_key,
+    system::{system_io_oracle::PreimageType, ExecutionEnvironmentType},
+    utils::Bytes32,
+};
+use zk_os_basic_system::{
+    basic_io_implementer::address_into_special_storage_key,
+    basic_system::simple_growable_storage::TestingTree,
+};
+use zk_os_forward_system::run::{
+    run_batch,
+    test_impl::{InMemoryPreimageSource, InMemoryTree, TxListSource},
+    BatchContext, BatchOutput, ExecutionResult, PreimageSource, StorageCommitment,
+};
 use zk_os_system_hooks::addresses_constants::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_state::ReadStorageFactory;
-use zksync_state_keeper::io::IoCursor;
-use zksync_state_keeper::MempoolGuard;
-use zksync_types::{Address, ERC20_TRANSFER_TOPIC, H256, L1BatchNumber, L2BlockNumber, StorageKey, StorageLog, Transaction};
-use zksync_types::snapshots::SnapshotStorageLog;
-use crate::seal_logic::seal_in_db;
+use zksync_state_keeper::{io::IoCursor, MempoolGuard};
+use zksync_types::{
+    snapshots::SnapshotStorageLog, Address, L1BatchNumber, L2BlockNumber, StorageKey, StorageLog,
+    Transaction, ERC20_TRANSFER_TOPIC, H256,
+};
 use zksync_zkos_vm_runner::zkos_conversions::{bytes32_to_h256, h256_to_bytes32, tx_abi_encode};
-use crate::millis_since_epoch;
+
+use crate::{millis_since_epoch, seal_logic::seal_in_db};
 
 const POLL_WAIT_DURATION: Duration = Duration::from_millis(50);
 
@@ -81,7 +82,10 @@ impl ZkosStateKeeper {
 
         let mut connection = self.pool.connection_tagged("state_keeper").await?;
         let cursor = IoCursor::new(&mut connection).await?;
-        anyhow::ensure!(cursor.l1_batch.0 == cursor.next_l2_block.0, "For Zkos we expect batches to have just one l2 block each");
+        anyhow::ensure!(
+            cursor.l1_batch.0 == cursor.next_l2_block.0,
+            "For Zkos we expect batches to have just one l2 block each"
+        );
 
         let mut pending_block_number = cursor.next_l2_block;
 
@@ -92,14 +96,12 @@ impl ZkosStateKeeper {
         while !self.is_canceled() {
             tracing::info!("Waiting for the next transaction");
 
-            let Some(tx) = self
-                .wait_for_next_tx()
-                .await else {
-                return Ok(())
+            let Some(tx) = self.wait_for_next_tx().await else {
+                return Ok(());
             };
             tracing::info!("Transaction found: {:?}", tx);
             let tx_hash = tx.hash();
-            let encoded = tx_abi_encode(tx);
+            let encoded = tx_abi_encode(tx.clone());
             let tx_source = TxListSource {
                 transactions: vec![encoded].into(),
             };
@@ -111,6 +113,7 @@ impl ZkosStateKeeper {
                 gas_per_pubdata: Default::default(),
                 block_number: pending_block_number.0 as u64,
                 timestamp: (millis_since_epoch() / 1000) as u64,
+                chain_id: 37,
             };
 
             let storage_commitment = StorageCommitment {
@@ -128,39 +131,50 @@ impl ZkosStateKeeper {
             let preimage_source = self.preimage_source.clone();
             tracing::info!("Cloning done, running batch");
 
-            let result =
-                spawn_blocking(move ||
+            let result = spawn_blocking(move || {
                 run_batch(
                     context,
                     storage_commitment,
                     tree,
                     preimage_source,
                     tx_source,
-                ))
-                    .await
-                    .expect("Task panicked");
+                )
+            })
+            .await
+            .expect("Task panicked");
 
             match result {
                 Ok(result) => {
                     tracing::info!("Batch executed successfully: {:?}", result);
+                    let internal_tx_result = extract_tx_internal_result(tx_hash, &result);
+                    let (seal_tx_hash, revert_reason) = match internal_tx_result {
+                        InternalTxResult::Success => (Some(tx_hash), None),
+                        InternalTxResult::Reverted(reason) => (Some(tx_hash), Some(reason)),
+                        InternalTxResult::Rejected(reason) => {
+                            self.mempool.rollback(&tx);
+                            let mut conn = self
+                                .pool
+                                .connection_tagged("zkos_state_keeper_mark_reject")
+                                .await?;
+                            conn.transactions_dal()
+                                .mark_tx_as_rejected(tx_hash, &format!("rejected: {reason}"))
+                                .await?;
+                            (None, None)
+                        }
+                    };
 
                     for storage_write in result.storage_writes.iter() {
-                        self.tree.cold_storage.insert(
-                            storage_write.key,
-                            storage_write.value,
-                        );
-                        self.tree.storage_tree.insert(
-                            &storage_write.key,
-                            &storage_write.value,
-                        );
+                        self.tree
+                            .cold_storage
+                            .insert(storage_write.key, storage_write.value);
+                        self.tree
+                            .storage_tree
+                            .insert(&storage_write.key, &storage_write.value);
                     }
 
                     for (hash, preimage) in result.published_preimages.iter() {
                         self.preimage_source.inner.insert(
-                            (
-                                PreimageType::Bytecode(ExecutionEnvironmentType::EVM),
-                                *hash,
-                            ),
+                            (PreimageType::Bytecode(ExecutionEnvironmentType::EVM), *hash),
                             preimage.clone(),
                         );
                     }
@@ -170,7 +184,15 @@ impl ZkosStateKeeper {
                         .connection_tagged("zkos_state_keeper_seal_block")
                         .await?;
 
-                    seal_in_db(conn, context, &result, tx_hash, H256::zero()).await?;
+                    seal_in_db(
+                        conn,
+                        context,
+                        &result,
+                        seal_tx_hash,
+                        revert_reason,
+                        H256::zero(),
+                    )
+                    .await?;
                     pending_block_number.0 += 1;
                 }
                 Err(err) => {
@@ -184,29 +206,35 @@ impl ZkosStateKeeper {
     // Funds dev wallets with some ETH for testing
     // only funds wallets that were not funded before
     // wallets can be added to this list without regenesis
-    async fn fund_dev_wallets_if_needed(connection: &mut Connection<'_, Core>, pending_block_number: &mut L2BlockNumber) {
+    async fn fund_dev_wallets_if_needed(
+        connection: &mut Connection<'_, Core>,
+        pending_block_number: &mut L2BlockNumber,
+    ) {
         for address in &[
             "0x27FBEc0B5D2A2B89f77e4D3648bBBBCF11784bdE",
             "0x2eF0972bd8AFc29d63b2412508ce5e20219b9A8c",
-            "0xBC989fDe9e54cAd2aB4392Af6dF60f04873A033A"
+            "0xBC989fDe9e54cAd2aB4392Af6dF60f04873A033A",
         ] {
             let address = B160::from_str(address).unwrap();
             let key = address_into_special_storage_key(&address);
-            let balance = bytes32_to_h256(Bytes32::from_u256_be(U256::from_str("1700000000000000000").unwrap()));;
-            let flat_key = bytes32_to_h256(derive_flat_storage_key(&NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, &key));
+            let balance = bytes32_to_h256(Bytes32::from_u256_be(
+                U256::from_str("1700000000000000000").unwrap(),
+            ));
+            let flat_key = bytes32_to_h256(derive_flat_storage_key(
+                &NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS,
+                &key,
+            ));
 
             let r = connection
                 .storage_logs_dal()
-                .get_storage_values(
-                    &[flat_key],
-                    *pending_block_number,
-                ).await.expect("Failed to get storage values for initial balances");
+                .get_storage_values(&[flat_key], *pending_block_number)
+                .await
+                .expect("Failed to get storage values for initial balances");
             if r.get(&flat_key).cloned().unwrap_or_default().is_some() {
                 tracing::info!("Wallet {:?} already funded", address);
                 continue;
             }
             tracing::info!("Funding wallet {:?}", address);
-
 
             let logs = [SnapshotStorageLog {
                 key: flat_key,
@@ -217,20 +245,14 @@ impl ZkosStateKeeper {
 
             connection
                 .storage_logs_dal()
-                .insert_storage_logs_from_snapshot(
-                    L2BlockNumber(0),
-                    &logs,
-                )
+                .insert_storage_logs_from_snapshot(L2BlockNumber(0), &logs)
                 .await
                 .expect("Failed to insert storage logs for initial balances");
         }
     }
 
     async fn initialize_in_memory_storages(&mut self) -> anyhow::Result<()> {
-        let mut conn = self
-            .pool
-            .connection_tagged("zkos_state_keeper")
-            .await?;
+        let mut conn = self.pool.connection_tagged("zkos_state_keeper").await?;
 
         let all_storage_logs = conn
             .storage_logs_dal()
@@ -242,7 +264,11 @@ impl ZkosStateKeeper {
             .dump_all_factory_deps_for_tests()
             .await;
 
-        tracing::info!("Loaded from DB: {:?} storage logs and {:?} preimages", all_storage_logs.len(), preimages.len());
+        tracing::info!(
+            "Loaded from DB: {:?} storage logs and {:?} preimages",
+            all_storage_logs.len(),
+            preimages.len()
+        );
         tracing::info!("Recovering tree from storage logs...");
 
         for storage_logs in all_storage_logs {
@@ -275,7 +301,6 @@ impl ZkosStateKeeper {
     }
 
     async fn wait_for_next_tx(&mut self) -> Option<Transaction> {
-
         // todo: gas - use proper filter
         let filter = L2TxFilter {
             fee_input: Default::default(),
@@ -296,8 +321,40 @@ impl ZkosStateKeeper {
         None
     }
 
-
     fn is_canceled(&self) -> bool {
         *self.stop_receiver.borrow()
+    }
+}
+
+#[derive(Debug, Clone)]
+enum InternalTxResult {
+    Success,
+    Rejected(String),
+    Reverted(String),
+}
+
+fn extract_tx_internal_result(tx_hash: H256, result: &BatchOutput) -> InternalTxResult {
+    let tx_result = if let Some(tx_result) = result.tx_results.get(0).cloned() {
+        tx_result
+    } else {
+        panic!("No tx result");
+    };
+
+    match tx_result {
+        Ok(tx_output) => {
+            if let ExecutionResult::Revert(revert_reason) = tx_output.execution_result {
+                let mut str = "0x".to_string();
+                str += &hex::encode(&revert_reason);
+                InternalTxResult::Reverted(str)
+            } else {
+                InternalTxResult::Success
+            }
+        }
+        Err(reason) => {
+            tracing::error!("Invalid transaction, hash: {tx_hash:#?}, reason: {reason:?}");
+            InternalTxResult::Rejected(format!(
+                "Invalid transaction, hash: {tx_hash:#?}, reason: {reason:?}"
+            ))
+        }
     }
 }

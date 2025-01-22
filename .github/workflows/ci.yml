@@ -8,6 +8,7 @@ on:
       - staging
       - trying
       - '!release-please--branches--**'
+      - zkos-dev
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

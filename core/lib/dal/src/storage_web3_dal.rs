@@ -6,11 +6,12 @@ use zksync_db_connection::{
     instrument::{InstrumentExt, Instrumented},
 };
 use zksync_types::{
-    get_code_key, get_nonce_key, h256_to_u256,
+    get_code_key, get_nonce_key, h256_to_address, h256_to_u256,
     utils::{decompose_full_nonce, storage_key_for_standard_token_balance},
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, Nonce, StorageKey,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
 };
+use zksync_zkos_vm_runner::zkos_nonce_flat_key;
 
 use crate::{models::storage_block::ResolvedL1BatchForL2Block, Core, CoreDal};
 
@@ -32,9 +33,9 @@ impl StorageWeb3Dal<'_, '_> {
         address: Address,
         block_number: L2BlockNumber,
     ) -> DalResult<U256> {
-        let nonce_key = get_nonce_key(&address);
+        let nonce_key = zkos_nonce_flat_key(address);
         let nonce_value = self
-            .get_historical_value_unchecked(nonce_key.hashed_key(), block_number)
+            .get_historical_value_unchecked(nonce_key, block_number)
             .await?;
         let full_nonce = h256_to_u256(nonce_value);
         Ok(decompose_full_nonce(full_nonce).0)
@@ -45,6 +46,7 @@ impl StorageWeb3Dal<'_, '_> {
         &mut self,
         addresses: &[Address],
     ) -> DalResult<HashMap<Address, Nonce>> {
+        //note: this is only used on EN (tx_sender/proxy.rs), so we don't adopt it
         let nonce_keys: HashMap<_, _> = addresses
             .iter()
             .map(|address| (get_nonce_key(address).hashed_key(), *address))
@@ -184,16 +186,13 @@ impl StorageWeb3Dal<'_, '_> {
             hashed_key.as_bytes(),
             i64::from(block_number.0)
         )
-            .instrument("get_historical_value_unchecked")
-            .report_latency()
-            .with_arg("key", &hashed_key)
-            .with_arg("block_number", &block_number)
-            .fetch_optional(self.storage)
-            .await
-            .map(|option_row| {
-                option_row
-                    .map(|row| H256::from_slice(&row.value))
-            })
+        .instrument("get_historical_value_unchecked")
+        .report_latency()
+        .with_arg("key", &hashed_key)
+        .with_arg("block_number", &block_number)
+        .fetch_optional(self.storage)
+        .await
+        .map(|option_row| option_row.map(|row| H256::from_slice(&row.value)))
     }
 
     /// Provides information about the L1 batch that the specified L2 block is a part of.
