@@ -3,10 +3,11 @@ use std::{ffi::OsString, path, path::Path, process::Stdio};
 use anyhow::Context as _;
 use tokio::{fs, io::AsyncWriteExt};
 use zksync_queued_job_processor::async_trait;
-use zksync_types::contract_verification_api::CompilationArtifacts;
+use zksync_types::{bytecode::BytecodeMarker, contract_verification_api::CompilationArtifacts};
 
 use super::VyperInput;
 use crate::{
+    contract_identifier::ContractIdentifier,
     error::ContractVerifierError,
     resolver::{Compiler, CompilerPaths},
 };
@@ -95,7 +96,7 @@ impl Compiler<VyperInput> for ZkVyper {
     async fn compile(
         self: Box<Self>,
         input: VyperInput,
-    ) -> Result<CompilationArtifacts, ContractVerifierError> {
+    ) -> Result<(CompilationArtifacts, ContractIdentifier), ContractVerifierError> {
         let mut command = tokio::process::Command::new(&self.paths.zk);
         if let Some(o) = input.optimizer_mode.as_ref() {
             command.arg("-O").arg(o);
@@ -123,7 +124,12 @@ impl Compiler<VyperInput> for ZkVyper {
         if output.status.success() {
             let output = serde_json::from_slice(&output.stdout)
                 .context("zkvyper output is not valid JSON")?;
-            Self::parse_output(&output, input.contract_name)
+            let output = Self::parse_output(&output, input.contract_name)?;
+            let id = ContractIdentifier::from_bytecode(
+                BytecodeMarker::EraVm,
+                output.deployed_bytecode(),
+            );
+            Ok((output, id))
         } else {
             Err(ContractVerifierError::CompilerError(
                 "zkvyper",

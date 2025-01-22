@@ -1,6 +1,11 @@
 //! Tests using real compiler toolchains. Should be prepared by calling `zkstack contract-verifier init`
 //! with at least one `solc` and `zksolc` version. If there are no compilers, the tests will be ignored
 //! unless the `RUN_CONTRACT_VERIFICATION_TEST` env var is set to `true`, in which case the tests will fail.
+//!
+//! You can install the compilers to run these tests with the following command:
+//! ```
+//! zkstack contract-verifier init --zksolc-version=v1.5.3 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only
+//! ```
 
 use std::{env, sync::Arc, time::Duration};
 
@@ -19,38 +24,77 @@ impl Toolchain {
     const ALL: [Self; 2] = [Self::Solidity, Self::Vyper];
 }
 
+// The tests may expect specific compiler versions (e.g. contracts won't compile with Vyper 0.4.0),
+// so we hardcode versions.
+const ZKSOLC_VERSION: &str = "v1.5.3";
+const ERA_VM_SOLC_VERSION: &str = "0.8.26-1.0.1";
+const SOLC_VERSION: &str = "0.8.26";
+const VYPER_VERSION: &str = "v0.3.10";
+const ZKVYPER_VERSION: &str = "v1.5.4";
+
 #[derive(Debug, Clone)]
 struct TestCompilerVersions {
     solc: String,
+    eravm_solc: String,
     zksolc: String,
     vyper: String,
     zkvyper: String,
 }
 
 impl TestCompilerVersions {
-    fn new(versions: SupportedCompilerVersions) -> Option<Self> {
-        let solc = versions
-            .solc
-            .into_iter()
-            .find(|ver| !ver.starts_with("zkVM"))?;
-        Some(Self {
-            solc,
-            zksolc: versions.zksolc.into_iter().next()?,
-            vyper: versions.vyper.into_iter().next()?,
-            zkvyper: versions.zkvyper.into_iter().next()?,
+    fn new(versions: SupportedCompilerVersions) -> anyhow::Result<Self> {
+        // Stored compilers for our fork are prefixed with `zkVM-`.
+        let eravm_solc = format!("zkVM-{ERA_VM_SOLC_VERSION}");
+        // Stored compilers for vyper do not have `v` prefix.
+        let vyper = VYPER_VERSION.strip_prefix("v").unwrap().to_owned();
+        anyhow::ensure!(
+            versions.solc.contains(SOLC_VERSION),
+            "Expected solc version {} to be installed, but it is not",
+            SOLC_VERSION
+        );
+        anyhow::ensure!(
+            versions.solc.contains(&eravm_solc),
+            "Expected era-vm solc version {} to be installed, but it is not",
+            ERA_VM_SOLC_VERSION
+        );
+        anyhow::ensure!(
+            versions.zksolc.contains(ZKSOLC_VERSION),
+            "Expected zksolc version {} to be installed, but it is not",
+            ZKSOLC_VERSION
+        );
+        anyhow::ensure!(
+            versions.vyper.contains(&vyper),
+            "Expected vyper version {} to be installed, but it is not",
+            VYPER_VERSION
+        );
+        anyhow::ensure!(
+            versions.zkvyper.contains(ZKVYPER_VERSION),
+            "Expected zkvyper version {} to be installed, but it is not",
+            ZKVYPER_VERSION
+        );
+
+        Ok(Self {
+            solc: SOLC_VERSION.to_owned(),
+            eravm_solc,
+            zksolc: ZKSOLC_VERSION.to_owned(),
+            vyper,
+            zkvyper: ZKVYPER_VERSION.to_owned(),
         })
     }
 
     fn zksolc(self) -> ZkCompilerVersions {
         ZkCompilerVersions {
-            base: self.solc,
+            base: self.eravm_solc,
             zk: self.zksolc,
         }
     }
 
     fn solc_for_api(self, bytecode_kind: BytecodeMarker) -> CompilerVersions {
         CompilerVersions::Solc {
-            compiler_solc_version: self.solc,
+            compiler_solc_version: match bytecode_kind {
+                BytecodeMarker::Evm => self.solc,
+                BytecodeMarker::EraVm => self.eravm_solc,
+            },
             compiler_zksolc_version: match bytecode_kind {
                 BytecodeMarker::Evm => None,
                 BytecodeMarker::EraVm => Some(self.zksolc),
@@ -76,32 +120,39 @@ impl TestCompilerVersions {
     }
 }
 
-async fn checked_env_resolver() -> Option<(EnvCompilerResolver, TestCompilerVersions)> {
+async fn checked_env_resolver() -> anyhow::Result<(EnvCompilerResolver, TestCompilerVersions)> {
     let compiler_resolver = EnvCompilerResolver::default();
-    let supported_compilers = compiler_resolver.supported_versions().await.ok()?;
-    Some((
+    let supported_compilers = compiler_resolver.supported_versions().await?;
+    Ok((
         compiler_resolver,
         TestCompilerVersions::new(supported_compilers)?,
     ))
 }
 
-fn assert_no_compilers_expected() {
+fn assert_no_compilers_expected(err: anyhow::Error) {
+    let error_message = format!(
+        "Expected pre-installed compilers since `RUN_CONTRACT_VERIFICATION_TEST=true`, but at least one compiler is not installed.\n \
+        Detail: {}\n\n \
+        Use the following command to install compilers:\n \
+        zkstack contract-verifier init --zksolc-version={} --zkvyper-version={} --solc-version={} --vyper-version={} --era-vm-solc-version={} --only",
+        err, ZKSOLC_VERSION, ZKVYPER_VERSION, SOLC_VERSION, VYPER_VERSION, ERA_VM_SOLC_VERSION
+    );
+
     assert_ne!(
         env::var("RUN_CONTRACT_VERIFICATION_TEST").ok().as_deref(),
         Some("true"),
-        "Expected pre-installed compilers since `RUN_CONTRACT_VERIFICATION_TEST=true`, but they are not installed. \
-         Use `zkstack contract-verifier init` to install compilers"
+        "{error_message}"
     );
-    println!("No compilers found, skipping the test");
+    println!("At least one compiler is not found, skipping the test");
 }
 
 /// Simplifies initializing real compiler resolver in tests.
 macro_rules! real_resolver {
     () => {
         match checked_env_resolver().await {
-            Some(resolver_and_versions) => resolver_and_versions,
-            None => {
-                assert_no_compilers_expected();
+            Ok(resolver_and_versions) => resolver_and_versions,
+            Err(err) => {
+                assert_no_compilers_expected(err);
                 return;
             }
         }
@@ -126,7 +177,7 @@ async fn using_real_zksolc(specify_contract_file: bool) {
     }
 
     let input = ZkSolc::build_input(req).unwrap();
-    let output = compiler.compile(input).await.unwrap();
+    let (output, _) = compiler.compile(input).await.unwrap();
 
     validate_bytecode(&output.bytecode).unwrap();
     assert_eq!(output.abi, counter_contract_abi());
@@ -170,7 +221,7 @@ async fn using_standalone_solc(specify_contract_file: bool) {
     }
 
     let input = Solc::build_input(req).unwrap();
-    let output = compiler.compile(input).await.unwrap();
+    let (output, _) = compiler.compile(input).await.unwrap();
 
     assert!(output.deployed_bytecode.is_some());
     assert_eq!(output.abi, counter_contract_abi());
@@ -253,7 +304,7 @@ async fn compiling_yul_with_zksolc() {
     let compiler = compiler_resolver.resolve_zksolc(&version).await.unwrap();
     let req = test_yul_request(supported_compilers.solc_for_api(BytecodeMarker::EraVm));
     let input = ZkSolc::build_input(req).unwrap();
-    let output = compiler.compile(input).await.unwrap();
+    let (output, _) = compiler.compile(input).await.unwrap();
 
     assert!(!output.bytecode.is_empty());
     assert!(output.deployed_bytecode.is_none());
@@ -271,7 +322,7 @@ async fn compiling_standalone_yul() {
         compiler_zksolc_version: None,
     });
     let input = Solc::build_input(req).unwrap();
-    let output = compiler.compile(input).await.unwrap();
+    let (output, _) = compiler.compile(input).await.unwrap();
 
     assert!(!output.bytecode.is_empty());
     assert_ne!(output.deployed_bytecode.unwrap(), output.bytecode);
@@ -321,7 +372,7 @@ async fn using_real_zkvyper(specify_contract_file: bool) {
         BytecodeMarker::EraVm,
     );
     let input = VyperInput::new(req).unwrap();
-    let output = compiler.compile(input).await.unwrap();
+    let (output, _) = compiler.compile(input).await.unwrap();
 
     validate_bytecode(&output.bytecode).unwrap();
     assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
@@ -346,7 +397,7 @@ async fn using_standalone_vyper(specify_contract_file: bool) {
         BytecodeMarker::Evm,
     );
     let input = VyperInput::new(req).unwrap();
-    let output = compiler.compile(input).await.unwrap();
+    let (output, _) = compiler.compile(input).await.unwrap();
 
     assert!(output.deployed_bytecode.is_some());
     assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
@@ -366,7 +417,7 @@ async fn using_standalone_vyper_without_optimization() {
     );
     req.optimization_used = false;
     let input = VyperInput::new(req).unwrap();
-    let output = compiler.compile(input).await.unwrap();
+    let (output, _) = compiler.compile(input).await.unwrap();
 
     assert!(output.deployed_bytecode.is_some());
     assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
@@ -387,7 +438,7 @@ async fn using_standalone_vyper_with_code_size_optimization() {
     req.optimization_used = true;
     req.optimizer_mode = Some("codesize".to_owned());
     let input = VyperInput::new(req).unwrap();
-    let output = compiler.compile(input).await.unwrap();
+    let (output, _) = compiler.compile(input).await.unwrap();
 
     assert!(output.deployed_bytecode.is_some());
     assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
@@ -439,7 +490,7 @@ async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker, toolchai
         },
     };
     let address = Address::repeat_byte(1);
-    let output = match (bytecode_kind, toolchain) {
+    let (output, _) = match (bytecode_kind, toolchain) {
         (BytecodeMarker::EraVm, Toolchain::Solidity) => {
             let compiler = compiler_resolver
                 .resolve_zksolc(&supported_compilers.zksolc())

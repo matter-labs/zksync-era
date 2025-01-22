@@ -1,6 +1,32 @@
 use serde::{Deserialize, Serialize};
 use zksync_types::{bytecode::BytecodeMarker, web3::keccak256, H256};
 
+/// An identifier of the contract bytecode.
+/// This identifier can be used to detect different contracts that share the same sources,
+/// even if they differ in bytecode verbatim (e.g. if the contract metadata is different).
+///
+/// Identifier depends on the marker of the bytecode of the contract.
+/// This might be important, since the metadata can be different for EVM and EraVM,
+/// e.g. `zksolc` [supports][zksolc_keccak] keccak256 hash of the metadata as an alternative to CBOR.
+///
+/// [zksolc_keccak]: https://matter-labs.github.io/era-compiler-solidity/latest/02-command-line-interface.html#--metadata-hash
+// Note: there are missing opportunities here, e.g. Etherscan is able to detect the contracts
+// that differ in creation bytecode and/or constructor arguments (for partial match). This is
+// less relevant for ZKsync, since there is no concept of creation bytecode there; although
+// this may become needed if we will extend the EVM support.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ContractIdentifier {
+    /// SHA3 (keccak256) hash of the full contract bytecode.
+    /// Can be used as an identifier of precise contract compilation.
+    pub bytecode_sha3: H256,
+    /// SHA3 (keccak256) hash of the contract bytecode without metadata (e.g. with either
+    /// CBOR or keccak256 metadata hash being stripped).
+    /// Can be absent if the contract bytecode doesn't have metadata.
+    pub bytecode_without_metadata_sha3: Option<H256>,
+    /// Detected metadata in the contract bytecode.
+    pub detected_metadata: DetectedMetadata,
+}
+
 /// Metadata detected in the contract bytecode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) enum DetectedMetadata {
@@ -11,25 +37,6 @@ pub(crate) enum DetectedMetadata {
     Keccak256,
     /// CBOR metadata detected.
     Cbor,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct ContractIdentifier {
-    /// Marker of the bytecode of the contract.
-    /// This might be important, since the metadata can be different for EVM and EraVM,
-    /// e.g. `zksolc` [supports][zksolc_keccak] keccak256 hash of the metadata as an alternative to CBOR.
-    ///
-    /// [zksolc_keccak]: https://matter-labs.github.io/era-compiler-solidity/latest/02-command-line-interface.html#--metadata-hash
-    pub bytecode_marker: BytecodeMarker,
-    /// SHA3 (keccak256) hash of the full contract bytecode.
-    /// Can be used as an identifier of precise contract compilation.
-    pub bytecode_sha3: H256,
-    /// SHA3 (keccak256) hash of the contract bytecode without metadata (e.g. with either
-    /// CBOR or keccak256 metadata hash being stripped).
-    /// Can be absent if the contract bytecode doesn't have metadata.
-    pub bytecode_without_metadata_sha3: Option<H256>,
-    /// Detected metadata in the contract bytecode.
-    pub detected_metadata: DetectedMetadata,
 }
 
 /// Possible values for the metadata hashes structure.
@@ -56,7 +63,6 @@ impl ContractIdentifier {
         // Calculate the hash for bytecode with metadata.
         let bytecode_sha3 = H256::from_slice(&keccak256(bytecode));
         let mut self_ = Self {
-            bytecode_marker,
             bytecode_sha3,
             bytecode_without_metadata_sha3: None,
             detected_metadata: DetectedMetadata::None,
@@ -161,7 +167,6 @@ mod tests {
         let sha3_without_metadata = keccak256(&data[..data.len() - full_metadata_len]);
 
         let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &data);
-        assert_eq!(identifier.bytecode_marker, BytecodeMarker::EraVm);
         assert_eq!(identifier.detected_metadata, DetectedMetadata::Cbor);
         assert_eq!(
             identifier.bytecode_sha3,
@@ -184,7 +189,6 @@ mod tests {
         let sha3_without_metadata = keccak256(&data[..data.len() - full_metadata_len]);
 
         let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &data);
-        assert_eq!(identifier.bytecode_marker, BytecodeMarker::EraVm);
         assert_eq!(identifier.detected_metadata, DetectedMetadata::Cbor);
         assert_eq!(
             identifier.bytecode_sha3,
@@ -209,7 +213,6 @@ mod tests {
         let sha3_without_metadata = keccak256(&data[..data.len() - full_metadata_len]);
 
         let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &data);
-        assert_eq!(identifier.bytecode_marker, BytecodeMarker::EraVm);
         assert_eq!(identifier.detected_metadata, DetectedMetadata::Keccak256);
         assert_eq!(
             identifier.bytecode_sha3,
@@ -232,7 +235,6 @@ mod tests {
         let sha3_without_metadata = keccak256(&data[..data.len() - full_metadata_len]);
 
         let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &data);
-        assert_eq!(identifier.bytecode_marker, BytecodeMarker::EraVm);
         assert_eq!(identifier.detected_metadata, DetectedMetadata::Keccak256);
         assert_eq!(
             identifier.bytecode_sha3,
@@ -247,6 +249,26 @@ mod tests {
     }
 
     #[test]
+    fn eravm_too_short_bytecode() {
+        // Random short bytecode
+        let data = hex::decode("0000008003000039000000400030043f0000000100200190000000110000c13d")
+            .unwrap();
+        let sha3 = keccak256(&data);
+
+        let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &data);
+        assert_eq!(identifier.detected_metadata, DetectedMetadata::None);
+        assert_eq!(
+            identifier.bytecode_sha3,
+            H256::from_slice(&sha3),
+            "Incorrect bytecode hash"
+        );
+        assert_eq!(
+            identifier.bytecode_without_metadata_sha3, None,
+            "Incorrect bytecode without metadata hash"
+        );
+    }
+
+    #[test]
     fn evm_none() {
         // Sample contract with no methods, compiled from the root of monorepo with:
         // ./etc/solc-bin/0.8.28/solc test.sol --bin --no-cbor-metadata
@@ -255,7 +277,6 @@ mod tests {
         let sha3 = keccak256(&data);
 
         let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::Evm, &data);
-        assert_eq!(identifier.bytecode_marker, BytecodeMarker::Evm);
         assert_eq!(identifier.detected_metadata, DetectedMetadata::None);
         assert_eq!(
             identifier.bytecode_sha3,
@@ -293,7 +314,6 @@ mod tests {
             let sha3_without_metadata = keccak256(&data[..data.len() - full_metadata_len]);
 
             let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::Evm, &data);
-            assert_eq!(identifier.bytecode_marker, BytecodeMarker::Evm, "{label}");
             assert_eq!(
                 identifier.detected_metadata,
                 DetectedMetadata::Cbor,

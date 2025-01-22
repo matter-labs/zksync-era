@@ -13,6 +13,7 @@ use zksync_types::contract_verification_api::CompilationArtifacts;
 pub(crate) use self::{env::EnvCompilerResolver, github::GitHubCompilerResolver};
 use crate::{
     compilers::{SolcInput, VyperInput, ZkSolcInput},
+    contract_identifier::ContractIdentifier,
     error::ContractVerifierError,
     ZkCompilerVersions,
 };
@@ -161,7 +162,7 @@ pub(crate) trait Compiler<In>: Send + fmt::Debug {
     async fn compile(
         self: Box<Self>,
         input: In,
-    ) -> Result<CompilationArtifacts, ContractVerifierError>;
+    ) -> Result<(CompilationArtifacts, ContractIdentifier), ContractVerifierError>;
 }
 
 #[derive(Debug)]
