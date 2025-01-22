@@ -6,12 +6,13 @@ use rust_kzg_bn254::{blob::Blob, kzg::Kzg, polynomial::PolynomialFormat};
 use tempfile::NamedTempFile;
 use zksync_basic_types::web3::CallRequest;
 use zksync_config::EigenConfig;
-use zksync_eth_client::{EnrichedClientError, EthInterface};
+use zksync_eth_client::EthInterface;
 use zksync_types::{web3, Address, U256};
 use zksync_web3_decl::client::{DynClient, L1};
 
 use super::{
-    blob_info::{BatchHeader, BlobHeader, BlobInfo, BlobQuorumParam, G1Commitment},
+    blob_info::{BatchHeader, BlobHeader, BlobInfo, G1Commitment},
+    errors::{KzgError, ServiceManagerError, VerificationError},
     sdk::RawEigenClient,
 };
 
@@ -132,53 +133,6 @@ impl VerifierClient for Box<DynClient<L1>> {
 
         decode_bytes(res.0.to_vec())
     }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum KzgError {
-    #[error("Kzg setup error: {0}")]
-    Setup(String),
-    #[error(transparent)]
-    Internal(#[from] rust_kzg_bn254::errors::KzgError),
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ServiceManagerError {
-    #[error(transparent)]
-    EnrichedClient(#[from] EnrichedClientError),
-    #[error("Decoding error: {0}")]
-    Decoding(String),
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum VerificationError {
-    #[error(transparent)]
-    ServiceManager(#[from] ServiceManagerError),
-    #[error(transparent)]
-    Kzg(#[from] KzgError),
-    #[error("Wrong proof")]
-    WrongProof,
-    #[error("Different commitments: expected {expected:?}, got {actual:?}")]
-    DifferentCommitments {
-        expected: Box<G1Affine>,
-        actual: Box<G1Affine>,
-    },
-    #[error("Different roots: expected {expected:?}, got {actual:?}")]
-    DifferentRoots { expected: String, actual: String },
-    #[error("Empty hash")]
-    EmptyHash,
-    #[error("Different hashes: expected {expected:?}, got {actual:?}")]
-    DifferentHashes { expected: String, actual: String },
-    #[error("Wrong quorum params: {blob_quorum_params:?}")]
-    WrongQuorumParams { blob_quorum_params: BlobQuorumParam },
-    #[error("Quorum not confirmed")]
-    QuorumNotConfirmed,
-    #[error("Commitment not on curve: {0}")]
-    CommitmentNotOnCurve(G1Affine),
-    #[error("Commitment not on correct subgroup: {0}")]
-    CommitmentNotOnCorrectSubgroup(G1Affine),
-    #[error("Link Error: {0}")]
-    PointDownloadError(String),
 }
 
 #[derive(Debug)]
