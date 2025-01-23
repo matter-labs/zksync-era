@@ -28,7 +28,7 @@ jobs:
 
   publish-crates:
     name: Publish to crates.io
-    runs-on: ubuntu-latest
+    runs-on: matterlabs-ci-runner-high-performance
     steps:
       - name: Publish crates
         uses: matter-labs/zksync-ci-common/.github/actions/publish-crates@v1
