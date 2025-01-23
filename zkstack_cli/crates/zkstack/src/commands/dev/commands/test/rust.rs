@@ -1,10 +1,10 @@
 use std::str::FromStr;
 
 use anyhow::Context;
-use common::{cmd::Cmd, logger};
-use config::EcosystemConfig;
 use url::Url;
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{cmd::Cmd, logger};
+use zkstack_cli_config::EcosystemConfig;
 
 use super::args::rust::RustArgs;
 use crate::commands::dev::{
@@ -59,7 +59,7 @@ pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
 
     reset_test_databases(shell, &link_to_code, dals).await?;
 
-    let _dir_guard = shell.push_dir(&link_to_code);
+    let _dir_guard = shell.push_dir(link_to_code.join("core"));
 
     logger::info(MSG_USING_CARGO_NEXTEST);
     let cmd = cmd!(shell, "cargo nextest run --release");

@@ -1,6 +1,6 @@
 use std::{mem, rc::Rc};
 
-use circuit_sequencer_api_1_4_2::sort_storage_access::sort_storage_access_queries;
+use circuit_sequencer_api::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     Transaction,
@@ -15,7 +15,7 @@ use crate::{
         FinishedL1Batch, L1BatchEnv, L2BlockEnv, PushTransactionResult, SystemEnv, VmExecutionMode,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
     },
-    utils::events::extract_l2tol1logs_from_l1_messenger,
+    utils::{events::extract_l2tol1logs_from_l1_messenger, glue_log_query},
     vm_1_4_2::{
         bootloader_state::BootloaderState,
         old_vm::events::merge_events,
@@ -60,8 +60,12 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 
         let storage_log_queries = self.state.storage.get_final_log_queries();
 
-        let deduped_storage_log_queries =
-            sort_storage_access_queries(storage_log_queries.iter().map(|log| &log.log_query)).1;
+        let deduped_storage_log_queries = sort_storage_access_queries(
+            storage_log_queries
+                .iter()
+                .map(|log| glue_log_query(log.log_query)),
+        )
+        .1;
 
         CurrentExecutionState {
             events,

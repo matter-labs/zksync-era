@@ -1,6 +1,6 @@
 use clap::{Parser, ValueEnum};
-use common::{Prompt, PromptSelect};
 use strum::{Display, EnumIter, IntoEnumIterator};
+use zkstack_cli_common::{Prompt, PromptSelect};
 
 use crate::commands::dev::messages::{
     MSG_DATABASE_NEW_MIGRATION_DATABASE_HELP, MSG_DATABASE_NEW_MIGRATION_DB_PROMPT,

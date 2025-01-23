@@ -1,5 +1,5 @@
 #![allow(incomplete_features)] // We have to use generic const exprs.
-#![feature(generic_const_exprs)]
+#![feature(generic_const_exprs, allocator_api)]
 
 use std::{future::Future, sync::Arc, time::Duration};
 

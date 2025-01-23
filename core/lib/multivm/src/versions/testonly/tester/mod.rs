@@ -3,10 +3,12 @@ use std::{collections::HashSet, fmt, rc::Rc};
 use zksync_contracts::BaseSystemContracts;
 use zksync_test_contracts::{Account, TestContract, TxType};
 use zksync_types::{
+    l2::L2Tx,
     utils::{deployed_address_create, storage_key_for_eth_balance},
     writes::StateDiffRecord,
     Address, L1BatchNumber, StorageKey, Transaction, H256, U256,
 };
+use zksync_vm_interface::Call;
 
 pub(crate) use self::transaction_test_info::{ExpectedError, TransactionTestInfo, TxModifier};
 use super::get_empty_storage;
@@ -14,6 +16,7 @@ use crate::{
     interface::{
         pubdata::{PubdataBuilder, PubdataInput},
         storage::{InMemoryStorage, StoragePtr, StorageView},
+        tracer::{ValidationParams, ViolatedValidationRule},
         CurrentExecutionState, InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv,
         TxExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterfaceExt,
         VmInterfaceHistoryEnabled,
@@ -230,4 +233,27 @@ pub(crate) trait TestedVm:
 
     /// Returns pubdata input.
     fn pubdata_input(&self) -> PubdataInput;
+}
+
+pub(crate) trait TestedVmForValidation {
+    fn run_validation(&mut self, tx: L2Tx, timestamp: u64) -> Option<ViolatedValidationRule>;
+}
+
+pub(crate) fn validation_params(tx: &L2Tx, system: &SystemEnv) -> ValidationParams {
+    let user_address = tx.common_data.initiator_address;
+    let paymaster_address = tx.common_data.paymaster_params.paymaster;
+    ValidationParams {
+        user_address,
+        paymaster_address,
+        trusted_slots: Default::default(),
+        trusted_addresses: Default::default(),
+        // field `trustedAddress` of ValidationRuleBreaker
+        trusted_address_slots: [(Address::repeat_byte(0x10), 2.into())].into(),
+        computational_gas_limit: system.default_validation_computational_gas_limit,
+        timestamp_asserter_params: None,
+    }
+}
+
+pub(crate) trait TestedVmWithCallTracer: TestedVm {
+    fn inspect_with_call_tracer(&mut self) -> (VmExecutionResultAndLogs, Vec<Call>);
 }

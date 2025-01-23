@@ -1,8 +1,8 @@
 use std::path::Path;
 
-use common::{cmd::Cmd, logger, spinner::Spinner};
-use config::EcosystemConfig;
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
+use zkstack_cli_config::EcosystemConfig;
 
 use super::args::DatabaseCommonArgs;
 use crate::commands::dev::{
@@ -42,11 +42,6 @@ fn migrate_database(shell: &Shell, link_to_code: impl AsRef<Path>, dal: Dal) -> 
         MSG_DATABASE_MIGRATE_GERUND,
         &dal.path,
     ));
-    Cmd::new(cmd!(
-        shell,
-        "cargo sqlx database create --database-url {url}"
-    ))
-    .run()?;
     Cmd::new(cmd!(shell, "cargo sqlx migrate run --database-url {url}")).run()?;
     spinner.finish();
 

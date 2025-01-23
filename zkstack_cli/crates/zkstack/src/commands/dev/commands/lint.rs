@@ -6,9 +6,9 @@ use std::{
 
 use anyhow::{bail, Context};
 use clap::Parser;
-use common::{cmd::Cmd, logger, spinner::Spinner};
-use config::EcosystemConfig;
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
+use zkstack_cli_config::EcosystemConfig;
 
 use crate::commands::{
     autocomplete::{autocomplete_file_name, generate_completions},
@@ -32,6 +32,7 @@ pub struct LintArgs {
 }
 
 pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
+    shell.set_var("ZKSYNC_USE_CUDA_STUBS", "true");
     let targets = if args.targets.is_empty() {
         vec![
             Target::Rs,
@@ -69,12 +70,12 @@ pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
 fn lint_rs(shell: &Shell, ecosystem: &EcosystemConfig, check: bool) -> anyhow::Result<()> {
     let spinner = Spinner::new(&msg_running_linter_for_extension_spinner(&Target::Rs));
 
-    let link_to_code = &ecosystem.link_to_code;
+    let link_to_core = &ecosystem.link_to_code.join("core");
     let lint_to_prover = &ecosystem.link_to_code.join("prover");
     let link_to_zkstack = &ecosystem.link_to_code.join("zkstack_cli");
 
     spinner.freeze();
-    for path in [link_to_code, lint_to_prover, link_to_zkstack] {
+    for path in [link_to_core, lint_to_prover, link_to_zkstack] {
         let _dir_guard = shell.push_dir(path);
         let mut cmd = cmd!(shell, "cargo clippy");
         let mut common_args = vec!["--locked", "--", "-D", "warnings"];

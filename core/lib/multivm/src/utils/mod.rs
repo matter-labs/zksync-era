@@ -5,11 +5,26 @@ use zksync_types::{
 };
 
 pub use self::deduplicator::{ModifiedSlot, StorageWritesDeduplicator};
-use crate::interface::L1BatchEnv;
+use crate::{
+    glue::{GlueFrom, GlueInto},
+    interface::L1BatchEnv,
+};
 
 pub(crate) mod bytecode;
 mod deduplicator;
 pub(crate) mod events;
+
+/// Allows to convert `LogQuery` between two different versions, even if they don't provide
+/// direct conversion between each other.
+/// It transforms the input query to the `LogQuery` from `zksync_types` (for which most of the
+/// `zk_evm` versions provide conversion) and then converts it to the target version.
+pub fn glue_log_query<L, R>(l: L) -> R
+where
+    L: GlueInto<zksync_types::zk_evm_types::LogQuery>,
+    R: GlueFrom<zksync_types::zk_evm_types::LogQuery>,
+{
+    R::glue_from(l.glue_into())
+}
 
 /// Calculates the base fee and gas per pubdata for the given L1 gas price.
 pub fn derive_base_fee_and_gas_per_pubdata(
@@ -98,13 +113,13 @@ pub fn adjust_pubdata_price_for_tx(
 ) -> BatchFeeInput {
     // If no max base fee was provided, we just use the maximal one for convenience.
     let max_base_fee = max_base_fee.unwrap_or(U256::MAX);
-    let desired_gas_per_pubdata =
+    let bounded_tx_gas_per_pubdata_limit =
         tx_gas_per_pubdata_limit.min(get_max_gas_per_pubdata_byte(vm_version).into());
 
     let (current_base_fee, current_gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(batch_fee_input, vm_version);
 
-    if U256::from(current_gas_per_pubdata) <= desired_gas_per_pubdata
+    if U256::from(current_gas_per_pubdata) <= bounded_tx_gas_per_pubdata_limit
         && U256::from(current_base_fee) <= max_base_fee
     {
         // gas per pubdata is already smaller than or equal to `tx_gas_per_pubdata_limit`.
@@ -123,8 +138,9 @@ pub fn adjust_pubdata_price_for_tx(
             // `gasPerPubdata = ceil(17 * l1gasprice / fair_l2_gas_price)`
             // `gasPerPubdata <= 17 * l1gasprice / fair_l2_gas_price + 1`
             // `fair_l2_gas_price(gasPerPubdata - 1) / 17 <= l1gasprice`
-            let new_l1_gas_price =
-                fair_l2_gas_price * (desired_gas_per_pubdata - U256::from(1u32)) / U256::from(17);
+            let new_l1_gas_price = fair_l2_gas_price
+                * bounded_tx_gas_per_pubdata_limit.saturating_sub(U256::from(1u32))
+                / U256::from(17);
 
             BatchFeeInput::L1Pegged(L1PeggedBatchFeeModelInput {
                 l1_gas_price: new_l1_gas_price.as_u64(),
@@ -139,11 +155,14 @@ pub fn adjust_pubdata_price_for_tx(
                 current_l2_fair_gas_price
             };
 
+            // We want to adjust gas per pubdata to be min(bounded_tx_gas_per_pubdata_limit, current_gas_per_pubdata).
+            let desired_gas_per_pubdata =
+                bounded_tx_gas_per_pubdata_limit.min(U256::from(current_gas_per_pubdata));
             // `gasPerPubdata = ceil(fair_pubdata_price / fair_l2_gas_price)`
             // `gasPerPubdata <= fair_pubdata_price / fair_l2_gas_price + 1`
             // `fair_l2_gas_price(gasPerPubdata - 1) <= fair_pubdata_price`
             let new_fair_pubdata_price =
-                fair_l2_gas_price * (desired_gas_per_pubdata - U256::from(1u32));
+                fair_l2_gas_price * desired_gas_per_pubdata.saturating_sub(U256::from(1u32));
 
             BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
                 fair_pubdata_price: new_fair_pubdata_price.as_u64(),
@@ -514,6 +533,32 @@ pub fn get_max_batch_base_layer_circuits(version: VmVersion) -> usize {
         VmVersion::Vm1_5_0SmallBootloaderMemory
         | VmVersion::Vm1_5_0IncreasedBootloaderMemory
         | VmVersion::VmGateway => crate::vm_latest::constants::MAX_BASE_LAYER_CIRCUITS,
+    }
+}
+
+pub fn get_max_new_factory_deps(version: VmVersion) -> usize {
+    match version {
+        VmVersion::M5WithRefunds | VmVersion::M5WithoutRefunds => {
+            crate::vm_m5::vm_with_bootloader::MAX_NEW_FACTORY_DEPS
+        }
+        VmVersion::M6Initial | VmVersion::M6BugWithCompressionFixed => {
+            crate::vm_m6::vm_with_bootloader::MAX_NEW_FACTORY_DEPS
+        }
+        VmVersion::Vm1_3_2 => crate::vm_1_3_2::vm_with_bootloader::MAX_NEW_FACTORY_DEPS,
+        VmVersion::VmVirtualBlocks => crate::vm_virtual_blocks::constants::MAX_NEW_FACTORY_DEPS,
+        VmVersion::VmVirtualBlocksRefundsEnhancement => {
+            crate::vm_refunds_enhancement::constants::MAX_NEW_FACTORY_DEPS
+        }
+        VmVersion::VmBoojumIntegration => {
+            crate::vm_boojum_integration::constants::MAX_NEW_FACTORY_DEPS
+        }
+        VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::MAX_NEW_FACTORY_DEPS,
+        VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::MAX_NEW_FACTORY_DEPS,
+        version @ (VmVersion::Vm1_5_0SmallBootloaderMemory
+        | VmVersion::Vm1_5_0IncreasedBootloaderMemory
+        | VmVersion::VmGateway) => {
+            crate::vm_latest::constants::get_max_new_factory_deps(version.try_into().unwrap())
+        }
     }
 }
 

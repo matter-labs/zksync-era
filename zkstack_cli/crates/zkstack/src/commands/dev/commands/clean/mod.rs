@@ -1,8 +1,8 @@
 use anyhow::Context;
 use clap::Subcommand;
-use common::{docker, logger};
-use config::{EcosystemConfig, DOCKER_COMPOSE_FILE};
 use xshell::Shell;
+use zkstack_cli_common::{docker, logger};
+use zkstack_cli_config::{EcosystemConfig, DOCKER_COMPOSE_FILE};
 
 use crate::commands::dev::messages::{
     MSG_CONTRACTS_CLEANING, MSG_CONTRACTS_CLEANING_FINISHED, MSG_DOCKER_COMPOSE_DOWN,
@@ -38,7 +38,7 @@ pub fn containers(shell: &Shell) -> anyhow::Result<()> {
 }
 
 pub fn contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
-    let path_to_foundry = ecosystem_config.path_to_foundry();
+    let path_to_foundry = ecosystem_config.path_to_l1_foundry();
     let contracts_path = ecosystem_config.link_to_code.join("contracts");
     logger::info(MSG_CONTRACTS_CLEANING);
     shell

@@ -72,6 +72,7 @@ pub(super) const MSG_DEPLOY_ECOSYSTEM_PROMPT: &str =
     "Do you want to deploy ecosystem contracts? (Not needed if you already have an existing one)";
 pub(super) const MSG_L1_RPC_URL_PROMPT: &str = "What is the RPC URL of the L1 network?";
 pub(super) const MSG_DEPLOY_PAYMASTER_PROMPT: &str = "Do you want to deploy Paymaster contract?";
+pub(super) const MSG_VALIDIUM_TYPE_PROMPT: &str = "Select the Validium type";
 pub(super) const MSG_DEPLOY_ERC20_PROMPT: &str = "Do you want to deploy some test ERC20s?";
 pub(super) const MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT: &str = "Provide the path to the ecosystem contracts or keep it empty and you will use ZKsync ecosystem config. \
 For using this config, you need to have governance wallet";
@@ -85,6 +86,7 @@ pub(super) const MSG_CHAIN_INITIALIZED: &str = "Chain initialized successfully";
 pub(super) const MSG_CHAIN_CONFIGS_INITIALIZED: &str = "Chain configs were initialized";
 pub(super) const MSG_CHAIN_OWNERSHIP_TRANSFERRED: &str =
     "Chain ownership was transferred successfully";
+pub(super) const MSG_EVM_EMULATOR_ENABLED: &str = "EVM emulator enabled successfully";
 pub(super) const MSG_CHAIN_REGISTERED: &str = "Chain registraion was successful";
 pub(super) const MSG_DISTRIBUTING_ETH_SPINNER: &str = "Distributing eth...";
 pub(super) const MSG_MINT_BASE_TOKEN_SPINNER: &str =
@@ -96,6 +98,7 @@ pub(super) const MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER: &str =
     "Deploying ecosystem contracts...";
 pub(super) const MSG_REGISTERING_CHAIN_SPINNER: &str = "Registering chain...";
 pub(super) const MSG_ACCEPTING_ADMIN_SPINNER: &str = "Accepting admin...";
+pub(super) const MSG_DA_PAIR_REGISTRATION_SPINNER: &str = "Registering DA pair...";
 pub(super) const MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER: &str =
     "Updating token multiplier setter...";
 pub(super) const MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO: &str =
@@ -271,6 +274,9 @@ pub(super) const MSG_SERVER_URING_HELP: &str = "Enables uring support for RocksD
 
 /// Accept ownership related messages
 pub(super) const MSG_ACCEPTING_GOVERNANCE_SPINNER: &str = "Accepting governance...";
+
+/// EVM emulator related messages
+pub(super) const MSG_ENABLING_EVM_EMULATOR: &str = "Enabling EVM emulator...";
 
 /// Containers related messages
 pub(super) const MSG_STARTING_CONTAINERS: &str = "Starting containers";
@@ -588,3 +594,16 @@ pub(super) fn msg_wait_consensus_registry_started_polling(addr: Address, url: &U
 pub(super) fn msg_consensus_registry_wait_success(addr: Address, code_len: usize) -> String {
     format!("Consensus registry is deployed at {addr:?}: {code_len} bytes")
 }
+
+/// DA clients related messages
+pub(super) const MSG_AVAIL_CLIENT_TYPE_PROMPT: &str = "Avail client type";
+pub(super) const MSG_AVAIL_API_TIMEOUT_MS: &str = "Avail API timeout in milliseconds";
+pub(super) const MSG_AVAIL_API_NODE_URL_PROMPT: &str = "Avail API node URL";
+pub(super) const MSG_AVAIL_APP_ID_PROMPT: &str = "Avail app id";
+pub(super) const MSG_AVAIL_FINALITY_STATE_PROMPT: &str = "Avail finality state";
+pub(super) const MSG_AVAIL_GAS_RELAY_API_URL_PROMPT: &str = "Gas relay API URL";
+pub(super) const MSG_AVAIL_GAS_RELAY_MAX_RETRIES_PROMPT: &str = "Gas relay max retries";
+pub(super) const MSG_AVAIL_BRIDGE_API_URL_PROMPT: &str = "Attestation bridge API URL";
+pub(super) const MSG_AVAIL_SEED_PHRASE_PROMPT: &str = "Seed phrase";
+pub(super) const MSG_AVAIL_GAS_RELAY_API_KEY_PROMPT: &str = "Gas relay API key";
+pub(super) const MSG_INVALID_URL_ERR: &str = "Invalid URL format";

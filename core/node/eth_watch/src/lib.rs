@@ -77,6 +77,7 @@ impl EthWatch {
             state.last_seen_protocol_version,
             chain_admin_contract,
             sl_client.clone(),
+            l1_client.clone(),
         );
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),

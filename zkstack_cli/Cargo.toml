@@ -9,7 +9,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.2" # x-release-please-version
 edition = "2021"
 homepage = "https://zksync.io/"
 license = "MIT OR Apache-2.0"
@@ -19,23 +19,27 @@ repository = "https://github.com/matter-labs/zksync-era/tree/main/zkstack_cli/"
 description = "ZK Stack CLI is a set of tools for working with zk stack."
 keywords = ["zk", "cryptography", "blockchain", "ZKStack", "ZKsync"]
 
-
 [workspace.dependencies]
 # Local dependencies
-common = { path = "crates/common" }
-config = { path = "crates/config" }
-types = { path = "crates/types" }
-git_version_macro = { path = "crates/git_version_macro" }
+zkstack_cli_common = { version = "0.1.2", path = "crates/common" }
+zkstack_cli_config = { version = "0.1.2", path = "crates/config" }
+zkstack_cli_types = { version = "0.1.2", path = "crates/types" }
+zkstack_cli_git_version_macro = { version = "0.1.2", path = "crates/git_version_macro" }
 
 # ZkSync deps
-zksync_config = { path = "../core/lib/config" }
-zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
-zksync_basic_types = { path = "../core/lib/basic_types" }
-zksync_consensus_roles = "=0.6.0"
-zksync_consensus_crypto = "=0.6.0"
-zksync_consensus_utils = "=0.6.0"
-zksync_protobuf = "=0.6.0"
-zksync_protobuf_build = "=0.6.0"
+zksync_config = { version = "=26.1.0-non-semver-compat", path = "../core/lib/config" }
+zksync_protobuf_config = { version = "=26.1.0-non-semver-compat", path = "../core/lib/protobuf_config" }
+zksync_basic_types = { version = "=26.1.0-non-semver-compat", path = "../core/lib/basic_types" }
+zksync_system_constants = { version = "=26.1.0-non-semver-compat", path = "../core/lib/constants" }
+zksync_types = { version = "=26.1.0-non-semver-compat", path = "../core/lib/types" }
+zksync_web3_decl = { version = "=26.1.0-non-semver-compat", path = "../core/lib/web3_decl" }
+zksync_eth_client = { version = "=26.1.0-non-semver-compat", path = "../core/lib/eth_client" }
+zksync_contracts = { version = "=26.1.0-non-semver-compat", path = "../core/lib/contracts" }
+zksync_consensus_roles = "=0.8.0"
+zksync_consensus_crypto = "=0.8.0"
+zksync_consensus_utils = "=0.8.0"
+zksync_protobuf = "=0.8.0"
+zksync_protobuf_build = "=0.8.0"
 
 # External dependencies
 anyhow = "1.0.82"
@@ -69,3 +73,4 @@ url = { version = "2.5.0", features = ["serde"] }
 xshell = "0.2.6"
 clap-markdown = "0.1.4"
 secrecy = "0.8.0"
+async-trait = "0.1.68"

@@ -1,25 +1,31 @@
 use std::{any::Any, collections::HashSet, fmt, rc::Rc};
 
 use zksync_types::{
-    h256_to_u256, writes::StateDiffRecord, StorageKey, Transaction, H160, H256, U256,
+    h256_to_u256, l2::L2Tx, writes::StateDiffRecord, StorageKey, Transaction, H160, H256, U256,
 };
-use zksync_vm2::interface::{Event, HeapId, StateInterface};
+use zksync_vm2::interface::{Event, HeapId, StateInterface, Tracer};
 use zksync_vm_interface::{
     pubdata::{PubdataBuilder, PubdataInput},
     storage::ReadStorage,
-    CurrentExecutionState, L2BlockEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+    tracer::ViolatedValidationRule,
+    Call, CurrentExecutionState, InspectExecutionMode, L2BlockEnv, VmExecutionMode,
+    VmExecutionResultAndLogs, VmInterface,
 };
 
-use super::{circuits_tracer::CircuitsTracer, Vm};
+use super::{FullValidationTracer, ValidationTracer, Vm};
 use crate::{
     interface::storage::{ImmutableStorageView, InMemoryStorage},
-    versions::testonly::TestedVm,
-    vm_fast::evm_deploy_tracer::{DynamicBytecodes, EvmDeployTracer},
+    versions::testonly::{
+        validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer,
+    },
+    vm_fast::{tracers::WithBuiltinTracers, CallTracer},
 };
 
+mod account_validation_rules;
 mod block_tip;
 mod bootloader;
 mod bytecode_publishing;
+mod call_tracer;
 mod circuits;
 mod code_oracle;
 mod default_aa;
@@ -80,7 +86,13 @@ impl PartialEq for VmStateDump {
     }
 }
 
-impl TestedVm for Vm<ImmutableStorageView<InMemoryStorage>> {
+pub(crate) type TestedFastVm<Tr, Val> = Vm<ImmutableStorageView<InMemoryStorage>, Tr, Val>;
+
+impl<Tr, Val> TestedVm for TestedFastVm<Tr, Val>
+where
+    Tr: 'static + Tracer + Default + fmt::Debug,
+    Val: 'static + ValidationTracer + fmt::Debug,
+{
     type StateDump = VmStateDump;
 
     fn dump_state(&self) -> Self::StateDump {
@@ -126,13 +138,9 @@ impl TestedVm for Vm<ImmutableStorageView<InMemoryStorage>> {
     }
 
     fn manually_decommit(&mut self, code_hash: H256) -> bool {
-        let mut tracer = (
-            ((), CircuitsTracer::default()),
-            EvmDeployTracer::new(DynamicBytecodes::default()),
-        );
         let (_, is_fresh) = self.inner.world_diff_mut().decommit_opcode(
             &mut self.world,
-            &mut tracer,
+            &mut WithBuiltinTracers::mock(),
             h256_to_u256(code_hash),
         );
         is_fresh
@@ -172,5 +180,23 @@ impl TestedVm for Vm<ImmutableStorageView<InMemoryStorage>> {
 
     fn pubdata_input(&self) -> PubdataInput {
         self.bootloader_state.get_pubdata_information().clone()
+    }
+}
+
+impl TestedVmForValidation for TestedFastVm<(), FullValidationTracer> {
+    fn run_validation(&mut self, tx: L2Tx, timestamp: u64) -> Option<ViolatedValidationRule> {
+        let validation_params = validation_params(&tx, &self.system_env);
+        self.push_transaction(tx.into());
+        let mut tracer = ((), FullValidationTracer::new(validation_params, timestamp));
+        self.inspect(&mut tracer, InspectExecutionMode::OneTx);
+        tracer.1.validation_error()
+    }
+}
+
+impl TestedVmWithCallTracer for TestedFastVm<CallTracer, ()> {
+    fn inspect_with_call_tracer(&mut self) -> (VmExecutionResultAndLogs, Vec<Call>) {
+        let mut tracer = (CallTracer::default(), ());
+        let result = self.inspect(&mut tracer, InspectExecutionMode::OneTx);
+        (result, tracer.0.into_result())
     }
 }

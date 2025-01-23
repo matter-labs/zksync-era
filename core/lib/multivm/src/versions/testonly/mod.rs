@@ -20,19 +20,25 @@ use zksync_types::{
     get_is_account_key, h256_to_u256, u256_to_h256, utils::storage_key_for_eth_balance, Address,
     L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, U256,
 };
-use zksync_vm_interface::{
-    pubdata::PubdataBuilder, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
-};
 
-pub(super) use self::tester::{TestedVm, VmTester, VmTesterBuilder};
+pub(super) use self::tester::{
+    validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer, VmTester,
+    VmTesterBuilder,
+};
 use crate::{
-    interface::storage::InMemoryStorage, pubdata_builders::RollupPubdataBuilder,
+    interface::{
+        pubdata::PubdataBuilder, storage::InMemoryStorage, L1BatchEnv, L2BlockEnv, SystemEnv,
+        TxExecutionMode,
+    },
+    pubdata_builders::FullPubdataBuilder,
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
+pub(super) mod account_validation_rules;
 pub(super) mod block_tip;
 pub(super) mod bootloader;
 pub(super) mod bytecode_publishing;
+pub(super) mod call_tracer;
 pub(super) mod circuits;
 pub(super) mod code_oracle;
 pub(super) mod default_aa;
@@ -120,7 +126,7 @@ pub(super) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
 }
 
 pub(super) fn default_pubdata_builder() -> Rc<dyn PubdataBuilder> {
-    Rc::new(RollupPubdataBuilder::new(Address::zero()))
+    Rc::new(FullPubdataBuilder::new(Address::zero()))
 }
 
 pub(super) fn make_address_rich(storage: &mut InMemoryStorage, address: Address) {

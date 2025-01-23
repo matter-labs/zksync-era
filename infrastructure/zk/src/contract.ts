@@ -216,10 +216,12 @@ export async function erc20BridgeFinish(args: any[] = []): Promise<void> {
 
 export async function registerHyperchain({
     baseTokenName,
-    deploymentMode
+    deploymentMode,
+    allowEvmEmulator
 }: {
     baseTokenName?: string;
     deploymentMode?: DeploymentMode;
+    allowEvmEmulator?: boolean;
 }): Promise<void> {
     await utils.confirmAction();
 
@@ -241,7 +243,8 @@ export async function registerHyperchain({
         privateKey ? `--private-key ${privateKey}` : '',
         baseTokenName ? `--base-token-name ${baseTokenName}` : '',
         deploymentMode == DeploymentMode.Validium ? '--validium-mode' : '',
-        tokenMultiplierSetterAddress ? `--token-multiplier-setter-address ${tokenMultiplierSetterAddress}` : ''
+        tokenMultiplierSetterAddress ? `--token-multiplier-setter-address ${tokenMultiplierSetterAddress}` : '',
+        allowEvmEmulator ? '--allow-evm-emulation' : ''
     ];
     await utils.spawn(`yarn l1-contracts register-hyperchain ${args.join(' ')} | tee registerHyperchain.log`);
     const deployLog = fs.readFileSync('registerHyperchain.log').toString();

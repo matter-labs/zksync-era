@@ -27,7 +27,8 @@ use zksync_types::{
     L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_web3_decl::{
-    error::Web3Error,
+    error::{ClientRpcContext, Web3Error},
+    namespaces::ZksNamespaceClient,
     types::{Address, Token, H256},
 };
 
@@ -237,6 +238,14 @@ impl ZksNamespace {
         msg: H256,
         l2_log_position: Option<usize>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
+        if let Some(handler) = &self.state.l2_l1_log_proof_handler {
+            return handler
+                .get_l2_to_l1_msg_proof(block_number, sender, msg, l2_log_position)
+                .rpc_context("get_l2_to_l1_msg_proof")
+                .await
+                .map_err(Into::into);
+        }
+
         let mut storage = self.state.acquire_connection().await?;
         self.state
             .start_info
@@ -361,14 +370,14 @@ impl ZksNamespace {
 
         let Some(sl_chain_id) = storage
             .eth_sender_dal()
-            .get_batch_commit_chain_id(l1_batch_number)
+            .get_batch_execute_chain_id(l1_batch_number)
             .await
             .map_err(DalError::generalize)?
         else {
             return Ok(None);
         };
 
-        let (batch_proof_len, batch_chain_proof) =
+        let (batch_proof_len, batch_chain_proof, is_final_node) =
             if sl_chain_id.0 != self.state.api_config.l1_chain_id.0 {
                 let Some(batch_chain_proof) = storage
                     .blocks_dal()
@@ -379,9 +388,13 @@ impl ZksNamespace {
                     return Ok(None);
                 };
 
-                (batch_chain_proof.batch_proof_len, batch_chain_proof.proof)
+                (
+                    batch_chain_proof.batch_proof_len,
+                    batch_chain_proof.proof,
+                    false,
+                )
             } else {
-                (0, Vec::new())
+                (0, Vec::new(), true)
             };
 
         let proof = {
@@ -389,6 +402,7 @@ impl ZksNamespace {
             metadata[0] = LOG_PROOF_SUPPORTED_METADATA_VERSION;
             metadata[1] = log_leaf_proof.len() as u8;
             metadata[2] = batch_proof_len as u8;
+            metadata[3] = if is_final_node { 1 } else { 0 };
 
             let mut result = vec![H256(metadata)];
 
@@ -410,6 +424,14 @@ impl ZksNamespace {
         tx_hash: H256,
         index: Option<usize>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
+        if let Some(handler) = &self.state.l2_l1_log_proof_handler {
+            return handler
+                .get_l2_to_l1_log_proof(tx_hash, index)
+                .rpc_context("get_l2_to_l1_log_proof")
+                .await
+                .map_err(Into::into);
+        }
+
         let mut storage = self.state.acquire_connection().await?;
         let Some((l1_batch_number, l1_batch_tx_index)) = storage
             .blocks_web3_dal()
@@ -655,9 +677,7 @@ impl ZksNamespace {
         Ok(self
             .state
             .tx_sender
-            .0
-            .batch_fee_input_provider
-            .get_batch_fee_input()
+            .scaled_batch_fee_input()
             .await?
             .into_pubdata_independent())
     }

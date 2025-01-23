@@ -8,8 +8,8 @@ use zksync_multivm::{
         executor::{BatchExecutor, BatchExecutorFactory},
         pubdata::PubdataBuilder,
         storage::{ReadStorage, StoragePtr, StorageView, StorageViewStats},
-        utils::DivergenceHandler,
-        BatchTransactionExecutionResult, BytecodeCompressionError, CompressedBytecodeInfo,
+        utils::{DivergenceHandler, ShadowMut},
+        BatchTransactionExecutionResult, BytecodeCompressionError, Call, CompressedBytecodeInfo,
         ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmFactory,
         VmInterface, VmInterfaceHistoryEnabled,
     },
@@ -28,6 +28,23 @@ use super::{
 };
 use crate::shared::{InteractionType, Sealed, STORAGE_METRICS};
 
+#[doc(hidden)]
+pub trait CallTracingTracer: vm_fast::interface::Tracer + Default {
+    fn into_traces(self) -> Vec<Call>;
+}
+
+impl CallTracingTracer for () {
+    fn into_traces(self) -> Vec<Call> {
+        vec![]
+    }
+}
+
+impl CallTracingTracer for vm_fast::CallTracer {
+    fn into_traces(self) -> Vec<Call> {
+        self.into_result()
+    }
+}
+
 /// Encapsulates a tracer used during batch processing. Currently supported tracers are `()` (no-op) and [`TraceCalls`].
 ///
 /// All members of this trait are implementation details.
@@ -37,7 +54,7 @@ pub trait BatchTracer: fmt::Debug + 'static + Send + Sealed {
     const TRACE_CALLS: bool;
     /// Tracer for the fast VM.
     #[doc(hidden)]
-    type Fast: vm_fast::interface::Tracer + Default + 'static;
+    type Fast: CallTracingTracer;
 }
 
 impl Sealed for () {}
@@ -56,7 +73,7 @@ impl Sealed for TraceCalls {}
 
 impl BatchTracer for TraceCalls {
     const TRACE_CALLS: bool = true;
-    type Fast = (); // TODO: change once call tracing is implemented in fast VM
+    type Fast = vm_fast::CallTracer;
 }
 
 /// The default implementation of [`BatchExecutorFactory`].
@@ -213,13 +230,14 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         tx: Transaction,
         with_compression: bool,
     ) -> BatchTransactionExecutionResult<BytecodeResult> {
-        let call_tracer_result = Arc::new(OnceCell::default());
+        let legacy_tracer_result = Arc::new(OnceCell::default());
         let legacy_tracer = if Tr::TRACE_CALLS {
-            vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
+            vec![CallTracer::new(legacy_tracer_result.clone()).into_tracer_pointer()]
         } else {
             vec![]
         };
         let mut legacy_tracer = legacy_tracer.into();
+        let mut fast_traces = vec![];
 
         let (compression_result, tx_result) = match self {
             Self::Legacy(vm) => vm.inspect_transaction_with_bytecode_compression(
@@ -228,16 +246,35 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
                 with_compression,
             ),
             Self::Fast(vm) => {
-                let mut tracer = (legacy_tracer.into(), <Tr::Fast>::default());
-                vm.inspect_transaction_with_bytecode_compression(&mut tracer, tx, with_compression)
+                let mut tracer = (legacy_tracer.into(), (Tr::Fast::default(), ()));
+                let res = vm.inspect_transaction_with_bytecode_compression(
+                    &mut tracer,
+                    tx,
+                    with_compression,
+                );
+                let (_, (call_tracer, _)) = tracer;
+                fast_traces = call_tracer.into_traces();
+                res
             }
         };
 
         let compressed_bytecodes = compression_result.map(Cow::into_owned);
-        let call_traces = Arc::try_unwrap(call_tracer_result)
+        let legacy_traces = Arc::try_unwrap(legacy_tracer_result)
             .expect("failed extracting call traces")
             .take()
             .unwrap_or_default();
+        let call_traces = match self {
+            Self::Legacy(_) => legacy_traces,
+            Self::Fast(FastVmInstance::Fast(_)) => fast_traces,
+            Self::Fast(FastVmInstance::Shadowed(vm)) => {
+                vm.get_custom_mut("call_traces", |r| match r {
+                    ShadowMut::Main(_) => legacy_traces.as_slice(),
+                    ShadowMut::Shadow(_) => fast_traces.as_slice(),
+                });
+                fast_traces
+            }
+        };
+
         BatchTransactionExecutionResult {
             tx_result: Box::new(tx_result),
             compressed_bytecodes,
