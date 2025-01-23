@@ -1,54 +1,41 @@
 use std::sync::Arc;
 
 use axum::{extract::Path, Json};
+use chrono::{Duration, Utc};
 use zksync_config::configs::ProofDataHandlerConfig;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_object_store::ObjectStore;
+use zksync_dal::{
+    tee_proof_generation_dal::{LockedBatch, TeeProofGenerationJobStatus},
+    ConnectionPool, Core, CoreDal,
+};
+use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::{
     api::{
         ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
-        SubmitProofRequest, SubmitProofResponse,
+        RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitProofRequest,
+        SubmitProofResponse, SubmitTeeProofRequest, TeeProofGenerationDataRequest,
+        TeeProofGenerationDataResponse,
     },
     inputs::{
-        L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
+        L1BatchMetadataHashes, TeeVerifierInput, V1TeeVerifierInput, VMRunWitnessInputData,
+        WitnessInputData, WitnessInputMerklePaths,
     },
 };
 use zksync_types::{
     basic_fri_types::Eip4844Blobs,
     commitment::{serialize_commitments, L1BatchCommitmentMode},
+    tee_types::TeeType,
     web3::keccak256,
-    L1BatchNumber, ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY,
+    L1BatchNumber, L2ChainId, ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY,
 };
+use zksync_vm_executor::storage::L1BatchParamsProvider;
 
-use crate::{errors::RequestProcessorError, metrics::METRICS};
-
-#[derive(Clone)]
-pub(crate) struct RequestProcessor {
-    blob_store: Arc<dyn ObjectStore>,
-    pool: ConnectionPool<Core>,
-    config: ProofDataHandlerConfig,
-    commitment_mode: L1BatchCommitmentMode,
-}
+use crate::{errors::RequestProcessorError, metrics::METRICS, RequestProcessor};
 
 impl RequestProcessor {
-    pub(crate) fn new(
-        blob_store: Arc<dyn ObjectStore>,
-        pool: ConnectionPool<Core>,
-        config: ProofDataHandlerConfig,
-        commitment_mode: L1BatchCommitmentMode,
-    ) -> Self {
-        Self {
-            blob_store,
-            pool,
-            config,
-            commitment_mode,
-        }
-    }
-
     #[tracing::instrument(skip_all)]
     pub(crate) async fn get_proof_generation_data(
         &self,
-        request: Json<ProofGenerationDataRequest>,
+        request: ProofGenerationDataRequest,
     ) -> Result<Json<ProofGenerationDataResponse>, RequestProcessorError> {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
@@ -195,11 +182,10 @@ impl RequestProcessor {
 
     pub(crate) async fn submit_proof(
         &self,
-        Path(l1_batch_number): Path<u32>,
-        Json(payload): Json<SubmitProofRequest>,
+        l1_batch_number: L1BatchNumber,
+        payload: SubmitProofRequest,
     ) -> Result<Json<SubmitProofResponse>, RequestProcessorError> {
         tracing::info!("Received proof for block number: {:?}", l1_batch_number);
-        let l1_batch_number = L1BatchNumber(l1_batch_number);
         match payload {
             SubmitProofRequest::Proof(proof) => {
                 let blob_url = self

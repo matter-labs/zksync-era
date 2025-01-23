@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use clap::Parser;
-use proof_gen_data_fetcher::ProofGenDataFetcher;
+use processor::ProofGenDataFetcher;
 use proof_submitter::ProofSubmitter;
 use tokio::sync::{oneshot, watch};
 use traits::PeriodicApi as _;
@@ -15,7 +15,7 @@ use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 mod client;
 mod metrics;
-mod proof_gen_data_fetcher;
+mod processor;
 mod proof_submitter;
 mod traits;
 

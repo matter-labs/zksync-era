@@ -33,7 +33,7 @@ impl ProofGenDataFetcher {
     #[tracing::instrument(
         name = "ProofGenDataFetcher::save_proof_gen_data",
         skip_all,
-        fields(l1_batch = %data.l1_batch_number)
+        fields(l1_batch = % data.l1_batch_number)
     )]
     async fn save_proof_gen_data(&self, data: ProofGenerationData) {
         let store = &*self.0.blob_store;
@@ -52,41 +52,5 @@ impl ProofGenDataFetcher {
             .fri_witness_generator_dal()
             .save_witness_inputs(data.l1_batch_number, &witness_inputs, data.protocol_version)
             .await;
-    }
-}
-
-#[async_trait]
-impl PeriodicApi for ProofGenDataFetcher {
-    type JobId = ();
-    type Request = ProofGenerationDataRequest;
-    type Response = ProofGenerationDataResponse;
-
-    const SERVICE_NAME: &'static str = "ProofGenDataFetcher";
-
-    async fn get_next_request(&self) -> Option<(Self::JobId, ProofGenerationDataRequest)> {
-        Some(((), ProofGenerationDataRequest {}))
-    }
-
-    async fn send_request(
-        &self,
-        _: (),
-        request: ProofGenerationDataRequest,
-    ) -> reqwest::Result<Self::Response> {
-        self.0.send_http_request(request, &self.0.api_url).await
-    }
-
-    async fn handle_response(&self, _: (), response: Self::Response) {
-        match response {
-            ProofGenerationDataResponse::Success(Some(data)) => {
-                tracing::info!("Received proof gen data for: {:?}", data.l1_batch_number);
-                self.save_proof_gen_data(*data).await;
-            }
-            ProofGenerationDataResponse::Success(None) => {
-                tracing::info!("There are currently no pending batches to be proven");
-            }
-            ProofGenerationDataResponse::Error(err) => {
-                tracing::error!("Failed to get proof gen data: {:?}", err);
-            }
-        }
     }
 }

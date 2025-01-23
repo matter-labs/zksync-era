@@ -3,6 +3,7 @@ use std::sync::Arc;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
+use zksync_proof_data_handler::{ProofDataHandlerApi, RequestProcessor};
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
 use crate::{
@@ -35,7 +36,7 @@ pub struct Input {
 #[context(crate = crate)]
 pub struct Output {
     #[context(task)]
-    pub task: ProofDataHandlerTask,
+    pub task: ProofDataHandlerApi,
 }
 
 impl ProofDataHandlerLayer {
@@ -65,42 +66,27 @@ impl WiringLayer for ProofDataHandlerLayer {
         let main_pool = input.master_pool.get().await?;
         let blob_store = input.object_store.0;
 
-        let task = ProofDataHandlerTask {
-            proof_data_handler_config: self.proof_data_handler_config,
+        let processor = RequestProcessor::new(
             blob_store,
             main_pool,
-            commitment_mode: self.commitment_mode,
-            l2_chain_id: self.l2_chain_id,
-        };
+            self.proof_data_handler_config.clone(),
+            self.commitment_mode,
+            self.l2_chain_id,
+        );
+
+        let task = ProofDataHandlerApi::new(self.proof_data_handler_config.http_port, processor);
 
         Ok(Output { task })
     }
 }
 
-#[derive(Debug)]
-pub struct ProofDataHandlerTask {
-    proof_data_handler_config: ProofDataHandlerConfig,
-    blob_store: Arc<dyn ObjectStore>,
-    main_pool: ConnectionPool<Core>,
-    commitment_mode: L1BatchCommitmentMode,
-    l2_chain_id: L2ChainId,
-}
-
 #[async_trait::async_trait]
-impl Task for ProofDataHandlerTask {
+impl Task for ProofDataHandlerApi {
     fn id(&self) -> TaskId {
         "proof_data_handler".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        zksync_proof_data_handler::run_server(
-            self.proof_data_handler_config,
-            self.blob_store,
-            self.main_pool,
-            self.commitment_mode,
-            self.l2_chain_id,
-            stop_receiver.0,
-        )
-        .await
+        (*self).run(stop_receiver.0).await
     }
 }
