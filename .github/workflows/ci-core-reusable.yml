@@ -504,7 +504,11 @@ jobs:
 
       - name: Run integration tests en
         run: |
-          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites --external-node" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+          for i in {1..10}
+          do
+            mkdir -p ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/$i
+            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites --external-node" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/$i
+          done
 
       - name: Fee projection tests
         run: |
